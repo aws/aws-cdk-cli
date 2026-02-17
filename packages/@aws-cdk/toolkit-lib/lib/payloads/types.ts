@@ -91,6 +91,16 @@ export interface ErrorPayload {
 }
 
 /**
+ * Operation information that *definitely* took time, and *maybe* produced an error
+ */
+export interface Operation extends Duration {
+  /**
+   * Optionally, an error that occurred
+   */
+  readonly error?: Error;
+}
+
+/**
  * Generic payload of a simple yes/no question.
  *
  * The expectation is that 'yes' means moving on,

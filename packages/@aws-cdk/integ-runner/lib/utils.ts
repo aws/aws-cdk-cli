@@ -98,11 +98,12 @@ export function chunks(command: string): string[] {
  * If it takes too long to cross off a new item, print the list.
  */
 export class WorkList<A> {
-  private readonly remaining = new Set(this.items);
+  private readonly remaining: Set<A>;
   private readonly timeout: number;
   private timer?: NodeJS.Timeout;
 
   constructor(private readonly items: A[], private readonly options: WorkListOptions<A> = {}) {
+    this.remaining = new Set(this.items);
     this.timeout = options.timeout ?? 60_000;
     this.scheduleTimer();
   }

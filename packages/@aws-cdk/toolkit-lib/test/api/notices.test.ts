@@ -14,6 +14,8 @@ import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
 import { Settings } from '../../lib/api/settings';
 import { TestIoHost } from '../_helpers';
 
+process.env.CDK_NOTICES_TIMEOUT = '3000';
+
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
   issueNumber: 16600,
