@@ -86,9 +86,25 @@ export interface ArtifactManifest {
   /**
    * Associated metadata.
    *
+   * Metadata can be stored directly in the assembly manifest, as well as in a
+   * separate file (see `additionalMetadataFile`). It should prefer to be stored
+   * in the additional file, as that will reduce the size of the assembly
+   * manifest in cases of a lot of metdata (which CDK does emit by default).
+   *
    * @default - no metadata.
    */
   readonly metadata?: { [path: string]: MetadataEntry[] };
+
+  /**
+   * A file with additional metadata entries.
+   *
+   * The schema of this file is exactly the same as the type of the `metadata` field.
+   * In other words, that file contains an object mapping construct paths to arrays
+   * of metadata entries.
+   *
+   * @default - no additional metadata
+   */
+  readonly additionalMetadataFile?: string;
 
   /**
    * IDs of artifacts that must be deployed before this artifact.
