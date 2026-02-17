@@ -24,6 +24,7 @@ import type {
   ContextProviderMessageSource,
   Duration,
   ErrorPayload,
+  Operation,
   SingleStack,
   StackAndAssemblyData,
 } from '../../../payloads/types';
@@ -43,10 +44,10 @@ export const IO = {
   }),
 
   // 1: Synth (1xxx)
-  CDK_TOOLKIT_I1000: make.info<Duration>({
+  CDK_TOOLKIT_I1000: make.info<Operation>({
     code: 'CDK_TOOLKIT_I1000',
     description: 'Provides synthesis times.',
-    interface: 'Duration',
+    interface: 'Operation',
   }),
   CDK_TOOLKIT_I1001: make.trace<StackSelectionDetails>({
     code: 'CDK_TOOLKIT_I1001',

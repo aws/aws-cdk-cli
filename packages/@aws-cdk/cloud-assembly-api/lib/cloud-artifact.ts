@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import type { CloudAssembly } from './cloud-assembly';
 import type { MetadataEntryResult, SynthesisMessage } from './metadata';
@@ -36,6 +38,34 @@ export interface AwsCloudFormationStackProperties {
  * Represents an artifact within a cloud assembly.
  */
 export class CloudArtifact {
+  /**
+   * Read the metadata for the given artifact
+   *
+   * HISTORICAL OR PRIVATE USE ONLY
+   *
+   * This is publicly exposed as a static function for downstream libraries that
+   * don't use the `CloudAssembly`/`CloudArtifact` API, yet still need to read
+   * an artifact's metadata.
+   *
+   * 99% of consumers should just access `artifact.metadata`.
+   */
+  public static readMetadata(assemblyDirectory: string, x: cxschema.ArtifactManifest): Record<string, cxschema.MetadataEntry[]> {
+    const ret: Record<string, cxschema.MetadataEntry[]> = {};
+    if (x.additionalMetadataFile) {
+      Object.assign(ret, JSON.parse(fs.readFileSync(path.join(assemblyDirectory, x.additionalMetadataFile), 'utf-8')));
+    }
+
+    for (const [p, entries] of Object.entries(x.metadata ?? {})) {
+      if (ret[p]) {
+        ret[p].push(...entries);
+      } else {
+        ret[p] = entries;
+      }
+    }
+
+    return ret;
+  }
+
   /**
    * Returns a subclass of `CloudArtifact` based on the artifact type defined in the artifact manifest.
    *
@@ -78,6 +108,13 @@ export class CloudArtifact {
   }
 
   /**
+   * Returns the metadata associated with this Cloud Artifact
+   */
+  public get metadata() {
+    return CloudArtifact.readMetadata(this.assembly.directory, this.manifest);
+  }
+
+  /**
    * Returns all the artifacts that this artifact depends on.
    */
   public get dependencies(): CloudArtifact[] {
@@ -100,11 +137,13 @@ export class CloudArtifact {
    * @returns all the metadata entries of a specific type in this artifact.
    */
   public findMetadataByType(type: string): MetadataEntryResult[] {
+    const metadata = this.metadata;
+
     const result = new Array<MetadataEntryResult>();
-    for (const path of Object.keys(this.manifest.metadata || {})) {
-      for (const entry of (this.manifest.metadata || {})[path]) {
+    for (const p of Object.keys(metadata || {})) {
+      for (const entry of (metadata || {})[p]) {
         if (entry.type === type) {
-          result.push({ path, ...entry });
+          result.push({ path: p, ...entry });
         }
       }
     }
@@ -114,7 +153,7 @@ export class CloudArtifact {
   private renderMessages() {
     const messages = new Array<SynthesisMessage>();
 
-    for (const [id, metadata] of Object.entries(this.manifest.metadata || { })) {
+    for (const [id, metadata] of Object.entries(this.metadata || { })) {
       for (const entry of metadata) {
         let level: SynthesisMessageLevel;
         switch (entry.type) {

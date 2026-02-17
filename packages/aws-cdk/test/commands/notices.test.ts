@@ -9,6 +9,8 @@ jest.mock('../../../@aws-cdk/toolkit-lib/lib/api/network-detector/network-detect
 import * as nock from 'nock';
 import { exec } from '../../lib/cli/cli';
 
+process.env.CDK_NOTICES_TIMEOUT = '3000';
+
 const NOTICES_URL = 'https://cli.cdk.dev-tools.aws.dev';
 const NOTICES_PATH = '/notices.json';
 
