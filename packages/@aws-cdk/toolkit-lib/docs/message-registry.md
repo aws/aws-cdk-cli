@@ -62,7 +62,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | Code | Description | Level | Payload data interface |
 |------|-------------|-------|------------------------|
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
-| `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Duration} |
+| `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Operation} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |

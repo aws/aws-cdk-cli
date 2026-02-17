@@ -1,6 +1,7 @@
 import * as path from 'path';
 import type { FileManifestEntry, DockerImageManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
+import { CloudArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { AssemblyManifest, AwsCloudFormationStackProperties, ArtifactManifest, MetadataEntry, AssetManifestProperties, ContainerImageAssetMetadataEntry, FileAssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, ArtifactType, ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
@@ -166,7 +167,7 @@ export class AssemblyManifestReader {
    */
   private assetsFromAssemblyManifest(artifact: ArtifactManifest): (ContainerImageAssetMetadataEntry | FileAssetMetadataEntry)[] {
     const assets: (ContainerImageAssetMetadataEntry | FileAssetMetadataEntry)[] = [];
-    for (const metadata of Object.values(artifact.metadata ?? {})) {
+    for (const metadata of Object.values(CloudArtifact.readMetadata(this.directory, artifact) ?? {})) {
       metadata.forEach(data => {
         if (data.type === ArtifactMetadataEntryType.ASSET) {
           const asset = (data.data as ContainerImageAssetMetadataEntry | FileAssetMetadataEntry);
