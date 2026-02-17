@@ -857,6 +857,7 @@ const toolkitLib = configureProject(
       sdkDepForLib('@aws-sdk/client-iam'),
       sdkDepForLib('@aws-sdk/client-kms'),
       sdkDepForLib('@aws-sdk/client-lambda'),
+      '@aws-sdk/client-quicksight@3.953.0', // Pin to match other SDK clients and avoid @smithy/types version mismatch
       sdkDepForLib('@aws-sdk/client-route-53'),
       sdkDepForLib('@aws-sdk/client-s3'),
       sdkDepForLib('@aws-sdk/client-secrets-manager'),
