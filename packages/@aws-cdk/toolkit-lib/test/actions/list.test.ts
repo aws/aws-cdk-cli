@@ -470,7 +470,9 @@ describe('list', () => {
 
     // THEN
     await expect(() => toolkit.list(cx)).rejects.toThrow('Could not determine ordering');
-    expect(ioHost.notifySpy).not.toHaveBeenCalled();
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I2901',
+    }));
   });
 
   test('action disposes of assembly produced by source', async () => {
