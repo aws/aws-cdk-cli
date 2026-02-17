@@ -77,8 +77,9 @@ integTest(
 
       fixture.log('✓ Toolkit watch successfully initialized and detected files');
     } finally {
-      // Clean up
+      // Clean up - dispose and wait for async operations to settle
       await watcher.dispose();
+      await sleep(1000); // Allow async operations to complete
       if (fs.existsSync(testFile)) {
         fs.unlinkSync(testFile);
       }
@@ -137,6 +138,7 @@ integTest(
       fixture.log(`  Config: ${configMsg.substring(0, 200)}...`);
     } finally {
       await watcher.dispose();
+      await sleep(1000); // Allow async operations to complete
     }
   }),
 );
