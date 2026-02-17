@@ -7195,9 +7195,9 @@ connect@^3.7.0:
     utils-merge "1.0.1"
 
 constructs@^10, constructs@^10.0.0:
-  version "10.4.4"
-  resolved "https://registry.yarnpkg.com/constructs/-/constructs-10.4.4.tgz#e128541bca10d00f284728e8869138fc7d1d76bf"
-  integrity sha512-lP0qC1oViYf1cutHo9/KQ8QL637f/W29tDmv/6sy35F5zs+MD9f66nbAAIjicwc7fwyuF3rkg6PhZh4sfvWIpA==
+  version "10.5.0"
+  resolved "https://registry.npmjs.org/constructs/-/constructs-10.5.0.tgz#66d1a5fb748f4adeb8698ea5f53f27e06f99b930"
+  integrity sha512-zWjwqIgk4nAWmQGrPnDWv+M2Yly6m7ROyqmmQVLgJiHnWP762It22uWFaF2Pu/sSx0u8WsoUcvt0PZ4DQIQYwQ==
 
 content-disposition@~0.5.4:
   version "0.5.4"
