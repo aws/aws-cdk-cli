@@ -581,10 +581,13 @@ export function expandPlaceholders(template: string, language: string, project: 
 
   switch (language) {
     case 'java':
-    case 'csharp':
-    case 'fsharp':
       cdkVersion = rangeFromSemver(cdkVersion, 'bracket');
       constructsVersion = rangeFromSemver(constructsVersion, 'bracket');
+      break;
+    case 'csharp':
+    case 'fsharp':
+      cdkVersion = rangeFromSemver(cdkVersion, 'bracket'); // ^2.123.0 => [2.123.0,3.0.0)
+      constructsVersion = rangeFromSemver(constructsVersion, 'major.*'); // ^10.0.0 => 10.*/
       break;
     case 'python':
       cdkVersion = rangeFromSemver(cdkVersion, 'pep');

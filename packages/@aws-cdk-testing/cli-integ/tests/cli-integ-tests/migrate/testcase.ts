@@ -9,14 +9,14 @@ export async function deploysSuccessfully(fixture: TestFixture, language: string
     await fixture.shell(['pip', 'install', '-r', 'requirements.txt']);
   }
 
-  const stackArn = await fixture.cdkDeploy(
+  await fixture.cdkDeploy(
     fixture.stackNamePrefix,
     { neverRequireApproval: true, verbose: true, captureStderr: false },
     true,
   );
   const response = await fixture.aws.cloudFormation.send(
     new DescribeStacksCommand({
-      StackName: stackArn,
+      StackName: fixture.stackNamePrefix,
     }),
   );
 
