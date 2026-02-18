@@ -2,11 +2,10 @@ import * as path from 'path';
 import { yarn } from 'cdklabs-projen-project-types';
 import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
-import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
-import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
+import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
@@ -421,7 +420,7 @@ const cloudAssemblySchema = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
   }),
 );
-cloudAssemblySchema.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(cloudAssemblySchema);
 
 new JsiiBuild(cloudAssemblySchema, {
   docgen: false,
@@ -517,6 +516,8 @@ const cloudFormationDiff = configureProject(
   }),
 );
 
+fixupTestTask(cloudFormationDiff);
+
 // #endregion
 
 //////////////////////////////////////////////////////////////////////
@@ -549,8 +550,7 @@ const cloudAssemblyApi = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
-
-cloudAssemblyApi.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(cloudAssemblyApi);
 
 // #endregion
 
@@ -712,8 +712,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
-
-cdkAssetsLib.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
 cdkAssetsLib.package.addField('exports', {
@@ -792,7 +791,7 @@ const cdkAssetsCli = configureProject(
   }),
 );
 
-cdkAssetsCli.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(cdkAssetsCli);
 
 cdkAssetsCli.gitignore.addPatterns(
   '*.js',
@@ -947,8 +946,7 @@ const toolkitLib = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
-
-toolkitLib.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(toolkitLib);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1292,8 +1290,7 @@ new pj.javascript.UpgradeDependencies(cli, {
 });
 
 new TypecheckTests(cli);
-
-cli.tasks.tryFind('test')?.env('TESTING_CDK', '1');
+fixupTestTask(cli);
 
 // Eslint rules
 cli.eslint?.addRules({
@@ -1498,6 +1495,7 @@ integRunner.tsconfig?.addExclude('test/language-tests/**/integ.*.ts');
 integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
 
 new TypecheckTests(integRunner);
+fixupTestTask(integRunner);
 
 new BundleCli(integRunner, {
   externals: {
@@ -1723,11 +1721,6 @@ new PrLabeler(repo);
 
 new LargePrChecker(repo, {
   excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
-});
-
-Object.assign((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}, {
-  DEBUG: 'true',
-  TESTING_CDK: '1',
 });
 
 // Set allowed scopes based on monorepo packages

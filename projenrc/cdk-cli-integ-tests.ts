@@ -2,6 +2,14 @@ import { yarn } from 'cdklabs-projen-project-types';
 import type { javascript, Project } from 'projen';
 import { Component, github, TextFile } from 'projen';
 
+/**
+ * Amends the test task with special provisions for unit testing.
+ */
+export function fixupTestTask(project: Project, taskName = 'test'): void {
+  project.tasks.tryFind(taskName)?.env('TESTING_CDK', '1');
+  project.tasks.tryFind(taskName)?.addCondition('[ "$NO_UNIT_TESTS" != "1" ]');
+}
+
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
 /**
@@ -372,6 +380,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
       },
       env: {
         CI: 'true',
+        DEBUG: 'true',
+        TESTING_CDK: '1',
+        NO_UNIT_TESTS: '1',
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
