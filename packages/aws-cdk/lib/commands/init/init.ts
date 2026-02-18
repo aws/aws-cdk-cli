@@ -900,7 +900,8 @@ async function postInstallGo(ioHelper: IoHelper, canUseNetwork: boolean, cwd: st
 }
 
 async function postInstallCSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd: string) {
-  const dotnetWarning = "Please run 'dotnet restore && dotnet build'!";
+  const solutionDir = path.join(cwd, 'src'); // the dotnet solution is inside the src dir
+  const dotnetWarning = "Please run 'cd src && dotnet restore && dotnet build'!";
   if (!canUseNetwork) {
     await ioHelper.defaults.warn(dotnetWarning);
     return;
@@ -908,9 +909,9 @@ async function postInstallCSharp(ioHelper: IoHelper, canUseNetwork: boolean, cwd
 
   await ioHelper.defaults.info(`Executing ${chalk.green('dotnet restore')}...`);
   try {
-    await execute(ioHelper, 'dotnet', ['restore'], { cwd });
+    await execute(ioHelper, 'dotnet', ['restore'], { cwd: solutionDir });
     await ioHelper.defaults.info(`Executing ${chalk.green('dotnet build')}...`);
-    await execute(ioHelper, 'dotnet', ['build'], { cwd });
+    await execute(ioHelper, 'dotnet', ['build'], { cwd: solutionDir });
   } catch (e: any) {
     await ioHelper.defaults.warn('Unable to restore/build .NET project: ' + formatErrorMessage(e));
     await ioHelper.defaults.warn(dotnetWarning);
