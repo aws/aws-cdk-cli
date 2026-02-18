@@ -290,6 +290,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       auth: { htpasswd: { file: './htpasswd' } },
       uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
       packages: {} as Record<string, unknown>,
+      userRateLimit: { max: 1000, windowMs: 60000 },
     };
 
     for (const pack of localPackages) {
