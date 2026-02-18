@@ -166,6 +166,9 @@ async function main() {
   const librarySource: IRunnerSource<ITestLibrarySource>
     = new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version'] ? args['framework-version'] : 'latest');
 
+  // constructs is installed with aws-cdk-lib
+  const constructsSource = new RunnerLibraryPreinstalledSource('constructs');
+
   // Toolkit lib source is either the given one, or the one that's being brought by 'package.json' already, or 'latest'
   const toolkitLibPackage = '@aws-cdk/toolkit-lib';
   let toolkitSource: IRunnerSource<ITestLibrarySource> | undefined;
@@ -183,6 +186,7 @@ async function main() {
   console.log(`        Test version:       ${thisPackageVersion()}`);
   console.log(`        CLI source:         ${cliSource.assert().sourceDescription}`);
   console.log(`        Library source:     ${librarySource.sourceDescription}`);
+  console.log(`        Constructs source:  ${constructsSource.sourceDescription}`);
   console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
   console.log(`        cdk-assets source:  ${cdkAssetsSource.assert().sourceDescription}`);
 
@@ -210,6 +214,9 @@ async function main() {
     const library = await librarySource.runnerPrepare();
     disposables.push(library);
     console.log(`        Library:         ${library.version}`);
+
+    const constructs = await constructsSource.runnerPrepare();
+    console.log(`        Constructs:      ${constructs.version}`);
 
     const toolkitLib = await toolkitSource.runnerPrepare();
     disposables.push(toolkitLib);
