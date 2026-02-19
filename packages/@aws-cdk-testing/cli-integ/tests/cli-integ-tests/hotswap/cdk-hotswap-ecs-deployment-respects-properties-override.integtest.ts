@@ -24,12 +24,13 @@ integTest('hotswap ECS deployment respects properties override', withDefaultFixt
   await fs.writeFile(path.join(fixture.integTestDir, 'cdk.json'), JSON.stringify(cdkJson));
 
   // GIVEN
-  const stackArn = await fixture.cdkDeploy('ecs-hotswap', {
+  const stackName = 'ecs-hotswap';
+  await fixture.cdkDeploy(stackName, {
     captureStderr: false,
   });
 
   // WHEN
-  await fixture.cdkDeploy('ecs-hotswap', {
+  await fixture.cdkDeploy(stackName, {
     options: [
       '--hotswap',
     ],
@@ -40,7 +41,7 @@ integTest('hotswap ECS deployment respects properties override', withDefaultFixt
 
   const describeStacksResponse = await fixture.aws.cloudFormation.send(
     new DescribeStacksCommand({
-      StackName: stackArn,
+      StackName: fixture.fullStackName(stackName),
     }),
   );
 

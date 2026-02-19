@@ -13,17 +13,14 @@ integTest(
       modEnv: { PHASE: phase },
       verbose: false,
     });
-    try {
-      // Do a deployment with a replacement and removing --no-rollback: this will do a regular rollback deploy
-      phase = '3';
-      await fixture.cdkDeploy('test-rollback', {
-        options: ['--force'],
-        modEnv: { PHASE: phase },
-        verbose: false,
-      });
-    } finally {
-      await fixture.cdkDestroy('test-rollback');
-    }
+
+    // Do a deployment with a replacement and removing --no-rollback: this will do a regular rollback deploy
+    phase = '3';
+    await fixture.cdkDeploy('test-rollback', {
+      options: ['--force'],
+      modEnv: { PHASE: phase },
+      verbose: false,
+    });
   }),
 );
 
