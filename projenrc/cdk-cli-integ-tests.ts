@@ -123,40 +123,6 @@ function testEnvVars(props: CdkCliIntegTestsWorkflowProps): Record<string, strin
   };
 }
 
-function logUploadSteps(artifactName: string): github.workflows.JobStep[] {
-  return [
-    {
-      name: 'Set workflow summary',
-      if: 'always()',
-      run: [
-        // Don't fail the glob expansion if there are no .md files
-        'if compgen -G "logs/md/*.md" > /dev/null; then',
-        '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
-        'fi',
-      ].join('\n'),
-    },
-    {
-      name: 'Upload logs',
-      if: 'always()',
-      uses: 'actions/upload-artifact@v4.4.0',
-      id: 'logupload',
-      with: {
-        name: artifactName,
-        path: 'logs/',
-        overwrite: 'true',
-      },
-    },
-    {
-      name: 'Append artifact URL',
-      if: 'always()',
-      run: [
-        'echo "" >> $GITHUB_STEP_SUMMARY',
-        'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
-      ].join('\n'),
-    },
-  ];
-}
-
 /**
  * Options for atmosphere service usage.
  */
@@ -269,10 +235,7 @@ export interface CdkCliIntegTestsWorkflowProps {
  */
 export class CdkCliIntegTestsWorkflow extends Component {
   private workflow: github.GithubWorkflow;
-
   private readonly JOB_PREPARE = 'prepare';
-  private readonly JOB_TELEMETRY = 'telemetry_tests';
-
   private readonly maxWorkersArg: string = '';
 
   constructor(repo: javascript.NodeProject, private readonly props: CdkCliIntegTestsWorkflowProps) {
@@ -467,37 +430,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
       ],
     });
 
-    // Add a job for telemetry tests that runs before the main matrix
-    this.workflow.addJob(this.JOB_TELEMETRY, {
-      environment: this.props.testEnvironment,
-      runsOn: [this.props.testRunsOn],
-      needs: [this.JOB_PREPARE],
-      permissions: {
-        contents: github.workflows.JobPermission.READ,
-        idToken: github.workflows.JobPermission.WRITE,
-      },
-      env: {
-        MAVEN_ARGS: '--no-transfer-progress',
-        IS_CANARY: 'true',
-        CI: 'true',
-      },
-      if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
-      steps: [
-        ...downloadArtifactsSteps(),
-        setupNodeStep('lts/*'),
-        awsAuthStep(this.props, 'telemetry-tests@aws-cdk-cli-integ'),
-        gitIdentityStep(),
-        ...verdaccioSteps(),
-        determineVersionsStep(),
-        {
-          name: 'Run telemetry tests',
-          run: `npx run-suite${this.maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} telemetry-integ-tests`,
-          env: testEnvVars(this.props),
-        },
-        ...logUploadSteps('logs-telemetry-tests'),
-      ],
-    });
-
     // Ensure this is an array
     const additionalNodeVersionsToTest = this.props.additionalNodeVersionsToTest ?? [];
 
@@ -517,6 +449,19 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'toolkit-lib-integ-tests',
           ],
           node: ['lts/*', ...additionalNodeVersionsToTest],
+        },
+      }),
+
+      // telemetry
+      this.addMatrixJob('telemetry', {
+        extraEnv: {
+          // We test telemetry, so need to enable it
+          CDK_DISABLE_CLI_TELEMETRY: undefined,
+        },
+        domain: {
+          suite: [
+            'telemetry-integ-tests',
+          ],
         },
       }),
 
@@ -590,7 +535,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
     this.workflow.addJob(jobName, {
       environment: this.props.testEnvironment,
       runsOn: [this.props.testRunsOn],
-      needs: [this.JOB_PREPARE, this.JOB_TELEMETRY],
+      needs: [this.JOB_PREPARE],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
@@ -602,6 +547,11 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        // Disable telemetry for test suites by default
+        // This prevents unintentional throttling of requests and accidental failing of the telemetry test suite
+        CDK_DISABLE_CLI_TELEMETRY: 'true',
+        // add extra env at end so it can override
+        ...props.extraEnv,
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
@@ -710,4 +660,5 @@ interface MatrixIntegTestProps {
   readonly domain: IntegTestJobDomain;
   readonly include?: github.workflows.JobMatrix['include'];
   readonly exclude?: github.workflows.JobMatrix['exclude'];
+  readonly extraEnv?: Record<string, string | undefined>;
 }
