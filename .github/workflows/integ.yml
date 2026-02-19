@@ -16,6 +16,7 @@ jobs:
       CI: "true"
       DEBUG: "true"
       TESTING_CDK: "1"
+      NO_UNIT_TESTS: "1"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Checkout
