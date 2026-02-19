@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as fsExtra from 'fs-extra';
 import { ToolkitError } from '../toolkit/toolkit-error';
 
 /**
@@ -62,4 +63,28 @@ export function bundledPackageRootDir(start: string, fail?: boolean) {
   }
 
   return _rootDir(start);
+}
+
+/**
+ * Recursively lists all files in a directory up to the specified depth.
+ *
+ * @param dirName - The directory path to list files from
+ * @param depth - Maximum depth to traverse (1 = current directory only, 2 = one level deep, etc.)
+ * @returns Array of file names (not full paths) found within the depth limit
+ */
+export async function listFiles(dirName: string, depth: number): Promise<string[]> {
+  const ret = await fsExtra.readdir(dirName, { encoding: 'utf-8', withFileTypes: true });
+
+  // unlikely to be unbound, it's a file system
+  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+  return (await Promise.all(ret.map(async (f) => {
+    if (f.isDirectory()) {
+      if (depth <= 1) {
+        return [];
+      }
+      return listFiles(path.join(dirName, f.name), depth - 1);
+    } else {
+      return [f.name];
+    }
+  }))).flatMap(xs => xs);
 }

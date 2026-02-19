@@ -8,6 +8,7 @@ import type { FilteredNotice } from './filter';
 import { NoticesFilter } from './filter';
 import type { BootstrappedEnvironment, Notice, NoticeDataSource } from './types';
 import { WebsiteNoticeDataSource } from './web-data-source';
+import { guessLanguage } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import { IO, asIoHelper } from '../io/private';
 
@@ -39,6 +40,15 @@ export interface NoticesProps {
    * @default 'cdk.out'
    */
   readonly output?: string;
+
+  /**
+   * The directory containing cdk.json (the project root).
+   *
+   * Used to guess the CDK app language for filtering notices.
+   *
+   * @default process.cwd()
+   */
+  readonly projectDir?: string;
 
   /**
    * Options for the HTTPS requests made by Notices
@@ -113,6 +123,7 @@ export class Notices {
 
   private readonly context: Context;
   private readonly output: string;
+  private readonly projectDir: string;
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly httpOptions: NoticesHttpOptions;
   private readonly ioHelper: IoHelper;
@@ -127,6 +138,7 @@ export class Notices {
     this.context = props.context;
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.output = props.output ?? 'cdk.out';
+    this.projectDir = props.projectDir ?? process.cwd();
     this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
     this.cliVersion = props.cliVersion;
@@ -164,12 +176,14 @@ export class Notices {
   /**
    * Filter the data source for relevant notices
    */
-  public filter(options: NoticesDisplayOptions = {}): Promise<FilteredNotice[]> {
+  public async filter(options: NoticesDisplayOptions = {}): Promise<FilteredNotice[]> {
+    const language = await guessLanguage(this.projectDir);
     return new NoticesFilter(this.ioHelper).filter({
       data: this.noticesFromData(options.includeAcknowledged ?? false),
       cliVersion: this.cliVersion,
       outDir: this.output,
       bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
+      language,
     });
   }
 

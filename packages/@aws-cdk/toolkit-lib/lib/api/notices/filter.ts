@@ -1,4 +1,5 @@
 import * as semver from 'semver';
+import { languageDisplayName } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import type { ConstructTreeNode } from '../tree';
 import { loadTreeFromDir } from '../tree';
@@ -11,8 +12,15 @@ function normalizeComponents(xs: Array<Component | Component[]>): Component[][] 
   return xs.map(x => Array.isArray(x) ? x : [x]);
 }
 
+function renderComponent(c: Component): string {
+  if (c.name.startsWith('language-')) {
+    return `${languageDisplayName(c.name.slice('language-'.length))} apps`;
+  }
+  return `${c.name}: ${c.version}`;
+}
+
 function renderConjunction(xs: Component[]): string {
-  return xs.map(c => `${c.name}: ${c.version}`).join(' AND ');
+  return xs.map(renderComponent).join(' AND ');
 }
 
 interface ActualComponent {
@@ -40,7 +48,7 @@ interface ActualComponent {
   readonly dynamicName?: string;
 
   /**
-   * If matched, what we should put in the set of dynamic values insstead of the version.
+   * If matched, what we should put in the set of dynamic values instead of the version.
    *
    * Only used if `dynamicName` is set; by default we will add the actual version
    * of the component.
@@ -55,6 +63,13 @@ export interface NoticesFilterFilterOptions {
   readonly cliVersion: string;
   readonly outDir: string;
   readonly bootstrappedEnvironments: BootstrappedEnvironment[];
+
+  /**
+   * The guessed language of the CDK app.
+   *
+   * @default - no language component is added
+   */
+  readonly language?: string;
 }
 
 export class NoticesFilter {
@@ -111,6 +126,14 @@ export class NoticesFilter {
 
       // Bootstrap environments
       ...bootstrappedEnvironments,
+
+      // Language
+      ...(options.language ? [{
+        name: `language-${options.language}`,
+        version: '0.0.0',
+        dynamicName: 'LANGUAGE',
+        dynamicValue: languageDisplayName(options.language),
+      }] : []),
     ];
   }
 
