@@ -307,6 +307,7 @@ function commandLineArgumentsToSettings(argv: Arguments): Settings {
     rollback: argv.rollback,
     notices: argv.notices,
     assetParallelism: argv['asset-parallelism'],
+    assetBuildConcurrency: argv['asset-build-concurrency'],
     assetPrebuild: argv['asset-prebuild'],
     ignoreNoStacks: argv['ignore-no-stacks'],
     hotswap: {
