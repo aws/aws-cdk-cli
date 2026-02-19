@@ -109,6 +109,11 @@ async function main() {
         describe: 'Specifies the maximum number of workers the worker-pool will spawn for running tests. We use a sensible default for running cli integ tests.',
         type: 'string',
         requiresArg: true,
+      })
+      .options('shard', {
+        describe: 'The test suite shard to execute in a format of (?<shardIndex>\d+)/(?<shardCount>\d+). `shardIndex` describes which shard to select while `shardCount` controls the number of shards the suite should be split into. `shardIndex` and `shardCount` have to be 1-based, positive numbers, and `shardIndex` has to be lower than or equal to `shardCount`.',
+        type: 'string',
+        requiresArg: true,
       }), () => {
     },
     )
@@ -241,6 +246,7 @@ async function main() {
       ...args.maxWorkers ? [`--maxWorkers=${args.maxWorkers}`] : [],
       ...passWithNoTests ? ['--passWithNoTests'] : [],
       ...args['test-file'] ? [args['test-file']] : [],
+      ...args.shard ? [`--shard=${args.shard}`] : [],
     ], jestConfig);
   } finally {
     for (const disp of disposables) {
