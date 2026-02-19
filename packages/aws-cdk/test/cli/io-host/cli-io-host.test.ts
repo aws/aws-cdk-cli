@@ -7,6 +7,7 @@ import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
+import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 
 let passThrough: PassThrough;
 
@@ -380,6 +381,28 @@ describe('CliIoHost', () => {
 
       // Verify that the emit method was not called
       expect(telemetryEmitSpy).not.toHaveBeenCalled();
+    });
+
+    test('emit telemetry with counters', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message = {
+        ...CLI_PRIVATE_IO.CDK_CLI_I1001.msg('telemetry message', {
+          duration: 123,
+          counters: {
+            tests: 15,
+          },
+        }),
+        action: 'synth' as const,
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'SYNTH',
+        counters: { tests: 15 },
+      }));
     });
 
     test('emit telemetry with error name', async () => {

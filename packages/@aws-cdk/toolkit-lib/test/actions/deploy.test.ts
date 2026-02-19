@@ -41,6 +41,22 @@ describe('deploy', () => {
     successfulDeployment();
   });
 
+  test('emits resource counters', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.deploy(cx);
+
+    // THEN
+    const deploy = ioHost.notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_TOOLKIT_I5001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
+  });
+
   test('request response contains security diff', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
