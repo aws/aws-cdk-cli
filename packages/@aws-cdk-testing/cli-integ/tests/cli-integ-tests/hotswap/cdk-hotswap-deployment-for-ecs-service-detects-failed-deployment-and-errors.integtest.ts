@@ -6,7 +6,10 @@ integTest(
   'hotswap deployment for ecs service detects failed deployment and errors',
   withExtendedTimeoutFixture(async (fixture) => {
     // GIVEN
-    await fixture.cdkDeploy('ecs-hotswap', { verbose: true });
+    await fixture.cdkDeploy('ecs-hotswap', {
+      verbose: true,
+      modEnv: { FAST_ECS_DEPLOY: 'true' }, // make initial deployment faster
+    });
 
     // WHEN
     const deployOutput = await fixture.cdkDeploy('ecs-hotswap', {

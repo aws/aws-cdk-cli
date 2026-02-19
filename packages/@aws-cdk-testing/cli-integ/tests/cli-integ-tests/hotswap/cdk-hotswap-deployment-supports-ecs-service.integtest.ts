@@ -9,6 +9,7 @@ integTest(
     // GIVEN
     const stackArn = await fixture.cdkDeploy('ecs-hotswap', {
       captureStderr: false,
+      modEnv: { FAST_ECS_DEPLOY: 'true' }, // make initial deployment faster
     });
 
     // WHEN

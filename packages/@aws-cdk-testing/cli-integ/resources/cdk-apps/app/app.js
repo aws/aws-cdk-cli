@@ -666,6 +666,7 @@ class EcsHotswapStack extends cdk.Stack {
       assignPublicIp: true, // required without NAT to pull image
       circuitBreaker: { rollback: false },
       desiredCount: 1,
+      minHealthyPercent: process.env.FAST_ECS_DEPLOY ? 0 : undefined,
     });
 
     new cdk.CfnOutput(this, 'ClusterName', { value: cluster.clusterName });
