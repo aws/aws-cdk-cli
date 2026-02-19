@@ -454,10 +454,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
       // telemetry
       this.addMatrixJob('telemetry', {
-        extraEnv: {
-          // We test telemetry, so need to enable it
-          CDK_DISABLE_CLI_TELEMETRY: undefined,
-        },
         domain: {
           suite: [
             'telemetry-integ-tests',
@@ -547,9 +543,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
-        // Disable telemetry for test suites by default
-        // This prevents unintentional throttling of requests and accidental failing of the telemetry test suite
-        CDK_DISABLE_CLI_TELEMETRY: 'true',
         // add extra env at end so it can override
         ...props.extraEnv,
       },
