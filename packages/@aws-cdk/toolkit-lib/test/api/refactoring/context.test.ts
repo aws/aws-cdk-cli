@@ -402,7 +402,7 @@ describe('typed mappings', () => {
     ]);
   });
 
-  test('ambiguous pairs that can be disambiguated by the structure', () => {
+  test('ambiguous pairs that can be disambiguated by the graph structure', () => {
     const stack1 = {
       environment,
       stackName: 'Foo',

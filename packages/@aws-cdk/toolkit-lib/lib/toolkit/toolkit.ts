@@ -82,8 +82,10 @@ import {
   groupStacks,
 } from '../api/refactoring';
 import type { CloudFormationStack } from '../api/refactoring/cloudformation';
-import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudformation';
+import { ResourceLocation, ResourceMapping } from '../api/refactoring/cloudformation';
 import { RefactoringContext } from '../api/refactoring/context';
+import type { NodeLocation, StackTemplate } from '../api/refactoring/resource-graph';
+import { CloudFormationGenerator, CloudFormationParser } from '../api/refactoring/resource-graph';
 import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
@@ -1109,6 +1111,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         continue;
       }
 
+      const cfnParser = new CloudFormationParser();
+      // FIXME: this function is duplicated.
+      function convert(stack: CloudFormationStack): StackTemplate {
+        return {
+          stackId: stack.stackName,
+          template: {
+            ...stack.template,
+            Resources: stack.template.Resources ?? {},
+          },
+        };
+      }
+
+      const graph = cfnParser.parseMultiple(deployedStacks.map(convert));
+
       try {
         const context = new RefactoringContext({
           environment,
@@ -1132,7 +1148,35 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
+        for (let mapping of mappings) {
+          const source: NodeLocation = {
+            stackId: mapping.source.stackName,
+            logicalId: mapping.source.logicalResourceId,
+          };
+          const destination: NodeLocation = {
+            stackId: mapping.destination.stackName,
+            logicalId: mapping.destination.logicalResourceId,
+          };
+          graph.moveNode(source, destination);
+        }
+
+        const generator = new CloudFormationGenerator();
+
+        // TODO Eliminate all these conversions and just work with CloudFormationStacks and StackTemplates in the refactor code
+        const ts = deployedStacks.map(s => {
+          const ss = convert(s);
+          return {
+            stackId: ss.stackId,
+            template: generator.generate(graph, ss.stackId, {
+              AWSTemplateFormatVersion: ss.template.AWSTemplateFormatVersion,
+              Description: ss.template.Description,
+              Parameters: ss.template.Parameters,
+              Outputs: ss.template.Outputs,
+            }),
+          } as StackTemplate;
+        });
+
+        const stackDefinitions = await generateStackDefinitions(ts, environment, sdkProvider, ioHelper);
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;

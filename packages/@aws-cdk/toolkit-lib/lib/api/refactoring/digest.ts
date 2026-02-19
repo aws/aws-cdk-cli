@@ -1,9 +1,10 @@
 import * as crypto from 'node:crypto';
-import type { CloudFormationResource, CloudFormationStack } from './cloudformation';
-import { ResourceGraph } from './graph';
+import type { CloudFormationStack } from './cloudformation';
+import type { CloudFormationGraph, Resource, StackTemplate } from './resource-graph';
+import { CloudFormationParser } from './resource-graph';
 
 export type GraphDirection =
-  'direct' // Edge A -> B mean that A depends on B
+  | 'direct' // Edge A -> B mean that A depends on B
   | 'opposite'; // Edge A -> B mean that B depends on A
 
 /**
@@ -35,33 +36,41 @@ export function computeResourceDigests(stacks: CloudFormationStack[], direction:
     ),
   );
 
-  const resources = Object.fromEntries(
-    stacks.flatMap((s) => {
-      return Object.entries(s.template.Resources ?? {})
-        .filter(([_, res]) => res.Type !== 'AWS::CDK::Metadata')
-        .map(([id, res]) => [`${s.stackName}.${id}`, res] as [string, CloudFormationResource]);
-    }),
-  );
+  const cfnParser = new CloudFormationParser();
+  function convert(stack: CloudFormationStack): StackTemplate {
+    return {
+      stackId: stack.stackName,
+      template: {
+        ...stack.template,
+        Resources: removeCdkMetadata(stack.template.Resources ?? {}),
+      },
+    };
+  }
+  const graph = cfnParser.parseMultiple(stacks.map(convert));
+  const adjustedGraph = direction === 'direct' ? graph : graph.opposite();
 
-  const graph = direction == 'direct'
-    ? ResourceGraph.fromStacks(stacks)
-    : ResourceGraph.fromStacks(stacks).opposite();
+  return computeDigestsInTopologicalOrder(adjustedGraph, exports);
+}
 
-  return computeDigestsInTopologicalOrder(graph, resources, exports);
+function removeCdkMetadata(resources: Record<string, Resource>): Record<string, Resource> {
+  return Object.fromEntries(Object.entries(resources).filter(([_, r]) => r.Type !== 'AWS::CDK::Metadata'));
 }
 
 function computeDigestsInTopologicalOrder(
-  graph: ResourceGraph,
-  resources: Record<string, CloudFormationResource>,
-  exports: Record<string, { stackName: string; value: any }>): Record<string, string> {
-  const nodes = graph.sortedNodes.filter(n => resources[n] != null);
+  graph: CloudFormationGraph,
+  exports: Record<string, { stackName: string; value: any }>,
+): Record<string, string> {
+  const nodes = graph.getAllNodesSorted();
   const result: Record<string, string> = {};
-  for (const id of nodes) {
-    const resource = resources[id];
-    const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
-    const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
-    const toHash = resource.Type + propertiesHash + depDigests.join('');
-    result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
+  for (const node of nodes) {
+    const depDigests = Array.from(graph.getDependencies(node.id)).map((d) => result[d]);
+    const propertiesHash = hashObject(stripReferences(stripConstructPathAndId(node), exports));
+    result[node.id] = crypto
+      .createHash('sha256')
+      .update(node.type)
+      .update(propertiesHash)
+      .update(depDigests.sort().join(''))
+      .digest('hex');
   }
 
   return result;
@@ -135,12 +144,13 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
   return result;
 }
 
-function stripConstructPath(resource: any): any {
-  if (resource?.Metadata?.['aws:cdk:path'] == null) {
-    return resource;
-  }
-
+// TODO rename this function
+function stripConstructPathAndId(resource: any): any {
   const copy = JSON.parse(JSON.stringify(resource));
-  delete copy.Metadata['aws:cdk:path'];
+  if (resource?.metadata?.['aws:cdk:path'] != null) {
+    delete copy.metadata['aws:cdk:path'];
+  }
+  delete copy.id;
+  delete copy.stackId;
   return copy;
 }

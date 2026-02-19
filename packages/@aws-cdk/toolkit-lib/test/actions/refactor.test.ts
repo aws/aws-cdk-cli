@@ -64,6 +64,12 @@ test('detects the same resource in different locations', async () => {
               'aws:cdk:path': 'Stack1/OldLogicalID/Resource',
             },
           },
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: {
+              Analytics: 'placeholder-string',
+            },
+          },
         },
       }),
     });
