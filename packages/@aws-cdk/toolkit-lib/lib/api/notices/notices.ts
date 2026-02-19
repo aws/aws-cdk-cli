@@ -8,7 +8,6 @@ import type { FilteredNotice } from './filter';
 import { NoticesFilter } from './filter';
 import type { BootstrappedEnvironment, Notice, NoticeDataSource } from './types';
 import { WebsiteNoticeDataSource } from './web-data-source';
-import { guessLanguage } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import { IO, asIoHelper } from '../io/private';
 
@@ -177,13 +176,12 @@ export class Notices {
    * Filter the data source for relevant notices
    */
   public async filter(options: NoticesDisplayOptions = {}): Promise<FilteredNotice[]> {
-    const language = await guessLanguage(this.projectDir);
     return new NoticesFilter(this.ioHelper).filter({
       data: this.noticesFromData(options.includeAcknowledged ?? false),
       cliVersion: this.cliVersion,
       outDir: this.output,
       bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
-      language,
+      projectDir: this.projectDir,
     });
   }
 
