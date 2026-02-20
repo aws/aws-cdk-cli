@@ -7,12 +7,13 @@ integTest(
   'hotswap deployment supports ecs service',
   withDefaultFixture(async (fixture) => {
     // GIVEN
-    const stackArn = await fixture.cdkDeploy('ecs-hotswap', {
+    const stackName = 'ecs-hotswap';
+    await fixture.cdkDeploy(stackName, {
       captureStderr: false,
     });
 
     // WHEN
-    const deployOutput = await fixture.cdkDeploy('ecs-hotswap', {
+    const deployOutput = await fixture.cdkDeploy(stackName, {
       options: ['--hotswap'],
       captureStderr: true,
       onlyStderr: true,
@@ -23,7 +24,7 @@ integTest(
 
     const response = await fixture.aws.cloudFormation.send(
       new DescribeStacksCommand({
-        StackName: stackArn,
+        StackName: fixture.fullStackName(stackName),
       }),
     );
     const serviceName = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey == 'ServiceName')?.OutputValue;

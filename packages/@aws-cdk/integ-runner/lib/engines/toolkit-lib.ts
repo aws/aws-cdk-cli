@@ -1,11 +1,11 @@
 import * as path from 'node:path';
 import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
-import type { DefaultCdkOptions, DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
+import type { DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
+import type { ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
 import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import type { DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions, WatchEvents } from './cdk-interface';
+import type { CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
 
 export interface ToolkitLibEngineOptions {
   /**
@@ -76,68 +76,46 @@ export class ToolkitLibRunnerEngine implements ICdk {
       // Logging
       //  - options.color
       // SDK
-      //  - options.profile
       //  - options.proxy
       //  - options.caBundlePath
     });
 
     // @TODO - similar to the above, but in toolkit-lib these options would go on the IoHost
-    //  - options.quiet
     //  - options.trace
     //  - options.verbose
     //  - options.json
   }
 
   /**
-   * Synthesizes the CDK app through the Toolkit
+   * Synthesizes the CDK app
    */
   public async synth(options: SynthOptions) {
-    const cx = await this.cx(options);
-    const lock = await this.toolkit.synth(cx, {
-      stacks: this.stackSelector(options),
-      validateStacks: options.validation,
-    });
-    await this.validateRegion(lock);
-    await lock.dispose();
-  }
-
-  /**
-   * Synthesizes the CDK app quickly, by bypassing the Toolkit and just invoking the app command
-   */
-  public async synthFast(options: SynthFastOptions) {
-    const cx = await this.toolkit.fromCdkApp(options.execCmd.join(' '), {
-      workingDirectory: this.options.workingDirectory,
-      outdir: options.output ? path.join(this.options.workingDirectory, options.output) : undefined,
-      contextStore: new MemoryContext(options.context),
+    const cx = await this.cx({
+      app: options.app,
+      output: options.output,
+      context: options.context,
       lookups: false,
       resolveDefaultEnvironment: false,
-      env: {
-        ...this.options.env,
-        ...options.env,
-      },
-      synthOptions: {
-        versionReporting: false,
-        pathMetadata: false,
-        assetMetadata: false,
-      },
+      env: options.env,
+      versionReporting: false,
+      pathMetadata: false,
+      assetMetadata: false,
     });
 
     try {
-      // @TODO - use produce to mimic the current behavior more closely
-      const lock = await cx.produce();
+      await using lock = await this.toolkit.synth(cx, {
+        validateStacks: false,
+        stacks: {
+          strategy: StackSelectionStrategy.ALL_STACKS,
+          failOnEmpty: false,
+        },
+      });
       await this.validateRegion(lock);
-      await lock.dispose();
-      // We should fix this once we have stabilized toolkit-lib as engine.
-      // What we really should do is this:
-      // const lock = await this.toolkit.synth(cx, {
-      //   validateStacks: false,
-      // });
-      // await lock.dispose();
     } catch (e: any) {
       if (e.message.includes('Missing context keys')) {
         // @TODO - silently ignore missing context
         // This is actually an undefined case in the old implementation, which doesn't use the toolkit code
-        // and won't fail for missing context. To persevere existing behavior, we do the same here.
+        // and won't fail for missing context. To preserve existing behavior, we do the same here.
         // However in future we need to find a way for integ tests to provide context through snapshots.
         return;
       }
@@ -149,9 +127,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Lists the stacks in the CDK app
    */
   public async list(options: ListOptions): Promise<string[]> {
-    // @TODO - existing list specific option, doesn't really make sense to support this in the context of integ-runner
-    //  - options.long
-
     const cx = await this.cx(options);
     const stacks = await this.toolkit.list(cx, {
       stacks: this.stackSelector(options),
@@ -164,19 +139,14 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Deploys the CDK app
    */
   public async deploy(options: DeployOptions) {
-    // @TODO - existing deploy specific option, doesn't really make sense to support this in the context of integ-runner
-    //  - options.progress
-
-    if (options.watch) {
-      return this.watch(options);
-    }
-
     const cx = await this.cx(options);
     await this.toolkit.deploy(cx, {
       roleArn: options.roleArn,
       traceLogs: options.traceLogs,
       stacks: this.stackSelector(options),
-      deploymentMethod: this.deploymentMethod(options),
+      deploymentMethod: {
+        method: 'change-set',
+      },
       outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
     });
   }
@@ -184,14 +154,14 @@ export class ToolkitLibRunnerEngine implements ICdk {
   /**
    * Watches the CDK app for changes and deploys them automatically
    */
-  public async watch(options: DeployOptions, events?: WatchEvents) {
+  public async watch(options: WatchOptions, events?: WatchEvents) {
     const cx = await this.cx(options);
     try {
       const watcher = await this.toolkit.watch(cx, {
         roleArn: options.roleArn,
         traceLogs: options.traceLogs,
         stacks: this.stackSelector(options),
-        deploymentMethod: this.deploymentMethod(options),
+        deploymentMethod: options.deploymentMethod,
       });
       await watcher.waitForEnd();
     } catch (e: unknown) {
@@ -224,7 +194,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
   /**
    * Creates a Cloud Assembly Source from the provided options.
    */
-  private async cx(options: DefaultCdkOptions): Promise<ICloudAssemblySource> {
+  private async cx(options: CxOptions): Promise<ICloudAssemblySource> {
     if (!options.app) {
       throw new Error('No app provided');
     }
@@ -245,7 +215,11 @@ export class ToolkitLibRunnerEngine implements ICdk {
       outdir,
       lookups: options.lookups,
       contextStore: new MemoryContext(options.context),
-      env: this.options.env,
+      resolveDefaultEnvironment: options.resolveDefaultEnvironment,
+      env: {
+        ...this.options.env,
+        ...options.env,
+      },
       synthOptions: {
         debug: options.debug,
         versionReporting: options.versionReporting ?? false,
@@ -264,22 +238,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
       strategy: options.all ? StackSelectionStrategy.ALL_STACKS : StackSelectionStrategy.PATTERN_MUST_MATCH,
       patterns: options.stacks ?? ['**'],
       expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
-    };
-  }
-
-  /**
-   * Creates a DeploymentMethod from the provided options.
-   */
-  private deploymentMethod(options: DeployOptions): DeploymentMethod {
-    if (options.hotswap && options.hotswap !== 'full-deployment') {
-      return {
-        method: 'hotswap',
-        fallback: options.hotswap === 'fall-back' ? { method: 'change-set' } : undefined,
-      };
-    }
-
-    return {
-      method: options.deploymentMethod ?? 'change-set',
     };
   }
 
@@ -306,7 +264,12 @@ export class ToolkitLibRunnerEngine implements ICdk {
    *
    * This catches that misconfiguration.
    */
-  private async validateRegion(asm: IReadableCloudAssembly) {
+  private async validateRegion(asm: IReadableCloudAssembly): Promise<void> {
+    // this happens for existing snapshots, in that case nothing to check
+    if (this.options.region === UNKNOWN_REGION) {
+      return;
+    }
+
     for (const stack of asm.cloudAssembly.stacksRecursively) {
       if (stack.environment.region !== this.options.region && stack.environment.region !== UNKNOWN_REGION) {
         this.ioHost.notify({
