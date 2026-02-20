@@ -20,10 +20,10 @@
     "@aws-cdk/service-spec-types" "^0.0.198"
     "@cdklabs/tskb" "^0.0.4"
 
-"@aws-cdk/cloud-assembly-api@^2.0.0":
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-api/-/cloud-assembly-api-2.0.1.tgz#3ab4f39297fcf72cf45fa4a0ad1f418a7c93b688"
-  integrity sha512-6CLsOvGoAmwryhhaE7YvbH4CYSvV9IjySj/4aBR0Vs5abjyi6j2oM+2uKvhePogKtuNO5Ps6OsT/3rwAoJKGdg==
+"@aws-cdk/cloud-assembly-api@^2.0.1":
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-api/-/cloud-assembly-api-2.1.1.tgz#9eb535fbe74d0972fd299661cabfce79b6d90181"
+  integrity sha512-lIFgatwM/jmeKU629aaPv+VR+wYYIBXHmId+UBxR65JxhZ+TQD6QWDzkpjPRPKlGw7Rz8gNXs4eEYv98voxvAw==
   dependencies:
     jsonschema "~1.4.1"
     semver "^7.7.3"
@@ -35,6 +35,14 @@
   dependencies:
     jsonschema "~1.4.1"
     semver "^7.7.2"
+
+"@aws-cdk/cloud-assembly-schema@^50.3.0":
+  version "50.4.0"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-schema/-/cloud-assembly-schema-50.4.0.tgz#56399b22494e2e970614ae32ef53316b3b028440"
+  integrity sha512-9Cplwc5C+SNe3hMfqZET7gXeM68tiH2ytQytCi+zz31Bn7O3GAgAnC2dYe+HWnZAgVH788ZkkBwnYXkeqx7v4g==
+  dependencies:
+    jsonschema "~1.4.1"
+    semver "^7.7.3"
 
 "@aws-cdk/cx-api@^2":
   version "2.235.1"
@@ -6448,15 +6456,15 @@ aws-cdk-lib@2.236.0:
     table "^6.9.0"
     yaml "1.10.2"
 
-aws-cdk-lib@2.238.0:
-  version "2.238.0"
-  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.238.0.tgz#5ebce5885891dbc016f6e819b87c80914f6d842d"
-  integrity sha512-lmS7DEGcEjNhnl88Z7SynPA1UHdCOkx2pNSGiiBQG5I2jH8H2nnWnr6cZRWmxV2GyNeBmmd9wHdEcSBpkow53Q==
+aws-cdk-lib@2.239.0:
+  version "2.239.0"
+  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.239.0.tgz#96ef21d7c97bbd957a0e2925531e5d55504b8a3e"
+  integrity sha512-0qpYrE4HL6yRaQriRukfX7m82vNj3otce6v4Y5qK859ILdZBCaz/wqqYgdTnFh6LcA11GAg/Y8l8a+j/VtczyA==
   dependencies:
     "@aws-cdk/asset-awscli-v1" "2.2.263"
     "@aws-cdk/asset-node-proxy-agent-v6" "^2.1.0"
-    "@aws-cdk/cloud-assembly-api" "^2.0.0"
-    "@aws-cdk/cloud-assembly-schema" "^48.20.0"
+    "@aws-cdk/cloud-assembly-api" "^2.0.1"
+    "@aws-cdk/cloud-assembly-schema" "^50.3.0"
     "@balena/dockerignore" "^1.0.2"
     case "1.6.3"
     fs-extra "^11.3.3"
@@ -6465,7 +6473,7 @@ aws-cdk-lib@2.238.0:
     mime-types "^2.1.35"
     minimatch "^3.1.2"
     punycode "^2.3.1"
-    semver "^7.7.3"
+    semver "^7.7.4"
     table "^6.9.0"
     yaml "1.10.2"
 
@@ -13374,6 +13382,11 @@ semver@^7, semver@^7.0.0, semver@^7.1.1, semver@^7.3.4, semver@^7.3.5, semver@^7
   version "7.7.3"
   resolved "https://registry.yarnpkg.com/semver/-/semver-7.7.3.tgz#4b5f4143d007633a8dc671cd0a6ef9147b8bb946"
   integrity sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==
+
+semver@^7.7.4:
+  version "7.7.4"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.7.4.tgz#28464e36060e991fa7a11d0279d2d3f3b57a7e8a"
+  integrity sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==
 
 semver@~7.5.4:
   version "7.5.4"
