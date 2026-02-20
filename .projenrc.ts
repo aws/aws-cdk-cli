@@ -299,7 +299,7 @@ const repoProject = new yarn.Monorepo({
     '',
     '### Checklist',
     '- [ ] This change contains a major version upgrade for a dependency and I confirm all breaking changes are addressed',
-    '  - Release notes for the new version:'
+    '  - Release notes for the new version:',
   ],
 
   buildWorkflowOptions: {
