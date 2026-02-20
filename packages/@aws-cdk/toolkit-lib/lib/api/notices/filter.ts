@@ -13,8 +13,8 @@ function normalizeComponents(xs: Array<Component | Component[]>): Component[][] 
 }
 
 function renderComponent(c: Component): string {
-  if (c.name.startsWith('language-')) {
-    return `${languageDisplayName(c.name.slice('language-'.length))} apps`;
+  if (c.name.startsWith('language:')) {
+    return `${languageDisplayName(c.name.slice('language:'.length))} apps`;
   }
   return `${c.name}: ${c.version}`;
 }
@@ -94,7 +94,7 @@ export class NoticesFilter {
     if (language === undefined && options.projectDir) {
       const needsLanguage = options.data.some(n =>
         normalizeComponents(n.components).some(ands =>
-          ands.some(c => c.name.startsWith('language-'))));
+          ands.some(c => c.name.startsWith('language:'))));
       if (needsLanguage) {
         language = await guessLanguage(options.projectDir);
       }
@@ -149,7 +149,7 @@ export class NoticesFilter {
 
       // Language
       ...(language ? [{
-        name: `language-${language}`,
+        name: `language:${language}`,
         version: '0.0.0',
         dynamicName: 'LANGUAGE',
         dynamicValue: languageDisplayName(language),
