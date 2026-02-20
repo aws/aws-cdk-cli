@@ -294,6 +294,14 @@ const repoProject = new yarn.Monorepo({
     },
   },
 
+  pullRequestTemplateContents: [
+    'Fixes #',
+    '',
+    '### Checklist',
+    '- [ ] This change contains a major version upgrade for a dependency and I confirm all breaking changes are addressed',
+    '  - Release notes for the new version:'
+  ],
+
   buildWorkflowOptions: {
     preBuildSteps: [
       // Need this for the init tests
