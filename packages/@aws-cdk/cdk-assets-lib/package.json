@@ -77,7 +77,7 @@
     "archiver": "^7.0.1",
     "glob": "^11.1.0",
     "mime": "^2",
-    "minimatch": "10.2.1"
+    "minimatch": "10.0.1"
   },
   "keywords": [
     "aws",
