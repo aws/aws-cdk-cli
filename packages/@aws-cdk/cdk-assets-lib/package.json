@@ -38,6 +38,7 @@
     "@types/mime": "^2",
     "@types/mock-fs": "^4",
     "@types/node": "^16",
+    "@types/picomatch": "^4.0.2",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "aws-sdk-client-mock": "^4.1.0",
@@ -75,9 +76,9 @@
     "@smithy/config-resolver": "^4",
     "@smithy/node-config-provider": "^4",
     "archiver": "^7.0.1",
-    "glob": "^11.1.0",
+    "fast-glob": "^3.3.3",
     "mime": "^2",
-    "minimatch": "10.0.1"
+    "picomatch": "^4.0.3"
   },
   "keywords": [
     "aws",

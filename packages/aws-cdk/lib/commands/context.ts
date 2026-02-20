@@ -1,6 +1,7 @@
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
-import { minimatch } from 'minimatch';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import picomatch = require('picomatch');
 import type { Context } from '../api/context';
 import type { IoHelper } from '../api-private';
 import { displayVersionMessage } from '../cli/display-version';
@@ -171,7 +172,8 @@ async function printReadonly(ioHelper: IoHelper, readonly: string[]) {
 }
 
 function keysByExpression(context: Context, expression: string) {
-  return context.keys.filter(minimatch.filter(expression));
+  const matchesExpression = picomatch(expression);
+  return context.keys.filter(key => matchesExpression(key));
 }
 
 function getUnsetAndReadonly(context: Context, matches: string[]) {
