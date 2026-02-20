@@ -2,8 +2,8 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
-import { guessLanguage } from '@aws-cdk/toolkit-lib/lib/util/guess-language';
 import * as chalk from 'chalk';
+import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
