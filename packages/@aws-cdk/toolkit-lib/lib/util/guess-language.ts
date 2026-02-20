@@ -25,7 +25,7 @@ export function languageDisplayName(language: string): string {
  */
 export async function guessLanguage(dir: string): Promise<string | undefined> {
   try {
-    const files = new Set(await listFiles(dir, 2));
+    const files = new Set(await listFiles(dir, 2, ['node_modules']));
 
     if (files.has('package.json')) {
       const pjContents = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf-8'));
