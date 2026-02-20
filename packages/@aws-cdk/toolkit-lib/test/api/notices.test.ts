@@ -981,7 +981,7 @@ describe(Notices, () => {
         cliVersion: '1.0.0',
         data: [],
         outDir: 'cdk.out',
-        projectDir: expect.any(String),
+        language: undefined,
       });
     });
   });

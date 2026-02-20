@@ -1,5 +1,5 @@
 import * as semver from 'semver';
-import { guessLanguage, languageDisplayName } from '../../util/guess-language';
+import { languageDisplayName } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import type { ConstructTreeNode } from '../tree';
 import { loadTreeFromDir } from '../tree';
@@ -65,18 +65,9 @@ export interface NoticesFilterFilterOptions {
   readonly bootstrappedEnvironments: BootstrappedEnvironment[];
 
   /**
-   * The directory containing cdk.json (the project root).
-   * Used to guess the CDK app language when needed.
+   * The detected CDK app language.
    *
-   * @default - language detection is skipped
-   */
-  readonly projectDir?: string;
-
-  /**
-   * The guessed language of the CDK app.
-   * If provided, projectDir is ignored for language detection.
-   *
-   * @default - auto-detected from projectDir when needed
+   * @default - no language component is added
    */
   readonly language?: string;
 }
@@ -89,20 +80,9 @@ export class NoticesFilter {
   }
 
   public async filter(options: NoticesFilterFilterOptions): Promise<FilteredNotice[]> {
-    // Only guess language if any notice actually uses a language component
-    let language = options.language;
-    if (language === undefined && options.projectDir) {
-      const needsLanguage = options.data.some(n =>
-        normalizeComponents(n.components).some(ands =>
-          ands.some(c => c.name.startsWith('language:'))));
-      if (needsLanguage) {
-        language = await guessLanguage(options.projectDir);
-      }
-    }
-
     const components = [
       ...(await this.constructTreeComponents(options.outDir)),
-      ...(await this.otherComponents(options, language)),
+      ...(await this.otherComponents(options)),
     ];
 
     return this.findForNamedComponents(options.data, components);
@@ -111,7 +91,7 @@ export class NoticesFilter {
   /**
    * From a set of input options, return the notices components we are searching for
    */
-  private async otherComponents(options: NoticesFilterFilterOptions, language: string | undefined): Promise<ActualComponent[]> {
+  private async otherComponents(options: NoticesFilterFilterOptions): Promise<ActualComponent[]> {
     // Bootstrap environments
     let bootstrappedEnvironments = [];
     for (const env of options.bootstrappedEnvironments) {
@@ -148,11 +128,11 @@ export class NoticesFilter {
       ...bootstrappedEnvironments,
 
       // Language
-      ...(language ? [{
-        name: `language:${language}`,
+      ...(options.language ? [{
+        name: `language:${options.language}`,
         version: '0.0.0',
         dynamicName: 'LANGUAGE',
-        dynamicValue: languageDisplayName(language),
+        dynamicValue: languageDisplayName(options.language),
       }] : []),
     ];
   }

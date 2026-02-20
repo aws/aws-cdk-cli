@@ -2,6 +2,7 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
+import { guessLanguage } from '@aws-cdk/toolkit-lib/lib/util/guess-language';
 import * as chalk from 'chalk';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
@@ -28,6 +29,7 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
+import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -36,7 +38,6 @@ import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { getLanguageFromAlias } from '../commands/language';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -146,7 +147,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
-    projectDir: process.cwd(),
+    language: await guessLanguage(process.cwd()),
     httpOptions: { agent: proxyAgent },
     cliVersion: versionNumber(),
   });

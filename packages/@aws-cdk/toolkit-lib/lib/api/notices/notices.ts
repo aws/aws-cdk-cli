@@ -41,13 +41,11 @@ export interface NoticesProps {
   readonly output?: string;
 
   /**
-   * The directory containing cdk.json (the project root).
+   * The detected CDK app language.
    *
-   * Used to guess the CDK app language for filtering notices.
-   *
-   * @default process.cwd()
+   * @default - no language filtering
    */
-  readonly projectDir?: string;
+  readonly language?: string;
 
   /**
    * Options for the HTTPS requests made by Notices
@@ -122,7 +120,7 @@ export class Notices {
 
   private readonly context: Context;
   private readonly output: string;
-  private readonly projectDir: string;
+  private readonly language?: string;
   private readonly acknowledgedIssueNumbers: Set<Number>;
   private readonly httpOptions: NoticesHttpOptions;
   private readonly ioHelper: IoHelper;
@@ -137,7 +135,7 @@ export class Notices {
     this.context = props.context;
     this.acknowledgedIssueNumbers = new Set(this.context.get('acknowledged-issue-numbers') ?? []);
     this.output = props.output ?? 'cdk.out';
-    this.projectDir = props.projectDir ?? process.cwd();
+    this.language = props.language;
     this.httpOptions = props.httpOptions ?? {};
     this.ioHelper = asIoHelper(props.ioHost, 'notices' as any /* forcing a CliAction to a ToolkitAction */);
     this.cliVersion = props.cliVersion;
@@ -181,7 +179,7 @@ export class Notices {
       cliVersion: this.cliVersion,
       outDir: this.output,
       bootstrappedEnvironments: Array.from(this.bootstrappedEnvironments.values()),
-      projectDir: this.projectDir,
+      language: this.language,
     });
   }
 
