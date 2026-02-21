@@ -30,9 +30,14 @@ export class CloudFormationParser {
         if (output.Export) {
           const exportName = this.resolveExportName(output.Export.Name);
           const sourceRefs = this.findReferences(output.Value);
+          const sourceGetAtts = this.findGetAtts(output.Value);
+
           if (sourceRefs.length > 0) {
             const sourceId = this.getQualifiedId(stackId, sourceRefs[0]);
-            graph.registerExport(exportName, sourceId, outputId);
+            graph.registerExport(exportName, sourceId, outputId, output.Value);
+          } else if (sourceGetAtts.length > 0) {
+            const sourceId = this.getQualifiedId(stackId, sourceGetAtts[0].target);
+            graph.registerExport(exportName, sourceId, outputId, output.Value);
           }
         }
       }
@@ -67,8 +72,8 @@ export class CloudFormationParser {
       }
 
       // Merge exports
-      for (const [exportName, { nodeId, outputId }] of stackGraph.getExports()) {
-        graph.registerExport(exportName, nodeId, outputId);
+      for (const [exportName, { nodeId, outputId, value }] of stackGraph.getExports()) {
+        graph.registerExport(exportName, nodeId, outputId, value);
       }
     }
 
@@ -136,6 +141,19 @@ export class CloudFormationParser {
         });
       }
     }
+
+    const getAtts = this.findGetAtts(resource.Properties);
+    for (const { target, attribute } of getAtts) {
+      const qualifiedRef = this.getQualifiedId(stackId, target);
+      if (graph.getNode(qualifiedRef)) {
+        graph.addEdge({
+          from: resourceId,
+          to: qualifiedRef,
+          type: EdgeType.GET_ATT,
+          attribute,
+        });
+      }
+    }
   }
 
   private extractImports(resourceId: string, resource: Resource, graph: CloudFormationGraph): void {
@@ -162,18 +180,31 @@ export class CloudFormationParser {
       refs.add(obj.Ref);
     }
 
-    if (obj['Fn::GetAtt']) {
-      const target = Array.isArray(obj['Fn::GetAtt']) ? obj['Fn::GetAtt'][0] : obj['Fn::GetAtt'];
-      if (typeof target === 'string') {
-        refs.add(target);
-      }
-    }
-
     for (const value of Object.values(obj)) {
       this.findReferences(value, refs);
     }
 
     return Array.from(refs);
+  }
+
+  private findGetAtts(
+    obj: any,
+    getAtts: Array<{ target: string; attribute: string }> = [],
+  ): Array<{ target: string; attribute: string }> {
+    if (typeof obj !== 'object' || obj === null) return getAtts;
+
+    if (obj['Fn::GetAtt']) {
+      const attr = obj['Fn::GetAtt'];
+      if (Array.isArray(attr) && attr.length >= 2 && typeof attr[0] === 'string' && typeof attr[1] === 'string') {
+        getAtts.push({ target: attr[0], attribute: attr[1] });
+      }
+    }
+
+    for (const value of Object.values(obj)) {
+      this.findGetAtts(value, getAtts);
+    }
+
+    return getAtts;
   }
 
   private findImports(obj: any, imports: Set<string> = new Set()): string[] {

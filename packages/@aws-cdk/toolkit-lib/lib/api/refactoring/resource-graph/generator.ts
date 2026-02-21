@@ -72,8 +72,24 @@ export class CloudFormationGenerator {
       if (resourceNode && resourceNode.stackId === stackId) {
         template.Outputs = template.Outputs || {};
         const localId = this.getLocalId(exportInfo.nodeId);
+
+        // Use the stored export value, or default to Ref
+        let outputValue = exportInfo.value;
+        if (!outputValue) {
+          outputValue = { Ref: localId };
+        } else if (outputValue['Fn::GetAtt']) {
+          // Ensure GetAtt uses local ID
+          const attr = outputValue['Fn::GetAtt'];
+          if (Array.isArray(attr)) {
+            outputValue = { 'Fn::GetAtt': [localId, ...attr.slice(1)] };
+          }
+        } else if (outputValue.Ref) {
+          // Ensure Ref uses local ID
+          outputValue = { Ref: localId };
+        }
+
         const output: Output = {
-          Value: { Ref: localId },
+          Value: outputValue,
           Export: {
             Name: exportName,
           },
@@ -90,7 +106,6 @@ export class CloudFormationGenerator {
     nodeId: string,
     graph: CloudFormationGraph,
   ): Record<string, any> {
-    // Get all IMPORT_VALUE edges from this node
     const importEdges = graph
       .getEdges(nodeId)
       .filter((edge) => edge.from === nodeId && edge.type === EdgeType.IMPORT_VALUE);
@@ -99,26 +114,31 @@ export class CloudFormationGenerator {
       return properties;
     }
 
-    // Build a map of target node IDs to export names
-    const importMap = new Map<string, string>();
+    const importMap = new Map<string, { exportName: string; attribute?: string }>();
     for (const edge of importEdges) {
       const targetResourceId = edge.to;
       const targetLogicalId = this.getLocalId(targetResourceId);
 
-      // Find the export name for this resource
-      for (const [exportName, { nodeId }] of graph.getExports().entries()) {
-        if (nodeId === targetResourceId) {
-          importMap.set(targetLogicalId, exportName);
-          break;
+      for (const [exportName, exportInfo] of graph.getExports().entries()) {
+        if (exportInfo.nodeId === targetResourceId) {
+          // Match export by attribute if edge has one
+          if (edge.attribute) {
+            if (exportInfo.value?.['Fn::GetAtt']?.[1] === edge.attribute) {
+              importMap.set(targetLogicalId, { exportName, attribute: edge.attribute });
+              break;
+            }
+          } else if (exportInfo.value?.Ref) {
+            importMap.set(targetLogicalId, { exportName });
+            break;
+          }
         }
       }
     }
 
-    // Transform Ref intrinsics to Fn::ImportValue
     return this.replaceRefs(properties, importMap);
   }
 
-  private replaceRefs(obj: any, importMap: Map<string, string>): any {
+  private replaceRefs(obj: any, importMap: Map<string, { exportName: string; attribute?: string }>): any {
     if (obj === null || obj === undefined) {
       return obj;
     }
@@ -133,17 +153,24 @@ export class CloudFormationGenerator {
 
     // Check if this is a Ref that needs to be converted
     if (obj.Ref && typeof obj.Ref === 'string' && importMap.has(obj.Ref)) {
-      return { 'Fn::ImportValue': importMap.get(obj.Ref) };
+      const importInfo = importMap.get(obj.Ref)!;
+      return { 'Fn::ImportValue': importInfo.exportName };
     }
 
     // Check if this is a Fn::GetAtt that needs to be converted
     if (obj['Fn::GetAtt']) {
-      const target = Array.isArray(obj['Fn::GetAtt']) ? obj['Fn::GetAtt'][0] : obj['Fn::GetAtt'];
+      const attr = obj['Fn::GetAtt'];
+      if (Array.isArray(attr) && attr.length >= 2) {
+        const target = attr[0];
+        const attribute = attr[1];
 
-      if (typeof target === 'string' && importMap.has(target)) {
-        // For GetAtt, we need to import the attribute
-        // This is a simplification - in reality, the export would need to export the attribute
-        return { 'Fn::ImportValue': importMap.get(target) };
+        if (typeof target === 'string' && importMap.has(target)) {
+          const importInfo = importMap.get(target)!;
+          // Only convert if the attribute matches
+          if (importInfo.attribute === attribute) {
+            return { 'Fn::ImportValue': importInfo.exportName };
+          }
+        }
       }
     }
 

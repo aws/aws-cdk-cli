@@ -43,6 +43,7 @@ export interface GraphEdge {
   to: string;
   type: EdgeType;
   crossStack?: boolean;
+  attribute?: string;
 }
 
 export interface StackTemplate {
