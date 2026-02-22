@@ -39,17 +39,7 @@ export interface PublishOptions {
 
 export interface PublishResult {
   /**
-   * Number of stacks processed
+   * Number of assets published
    */
-  readonly stackCount: number;
-
-  /**
-   * Time taken for synthesis in seconds
-   */
-  readonly synthesisTime: number;
-
-  /**
-   * Time taken for publishing in seconds
-   */
-  readonly publishTime: number;
+  readonly publishedAssetCount: number;
 }

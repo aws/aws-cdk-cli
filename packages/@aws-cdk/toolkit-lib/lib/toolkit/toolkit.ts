@@ -505,9 +505,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
       return {
-        stackCount: 0,
-        synthesisTime: assembly.synthDuration.asSec,
-        publishTime: 0,
+        publishedAssetCount: 0,
       };
     }
 
@@ -559,6 +557,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
 
+    const publishedAssetCount = Object.values(workGraph.nodes).filter(n => n.type === 'asset-publish').length;
+
     await ioHelper.defaults.info(`Publishing assets for ${chalk.bold(String(stackCollection.stackCount))} stack(s)`);
 
     const graphConcurrency: Concurrency = {
@@ -580,9 +580,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await ioHelper.defaults.info(`\n✨  Total time: ${formatTime(publishTime)}s\n`);
 
     return {
-      stackCount: stackCollection.stackCount,
-      synthesisTime: assembly.synthDuration.asSec,
-      publishTime,
+      publishedAssetCount,
     };
   }
 
