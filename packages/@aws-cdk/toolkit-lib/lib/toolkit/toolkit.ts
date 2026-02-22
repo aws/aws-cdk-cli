@@ -97,7 +97,6 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 
 export interface ToolkitOptions {
   /**
