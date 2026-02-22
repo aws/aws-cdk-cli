@@ -1885,13 +1885,6 @@ export interface PublishOptions {
   readonly exclusively?: boolean;
 
   /**
-   * Name of the toolkit stack to use/deploy
-   *
-   * @default CDKToolkit
-   */
-  readonly toolkitStackName?: string;
-
-  /**
    * Role to pass to CloudFormation for deployment
    *
    * @default - Current role
