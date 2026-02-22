@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { format } from 'util';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { CdkAppMultiContext, MemoryContext, type IContextStore } from './context-store';
 import { RWLock } from '../rwlock';
@@ -432,7 +432,10 @@ export abstract class CloudAssemblySourceBuilder {
     };
   }
   /**
-   * Use a directory containing an AWS CDK app as source.
+   * Use an AWS CDK app exectuable as source.
+   *
+   * `app` is a command line that will be executed to produce a Cloud Assembly.
+   * The command will be executed in a shell, so it must come from a trusted source.
    *
    * The subprocess will execute in `workingDirectory`, which defaults to
    * the current process' working directory if not given.
@@ -512,7 +515,7 @@ export abstract class CloudAssemblySourceBuilder {
           });
           const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
-            await execInChildProcess(commandLine.join(' '), {
+            await execInChildProcess(commandLine, {
               eventPublisher: async (type, line) => {
                 switch (type) {
                   case 'data_stdout':

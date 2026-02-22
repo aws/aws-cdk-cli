@@ -51,6 +51,10 @@
       "type": "build"
     },
     {
+      "name": "@types/picomatch",
+      "type": "build"
+    },
+    {
       "name": "@types/split2",
       "type": "build"
     },
@@ -169,6 +173,10 @@
     },
     {
       "name": "@aws-cdk/cdk-assets-lib",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },
     {
@@ -334,11 +342,15 @@
     },
     {
       "name": "chokidar",
-      "version": "^3",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "fast-deep-equal",
+      "type": "runtime"
+    },
+    {
+      "name": "fast-glob",
       "type": "runtime"
     },
     {
@@ -347,17 +359,12 @@
       "type": "runtime"
     },
     {
-      "name": "glob",
-      "type": "runtime"
-    },
-    {
-      "name": "minimatch",
-      "version": "10.0.1",
-      "type": "runtime"
-    },
-    {
       "name": "p-limit",
       "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "picomatch",
       "type": "runtime"
     },
     {

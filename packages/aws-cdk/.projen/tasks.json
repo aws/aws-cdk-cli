@@ -33,7 +33,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib",
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloud-assembly-api ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib",
         "MAJOR": "2"
       },
       "steps": [
@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/promptly,@types/semver,@types/sinon,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,node-backpack,sinon,ts-jest,ts-mock-imports,xml-js,@aws-cdk/cx-api,@aws-sdk/client-appsync,@aws-sdk/client-bedrock-agentcore-control,@aws-sdk/client-cloudcontrol,@aws-sdk/client-cloudformation,@aws-sdk/client-cloudwatch-logs,@aws-sdk/client-codebuild,@aws-sdk/client-ec2,@aws-sdk/client-ecr,@aws-sdk/client-ecs,@aws-sdk/client-elastic-load-balancing-v2,@aws-sdk/client-iam,@aws-sdk/client-kms,@aws-sdk/client-lambda,@aws-sdk/client-route-53,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sfn,@aws-sdk/client-ssm,@aws-sdk/client-sts,@aws-sdk/credential-providers,@aws-sdk/ec2-metadata-service,@aws-sdk/lib-storage,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,glob,promptly,proxy-agent,semver,uuid"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,aws-sdk-client-mock,aws-sdk-client-mock-jest,axios,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,madge,node-backpack,sinon,ts-jest,ts-mock-imports,xml-js,@aws-sdk/client-appsync,@aws-sdk/client-bedrock-agentcore-control,@aws-sdk/client-cloudcontrol,@aws-sdk/client-cloudformation,@aws-sdk/client-cloudwatch-logs,@aws-sdk/client-codebuild,@aws-sdk/client-ec2,@aws-sdk/client-ecr,@aws-sdk/client-ecs,@aws-sdk/client-elastic-load-balancing-v2,@aws-sdk/client-iam,@aws-sdk/client-kms,@aws-sdk/client-lambda,@aws-sdk/client-route-53,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sfn,@aws-sdk/client-ssm,@aws-sdk/client-sts,@aws-sdk/credential-providers,@aws-sdk/ec2-metadata-service,@aws-sdk/lib-storage,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,uuid"
         }
       ]
     },
@@ -106,7 +106,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=exact @aws-cdk/toolkit-lib=future-minor @aws-cdk/cdk-assets-lib=future-minor",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=exact @aws-cdk/cloud-assembly-api=exact @aws-cdk/toolkit-lib=future-minor @aws-cdk/cdk-assets-lib=future-minor",
           "receiveArgs": true
         }
       ]
@@ -146,7 +146,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-backpack pack --destination dist/js --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --metafile dist/metafile.json"
+          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --metafile dist/metafile.json"
         }
       ]
     },
@@ -161,7 +161,7 @@
           "exec": "cp $(node -p 'require.resolve(\"@aws-cdk/aws-service-spec/db.json.gz\")') ./"
         },
         {
-          "exec": "node-backpack validate --fix --external fsevents:optional --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$' --test 'bin/cdk --version' --entrypoint 'lib/index.js'"
+          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js'"
         }
       ]
     },
@@ -187,6 +187,9 @@
     "test": {
       "name": "test",
       "description": "Run tests",
+      "env": {
+        "TESTING_CDK": "1"
+      },
       "steps": [
         {
           "exec": "jest --passWithNoTests --updateSnapshot",
@@ -195,7 +198,8 @@
         {
           "spawn": "eslint"
         }
-      ]
+      ],
+      "condition": "[ \"$NO_UNIT_TESTS\" != \"1\" ]"
     },
     "test:watch": {
       "name": "test:watch",
@@ -218,7 +222,7 @@
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
         "NEXT_VERSION_COMMAND": "tsx ../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
+        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloud-assembly-api ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
       },
       "steps": [
         {

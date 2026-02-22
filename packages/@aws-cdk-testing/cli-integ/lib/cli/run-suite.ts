@@ -88,6 +88,11 @@ async function main() {
         type: 'string',
         requiresArg: true,
       })
+      .options('seed', {
+        describe: 'Set the seed value to replicate a test run',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('verbose', {
         alias: 'v',
         describe: 'Run in verbose mode',
@@ -102,6 +107,11 @@ async function main() {
       .options('maxWorkers', {
         alias: 'w',
         describe: 'Specifies the maximum number of workers the worker-pool will spawn for running tests. We use a sensible default for running cli integ tests.',
+        type: 'string',
+        requiresArg: true,
+      })
+      .options('shard', {
+        describe: 'The test suite shard to execute in a format of (?<shardIndex>\d+)/(?<shardCount>\d+). `shardIndex` describes which shard to select while `shardCount` controls the number of shards the suite should be split into. `shardIndex` and `shardCount` have to be 1-based, positive numbers, and `shardIndex` has to be lower than or equal to `shardCount`.',
         type: 'string',
         requiresArg: true,
       }), () => {
@@ -223,14 +233,20 @@ async function main() {
 
     const jestConfig = path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js');
 
+    // Flip a flag to indicate we're testing CDK itself. Some parts of CDK behave more thoroughly
+    // (but slowly) if this flag is set.
+    process.env.TESTING_CDK = '1';
+
     await jest.run([
       '--randomize',
+      ...args.seed ? [`--seed=${args.seed}`] : [],
       ...args.runInBand ? ['-i'] : [],
       ...args.test ? ['-t', args.test] : [],
       ...args.verbose ? ['--verbose'] : [],
       ...args.maxWorkers ? [`--maxWorkers=${args.maxWorkers}`] : [],
       ...passWithNoTests ? ['--passWithNoTests'] : [],
       ...args['test-file'] ? [args['test-file']] : [],
+      ...args.shard ? [`--shard=${args.shard}`] : [],
     ], jestConfig);
   } finally {
     for (const disp of disposables) {

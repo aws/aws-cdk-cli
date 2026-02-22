@@ -1,4 +1,4 @@
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from './nested-stack-helpers';
 import type { Template } from './stack-helpers';

@@ -5,12 +5,13 @@ jest.mock('@aws-cdk/cloudformation-diff/lib/diff/util', () => ({
 
 import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { expect } from '@jest/globals';
+import { ToolkitInfo } from '../../../lib/api';
 import { usePrescribedMappings } from '../../../lib/api/refactoring';
 import type { CloudFormationStack, CloudFormationTemplate } from '../../../lib/api/refactoring/cloudformation';
 import { ResourceLocation, ResourceMapping } from '../../../lib/api/refactoring/cloudformation';
 import { computeResourceDigests } from '../../../lib/api/refactoring/digest';
 import { generateStackDefinitions } from '../../../lib/api/refactoring/stack-definitions';
-import { MockSdkProvider, mockCloudFormationClient } from '../../_helpers/mock-sdk';
+import { MockSdkProvider, mockBootstrapStack, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 
 describe(computeResourceDigests, () => {
   function makeStacks(templates: CloudFormationTemplate[]): CloudFormationStack[] {
@@ -492,6 +493,48 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Bucket']).toEqual(result['Stack2.AnotherBucket']);
   });
 
+  test('resources with same final values via different sources have identical digests', () => {
+    const template1 = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          // Take the string from the export
+          Properties: { SomeProp: { 'Fn::ImportValue': 'Stack2:Bar' } },
+        },
+        Bucket2: {
+          Type: 'AWS::S3::Bucket',
+          // Same string hard-coded here
+          Properties: { SomeProp: 'SomeStringValue' },
+        },
+      },
+    };
+
+    const template2 = {
+      Outputs: {
+        PrimitiveExport: {
+          Value: 'SomeStringValue',
+          Export: { Name: 'Stack2:Bar' },
+        },
+      },
+      Resources: {
+        // Not referenced by anything
+        Dummy: {
+          Type: 'AWS::X::Y',
+          Properties: { Banana: true },
+        },
+      },
+    };
+
+    const stacks = makeStacks([template1, template2]);
+    const result = computeResourceDigests(stacks);
+    expect(result['Stack1.Bucket1']).toBeDefined();
+    expect(result['Stack1.Bucket2']).toBeDefined();
+
+    // Regardless of the fact that Bucket1 gets its value from an import and Bucket2 has it hardcoded,
+    // they should be considered identical because the final value of the property is the same.
+    expect(result['Stack1.Bucket1']).toEqual(result['Stack1.Bucket2']);
+  });
+
   test('different resources from different stacks', () => {
     const template1 = {
       Resources: {
@@ -846,7 +889,39 @@ describe(generateStackDefinitions, () => {
     region: 'us-east-1',
   };
 
-  test('moves a resource to another stack that has already been deployed', () => {
+  let mockSdkProvider: MockSdkProvider;
+  let mockIoHelper: any;
+
+  beforeEach(() => {
+    mockSdkProvider = new MockSdkProvider();
+    mockSdkProvider.returnsDefaultAccounts(environment.account);
+
+    // Setup bootstrap stack with S3 bucket for large templates
+    const bootstrapStack = mockBootstrapStack();
+    mockCloudFormationClient.on(ListStacksCommand).resolves({
+      StackSummaries: [
+        {
+          StackName: 'CDKToolkit',
+          StackStatus: 'CREATE_COMPLETE',
+          CreationTime: new Date(),
+        },
+      ],
+    });
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify(bootstrapStack.template),
+    });
+
+    // Mock ToolkitInfo.lookup to return a valid toolkit
+    jest.spyOn(ToolkitInfo, 'lookup').mockResolvedValue(ToolkitInfo.fromStack(bootstrapStack));
+
+    mockIoHelper = {
+      defaults: {
+        debug: jest.fn(),
+      },
+    };
+  });
+
+  test('moves a resource to another stack that has already been deployed', async () => {
     const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -907,7 +982,9 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = await generateStackDefinitions(
+      mappings, [deployedStack1, deployedStack2], [localStack1, localStack2], environment, mockSdkProvider, mockIoHelper,
+    );
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -941,7 +1018,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('with cross-stack references', () => {
+  test('with cross-stack references', async () => {
     const deployedStacks: CloudFormationStack[] = [
       {
         environment,
@@ -1005,7 +1082,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(deployedStacks[1], 'B'), new ResourceLocation(localStacks[0], 'B')),
     ];
 
-    const result = generateStackDefinitions(mappings, deployedStacks, localStacks);
+    const result = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, mockSdkProvider, mockIoHelper);
     expect(result).toEqual([
       {
         StackName: 'StackX',
@@ -1031,7 +1108,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('moves a resource to another stack that has not been deployed', () => {
+  test('moves a resource to another stack that has not been deployed', async () => {
     const deployedStack: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -1084,7 +1161,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket1'), new ResourceLocation(localStack1, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+    const result = await generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2], environment, mockSdkProvider, mockIoHelper);
     expect(result).toEqual([
       {
         StackName: 'Stack2',
@@ -1114,7 +1191,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('multiple mappings', () => {
+  test('multiple mappings', async () => {
     const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -1184,7 +1261,9 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = await generateStackDefinitions(
+      mappings, [deployedStack1, deployedStack2], [localStack1, localStack2], environment, mockSdkProvider, mockIoHelper,
+    );
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1212,7 +1291,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('deployed stacks that are not in any mapping', () => {
+  test('deployed stacks that are not in any mapping', async () => {
     const deployedStack1: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -1268,7 +1347,9 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack1, deployedStack2], [localStack1, localStack2]);
+    const result = await generateStackDefinitions(
+      mappings, [deployedStack1, deployedStack2], [localStack1, localStack2], environment, mockSdkProvider, mockIoHelper,
+    );
     expect(result).toEqual([
       {
         // Stack2 and Stack3 are not involved in the refactoring. Only Stack1 is.
@@ -1284,7 +1365,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('stack definitions come from the local templates', () => {
+  test('stack definitions come from the local templates', async () => {
     const deployedStack: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -1340,7 +1421,7 @@ describe(generateStackDefinitions, () => {
       ),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack]);
+    const result = await generateStackDefinitions(mappings, [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1369,7 +1450,7 @@ describe(generateStackDefinitions, () => {
     ]);
   });
 
-  test('Rules and Parameters are removed for new stacks', () => {
+  test('Rules and Parameters are removed for new stacks', async () => {
     const deployedStack: CloudFormationStack = {
       environment,
       stackName: 'Stack1',
@@ -1438,7 +1519,7 @@ describe(generateStackDefinitions, () => {
       new ResourceMapping(new ResourceLocation(deployedStack, 'Bucket2'), new ResourceLocation(localStack2, 'Bucket2')),
     ];
 
-    const result = generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2]);
+    const result = await generateStackDefinitions(mappings, [deployedStack], [localStack1, localStack2], environment, mockSdkProvider, mockIoHelper);
     expect(result).toEqual([
       {
         StackName: 'Stack1',
@@ -1466,5 +1547,116 @@ describe(generateStackDefinitions, () => {
         }),
       },
     ]);
+  });
+
+  test('uploads large templates to S3 and uses TemplateURL', async () => {
+    // Create a large template (over 50KB)
+    const largeResources: any = {};
+    // Generate enough resources to exceed 50KB
+    for (let i = 0; i < 500; i++) {
+      largeResources[`Bucket${i}`] = {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: `my-bucket-${i}`,
+          Tags: [
+            { Key: 'Environment', Value: 'Production' },
+            { Key: 'Application', Value: 'MyApp' },
+            { Key: 'Owner', Value: 'TeamA' },
+            { Key: 'CostCenter', Value: '12345' },
+          ],
+        },
+      };
+    }
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: largeResources,
+      },
+    };
+
+    const mappings: ResourceMapping[] = [];
+
+    const result = await generateStackDefinitions(
+      mappings, [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper,
+    );
+
+    // Verify that TemplateURL is used instead of TemplateBody for large templates
+    expect(result).toHaveLength(1);
+    expect(result[0].StackName).toBe('Stack1');
+    expect(result[0].TemplateURL).toBeDefined();
+    expect(result[0].TemplateURL).toContain('cdk-refactor/Stack1/');
+    expect(result[0].TemplateBody).toBeUndefined();
+
+    // Verify the template size is indeed over 50KB
+    const templateSize = JSON.stringify(largeResources).length;
+    expect(templateSize).toBeGreaterThan(50 * 1024);
+  });
+
+  test('uses TemplateBody for small templates', async () => {
+    // Create a small template (under 50KB)
+    const smallResources: any = {
+      Bucket1: {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: 'my-bucket',
+        },
+      },
+      Bucket2: {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: 'my-other-bucket',
+        },
+      },
+    };
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: smallResources,
+      },
+    };
+
+    const mappings: ResourceMapping[] = [];
+
+    const result = await generateStackDefinitions(
+      mappings, [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper,
+    );
+
+    // Verify that TemplateBody is used for small templates
+    expect(result).toHaveLength(1);
+    expect(result[0].StackName).toBe('Stack1');
+    expect(result[0].TemplateBody).toBeDefined();
+    expect(result[0].TemplateURL).toBeUndefined();
+
+    // Verify the template size is under 50KB
+    const templateSize = JSON.stringify(smallResources).length;
+    expect(templateSize).toBeLessThan(50 * 1024);
   });
 });

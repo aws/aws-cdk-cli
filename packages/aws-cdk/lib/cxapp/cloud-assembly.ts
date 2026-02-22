@@ -1,6 +1,6 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { minimatch } from 'minimatch';
+import { isMatch as picomatch } from 'picomatch';
 import * as semver from 'semver';
 import { BaseStackAssembly, StackCollection } from '../api/cloud-assembly';
 import { flatten } from '../util';
@@ -129,7 +129,7 @@ export class CloudAssembly extends BaseStackAssembly {
     patterns: string[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
   ): Promise<StackCollection> {
-    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => minimatch(stack.hierarchicalId, pattern);
+    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => picomatch(stack.hierarchicalId, pattern);
     const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
     return this.extendStacks(matchedStacks, stacks, extend);
   }

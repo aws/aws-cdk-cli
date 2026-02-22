@@ -13,26 +13,23 @@ integTest(
       modEnv: { PHASE: phase },
       verbose: false,
     });
-    try {
-      phase = '2a';
 
-      // Should fail
-      const deployOutput = await fixture.cdkDeploy('test-rollback', {
-        options: ['--no-rollback'],
-        modEnv: { PHASE: phase },
-        verbose: false,
-        allowErrExit: true,
-      });
-      expect(deployOutput).toContain('UPDATE_FAILED');
+    phase = '2a';
 
-      // Rollback
-      await fixture.cdk(['rollback'], {
-        modEnv: { PHASE: phase },
-        verbose: false,
-      });
-    } finally {
-      await fixture.cdkDestroy('test-rollback');
-    }
+    // Should fail
+    const deployOutput = await fixture.cdkDeploy('test-rollback', {
+      options: ['--no-rollback'],
+      modEnv: { PHASE: phase },
+      verbose: false,
+      allowErrExit: true,
+    });
+    expect(deployOutput).toContain('UPDATE_FAILED');
+
+    // Rollback
+    await fixture.cdk(['rollback'], {
+      modEnv: { PHASE: phase },
+      verbose: false,
+    });
   }),
 );
 

@@ -1,4 +1,4 @@
-import type { Environment } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';

@@ -42,6 +42,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'output': { type: 'string', alias: 'o', desc: 'Emits the synthesized cloud assembly into a directory (default: cdk.out)', requiresArg: true },
       'notices': { type: 'boolean', desc: 'Show relevant notices' },
       'no-color': { type: 'boolean', desc: 'Removes colors and other style from console output', default: false },
+      'color': { type: 'boolean', desc: 'Force colored output even when stdout is not a TTY', default: undefined },
       'ci': { type: 'boolean', desc: 'Force CI detection. If CI=true then logs will be sent to stdout instead of stderr', default: YARGS_HELPERS.isCI() },
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
       'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },

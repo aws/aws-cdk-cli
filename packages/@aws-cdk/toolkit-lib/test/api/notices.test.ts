@@ -14,6 +14,8 @@ import { WebsiteNoticeDataSource } from '../../lib/api/notices/web-data-source';
 import { Settings } from '../../lib/api/settings';
 import { TestIoHost } from '../_helpers';
 
+process.env.CDK_NOTICES_TIMEOUT = '3000';
+
 const BASIC_BOOTSTRAP_NOTICE = {
   title: 'Exccessive permissions on file asset publishing role',
   issueNumber: 16600,
@@ -486,6 +488,86 @@ describe(NoticesFilter, () => {
       expect((await filtered).map((f) => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
     });
 
+    test('language match', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = await noticesFilter.filter({
+        data: [
+          {
+            title: 'title for typescript',
+            overview: 'This affects {resolve:LANGUAGE} users',
+            issueNumber: 1234,
+            schemaVersion: '1',
+            components: [{ name: 'language:typescript', version: '*' }],
+          },
+          {
+            title: 'title for python',
+            overview: 'python issue',
+            issueNumber: 4321,
+            schemaVersion: '1',
+            components: [{ name: 'language:python', version: '*' }],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+        language: 'typescript',
+      });
+
+      expect(filtered.map((f) => f.notice.title)).toEqual(['title for typescript']);
+      expect(filtered.map((f) => f.format()).join('\n')).toContain('This affects TypeScript users');
+      expect(filtered.map((f) => f.format()).join('\n')).toContain('TypeScript apps');
+    });
+
+    test('no language match when language is not provided', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = noticesFilter.filter({
+        data: [
+          {
+            title: 'typescript-only',
+            overview: 'ts issue',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [{ name: 'language:typescript', version: '*' }],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      expect((await filtered).map((f) => f.notice.title)).toEqual([]);
+    });
+
+    test('language combined with cli version in AND', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = noticesFilter.filter({
+        data: [
+          {
+            title: 'combined',
+            overview: 'combined issue',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [[
+              { name: 'language:typescript', version: '*' },
+              { name: 'cli', version: '<=1.0.0' },
+            ]],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+        language: 'typescript',
+      });
+
+      expect((await filtered).map((f) => f.notice.title)).toEqual(['combined']);
+    });
+
     test.each([
       // No components => doesnt match
       [[], false],
@@ -899,6 +981,7 @@ describe(Notices, () => {
         cliVersion: '1.0.0',
         data: [],
         outDir: 'cdk.out',
+        language: undefined,
       });
     });
   });

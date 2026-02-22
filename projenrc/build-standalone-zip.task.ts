@@ -2,7 +2,7 @@ import * as cp from 'child_process';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { glob } from 'glob';
+import { glob } from 'fast-glob';
 
 async function main() {
   const outdir = await fs.mkdtemp(path.join(os.tmpdir(), 'bundling'));

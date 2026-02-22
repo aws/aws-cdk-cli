@@ -1,4 +1,4 @@
-import { EnvironmentPlaceholders } from '@aws-cdk/cx-api';
+import { EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import type { IAws } from '../aws';
 
 /**

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
-import { CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cx-api';
 
 export const DEFAULT_FAKE_TEMPLATE = { No: 'Resources' };
 

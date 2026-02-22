@@ -40,6 +40,10 @@
       "type": "build"
     },
     {
+      "name": "@types/picomatch",
+      "type": "build"
+    },
+    {
       "name": "@types/promptly",
       "type": "build"
     },
@@ -190,6 +194,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cloud-assembly-api",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cloud-assembly-schema",
       "type": "runtime"
     },
@@ -199,6 +207,7 @@
     },
     {
       "name": "@aws-cdk/cx-api",
+      "version": "^2",
       "type": "runtime"
     },
     {
@@ -337,7 +346,7 @@
     },
     {
       "name": "chokidar",
-      "version": "^3",
+      "version": "^4",
       "type": "runtime"
     },
     {
@@ -350,17 +359,12 @@
       "type": "runtime"
     },
     {
+      "name": "fast-glob",
+      "type": "runtime"
+    },
+    {
       "name": "fs-extra",
       "version": "^9",
-      "type": "runtime"
-    },
-    {
-      "name": "glob",
-      "type": "runtime"
-    },
-    {
-      "name": "minimatch",
-      "version": "10.0.1",
       "type": "runtime"
     },
     {
@@ -371,6 +375,10 @@
     {
       "name": "p-queue",
       "version": "^6",
+      "type": "runtime"
+    },
+    {
+      "name": "picomatch",
       "type": "runtime"
     },
     {

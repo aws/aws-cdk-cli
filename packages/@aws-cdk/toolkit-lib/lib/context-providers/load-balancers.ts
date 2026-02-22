@@ -1,11 +1,11 @@
-import type { LoadBalancerContextQuery, LoadBalancerListenerContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type {
   LoadBalancerContextResponse,
   LoadBalancerListenerContextResponse,
-} from '@aws-cdk/cx-api';
+} from '@aws-cdk/cloud-assembly-api';
 import {
   LoadBalancerIpAddressType,
-} from '@aws-cdk/cx-api';
+} from '@aws-cdk/cloud-assembly-api';
+import type { LoadBalancerContextQuery, LoadBalancerListenerContextQuery } from '@aws-cdk/cloud-assembly-schema';
 import type { LoadBalancer, Listener, TagDescription } from '@aws-sdk/client-elastic-load-balancing-v2';
 import type { IElasticLoadBalancingV2Client, SdkProvider } from '../api/aws-auth/private';
 import { initContextProviderSdk } from '../api/aws-auth/private';

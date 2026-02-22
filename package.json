@@ -34,13 +34,13 @@
     "eslint": "^9",
     "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-jest": "^28.14.0",
-    "eslint-plugin-jsdoc": "^50.8.0",
-    "glob": "^11.1.0",
+    "eslint-plugin-jest": "^29.12.1",
+    "eslint-plugin-jsdoc": "^62.4.1",
+    "fast-glob": "^3.3.3",
     "jest-junit": "^16",
     "nx": "^20.8.3",
     "prettier": "^2.8",
-    "projen": "^0.98.34",
+    "projen": "^0.99.7",
     "semver": "^7.7.3",
     "ts-node": "^10.9.2",
     "typescript": "5.9"
@@ -60,6 +60,7 @@
     "packages": [
       "packages/@aws-cdk/cloud-assembly-schema",
       "packages/@aws-cdk/cloudformation-diff",
+      "packages/@aws-cdk/cloud-assembly-api",
       "packages/@aws-cdk/yarn-cling",
       "packages/@aws-cdk/user-input-gen",
       "packages/@aws-cdk/cli-plugin-contract",
@@ -67,7 +68,6 @@
       "packages/cdk-assets",
       "packages/@aws-cdk/toolkit-lib",
       "packages/aws-cdk",
-      "packages/@aws-cdk/cdk-cli-wrapper",
       "packages/cdk",
       "packages/@aws-cdk/integ-runner",
       "packages/@aws-cdk-testing/cli-integ"
@@ -76,13 +76,18 @@
       "@aws-cdk/cloud-assembly-schema/jsonschema",
       "@aws-cdk/cloud-assembly-schema/jsonschema/**",
       "@aws-cdk/cloud-assembly-schema/semver",
-      "@aws-cdk/cloud-assembly-schema/semver/**"
+      "@aws-cdk/cloud-assembly-schema/semver/**",
+      "@aws-cdk/cloud-assembly-api/jsonschema",
+      "@aws-cdk/cloud-assembly-api/jsonschema/**",
+      "@aws-cdk/cloud-assembly-api/semver",
+      "@aws-cdk/cloud-assembly-api/semver/**"
     ]
   },
   "jest": {
     "projects": [
       "<rootDir>/packages/@aws-cdk/cloud-assembly-schema",
       "<rootDir>/packages/@aws-cdk/cloudformation-diff",
+      "<rootDir>/packages/@aws-cdk/cloud-assembly-api",
       "<rootDir>/packages/@aws-cdk/yarn-cling",
       "<rootDir>/packages/@aws-cdk/user-input-gen",
       "<rootDir>/packages/@aws-cdk/cli-plugin-contract",
@@ -90,7 +95,6 @@
       "<rootDir>/packages/cdk-assets",
       "<rootDir>/packages/@aws-cdk/toolkit-lib",
       "<rootDir>/packages/aws-cdk",
-      "<rootDir>/packages/@aws-cdk/cdk-cli-wrapper",
       "<rootDir>/packages/cdk",
       "<rootDir>/packages/@aws-cdk/integ-runner",
       "<rootDir>/packages/@aws-cdk-testing/cli-integ"

@@ -2,6 +2,28 @@
 
 version: 2
 updates:
+  - package-ecosystem: npm
+    schedule:
+      interval: weekly
+    labels:
+      - auto-approve
+    allow:
+      - dependency-type: production
+    directories:
+      - /
+      - /packages/@aws-cdk-testing/cli-integ
+      - /packages/@aws-cdk/cdk-assets-lib
+      - /packages/@aws-cdk/cli-plugin-contract
+      - /packages/@aws-cdk/cloud-assembly-api
+      - /packages/@aws-cdk/cloud-assembly-schema
+      - /packages/@aws-cdk/cloudformation-diff
+      - /packages/@aws-cdk/integ-runner
+      - /packages/@aws-cdk/toolkit-lib
+      - /packages/@aws-cdk/user-input-gen
+      - /packages/@aws-cdk/yarn-cling
+      - /packages/aws-cdk
+      - /packages/cdk
+      - /packages/cdk-assets
   - package-ecosystem: pip
     directory: /packages/aws-cdk/lib/init-templates
     schedule:

@@ -1,17 +1,32 @@
 import * as path from 'path';
-import type { DeployOptions } from '@aws-cdk/cdk-cli-wrapper';
-import { HotswapMode, StackActivityProgress } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
+import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
 import { IntegRunner } from './runner-base';
+import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
 import { DiagnosticReason, formatAssertionResults, formatError } from '../workers/common';
+
+/**
+ * File events that we care about from chokidar.
+ * In chokidar v4, EventName includes additional events like 'error', 'raw', 'ready', 'all'
+ * that we need to filter out in the 'all' handler.
+ */
+const FILE_EVENTS = [EVENTS.ADD, EVENTS.CHANGE] as const;
+type FileEvent = typeof FILE_EVENTS[number];
+
+/**
+ * Type guard to check if an event is a file event we should process.
+ */
+function isFileEvent(event: EventName): event is FileEvent {
+  return (FILE_EVENTS as readonly string[]).includes(event);
+}
 
 export interface CommonOptions {
   /**
@@ -180,15 +195,17 @@ export class IntegTestRunner extends IntegRunner {
       await this.watch(
         {
           ...this.defaultArgs,
-          progress: StackActivityProgress.BAR,
-          hotswap: HotswapMode.FALL_BACK,
-          deploymentMethod: 'direct',
+          deploymentMethod: {
+            method: 'hotswap',
+            fallback: {
+              method: 'change-set',
+            },
+          },
           profile: this.profile,
           requireApproval: RequireApproval.NEVER,
           traceLogs: enableForVerbosityLevel(2) ?? false,
           verbose: enableForVerbosityLevel(3),
           debug: enableForVerbosityLevel(4),
-          watch: true,
         },
         options.testCaseName,
         options.verbosity ?? 0,
@@ -300,7 +317,7 @@ export class IntegTestRunner extends IntegRunner {
     }
   }
 
-  private async watch(watchArgs: DeployOptions, testCaseName: string, verbosity: number): Promise<void> {
+  private async watch(options: cdk.WatchOptions, testCaseName: string, verbosity: number): Promise<void> {
     const actualTestSuite = await this.actualTestSuite();
     const actualTestCase = actualTestSuite.testSuite[testCaseName];
     if (actualTestCase.hooks?.preDeploy) {
@@ -310,8 +327,8 @@ export class IntegTestRunner extends IntegRunner {
         });
       });
     }
-    const deployArgs = {
-      ...watchArgs,
+    const watchArgs = {
+      ...options,
       lookups: actualTestSuite.enableLookups,
       stacks: [
         ...actualTestCase.stacks,
@@ -332,8 +349,8 @@ export class IntegTestRunner extends IntegRunner {
           ...process.env.AWS_REGION ? [`AWS_REGION=${process.env.AWS_REGION}`] : [],
           'cdk destroy',
           `-a '${this.cdkApp}'`,
-          deployArgs.stacks.join(' '),
-          `--profile ${deployArgs.profile}`,
+          watchArgs.stacks.join(' '),
+          `--profile ${watchArgs.profile}`,
         ].join(' ')}`,
       ],
     };
@@ -349,9 +366,9 @@ export class IntegTestRunner extends IntegRunner {
             `-a '${this.cdkApp}'`,
             `-o '${this.cdkOutDir}'`,
             ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
-            deployArgs.stacks.join(' '),
-            `--outputs-file ${deployArgs.outputsFile}`,
-            `--profile ${deployArgs.profile}`,
+            watchArgs.stacks.join(' '),
+            `--outputs-file ${watchArgs.outputsFile}`,
+            `--profile ${watchArgs.profile}`,
             '--hotswap-fallback',
           ].join(' ')}`,
         ],
@@ -362,7 +379,10 @@ export class IntegTestRunner extends IntegRunner {
     const watcher = chokidar.watch([this.cdkOutDir], {
       cwd: this.directory,
     });
-    watcher.on('all', (event: 'add' | 'change', file: string) => {
+    watcher.on('all', (event: EventName, file: string) => {
+      if (!isFileEvent(event)) {
+        return; // Ignore non-file events like 'error', 'raw', 'ready', 'all'
+      }
       // we only care about changes to the `assertion-results.json` file. If there
       // are assertions then this will change on every deployment
       if (assertionResults.endsWith(file) && (event === 'add' || event === 'change')) {
@@ -410,7 +430,7 @@ export class IntegTestRunner extends IntegRunner {
 
     const { promise: waiter, resolve } = promiseWithResolvers<number | null>();
 
-    await this.cdk.watch(deployArgs, {
+    await this.cdk.watch(watchArgs, {
       // if `-v` (or above) is passed then stream the logs
       onStdout: (message) => {
         if (verbosity > 0) {
@@ -440,7 +460,7 @@ export class IntegTestRunner extends IntegRunner {
    * performing the update workflow
    */
   private async deploy(
-    deployArgs: DeployOptions,
+    deployArgs: cdk.DeployOptions,
     updateWorkflowEnabled: boolean,
     testCaseName: string,
   ): Promise<AssertionResults | undefined> {

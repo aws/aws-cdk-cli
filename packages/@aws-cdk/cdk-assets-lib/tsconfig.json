@@ -37,6 +37,9 @@
   "references": [
     {
       "path": "../cloud-assembly-schema"
+    },
+    {
+      "path": "../cloud-assembly-api"
     }
   ]
 }

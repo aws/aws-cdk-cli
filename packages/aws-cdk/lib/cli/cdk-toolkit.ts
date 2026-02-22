@@ -1,18 +1,19 @@
 import * as path from 'path';
 import { format } from 'util';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import * as cxapi from '@aws-cdk/cx-api';
 import type { ConfirmationRequest, DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
+import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -72,6 +73,21 @@ import { FlagOperations } from '../commands/flags/operations';
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
 const pLimit: typeof import('p-limit') = require('p-limit');
+
+/**
+ * File events that we care about from chokidar.
+ * In chokidar v4, EventName includes additional events like 'error', 'raw', 'ready', 'all'
+ * that we need to filter out in the 'all' handler.
+ */
+const FILE_EVENTS = [EVENTS.ADD, EVENTS.ADD_DIR, EVENTS.CHANGE, EVENTS.UNLINK, EVENTS.UNLINK_DIR] as const;
+type FileEvent = typeof FILE_EVENTS[number];
+
+/**
+ * Type guard to check if an event is a file event we should process.
+ */
+function isFileEvent(event: EventName): event is FileEvent {
+  return (FILE_EVENTS as readonly string[]).includes(event);
+}
 
 export interface CdkToolkitProps {
   /**
@@ -195,7 +211,7 @@ export class CdkToolkit {
 
   public async metadata(stackName: string, json: boolean) {
     const stacks = await this.selectSingleStackByName(stackName);
-    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.manifest.metadata ?? {}, json);
+    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.metadata ?? {}, json);
   }
 
   public async acknowledge(noticeId: string) {
@@ -867,9 +883,12 @@ export class CdkToolkit {
     // 2. "watch" setting without an "include" key? We default to observing "./**".
     // 3. "watch" setting with an empty "include" key? We default to observing "./**".
     // 4. Non-empty "include" key? Just use the "include" key.
+    // Note: We use '**' as the default pattern (not rootDir) because chokidar reports
+    // file paths relative to cwd, and the ignored function uses picomatch which expects
+    // glob patterns, not absolute paths.
     const watchIncludes = this.patternsArrayForWatch(watchSettings.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
+      defaultPattern: '**',
+      returnDefaultIfEmpty: true,
     });
     await this.ioHost.asIoHelper().defaults.debug("'include' patterns for 'watch': %s", watchIncludes);
 
@@ -881,8 +900,8 @@ export class CdkToolkit {
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
     const outputDir = this.props.configuration.settings.get(['output']);
     const watchExcludes = this.patternsArrayForWatch(watchSettings.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
+      defaultPattern: '',
+      returnDefaultIfEmpty: false,
     }).concat(`${outputDir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
     await this.ioHost.asIoHelper().defaults.debug("'exclude' patterns for 'watch': %s", watchExcludes);
 
@@ -921,9 +940,18 @@ export class CdkToolkit {
       await cloudWatchLogMonitor?.activate();
     };
 
+    // Create ignore matcher for chokidar v4 compatibility
+    // Chokidar v4 removed glob pattern support, so we use picomatch to filter files
+    // We pass rootDir because chokidar v4 passes absolute paths to the ignored callback
+    const shouldIgnore = createIgnoreMatcher({
+      include: watchIncludes,
+      exclude: watchExcludes,
+      rootDir,
+    });
+
     chokidar
-      .watch(watchIncludes, {
-        ignored: watchExcludes,
+      .watch('.', {
+        ignored: shouldIgnore,
         cwd: rootDir,
       })
       .on('ready', async () => {
@@ -932,7 +960,10 @@ export class CdkToolkit {
         await this.ioHost.asIoHelper().defaults.info("Triggering initial 'cdk deploy'");
         await deployAndWatch();
       })
-      .on('all', async (event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir', filePath?: string) => {
+      .on('all', async (event: EventName, filePath?: string) => {
+        if (!isFileEvent(event)) {
+          return; // Ignore non-file events like 'error', 'raw', 'ready', 'all'
+        }
         if (latch === 'pre-ready') {
           await this.ioHost.asIoHelper().defaults.info(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '%s' for changes`, filePath);
         } else if (latch === 'open') {
@@ -1504,10 +1535,10 @@ export class CdkToolkit {
 
   private patternsArrayForWatch(
     patterns: string | string[] | undefined,
-    options: { rootDir: string; returnRootDirIfEmpty: boolean },
+    options: { defaultPattern: string; returnDefaultIfEmpty: boolean },
   ): string[] {
     const patternsArray: string[] = patterns !== undefined ? (Array.isArray(patterns) ? patterns : [patterns]) : [];
-    return patternsArray.length > 0 ? patternsArray : options.returnRootDirIfEmpty ? [options.rootDir] : [];
+    return patternsArray.length > 0 ? patternsArray : options.returnDefaultIfEmpty ? [options.defaultPattern] : [];
   }
 
   private async invokeDeployFromWatch(

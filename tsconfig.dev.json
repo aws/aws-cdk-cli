@@ -40,6 +40,9 @@
       "path": "packages/@aws-cdk/cloudformation-diff"
     },
     {
+      "path": "packages/@aws-cdk/cloud-assembly-api"
+    },
+    {
       "path": "packages/@aws-cdk/yarn-cling"
     },
     {
@@ -59,9 +62,6 @@
     },
     {
       "path": "packages/aws-cdk"
-    },
-    {
-      "path": "packages/@aws-cdk/cdk-cli-wrapper"
     },
     {
       "path": "packages/cdk"

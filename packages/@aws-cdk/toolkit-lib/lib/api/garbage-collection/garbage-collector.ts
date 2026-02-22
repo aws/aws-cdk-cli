@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
 import * as chalk from 'chalk';

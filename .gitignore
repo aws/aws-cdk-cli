@@ -46,6 +46,8 @@ jspm_packages/
 /.nx
 !/nx.json
 !/.github/workflows/bootstrap-template-protection.yml
+!/.github/workflows/self-mutation.yml
+.vscode/settings.json
 !/.eslintrc.json
 !/.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml
 !/.github/dependabot.yml

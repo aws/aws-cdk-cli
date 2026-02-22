@@ -1,6 +1,7 @@
 import { createWriteStream, promises as fs } from 'fs';
 import * as path from 'path';
-import * as glob from 'glob';
+import type { Options } from 'fast-glob';
+import { globSync } from 'fast-glob';
 
 // namespace object imports won't work in the bundle for function exports
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -23,15 +24,15 @@ export async function zipDirectory(
 function writeZipFile(directory: string, outputFile: string): Promise<void> {
   return new Promise(async (ok, fail) => {
     // The below options are needed to support following symlinks when building zip files:
-    // - nodir: This will prevent symlinks themselves from being copied into the zip.
-    // - follow: This will follow symlinks and copy the files within.
-    const globOptions = {
+    // - onlyFiles: This will prevent symlinks themselves from being copied into the zip.
+    // - followSymbolicLinks: This will follow symlinks and copy the files within.
+    const globOptions: Options = {
       dot: true,
-      nodir: true,
-      follow: true,
+      onlyFiles: true,
+      followSymbolicLinks: true,
       cwd: directory,
     };
-    const files = glob.sync('**', globOptions); // The output here is already sorted
+    const files = globSync('**', globOptions); // The output here is already sorted
 
     const output = createWriteStream(outputFile);
 

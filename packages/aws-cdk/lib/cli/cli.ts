@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
@@ -28,6 +29,7 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
+import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -36,16 +38,21 @@ import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { getLanguageFromAlias } from '../commands/language';
-
-if (!process.stdout.isTTY) {
-  // Disable chalk color highlighting
-  process.env.FORCE_COLOR = '0';
-}
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
+  // Handle color output settings
+  // Priority: --no-color > --color > TTY detection
+  if (argv.noColor) {
+    process.env.FORCE_COLOR = '0';
+  } else if (argv.color) {
+    process.env.FORCE_COLOR = '3';
+  } else if (!process.stdout.isTTY) {
+    // Default behavior: disable colors for non-TTY
+    process.env.FORCE_COLOR = '0';
+  }
 
   const cmd = argv._[0];
 
@@ -140,6 +147,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
+    language: await guessLanguage(process.cwd()),
     httpOptions: { agent: proxyAgent },
     cliVersion: versionNumber(),
   });

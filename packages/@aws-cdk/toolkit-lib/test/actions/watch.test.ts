@@ -4,11 +4,9 @@
 // need to make sure that the constants they access are initialized before the imports.
 const mockChokidarWatcherOn = jest.fn();
 const mockChokidarWatcherClose = jest.fn();
-const mockChokidarWatcherUnref = jest.fn();
 const fakeChokidarWatcher = {
   on: mockChokidarWatcherOn,
   close: mockChokidarWatcherClose,
-  unref: mockChokidarWatcherUnref,
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 } satisfies Partial<ReturnType<typeof import('chokidar')['watch']>>;
 const fakeChokidarWatcherOn = {
@@ -164,11 +162,11 @@ describe('watch', () => {
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
-    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
       cloudWatchLogMonitor: expect.anything(), // Not undefined
     }));
 
-    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[2] as any).cloudWatchLogMonitor, 'deactivate');
+    const logMonitorSpy = jest.spyOn((deploySpy.mock.calls[0]?.[3] as any).cloudWatchLogMonitor, 'deactivate');
 
     // Deactivate the watcher and cloudWatchLogMonitor that we created, otherwise the tests won't exit
     await watcher.dispose();
@@ -183,7 +181,6 @@ describe('watch', () => {
     const watcher = await toolkit.watch(cx, { include: [] });
 
     expect(mockChokidarWatcherClose).not.toHaveBeenCalled();
-    expect(mockChokidarWatcherUnref).not.toHaveBeenCalled();
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all([
@@ -192,7 +189,6 @@ describe('watch', () => {
     ]);
 
     expect(mockChokidarWatcherClose).toHaveBeenCalled();
-    expect(mockChokidarWatcherUnref).toHaveBeenCalled();
   });
 
   describe.each<[DeploymentMethod, string]>([
@@ -213,7 +209,7 @@ describe('watch', () => {
       await fakeChokidarWatcherOn.readyCallback();
 
       // THEN
-      expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+      expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
         deploymentMethod: deploymentMethod,
         extraUserAgent: `cdk-watch/hotswap-${userAgent}`,
       }));
@@ -232,7 +228,7 @@ describe('watch', () => {
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
-    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.objectContaining({
+    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
       deploymentMethod: { method: 'hotswap' },
       extraUserAgent: 'cdk-watch/hotswap-on',
     }));
@@ -275,3 +271,98 @@ describe('watch', () => {
 });
 
 // @todo unit test watch with file events
+
+describe('watch chokidar configuration', () => {
+  test('watches root directory (.) instead of glob patterns', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['**/*.ts', 'src/**'],
+    });
+
+    // THEN
+    expect(mockChokidarWatch).toHaveBeenCalledWith(
+      '.', // Should watch root directory, not glob patterns
+      expect.objectContaining({
+        cwd: expect.any(String),
+      }),
+    );
+  });
+
+  test('passes ignored option as a function', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['**/*.ts'],
+      exclude: ['**/node_modules/**'],
+    });
+
+    // THEN
+    expect(mockChokidarWatch).toHaveBeenCalledWith(
+      '.',
+      expect.objectContaining({
+        ignored: expect.any(Function),
+      }),
+    );
+  });
+
+  test('ignored function filters files based on include patterns', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['**/*.ts'],
+      exclude: [],
+    });
+
+    // Get the ignored function that was passed to chokidar
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+
+    // THEN - .ts files should NOT be ignored
+    expect(ignoredFn('file.ts')).toBe(false);
+    expect(ignoredFn('src/file.ts')).toBe(false);
+
+    // Non-.ts files should be ignored
+    expect(ignoredFn('file.js')).toBe(true);
+    expect(ignoredFn('file.json')).toBe(true);
+  });
+
+  test('ignored function filters files based on exclude patterns', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['**'],
+      exclude: ['**/node_modules/**', '**/*.test.ts'],
+    });
+
+    // Get the ignored function that was passed to chokidar
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+
+    // THEN - excluded files should be ignored
+    expect(ignoredFn('node_modules/pkg/index.js')).toBe(true);
+    expect(ignoredFn('src/file.test.ts')).toBe(true);
+
+    // Non-excluded files should NOT be ignored
+    expect(ignoredFn('src/file.ts')).toBe(false);
+    expect(ignoredFn('lib/index.ts')).toBe(false);
+  });
+
+  test('ignored function applies default excludes', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['**'],
+      // No explicit excludes - should use defaults
+    });
+
+    // Get the ignored function that was passed to chokidar
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+
+    // THEN - default excludes should be applied
+    expect(ignoredFn('node_modules/pkg/index.js')).toBe(true);
+    expect(ignoredFn('.gitignore')).toBe(true);
+    expect(ignoredFn('.git/config')).toBe(true);
+
+    // Regular files should NOT be ignored
+    expect(ignoredFn('src/file.ts')).toBe(false);
+  });
+});

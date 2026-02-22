@@ -13,7 +13,7 @@ import type {
 import {
   AssetPublishing,
 } from '@aws-cdk/cdk-assets-lib';
-import { type Environment, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import { type Environment, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { IoMessageLevel } from '../io';

@@ -12,10 +12,10 @@
       "path": "packages/@aws-cdk/cdk-assets-lib"
     },
     {
-      "path": "packages/@aws-cdk/cdk-cli-wrapper"
+      "path": "packages/@aws-cdk/cli-plugin-contract"
     },
     {
-      "path": "packages/@aws-cdk/cli-plugin-contract"
+      "path": "packages/@aws-cdk/cloud-assembly-api"
     },
     {
       "path": "packages/@aws-cdk/cloud-assembly-schema"

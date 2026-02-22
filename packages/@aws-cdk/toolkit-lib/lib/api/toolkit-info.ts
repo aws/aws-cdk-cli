@@ -1,5 +1,5 @@
 import { format } from 'util';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
 import type { SDK } from './aws-auth/private';
 import {

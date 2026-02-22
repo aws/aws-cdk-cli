@@ -1,5 +1,5 @@
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import type * as cxapi from '@aws-cdk/cx-api';
 
 /**
  * The dependencies of a stack.

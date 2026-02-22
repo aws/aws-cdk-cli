@@ -1,5 +1,5 @@
+import { type VpcContextResponse, type VpcSubnetGroup, VpcSubnetGroupType } from '@aws-cdk/cloud-assembly-api';
 import type { VpcContextQuery } from '@aws-cdk/cloud-assembly-schema';
-import { type VpcContextResponse, type VpcSubnetGroup, VpcSubnetGroupType } from '@aws-cdk/cx-api';
 import type { Filter, RouteTable, Tag, Vpc } from '@aws-sdk/client-ec2';
 import type { IContextProviderMessages } from '.';
 import { initContextProviderSdk } from '../api/aws-auth/private';

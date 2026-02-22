@@ -1,8 +1,8 @@
 import * as os from 'os';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
+import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { ContextLookupRoleOptions } from '@aws-cdk/cloud-assembly-schema';
-import type { Environment } from '@aws-cdk/cx-api';
-import { EnvironmentUtils, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import { AwsCliCompatible } from './awscli-compatible';

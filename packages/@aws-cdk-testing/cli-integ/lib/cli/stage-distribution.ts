@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import * as path from 'path';
+import { globSync } from 'fast-glob';
 import * as fs from 'fs-extra';
-import * as glob from 'glob';
 import * as yargs from 'yargs';
 import { shell } from '..';
 import { TestRepository } from '../staging/codeartifact';
@@ -205,22 +205,22 @@ async function publish(repo: TestRepository, usageDir: UsageDir, args: {
 
   await doRepo.npm(async () => {
     header('NPM');
-    await uploadNpmPackages(glob.sync(path.join(directory, 'js', '*.tgz')), login, usageDir);
+    await uploadNpmPackages(globSync(path.join(directory, 'js', '*.tgz')), login, usageDir);
   });
 
   await doRepo.python(async () => {
     header('Python');
-    await uploadPythonPackages(glob.sync(path.join(directory, 'python', '*')), login);
+    await uploadPythonPackages(globSync(path.join(directory, 'python', '*')), login);
   });
 
   await doRepo.java(async () => {
     header('Java');
-    await uploadJavaPackages(glob.sync(path.join(directory, 'java', '**', '*.pom')), login, usageDir);
+    await uploadJavaPackages(globSync(path.join(directory, 'java', '**', '*.pom')), login, usageDir);
   });
 
   await doRepo.dotnet(async () => {
     header('.NET');
-    await uploadDotnetPackages(glob.sync(path.join(directory, 'dotnet', '**', '*.nupkg')), usageDir);
+    await uploadDotnetPackages(globSync(path.join(directory, 'dotnet', '**', '*.nupkg')), usageDir);
   });
 
   if (args.regression) {

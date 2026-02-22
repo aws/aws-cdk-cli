@@ -115,6 +115,10 @@
       "desc": "Removes colors and other style from console output",
       "default": false
     },
+    "color": {
+      "type": "boolean",
+      "desc": "Force colored output even when stdout is not a TTY"
+    },
     "ci": {
       "type": "boolean",
       "desc": "Force CI detection. If CI=true then logs will be sent to stdout instead of stderr"

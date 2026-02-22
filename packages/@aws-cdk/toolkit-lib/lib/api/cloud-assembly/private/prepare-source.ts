@@ -2,6 +2,7 @@ import '../../../private/dispose-polyfill';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { format } from 'node:util';
+import { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
@@ -162,7 +163,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
    * verify if registry associations have or have not been set up for this
    * file type, so we'll assume the worst and take control.
    */
-  public guessExecutable(app: string) {
+  public guessExecutable(app: string): Promise<string> {
     return guessExecutable(app, this.debugFn);
   }
 
@@ -260,7 +261,7 @@ export function writeContextToEnv(env: Env, context: Context, completeness: 'add
  *
  * @param assembly - the assembly to check
  */
-async function checkContextOverflowSupport(assembly: cxapi.CloudAssembly, ioHelper: IoHelper): Promise<void> {
+async function checkContextOverflowSupport(assembly: CloudAssembly, ioHelper: IoHelper): Promise<void> {
   const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
   const tree = await loadTree(assembly, traceFn);
 
@@ -292,7 +293,7 @@ export function frameworkSupportsContextOverflow(tree: ConstructTreeNode | undef
  */
 export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHelper, loadOptions: LoadAssemblyOptions = {}) {
   try {
-    const assembly = new cxapi.CloudAssembly(assemblyDir, {
+    const assembly = new CloudAssembly(assemblyDir, {
       skipVersionCheck: !(loadOptions.checkVersion ?? true),
       skipEnumCheck: !(loadOptions.checkEnums ?? true),
       // We sort as we deploy
