@@ -45,6 +45,7 @@ describe('publish', () => {
 
     // THEN
     expect(result.publishedAssetCount).toBeGreaterThan(0);
+    ioHost.expectMessage({ containing: 'Publishing assets for 2 stack(s)', level: 'info' });
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
