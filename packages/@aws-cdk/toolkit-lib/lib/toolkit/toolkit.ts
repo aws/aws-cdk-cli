@@ -97,6 +97,7 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 
 export interface ToolkitOptions {
   /**
@@ -505,12 +506,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
       return {
-        publishedAssetCount: 0,
+        publishedAssets: [],
       };
     }
 
     const deployments = await this.deploymentsForAction('publish');
     const startPublishTime = Date.now();
+    const publishedAssets: IManifestEntry[] = [];
 
     const buildAsset = async (assetNode: AssetBuildNode) => {
       const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
@@ -540,6 +542,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         forcePublish: options.force,
       });
       await publishAssetSpan.end();
+      publishedAssets.push(assetNode.asset);
     };
 
     const stacks = stackCollection.stackArtifacts;
@@ -556,8 +559,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (!options.force) {
       await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
-
-    const publishedAssetCount = Object.values(workGraph.nodes).filter(n => n.type === 'asset-publish').length;
 
     await ioHelper.defaults.info(`Publishing assets for ${chalk.bold(String(stackCollection.stackCount))} stack(s)`);
 
@@ -580,7 +581,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await ioHelper.defaults.info(`\n✨  Total time: ${formatTime(publishTime)}s\n`);
 
     return {
-      publishedAssetCount,
+      publishedAssets,
     };
   }
 

@@ -31,7 +31,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.publishedAssetCount).toBeGreaterThan(0);
+    expect(result.publishedAssets.length).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Publishing assets for 1 stack(s)', level: 'info' });
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
@@ -44,7 +44,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.publishedAssetCount).toBeGreaterThan(0);
+    expect(result.publishedAssets.length).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Publishing assets for 2 stack(s)', level: 'info' });
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
@@ -57,7 +57,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.publishedAssetCount).toBe(0);
+    expect(result.publishedAssets.length).toBe(0);
     ioHost.expectMessage({ containing: 'No stacks selected', level: 'error' });
   });
 
@@ -67,7 +67,7 @@ describe('publish', () => {
     const result = await toolkit.publish(cx);
 
     // THEN
-    expect(result.publishedAssetCount).toBeGreaterThan(0);
+    expect(result.publishedAssets.length).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
@@ -80,7 +80,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.publishedAssetCount).toBeGreaterThan(0);
+    expect(result.publishedAssets.length).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
@@ -96,7 +96,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.publishedAssetCount).toBe(0);
+    expect(result.publishedAssets.length).toBe(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 });
