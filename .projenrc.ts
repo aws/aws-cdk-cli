@@ -229,7 +229,7 @@ const repoProject = new yarn.Monorepo({
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
     'cdklabs-projen-project-types',
-    'glob',
+    'fast-glob',
     'semver',
     '@aws-sdk/client-s3',
     '@aws-sdk/credential-providers',
@@ -293,6 +293,14 @@ const repoProject = new yarn.Monorepo({
       },
     },
   },
+
+  pullRequestTemplateContents: [
+    'Fixes #',
+    '',
+    '### Checklist',
+    '- [ ] This change contains a major version upgrade for a dependency and I confirm all breaking changes are addressed',
+    '  - Release notes for the new version:',
+  ],
 
   buildWorkflowOptions: {
     preBuildSteps: [
@@ -660,7 +668,7 @@ const cdkAssetsLib = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       'archiver',
-      'glob',
+      'fast-glob',
       'mime@^2',
       sdkDepForLib('@aws-sdk/client-ecr'),
       sdkDepForLib('@aws-sdk/client-s3'),
@@ -670,11 +678,12 @@ const cdkAssetsLib = configureProject(
       sdkDepForLib('@aws-sdk/lib-storage'),
       smithyDepForLib('@smithy/config-resolver'),
       smithyDepForLib('@smithy/node-config-provider'),
-      'minimatch@10.0.1',
+      'picomatch',
     ],
     devDeps: [
       '@types/archiver',
       '@types/mime@^2',
+      '@types/picomatch',
       'fs-extra',
       'graceful-fs',
       'jszip',
@@ -876,12 +885,11 @@ const toolkitLib = configureProject(
       'chokidar@^4',
       'fast-deep-equal',
       'fs-extra@^9',
-      'glob',
-      'minimatch@10.0.1',
+      'picomatch',
       'p-limit@^3',
-      'picomatch@^4',
       'semver',
       'split2',
+      'fast-glob',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
@@ -894,7 +902,7 @@ const toolkitLib = configureProject(
       '@microsoft/api-extractor',
       '@smithy/util-stream',
       '@types/fs-extra',
-      '@types/picomatch@^4',
+      '@types/picomatch',
       '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
@@ -1142,6 +1150,7 @@ const cli = configureProject(
       '@types/archiver',
       '@types/fs-extra@^9',
       '@types/mockery',
+      '@types/picomatch',
       '@types/promptly',
       '@types/semver',
       '@types/sinon',
@@ -1203,8 +1212,8 @@ const cli = configureProject(
       'decamelize@^5', // Non-ESM
       'enquirer',
       'fs-extra@^9',
-      'glob',
-      'minimatch@10.0.1',
+      'fast-glob',
+      'picomatch',
       'p-limit@^3',
       'p-queue@^6',
       'promptly',
@@ -1553,7 +1562,7 @@ const cliInteg = configureProject(
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
-      'glob@^9',
+      'fast-glob',
       'make-runnable@^1',
       'mockttp@^3',
       'npm@^11',
@@ -1720,7 +1729,7 @@ new IssueLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', 'THIRD_PARTY_LICENSES'],
 });
 
 // Set allowed scopes based on monorepo packages
