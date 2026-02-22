@@ -10,6 +10,7 @@ export * from './stack-activity';
 export * from './synth';
 export * from './types';
 export * from './progress';
+export * from './publish';
 export * from './refactor';
 export * from './watch';
 export * from './stack-details';

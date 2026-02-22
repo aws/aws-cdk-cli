@@ -4,6 +4,7 @@ export * from './destroy';
 export * from './diff';
 export * from './drift';
 export * from './list';
+export * from './publish';
 export * from './refactor';
 export * from './rollback';
 export * from './synth';
