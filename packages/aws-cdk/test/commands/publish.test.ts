@@ -1,4 +1,3 @@
-import type { PublishResult } from '@aws-cdk/toolkit-lib';
 import { Deployments } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -34,12 +33,7 @@ describe('publish', () => {
     });
 
     // Mock the toolkit.publish method from toolkit-lib
-    jest.spyOn((toolkit as any).toolkit, 'publish').mockResolvedValue({
-      stackCount: 1,
-      synthesisTime: 0.5,
-      publishTime: 1.2,
-      success: true,
-    } satisfies PublishResult);
+    jest.spyOn((toolkit as any).toolkit, 'publish').mockResolvedValue(undefined);
   });
 
   afterEach(() => {

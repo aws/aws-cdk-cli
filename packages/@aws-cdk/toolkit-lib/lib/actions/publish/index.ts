@@ -52,9 +52,4 @@ export interface PublishResult {
    * Time taken for publishing in seconds
    */
   readonly publishTime: number;
-
-  /**
-   * Whether the operation was successful
-   */
-  readonly success: boolean;
 }

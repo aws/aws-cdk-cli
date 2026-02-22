@@ -508,7 +508,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         stackCount: 0,
         synthesisTime: assembly.synthDuration.asSec,
         publishTime: 0,
-        success: false,
       };
     }
 
@@ -584,7 +583,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       stackCount: stackCollection.stackCount,
       synthesisTime: assembly.synthDuration.asSec,
       publishTime,
-      success: true,
     };
   }
 

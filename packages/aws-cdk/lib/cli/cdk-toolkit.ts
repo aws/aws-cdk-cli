@@ -790,7 +790,7 @@ export class CdkToolkit {
     }
   }
 
-  public async publish(options: PublishOptions) {
+  public async publish(options: PublishOptions): Promise<void> {
     await this.toolkit.publish(this.props.cloudExecutable, {
       stacks: {
         patterns: options.selector.patterns,

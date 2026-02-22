@@ -1,5 +1,5 @@
-import * as deployments from '../../lib/api/deployments';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
+import * as deployments from '../../lib/api/deployments';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
 
@@ -31,7 +31,6 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.success).toBe(true);
     expect(result.stackCount).toBe(1);
     expect(result.synthesisTime).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Publishing assets for 1 stack(s)', level: 'info' });
@@ -46,12 +45,11 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.success).toBe(true);
     expect(result.stackCount).toBeGreaterThanOrEqual(1);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
-  test('returns error when no stacks are selected', async () => {
+  test('returns result when no stacks are selected', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-asset');
     const result = await toolkit.publish(cx, {
@@ -59,7 +57,6 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.success).toBe(false);
     expect(result.stackCount).toBe(0);
     ioHost.expectMessage({ containing: 'No stacks selected', level: 'error' });
   });
@@ -70,7 +67,7 @@ describe('publish', () => {
     const result = await toolkit.publish(cx);
 
     // THEN
-    expect(result.success).toBe(true);
+    expect(result.stackCount).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
@@ -83,7 +80,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.success).toBe(true);
+    expect(result.stackCount).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 
@@ -99,7 +96,7 @@ describe('publish', () => {
     });
 
     // THEN
-    expect(result.success).toBe(true);
+    expect(result.stackCount).toBeGreaterThan(0);
     ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
   });
 });
