@@ -512,7 +512,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const deployments = await this.deploymentsForAction('publish');
     const startPublishTime = Date.now();
-    const publishedAssets: IManifestEntry[] = [];
 
     const buildAsset = async (assetNode: AssetBuildNode) => {
       const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
@@ -542,7 +541,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         forcePublish: options.force,
       });
       await publishAssetSpan.end();
-      publishedAssets.push(assetNode.asset);
     };
 
     const stacks = stackCollection.stackArtifacts;
@@ -575,6 +573,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       buildAsset,
       publishAsset,
     });
+
+    const publishedAssets = Object.values(workGraph.nodes)
+      .filter((n): n is AssetPublishNode => n.type === 'asset-publish')
+      .map(n => n.asset);
 
     const publishTime = (Date.now() - startPublishTime) / 1000;
     await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully'));
