@@ -19,6 +19,7 @@ import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
+  ExpandStackSelection,
   findCloudWatchLogGroups,
   GarbageCollector,
   removeNonImportResources,
@@ -795,6 +796,7 @@ export class CdkToolkit {
       stacks: {
         patterns: options.selector.patterns,
         strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
       },
       force: options.force,
       assetParallelism: options.assetParallelism,
