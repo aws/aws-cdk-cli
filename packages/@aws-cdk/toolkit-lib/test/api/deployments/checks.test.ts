@@ -1,5 +1,6 @@
 import { DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { determineAllowCrossAccountAssetPublishing, getBootstrapStackInfo } from '../../../lib/api/deployments';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { mockCloudFormationClient, MockSdk } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -116,14 +117,24 @@ describe('getBootstrapStackInfo', () => {
     });
   });
 
-  it('should throw error when stack is not found', async () => {
+  it('should throw BootstrapError when stack is not found', async () => {
     const mockSDK = new MockSdk();
 
     mockCloudFormationClient.on(DescribeStacksCommand).resolves({
       Stacks: [],
     });
 
-    await expect(getBootstrapStackInfo(mockSDK, 'CDKToolkit')).rejects.toThrow('Toolkit stack CDKToolkit not found');
+    await expect(getBootstrapStackInfo(mockSDK, 'CDKToolkit')).rejects.toThrow("Toolkit stack CDKToolkit not found. Please run 'cdk bootstrap'.");
+
+    try {
+      await getBootstrapStackInfo(mockSDK, 'CDKToolkit');
+    } catch (error: any) {
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+      expect(error.environment).toEqual({
+        account: '123456789012',
+        region: 'bermuda-triangle-1337',
+      });
+    }
   });
 
   it('should throw error when BootstrapVersion output is missing', async () => {

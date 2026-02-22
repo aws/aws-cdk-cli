@@ -5,6 +5,7 @@ import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
 import { Notices } from '../../../lib/api/notices';
 import { CachedDataSource } from '../../../lib/api/notices/cached-data-source';
 import { NoticesFilter } from '../../../lib/api/notices/filter';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { MockSdk, mockBootstrapStack, mockSSMClient } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 import { MockToolkitInfo } from '../_helpers/mock-toolkitinfo';
@@ -172,5 +173,84 @@ describe('validate version without bootstrap stack', () => {
       Name: '/abc',
       WithDecryption: true,
     });
+  });
+});
+
+describe('BootstrapError throwing', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('throws BootstrapError with correct environment info for version mismatch', async () => {
+    // GIVEN - bootstrap stack with version 5, but we require version 10
+    mockToolkitInfo(
+      ToolkitInfo.fromStack(
+        mockBootstrapStack({
+          Outputs: [{ OutputKey: 'BootstrapVersion', OutputValue: '5' }],
+        }),
+      ),
+    );
+
+    // WHEN/THEN
+    await expect(envResources().validateVersion(10, undefined)).rejects.toThrow(
+      /requires bootstrap stack version/,
+    );
+
+    try {
+      await envResources().validateVersion(10, undefined);
+    } catch (error: any) {
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+      expect(error.environment).toEqual({
+        account: '11111111',
+        region: 'us-nowhere',
+      });
+    }
+  });
+
+  test('throws BootstrapError with correct environment info for missing SSM parameter', async () => {
+    // GIVEN - no bootstrap stack, SSM parameter not found
+    mockToolkitInfo(ToolkitInfo.bootstrapStackNotFoundInfo('TestBootstrapStack'));
+
+    const ssmError = new Error('Parameter not found');
+    ssmError.name = 'ParameterNotFound';
+    mockSSMClient.on(GetParameterCommand).rejects(ssmError);
+
+    // WHEN/THEN
+    await expect(envResources().validateVersion(8, '/cdk-bootstrap/version')).rejects.toThrow(
+      /Has the environment been bootstrapped/,
+    );
+
+    try {
+      await envResources().validateVersion(8, '/cdk-bootstrap/version');
+    } catch (error: any) {
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+      expect(error.environment).toEqual({
+        account: '11111111',
+        region: 'us-nowhere',
+      });
+    }
+  });
+
+  test('throws BootstrapError with correct environment info when SSM version is insufficient', async () => {
+    // GIVEN - SSM parameter returns version 5, but we require version 10
+    mockToolkitInfo(ToolkitInfo.bootstrapStackNotFoundInfo('TestBootstrapStack'));
+    mockSSMClient.on(GetParameterCommand).resolves({
+      Parameter: { Value: '5' },
+    });
+
+    // WHEN/THEN
+    await expect(envResources().validateVersion(10, '/cdk-bootstrap/version')).rejects.toThrow(
+      /requires bootstrap stack version/,
+    );
+
+    try {
+      await envResources().validateVersion(10, '/cdk-bootstrap/version');
+    } catch (error: any) {
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+      expect(error.environment).toEqual({
+        account: '11111111',
+        region: 'us-nowhere',
+      });
+    }
   });
 });
