@@ -35,7 +35,7 @@
     "@types/jest": "^29.5.14",
     "@types/lodash.clonedeep": "^4.5.9",
     "@types/node": "^17",
-    "@types/prettier": "^2",
+    "@types/prettier": "^3",
     "@types/semver": "^7.7.1",
     "@types/yarnpkg__lockfile": "^1.1.9",
     "@typescript-eslint/eslint-plugin": "^8",
@@ -50,14 +50,14 @@
     "eslint-plugin-prettier": "^5.5.4",
     "jest": "^29.7.0",
     "jest-junit": "^16",
-    "prettier": "^2.8",
+    "prettier": "^3.8",
     "ts-jest": "^29.4.6",
     "typescript": "5.9"
   },
   "dependencies": {
     "@cdklabs/typewriter": "^0.0.15",
     "lodash.clonedeep": "^4.5.0",
-    "prettier": "^2.8"
+    "prettier": "^3.8"
   },
   "keywords": [
     "aws",
