@@ -510,7 +510,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const deployments = await this.deploymentsForAction('publish');
-    const startPublishTime = Date.now();
 
     const buildAsset = async (assetNode: AssetBuildNode) => {
       const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
