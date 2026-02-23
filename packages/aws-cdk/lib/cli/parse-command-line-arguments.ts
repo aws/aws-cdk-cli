@@ -651,11 +651,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'f',
           desc: 'Always publish assets, even if they are already published',
         })
-        .option('asset-parallelism', {
-          default: undefined,
-          type: 'boolean',
-          desc: 'Whether to build/publish assets in parallel',
-        })
         .option('concurrency', {
           default: 1,
           type: 'number',

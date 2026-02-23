@@ -163,7 +163,6 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         exclusively: args.exclusively,
         force: args.force,
-        assetParallelism: args.assetParallelism,
         concurrency: args.concurrency,
         STACKS: args.STACKS,
       };
@@ -454,7 +453,6 @@ export function convertConfigToUserInput(config: any): UserInput {
     all: config.publish?.all,
     exclusively: config.publish?.exclusively,
     force: config.publish?.force,
-    assetParallelism: config.publish?.assetParallelism,
     concurrency: config.publish?.concurrency,
   };
   const importOptions = {

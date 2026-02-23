@@ -74,7 +74,6 @@ describe('publish', () => {
     await toolkit.publish({
       selector: { patterns: ['Stack1'] },
       force: true,
-      assetParallelism: false,
       concurrency: 5,
       roleArn: 'arn:aws:iam::123456789012:role/TestRole',
     });
@@ -84,7 +83,6 @@ describe('publish', () => {
       expect.anything(),
       expect.objectContaining({
         force: true,
-        assetParallelism: false,
         concurrency: 5,
         roleArn: 'arn:aws:iam::123456789012:role/TestRole',
       }),

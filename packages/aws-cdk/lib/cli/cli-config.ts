@@ -254,7 +254,6 @@ export async function makeConfig(): Promise<CliConfig> {
           'all': { type: 'boolean', desc: 'Publish assets for all available stacks', default: false },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only publish assets for requested stacks, don\'t include dependencies' },
           'force': { type: 'boolean', alias: 'f', desc: 'Always publish assets, even if they are already published', default: false },
-          'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
           'concurrency': { type: 'number', desc: 'Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.', default: 1, requiresArg: true },
         },
       },

@@ -542,7 +542,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const graphConcurrency: Concurrency = {
       'stack': 1,
       'asset-build': 1,
-      'asset-publish': (options.assetParallelism ?? true) ? (options.concurrency ?? 8) : 1,
+      'asset-publish': options.concurrency ?? 1,
     };
 
     await workGraph.doParallel(graphConcurrency, {

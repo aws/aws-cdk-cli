@@ -438,7 +438,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           exclusively: args.exclusively,
           roleArn: args.roleArn,
           force: args.force,
-          assetParallelism: configuration.settings.get(['assetParallelism']),
           concurrency: args.concurrency,
         });
 

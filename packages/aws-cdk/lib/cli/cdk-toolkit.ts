@@ -799,7 +799,6 @@ export class CdkToolkit {
         expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
       },
       force: options.force,
-      assetParallelism: options.assetParallelism,
       concurrency: options.concurrency,
       roleArn: options.roleArn,
     });
@@ -1890,13 +1889,6 @@ export interface PublishOptions {
    * @default false
    */
   readonly force?: boolean;
-
-  /**
-   * Whether to build/publish assets in parallel
-   *
-   * @default true
-   */
-  readonly assetParallelism?: boolean;
 
   /**
    * Maximum number of simultaneous asset publishing operations

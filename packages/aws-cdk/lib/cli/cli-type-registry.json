@@ -624,10 +624,6 @@
           "desc": "Always publish assets, even if they are already published",
           "default": false
         },
-        "asset-parallelism": {
-          "type": "boolean",
-          "desc": "Whether to build/publish assets in parallel"
-        },
         "concurrency": {
           "type": "number",
           "desc": "Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.",

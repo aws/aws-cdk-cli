@@ -1024,13 +1024,6 @@ export interface PublishOptions {
   readonly force?: boolean;
 
   /**
-   * Whether to build/publish assets in parallel
-   *
-   * @default - undefined
-   */
-  readonly assetParallelism?: boolean;
-
-  /**
    * Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.
    *
    * @default - 1
