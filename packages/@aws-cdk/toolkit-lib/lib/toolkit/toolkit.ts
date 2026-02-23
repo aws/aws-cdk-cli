@@ -46,6 +46,7 @@ import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
+import type { PublishOptions, PublishResult } from '../actions/publish';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
@@ -486,6 +487,105 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     return allDriftResults;
+  }
+
+  /**
+   * Publish Action
+   *
+   * Publishes assets for the selected stacks without deploying
+   */
+  public async publish(cx: ICloudAssemblySource, options: PublishOptions = {}): Promise<PublishResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'publish');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    await this.validateStacksMetadata(stackCollection, ioHelper);
+
+    if (stackCollection.stackCount === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
+      return {
+        publishedAssets: [],
+      };
+    }
+
+    const deployments = await this.deploymentsForAction('publish');
+
+    const buildAsset = async (assetNode: AssetBuildNode) => {
+      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.buildSingleAsset(
+        assetNode.assetManifestArtifact,
+        assetNode.assetManifest,
+        assetNode.asset,
+        {
+          stack: assetNode.parentStack,
+          roleArn: options.roleArn,
+          stackName: assetNode.parentStack.stackName,
+        },
+      );
+      await buildAssetSpan.end();
+    };
+
+    const publishAsset = async (assetNode: AssetPublishNode) => {
+      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn: options.roleArn,
+        stackName: assetNode.parentStack.stackName,
+        forcePublish: options.force,
+      });
+      await publishAssetSpan.end();
+    };
+
+    const stacks = stackCollection.stackArtifacts;
+    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+      stack,
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+    ]);
+
+    const workGraph = new WorkGraphBuilder(
+      ioHelper,
+      true, // prebuild all assets
+    ).build(stacksAndTheirAssetManifests);
+
+    if (!options.force) {
+      await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
+    }
+
+    const assetNodes = Object.values(workGraph.nodes)
+      .filter((n): n is AssetPublishNode => n.type === 'asset-publish');
+
+    if (assetNodes.length === 0) {
+      await ioHelper.defaults.info(chalk.green('\n✨  All assets are already published\n'));
+      return {
+        publishedAssets: [],
+      };
+    }
+
+    const graphConcurrency: Concurrency = {
+      'stack': 1,
+      'asset-build': 1,
+      'asset-publish': (options.assetParallelism ?? true) ? (options.concurrency ?? 8) : 1,
+    };
+
+    await workGraph.doParallel(graphConcurrency, {
+      deployStack: async () => {
+        // No-op: we're only publishing assets, not deploying
+      },
+      buildAsset,
+      publishAsset,
+    });
+
+    await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully\n'));
+    const publishedAssets = assetNodes.map(n => n.asset);
+
+    return {
+      publishedAssets,
+    };
   }
 
   /**

@@ -436,7 +436,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.publish({
           selector,
           exclusively: args.exclusively,
-          toolkitStackName,
           roleArn: args.roleArn,
           force: args.force,
           assetParallelism: configuration.settings.get(['assetParallelism']),

@@ -548,7 +548,7 @@ describe('publish command tests', () => {
   });
 
   test('throw error when unstable flag is not set', async () => {
-    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue(undefined);
 
     (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn() };
     (ioHost as any).asIoHelper = () => ioHelper;
@@ -575,7 +575,7 @@ describe('publish command tests', () => {
   });
 
   test('should pass options to publish method', async () => {
-    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue();
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue(undefined);
 
     (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
     (ioHost as any).asIoHelper = () => ioHelper;
