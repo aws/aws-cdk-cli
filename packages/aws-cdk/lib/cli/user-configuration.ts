@@ -50,6 +50,7 @@ const BUNDLING_COMMANDS = [
   Command.SYNTHESIZE,
   Command.WATCH,
   Command.IMPORT,
+  Command.PUBLISH,
 ];
 
 export type Arguments = {
