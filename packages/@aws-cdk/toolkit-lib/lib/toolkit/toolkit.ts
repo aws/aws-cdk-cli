@@ -511,35 +511,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const deployments = await this.deploymentsForAction('publish');
 
-    const buildAsset = async (assetNode: AssetBuildNode) => {
-      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.buildSingleAsset(
-        assetNode.assetManifestArtifact,
-        assetNode.assetManifest,
-        assetNode.asset,
-        {
-          stack: assetNode.parentStack,
-          roleArn: options.roleArn,
-          stackName: assetNode.parentStack.stackName,
-        },
-      );
-      await buildAssetSpan.end();
-    };
-
-    const publishAsset = async (assetNode: AssetPublishNode) => {
-      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
-        stack: assetNode.parentStack,
-        roleArn: options.roleArn,
-        stackName: assetNode.parentStack.stackName,
-        forcePublish: options.force,
-      });
-      await publishAssetSpan.end();
-    };
+    const buildAsset = this.createBuildAssetFunction(ioHelper, deployments, options.roleArn);
+    const publishAsset = this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.force);
 
     const stacks = stackCollection.stackArtifacts;
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
@@ -654,35 +627,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const stackOutputs: { [key: string]: any } = {};
     const outputsFile = options.outputsFile;
 
-    const buildAsset = async (assetNode: AssetBuildNode) => {
-      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.buildSingleAsset(
-        assetNode.assetManifestArtifact,
-        assetNode.assetManifest,
-        assetNode.asset,
-        {
-          stack: assetNode.parentStack,
-          roleArn: options.roleArn,
-          stackName: assetNode.parentStack.stackName,
-        },
-      );
-      await buildAssetSpan.end();
-    };
-
-    const publishAsset = async (assetNode: AssetPublishNode) => {
-      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
-        stack: assetNode.parentStack,
-        roleArn: options.roleArn,
-        stackName: assetNode.parentStack.stackName,
-        forcePublish: options.forceAssetPublishing,
-      });
-      await publishAssetSpan.end();
-    };
+    const buildAsset = this.createBuildAssetFunction(ioHelper, deployments, options.roleArn);
+    const publishAsset = this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing);
 
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
@@ -1506,6 +1452,55 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (!this.unstableFeatures.includes(requestedFeature)) {
       throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
     }
+  }
+
+  /**
+   * Create a buildAsset function for use in WorkGraph
+   */
+  private createBuildAssetFunction(
+    ioHelper: IoHelper,
+    deployments: Deployments,
+    roleArn: string | undefined,
+  ) {
+    return async (assetNode: AssetBuildNode) => {
+      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.buildSingleAsset(
+        assetNode.assetManifestArtifact,
+        assetNode.assetManifest,
+        assetNode.asset,
+        {
+          stack: assetNode.parentStack,
+          roleArn,
+          stackName: assetNode.parentStack.stackName,
+        },
+      );
+      await buildAssetSpan.end();
+    };
+  }
+
+  /**
+   * Create a publishAsset function for use in WorkGraph
+   */
+  private createPublishAssetFunction(
+    ioHelper: IoHelper,
+    deployments: Deployments,
+    roleArn: string | undefined,
+    forcePublish?: boolean,
+  ) {
+    return async (assetNode: AssetPublishNode) => {
+      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn,
+        stackName: assetNode.parentStack.stackName,
+        forcePublish,
+      });
+      await publishAssetSpan.end();
+    };
   }
 }
 
