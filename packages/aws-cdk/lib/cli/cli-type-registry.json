@@ -618,11 +618,6 @@
           "alias": "e",
           "desc": "Only publish assets for requested stacks, don't include dependencies"
         },
-        "toolkit-stack-name": {
-          "type": "string",
-          "desc": "The name of the existing CDK toolkit stack",
-          "requiresArg": true
-        },
         "force": {
           "type": "boolean",
           "alias": "f",

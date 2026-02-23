@@ -1015,13 +1015,6 @@ export interface PublishOptions {
   readonly exclusively?: boolean;
 
   /**
-   * The name of the existing CDK toolkit stack
-   *
-   * @default - undefined
-   */
-  readonly toolkitStackName?: string;
-
-  /**
    * Always publish assets, even if they are already published
    *
    * aliases: f

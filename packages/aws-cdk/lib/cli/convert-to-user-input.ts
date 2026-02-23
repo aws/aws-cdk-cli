@@ -162,7 +162,6 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         all: args.all,
         exclusively: args.exclusively,
-        toolkitStackName: args.toolkitStackName,
         force: args.force,
         assetParallelism: args.assetParallelism,
         concurrency: args.concurrency,
@@ -454,7 +453,6 @@ export function convertConfigToUserInput(config: any): UserInput {
   const publishOptions = {
     all: config.publish?.all,
     exclusively: config.publish?.exclusively,
-    toolkitStackName: config.publish?.toolkitStackName,
     force: config.publish?.force,
     assetParallelism: config.publish?.assetParallelism,
     concurrency: config.publish?.concurrency,

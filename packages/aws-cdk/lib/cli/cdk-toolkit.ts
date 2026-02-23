@@ -1885,13 +1885,6 @@ export interface PublishOptions {
   readonly exclusively?: boolean;
 
   /**
-   * Role to pass to CloudFormation for deployment
-   *
-   * @default - Current role
-   */
-  readonly roleArn?: string;
-
-  /**
    * Always publish assets, even if they are already published
    *
    * @default false
@@ -1911,6 +1904,13 @@ export interface PublishOptions {
    * @default 1
    */
   readonly concurrency?: number;
+
+  /**
+   * Role to pass to CloudFormation for deployment
+   *
+   * @default - Current role
+   */
+  readonly roleArn?: string;
 }
 
 export interface ImportOptions extends CfnDeployOptions {

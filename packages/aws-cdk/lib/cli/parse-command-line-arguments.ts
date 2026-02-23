@@ -645,12 +645,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'e',
           desc: "Only publish assets for requested stacks, don't include dependencies",
         })
-        .option('toolkit-stack-name', {
-          default: undefined,
-          type: 'string',
-          desc: 'The name of the existing CDK toolkit stack',
-          requiresArg: true,
-        })
         .option('force', {
           default: false,
           type: 'boolean',
