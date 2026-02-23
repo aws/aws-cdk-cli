@@ -131,7 +131,7 @@
     "promptly": "^3.2.0",
     "proxy-agent": "^6.5.0",
     "semver": "^7.7.3",
-    "strip-ansi": "^6",
+    "strip-ansi": "^7",
     "uuid": "^11.1.0",
     "wrap-ansi": "^7",
     "yaml": "^1",
