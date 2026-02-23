@@ -557,7 +557,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
     }
 
-    await ioHelper.defaults.info(`Publishing assets for ${chalk.bold(String(stackCollection.stackCount))} stack(s)`);
+    const assetNodes = Object.values(workGraph.nodes)
+      .filter((n): n is AssetPublishNode => n.type === 'asset-publish');
+
+    if (assetNodes.length === 0) {
+      await ioHelper.defaults.info(chalk.green('\n✨  All assets are already published\n'));
+      return {
+        publishedAssets: [],
+      };
+    }
 
     const graphConcurrency: Concurrency = {
       'stack': 1,
@@ -573,13 +581,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       publishAsset,
     });
 
-    const publishedAssets = Object.values(workGraph.nodes)
-      .filter((n): n is AssetPublishNode => n.type === 'asset-publish')
-      .map(n => n.asset);
-
-    const publishTime = (Date.now() - startPublishTime) / 1000;
-    await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully'));
-    await ioHelper.defaults.info(`\n✨  Total time: ${formatTime(publishTime)}s\n`);
+    await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully\n'));
+    const publishedAssets = assetNodes.map(n => n.asset);
 
     return {
       publishedAssets,
