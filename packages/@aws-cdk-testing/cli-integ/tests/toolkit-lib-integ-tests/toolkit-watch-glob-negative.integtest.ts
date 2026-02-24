@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 import * as toolkit from '@aws-cdk/toolkit-lib';
 import { assemblyFromCdkAppDir, toolkitFromFixture } from './toolkit-helpers';
 import { integTest, withDefaultFixture } from '../../lib';
