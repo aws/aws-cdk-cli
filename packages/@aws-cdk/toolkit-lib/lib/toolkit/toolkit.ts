@@ -511,9 +511,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const deployments = await this.deploymentsForAction('publish');
 
-    const buildAsset = this.createBuildAssetFunction(ioHelper, deployments, options.roleArn);
-    const publishAsset = this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.force);
-
     const stacks = stackCollection.stackArtifacts;
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
       stack,
@@ -549,8 +546,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       deployStack: async () => {
         // No-op: we're only publishing assets, not deploying
       },
-      buildAsset,
-      publishAsset,
+      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
+      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.force),
     });
 
     await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully\n'));
@@ -626,9 +623,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const stacks = stackCollection.stackArtifacts;
     const stackOutputs: { [key: string]: any } = {};
     const outputsFile = options.outputsFile;
-
-    const buildAsset = this.createBuildAssetFunction(ioHelper, deployments, options.roleArn);
-    const publishAsset = this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing);
 
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
@@ -883,8 +877,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await workGraph.doParallel(graphConcurrency, {
       deployStack,
-      buildAsset,
-      publishAsset,
+      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
+      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing),
     });
 
     return ret;
