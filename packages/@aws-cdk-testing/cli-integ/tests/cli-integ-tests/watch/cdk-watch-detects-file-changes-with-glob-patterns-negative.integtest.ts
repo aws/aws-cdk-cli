@@ -1,8 +1,8 @@
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { integTest, withDefaultFixture, sleep } from '../../../lib';
 import { waitForOutput } from './watch-helpers';
+import { integTest, withDefaultFixture, sleep } from '../../../lib';
 
 jest.setTimeout(10 * 60 * 1000); // 10 minutes for watch tests
 
@@ -67,13 +67,13 @@ integTest(
     output.includes('excluded');
 
     if (detectedExcluded) {
-    throw new Error('Watch should NOT have detected changes to excluded file');
+      throw new Error('Watch should NOT have detected changes to excluded file');
     }
 
     // Verify deployment count hasn't increased
     const deploymentsAfter = (output.match(/deployment time/g) || []).length;
     if (deploymentsAfter > deploymentsBefore) {
-    throw new Error(`Unexpected deployment triggered. Before: ${deploymentsBefore}, After: ${deploymentsAfter}`);
+      throw new Error(`Unexpected deployment triggered. Before: ${deploymentsBefore}, After: ${deploymentsAfter}`);
     }
 
     fixture.log('✓ Watch correctly ignored excluded file');
@@ -83,6 +83,5 @@ integTest(
 
     await waitForOutput(() => output, 'Detected change to', 60000);
     fixture.log('✓ Watch still detects changes to included files');
-
   }),
 );

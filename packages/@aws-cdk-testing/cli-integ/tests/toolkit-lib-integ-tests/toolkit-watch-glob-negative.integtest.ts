@@ -6,7 +6,7 @@ import { integTest, withDefaultFixture } from '../../lib';
 /**
  * Integration test for toolkit-lib watch with glob pattern matching.
  *
- * These tests verify that the chokidar v4 glob pattern fix does not 
+ * These tests verify that the chokidar v4 glob pattern fix does not
  * detects file changes on files that are excluded via config.
  */
 

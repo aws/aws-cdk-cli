@@ -1,8 +1,8 @@
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { integTest, withDefaultFixture } from '../../../lib';
 import { waitForOutput } from './watch-helpers';
+import { integTest, withDefaultFixture } from '../../../lib';
 
 jest.setTimeout(10 * 60 * 1000); // 10 minutes for watch tests
 
