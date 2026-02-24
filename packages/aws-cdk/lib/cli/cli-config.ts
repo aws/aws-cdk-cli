@@ -266,7 +266,6 @@ export async function makeConfig(): Promise<CliConfig> {
           },
           'record-resource-mapping': {
             type: 'string',
-            alias: 'r',
             requiresArg: true,
             desc: 'If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping ' +
               'will be written in the given file path. No actual import operation will be performed',
