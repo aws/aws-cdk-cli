@@ -181,7 +181,7 @@ describe('constructs version', () => {
     const csproj = (await fs.readFile(csprojFile, 'utf8')).split(/\r?\n/);
     const sln = (await fs.readFile(slnFile, 'utf8')).split(/\r?\n/);
 
-    expect(csproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="\[10\..*,11\..*\)"/));
+    expect(csproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="10\.\*"/));
     expect(csproj).toContainEqual(expect.stringMatching(/\<TargetFramework>net8.0<\/TargetFramework>/));
     expect(sln).toContainEqual(expect.stringMatching(/\"AwsCdkTest[a-zA-Z0-9]{6}\\AwsCdkTest[a-zA-Z0-9]{6}.csproj\"/));
   });
@@ -204,7 +204,7 @@ describe('constructs version', () => {
     const fsproj = (await fs.readFile(fsprojFile, 'utf8')).split(/\r?\n/);
     const sln = (await fs.readFile(slnFile, 'utf8')).split(/\r?\n/);
 
-    expect(fsproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="\[10\..*,11\..*\)"/));
+    expect(fsproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="10\.\*"/));
     expect(fsproj).toContainEqual(expect.stringMatching(/\<TargetFramework>net8.0<\/TargetFramework>/));
     expect(sln).toContainEqual(expect.stringMatching(/\"AwsCdkTest[a-zA-Z0-9]{6}\\AwsCdkTest[a-zA-Z0-9]{6}.fsproj\"/));
   });
@@ -224,7 +224,7 @@ describe('constructs version', () => {
 
     const csproj = (await fs.readFile(csprojFile, 'utf8')).split(/\r?\n/);
 
-    expect(csproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="\[10\..*,11\..*\)"/));
+    expect(csproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="10\.\*"/));
     expect(csproj).toContainEqual(expect.stringMatching(/\<TargetFramework>net8.0<\/TargetFramework>/));
   });
 
@@ -243,7 +243,7 @@ describe('constructs version', () => {
 
     const fsproj = (await fs.readFile(fsprojFile, 'utf8')).split(/\r?\n/);
 
-    expect(fsproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="\[10\..*,11\..*\)"/));
+    expect(fsproj).toContainEqual(expect.stringMatching(/\<PackageReference Include="Constructs" Version="10\.\*"/));
     expect(fsproj).toContainEqual(expect.stringMatching(/\<TargetFramework>net8.0<\/TargetFramework>/));
   });
 
@@ -1159,6 +1159,46 @@ describe('constructs version', () => {
 
     expect(await fs.pathExists(path.join(projectDir, 'Program.cs'))).toBeTruthy();
     expect(await fs.pathExists(path.join(projectDir, 'test.csproj'))).toBeTruthy();
+  });
+
+  cliTest('C# post-install runs dotnet commands in src directory', async (workDir) => {
+    const spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
+      stdout: { on: jest.fn() },
+      once: jest.fn((event, cb) => {
+        if (event === 'exit') cb(0);
+      }),
+    }) as unknown as child_process.ChildProcess);
+
+    try {
+      const templateDir = path.join(workDir, 'csharp-template');
+      const csharpDir = path.join(templateDir, 'csharp');
+      const srcDir = path.join(csharpDir, 'src');
+      await fs.mkdirp(srcDir);
+
+      await fs.writeFile(path.join(csharpDir, 'Program.cs'), 'class Program {}');
+      await fs.writeFile(path.join(srcDir, 'test.csproj'), '<Project></Project>');
+
+      const projectDir = path.join(workDir, 'csharp-project');
+      await fs.mkdirp(projectDir);
+
+      await cliInit({
+        ioHelper,
+        fromPath: templateDir,
+        language: 'csharp',
+        canUseNetwork: true,
+        generateOnly: false,
+        workDir: projectDir,
+      });
+
+      const dotnetCalls = spawnSpy.mock.calls.filter(([cmd]) => cmd === 'dotnet');
+      const expectedCwd = path.join(projectDir, 'src');
+      expect(dotnetCalls).toEqual([
+        ['dotnet', ['restore'], expect.objectContaining({ cwd: expectedCwd })],
+        ['dotnet', ['build'], expect.objectContaining({ cwd: expectedCwd })],
+      ]);
+    } finally {
+      spawnSpy.mockRestore();
+    }
   });
 
   cliTest('handles F# project delegation to C# post-install', async (workDir) => {

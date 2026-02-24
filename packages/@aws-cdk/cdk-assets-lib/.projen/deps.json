@@ -33,6 +33,10 @@
       "type": "build"
     },
     {
+      "name": "@types/picomatch",
+      "type": "build"
+    },
+    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -191,7 +195,7 @@
       "type": "runtime"
     },
     {
-      "name": "glob",
+      "name": "fast-glob",
       "type": "runtime"
     },
     {
@@ -200,8 +204,7 @@
       "type": "runtime"
     },
     {
-      "name": "minimatch",
-      "version": "10.0.1",
+      "name": "picomatch",
       "type": "runtime"
     }
   ],

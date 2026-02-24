@@ -2,6 +2,14 @@ import { yarn } from 'cdklabs-projen-project-types';
 import type { javascript, Project } from 'projen';
 import { Component, github, TextFile } from 'projen';
 
+/**
+ * Amends the test task with special provisions for unit testing.
+ */
+export function fixupTestTask(project: Project, taskName = 'test'): void {
+  project.tasks.tryFind(taskName)?.env('TESTING_CDK', '1');
+  project.tasks.tryFind(taskName)?.addCondition('[ "$NO_UNIT_TESTS" != "1" ]');
+}
+
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
 /**
@@ -115,40 +123,6 @@ function testEnvVars(props: CdkCliIntegTestsWorkflowProps): Record<string, strin
   };
 }
 
-function logUploadSteps(artifactName: string): github.workflows.JobStep[] {
-  return [
-    {
-      name: 'Set workflow summary',
-      if: 'always()',
-      run: [
-        // Don't fail the glob expansion if there are no .md files
-        'if compgen -G "logs/md/*.md" > /dev/null; then',
-        '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
-        'fi',
-      ].join('\n'),
-    },
-    {
-      name: 'Upload logs',
-      if: 'always()',
-      uses: 'actions/upload-artifact@v4.4.0',
-      id: 'logupload',
-      with: {
-        name: artifactName,
-        path: 'logs/',
-        overwrite: 'true',
-      },
-    },
-    {
-      name: 'Append artifact URL',
-      if: 'always()',
-      run: [
-        'echo "" >> $GITHUB_STEP_SUMMARY',
-        'echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY',
-      ].join('\n'),
-    },
-  ];
-}
-
 /**
  * Options for atmosphere service usage.
  */
@@ -260,12 +234,16 @@ export interface CdkCliIntegTestsWorkflowProps {
  * so they're unfortunately duplicated here.
  */
 export class CdkCliIntegTestsWorkflow extends Component {
-  constructor(repo: javascript.NodeProject, props: CdkCliIntegTestsWorkflowProps) {
+  private workflow: github.GithubWorkflow;
+  private readonly JOB_PREPARE = 'prepare';
+  private readonly maxWorkersArg: string = '';
+
+  constructor(repo: javascript.NodeProject, private readonly props: CdkCliIntegTestsWorkflowProps) {
     super(repo);
 
     const buildWorkflow = repo.buildWorkflow;
-    const runTestsWorkflow = repo.github?.addWorkflow('integ');
-    if (!buildWorkflow || !runTestsWorkflow) {
+    this.workflow = repo.github?.addWorkflow('integ')!;
+    if (!buildWorkflow || !this.workflow) {
       throw new Error('Expected build and run tests workflow');
     }
     ((buildWorkflow as any).workflow as github.GithubWorkflow);
@@ -273,16 +251,15 @@ export class CdkCliIntegTestsWorkflow extends Component {
     const localPackages = repo.subprojects
       .filter(p => p instanceof yarn.TypeScriptWorkspace && !p.isPrivatePackage)
       .map(p => p.name);
-    const upstreamVersions = (props.allowUpstreamVersions ?? [])?.map(p => p.name);
+    const upstreamVersions = (this.props.allowUpstreamVersions ?? [])?.map(p => p.name);
     upstreamVersions.forEach((pack) => {
       if (!localPackages.includes(pack)) {
         throw new Error(`Package in allowUpstreamVersions is not a local monorepo package: ${pack}`);
       }
     });
 
-    let maxWorkersArg = '';
-    if (props.maxWorkers) {
-      maxWorkersArg = ` --maxWorkers=${props.maxWorkers}`;
+    if (this.props.maxWorkers) {
+      this.maxWorkersArg = ` --maxWorkers=${this.props.maxWorkers}`;
     }
 
     const verdaccioConfig = {
@@ -344,7 +321,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       ],
     });
 
-    runTestsWorkflow.on({
+    this.workflow.on({
       pullRequestTarget: {
         branches: [],
       },
@@ -363,15 +340,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
     // - The build job is only one job, versus the tests which are a matrix build.
     //   If the matrix test job needs approval, the Pull Request timeline gets spammed
     //   with an approval request for every individual run.
-    const JOB_PREPARE = 'prepare';
-    runTestsWorkflow.addJob(JOB_PREPARE, {
-      environment: props.approvalEnvironment,
-      runsOn: [props.buildRunsOn],
+
+    this.workflow.addJob(this.JOB_PREPARE, {
+      environment: this.props.approvalEnvironment,
+      runsOn: [this.props.buildRunsOn],
       permissions: {
         contents: github.workflows.JobPermission.READ,
       },
       env: {
         CI: 'true',
+        DEBUG: 'true',
+        TESTING_CDK: '1',
+        NO_UNIT_TESTS: '1',
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
@@ -396,7 +376,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           run: [
             // Can be either aws/aws-cdk-cli or aws/aws-cdk-cli-testing
             // (Must clone over HTTPS because we have no SSH auth set up)
-            `git remote add upstream https://github.com/${props.sourceRepo}.git`,
+            `git remote add upstream https://github.com/${this.props.sourceRepo}.git`,
             'git fetch upstream \'refs/tags/*:refs/tags/*\'',
           ].join('\n'),
         },
@@ -450,56 +430,108 @@ export class CdkCliIntegTestsWorkflow extends Component {
       ],
     });
 
-    // Add a job for telemetry tests that runs before the main matrix
-    const JOB_TELEMETRY = 'telemetry_tests';
-    runTestsWorkflow.addJob(JOB_TELEMETRY, {
-      environment: props.testEnvironment,
-      runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE],
-      permissions: {
-        contents: github.workflows.JobPermission.READ,
-        idToken: github.workflows.JobPermission.WRITE,
-      },
-      env: {
-        MAVEN_ARGS: '--no-transfer-progress',
-        IS_CANARY: 'true',
-        CI: 'true',
-      },
-      if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
-      steps: [
-        ...downloadArtifactsSteps(),
-        setupNodeStep('lts/*'),
-        awsAuthStep(props, 'telemetry-tests@aws-cdk-cli-integ'),
-        gitIdentityStep(),
-        ...verdaccioSteps(),
-        determineVersionsStep(),
-        {
-          name: 'Run telemetry tests',
-          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} telemetry-integ-tests`,
-          env: testEnvVars(props),
+    // Ensure this is an array
+    const additionalNodeVersionsToTest = this.props.additionalNodeVersionsToTest ?? [];
+
+    const testJobs = [
+      // cli-integ-tests
+      this.addMatrixJob('cli', {
+        domain: {
+          suite: ['cli-integ-tests'],
+          shards: 12,
         },
-        ...logUploadSteps('logs-telemetry-tests'),
+      }),
+
+      // toolkit-lib
+      this.addMatrixJob('toolkit-lib', {
+        domain: {
+          suite: [
+            'toolkit-lib-integ-tests',
+          ],
+          node: ['lts/*', ...additionalNodeVersionsToTest],
+        },
+      }),
+
+      // telemetry
+      this.addMatrixJob('telemetry', {
+        domain: {
+          suite: [
+            'telemetry-integ-tests',
+          ],
+        },
+      }),
+
+      // init-templates
+      this.addMatrixJob('init-templates', {
+        domain: {
+          suite: [
+            'init-csharp',
+            'init-fsharp',
+            'init-go',
+            'init-java',
+            'init-javascript',
+            'init-python',
+            'init-typescript-app',
+            'init-typescript-lib',
+          ],
+          node: ['lts/*'],
+        },
+        // Run the the typescript-app test with multiple Node versions
+        include: additionalNodeVersionsToTest.map(node => ({
+          suite: 'init-typescript-app',
+          node,
+        })),
+      }),
+
+      // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
+      this.addMatrixJob('tool-integrations', {
+        domain: {
+          suite: ['tool-integrations'],
+          node: ['20'],
+        },
+      }),
+    ];
+
+    // Add a job that collates all matrix jobs into a single status
+    // This is required so that we can setup required status checks
+    // and if we ever change the test matrix, we don't need to update
+    // the status check configuration.
+    this.workflow.addJob('integ', {
+      runsOn: ['ubuntu-latest'],
+      if: 'always()',
+      needs: [...testJobs],
+      permissions: {},
+      steps: [
+        ...testJobs.map(jobName => ({
+          name: `${jobName} result`,
+          run: `echo \${{ needs.${jobName}.result }}`,
+        })),
+        {
+          // Don't fail the job if the test was successful or intentionally skipped
+          if: `\${{ !(${testJobs.map(jobName => `contains(fromJSON('["success", "skipped"]'), needs.${jobName}.result)`).join(' && ')}) }}`,
+          name: 'Set status based on test results',
+          run: 'exit 1',
+        },
       ],
     });
+  }
 
-    // We create a matrix job for the test.
-    // This job will run all the different test suites in parallel.
-    const matrixInclude: github.workflows.JobMatrix['include'] = [];
-    const matrixExclude: github.workflows.JobMatrix['exclude'] = [];
+  private addMatrixJob(testName: string, props: MatrixIntegTestProps): string {
+    const jobName = `integ_${testName}`;
 
-    // In addition to the default runs, run these suites under different Node versions
-    matrixInclude.push(...['init-typescript-app', 'toolkit-lib-integ-tests'].flatMap(
-      suite => (props.additionalNodeVersionsToTest ?? []).map(node => ({ suite, node }))));
+    let shard: any;
+    let shardArg = '';
+    let logName = 'logs-${{ matrix.suite }}-${{ matrix.node }}';
+    if (props.domain.shards) {
+      shard = Array(props.domain.shards).fill(0).map((_, i) => i + 1);
+      shardArg = ` --shard="\${{ matrix.shard }}/${props.domain.shards}"`;
+      logName += '-${{ matrix.shard }}';
+    }
 
-    // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
-    matrixExclude.push({ suite: 'tool-integrations', node: 'lts/*' });
-    matrixInclude.push({ suite: 'tool-integrations', node: 20 });
-
-    const JOB_INTEG_MATRIX = 'integ_matrix';
-    runTestsWorkflow.addJob(JOB_INTEG_MATRIX, {
-      environment: props.testEnvironment,
-      runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE, JOB_TELEMETRY],
+    this.workflow.addJob(jobName, {
+      environment: this.props.testEnvironment,
+      runsOn: [this.props.testRunsOn],
+      needs: [this.JOB_PREPARE],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
@@ -511,6 +543,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        // add extra env at end so it can override
+        ...props.extraEnv,
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
@@ -519,23 +553,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
         failFast: false,
         matrix: {
           domain: {
-            suite: [
-              'cli-integ-tests',
-              'toolkit-lib-integ-tests',
-              'init-csharp',
-              'init-fsharp',
-              'init-go',
-              'init-java',
-              'init-javascript',
-              'init-python',
-              'init-typescript-app',
-              'init-typescript-lib',
-              'tool-integrations',
-            ],
-            node: ['lts/*'],
+            suite: props.domain.suite,
+            node: props.domain.node ?? ['lts/*'],
+            shard,
           },
-          include: matrixInclude,
-          exclude: matrixExclude,
+          include: props.include,
+          exclude: props.exclude,
         },
       },
       steps: [
@@ -550,14 +573,14 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'distribution': 'corretto',
           },
         },
-        awsAuthStep(props, 'run-tests@aws-cdk-cli-integ'),
+        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         gitIdentityStep(),
         ...verdaccioSteps(),
         determineVersionsStep(),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
-          run: `npx run-suite${maxWorkersArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
-          env: testEnvVars(props),
+          run: `npx run-suite${this.maxWorkersArg}${shardArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
+          env: testEnvVars(this.props),
         },
         {
           name: 'Set workflow summary',
@@ -579,7 +602,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'echo "slug=$slug" >> "$GITHUB_OUTPUT"',
           ].join('\n'),
           env: {
-            INPUT: 'logs-${{ matrix.suite }}-${{ matrix.node }}',
+            INPUT: logName,
           },
         },
         {
@@ -603,28 +626,32 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       ],
     });
-
-    // Add a job that collates all matrix jobs into a single status
-    // This is required so that we can setup required status checks
-    // and if we ever change the test matrix, we don't need to update
-    // the status check configuration.
-    runTestsWorkflow.addJob('integ', {
-      permissions: {},
-      runsOn: [props.testRunsOn],
-      needs: [JOB_PREPARE, JOB_TELEMETRY, JOB_INTEG_MATRIX],
-      if: 'always()',
-      steps: [
-        {
-          name: 'Integ test result',
-          run: `echo \${{ needs.${JOB_INTEG_MATRIX}.result }}`,
-        },
-        {
-          // Don't fail the job if the test was successful or intentionally skipped
-          if: `\${{ !(contains(fromJSON('["success", "skipped"]'), needs.${JOB_PREPARE}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_TELEMETRY}.result) && contains(fromJSON('["success", "skipped"]'), needs.${JOB_INTEG_MATRIX}.result)) }}`,
-          name: 'Set status based on matrix job',
-          run: 'exit 1',
-        },
-      ],
-    });
+    return jobName;
   }
+}
+
+interface IntegTestJobDomain {
+  /**
+   * The test suites to run.
+   */
+  readonly suite: string[];
+
+  /**
+   * The number of shards to run the suites in.
+   * @default - no sharding
+   */
+  readonly shards?: number;
+
+  /**
+   * The Node versions to test against.
+   * @default ["lts/*"]
+   */
+  readonly node?: string[];
+}
+
+interface MatrixIntegTestProps {
+  readonly domain: IntegTestJobDomain;
+  readonly include?: github.workflows.JobMatrix['include'];
+  readonly exclude?: github.workflows.JobMatrix['exclude'];
+  readonly extraEnv?: Record<string, string | undefined>;
 }

@@ -173,7 +173,8 @@
         {
           "spawn": "eslint"
         }
-      ]
+      ],
+      "condition": "[ \"$NO_UNIT_TESTS\" != \"1\" ]"
     },
     "test:watch": {
       "name": "test:watch",

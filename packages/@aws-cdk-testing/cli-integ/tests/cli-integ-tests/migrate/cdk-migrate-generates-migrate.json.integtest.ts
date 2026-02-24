@@ -13,7 +13,6 @@ integTest(
     \"Source\": \"localfile\"
   }`;
     expect(JSON.parse(migrateFile)).toEqual(JSON.parse(expectedFile));
-    await fixture.cdkDestroy(fixture.stackNamePrefix);
   }),
 );
 
