@@ -488,6 +488,87 @@ describe(NoticesFilter, () => {
       expect((await filtered).map((f) => f.format()).join('\n')).toContain(`You are running ${nodeVersion}`);
     });
 
+    test('language match', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = await noticesFilter.filter({
+        data: [
+          {
+            title: 'title for typescript',
+            overview: 'This affects {resolve:LANGUAGE} users',
+            issueNumber: 1234,
+            schemaVersion: '1',
+            components: [{ name: 'language:typescript', version: '*' }],
+          },
+          {
+            title: 'title for python',
+            overview: 'python issue',
+            issueNumber: 4321,
+            schemaVersion: '1',
+            components: [{ name: 'language:python', version: '*' }],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+        language: 'typescript',
+      });
+
+      expect(filtered.map((f) => f.notice.title)).toEqual(['title for typescript']);
+      expect(filtered.map((f) => f.format()).join('\n')).toContain('This affects TypeScript users');
+      expect(filtered.map((f) => f.format()).join('\n')).toContain('TypeScript apps');
+    });
+
+    test('no language match when language is not provided', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = noticesFilter.filter({
+        data: [
+          {
+            title: 'typescript-only',
+            overview: 'ts issue',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [{ name: 'language:typescript', version: '*' }],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      expect((await filtered).map((f) => f.notice.title)).toEqual([]);
+    });
+
+    test('language combined with cli version in AND', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const filtered = noticesFilter.filter({
+        data: [
+          {
+            title: 'combined',
+            overview: 'combined issue',
+            issueNumber: 1,
+            schemaVersion: '2',
+            components: [],
+            componentsV2: [[
+              { name: 'language:typescript', version: '*' },
+              { name: 'cli', version: '<=1.0.0' },
+            ]],
+          },
+        ] satisfies Notice[],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [],
+        language: 'typescript',
+      });
+
+      expect((await filtered).map((f) => f.notice.title)).toEqual(['combined']);
+    });
+
     test.each([
       // No components => doesnt match
       [[], false],
@@ -511,8 +592,9 @@ describe(NoticesFilter, () => {
             title: 'match',
             overview: 'match',
             issueNumber: 1,
-            schemaVersion: '1',
-            components: components.map((ands) => ands.map(parseTestComponent)),
+            schemaVersion: '2',
+            components: [],
+            componentsV2: components.map((ands) => ands.map(parseTestComponent)),
           },
         ] satisfies Notice[],
         cliVersion,
@@ -522,6 +604,76 @@ describe(NoticesFilter, () => {
 
       // THEN
       expect((await filtered).map((f) => f.notice.title)).toEqual(shouldMatch ? ['match'] : []);
+    });
+
+    test('schemaVersion 1 ignores componentsV2', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+
+      const filtered = await noticesFilter.filter({
+        data: [
+          {
+            title: 'v1 notice',
+            overview: 'overview',
+            issueNumber: 1,
+            schemaVersion: '1',
+            components: [{ name: 'cli', version: '>=999.0.0' }],
+            componentsV2: [{ name: 'cli', version: '<=1.0.0' }],
+          },
+        ] satisfies Notice[],
+        cliVersion: '1.0.0',
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      // Should NOT match because schemaVersion 1 uses components (>=999.0.0), not componentsV2
+      expect(filtered.map((f) => f.notice.title)).toEqual([]);
+    });
+
+    test('schemaVersion 2 falls back to components when componentsV2 is absent', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+
+      const filtered = await noticesFilter.filter({
+        data: [
+          {
+            title: 'v2 fallback',
+            overview: 'overview',
+            issueNumber: 1,
+            schemaVersion: '2',
+            components: [{ name: 'cli', version: '<=1.0.0' }],
+          },
+        ] satisfies Notice[],
+        cliVersion: '1.0.0',
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      expect(filtered.map((f) => f.notice.title)).toEqual(['v2 fallback']);
+    });
+
+    test('schemaVersion 2 uses componentsV2 for DNF matching', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+
+      const filtered = await noticesFilter.filter({
+        data: [
+          {
+            title: 'v2 dnf',
+            overview: 'overview',
+            issueNumber: 1,
+            schemaVersion: '2',
+            components: [{ name: 'cli', version: '>=999.0.0' }],
+            componentsV2: [[
+              { name: 'cli', version: '<=1.0.0' },
+              { name: 'node', version: '>=14.x' },
+            ]],
+          },
+        ] satisfies Notice[],
+        cliVersion: '1.0.0',
+        outDir,
+        bootstrappedEnvironments: [],
+      });
+
+      // Should match via componentsV2 (AND of cli + node), ignoring components
+      expect(filtered.map((f) => f.notice.title)).toEqual(['v2 dnf']);
     });
   });
 });
@@ -901,6 +1053,7 @@ describe(Notices, () => {
         cliVersion: '1.0.0',
         data: [],
         outDir: 'cdk.out',
+        language: undefined,
       });
     });
   });
