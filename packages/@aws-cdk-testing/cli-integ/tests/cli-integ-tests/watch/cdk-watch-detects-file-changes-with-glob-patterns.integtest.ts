@@ -52,7 +52,7 @@ integTest(
       fixture.log('✓ Initial deployment completed');
 
       // Update the test file timestamp to trigger a watch event
-      child_process.spawn('touch', [testFile])
+      child_process.spawn('touch', [testFile]);
 
       await waitForOutput(() => output, 'Detected change to');
       fixture.log('✓ Watch detected file change');
