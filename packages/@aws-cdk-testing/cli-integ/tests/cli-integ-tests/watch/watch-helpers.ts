@@ -3,16 +3,12 @@
  */
 
 /**
- * Poll a condition until it returns true or timeout is reached.
+ * Poll a condition until we see it.
  */
-async function pollUntil(condition: () => boolean, timeoutMs: number, errorMessage: string): Promise<void> {
-  const startTime = Date.now();
-  return new Promise((resolve, reject) => {
+async function poll(condition: () => boolean): Promise<void> {
+  return new Promise((resolve) => {
     const check = () => {
       if (condition()) return resolve();
-      if (Date.now() - startTime > timeoutMs) {
-        return reject(new Error(errorMessage));
-      }
       setTimeout(check, 1000);
     };
     check();
@@ -22,17 +18,13 @@ async function pollUntil(condition: () => boolean, timeoutMs: number, errorMessa
 /**
  * Wait for a specific string to appear in the output.
  */
-export async function waitForOutput(getOutput: () => string, searchString: string, timeoutMs: number): Promise<void> {
-  return pollUntil(
-    () => getOutput().includes(searchString),
-    timeoutMs,
-    `Timeout waiting for: "${searchString}"`,
-  );
+export async function waitForOutput(getOutput: () => string, searchString: string): Promise<void> {
+  return poll(() => getOutput().includes(searchString));
 }
 
 /**
  * Wait for a condition to become true.
  */
-export async function waitForCondition(condition: () => boolean, timeoutMs: number, description: string): Promise<void> {
-  return pollUntil(condition, timeoutMs, `Timeout waiting for ${description}`);
+export async function waitForCondition(condition: () => boolean): Promise<void> {
+  return poll(condition);
 }

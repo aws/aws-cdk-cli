@@ -44,21 +44,14 @@ integTest(
 
       // Verify that default excludes are applied
       const configMsg = configMessages.find(m => m.includes("'exclude' patterns"));
-
-      if (!configMsg) {
-        throw new Error('Did not receive exclude patterns configuration message');
-      }
+      expect(configMsg).toBeDefined();
 
       // Check that default excludes are present
-      if (!configMsg.includes('node_modules')) {
-        throw new Error('Default excludes should include node_modules');
-      }
-      if (!configMsg.includes('.*')) {
-        throw new Error('Default excludes should include dotfiles (.*)');
-      }
+      expect(configMsg).toContain('node_modules');
+      expect(configMsg).toContain('.*');
 
       fixture.log('✓ Toolkit watch applies default exclude patterns correctly');
-      fixture.log(`  Config: ${configMsg.substring(0, 200)}...`);
+      fixture.log(`  Config: ${configMsg!.substring(0, 200)}...`);
     } finally {
       await watcher.dispose();
       await new Promise(resolve => setTimeout(resolve, 1000)); // Allow async operations to complete

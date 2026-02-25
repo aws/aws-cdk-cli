@@ -1,10 +1,10 @@
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { waitForOutput } from './watch-helpers';
+import { waitForOutput, waitForCondition } from './watch-helpers';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(10 * 60 * 1000); // 10 minutes for watch tests
+jest.setTimeout(3 * 60 * 1000); // 3 minutes for watch tests
 
 integTest(
   'cdk watch detects file changes with glob patterns',
@@ -35,25 +35,36 @@ integTest(
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
-    watchProcess.stdout?.on('data', (data) => {
-      output += data.toString();
-      fixture.log(data.toString());
-    });
-    watchProcess.stderr?.on('data', (data) => {
-      output += data.toString();
-      fixture.log(data.toString());
-    });
+    try {
+      watchProcess.stdout?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
+      watchProcess.stderr?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
 
-    await waitForOutput(() => output, "Triggering initial 'cdk deploy'", 120000);
-    fixture.log('✓ Watch started');
+      await waitForOutput(() => output, "Triggering initial 'cdk deploy'");
+      fixture.log('✓ Watch start detected');
 
-    await waitForOutput(() => output, 'deployment time', 300000);
-    fixture.log('✓ Initial deployment completed');
+      await waitForOutput(() => output, 'deployment time');
+      fixture.log('✓ Initial deployment completed');
 
-    // Modify the test file to trigger a watch event
-    fs.writeFileSync(testFile, 'export const modified = true;');
+      // Update the test file timestamp to trigger a watch event
+      child_process.spawn('touch', [testFile])
 
-    await waitForOutput(() => output, 'Detected change to', 60000);
-    fixture.log('✓ Watch detected file change');
+      await waitForOutput(() => output, 'Detected change to');
+      fixture.log('✓ Watch detected file change');
+
+      // Wait for the second deployment to complete (2 occurrences of 'deployment time')
+      await waitForCondition(() => (output.match(/deployment time/g) || []).length >= 2);
+      fixture.log('✓ Second deployment completed');
+    } finally {
+      // Kill the entire process group (negative PID)
+      if (watchProcess.pid) {
+        process.kill(-watchProcess.pid, 'SIGTERM');
+      }
+    }
   }),
 );

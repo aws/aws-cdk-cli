@@ -4,7 +4,7 @@ import * as path from 'path';
 import { waitForOutput } from './watch-helpers';
 import { integTest, withDefaultFixture, sleep } from '../../../lib';
 
-jest.setTimeout(10 * 60 * 1000); // 10 minutes for watch tests
+jest.setTimeout(3 * 60 * 1000); // 3 minutes for watch tests
 
 integTest(
   'cdk watch does NOT detect file changes for excluded patterns',
@@ -36,52 +36,53 @@ integTest(
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
-    watchProcess.stdout?.on('data', (data) => {
-      output += data.toString();
-      fixture.log(data.toString());
-    });
-    watchProcess.stderr?.on('data', (data) => {
-      output += data.toString();
-      fixture.log(data.toString());
-    });
+    try {
+      watchProcess.stdout?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
+      watchProcess.stderr?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
 
-    await waitForOutput(() => output, "Triggering initial 'cdk deploy'", 120000);
-    fixture.log('✓ Watch started');
+      await waitForOutput(() => output, "Triggering initial 'cdk deploy'");
+      fixture.log('✓ Watch start detected');
 
-    await waitForOutput(() => output, 'deployment time', 300000);
-    fixture.log('✓ Initial deployment completed');
+      await waitForOutput(() => output, 'deployment time');
+      fixture.log('✓ Initial deployment completed');
 
-    // Count deployments before creating excluded file
-    const deploymentsBefore = (output.match(/deployment time/g) || []).length;
+      // Count deployments before creating excluded file
+      const deploymentsBefore = (output.match(/deployment time/g) || []).length;
 
-    // Create an excluded file - this should NOT trigger a watch event
-    const excludedFile = path.join(fixture.integTestDir, 'should-be-ignored.excluded.ts');
-    fs.writeFileSync(excludedFile, 'export const excluded = true;');
-    fixture.log('Created excluded file: should-be-ignored.excluded.ts');
+      // Create an excluded file - this should NOT trigger a watch event
+      const excludedFile = path.join(fixture.integTestDir, 'should-be-ignored.excluded.ts');
+      fs.writeFileSync(excludedFile, 'export const excluded = true;');
+      fixture.log('Created excluded file: should-be-ignored.excluded.ts');
 
-    // Wait a reasonable time for any potential (unwanted) detection
-    await sleep(5000);
+      // Wait a reasonable time for any potential (unwanted) detection
+      await sleep(5000);
 
-    // Verify no "Detected change" message for the excluded file
-    const detectedExcluded = output.includes('Detected change to') &&
-    output.includes('excluded');
+      // Verify no "Detected change" message for the excluded file
+      const detectedExcluded = output.includes('Detected change to') && output.includes('excluded');
+      expect(detectedExcluded).toBe(false);
 
-    if (detectedExcluded) {
-      throw new Error('Watch should NOT have detected changes to excluded file');
+      // Verify deployment count hasn't increased
+      const deploymentsAfter = (output.match(/deployment time/g) || []).length;
+      expect(deploymentsAfter).toBe(deploymentsBefore);
+
+      fixture.log('✓ Watch correctly ignored excluded file');
+
+      // Now modify a watched file to confirm watch is still working
+      fs.writeFileSync(watchedFile, 'export const modified = true;');
+
+      await waitForOutput(() => output, 'Detected change to');
+      fixture.log('✓ Watch still detects changes to included files');
+    } finally {
+      // Kill the entire process group (negative PID)
+      if (watchProcess.pid) {
+        process.kill(-watchProcess.pid, 'SIGTERM');
+      }
     }
-
-    // Verify deployment count hasn't increased
-    const deploymentsAfter = (output.match(/deployment time/g) || []).length;
-    if (deploymentsAfter > deploymentsBefore) {
-      throw new Error(`Unexpected deployment triggered. Before: ${deploymentsBefore}, After: ${deploymentsAfter}`);
-    }
-
-    fixture.log('✓ Watch correctly ignored excluded file');
-
-    // Now modify a watched file to confirm watch is still working
-    fs.writeFileSync(watchedFile, 'export const modified = true;');
-
-    await waitForOutput(() => output, 'Detected change to', 60000);
-    fixture.log('✓ Watch still detects changes to included files');
   }),
 );

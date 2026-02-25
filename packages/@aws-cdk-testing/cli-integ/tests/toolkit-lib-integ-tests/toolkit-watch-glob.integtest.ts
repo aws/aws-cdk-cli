@@ -69,10 +69,7 @@ integTest(
         e.code === 'CDK_TOOLKIT_I5314' || // triggering initial deploy
         e.code === 'CDK_TOOLKIT_I5311', // observing files
       );
-
-      if (!hasReadyOrObserving) {
-        throw new Error('Watcher did not emit ready/observing events');
-      }
+      expect(hasReadyOrObserving).toBe(true);
 
       fixture.log('✓ Toolkit watch successfully initialized and detected files');
     } finally {
