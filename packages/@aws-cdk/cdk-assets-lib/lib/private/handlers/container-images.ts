@@ -232,6 +232,7 @@ class ContainerImageBuilder {
       directory: fullPath,
       tag: localTagName,
       buildArgs: source.dockerBuildArgs,
+      buildContexts: source.dockerBuildContexts,
       buildSecrets: source.dockerBuildSecrets,
       buildSsh: source.dockerBuildSsh,
       target: source.dockerBuildTarget,
