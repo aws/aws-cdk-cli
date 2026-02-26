@@ -70,6 +70,13 @@ export interface AssemblyDirectoryProps {
    * @default true
    */
   readonly failOnMissingContext?: boolean;
+
+  /**
+   * Whether to hold a read lock for the lifetime of the produced assembly.
+   *
+   * @default true
+   */
+  readonly holdLock?: boolean;
 }
 
 /**
@@ -410,6 +417,25 @@ export abstract class CloudAssemblySourceBuilder {
         const readLock = await new RWLock(directory).acquireRead();
         try {
           const asm = await assemblyFromDirectory(directory, services.ioHelper, props.loadAssemblyOptions);
+          if (props.holdLock === false) {
+            await readLock.release();
+            const noOpLock = { release: async () => undefined };
+            const assembly = new ReadableCloudAssembly(asm, noOpLock, { deleteOnDispose: false });
+            if (assembly.cloudAssembly.manifest.missing && assembly.cloudAssembly.manifest.missing.length > 0) {
+              if (props.failOnMissingContext ?? true) {
+                const missingKeysSet = missingContextKeys(assembly.cloudAssembly.manifest.missing);
+                const missingKeys = Array.from(missingKeysSet);
+                throw AssemblyError.withCause(
+                  'Assembly contains missing context. ' +
+                    "Make sure all necessary context is already in 'cdk.context.json' by running 'cdk synth' on a machine with sufficient AWS credentials and committing the result. " +
+                    `Missing context keys: '${missingKeys.join(', ')}'`,
+                  'Error producing assembly',
+                );
+              }
+            }
+            return new CachedCloudAssembly(assembly);
+          }
+
           const assembly = new ReadableCloudAssembly(asm, readLock, { deleteOnDispose: false });
           if (assembly.cloudAssembly.manifest.missing && assembly.cloudAssembly.manifest.missing.length > 0) {
             if (props.failOnMissingContext ?? true) {
