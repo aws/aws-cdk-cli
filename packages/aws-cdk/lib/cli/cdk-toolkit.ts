@@ -19,6 +19,7 @@ import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
+  ExpandStackSelection,
   findCloudWatchLogGroups,
   GarbageCollector,
   removeNonImportResources,
@@ -788,6 +789,19 @@ export class CdkToolkit {
     if (!anyRollbackable) {
       throw new ToolkitError('No stacks were in a state that could be rolled back');
     }
+  }
+
+  public async publish(options: PublishOptions): Promise<void> {
+    await this.toolkit.publish(this.props.cloudExecutable, {
+      stacks: {
+        patterns: options.selector.patterns,
+        strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+      },
+      force: options.force,
+      concurrency: options.concurrency,
+      roleArn: options.roleArn,
+    });
   }
 
   public async watch(options: WatchOptions) {
@@ -1854,6 +1868,41 @@ export interface RollbackOptions {
    * @default true
    */
   readonly validateBootstrapStackVersion?: boolean;
+}
+
+export interface PublishOptions {
+  /**
+   * Criteria for selecting stacks
+   */
+  readonly selector: StackSelector;
+
+  /**
+   * Only select the given stack
+   *
+   * @default false
+   */
+  readonly exclusively?: boolean;
+
+  /**
+   * Always publish assets, even if they are already published
+   *
+   * @default false
+   */
+  readonly force?: boolean;
+
+  /**
+   * Maximum number of simultaneous asset publishing operations
+   *
+   * @default 1
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Role to pass to CloudFormation for deployment
+   *
+   * @default - Current role
+   */
+  readonly roleArn?: string;
 }
 
 export interface ImportOptions extends CfnDeployOptions {

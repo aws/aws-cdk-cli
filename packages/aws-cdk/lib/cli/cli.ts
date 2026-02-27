@@ -428,6 +428,19 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           orphanLogicalIds: args.orphan,
         });
 
+      case 'publish':
+        ioHost.currentAction = 'publish';
+        if (!configuration.settings.get(['unstable']).includes('publish')) {
+          throw new ToolkitError('Unstable feature use: \'publish\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish --unstable=publish\'');
+        }
+        return cli.publish({
+          selector,
+          exclusively: args.exclusively,
+          roleArn: args.roleArn,
+          force: args.force,
+          concurrency: args.concurrency,
+        });
+
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({

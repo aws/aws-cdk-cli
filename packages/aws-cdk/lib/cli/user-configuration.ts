@@ -28,6 +28,7 @@ export enum Command {
   GC = 'gc',
   FLAGS = 'flags',
   ROLLBACK = 'rollback',
+  PUBLISH = 'publish',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',
   ACK = 'ack',
@@ -49,6 +50,7 @@ const BUNDLING_COMMANDS = [
   Command.SYNTHESIZE,
   Command.WATCH,
   Command.IMPORT,
+  Command.PUBLISH,
 ];
 
 export type Arguments = {

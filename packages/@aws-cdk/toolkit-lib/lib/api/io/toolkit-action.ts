@@ -10,6 +10,7 @@ export type ToolkitAction =
 | 'deploy'
 | 'drift'
 | 'rollback'
+| 'publish'
 | 'watch'
 | 'destroy'
 | 'doctor'

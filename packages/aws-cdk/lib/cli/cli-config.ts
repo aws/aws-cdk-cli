@@ -244,6 +244,19 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
+      'publish': {
+        description: 'Publish assets for the given stack(s) without deploying',
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+        options: {
+          all: { type: 'boolean', desc: 'Publish assets for all available stacks', default: false },
+          exclusively: { type: 'boolean', alias: 'e', desc: 'Only publish assets for requested stacks, don\'t include dependencies' },
+          force: { type: 'boolean', alias: 'f', desc: 'Always publish assets, even if they are already published', default: false },
+          concurrency: { type: 'number', desc: 'Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.', default: 1, requiresArg: true },
+        },
+      },
       'import': {
         description: 'Import existing resource(s) into the given STACK',
         arg: {
