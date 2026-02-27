@@ -134,6 +134,7 @@ async function prepareDockerImageAsset(
   assetManifest.addDockerImageAsset(asset.sourceHash, {
     directory: asset.path,
     dockerBuildArgs: asset.buildArgs,
+    dockerBuildSecrets: asset.buildSecrets,
     dockerBuildSsh: asset.buildSsh,
     dockerBuildTarget: asset.target,
     dockerFile: asset.file,
