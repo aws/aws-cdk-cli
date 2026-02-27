@@ -645,6 +645,9 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
       if (args.importExistingResources) {
         throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
       }
+      if (args.revertDrift) {
+        throw new ToolkitError('--revert-drift cannot be used with method=direct');
+      }
       deploymentMethod = { method: 'direct' };
       break;
     case 'change-set':
@@ -653,6 +656,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case 'prepare-change-set':
@@ -661,6 +665,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: false,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case undefined:
@@ -670,6 +675,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: watch ? true : args.execute ?? true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
   }

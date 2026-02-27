@@ -1189,6 +1189,41 @@ describe('import-existing-resources', () => {
   });
 });
 
+describe('revert-drift', () => {
+  test('is disabled by default', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: {
+        method: 'change-set',
+      },
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+      ...expect.anything,
+      DeploymentMode: undefined,
+    });
+  });
+
+  test('is added to the CreateChangeSetCommandInput', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: {
+        method: 'change-set',
+        revertDrift: true,
+      },
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+      ...expect.anything,
+      DeploymentMode: 'REVERT_DRIFT',
+    });
+  });
+});
+
 test.each([
   // From a failed state, a --no-rollback is possible as long as there is not a replacement
   [StackStatus.UPDATE_FAILED, 'no-rollback', 'no-replacement', 'did-deploy-stack'],

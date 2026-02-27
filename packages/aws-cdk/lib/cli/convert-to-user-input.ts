@@ -143,6 +143,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         assetParallelism: args.assetParallelism,
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
+        revertDrift: args.revertDrift,
         STACKS: args.STACKS,
       };
       break;
@@ -431,6 +432,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     assetParallelism: config.deploy?.assetParallelism,
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
+    revertDrift: config.deploy?.revertDrift,
   };
   const rollbackOptions = {
     all: config.rollback?.all,

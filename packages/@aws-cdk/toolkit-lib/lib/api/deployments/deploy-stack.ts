@@ -432,7 +432,8 @@ class FullCloudFormationDeployment {
     const changeSetName = deploymentMethod.changeSetName ?? 'cdk-deploy-change-set';
     const execute = deploymentMethod.execute ?? true;
     const importExistingResources = deploymentMethod.importExistingResources ?? false;
-    const changeSetDescription = await this.createChangeSet(changeSetName, execute, importExistingResources);
+    const revertDrift = deploymentMethod.revertDrift ?? false;
+    const changeSetDescription = await this.createChangeSet(changeSetName, execute, importExistingResources, revertDrift);
     await this.updateTerminationProtection();
 
     if (changeSetHasNoChanges(changeSetDescription)) {
@@ -495,7 +496,7 @@ class FullCloudFormationDeployment {
     return this.executeChangeSet(changeSetDescription);
   }
 
-  private async createChangeSet(changeSetName: string, willExecute: boolean, importExistingResources: boolean) {
+  private async createChangeSet(changeSetName: string, willExecute: boolean, importExistingResources: boolean, revertDrift: boolean) {
     await this.cleanupOldChangeset(changeSetName);
 
     await this.ioHelper.defaults.debug(`Attempting to create ChangeSet with name ${changeSetName} to ${this.verb} stack ${this.stackName}`);
@@ -508,6 +509,7 @@ class FullCloudFormationDeployment {
       Description: `CDK Changeset for execution ${this.uuid}`,
       ClientToken: `create${this.uuid}`,
       ImportExistingResources: importExistingResources,
+      DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       ...this.commonPrepareOptions(),
     });
 
@@ -771,6 +773,15 @@ async function canSkipDeploy(
     deployStackOptions.deploymentMethod.execute === false
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
+    return false;
+  }
+
+  // Drift-aware
+  if (
+    deployStackOptions.deploymentMethod?.method === 'change-set' &&
+    deployStackOptions.deploymentMethod.revertDrift
+  ) {
+    await ioHelper.defaults.debug(`${deployName}: --revert-drift, always creating change set`);
     return false;
   }
 
