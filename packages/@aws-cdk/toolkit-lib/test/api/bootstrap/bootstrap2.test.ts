@@ -791,4 +791,162 @@ describe('Bootstrapping v2', () => {
       });
     });
   });
+
+  describe('PermissionsBoundaryAllRoles', () => {
+    test('passes PermissionsBoundaryAllRoles parameter as true when flag is set', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+          permissionsBoundaryAllRoles: true,
+        },
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            PermissionsBoundaryAllRoles: 'true',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('passes PermissionsBoundaryAllRoles parameter as false when flag is not set', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+        },
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            PermissionsBoundaryAllRoles: 'false',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('passes PermissionsBoundaryAllRoles parameter as false by default', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {},
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            PermissionsBoundaryAllRoles: 'false',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('shows warning when permissionsBoundaryAllRoles is used without permissions boundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          permissionsBoundaryAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--permissions-boundary-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when permissionsBoundaryAllRoles is used with customPermissionsBoundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+          permissionsBoundaryAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--permissions-boundary-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when permissionsBoundaryAllRoles is used with examplePermissionsBoundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          examplePermissionsBoundary: true,
+          permissionsBoundaryAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--permissions-boundary-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when permissionsBoundaryAllRoles is false without permissions boundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          permissionsBoundaryAllRoles: false,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--permissions-boundary-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('bootstrap template contains PermissionsBoundaryAllRoles parameter', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      expect(template.Parameters.PermissionsBoundaryAllRoles).toBeDefined();
+      expect(template.Parameters.PermissionsBoundaryAllRoles.Default).toBe('false');
+      expect(template.Parameters.PermissionsBoundaryAllRoles.AllowedValues).toEqual(['true', 'false']);
+    });
+
+    test('bootstrap template contains ApplyPermissionsBoundaryToAllRoles condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      expect(template.Conditions.ApplyPermissionsBoundaryToAllRoles).toBeDefined();
+    });
+
+    test('bootstrap template has PermissionsBoundary on additional roles with condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      // FilePublishingRole, ImagePublishingRole, LookupRole, and DeploymentActionRole
+      // should have conditional PermissionsBoundary
+      const rolesToCheck = ['FilePublishingRole', 'ImagePublishingRole', 'LookupRole', 'DeploymentActionRole'];
+      for (const roleName of rolesToCheck) {
+        const role = template.Resources[roleName];
+        expect(role.Properties.PermissionsBoundary).toBeDefined();
+        expect(role.Properties.PermissionsBoundary['Fn::If'][0]).toBe('ApplyPermissionsBoundaryToAllRoles');
+      }
+    });
+
+    test('CloudFormationExecutionRole always uses PermissionsBoundarySet condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      const cfnRole = template.Resources.CloudFormationExecutionRole;
+      expect(cfnRole.Properties.PermissionsBoundary).toBeDefined();
+      // CloudFormationExecutionRole uses PermissionsBoundarySet condition, not ApplyPermissionsBoundaryToAllRoles
+      expect(cfnRole.Properties.PermissionsBoundary['Fn::If'][0]).toBe('PermissionsBoundarySet');
+    });
+  });
 });
