@@ -951,6 +951,10 @@ describe('checkDefaultBehavior', () => {
     const flagOperations = new FlagCommandHandler(flagsWithUnconfiguredBehavior, ioHelper, options, mockToolkit);
     await flagOperations.processFlagsCommand();
 
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+    expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(true);
+
     expect(mockToolkit.fromCdkApp).toHaveBeenCalled();
     expect(mockToolkit.synth).toHaveBeenCalled();
 
