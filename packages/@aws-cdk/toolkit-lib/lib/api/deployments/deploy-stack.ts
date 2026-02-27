@@ -432,10 +432,34 @@ class FullCloudFormationDeployment {
     const changeSetName = deploymentMethod.changeSetName ?? 'cdk-deploy-change-set';
     const execute = deploymentMethod.execute ?? true;
     const importExistingResources = deploymentMethod.importExistingResources ?? false;
-    const changeSetDescription = await this.createChangeSet(changeSetName, execute, importExistingResources);
+    const executeExistingChangeSet = deploymentMethod.executeExistingChangeSet ?? false;
+
+    let changeSetDescription: DescribeChangeSetCommandOutput;
+
+    if (executeExistingChangeSet) {
+      // Execute an existing change set instead of creating a new one
+      await this.ioHelper.defaults.info(format('Executing existing change set %s on stack %s', changeSetName, this.stackName));
+      changeSetDescription = await this.cfn.describeChangeSet({
+        StackName: this.stackName,
+        ChangeSetName: changeSetName,
+      });
+
+      // Verify the change set exists and is in a valid state
+      if (!changeSetDescription.ChangeSetId) {
+        throw new ToolkitError(format('Change set %s not found on stack %s', changeSetName, this.stackName));
+      }
+      if (changeSetDescription.Status !== 'CREATE_COMPLETE') {
+        throw new ToolkitError(format('Change set %s is in status %s and cannot be executed', changeSetName, changeSetDescription.Status));
+      }
+    } else {
+      // Create a new change set (existing behavior)
+      changeSetDescription = await this.createChangeSet(changeSetName, execute, importExistingResources);
+    }
+
     await this.updateTerminationProtection();
 
-    if (changeSetHasNoChanges(changeSetDescription)) {
+    // Only check for empty changes when creating a new change set, not when executing an existing one
+    if (!executeExistingChangeSet && changeSetHasNoChanges(changeSetDescription)) {
       await this.ioHelper.defaults.debug(format('No changes are to be performed on %s.', this.stackName));
       if (execute) {
         await this.ioHelper.defaults.debug(format('Deleting empty change set %s', changeSetDescription.ChangeSetId));
@@ -771,6 +795,13 @@ async function canSkipDeploy(
     deployStackOptions.deploymentMethod.execute === false
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
+    return false;
+  }
+
+  // Executing existing change set, never skip
+  if (deployStackOptions.deploymentMethod?.method === 'change-set' &&
+      deployStackOptions.deploymentMethod.executeExistingChangeSet === true) {
+    await ioHelper.defaults.debug(`${deployName}: executing existing change set, never skip`);
     return false;
   }
 

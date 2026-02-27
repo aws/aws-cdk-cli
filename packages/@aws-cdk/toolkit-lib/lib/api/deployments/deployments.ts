@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -672,6 +673,34 @@ export class Deployments {
     const stackEnv = await this.envs.resolveStackEnvironment(options.stack);
     const publisher = this.cachedPublisher(assetManifest, stackEnv, options.stackName);
     return publisher.isEntryPublished(asset);
+  }
+
+  /**
+   * Read change set details for a stack
+   */
+  public async describeChangeSet(
+    stackArtifact: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+  ): Promise<DescribeChangeSetCommandOutput> {
+    const env = await this.envs.accessStackForReadOnlyStackOperations(stackArtifact);
+    return env.sdk.cloudFormation().describeChangeSet({
+      StackName: stackArtifact.stackName,
+      ChangeSetName: changeSetName,
+    });
+  }
+
+  /**
+   * Delete a change set for a stack
+   */
+  public async deleteChangeSet(
+    stackArtifact: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+  ): Promise<void> {
+    const env = await this.envs.accessStackForMutableStackOperations(stackArtifact);
+    await env.sdk.cloudFormation().deleteChangeSet({
+      StackName: stackArtifact.stackName,
+      ChangeSetName: changeSetName,
+    });
   }
 
   /**

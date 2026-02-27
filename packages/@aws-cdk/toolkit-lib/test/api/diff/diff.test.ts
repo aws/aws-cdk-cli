@@ -41,6 +41,7 @@ describe('formatStackDiff', () => {
     // THEN
     expect(result.numStacksWithChanges).toBe(0);
     expect(result.formattedDiff).toBeDefined();
+    expect(result.permissionChangeType).toBe('none');
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
@@ -61,6 +62,7 @@ describe('formatStackDiff', () => {
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
     expect(result.formattedDiff).toBeDefined();
+    expect(result.permissionChangeType).toBe('none');
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
@@ -83,6 +85,7 @@ describe('formatStackDiff', () => {
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
     expect(result.formattedDiff).toBeDefined();
+    expect(result.permissionChangeType).toBe('none');
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
@@ -107,6 +110,7 @@ describe('formatStackDiff', () => {
 
     // THEN
     expect(result.formattedDiff).toBeDefined();
+    expect(result.permissionChangeType).toBe('none');
     const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
     expect(sanitizedDiff).toBe(
       'Stack test-stack\n' +
@@ -145,9 +149,223 @@ describe('formatStackDiff', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(3);
+    expect(result.permissionChangeType).toBe('none');
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('test-stack')}`);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-1')}`);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-2')}`);
+  });
+
+  test('returns broadening permission change type when IAM changes broaden permissions', () => {
+    // GIVEN
+    const templateWithIAM: cxapi.CloudFormationStackArtifact = {
+      template: {
+        Resources: {
+          Role: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              AssumeRolePolicyDocument: {
+                Version: '2012-10-17',
+                Statement: [{
+                  Effect: 'Allow',
+                  Principal: {
+                    Service: 'lambda.amazonaws.com',
+                  },
+                  Action: 'sts:AssumeRole',
+                }],
+              },
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: templateWithIAM,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(result.permissionChangeType).toBe('broadening');
+    expect(result.formattedDiff).toBeDefined();
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toContain('Stack test-stack');
+    expect(sanitizedDiff).toContain('[+] AWS::IAM::Role Role');
+  });
+
+  test('returns non-broadening permission change type when IAM changes but no broadening', () => {
+    // GIVEN
+    const oldTemplate = {
+      Resources: {
+        Role: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{
+                Effect: 'Allow',
+                Principal: {
+                  Service: 'lambda.amazonaws.com',
+                },
+                Action: 'sts:AssumeRole',
+              }],
+            },
+            ManagedPolicyArns: [
+              'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+              'arn:aws:iam::aws:policy/AmazonS3FullAccess',
+            ],
+          },
+        },
+      },
+    };
+
+    const newTemplate: cxapi.CloudFormationStackArtifact = {
+      template: {
+        Resources: {
+          Role: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              AssumeRolePolicyDocument: {
+                Version: '2012-10-17',
+                Statement: [{
+                  Effect: 'Allow',
+                  Principal: {
+                    Service: 'lambda.amazonaws.com',
+                  },
+                  Action: 'sts:AssumeRole',
+                }],
+              },
+              ManagedPolicyArns: [
+                'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole',
+              ],
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN - removing a managed policy (narrowing permissions)
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate,
+        newTemplate,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(result.permissionChangeType).toBe('non-broadening');
+    expect(result.formattedDiff).toBeDefined();
+  });
+
+  test('uses changeSet parameter when provided', () => {
+    // GIVEN
+    const mockChangeSet = {
+      ChangeSetName: 'test-changeset',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Add',
+            LogicalResourceId: 'Func',
+            ResourceType: 'AWS::Lambda::Function',
+          },
+        },
+      ],
+      Status: 'CREATE_COMPLETE',
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        changeSet: mockChangeSet,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(result.permissionChangeType).toBe('none');
+    expect(result.formattedDiff).toBeDefined();
+    // The changeSet should be used internally by the fullDiff function
+    // We can't easily verify this directly, but the diff should still work correctly
+    const sanitizedDiff = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func',
+    );
+  });
+
+  test('handles permission change type with both changeSet and IAM resources', () => {
+    // GIVEN
+    const templateWithIAM: cxapi.CloudFormationStackArtifact = {
+      template: {
+        Resources: {
+          Role: {
+            Type: 'AWS::IAM::Role',
+            Properties: {
+              AssumeRolePolicyDocument: {
+                Version: '2012-10-17',
+                Statement: [{
+                  Effect: 'Allow',
+                  Principal: { Service: 'lambda.amazonaws.com' },
+                  Action: 'sts:AssumeRole',
+                }],
+              },
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const mockChangeSet = {
+      ChangeSetName: 'test-changeset',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Add',
+            LogicalResourceId: 'Role',
+            ResourceType: 'AWS::IAM::Role',
+          },
+        },
+      ],
+      Status: 'CREATE_COMPLETE',
+      $metadata: {},
+    };
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: templateWithIAM,
+        changeSet: mockChangeSet,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(result.permissionChangeType).toBe('broadening');
+    expect(result.formattedDiff).toBeDefined();
   });
 });
 

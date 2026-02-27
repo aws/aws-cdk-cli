@@ -1,6 +1,7 @@
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   ContinueUpdateRollbackCommand,
+  DeleteChangeSetCommand,
   DescribeStackEventsCommand,
   DescribeStacksCommand,
   ListStackResourcesCommand,
@@ -8,6 +9,7 @@ import {
   type StackResourceSummary,
   StackStatus,
   DescribeChangeSetCommand,
+  ChangeAction,
   ChangeSetStatus,
   CreateChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
@@ -1215,3 +1217,107 @@ function givenStacks(stacks: Record<string, { template: any; stackStatus?: strin
     }
   });
 }
+
+describe('describeChangeSet', () => {
+  it('calls CloudFormation describeChangeSet with correct parameters', async () => {
+    // GIVEN
+    const changeSetName = 'test-changeset';
+    const stackName = 'test-stack';
+    const stack = testStack({ stackName });
+    const mockChangeSetResponse = {
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/test-changeset/12345',
+      ChangeSetName: changeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/test-stack/12345',
+      Status: ChangeSetStatus.CREATE_COMPLETE,
+      Changes: [{
+        Type: 'Resource' as const,
+        ResourceChange: {
+          Action: ChangeAction.Modify,
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+        },
+      }],
+    };
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves(mockChangeSetResponse);
+
+    // WHEN
+    const result = await deployments.describeChangeSet(stack, changeSetName);
+
+    // THEN
+    expect(result).toEqual(mockChangeSetResponse);
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeChangeSetCommand, {
+      StackName: stackName,
+      ChangeSetName: changeSetName,
+    });
+  });
+
+  it('handles CloudFormation errors gracefully', async () => {
+    // GIVEN
+    const changeSetName = 'non-existent-changeset';
+    const stackName = 'test-stack';
+    const stack = testStack({ stackName });
+    const error = new Error('Change set not found');
+    mockCloudFormationClient.on(DescribeChangeSetCommand).rejects(error);
+
+    // WHEN
+    const result = deployments.describeChangeSet(stack, changeSetName);
+
+    // THEN
+    await expect(result).rejects.toThrow('Change set not found');
+  });
+
+  it('returns the change set', async () => {
+    // GIVEN
+    const changeSetName = 'empty-changeset';
+    const stackName = 'test-stack';
+    const stack = testStack({ stackName });
+    const mockChangeSetResponse = {
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/empty-changeset/12345',
+      ChangeSetName: changeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/test-stack/12345',
+      Status: ChangeSetStatus.CREATE_COMPLETE,
+    };
+
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves(mockChangeSetResponse);
+
+    // WHEN
+    const result = await deployments.describeChangeSet(stack, changeSetName);
+
+    // THEN
+    expect(result).toEqual(mockChangeSetResponse);
+  });
+});
+
+describe('deleteChangeSet', () => {
+  it('calls CloudFormation deleteChangeSet with correct parameters', async () => {
+    // GIVEN
+    const changeSetName = 'test-changeset';
+    const stackName = 'test-stack';
+    const stack = testStack({ stackName });
+    mockCloudFormationClient.on(DeleteChangeSetCommand).resolves({});
+
+    // WHEN
+    await deployments.deleteChangeSet(stack, changeSetName);
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DeleteChangeSetCommand, {
+      StackName: stackName,
+      ChangeSetName: changeSetName,
+    });
+  });
+
+  it('handles CloudFormation errors gracefully', async () => {
+    // GIVEN
+    const changeSetName = 'non-existent-changeset';
+    const stackName = 'test-stack';
+    const stack = testStack({ stackName });
+    const error = new Error('Change set not found');
+    mockCloudFormationClient.on(DeleteChangeSetCommand).rejects(error);
+
+    // WHEN
+    const result = deployments.deleteChangeSet(stack, changeSetName);
+
+    // THEN
+    await expect(result).rejects.toThrow('Change set not found');
+  });
+});

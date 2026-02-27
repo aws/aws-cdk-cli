@@ -1284,3 +1284,211 @@ function givenChangeSetContainsReplacement(replacement: boolean) {
     ] : [],
   });
 }
+
+describe('executing existing change sets', () => {
+  test('can execute an existing change set', async () => {
+    // GIVEN
+    const existingChangeSetName = 'existing-change-set';
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/existing-change-set/12345678-1234-1234-1234-123456789012',
+      ChangeSetName: existingChangeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/withouterrors/12345678-1234-1234-1234-123456789012',
+      Status: 'CREATE_COMPLETE',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'TestResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+    });
+    mockCloudFormationClient.on(ExecuteChangeSetCommand).resolves({});
+    const resolvedEnvironment = mockResolvedEnvironment();
+
+    // WHEN
+    const result = await testDeployStack({
+      stack: FAKE_STACK,
+      resolvedEnvironment,
+      sdk: new MockSdk(),
+      sdkProvider: new MockSdkProvider(),
+      envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+      deploymentMethod: {
+        method: 'change-set',
+        executeExistingChangeSet: true,
+        changeSetName: existingChangeSetName,
+        execute: true,
+      },
+    });
+
+    // THEN
+    expect(result).toEqual(expect.objectContaining({ type: 'did-deploy-stack', noOp: false }));
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeChangeSetCommand, {
+      StackName: 'withouterrors',
+      ChangeSetName: existingChangeSetName,
+    });
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
+      StackName: 'withouterrors',
+      ChangeSetName: existingChangeSetName,
+      ClientRequestToken: expect.stringMatching(/^exec/),
+    });
+    // Should not create a new change set
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+  });
+
+  test('throws error when existing change set is not found', async () => {
+    // GIVEN
+    const nonExistentChangeSetName = 'non-existent-change-set';
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      // Empty response simulating change set not found
+    });
+    const resolvedEnvironment = mockResolvedEnvironment();
+
+    // WHEN
+    const result = testDeployStack({
+      stack: FAKE_STACK,
+      resolvedEnvironment,
+      sdk: new MockSdk(),
+      sdkProvider: new MockSdkProvider(),
+      envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+      deploymentMethod: {
+        method: 'change-set',
+        executeExistingChangeSet: true,
+        changeSetName: nonExistentChangeSetName,
+        execute: true,
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow(`Change set ${nonExistentChangeSetName} not found on stack withouterrors`);
+  });
+
+  test('throws error when existing change set is not in valid state', async () => {
+    // GIVEN
+    const invalidChangeSetName = 'invalid-change-set';
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/invalid-change-set/12345678-1234-1234-1234-123456789012',
+      ChangeSetName: invalidChangeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/withouterrors/12345678-1234-1234-1234-123456789012',
+      Status: 'FAILED',
+    });
+    const resolvedEnvironment = mockResolvedEnvironment();
+
+    // WHEN
+    const result = testDeployStack({
+      stack: FAKE_STACK,
+      resolvedEnvironment,
+      sdk: new MockSdk(),
+      sdkProvider: new MockSdkProvider(),
+      envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+      deploymentMethod: {
+        method: 'change-set',
+        executeExistingChangeSet: true,
+        changeSetName: invalidChangeSetName,
+        execute: true,
+      },
+    });
+
+    // THEN
+    await expect(result).rejects.toThrow(`Change set ${invalidChangeSetName} is in status FAILED and cannot be executed`);
+  });
+
+  test('works with change set in different status', async () => {
+    // GIVEN
+    const existingChangeSetName = 'pending-changeset';
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/pending-changeset/12345678-1234-1234-1234-123456789012',
+      ChangeSetName: existingChangeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/withouterrors/12345678-1234-1234-1234-123456789012',
+      Status: 'CREATE_COMPLETE', // Valid status for execution
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Add',
+            LogicalResourceId: 'NewResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+    });
+    mockCloudFormationClient.on(ExecuteChangeSetCommand).resolves({});
+    const resolvedEnvironment = mockResolvedEnvironment();
+
+    // WHEN
+    const result = await testDeployStack({
+      stack: FAKE_STACK,
+      resolvedEnvironment,
+      sdk: new MockSdk(),
+      sdkProvider: new MockSdkProvider(),
+      envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+      deploymentMethod: {
+        method: 'change-set',
+        executeExistingChangeSet: true,
+        changeSetName: existingChangeSetName,
+        execute: true,
+      },
+    });
+
+    // THEN
+    expect(result).toEqual(expect.objectContaining({ type: 'did-deploy-stack', noOp: false }));
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
+      StackName: 'withouterrors',
+      ChangeSetName: existingChangeSetName,
+      ClientRequestToken: expect.stringMatching(/^exec/),
+    });
+  });
+
+  test('executeExistingChangeSet with execute false does not execute', async () => {
+    // GIVEN
+    const existingChangeSetName = 'review-changeset';
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      ChangeSetId: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/review-changeset/12345678-1234-1234-1234-123456789012',
+      ChangeSetName: existingChangeSetName,
+      StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/withouterrors/12345678-1234-1234-1234-123456789012',
+      Status: 'CREATE_COMPLETE',
+      Changes: [
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'TestResource',
+            ResourceType: 'AWS::S3::Bucket',
+          },
+        },
+      ],
+    });
+    const resolvedEnvironment = mockResolvedEnvironment();
+
+    // WHEN
+    const result = await testDeployStack({
+      stack: FAKE_STACK,
+      resolvedEnvironment,
+      sdk: new MockSdk(),
+      sdkProvider: new MockSdkProvider(),
+      envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+      deploymentMethod: {
+        method: 'change-set',
+        executeExistingChangeSet: true,
+        changeSetName: existingChangeSetName,
+        execute: false, // Don't execute, just describe
+      },
+    });
+
+    // THEN
+    expect(result).toEqual(expect.objectContaining({ type: 'did-deploy-stack', noOp: false }));
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeChangeSetCommand, {
+      StackName: 'withouterrors',
+      ChangeSetName: existingChangeSetName,
+    });
+    // Should NOT execute the change set
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+});
