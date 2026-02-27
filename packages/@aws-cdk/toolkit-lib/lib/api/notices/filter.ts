@@ -12,6 +12,17 @@ function normalizeComponents(xs: Array<Component | Component[]>): Component[][] 
   return xs.map(x => Array.isArray(x) ? x : [x]);
 }
 
+/**
+ * Returns the DNF components for a notice.
+ * Uses componentsV2 when schemaVersion is '2', otherwise falls back to components.
+ */
+function dnfComponents(notice: Notice): Component[][] {
+  if (notice.schemaVersion === '2' && notice.componentsV2) {
+    return normalizeComponents(notice.componentsV2);
+  }
+  return normalizeComponents(notice.components);
+}
+
 function renderComponent(c: Component): string {
   if (c.name.startsWith('language:')) {
     return `${languageDisplayName(c.name.slice('language:'.length))} apps`;
@@ -142,7 +153,7 @@ export class NoticesFilter {
    */
   private findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
     return data.flatMap(notice => {
-      const ors = this.resolveAliases(normalizeComponents(notice.components));
+      const ors = this.resolveAliases(dnfComponents(notice));
 
       // Find the first set of the disjunctions of which all components match against the actual components.
       // Return the actual components we found so that we can inject their dynamic values. A single filter
@@ -255,7 +266,7 @@ export class FilteredNotice {
   }
 
   public format(): string {
-    const componentsValue = normalizeComponents(this.notice.components).map(renderConjunction).join(', ');
+    const componentsValue = dnfComponents(this.notice).map(renderConjunction).join(', ');
     return this.resolveDynamicValues([
       `${this.notice.issueNumber}\t${this.notice.title}`,
       this.formatOverview(),

@@ -64,6 +64,7 @@ jobs:
       id-token: write
     environment: run-tests
     env:
+      NODE_NO_WARNINGS: "1"
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
@@ -184,6 +185,7 @@ jobs:
       id-token: write
     environment: run-tests
     env:
+      NODE_NO_WARNINGS: "1"
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
@@ -295,6 +297,7 @@ jobs:
       id-token: write
     environment: run-tests
     env:
+      NODE_NO_WARNINGS: "1"
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
@@ -402,6 +405,7 @@ jobs:
       id-token: write
     environment: run-tests
     env:
+      NODE_NO_WARNINGS: "1"
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
@@ -525,6 +529,7 @@ jobs:
       id-token: write
     environment: run-tests
     env:
+      NODE_NO_WARNINGS: "1"
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
