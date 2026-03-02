@@ -1047,6 +1047,10 @@ switch (stackSet) {
   case 'stage-with-no-stacks':
     break;
 
+  case 'stage-only':
+    new SomeStage(app, `${stackPrefix}-stage`);
+    break;
+
   default:
     throw new Error(`Unrecognized INTEG_STACK_SET: '${stackSet}'`);
 }
