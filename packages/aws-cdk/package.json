@@ -115,7 +115,7 @@
     "@smithy/shared-ini-file-loader": "^4.4.3",
     "@smithy/types": "^4.12.0",
     "@smithy/util-retry": "^4.2.8",
-    "@smithy/util-waiter": "^4.2.8",
+    "@smithy/util-waiter": "^4.2.10",
     "archiver": "^7.0.1",
     "camelcase": "^6",
     "cdk-from-cfn": "^0.283.0",
