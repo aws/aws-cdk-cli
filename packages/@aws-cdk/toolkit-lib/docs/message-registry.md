@@ -94,6 +94,10 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I5211` | Building the asset has completed | `trace` | {@link Duration} |
 | `CDK_TOOLKIT_I5220` | Started publishing a specific asset | `trace` | {@link PublishAsset} |
 | `CDK_TOOLKIT_I5221` | Publishing the asset has completed | `trace` | {@link Duration} |
+| `CDK_ASSETS_I5270` | Publishing the asset has started | `info` | {@link PublishAssetEvent} |
+| `CDK_ASSETS_I5271` | Debug messaged emitted during publishing of the asset | `debug` | {@link PublishAssetEvent} |
+| `CDK_ASSETS_I5275` | Publishing the asset has completed successfully | `info` | {@link PublishAssetEvent} |
+| `CDK_ASSETS_E5279` | There was an error while publishing the asset | `error` | {@link PublishAssetEvent} |
 | `CDK_TOOLKIT_I5310` | The computed settings used for file watching | `debug` | {@link WatchSettings} |
 | `CDK_TOOLKIT_I5311` | File watching started | `info` | {@link FileWatchEvent} |
 | `CDK_TOOLKIT_I5312` | File event detected, starting deployment | `info` | {@link FileWatchEvent} |
