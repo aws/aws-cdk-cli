@@ -126,7 +126,7 @@
     "fast-glob": "^3.3.3",
     "fs-extra": "^9",
     "p-limit": "^3",
-    "p-queue": "^6",
+    "p-queue": "^8",
     "picomatch": "^4.0.3",
     "promptly": "^3.2.0",
     "proxy-agent": "^6.5.0",
