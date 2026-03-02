@@ -94,7 +94,7 @@
     "mockttp": "^3",
     "node-pty": "^1.1.0",
     "npm": "^11",
-    "p-queue": "^6",
+    "p-queue": "^8",
     "proxy-agent": "^6.5.0",
     "semver": "^7",
     "sinon": "^9",
