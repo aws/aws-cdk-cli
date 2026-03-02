@@ -34,7 +34,7 @@
     "@cdklabs/eslint-plugin": "^1.5.4",
     "@stylistic/eslint-plugin": "^3",
     "@types/archiver": "^6.0.4",
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^30.0.0",
     "@types/mime": "^2",
     "@types/mock-fs": "^4",
     "@types/node": "^16",
