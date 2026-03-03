@@ -43,6 +43,12 @@ interface FormatStackDiffOutput {
    * Complete formatted diff
    */
   readonly formattedDiff: string;
+
+  /**
+   * The type of permission changes in the stack diff.
+   * The IoHost will use this to decide whether or not to print.
+   */
+  readonly permissionChangeType: PermissionChangeType;
 }
 
 /**
@@ -323,6 +329,7 @@ export class DiffFormatter {
     return {
       numStacksWithChanges,
       formattedDiff,
+      permissionChangeType: this.permissionType(),
     };
   }
 

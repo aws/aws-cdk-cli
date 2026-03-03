@@ -152,6 +152,10 @@ export const IO = {
     code: 'CDK_TOOLKIT_W5022',
     description: 'Empty existing stack, stack will be destroyed',
   }),
+  CDK_TOOLKIT_W5023: make.warn({
+    code: 'CDK_TOOLKIT_W5023',
+    description: 'No changes to existing stack, deployment is skipped',
+  }),
   CDK_TOOLKIT_I5031: make.info({
     code: 'CDK_TOOLKIT_I5031',
     description: 'Informs about any log groups that are traced as part of the deployment',
@@ -183,7 +187,7 @@ export const IO = {
   }),
   CDK_TOOLKIT_I5060: make.confirm<DeployConfirmationRequest>({
     code: 'CDK_TOOLKIT_I5060',
-    description: 'Confirm deploy security sensitive changes',
+    description: 'Confirm deploy changes',
     interface: 'DeployConfirmationRequest',
   }),
   CDK_TOOLKIT_I5100: make.info<StackDeployProgress>({

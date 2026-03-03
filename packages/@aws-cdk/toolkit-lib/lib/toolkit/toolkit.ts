@@ -4,6 +4,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -35,7 +36,7 @@ import type {
   EnvironmentBootstrapResult,
 } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
+import { AssetBuildTime, type DeploymentMethod, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
   type PrivateDeployOptions,
@@ -66,7 +67,7 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
-import { Deployments } from '../api/deployments';
+import { changeSetHasNoChanges, Deployments } from '../api/deployments';
 import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
@@ -614,32 +615,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      const currentTemplate = await deployments.readCurrentTemplate(stack);
-
-      const formatter = new DiffFormatter({
-        templateInfo: {
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        },
-      });
-
-      const securityDiff = formatter.formatSecurityDiff();
-
-      // Send a request response with the formatted security diff as part of the message,
-      // and the template diff as data
-      // (IoHost decides whether to print depending on permissionChangeType)
-      const deployMotivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
-      const deployQuestion = `${securityDiff.formattedDiff}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
-      const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
-        motivation: deployMotivation,
-        concurrency,
-        permissionChangeType: securityDiff.permissionChangeType,
-        templateDiffs: formatter.diffs,
-      }));
-      if (!deployConfirmed) {
-        throw new ToolkitError('Aborted by user');
-      }
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -655,6 +630,63 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      const tags = (options.tags && options.tags.length > 0) ? options.tags : tagsForStack(stack);
+
+      let deploymentMethod: DeploymentMethod | undefined;
+      let changeSet: DescribeChangeSetCommandOutput | undefined;
+      if (options.deploymentMethod?.method === 'change-set') {
+        // Create a CloudFormation change set
+        const changeSetName = options.deploymentMethod?.changeSetName || `cdk-deploy-change-set-${Date.now()}`;
+        await deployments.deployStack({
+          stack,
+          deployName: stack.stackName,
+          roleArn: options.roleArn,
+          toolkitStackName: this.toolkitStackName,
+          reuseAssets: options.reuseAssets,
+          notificationArns,
+          tags,
+          deploymentMethod: { method: 'change-set' as const, changeSetName, execute: false },
+          forceDeployment: options.forceDeployment,
+          parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+          usePreviousParameters: options.parameters?.keepExistingParameters,
+          extraUserAgent: options.extraUserAgent,
+          assetParallelism: options.assetParallelism,
+        });
+
+        // Describe the change set to be presented to the user
+        changeSet = await deployments.describeChangeSet(stack, changeSetName);
+
+        // Don't continue deploying the stack if there are no changes (unless forced)
+        if (!options.forceDeployment && changeSetHasNoChanges(changeSet)) {
+          await deployments.deleteChangeSet(stack, changeSet.ChangeSetName!);
+          return ioHelper.notify(IO.CDK_TOOLKIT_W5023.msg(`${chalk.bold(stack.displayName)}: stack has no changes, skipping deployment.`));
+        }
+
+        // Adjust the deployment method for the subsequent deployment to execute the existing change set
+        deploymentMethod = { ...options.deploymentMethod, changeSetName, executeExistingChangeSet: true };
+      }
+      // Present the diff to the user
+      const oldTemplate = await deployments.readCurrentTemplate(stack);
+      const formatter = new DiffFormatter({ templateInfo: { oldTemplate, newTemplate: stack, changeSet } });
+      const diff = formatter.formatStackDiff();
+
+      // Send a request response with the formatted diff as part of the message, and the template diff as data
+      // (IoHost decides whether to print depending on permissionChangeType)
+      const deployMotivation = 'Approval required for stack deployment.';
+      const deployQuestion = `${diff.formattedDiff}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
+      const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
+        motivation: deployMotivation,
+        concurrency,
+        permissionChangeType: diff.permissionChangeType,
+        templateDiffs: formatter.diffs,
+      }));
+      if (!deployConfirmed) {
+        if (changeSet?.ChangeSetName) {
+          await deployments.deleteChangeSet(stack, changeSet.ChangeSetName);
+        }
+        throw new ToolkitError('Aborted by user');
+      }
+
       const stackIndex = stacks.indexOf(stack) + 1;
       const deploySpan = await ioHelper.span(SPAN.DEPLOY_STACK)
         .begin(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`, {
@@ -662,11 +694,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           current: stackIndex,
           stack,
         });
-
-      let tags = options.tags;
-      if (!tags || tags.length === 0) {
-        tags = tagsForStack(stack);
-      }
 
       let deployDuration;
       try {
@@ -687,7 +714,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             reuseAssets: options.reuseAssets,
             notificationArns,
             tags,
-            deploymentMethod: options.deploymentMethod,
+            deploymentMethod: deploymentMethod ?? options.deploymentMethod,
             forceDeployment: options.forceDeployment,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
             usePreviousParameters: options.parameters?.keepExistingParameters,

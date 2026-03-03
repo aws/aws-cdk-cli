@@ -82,13 +82,14 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I5002` | Provides time for resource migration | `info` | {@link Duration} |
 | `CDK_TOOLKIT_W5021` | Empty non-existent stack, deployment is skipped | `warn` | n/a |
 | `CDK_TOOLKIT_W5022` | Empty existing stack, stack will be destroyed | `warn` | n/a |
+| `CDK_TOOLKIT_W5023` | No changes to existing stack, deployment is skipped | `warn` | n/a |
 | `CDK_TOOLKIT_I5031` | Informs about any log groups that are traced as part of the deployment | `info` | n/a |
 | `CDK_TOOLKIT_I5032` | Start monitoring log groups | `debug` | {@link CloudWatchLogMonitorControlEvent} |
 | `CDK_TOOLKIT_I5033` | A log event received from Cloud Watch | `info` | {@link CloudWatchLogEvent} |
 | `CDK_TOOLKIT_I5034` | Stop monitoring log groups | `debug` | {@link CloudWatchLogMonitorControlEvent} |
 | `CDK_TOOLKIT_E5035` | A log monitoring error | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I5050` | Confirm rollback during deployment | `info` | {@link ConfirmationRequest} |
-| `CDK_TOOLKIT_I5060` | Confirm deploy security sensitive changes | `info` | {@link DeployConfirmationRequest} |
+| `CDK_TOOLKIT_I5060` | Confirm deploy changes | `info` | {@link DeployConfirmationRequest} |
 | `CDK_TOOLKIT_I5100` | Stack deploy progress | `info` | {@link StackDeployProgress} |
 | `CDK_TOOLKIT_I5210` | Started building a specific asset | `trace` | {@link BuildAsset} |
 | `CDK_TOOLKIT_I5211` | Building the asset has completed | `trace` | {@link Duration} |
