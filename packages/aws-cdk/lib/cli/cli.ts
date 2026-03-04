@@ -37,8 +37,8 @@ import { ProxyAgentProvider } from './proxy-agent';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
-import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { guessAgent } from './util/guess-agent';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
