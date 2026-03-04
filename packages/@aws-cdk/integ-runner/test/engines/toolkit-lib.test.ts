@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
 
 const MockedToolkit = Toolkit as jest.MockedClass<typeof Toolkit>;
+const MockedBaseCredentials = BaseCredentials as jest.Mocked<typeof BaseCredentials>;
 
 describe('ToolkitLibRunnerEngine', () => {
   let mockToolkit: jest.Mocked<Toolkit>;
@@ -30,39 +30,15 @@ describe('ToolkitLibRunnerEngine', () => {
   });
 
   describe('synth', () => {
-    it('should call toolkit.synth with correct parameters', async () => {
-      const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
-      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.synth.mockResolvedValue(mockLock as any);
-
-      await engine.synth({
-        app: 'test-app',
-        stacks: ['stack1'],
-        validation: true,
-      });
-
-      expect(mockToolkit.synth).toHaveBeenCalledWith(mockCx, {
-        stacks: {
-          strategy: 'pattern-must-match',
-          patterns: ['stack1'],
-          expand: 'upstream',
-        },
-        validateStacks: true,
-      });
-      expect(mockLock.dispose).toHaveBeenCalled();
-    });
-  });
-
-  describe('synthFast', () => {
     it('should use fromCdkApp and produce for fast synthesis', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+      const mockLock = { [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
-      await engine.synthFast({
-        execCmd: ['cdk', 'synth'],
+      await engine.synth({
+        app: 'cdk synth',
         output: 'cdk.out',
         context: { key: 'value' },
         env: { TEST: 'true' },
@@ -81,16 +57,17 @@ describe('ToolkitLibRunnerEngine', () => {
           assetMetadata: false,
         },
       });
-      expect(mockLock.dispose).toHaveBeenCalled();
+      expect(mockLock[Symbol.asyncDispose]).toHaveBeenCalled();
     });
 
     it('should handle missing context error silently', async () => {
       const mockCx = { produce: jest.fn() };
       mockCx.produce.mockRejectedValue(new Error('Missing context keys'));
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
-      await expect(engine.synthFast({
-        execCmd: ['cdk', 'synth'],
+      await expect(engine.synth({
+        app: 'cdk synth',
       })).resolves.toBeUndefined();
     });
   });
@@ -128,7 +105,6 @@ describe('ToolkitLibRunnerEngine', () => {
         stacks: ['stack1'],
         roleArn: 'arn:aws:iam::123456789012:role/test',
         traceLogs: true,
-        hotswap: HotswapMode.FALL_BACK,
       });
 
       expect(mockToolkit.deploy).toHaveBeenCalledWith(mockCx, {
@@ -140,25 +116,33 @@ describe('ToolkitLibRunnerEngine', () => {
           expand: 'upstream',
         },
         deploymentMethod: {
-          method: 'hotswap',
-          fallback: { method: 'change-set' },
+          method: 'change-set',
         },
+        outputsFile: undefined,
       });
     });
 
-    it('should call watch when watch option is true', async () => {
+    it('should pass outputsFile with absolute path when provided', async () => {
       const mockCx = {};
-      const mockWatcher = { waitForEnd: jest.fn() };
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.watch.mockResolvedValue(mockWatcher as any);
 
       await engine.deploy({
         app: 'test-app',
-        watch: true,
+        stacks: ['stack1'],
+        outputsFile: 'assertion-results.json',
       });
 
-      expect(mockToolkit.watch).toHaveBeenCalled();
-      expect(mockWatcher.waitForEnd).toHaveBeenCalled();
+      expect(mockToolkit.deploy).toHaveBeenCalledWith(mockCx, {
+        stacks: {
+          strategy: 'pattern-must-match',
+          patterns: ['stack1'],
+          expand: 'upstream',
+        },
+        deploymentMethod: {
+          method: 'change-set',
+        },
+        outputsFile: '/test/dir/assertion-results.json',
+      });
     });
   });
 
@@ -219,7 +203,7 @@ describe('ToolkitLibRunnerEngine', () => {
 
   describe('constructor options', () => {
     it('should handle showOutput option', () => {
-      const engineWithOutput = new ToolkitLibRunnerEngine({
+      new ToolkitLibRunnerEngine({
         workingDirectory: '/test',
         showOutput: true,
         region: 'us-dummy-1',
@@ -228,6 +212,21 @@ describe('ToolkitLibRunnerEngine', () => {
       expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
         ioHost: expect.any(Object),
       }));
+    });
+
+    it('should pass profile to BaseCredentials', () => {
+      MockedBaseCredentials.awsCliCompatible = jest.fn();
+
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        profile: 'test-profile',
+      });
+
+      expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+        profile: 'test-profile',
+        defaultRegion: 'us-dummy-1',
+      });
     });
 
     it('should throw error when no app is provided', async () => {

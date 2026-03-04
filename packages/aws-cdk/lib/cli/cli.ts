@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
@@ -28,6 +29,7 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
+import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -36,16 +38,21 @@ import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { getLanguageFromAlias } from '../commands/language';
-
-if (!process.stdout.isTTY) {
-  // Disable chalk color highlighting
-  process.env.FORCE_COLOR = '0';
-}
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
+  // Handle color output settings
+  // Priority: --no-color > --color > TTY detection
+  if (argv.noColor) {
+    process.env.FORCE_COLOR = '0';
+  } else if (argv.color) {
+    process.env.FORCE_COLOR = '3';
+  } else if (!process.stdout.isTTY) {
+    // Default behavior: disable colors for non-TTY
+    process.env.FORCE_COLOR = '0';
+  }
 
   const cmd = argv._[0];
 
@@ -100,10 +107,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
-  if (argv['telemetry-file'] && !configuration.settings.get(['unstable']).includes('telemetry')) {
-    throw new ToolkitError('Unstable feature use: \'telemetry-file\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk deploy --unstable=telemetry --telemetry-file=my/file/path\'');
-  }
-
   try {
     await ioHost.startTelemetry(argv, configuration.context);
   } catch (e: any) {
@@ -144,6 +147,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
+    language: await guessLanguage(process.cwd()),
     httpOptions: { agent: proxyAgent },
     cliVersion: versionNumber(),
   });
@@ -503,7 +507,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           unstableFeatures: configuration.settings.get(['unstable']),
         });
         const flagsData = await toolkit.flags(cloudExecutable);
-        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit);
+        const handler = new FlagCommandHandler(flagsData, ioHelper, args, toolkit, configuration.context.all);
         return handler.processFlagsCommand();
 
       case 'synthesize':
@@ -566,6 +570,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             libVersion: args.libVersion,
             fromPath: args['from-path'],
             templatePath: args['template-path'],
+            packageManager: args['package-manager'],
+            projectName: args.name,
           });
         }
       case 'migrate':
@@ -735,15 +741,6 @@ export function cli(args: string[] = process.argv.slice(2)) {
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
-      /*
-       * The SDK may leave open handles in some environments. One case we have seen is
-       * MetadataService leaving an open socket in GitHub Actions. To ensure that
-       * the CLI exits in all environments, we explicitly call process.exit() after
-       * ending telemetry.
-       *
-       * See https://github.com/aws/aws-sdk-js-v3/issues/7538.
-       */
-      process.exit();
     });
 }
 /* c8 ignore stop */

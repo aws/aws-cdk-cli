@@ -1,6 +1,6 @@
 import { format } from 'util';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
 import type { AffectedResource, HotswapResult, ResourceSubject, ResourceChange, NonHotswappableChange } from '../../payloads';
@@ -10,6 +10,7 @@ import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
 import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from './appsync-mapping-templates';
+import { isHotswappableBedrockAgentCoreRuntimeChange } from './bedrock-agentcore-runtimes';
 import { isHotswappableCodeBuildProjectChange } from './code-build-projects';
 import type {
   HotswapChange,
@@ -59,6 +60,7 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'AWS::AppSync::GraphQLSchema': isHotswappableAppSyncChange,
   'AWS::AppSync::ApiKey': isHotswappableAppSyncChange,
 
+  'AWS::BedrockAgentCore::Runtime': isHotswappableBedrockAgentCoreRuntimeChange,
   'AWS::ECS::TaskDefinition': isHotswappableEcsServiceChange,
   'AWS::CodeBuild::Project': isHotswappableCodeBuildProjectChange,
   'AWS::StepFunctions::StateMachine': isHotswappableStateMachineChange,

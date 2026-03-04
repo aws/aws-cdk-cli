@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');

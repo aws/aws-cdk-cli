@@ -1,13 +1,13 @@
-import * as child_process from 'child_process';
 import * as builtinFs from 'fs';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
+import { IntegTestRunner } from '../../lib/runner';
 import { integTestWorker } from '../../lib/workers/extract';
 import { runIntegrationTestsInParallel, runIntegrationTests } from '../../lib/workers/integ-test-worker';
+
 let stderrMock: jest.SpyInstance;
 let pool: workerpool.WorkerPool;
-let spawnSyncMock: jest.SpyInstance;
 
 jest.setTimeout(20_000);
 
@@ -41,37 +41,6 @@ beforeEach(() => {
     return true;
   });
 
-  spawnSyncMock = jest.spyOn(child_process, 'spawnSync')
-    .mockReturnValueOnce({
-      status: 0,
-      stderr: Buffer.from('stderr'),
-      stdout: Buffer.from('sdout'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
-    })
-    .mockReturnValueOnce({
-      status: 0,
-      stderr: Buffer.from('HEAD branch: master\nother'),
-      stdout: Buffer.from('HEAD branch: master\nother'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
-    }).mockReturnValueOnce({
-      status: 0,
-      stderr: Buffer.from('abc'),
-      stdout: Buffer.from('abc'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
-    }).mockReturnValue({
-      status: 0,
-      stderr: Buffer.from('stack1'),
-      stdout: Buffer.from('stack1'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
-    });
   stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation(() => {
     return true;
   });
@@ -88,111 +57,249 @@ afterAll(async () => {
   await pool.terminate();
 });
 
-describe('test runner', () => {
-  test('no snapshot', async () => {
-    // WHEN
-    const test = {
-      fileName: 'test/test-data/xxxxx.integ-test1.js',
-      discoveryRoot: 'test/test-data',
-    };
-    await integTestWorker({
-      tests: [test],
+// Mock workerpool.workerEmit since we're not running in a worker context
+jest.mock('workerpool', () => {
+  const actual = jest.requireActual('workerpool');
+  return {
+    ...actual,
+    workerEmit: jest.fn(),
+  };
+});
+
+describe('integTestWorker', () => {
+  let mockActualTests: jest.Mock;
+  let mockRunIntegTestCase: jest.Mock;
+
+  beforeEach(() => {
+    mockActualTests = jest.fn();
+    mockRunIntegTestCase = jest.fn();
+
+    jest.spyOn(IntegTestRunner.prototype, 'actualTests').mockImplementation(mockActualTests);
+    jest.spyOn(IntegTestRunner.prototype, 'runIntegTestCase').mockImplementation(mockRunIntegTestCase);
+  });
+
+  test('successful test run emits success diagnostic', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockResolvedValue({
+      AssertionResults1: { status: 'success', message: 'Assertion passed' },
+    });
+
+    const results = await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
       region: 'us-east-1',
     });
 
-    expect(spawnSyncMock).toHaveBeenCalledWith(
-      expect.stringMatching(/node/),
-      ['test/test-data/xxxxx.integ-test1.js'],
+    expect(results).toEqual([]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        env: expect.objectContaining({
-          CDK_INTEG_ACCOUNT: '12345678',
-          CDK_INTEG_REGION: 'test-region',
-        }),
+        reason: 'TEST_SUCCESS',
+        testName: expect.stringContaining('test-case-1'),
       }),
     );
   });
 
-  test('legacy test throws', async () => {
-    // WHEN
-    const test = {
-      fileName: 'test/test-data/xxxxx.integ-test2.js',
-      discoveryRoot: 'test/test-data',
-    };
-    spawnSyncMock.mockReset();
-    jest.spyOn(child_process, 'spawnSync').mockReturnValue({
-      status: 0,
-      stderr: Buffer.from('test-stack'),
-      stdout: Buffer.from('test-stack'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
+  test('failed assertion emits failure diagnostic and returns test as failed', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockResolvedValue({
+      AssertionResults1: { status: 'fail', message: 'Assertion failed: expected X got Y' },
     });
 
-    // GIVEN
     const results = await integTestWorker({
-      tests: [test],
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
       region: 'us-east-1',
     });
 
-    // THEN
     expect(results).toEqual([{
-      discoveryRoot: 'test/test-data',
-      fileName: 'test/test-data/xxxxx.integ-test2.js',
-    }]);
-  });
-
-  test('has snapshot', async () => {
-    // WHEN
-    const test = {
       fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
       discoveryRoot: 'test/test-data',
-    };
+    }]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'ASSERTION_FAILED',
+      }),
+    );
+  });
+
+  test('test case execution error emits failure diagnostic', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockRejectedValue(new Error('Deployment failed'));
+
     const results = await integTestWorker({
-      tests: [test],
-      region: 'us-east-3',
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
     });
 
-    expect(spawnSyncMock.mock.calls).toEqual(expect.arrayContaining([
-      expect.arrayContaining([
-        expect.stringMatching(/git/),
-        ['-C', 'test/test-data', 'remote', 'show', 'origin'],
-      ]),
-      expect.arrayContaining([
-        expect.stringMatching(/git/),
-        ['-C', 'test/test-data', 'merge-base', 'HEAD', 'master'],
-      ]),
-      expect.arrayContaining([
-        expect.stringMatching(/git/),
-        ['-C', 'test/test-data', 'checkout', 'abc', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
-      ]),
-    ]));
+    expect(results).toEqual([{
+      fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+      discoveryRoot: 'test/test-data',
+    }]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'TEST_FAILED',
+        message: expect.stringContaining('Deployment failed'),
+      }),
+    );
+  });
+
+  test('no tests defined emits error diagnostic', async () => {
+    mockActualTests.mockResolvedValue({});
+
+    const results = await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
+    });
+
+    expect(results).toEqual([{
+      fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+      discoveryRoot: 'test/test-data',
+    }]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'TEST_ERROR',
+        message: expect.stringContaining('No tests defined'),
+      }),
+    );
+  });
+
+  test('runs multiple test cases within a single test file', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+      'test-case-2': { stacks: ['Stack2'] },
+    });
+    mockRunIntegTestCase.mockResolvedValue(undefined);
+
+    const results = await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
+    });
 
     expect(results).toEqual([]);
+    expect(mockRunIntegTestCase).toHaveBeenCalledTimes(2);
+    expect(mockRunIntegTestCase).toHaveBeenCalledWith(
+      expect.objectContaining({ testCaseName: 'test-case-1' }),
+    );
+    expect(mockRunIntegTestCase).toHaveBeenCalledWith(
+      expect.objectContaining({ testCaseName: 'test-case-2' }),
+    );
   });
 
-  test('deploy failed', async () => {
-    // WHEN
-    const test = {
-      fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
-      discoveryRoot: 'test/test-data',
-    };
-    jest.spyOn(child_process, 'spawnSync').mockReturnValue({
-      status: 1,
-      stderr: Buffer.from('stack1'),
-      stdout: Buffer.from('stack1'),
-      pid: 123,
-      output: ['stdout', 'stderr'],
-      signal: null,
+  test('processes multiple test files in batch', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
     });
+    mockRunIntegTestCase.mockResolvedValue(undefined);
+
     const results = await integTestWorker({
-      tests: [test],
+      tests: [
+        {
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        },
+        {
+          fileName: 'test/test-data/xxxxx.another-test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        },
+      ],
       region: 'us-east-1',
     });
 
-    expect(results[0]).toEqual({
+    expect(results).toEqual([]);
+    expect(mockActualTests).toHaveBeenCalledTimes(2);
+  });
+
+  test('passes profile and region to IntegTestRunner', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockResolvedValue(undefined);
+
+    await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-west-2',
+      profile: 'test-profile',
+    });
+
+    // Verify runIntegTestCase was called (runner was created and used)
+    expect(mockRunIntegTestCase).toHaveBeenCalled();
+  });
+
+  test('legacy test without snapshot throws and returns test as failed', async () => {
+    // When actualTests throws (e.g., legacy test without snapshot),
+    // the worker should catch the error and return the test as failed
+    mockActualTests.mockRejectedValue(
+      new Error('xxxxx.integ-test2 is a new test. Please use the IntegTest construct to configure the test'),
+    );
+
+    const results = await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.integ-test2.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
+    });
+
+    expect(results).toEqual([{
+      fileName: 'test/test-data/xxxxx.integ-test2.js',
+      discoveryRoot: 'test/test-data',
+    }]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'TEST_ERROR',
+        message: expect.stringContaining('Please use the IntegTest construct'),
+      }),
+    );
+  });
+
+  test('deployment failure returns test as failed', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockRejectedValue(
+      new Error('Stack deployment failed: CREATE_FAILED'),
+    );
+
+    const results = await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
+    });
+
+    expect(results).toEqual([{
       fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
       discoveryRoot: 'test/test-data',
-    });
+    }]);
+    expect(workerpool.workerEmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'TEST_FAILED',
+        message: expect.stringContaining('Stack deployment failed'),
+      }),
+    );
   });
 });
 

@@ -1,8 +1,7 @@
 import * as child_process from 'child_process';
 import * as builtinFs from 'fs';
-import { HotswapMode } from '@aws-cdk/cdk-cli-wrapper';
+import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
-import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { IntegTestRunner, IntegTest } from '../../lib/runner';
 import { MockCdkProvider } from '../helpers';
@@ -47,6 +46,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -59,7 +59,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       requireApproval: 'never',
@@ -112,6 +112,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -124,7 +125,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'node test/test-data/xxxxx.integ-test1.js',
       requireApproval: 'never',
@@ -155,6 +156,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
@@ -167,7 +169,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'node test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
       requireApproval: 'never',
@@ -184,8 +186,8 @@ describe('IntegTest runIntegTests', () => {
       output: 'test/test-data/cdk-integ.out.xxxxx.test-with-snapshot-assets-diff.js.snapshot',
       profile: undefined,
     });
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledWith({
-      execCmd: ['node', 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js'],
+    expect(cdkMock.mocks.synth).toHaveBeenCalledWith({
+      app: 'node test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
@@ -217,6 +219,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -229,7 +232,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       context: expect.any(Object),
@@ -263,6 +266,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -276,13 +280,14 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(0);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
   });
 
   test('dryrun', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -296,13 +301,14 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(0);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(0);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
   });
 
   test('generate snapshot', async () => {
     // WHEN
     const runner = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -311,9 +317,9 @@ describe('IntegTest runIntegTests', () => {
     await runner.actualTests();
 
     // THEN
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledWith({
-      execCmd: ['node', 'test/test-data/xxxxx.integ-test1.js'],
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(1);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledWith({
+      app: 'node test/test-data/xxxxx.integ-test1.js',
       output: 'test/test-data/cdk-integ.out.xxxxx.integ-test1.js.snapshot',
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',
@@ -327,6 +333,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
@@ -340,7 +347,7 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(1);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'node test/test-data/xxxxx.integ-test1.js',
       requireApproval: 'never',
@@ -377,6 +384,7 @@ describe('IntegTest runIntegTests', () => {
   test('with hooks', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
@@ -430,6 +438,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -470,6 +479,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -511,6 +521,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -531,6 +542,7 @@ describe('IntegTest runIntegTests', () => {
   test('with assets manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
@@ -553,6 +565,7 @@ describe('IntegTest runIntegTests', () => {
   test('with assembly manifest, assets are removed if stackUpdateWorkflow is disabled', async () => {
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
@@ -562,12 +575,16 @@ describe('IntegTest runIntegTests', () => {
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
     });
 
-    expect(removeSyncMock.mock.calls).toEqual([
-      ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
-      [
-        'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
-      ],
-    ]);
+    // The cdk-integ.out.* directory removal only happens if the directory exists on disk.
+    // Since git doesn't track empty directories, we only assert on the calls that always happen.
+    expect(removeSyncMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
+        [
+          'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
+        ],
+      ]),
+    );
   });
 
   test.each`
@@ -581,6 +598,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -610,6 +628,7 @@ describe('IntegTest runIntegTests', () => {
     // WHEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -623,16 +642,54 @@ describe('IntegTest runIntegTests', () => {
     // THEN
     expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
     expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(2);
+    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
     }));
-    expect(cdkMock.mocks.synthFast).toHaveBeenCalledWith(expect.objectContaining({
-      execCmd: ['node', '--no-warnings', 'test/test-data/xxxxx.test-with-snapshot.js'],
+    expect(cdkMock.mocks.synth).toHaveBeenCalledWith(expect.objectContaining({
+      app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
     }));
     expect(cdkMock.mocks.destroy).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
     }));
+  });
+
+  test('with failed assertions', async () => {
+    // GIVEN
+    const outputsFile = 'cdk-integ.out.xxxxx.test-with-snapshot.js.snapshot/assertion-results.json';
+    const fullOutputsPath = `test/test-data/${outputsFile}`;
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(fs, 'readJSONSync').mockReturnValue({
+      BundlingDefaultTestDeployAssertAACA0CAF: {
+        AssertionResultsTest123: '{"status":"fail","message":"Expected 2 but received 1"}',
+      },
+    });
+    jest.spyOn(fs, 'unlinkSync').mockImplementation();
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // WHEN
+    const results = await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    });
+
+    // THEN
+    expect(results).toBeDefined();
+    expect(results?.AssertionResultsTest123).toEqual({
+      status: 'fail',
+      message: 'Expected 2 but received 1',
+    });
+    expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
+      outputsFile: fullOutputsPath,
+    }));
+    expect(fs.readJSONSync).toHaveBeenCalledWith(fullOutputsPath);
   });
 });
 
@@ -641,6 +698,7 @@ describe('IntegTest watchIntegTest', () => {
     // GIVEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -656,10 +714,13 @@ describe('IntegTest watchIntegTest', () => {
     // THEN
     expect(cdkMock.mocks.watch).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
-      hotswap: HotswapMode.FALL_BACK,
-      watch: true,
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: {
+          method: 'change-set',
+        },
+      },
       traceLogs: false,
-      deploymentMethod: 'direct',
       verbose: undefined,
     }), expect.anything());
   });
@@ -668,6 +729,7 @@ describe('IntegTest watchIntegTest', () => {
     // GIVEN
     const integTest = new IntegTestRunner({
       cdk: cdkMock.cdk,
+      region: 'eu-west-1',
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
@@ -684,10 +746,13 @@ describe('IntegTest watchIntegTest', () => {
     // THEN
     expect(cdkMock.mocks.watch).toHaveBeenCalledWith(expect.objectContaining({
       app: 'node --no-warnings test/test-data/xxxxx.test-with-snapshot.js',
-      hotswap: HotswapMode.FALL_BACK,
-      watch: true,
+      deploymentMethod: {
+        method: 'hotswap',
+        fallback: {
+          method: 'change-set',
+        },
+      },
       traceLogs: true,
-      deploymentMethod: 'direct',
       verbose: undefined,
     }), expect.anything());
   });
@@ -697,6 +762,7 @@ describe('IntegTest watchIntegTest', () => {
       // GIVEN
       const runner = new IntegTestRunner({
         cdk: cdkMock.cdk,
+        region: 'eu-west-1',
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.test-with-error.js',
           discoveryRoot: 'test/test-data',

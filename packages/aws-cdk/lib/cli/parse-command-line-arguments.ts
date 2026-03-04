@@ -144,6 +144,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'boolean',
       desc: 'Removes colors and other style from console output',
     })
+    .option('color', {
+      default: undefined,
+      type: 'boolean',
+      desc: 'Force colored output even when stdout is not a TTY',
+    })
     .option('ci', {
       default: helpers.isCI(),
       type: 'boolean',
@@ -550,17 +555,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('watch', {
@@ -665,7 +670,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('record-resource-mapping', {
           default: undefined,
           type: 'string',
-          alias: 'r',
           requiresArg: true,
           desc: 'If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed',
         })
@@ -735,17 +739,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('hotswap-ecs-minimum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-maximum-healthy-percent', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
         })
         .option('hotswap-ecs-stabilization-timeout-seconds', {
           default: undefined,
-          type: 'string',
+          type: 'number',
           desc: 'Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount',
         })
         .option('logs', {
@@ -899,6 +903,19 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           desc: 'Path to a specific template within a multi-template repository',
+          requiresArg: true,
+        })
+        .option('package-manager', {
+          default: undefined,
+          type: 'string',
+          desc: 'The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.',
+          choices: ['npm', 'yarn', 'pnpm', 'bun'],
+        })
+        .option('project-name', {
+          default: undefined,
+          type: 'string',
+          alias: 'n',
+          desc: 'The name of the new project',
           requiresArg: true,
         }),
     )

@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as fs from 'fs-extra';
 import { LazyListStackResources, type ListStackResources } from './evaluate-cloudformation-template';
 import { CloudFormationStack, type Template } from './stack-helpers';

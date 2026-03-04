@@ -1,5 +1,6 @@
 import type { github } from 'projen';
 import { Component } from 'projen';
+import type { GithubCredentials } from 'projen/lib/github';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
 import { GitHubToken, stringifyList } from './util';
@@ -32,22 +33,26 @@ interface TriageManagerOptions {
    */
   needEnvs?: boolean;
   /**
-   * @default GitHubToken.GITHUB_TOKEN
+   * @default GITHUB_TOKEN
    */
-  githubToken?: GitHubToken;
+  credentials?: GithubCredentials;
 }
 
 function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
+  const credentials = triageManagerOptions.credentials ?? GitHubToken.GITHUB_TOKEN;
+
   return {
     name: 'Triage Manager',
     runsOn: ['aws-cdk_ubuntu-latest_4-core'],
     permissions: { issues: JobPermission.WRITE, pullRequests: JobPermission.WRITE },
+    environment: credentials.environment,
     steps: [
+      ...credentials.setupSteps,
       {
         name: 'Triage Manager',
         uses: 'aws-github-ops/aws-issue-triage-manager@main',
         with: {
-          'github-token': `\${{ ${triageManagerOptions.githubToken ?? 'secrets.GITHUB_TOKEN'} }}`,
+          'github-token': credentials.tokenRef,
           'target': triageManagerOptions.target,
           'excluded-expressions': triageManagerOptions.excludedExpressions ? stringifyList(triageManagerOptions.excludedExpressions) : undefined,
           'included-labels': triageManagerOptions.includedLabels ? stringifyList(triageManagerOptions.includedLabels) : undefined,
@@ -100,7 +105,7 @@ export class IssueLabeler extends Component {
       areaIsKeyword: true,
       defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}',
       parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]',
-      githubToken: GitHubToken.PROJEN_GITHUB_TOKEN,
+      credentials: repo.github?.projenCredentials,
     }));
   }
 }

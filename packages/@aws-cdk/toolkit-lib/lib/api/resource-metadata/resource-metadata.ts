@@ -1,5 +1,5 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 
 /**
  * Metadata entry for a resource within a CloudFormation stack
@@ -24,7 +24,7 @@ export interface ResourceMetadata {
  * @returns The resource metadata, or undefined if the resource was not found
  */
 export function resourceMetadata(stack: CloudFormationStackArtifact, logicalId: string): ResourceMetadata | undefined {
-  const metadata = stack.manifest?.metadata;
+  const metadata = stack.metadata;
   if (!metadata) {
     return undefined;
   }

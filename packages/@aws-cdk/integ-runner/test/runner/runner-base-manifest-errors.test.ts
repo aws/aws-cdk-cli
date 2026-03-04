@@ -1,4 +1,3 @@
-import * as path from 'path';
 import { LegacyIntegTestSuite } from '../../lib/runner';
 import { IntegTest } from '../../lib/runner/integration-tests';
 import { ManifestLoadError } from '../../lib/runner/private/integ-manifest';
@@ -57,6 +56,7 @@ describe('IntegRunner manifest error handling', () => {
         discoveryRoot: 'test/test-data',
       }),
       showOutput: true,
+      region: 'eu-west-1',
     });
 
     // WHEN / THEN
@@ -73,6 +73,7 @@ describe('IntegRunner manifest error handling', () => {
         discoveryRoot: 'test/test-data',
       }),
       showOutput: true,
+      region: 'eu-west-1',
     });
 
     // WHEN

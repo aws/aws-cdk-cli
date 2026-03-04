@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as cxapi from '@aws-cdk/cx-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { CloudAssembly } from '../../lib/cxapp/cloud-assembly';
 import { TestIoHost } from '../_helpers/io-host';
 

@@ -53,7 +53,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,archiver,glob"
+          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,archiver,fast-glob,picomatch"
         }
       ]
     },
@@ -106,7 +106,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloud-assembly-api=exact",
           "receiveArgs": true
         }
       ]
@@ -166,6 +166,9 @@
     "test": {
       "name": "test",
       "description": "Run tests",
+      "env": {
+        "TESTING_CDK": "1"
+      },
       "steps": [
         {
           "exec": "jest --passWithNoTests --updateSnapshot",
@@ -174,7 +177,8 @@
         {
           "spawn": "eslint"
         }
-      ]
+      ],
+      "condition": "[ \"$NO_UNIT_TESTS\" != \"1\" ]"
     },
     "test:watch": {
       "name": "test:watch",

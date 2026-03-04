@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 /**

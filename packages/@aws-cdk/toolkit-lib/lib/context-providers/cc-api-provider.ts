@@ -39,7 +39,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         resources = await this.getResource(cloudControl, args.typeName, args.exactIdentifier);
       } else if (args.propertyMatch) {
         // use listResource
-        resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch, args.expectedMatchCount);
+        resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch, args.expectedMatchCount, args.resourceModel);
       } else {
         throw new ContextProviderError(`Provider protocol error: neither exactIdentifier nor propertyMatch is specified in ${JSON.stringify(args)}.`);
       }
@@ -99,14 +99,17 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
     typeName: string,
     propertyMatch: Record<string, unknown>,
     expectedMatchCount?: CcApiContextQuery['expectedMatchCount'],
+    resourceModel?: Record<string, unknown>,
   ): Promise<FoundResource[]> {
     try {
       const found: FoundResource[] = [];
       let nextToken: string | undefined = undefined;
+      const resourceModelJSON: string | undefined = resourceModel ? JSON.stringify(resourceModel) : undefined;
 
       do {
         const result = await cc.listResources({
           TypeName: typeName,
+          ResourceModel: resourceModelJSON,
           MaxResults: 100,
           ...nextToken ? { NextToken: nextToken } : {},
         });

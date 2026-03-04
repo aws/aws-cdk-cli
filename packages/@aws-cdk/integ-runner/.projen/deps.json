@@ -139,7 +139,7 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cdk-cli-wrapper",
+      "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },
     {
@@ -152,6 +152,7 @@
     },
     {
       "name": "@aws-cdk/cx-api",
+      "version": "^2",
       "type": "runtime"
     },
     {
@@ -173,7 +174,7 @@
     },
     {
       "name": "chokidar",
-      "version": "^3",
+      "version": "^4",
       "type": "runtime"
     },
     {

@@ -163,6 +163,9 @@
     "test": {
       "name": "test",
       "description": "Run tests",
+      "env": {
+        "TESTING_CDK": "1"
+      },
       "steps": [
         {
           "exec": "jest --passWithNoTests --updateSnapshot",
@@ -171,7 +174,8 @@
         {
           "spawn": "eslint"
         }
-      ]
+      ],
+      "condition": "[ \"$NO_UNIT_TESTS\" != \"1\" ]"
     },
     "test:watch": {
       "name": "test:watch",

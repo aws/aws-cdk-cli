@@ -1,8 +1,8 @@
 import * as osPath from 'path';
-import type { ICdk, ListOptions } from '@aws-cdk/cdk-cli-wrapper';
 import type { TestCase, TestOptions, IntegManifest } from '@aws-cdk/cloud-assembly-schema';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
+import type { ICdk, ListOptions } from '../engines/cdk-interface';
 import { IntegManifestReader } from './private/integ-manifest';
 
 const CDK_INTEG_STACK_PRAGMA = '/// !cdk-integ';

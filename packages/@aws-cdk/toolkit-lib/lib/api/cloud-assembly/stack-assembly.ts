@@ -1,6 +1,6 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
-import { minimatch } from 'minimatch';
+import { isMatch as picomatch } from 'picomatch';
 import { StackCollection } from './stack-collection';
 import { flatten } from '../../util';
 import type { IoHelper } from '../io/private/io-helper';
@@ -77,7 +77,7 @@ export abstract class BaseStackAssembly implements IStackAssembly {
     patterns: string[],
     extend: ExtendedStackSelection = ExtendedStackSelection.None,
   ): Promise<StackCollection> {
-    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => minimatch(stack.hierarchicalId, pattern);
+    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => picomatch(stack.hierarchicalId, pattern);
     const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
 
     return this.extendStacks(matchedStacks, stacks, extend);

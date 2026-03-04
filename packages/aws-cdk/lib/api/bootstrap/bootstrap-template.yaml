@@ -631,6 +631,7 @@ Resources:
                   - cloudformation:DeleteChangeSet
                   - cloudformation:DescribeChangeSet
                   - cloudformation:DescribeStacks
+                  - cloudformation:DescribeEvents
                   - cloudformation:ExecuteChangeSet
                   - cloudformation:CreateStack
                   - cloudformation:UpdateStack
@@ -814,7 +815,7 @@ Resources:
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
       # Also update this value below (see comment there)
-      Value: '29'
+      Value: '30'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
@@ -849,4 +850,4 @@ Outputs:
     # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
     # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
     # duplicate the value here and use a build-time test to ensure the two values are the same.
-    Value: '29'
+    Value: '30'

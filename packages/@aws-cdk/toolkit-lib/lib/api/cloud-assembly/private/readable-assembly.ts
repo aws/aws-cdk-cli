@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { IReadLock } from '../../rwlock';
 import type { IReadableCloudAssembly } from '../types';
 

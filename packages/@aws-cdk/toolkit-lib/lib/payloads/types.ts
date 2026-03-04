@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 /**
  * Assembly data returned in the payload of an IO Message.
@@ -88,6 +88,16 @@ export interface ErrorPayload {
    * The error that occurred
    */
   readonly error: Error;
+}
+
+/**
+ * Operation information that *definitely* took time, and *maybe* produced an error
+ */
+export interface Operation extends Duration {
+  /**
+   * Optionally, an error that occurred
+   */
+  readonly error?: Error;
 }
 
 /**

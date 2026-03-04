@@ -1,6 +1,6 @@
 import { DefaultAwsClient, type IAws } from '@aws-cdk/cdk-assets-lib';
-import type { Environment } from '@aws-cdk/cx-api';
-import { EnvironmentPlaceholders } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
+import { EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';

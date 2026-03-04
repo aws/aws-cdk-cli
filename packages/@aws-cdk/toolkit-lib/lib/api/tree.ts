@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { CloudAssembly } from '@aws-cdk/cx-api';
+import type { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as fs from 'fs-extra';
 
 /**

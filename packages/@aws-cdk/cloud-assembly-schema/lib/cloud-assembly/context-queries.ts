@@ -368,6 +368,7 @@ export interface KeyContextQuery extends ContextLookupRoleOptions {
  * const x: CcApiContextQuery = {
  *   typeName: 'AWS::Some::Type',
  *   expectedMatchCount: 'exactly-one',
+ *   resourceModel: {SomeArn: 'arn:aws:....'},
  *   propertiesToReturn: ['SomeProp'],
  *   account: '11111111111',
  *   region: 'us-east-1',
@@ -389,6 +390,17 @@ export interface CcApiContextQuery extends ContextLookupRoleOptions {
    * @default - Either exactIdentifier or propertyMatch should be specified.
    */
   readonly exactIdentifier?: string;
+
+  /**
+   * The resource model to use to select the resources, using `ListResources`..
+   *
+   * This is needed for sub-resources where the parent Arn is required.
+   *
+   * See https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/resource-operations-list.html#resource-operations-list-containers
+   *
+   * @default - no resource Model is provided
+   */
+  readonly resourceModel?: Record<string, unknown>;
 
   /**
    * Returns any resources matching these properties, using `ListResources`.

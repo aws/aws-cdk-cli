@@ -1,7 +1,7 @@
 import { format } from 'node:util';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Difference } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import type { StackResourceDrift } from '@aws-sdk/client-cloudformation';
 import { StackResourceDriftStatus } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';

@@ -8,6 +8,14 @@ import { Writable } from 'node:stream';
 export class StringWriteStream extends Writable {
   private buffer: string[] = [];
 
+  /**
+   * Terminal width in columns.
+   * Used by formatTable() to apply width constraints and prevent table overflow.
+   */
+  public get columns(): number | undefined {
+    return process.stdout.columns;
+  }
+
   constructor() {
     super();
   }

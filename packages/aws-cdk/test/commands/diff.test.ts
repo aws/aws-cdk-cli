@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from '../../lib/api';
 import { Deployments } from '../../lib/api';

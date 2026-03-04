@@ -1,5 +1,5 @@
+import type { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
-import type { CloudAssembly } from '@aws-cdk/cx-api';
 import { appFixture, TestIoHost, builderFixture } from './_helpers';
 import { Toolkit } from '../lib/toolkit/toolkit';
 

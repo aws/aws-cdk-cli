@@ -11,8 +11,8 @@ import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, Hist
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import type { EventResult } from '../telemetry/messages';
-import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
-import type { EventType } from '../telemetry/schema';
+import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
@@ -26,14 +26,14 @@ export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
  * The current action being performed by the CLI. 'none' represents the absence of an action.
  */
 type CliAction =
-| ToolkitAction
-| 'context'
-| 'docs'
-| 'flags'
-| 'notices'
-| 'version'
-| 'cli-telemetry'
-| 'none';
+  | ToolkitAction
+  | 'context'
+  | 'docs'
+  | 'flags'
+  | 'notices'
+  | 'version'
+  | 'cli-telemetry'
+  | 'none';
 
 export interface CliIoHostProps {
   /**
@@ -189,6 +189,17 @@ export class CliIoHost implements IIoHost {
   }
 
   public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const config = require('../cli-type-registry.json');
+    const validCommands = Object.keys(config.commands);
+    const cmd = args._[0];
+    if (!validCommands.includes(cmd)) {
+      // the user typed in an invalid command - no need for telemetry since the invocation is going to fail
+      // imminently anyway.
+      await this.asIoHelper().defaults.trace(`Session instantiated with an invalid command (${cmd}). Not starting telemetry.`);
+      return;
+    }
+
     let sinks: ITelemetrySink[] = [];
     const telemetryFilePath = args['telemetry-file'];
     if (telemetryFilePath) {
@@ -203,7 +214,7 @@ export class CliIoHost implements IIoHost {
       }
     }
 
-    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT;
+    const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
         sinks.push(new EndpointTelemetrySink({
@@ -338,12 +349,9 @@ export class CliIoHost implements IIoHost {
 
   private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
     try {
-      if (this.telemetry && isTelemetryMessage(msg)) {
-        await this.telemetry.emit({
-          eventType: getEventType(msg),
-          duration: msg.data.duration,
-          error: msg.data.error,
-        });
+      const telemetryEvent = eventFromMessage(msg);
+      if (telemetryEvent) {
+        await this.telemetry?.emit(telemetryEvent);
       }
     } catch (e: any) {
       await this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
@@ -607,19 +615,23 @@ function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
 
-function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
-  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
-}
+function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
+  if (CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg)) {
+    return eventResult('SYNTH', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg)) {
+    return eventResult('INVOKE', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
+    return eventResult('DEPLOY', msg);
+  }
+  return undefined;
 
-function getEventType(msg: IoMessage<unknown>): EventType {
-  switch (msg.code) {
-    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
-      return 'SYNTH';
-    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
-      return 'INVOKE';
-    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
-      return 'DEPLOY';
-    default:
-      throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
+  function eventResult(eventType: TelemetryEvent['eventType'], m: IoMessage<EventResult>): TelemetryEvent {
+    return {
+      eventType,
+      duration: m.data.duration,
+      error: m.data.error,
+    };
   }
 }

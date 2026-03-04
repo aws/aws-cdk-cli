@@ -1,5 +1,5 @@
-import type * as cxapi from '@aws-cdk/cx-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { IStackAssembly } from './stack-assembly';
 import { type StackDetails } from '../../payloads/stack-details';
 import { AssemblyError, ToolkitError } from '../../toolkit/toolkit-error';
@@ -42,7 +42,11 @@ export class StackCollection {
         id: stack.displayName ?? stack.id,
         name: stack.stackName,
         environment: stack.environment,
-        metadata: stack.manifest.metadata,
+
+        // Might be huge so load it lazily
+        get metadata() {
+          return stack.metadata;
+        },
         dependencies: [],
       };
 

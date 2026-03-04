@@ -1,1 +1,1 @@
-export const TELEMETRY_ENDPOINT = 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
+export const CURRENT_TELEMETRY_VERSION = '2.0';

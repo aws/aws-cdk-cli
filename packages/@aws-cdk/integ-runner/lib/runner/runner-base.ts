@@ -1,14 +1,15 @@
 /* eslint-disable @cdklabs/no-literal-partition */
 import * as path from 'path';
-import type { ICdk } from '@aws-cdk/cdk-cli-wrapper';
+import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
-import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, TARGET_PARTITIONS } from '@aws-cdk/cx-api';
+import { TARGET_PARTITIONS } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
-import { makeEngine, type EngineOptions } from './engine';
+import { makeEngine } from './engine';
+import type { ICdk } from '../engines/cdk-interface';
 import * as logger from '../logger';
 import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
@@ -20,7 +21,7 @@ const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 /**
  * Options for creating an integration test runner
  */
-export interface IntegRunnerOptions extends EngineOptions {
+export interface IntegRunnerOptions {
   /**
    * Information about the test to run
    */
@@ -181,8 +182,8 @@ export abstract class IntegRunner {
    * This will synth and then load the integration test manifest
    */
   public async generateActualSnapshot(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
-    await this.cdk.synthFast({
-      execCmd: this.cdkApp.split(' '),
+    await this.cdk.synth({
+      app: this.cdkApp,
       // we don't know the "actual" context yet (this method is what generates it) so just
       // use the "expected" context. This is only run in order to read the manifest
       context: this.getContext((await this.expectedTestSuite())?.synthContext),
@@ -357,8 +358,8 @@ export abstract class IntegRunner {
 
     // if lookups are enabled then we need to synth again
     // using dummy context and save that as the snapshot
-    await this.cdk.synthFast({
-      execCmd: this.cdkApp.split(' '),
+    await this.cdk.synth({
+      app: this.cdkApp,
       context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
       env: DEFAULT_SYNTH_OPTIONS.env,
       output: path.relative(this.directory, this.snapshotDir),

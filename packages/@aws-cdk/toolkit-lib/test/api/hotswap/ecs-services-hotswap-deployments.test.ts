@@ -638,6 +638,102 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       forceNewDeployment: true,
     });
   });
+
+  test(
+    'should correctly transform ProxyConfiguration.ProxyConfigurationProperties to proxyConfiguration.properties',
+    async () => {
+      // GIVEN
+      setup.setCurrentCfnStackTemplate({
+        Resources: {
+          TaskDef: {
+            Type: 'AWS::ECS::TaskDefinition',
+            Properties: {
+              Family: 'my-task-def',
+              ContainerDefinitions: [{ Image: 'image1' }],
+              ProxyConfiguration: {
+                ContainerName: 'FargateApplication',
+                ProxyConfigurationProperties: [
+                  { Name: 'AppPorts', Value: '8080' },
+                  { Name: 'IgnoredUID', Value: '1337' },
+                ],
+                Type: 'APPMESH',
+              },
+            },
+          },
+          Service: {
+            Type: 'AWS::ECS::Service',
+            Properties: {
+              TaskDefinition: { Ref: 'TaskDef' },
+            },
+          },
+        },
+      });
+      setup.pushStackResourceSummaries(
+        setup.stackSummaryOf(
+          'Service',
+          'AWS::ECS::Service',
+          'arn:aws:ecs:region:account:service/my-cluster/my-service',
+        ),
+      );
+      mockECSClient.on(RegisterTaskDefinitionCommand).resolves({
+        taskDefinition: {
+          taskDefinitionArn: 'arn:aws:ecs:region:account:task-definition/my-task-def:3',
+        },
+      });
+      const cdkStackArtifact = setup.cdkStackArtifactOf({
+        template: {
+          Resources: {
+            TaskDef: {
+              Type: 'AWS::ECS::TaskDefinition',
+              Properties: {
+                Family: 'my-task-def',
+                ContainerDefinitions: [{ Image: 'image2' }],
+                ProxyConfiguration: {
+                  ContainerName: 'FargateApplication',
+                  ProxyConfigurationProperties: [
+                    { Name: 'AppPorts', Value: '8080' },
+                    { Name: 'IgnoredUID', Value: '1337' },
+                  ],
+                  Type: 'APPMESH',
+                },
+              },
+            },
+            Service: {
+              Type: 'AWS::ECS::Service',
+              Properties: {
+                TaskDefinition: { Ref: 'TaskDef' },
+              },
+            },
+          },
+        },
+      });
+      // WHEN
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+      // THEN
+      expect(deployStackResult).not.toBeUndefined();
+      expect(mockECSClient).toHaveReceivedCommandWith(RegisterTaskDefinitionCommand, {
+        family: 'my-task-def',
+        containerDefinitions: [{ image: 'image2' }],
+        proxyConfiguration: {
+          containerName: 'FargateApplication',
+          properties: [
+            { name: 'AppPorts', value: '8080' },
+            { name: 'IgnoredUID', value: '1337' },
+          ],
+          type: 'APPMESH',
+        },
+      });
+      expect(mockECSClient).toHaveReceivedCommandWith(UpdateServiceCommand, {
+        service: 'arn:aws:ecs:region:account:service/my-cluster/my-service',
+        cluster: 'my-cluster',
+        taskDefinition: 'arn:aws:ecs:region:account:task-definition/my-task-def:3',
+        deploymentConfiguration: {
+          minimumHealthyPercent: 0,
+        },
+        forceNewDeployment: true,
+      });
+    },
+  );
 });
 
 describe.each([

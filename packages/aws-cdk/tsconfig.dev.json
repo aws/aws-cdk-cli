@@ -50,6 +50,9 @@
       "path": "../@aws-cdk/cloudformation-diff"
     },
     {
+      "path": "../@aws-cdk/cloud-assembly-api"
+    },
+    {
       "path": "../@aws-cdk/toolkit-lib"
     },
     {

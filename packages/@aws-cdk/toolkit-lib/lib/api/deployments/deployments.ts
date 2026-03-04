@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -649,7 +649,7 @@ export class Deployments {
       force: options.forcePublish,
     });
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to publish asset ${asset.displayName(true)}`);
+      throw ToolkitError.withCause(`Failed to publish asset ${asset.displayName(true)}`, new AggregateError(publisher.failures.map(f => f.error)));
     }
   }
 

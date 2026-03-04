@@ -1,4 +1,4 @@
-import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
+import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cloud-assembly-api';
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import type { ICloudFormationClient } from '../../../lib/api/aws-auth/private';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';

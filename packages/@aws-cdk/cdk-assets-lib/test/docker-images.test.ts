@@ -275,6 +275,29 @@ beforeEach(() => {
       },
     }),
     '/platform-arm64/cdk.out/dockerdir/Dockerfile': 'FROM scratch',
+    '/build-contexts/cdk.out/assets.json': JSON.stringify({
+      version: Manifest.version(),
+      dockerImages: {
+        theAsset: {
+          source: {
+            directory: 'dockerdir',
+            dockerBuildContexts: {
+              mycontext: '../context',
+              alpine: 'docker-image://alpine:latest',
+            },
+          },
+          destinations: {
+            theDestination: {
+              region: 'us-north-50',
+              assumeRoleArn: 'arn:aws:role',
+              repositoryName: 'repo',
+              imageTag: 'nopqr',
+            },
+          },
+        },
+      },
+    }),
+    '/build-contexts/cdk.out/dockerdir/Dockerfile': 'FROM scratch',
   });
   aws = new MockAws();
   mockEcr.on(DescribeImagesCommand).rejects(err);
@@ -600,6 +623,41 @@ describe('with a complete manifest', () => {
           '.',
         ],
         cwd: defaultNetworkDockerpath,
+      },
+      { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo:nopqr'] },
+      { commandLine: ['docker', 'push', '12345.amazonaws.com/repo:nopqr'] },
+    );
+
+    await pub.publish();
+
+    expectAllSpawns();
+    expect(true).toBeTruthy(); // Expect no exception, satisfy linter
+  });
+
+  test('build with buildContexts option', async () => {
+    pub = new AssetPublishing(AssetManifest.fromPath(mockfs.path('/build-contexts/cdk.out')), {
+      aws,
+    });
+    const buildContextsDockerpath = '/build-contexts/cdk.out/dockerdir';
+
+    const expectAllSpawns = mockSpawn(
+      {
+        commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'],
+      },
+      { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
+      {
+        commandLine: [
+          'docker',
+          'build',
+          '--build-context',
+          'mycontext=../context',
+          '--build-context',
+          'alpine=docker-image://alpine:latest',
+          '--tag',
+          'cdkasset-theasset',
+          '.',
+        ],
+        cwd: buildContextsDockerpath,
       },
       { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo:nopqr'] },
       { commandLine: ['docker', 'push', '12345.amazonaws.com/repo:nopqr'] },

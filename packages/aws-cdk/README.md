@@ -517,6 +517,42 @@ Hotswapping is currently supported for the following changes
 - Source and Environment changes of AWS CodeBuild Projects.
 - VTL mapping template changes for AppSync Resolvers and Functions.
 - Schema changes for AppSync GraphQL Apis.
+- Code files (S3-based) and container image (ECR-based) changes, along with environment variable
+  and description changes of Amazon Bedrock AgentCore Runtimes.
+  - **Note**: For S3-based code changes to be detected, use `AgentRuntimeArtifact.fromCodeAsset()`:
+
+    ```typescript
+    // ✅ Recommended (hotswap works)
+    const agentRuntimeArtifact = AgentRuntimeArtifact.fromCodeAsset({
+      path: path.join(__dirname, 'agent-code'),
+      runtime: AgentCoreRuntime.PYTHON_3_13,
+      entrypoint: ['app.py'],
+    });
+    new Runtime(this, 'Runtime', {
+      runtimeName: 'runtime',
+      agentRuntimeArtifact,
+    });
+    ```
+
+  - Do not use `AgentRuntimeArtifact.fromS3()` with `Source.asset()` and `BucketDeployment`, as the generated object key is a token resolved at deployment time and does not change in the CloudFormation template (hotswap will not work):
+
+    ```typescript
+    // ❌ Not recommended (hotswap doesn't work)
+    const deployment = new aws_s3_deployment.BucketDeployment(this, 'Deploy', {
+      sources: [aws_s3_deployment.Source.asset(path.join(__dirname, 'agent-code'))],
+      destinationBucket: bucket,
+      extract: false,
+    });
+
+    const agentRuntimeArtifact = AgentRuntimeArtifact.fromS3(
+      {
+        bucketName: bucket.bucketName,
+        objectKey: cdk.Fn.select(0, deployment.objectKeys), // Token, resolved at deployment time
+      },
+      AgentCoreRuntime.PYTHON_3_13,
+      ['app.py'],
+    );
+    ```
 
 You can optionally configure the behavior of your hotswap deployments. Currently you can only configure ECS hotswap behavior:
 
@@ -566,6 +602,14 @@ and might have breaking changes in the future.
 - `Fn::Sub`
 
 > *: `Fn::GetAtt` is only partially supported. Refer to [this implementation](https://github.com/aws/aws-cdk-cli/blob/main/packages/aws-cdk/lib/api/cloudformation/evaluate-cloudformation-template.ts#L256-L266) for supported resources and attributes.
+
+
+##### Deploy flowchart
+
+This flowchart provides a high-level overview of the deployment process.
+For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
+
+![Deploy flowchart](./images/deploy-flowchart.png)
 
 ### `cdk rollback`
 

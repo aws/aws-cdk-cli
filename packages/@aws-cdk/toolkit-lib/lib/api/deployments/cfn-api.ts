@@ -1,8 +1,8 @@
 import { format } from 'util';
 import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
-import * as cxapi from '@aws-cdk/cx-api';
-import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cx-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cloud-assembly-api';
 import type {
   DescribeChangeSetCommandOutput,
   Parameter,
@@ -20,6 +20,10 @@ import type { Template, TemplateBodyParameter, TemplateParameter } from '../clou
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
+
+export interface ValidationReporter {
+  fetchDetails(changeSetName: string, stackName: string): Promise<string>;
+}
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
@@ -103,7 +107,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll }: { fetchAll: boolean },
+  { fetchAll, validationReporter }: { fetchAll: boolean; validationReporter?: ValidationReporter },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -121,9 +125,20 @@ export async function waitForChangeSet(
       return description;
     }
 
+    const isEarlyValidationError = description.Status === ChangeSetStatus.FAILED &&
+      description.StatusReason?.includes('AWS::EarlyValidation');
+
+    if (isEarlyValidationError) {
+      const details = await validationReporter?.fetchDetails(changeSetName, stackName);
+      if (details) {
+        throw new ToolkitError(details);
+      }
+    }
     // eslint-disable-next-line @stylistic/max-len
     throw new ToolkitError(
-      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${description.StatusReason || 'no reason provided'}`,
+      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
+        description.StatusReason || 'no reason provided'
+      }`,
     );
   });
 

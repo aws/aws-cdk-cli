@@ -1,5 +1,5 @@
 import * as util from 'util';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
@@ -179,7 +179,7 @@ export class StackActivityMonitor {
   }
 
   private findMetadataFor(logicalId: string | undefined) {
-    const metadata = this.stack.manifest?.metadata;
+    const metadata = this.stack.metadata;
     if (!logicalId || !metadata) {
       return undefined;
     }

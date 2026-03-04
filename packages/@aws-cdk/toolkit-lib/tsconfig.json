@@ -48,6 +48,9 @@
       "path": "../cdk-assets-lib"
     },
     {
+      "path": "../cloud-assembly-api"
+    },
+    {
       "path": "../cli-plugin-contract"
     }
   ]

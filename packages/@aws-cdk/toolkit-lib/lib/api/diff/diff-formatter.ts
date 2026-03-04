@@ -1,4 +1,5 @@
 import { format } from 'node:util';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   formatDifferences,
@@ -8,7 +9,6 @@ import {
   type ResourceDifference,
   type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
-import type * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates } from '../cloudformation';

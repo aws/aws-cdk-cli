@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { BootstrapEnvironmentOptions, BootstrappingParameters } from './bootstrap-props';
 import { BootstrapStack, bootstrapVersionFromTemplate } from './deploy-bootstrap';
 import { legacyBootstrapTemplate } from './legacy-template';

@@ -49,7 +49,7 @@
                     "type": "string"
                 },
                 "metadata": {
-                    "description": "Associated metadata. (Default - no metadata.)",
+                    "description": "Associated metadata.\n\nMetadata can be stored directly in the assembly manifest, as well as in a\nseparate file (see `additionalMetadataFile`). It should prefer to be stored\nin the additional file, as that will reduce the size of the assembly\nmanifest in cases of a lot of metdata (which CDK does emit by default). (Default - no metadata.)",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -57,6 +57,10 @@
                             "$ref": "#/definitions/MetadataEntry"
                         }
                     }
+                },
+                "additionalMetadataFile": {
+                    "description": "A file with additional metadata entries.\n\nThe schema of this file is exactly the same as the type of the `metadata` field.\nIn other words, that file contains an object mapping construct paths to arrays\nof metadata entries. (Default - no additional metadata)",
+                    "type": "string"
                 },
                 "dependencies": {
                     "description": "IDs of artifacts that must be deployed before this artifact. (Default - no dependencies.)",
@@ -228,6 +232,13 @@
                         "type": "string"
                     }
                 },
+                "buildContexts": {
+                    "description": "Build contexts to pass to the `docker build` command (Default no build contexts are passed)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "buildSsh": {
                     "description": "SSH agent socket or keys to pass to the `docker build` command (Default no ssh arg is passed)",
                     "type": "string"
@@ -351,7 +362,7 @@
                     }
                 },
                 "tags": {
-                    "description": "Values for CloudFormation stack tags that should be passed when the stack is deployed. (Default - No tags)",
+                    "description": "Values for CloudFormation stack tags that should be passed when the stack is deployed.\n\nN.B.: Tags are also written to stack metadata, under the path of the Stack\nconstruct. Only in CDK CLI v1 are those tags found in metadata used for\nactual deployments; in all stable versions of CDK only the stack tags\ndirectly found in the `tags` property of `AwsCloudFormationStack` artifact\n(i.e., this property) are used. (Default - No tags)",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
@@ -1092,6 +1103,10 @@
                 "exactIdentifier": {
                     "description": "Identifier of the resource to look up using `GetResource`.\n\nSpecifying exactIdentifier will return exactly one result, or throw an error\nunless `ignoreErrorOnMissingContext` is set. (Default - Either exactIdentifier or propertyMatch should be specified.)",
                     "type": "string"
+                },
+                "resourceModel": {
+                    "description": "The resource model to use to select the resources, using `ListResources`..\n\nThis is needed for sub-resources where the parent Arn is required.\n\nSee https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/resource-operations-list.html#resource-operations-list-containers (Default - no resource Model is provided)",
+                    "$ref": "#/definitions/Record%3Cstring%2Cunknown%3E"
                 },
                 "propertyMatch": {
                     "description": "Returns any resources matching these properties, using `ListResources`.\n\nBy default, specifying propertyMatch will successfully return 0 or more\nresults. To throw an error if the number of results is unexpected (and\nprevent the query results from being committed to context), specify\n`expectedMatchCount`.\n\n## Notes on property completeness\n\nCloudControl API's `ListResources` may return fewer properties than\n`GetResource` would, depending on the resource implementation.\n\nThe resources that `propertyMatch` matches against will *only ever* be the\nproperties returned by the `ListResources` call. (Default - Either exactIdentifier or propertyMatch should be specified.)",

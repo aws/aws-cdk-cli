@@ -51,3 +51,4 @@ test/test-archive-follow/data/linked
 !**/*.snapshot/**/asset.*/*.d.ts
 !**/*.snapshot/**/asset.*/**
 lib/recommended-feature-flags.json
+!/test/tsconfig.json

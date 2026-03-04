@@ -61,6 +61,12 @@ export interface AwsCloudFormationStackProperties {
   /**
    * Values for CloudFormation stack tags that should be passed when the stack is deployed.
    *
+   * N.B.: Tags are also written to stack metadata, under the path of the Stack
+   * construct. Only in CDK CLI v1 are those tags found in metadata used for
+   * actual deployments; in all stable versions of CDK only the stack tags
+   * directly found in the `tags` property of `AwsCloudFormationStack` artifact
+   * (i.e., this property) are used.
+   *
    * @default - No tags
    */
   readonly tags?: { [id: string]: string };

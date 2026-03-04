@@ -48,7 +48,7 @@ export class TelemetrySession {
       identifiers: {
         installationId: await getOrCreateInstallationId(this.ioHost.asIoHelper()),
         sessionId: randomUUID(),
-        telemetryVersion: '1.0',
+        telemetryVersion: '2.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
       },
@@ -126,7 +126,7 @@ export class TelemetrySession {
       duration: {
         total: event.duration,
       },
-      ...( event.error ? {
+      ...(event.error ? {
         error: {
           name: event.error.name,
         },

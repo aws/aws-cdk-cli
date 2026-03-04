@@ -2,8 +2,7 @@ import type { github } from 'projen';
 import { Component } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
-import type { GitHubToken } from './util';
-import { stringifyList } from './util';
+import { GitHubToken, stringifyList } from './util';
 
 /**
  * See https://github.com/cdklabs/pr-triage-manager
@@ -12,23 +11,26 @@ interface PrLabelerOptions {
   /**
    * @default GitHubToken.GITHUB_TOKEN
    */
-  githubToken?: GitHubToken;
+  credentials?: github.GithubCredentials;
   priorityLabels?: string[];
   classificationLabels?: string[];
   onPulls?: boolean;
 }
 
 function prLabelerJob(prLabelerOptions: PrLabelerOptions = {}) {
+  const credentials = prLabelerOptions.credentials ?? GitHubToken.GITHUB_TOKEN;
   return {
     name: 'PR Labeler',
     runsOn: ['aws-cdk_ubuntu-latest_4-core'],
     permissions: { issues: JobPermission.WRITE, pullRequests: JobPermission.WRITE },
+    environment: credentials.environment,
     steps: [
+      ...credentials.setupSteps,
       {
         name: 'PR Labeler',
         uses: 'cdklabs/pr-triage-manager@main',
         with: {
-          'github-token': `\${{ ${prLabelerOptions.githubToken ?? 'secrets.GITHUB_TOKEN'} }}`,
+          'github-token': credentials.tokenRef,
           'priority-labels': prLabelerOptions.priorityLabels ? stringifyList(prLabelerOptions.priorityLabels) : undefined,
           'classification-labels': prLabelerOptions.classificationLabels ? stringifyList(prLabelerOptions.classificationLabels) : undefined,
           'on-pulls': prLabelerOptions.onPulls,

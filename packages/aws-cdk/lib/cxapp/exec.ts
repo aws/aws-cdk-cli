@@ -1,5 +1,6 @@
 import * as childProcess from 'child_process';
 import { format } from 'util';
+import { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -12,7 +13,7 @@ import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
 
 export interface ExecProgramResult {
-  readonly assembly: cxapi.CloudAssembly;
+  readonly assembly: CloudAssembly;
   readonly lock: IReadLock;
 }
 
@@ -40,7 +41,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     await exec(build);
   }
 
-  const app = config.settings.get(['app']);
+  let app = config.settings.get(['app']);
   if (!app) {
     throw new ToolkitError(`--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
   }
@@ -55,6 +56,13 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
     return { assembly: createAssembly(app), lock };
   }
 
+  // Traditionally it has been possible, though not widely advertised, to put a string[] into `cdk.json`.
+  // However, we would just quickly join this array back up to string with spaces (unquoted even!) and proceed as usual,
+  // thereby losing all the benefits of a pre-segmented command line. This coercion is just here for backwards
+  // compatibility with existing configurations. An upcoming PR might retain the benefit of the string[].
+  if (Array.isArray(app)) {
+    app = app.join(' ');
+  }
   const commandLine = await guessExecutable(app, debugFn);
 
   const outdir = config.settings.get(['output']);
@@ -85,7 +93,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
   try {
-    await exec(commandLine.join(' '));
+    await exec(commandLine);
 
     const assembly = createAssembly(outdir);
 
@@ -142,7 +150,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
  */
 export function createAssembly(appDir: string) {
   try {
-    return new cxapi.CloudAssembly(appDir, {
+    return new CloudAssembly(appDir, {
       // We sort as we deploy
       topoSort: false,
     });

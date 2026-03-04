@@ -1,6 +1,6 @@
 
 import type { SdkProvider } from '../../api/aws-auth/private';
-import type { ICloudAssemblySource } from '../../api/cloud-assembly';
+import { CachedCloudAssembly, type ICloudAssemblySource } from '../../api/cloud-assembly';
 import { StackAssembly } from '../../api/cloud-assembly/private';
 import type { IoHelper } from '../../api/io/private';
 import type { PluginHost } from '../../api/plugin';
@@ -30,8 +30,7 @@ export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICl
   }
 
   if (cache) {
-    const ret = new StackAssembly(await assemblySource.produce(), ioHelper);
-    return ret;
+    return new StackAssembly(new CachedCloudAssembly(await assemblySource.produce()), ioHelper);
   }
 
   return new StackAssembly(await assemblySource.produce(), ioHelper);

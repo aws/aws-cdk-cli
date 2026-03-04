@@ -1,3 +1,4 @@
+/* eslint-disable jest/no-disabled-tests */
 import { exec as _exec } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
@@ -37,6 +38,15 @@ jest.setTimeout(120_000);
 const exec = promisify(_exec);
 
 const ioHelper = new TestIoHost().asHelper('migrate');
+
+function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
+  test(name, () => withTempDir(handler));
+}
+function cliTestSkip(name: string, _handler: (dir: string) => void | Promise<any>): void {
+  test.skip(name, () => {
+  });
+}
+cliTest.skip = cliTestSkip;
 
 describe('Migrate Function Tests', () => {
   let sdkProvider: MockSdkProvider;
@@ -189,7 +199,8 @@ describe('Migrate Function Tests', () => {
   });
 
   // TODO: fix with actual go template
-  test('generateStack generates the expected stack string when called for go', () => {
+  // Go is currently disabled in cdk-from-cfn
+  test.skip('generateStack generates the expected stack string when called for go', () => {
     const stack = generateStack(validTemplate, 'GoodGo', 'go');
     expect(stack).toEqual(fs.readFileSync(path.join(...stackPath, 's3.go'), 'utf8'));
   });
@@ -334,7 +345,8 @@ describe('Migrate Function Tests', () => {
     expect(replacedStack).toEqual(fs.readFileSync(path.join(...stackPath, 'S3Stack.cs'), 'utf8'));
   });
 
-  cliTest('generatedCdkApp generates the expected cdk app when called for go', async (workDir) => {
+  // Golang is currently not supported by cdk-from-cfn
+  cliTest.skip('generatedCdkApp generates the expected cdk app when called for go', async (workDir) => {
     const stack = generateStack(validTemplate, 'GoodGo', 'go');
     await generateCdkApp(ioHelper, 'GoodGo', stack, 'go', workDir);
 
@@ -373,10 +385,6 @@ describe('Migrate Function Tests', () => {
     expect(fs.pathExistsSync(path.join(workDir, 'lib', 'good_type_script-stack.ts'))).toBeTruthy();
   });
 });
-
-function cliTest(name: string, handler: (dir: string) => void | Promise<any>): void {
-  test(name, () => withTempDir(handler));
-}
 
 async function withTempDir(cb: (dir: string) => void | Promise<any>) {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aws-cdk-test'));

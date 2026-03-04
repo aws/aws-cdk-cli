@@ -2,7 +2,6 @@ import { format } from 'util';
 import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as logger from '../logger';
-import type { EngineOptions } from '../runner/engine';
 import type { IntegTestInfo } from '../runner/integration-tests';
 
 /**
@@ -89,7 +88,7 @@ export interface IntegRunnerMetrics {
   readonly profile?: string;
 }
 
-export interface SnapshotVerificationOptions extends EngineOptions {
+export interface SnapshotVerificationOptions {
   /**
    * Retain failed snapshot comparisons
    *
@@ -124,7 +123,7 @@ export interface IntegBatchResponse {
 /**
  * Common options for running integration tests
  */
-export interface IntegTestOptions extends EngineOptions {
+export interface IntegTestOptions {
   /**
    * A list of integration tests to run
    * in this batch
@@ -190,6 +189,11 @@ export enum DiagnosticReason {
    * There was an error running the integration test
    */
   TEST_ERROR = 'TEST_ERROR',
+
+  /**
+   * A non-failing warning from the integration test run
+   */
+  TEST_WARNING = 'TEST_WARNING',
 
   /**
    * The snapshot test failed because the actual
@@ -293,6 +297,9 @@ export function printResults(diagnostic: Diagnostic): void {
       break;
     case DiagnosticReason.SNAPSHOT_FAILED:
       logger.error('  CHANGED    %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      break;
+    case DiagnosticReason.TEST_WARNING:
+      logger.warning('  WARN       %s %s\n%s', diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
     case DiagnosticReason.SNAPSHOT_ERROR:
     case DiagnosticReason.TEST_ERROR:

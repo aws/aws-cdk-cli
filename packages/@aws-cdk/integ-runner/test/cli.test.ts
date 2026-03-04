@@ -22,11 +22,7 @@ afterAll(() => {
   stderrMock.mockRestore();
 });
 
-describe.each([
-  ['cli-wrapper', ['--unstable', 'deprecated-cli-engine']],
-  ['toolkit-lib', ['--unstable', 'toolkit-lib-engine']],
-  ['toolkit-lib', []], // default
-])('Test discovery with engine %s', (_engine: string, engineArgs: string[]) => {
+describe('Test discovery', () => {
   const currentCwd = process.cwd();
   beforeAll(() => {
     process.chdir(path.join(__dirname, '..'));
@@ -35,7 +31,7 @@ describe.each([
     process.chdir(currentCwd);
   });
 
-  const cli = (args: string[]) => main([...engineArgs, ...args]);
+  const cli = (args: string[]) => main(args);
 
   test('find by default pattern', async () => {
     await cli(['--list', '--directory=test/test-data']);
@@ -136,6 +132,84 @@ describe.each([
   });
 });
 
+describe('--from-file comment filtering', () => {
+  const currentCwd = process.cwd();
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integ-runner-test-'));
+    process.chdir(tempDir);
+  });
+
+  afterEach(() => {
+    process.chdir(currentCwd);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('filters out comment lines starting with #', () => {
+    // Create temp file with mix of comments and test names
+    const testFile = path.join(tempDir, 'tests.txt');
+    fs.writeFileSync(testFile, [
+      '# This is a comment',
+      'test1.js',
+      '# Another comment',
+      'test2.js',
+      'test3.js',
+      '# Final comment',
+    ].join('\n'));
+
+    const options = parseCliArgs(['--from-file', testFile]);
+
+    // Verify comments are excluded and test names are included
+    expect(options.tests).toEqual(['test1.js', 'test2.js', 'test3.js']);
+  });
+
+  test('returns empty array for comment-only file', () => {
+    // Create temp file with only # lines
+    const testFile = path.join(tempDir, 'comments-only.txt');
+    fs.writeFileSync(testFile, [
+      '# Comment 1',
+      '# Comment 2',
+      '# Comment 3',
+    ].join('\n'));
+
+    const options = parseCliArgs(['--from-file', testFile]);
+
+    // Verify empty array is returned
+    expect(options.tests).toEqual([]);
+  });
+
+  test('preserves lines with # not at start (inline hash)', () => {
+    // Create temp file with lines like test#1.js
+    const testFile = path.join(tempDir, 'inline-hash.txt');
+    fs.writeFileSync(testFile, [
+      'test#1.js',
+      'my-test#feature.js',
+      'another#test#file.js',
+    ].join('\n'));
+
+    const options = parseCliArgs(['--from-file', testFile]);
+
+    // Verify lines with # not at start are preserved
+    expect(options.tests).toEqual(['test#1.js', 'my-test#feature.js', 'another#test#file.js']);
+  });
+
+  test('preserves lines with whitespace before # as test names', () => {
+    // Create temp file with lines like "  #not-a-comment"
+    const testFile = path.join(tempDir, 'whitespace-hash.txt');
+    fs.writeFileSync(testFile, [
+      '  #not-a-comment',
+      '\t#also-not-a-comment',
+      '   #test-name',
+    ].join('\n'));
+
+    const options = parseCliArgs(['--from-file', testFile]);
+
+    // Verify lines with whitespace before # are preserved as test names
+    expect(options.tests).toEqual(['  #not-a-comment', '\t#also-not-a-comment', '   #test-name']);
+  });
+});
+
 describe('CLI config file', () => {
   const configFile = 'integ.config.json';
   const withConfig = (settings: any, fileName = configFile) => {
@@ -169,6 +243,36 @@ describe('CLI config file', () => {
       'eu-west-1',
       'ap-southeast-2',
     ]);
+  });
+
+  test('parallel-regions parses comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--parallel-regions=us-east-1,us-east-2']);
+
+    // THEN
+    expect(options.testRegions).toEqual([
+      'us-east-1',
+      'us-east-2',
+    ]);
+  });
+
+  test('parallel-regions trims whitespace from comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--parallel-regions=us-east-1, us-east-2']);
+
+    // THEN
+    expect(options.testRegions).toEqual([
+      'us-east-1',
+      'us-east-2',
+    ]);
+  });
+
+  test('profiles parses comma-separated values', async () => {
+    // WHEN
+    const options = parseCliArgs(['--profiles=dev,prod']);
+
+    // THEN
+    expect(options.profiles).toEqual(['dev', 'prod']);
   });
 
   test('cli options take precedent', async () => {

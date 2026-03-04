@@ -1,5 +1,5 @@
+import type { SecurityGroupContextResponse } from '@aws-cdk/cloud-assembly-api';
 import type { SecurityGroupContextQuery } from '@aws-cdk/cloud-assembly-schema';
-import type { SecurityGroupContextResponse } from '@aws-cdk/cx-api';
 import type { Filter, SecurityGroup } from '@aws-sdk/client-ec2';
 import { type SdkProvider, initContextProviderSdk } from '../api/aws-auth/private';
 import type { ContextProviderPlugin } from '../api/plugin';

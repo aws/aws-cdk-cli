@@ -1,4 +1,4 @@
-import type * as cxapi from '@aws-cdk/cx-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { ListStackResourcesCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetFunctionCommand } from '@aws-sdk/client-lambda';

@@ -1,3 +1,4 @@
+import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
@@ -11,7 +12,7 @@ const originalVersion = jest.requireActual('../../lib/cli/version');
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper();
 
-jest.mock('@aws-cdk/cx-api');
+jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
@@ -65,6 +66,8 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
+    } else if (args.includes('flags')) {
+      result = { ...result, _: ['flags'] };
     }
 
     // Handle notices flags
@@ -89,9 +92,32 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, yes: true };
     }
 
+    // Handle color flags
+    if (args.includes('--no-color')) {
+      result = { ...result, noColor: true };
+    }
+    if (args.includes('--color')) {
+      result = { ...result, color: true };
+    }
+
     return Promise.resolve(result);
   }),
 }));
+
+// Mock FlagCommandHandler to capture constructor calls
+const mockFlagCommandHandlerConstructor = jest.fn();
+const mockProcessFlagsCommand = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('../../lib/commands/flags/flags', () => {
+  return {
+    FlagCommandHandler: jest.fn().mockImplementation((...args) => {
+      mockFlagCommandHandlerConstructor(...args);
+      return {
+        processFlagsCommand: mockProcessFlagsCommand,
+      };
+    }),
+  };
+});
 
 describe('exec verbose flag tests', () => {
   beforeEach(() => {
@@ -511,5 +537,96 @@ describe('--yes', () => {
 
     migrateSpy.mockRestore();
     execSpy.mockRestore();
+  });
+});
+
+describe('flags command tests', () => {
+  let mockConfig: any;
+  let flagsSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFlagCommandHandlerConstructor.mockClear();
+    mockProcessFlagsCommand.mockClear();
+
+    flagsSpy = jest.spyOn(Toolkit.prototype, 'flags').mockResolvedValue([]);
+
+    mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['flags'];
+          return undefined;
+        }),
+      },
+      context: {
+        all: {
+          myContextParam: 'testValue',
+        },
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+  });
+
+  afterEach(() => {
+    flagsSpy.mockRestore();
+  });
+
+  test('passes CLI context to FlagCommandHandler', async () => {
+    // WHEN
+    await exec([
+      'flags',
+      '--unstable=flags',
+      '--set',
+      '--recommended',
+      '--all',
+      '-c', 'myContextParam=testValue',
+      '--yes',
+    ]);
+
+    // THEN
+    expect(mockFlagCommandHandlerConstructor).toHaveBeenCalledWith(
+      expect.anything(), // flagsData
+      expect.anything(), // ioHelper
+      expect.anything(), // args
+      expect.anything(), // toolkit
+      mockConfig.context.all, // cliContextValues
+    );
+    expect(mockProcessFlagsCommand).toHaveBeenCalled();
+  });
+});
+
+describe('color output flag tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.FORCE_COLOR;
+    jest.mock('../../lib/cli/version', () => ({
+      ...originalVersion,
+      DISPLAY_VERSION: 'test-version',
+      displayVersionMessage: jest.fn().mockResolvedValue(undefined),
+    }));
+  });
+
+  afterEach(() => {
+    delete process.env.FORCE_COLOR;
+    jest.resetModules();
+    jest.setMock('../../lib/cli/version', originalVersion);
+  });
+
+  test('should disable colors when --no-color is passed', async () => {
+    await exec(['--no-color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('0');
+  });
+
+  test('should enable colors when --color is passed', async () => {
+    await exec(['--color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('3');
+  });
+
+  test('--no-color should take priority over --color', async () => {
+    await exec(['--color', '--no-color', 'version']);
+    expect(process.env.FORCE_COLOR).toBe('0');
   });
 });

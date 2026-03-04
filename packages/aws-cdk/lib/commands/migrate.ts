@@ -2,8 +2,8 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Environment } from '@aws-cdk/cx-api';
-import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
+import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type {
   DescribeGeneratedTemplateCommandOutput,

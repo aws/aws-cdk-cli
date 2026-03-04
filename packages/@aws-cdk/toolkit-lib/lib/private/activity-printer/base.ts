@@ -1,4 +1,4 @@
-import type { CloudFormationStackArtifact } from '@aws-cdk/cx-api';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { IoMessage } from '../../api/io';
 import { IO } from '../../api/io/private';
 import { type StackActivity, type StackProgress } from '../../payloads';

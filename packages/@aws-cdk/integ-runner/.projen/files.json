@@ -12,6 +12,7 @@
     ".projen/tasks.json",
     "jest.config.json",
     "LICENSE",
+    "test/tsconfig.json",
     "tsconfig.dev.json",
     "tsconfig.json"
   ],

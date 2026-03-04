@@ -20,6 +20,7 @@ interface BuildOptions {
   readonly target?: string;
   readonly file?: string;
   readonly buildArgs?: Record<string, string>;
+  readonly buildContexts?: Record<string, string>;
   readonly buildSecrets?: Record<string, string>;
   readonly buildSsh?: string;
   readonly networkMode?: string;
@@ -106,6 +107,9 @@ export class Docker {
       'build',
       ...flatten(
         Object.entries(options.buildArgs || {}).map(([k, v]) => ['--build-arg', `${k}=${v}`]),
+      ),
+      ...flatten(
+        Object.entries(options.buildContexts || {}).map(([k, v]) => ['--build-context', `${k}=${v}`]),
       ),
       ...flatten(
         Object.entries(options.buildSecrets || {}).map(([k, v]) => ['--secret', `id=${k},${v}`]),
