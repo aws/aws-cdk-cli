@@ -25,7 +25,7 @@ jobs:
         run: git fetch origin main
       - id: get_total_lines_changed
         run: |-
-          size=$(git diff --shortstat origin/main ':(exclude)*.md' ':(exclude)*.test.ts' ':(exclude)*.yml' ':(exclude)*.lock' \
+          size=$(git diff --shortstat origin/main ':(exclude)*.md' ':(exclude)*.test.ts' ':(exclude)*.yml' ':(exclude)*.lock' ':(exclude)THIRD_PARTY_LICENSES' \
                   | awk '{ print $4+$6 }' \
                   | awk -F- '{print $NF}' \
                   | bc)

@@ -13,7 +13,7 @@ integTest(
 
     // Can update termination protection even though the change set doesn't contain changes
     await fixture.cdkDeploy(stackName, { modEnv: { TERMINATION_PROTECTION: 'FALSE' } });
-    await fixture.cdkDestroy(stackName);
+    await fixture.cdkDestroy(stackName); // test this now works
   }),
 );
 

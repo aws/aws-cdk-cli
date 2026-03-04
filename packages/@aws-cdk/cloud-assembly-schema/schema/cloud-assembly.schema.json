@@ -232,6 +232,13 @@
                         "type": "string"
                     }
                 },
+                "buildContexts": {
+                    "description": "Build contexts to pass to the `docker build` command (Default no build contexts are passed)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "buildSsh": {
                     "description": "SSH agent socket or keys to pass to the `docker build` command (Default no ssh arg is passed)",
                     "type": "string"

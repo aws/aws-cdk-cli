@@ -38,7 +38,7 @@ export async function addMetadataAssetsToManifest(
 
   for (const asset of assets) {
     // FIXME: Should have excluded by construct path here instead of by unique ID, preferably using
-    // minimatch so we can support globs. Maybe take up during artifact refactoring.
+    // picomatch so we can support globs. Maybe take up during artifact refactoring.
     const reuseAsset = reuse.indexOf(asset.id) > -1;
 
     if (reuseAsset) {

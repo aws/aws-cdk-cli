@@ -384,3 +384,17 @@ test('do showTemplate JSON', async () => {
   // WHEN
   await bootstrapper.showTemplate(true);
 });
+
+test('cleans up temporary directory after bootstrap', async () => {
+  const fse = jest.requireActual('fs-extra');
+  const mkdtempSpy = jest.spyOn(fse, 'mkdtemp');
+
+  // WHEN
+  await bootstrapper.bootstrapEnvironment(env, sdk, { toolkitStackName: 'mockStack' });
+
+  // THEN
+  const tempDir = await mkdtempSpy.mock.results[0].value;
+  expect(fse.existsSync(tempDir)).toBe(false);
+
+  mkdtempSpy.mockRestore();
+});

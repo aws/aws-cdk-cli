@@ -36,15 +36,15 @@ jest.mock('chokidar', () => ({
   watch: mockChokidarWatch,
 }));
 const fakeChokidarWatch = {
-  get includeArgs(): string[] {
+  get watchPath(): string {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
-    // the include args are the first parameter to the 'watch()' call
+    // the watch path is the first parameter to the 'watch()' call
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get excludeArgs(): string[] {
+  get ignoredFn(): (path: string) => boolean {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
-    // the ignore args are a property of the second parameter to the 'watch()' call
+    // the ignored function is a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
     return chokidarWatchOpts.ignored;
   },
@@ -1115,8 +1115,8 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const includeArgs = fakeChokidarWatch.includeArgs;
-    expect(includeArgs.length).toBe(1);
+    // With chokidar v4, we watch the root directory and use ignored function for filtering
+    expect(fakeChokidarWatch.watchPath).toBe('.');
   });
 
   test("allows providing a single string in 'watch.include'", async () => {
@@ -1130,7 +1130,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir')).toBe(false); // included - not ignored
+    expect(ignoredFn('my-dir/file.ts')).toBe(false); // included - not ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(true); // not included - ignored
   });
 
   test("allows providing an array of strings in 'watch.include'", async () => {
@@ -1144,7 +1149,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir1', '**/my-dir2/*']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir1')).toBe(false); // matches first pattern - not ignored
+    expect(ignoredFn('nested/my-dir2/file.ts')).toBe(false); // matches second pattern - not ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(true); // matches neither - ignored
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1157,7 +1167,14 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.excludeArgs).toStrictEqual(['cdk.out/**', '**/.*', '**/.*/**', '**/node_modules/**']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('cdk.out/stack.template.json')).toBe(true); // output dir - ignored
+    expect(ignoredFn('.hidden')).toBe(true); // dot file - ignored
+    expect(ignoredFn('.git/config')).toBe(true); // dot directory - ignored
+    expect(ignoredFn('node_modules/package/index.js')).toBe(true); // node_modules - ignored
+    expect(ignoredFn('src/app.ts')).toBe(false); // regular file - not ignored
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1171,9 +1188,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const excludeArgs = fakeChokidarWatch.excludeArgs;
-    expect(excludeArgs.length).toBe(5);
-    expect(excludeArgs[0]).toBe('my-dir');
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir')).toBe(true); // excluded - ignored
+    expect(ignoredFn('my-dir/file.ts')).toBe(true); // excluded - ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(false); // not excluded - not ignored
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1187,10 +1207,13 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const excludeArgs = fakeChokidarWatch.excludeArgs;
-    expect(excludeArgs.length).toBe(6);
-    expect(excludeArgs[0]).toBe('my-dir1');
-    expect(excludeArgs[1]).toBe('**/my-dir2');
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir1')).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('my-dir1/file.ts')).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('nested/my-dir2')).toBe(true); // matches second exclude - ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(false); // matches neither exclude - not ignored
   });
 
   test('allows watching with deploy concurrency', async () => {

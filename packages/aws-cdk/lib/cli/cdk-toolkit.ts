@@ -13,7 +13,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -809,9 +809,12 @@ export class CdkToolkit {
     // 2. "watch" setting without an "include" key? We default to observing "./**".
     // 3. "watch" setting with an empty "include" key? We default to observing "./**".
     // 4. Non-empty "include" key? Just use the "include" key.
+    // Note: We use '**' as the default pattern (not rootDir) because chokidar reports
+    // file paths relative to cwd, and the ignored function uses picomatch which expects
+    // glob patterns, not absolute paths.
     const watchIncludes = this.patternsArrayForWatch(watchSettings.include, {
-      rootDir,
-      returnRootDirIfEmpty: true,
+      defaultPattern: '**',
+      returnDefaultIfEmpty: true,
     });
     await this.ioHost.asIoHelper().defaults.debug("'include' patterns for 'watch': %s", watchIncludes);
 
@@ -823,8 +826,8 @@ export class CdkToolkit {
     // 4. Any node_modules and its content (even if it's not a JS/TS project, you might be using a local aws-cli package)
     const outputDir = this.props.configuration.settings.get(['output']);
     const watchExcludes = this.patternsArrayForWatch(watchSettings.exclude, {
-      rootDir,
-      returnRootDirIfEmpty: false,
+      defaultPattern: '',
+      returnDefaultIfEmpty: false,
     }).concat(`${outputDir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
     await this.ioHost.asIoHelper().defaults.debug("'exclude' patterns for 'watch': %s", watchExcludes);
 
@@ -863,9 +866,18 @@ export class CdkToolkit {
       await cloudWatchLogMonitor?.activate();
     };
 
+    // Create ignore matcher for chokidar v4 compatibility
+    // Chokidar v4 removed glob pattern support, so we use picomatch to filter files
+    // We pass rootDir because chokidar v4 passes absolute paths to the ignored callback
+    const shouldIgnore = createIgnoreMatcher({
+      include: watchIncludes,
+      exclude: watchExcludes,
+      rootDir,
+    });
+
     chokidar
-      .watch(watchIncludes, {
-        ignored: watchExcludes,
+      .watch('.', {
+        ignored: shouldIgnore,
         cwd: rootDir,
       })
       .on('ready', async () => {
@@ -1449,10 +1461,10 @@ export class CdkToolkit {
 
   private patternsArrayForWatch(
     patterns: string | string[] | undefined,
-    options: { rootDir: string; returnRootDirIfEmpty: boolean },
+    options: { defaultPattern: string; returnDefaultIfEmpty: boolean },
   ): string[] {
     const patternsArray: string[] = patterns !== undefined ? (Array.isArray(patterns) ? patterns : [patterns]) : [];
-    return patternsArray.length > 0 ? patternsArray : options.returnRootDirIfEmpty ? [options.rootDir] : [];
+    return patternsArray.length > 0 ? patternsArray : options.returnDefaultIfEmpty ? [options.defaultPattern] : [];
   }
 
   private async invokeDeployFromWatch(

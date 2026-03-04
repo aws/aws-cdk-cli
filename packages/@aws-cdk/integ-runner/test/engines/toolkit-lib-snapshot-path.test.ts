@@ -33,7 +33,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     const snapshotPath = 'test.snapshot';
     const fullSnapshotPath = path.join('/test/dir', snapshotPath);
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+    const mockLock = { dispose: jest.fn(), [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the snapshot directory exists
     mockedFs.pathExistsSync.mockReturnValue(true);
@@ -44,7 +44,6 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
 
     await engine.synth({
       app: snapshotPath,
-      stacks: ['stack1'],
     });
 
     expect(mockedFs.pathExistsSync).toHaveBeenCalledWith(fullSnapshotPath);
@@ -56,7 +55,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
   it('should use fromCdkApp when app is not a path to existing directory', async () => {
     const appCommand = 'node bin/app.js';
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+    const mockLock = { dispose: jest.fn(), [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the path doesn't exist
     mockedFs.pathExistsSync.mockReturnValue(false);
@@ -66,7 +65,6 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
 
     await engine.synth({
       app: appCommand,
-      stacks: ['stack1'],
     });
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledWith(appCommand, expect.any(Object));
@@ -77,7 +75,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     const appPath = 'app.js';
     const fullAppPath = path.join('/test/dir', appPath);
     const mockCx = { produce: jest.fn() };
-    const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+    const mockLock = { dispose: jest.fn(), [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
 
     // Mock fs to indicate the path exists but is not a directory
     mockedFs.pathExistsSync.mockReturnValue(true);
@@ -88,7 +86,6 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
 
     await engine.synth({
       app: appPath,
-      stacks: ['stack1'],
     });
 
     expect(mockedFs.pathExistsSync).toHaveBeenCalledWith(fullAppPath);

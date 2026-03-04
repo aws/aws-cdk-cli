@@ -14,17 +14,20 @@ export interface Notice {
   issueNumber: number;
   overview: string;
   /**
-   * A set of affected components
+   * A flat list of affected components, evaluated as an OR.
    *
-   * The canonical form of a list of components is in Disjunctive Normal Form
-   * (i.e., an OR of ANDs). This is the form when the list of components is a
-   * doubly nested array: the notice matches if all components of at least one
-   * of the top-level array matches.
-   *
-   * If the `components` is a single-level array, it is evaluated as an OR; it
-   * matches if any of the components matches.
+   * The notice matches if any single component matches.
    */
-  components: Array<Component | Component[]>;
+  components: Array<Component>;
+  /**
+   * A list of affected components in Disjunctive Normal Form (OR of ANDs).
+   *
+   * The outer array is an OR, the inner arrays are ANDs. The notice matches
+   * if all components of at least one inner array match.
+   *
+   * Only available when `schemaVersion` is `'2'`.
+   */
+  componentsV2?: Array<Component | Component[]>;
   schemaVersion: string;
   severity?: string;
 }

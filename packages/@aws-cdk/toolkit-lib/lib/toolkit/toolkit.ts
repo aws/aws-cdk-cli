@@ -94,6 +94,7 @@ import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackR
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
+import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 
 export interface ToolkitOptions {
@@ -925,9 +926,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await cloudWatchLogMonitor?.activate();
     };
 
+    // Create ignore matcher for chokidar v4 compatibility
+    // Chokidar v4 removed glob pattern support, so we use picomatch to filter files
+    // We pass rootDir because chokidar v4 passes absolute paths to the ignored callback
+    const shouldIgnore = createIgnoreMatcher({
+      include: watchIncludes,
+      exclude: watchExcludes,
+      rootDir,
+    });
+
     const watcher = chokidar
-      .watch(watchIncludes, {
-        ignored: watchExcludes,
+      .watch('.', {
+        ignored: shouldIgnore,
         cwd: rootDir,
       })
       .on('ready', async () => {

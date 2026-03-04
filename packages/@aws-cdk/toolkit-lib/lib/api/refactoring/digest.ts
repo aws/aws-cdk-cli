@@ -115,11 +115,16 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
     const exp = exports[value['Fn::ImportValue']];
     if (exp != null) {
       const v = exp.value;
-      // Treat Fn::ImportValue as if it were a reference with the same stack
-      if ('Ref' in v) {
-        return { __cloud_ref__: 'Ref' };
-      } else if ('Fn::GetAtt' in v) {
-        return { __cloud_ref__: 'Fn::GetAtt' };
+      if (v != null && typeof v === 'object') {
+        // Treat Fn::ImportValue as if it were a reference with the same stack
+        if ('Ref' in v) {
+          return { __cloud_ref__: 'Ref' };
+        } else if ('Fn::GetAtt' in v) {
+          return { __cloud_ref__: 'Fn::GetAtt' };
+        }
+      } else {
+        // If the export value is a primitive, we can just use it directly
+        return v;
       }
     }
   }
