@@ -9,6 +9,7 @@ import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-inte
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
+import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
@@ -1726,6 +1727,7 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
