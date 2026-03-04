@@ -18,52 +18,47 @@ integTest(
       options: ['--outputs-file', outputsFile],
     });
 
-    try {
-      // Second, now the bucket we will remove is in the stack and has a logicalId. We can now make the resource mapping file.
-      // This resource mapping file will be used to tell the import operation what bucket to bring into the stack.
-      const fullStackName = fixture.fullStackName('importable-stack');
-      const outputs = JSON.parse((await fs.readFile(outputsFile, { encoding: 'utf-8' })).toString());
-      const bucketLogicalId = outputs[fullStackName].BucketLogicalId;
-      const bucketName = outputs[fullStackName].BucketName;
-      const bucketResourceMap = {
-        [bucketLogicalId]: {
-          BucketName: bucketName,
-        },
-      };
-      const mappingFile = path.join(fixture.integTestDir, 'outputs', 'mapping.json');
-      await fs.writeFile(mappingFile, JSON.stringify(bucketResourceMap), { encoding: 'utf-8' });
+    // Second, now the bucket we will remove is in the stack and has a logicalId. We can now make the resource mapping file.
+    // This resource mapping file will be used to tell the import operation what bucket to bring into the stack.
+    const fullStackName = fixture.fullStackName('importable-stack');
+    const outputs = JSON.parse((await fs.readFile(outputsFile, { encoding: 'utf-8' })).toString());
+    const bucketLogicalId = outputs[fullStackName].BucketLogicalId;
+    const bucketName = outputs[fullStackName].BucketName;
+    const bucketResourceMap = {
+      [bucketLogicalId]: {
+        BucketName: bucketName,
+      },
+    };
+    const mappingFile = path.join(fixture.integTestDir, 'outputs', 'mapping.json');
+    await fs.writeFile(mappingFile, JSON.stringify(bucketResourceMap), { encoding: 'utf-8' });
 
-      // Third, remove the bucket from the stack, but don't delete the bucket from AWS.
-      await fixture.cdkDeploy('importable-stack', {
-        modEnv: { INCLUDE_NODEJS_FUNCTION_LAMBDA: '1', INCLUDE_SINGLE_BUCKET: '0', RETAIN_SINGLE_BUCKET: '0' },
-      });
-      const cfnTemplateBeforeImport = await fixture.aws.cloudFormation.send(
-        new GetTemplateCommand({ StackName: fullStackName }),
-      );
-      expect(cfnTemplateBeforeImport.TemplateBody).not.toContain(bucketLogicalId);
+    // Third, remove the bucket from the stack, but don't delete the bucket from AWS.
+    await fixture.cdkDeploy('importable-stack', {
+      modEnv: { INCLUDE_NODEJS_FUNCTION_LAMBDA: '1', INCLUDE_SINGLE_BUCKET: '0', RETAIN_SINGLE_BUCKET: '0' },
+    });
+    const cfnTemplateBeforeImport = await fixture.aws.cloudFormation.send(
+      new GetTemplateCommand({ StackName: fullStackName }),
+    );
+    expect(cfnTemplateBeforeImport.TemplateBody).not.toContain(bucketLogicalId);
 
-      // WHEN
-      await fixture.cdk(['import', '--resource-mapping', mappingFile, fixture.fullStackName('importable-stack')], {
-        modEnv: { INCLUDE_NODEJS_FUNCTION_LAMBDA: '1', INCLUDE_SINGLE_BUCKET: '1', RETAIN_SINGLE_BUCKET: '0' },
-      });
+    // WHEN
+    await fixture.cdk(['import', '--resource-mapping', mappingFile, fixture.fullStackName('importable-stack')], {
+      modEnv: { INCLUDE_NODEJS_FUNCTION_LAMBDA: '1', INCLUDE_SINGLE_BUCKET: '1', RETAIN_SINGLE_BUCKET: '0' },
+    });
 
-      // THEN
-      const describeStacksResponse = await fixture.aws.cloudFormation.send(
-        new DescribeStacksCommand({ StackName: fullStackName }),
-      );
-      const cfnTemplateAfterImport = await fixture.aws.cloudFormation.send(
-        new GetTemplateCommand({ StackName: fullStackName }),
-      );
+    // THEN
+    const describeStacksResponse = await fixture.aws.cloudFormation.send(
+      new DescribeStacksCommand({ StackName: fullStackName }),
+    );
+    const cfnTemplateAfterImport = await fixture.aws.cloudFormation.send(
+      new GetTemplateCommand({ StackName: fullStackName }),
+    );
 
-      // If bundling is skipped during import for NodeJSFunction lambda, then the operation should fail and exit
-      expect(describeStacksResponse.Stacks![0].StackStatus).toEqual('IMPORT_COMPLETE');
+    // If bundling is skipped during import for NodeJSFunction lambda, then the operation should fail and exit
+    expect(describeStacksResponse.Stacks![0].StackStatus).toEqual('IMPORT_COMPLETE');
 
-      // If the import operation is successful, the template should contain the imported bucket
-      expect(cfnTemplateAfterImport.TemplateBody).toContain(bucketLogicalId);
-    } finally {
-      // Clean up the resources we created
-      await fixture.cdkDestroy('importable-stack');
-    }
+    // If the import operation is successful, the template should contain the imported bucket
+    expect(cfnTemplateAfterImport.TemplateBody).toContain(bucketLogicalId);
   }),
 );
 

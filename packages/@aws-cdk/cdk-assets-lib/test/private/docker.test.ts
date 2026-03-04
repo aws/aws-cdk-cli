@@ -115,5 +115,29 @@ describe('Docker', () => {
         }),
       );
     });
+
+    test('includes --build-context flags when buildContexts are provided', async () => {
+      const spy = makeShellExecuteMock(() => undefined);
+
+      await docker.build({
+        directory: 'foo',
+        tag: 'bar',
+        buildContexts: {
+          mycontext: '../context',
+          alpine: 'docker-image://alpine:latest',
+        },
+      });
+
+      expect(spy.mock.calls[0][0]).toEqual([
+        'build',
+        '--build-context',
+        'mycontext=../context',
+        '--build-context',
+        'alpine=docker-image://alpine:latest',
+        '--tag',
+        'bar',
+        '.',
+      ]);
+    });
   });
 });

@@ -7,8 +7,7 @@ import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type { IntegRunnerOptions } from './runner-base';
 import { IntegRunner } from './runner-base';
-import { HotswapMode, StackActivityProgress } from '../engines/cdk-interface';
-import type { DeployOptions } from '../engines/cdk-interface';
+import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
@@ -196,15 +195,17 @@ export class IntegTestRunner extends IntegRunner {
       await this.watch(
         {
           ...this.defaultArgs,
-          progress: StackActivityProgress.BAR,
-          hotswap: HotswapMode.FALL_BACK,
-          deploymentMethod: 'direct',
+          deploymentMethod: {
+            method: 'hotswap',
+            fallback: {
+              method: 'change-set',
+            },
+          },
           profile: this.profile,
           requireApproval: RequireApproval.NEVER,
           traceLogs: enableForVerbosityLevel(2) ?? false,
           verbose: enableForVerbosityLevel(3),
           debug: enableForVerbosityLevel(4),
-          watch: true,
         },
         options.testCaseName,
         options.verbosity ?? 0,
@@ -316,7 +317,7 @@ export class IntegTestRunner extends IntegRunner {
     }
   }
 
-  private async watch(watchArgs: DeployOptions, testCaseName: string, verbosity: number): Promise<void> {
+  private async watch(options: cdk.WatchOptions, testCaseName: string, verbosity: number): Promise<void> {
     const actualTestSuite = await this.actualTestSuite();
     const actualTestCase = actualTestSuite.testSuite[testCaseName];
     if (actualTestCase.hooks?.preDeploy) {
@@ -326,8 +327,8 @@ export class IntegTestRunner extends IntegRunner {
         });
       });
     }
-    const deployArgs = {
-      ...watchArgs,
+    const watchArgs = {
+      ...options,
       lookups: actualTestSuite.enableLookups,
       stacks: [
         ...actualTestCase.stacks,
@@ -348,8 +349,8 @@ export class IntegTestRunner extends IntegRunner {
           ...process.env.AWS_REGION ? [`AWS_REGION=${process.env.AWS_REGION}`] : [],
           'cdk destroy',
           `-a '${this.cdkApp}'`,
-          deployArgs.stacks.join(' '),
-          `--profile ${deployArgs.profile}`,
+          watchArgs.stacks.join(' '),
+          `--profile ${watchArgs.profile}`,
         ].join(' ')}`,
       ],
     };
@@ -365,9 +366,9 @@ export class IntegTestRunner extends IntegRunner {
             `-a '${this.cdkApp}'`,
             `-o '${this.cdkOutDir}'`,
             ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
-            deployArgs.stacks.join(' '),
-            `--outputs-file ${deployArgs.outputsFile}`,
-            `--profile ${deployArgs.profile}`,
+            watchArgs.stacks.join(' '),
+            `--outputs-file ${watchArgs.outputsFile}`,
+            `--profile ${watchArgs.profile}`,
             '--hotswap-fallback',
           ].join(' ')}`,
         ],
@@ -429,7 +430,7 @@ export class IntegTestRunner extends IntegRunner {
 
     const { promise: waiter, resolve } = promiseWithResolvers<number | null>();
 
-    await this.cdk.watch(deployArgs, {
+    await this.cdk.watch(watchArgs, {
       // if `-v` (or above) is passed then stream the logs
       onStdout: (message) => {
         if (verbosity > 0) {
@@ -459,7 +460,7 @@ export class IntegTestRunner extends IntegRunner {
    * performing the update workflow
    */
   private async deploy(
-    deployArgs: DeployOptions,
+    deployArgs: cdk.DeployOptions,
     updateWorkflowEnabled: boolean,
     testCaseName: string,
   ): Promise<AssertionResults | undefined> {

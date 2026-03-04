@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
-import { HotswapMode } from '../../lib/engines/cdk-interface';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
@@ -31,39 +30,15 @@ describe('ToolkitLibRunnerEngine', () => {
   });
 
   describe('synth', () => {
-    it('should call toolkit.synth with correct parameters', async () => {
-      const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
-      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.synth.mockResolvedValue(mockLock as any);
-
-      await engine.synth({
-        app: 'test-app',
-        stacks: ['stack1'],
-        validation: true,
-      });
-
-      expect(mockToolkit.synth).toHaveBeenCalledWith(mockCx, {
-        stacks: {
-          strategy: 'pattern-must-match',
-          patterns: ['stack1'],
-          expand: 'upstream',
-        },
-        validateStacks: true,
-      });
-      expect(mockLock.dispose).toHaveBeenCalled();
-    });
-  });
-
-  describe('synthFast', () => {
     it('should use fromCdkApp and produce for fast synthesis', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { dispose: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+      const mockLock = { [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
-      await engine.synthFast({
-        execCmd: ['cdk', 'synth'],
+      await engine.synth({
+        app: 'cdk synth',
         output: 'cdk.out',
         context: { key: 'value' },
         env: { TEST: 'true' },
@@ -82,16 +57,17 @@ describe('ToolkitLibRunnerEngine', () => {
           assetMetadata: false,
         },
       });
-      expect(mockLock.dispose).toHaveBeenCalled();
+      expect(mockLock[Symbol.asyncDispose]).toHaveBeenCalled();
     });
 
     it('should handle missing context error silently', async () => {
       const mockCx = { produce: jest.fn() };
       mockCx.produce.mockRejectedValue(new Error('Missing context keys'));
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
-      await expect(engine.synthFast({
-        execCmd: ['cdk', 'synth'],
+      await expect(engine.synth({
+        app: 'cdk synth',
       })).resolves.toBeUndefined();
     });
   });
@@ -129,7 +105,6 @@ describe('ToolkitLibRunnerEngine', () => {
         stacks: ['stack1'],
         roleArn: 'arn:aws:iam::123456789012:role/test',
         traceLogs: true,
-        hotswap: HotswapMode.FALL_BACK,
       });
 
       expect(mockToolkit.deploy).toHaveBeenCalledWith(mockCx, {
@@ -141,8 +116,7 @@ describe('ToolkitLibRunnerEngine', () => {
           expand: 'upstream',
         },
         deploymentMethod: {
-          method: 'hotswap',
-          fallback: { method: 'change-set' },
+          method: 'change-set',
         },
         outputsFile: undefined,
       });
@@ -169,21 +143,6 @@ describe('ToolkitLibRunnerEngine', () => {
         },
         outputsFile: '/test/dir/assertion-results.json',
       });
-    });
-
-    it('should call watch when watch option is true', async () => {
-      const mockCx = {};
-      const mockWatcher = { waitForEnd: jest.fn() };
-      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.watch.mockResolvedValue(mockWatcher as any);
-
-      await engine.deploy({
-        app: 'test-app',
-        watch: true,
-      });
-
-      expect(mockToolkit.watch).toHaveBeenCalled();
-      expect(mockWatcher.waitForEnd).toHaveBeenCalled();
     });
   });
 

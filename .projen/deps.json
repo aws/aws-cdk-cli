@@ -67,7 +67,7 @@
       "type": "build"
     },
     {
-      "name": "glob",
+      "name": "fast-glob",
       "type": "build"
     },
     {

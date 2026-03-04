@@ -114,41 +114,45 @@ export class BootstrapStack {
     }
 
     const outdir = await fs.mkdtemp(path.join(os.tmpdir(), 'cdk-bootstrap'));
-    const builder = new CloudAssemblyBuilder(outdir);
-    const templateFile = `${this.toolkitStackName}.template.json`;
-    await fs.writeJson(path.join(builder.outdir, templateFile), template, {
-      spaces: 2,
-    });
+    try {
+      const builder = new CloudAssemblyBuilder(outdir);
+      const templateFile = `${this.toolkitStackName}.template.json`;
+      await fs.writeJson(path.join(builder.outdir, templateFile), template, {
+        spaces: 2,
+      });
 
-    builder.addArtifact(this.toolkitStackName, {
-      type: ArtifactType.AWS_CLOUDFORMATION_STACK,
-      environment: EnvironmentUtils.format(this.resolvedEnvironment.account, this.resolvedEnvironment.region),
-      properties: {
-        templateFile,
-        terminationProtection: options.terminationProtection ?? false,
-      },
-    });
+      builder.addArtifact(this.toolkitStackName, {
+        type: ArtifactType.AWS_CLOUDFORMATION_STACK,
+        environment: EnvironmentUtils.format(this.resolvedEnvironment.account, this.resolvedEnvironment.region),
+        properties: {
+          templateFile,
+          terminationProtection: options.terminationProtection ?? false,
+        },
+      });
 
-    const assembly = builder.buildAssembly();
+      const assembly = builder.buildAssembly();
 
-    const ret = await deployStack({
-      stack: assembly.getStackByName(this.toolkitStackName),
-      resolvedEnvironment: this.resolvedEnvironment,
-      sdk: this.sdk,
-      sdkProvider: this.sdkProvider,
-      forceDeployment: options.forceDeployment,
-      roleArn: options.roleArn,
-      tags: options.tags,
-      deploymentMethod: { method: 'change-set', execute: options.execute },
-      parameters,
-      usePreviousParameters: options.usePreviousParameters ?? true,
-      // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
-      envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
-    }, this.ioHelper);
+      const ret = await deployStack({
+        stack: assembly.getStackByName(this.toolkitStackName),
+        resolvedEnvironment: this.resolvedEnvironment,
+        sdk: this.sdk,
+        sdkProvider: this.sdkProvider,
+        forceDeployment: options.forceDeployment,
+        roleArn: options.roleArn,
+        tags: options.tags,
+        deploymentMethod: { method: 'change-set', execute: options.execute },
+        parameters,
+        usePreviousParameters: options.usePreviousParameters ?? true,
+        // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
+        envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
+      }, this.ioHelper);
 
-    assertIsSuccessfulDeployStackResult(ret);
+      assertIsSuccessfulDeployStackResult(ret);
 
-    return ret;
+      return ret;
+    } finally {
+      await fs.rm(outdir, { recursive: true, force: true });
+    }
   }
 }
 

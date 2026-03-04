@@ -1,17 +1,34 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import { listFiles } from './directories';
+
+const DISPLAY_NAMES: Record<string, string> = {
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+  python: 'Python',
+  java: 'Java',
+  dotnet: '.NET',
+  go: 'Go',
+};
 
 /**
- * Guess the CDK app language based on the files in the given directory
+ * Return the display name for a language identifier.
+ */
+export function languageDisplayName(language: string): string {
+  return DISPLAY_NAMES[language] ?? language;
+}
+
+/**
+ * Guess the CDK app language based on the files in the given directory.
  *
  * Returns `undefined` if our guess fails.
  */
 export async function guessLanguage(dir: string): Promise<string | undefined> {
   try {
-    const files = new Set(await listFiles(dir, 2));
+    const files = new Set(await listFiles(dir, 2, ['node_modules']));
 
     if (files.has('package.json')) {
-      const pjContents = await JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf-8'));
+      const pjContents = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf-8'));
       const deps = new Set([
         ...Object.keys(pjContents.dependencies ?? {}),
         ...Object.keys(pjContents.devDependencies ?? {}),
@@ -41,21 +58,6 @@ export async function guessLanguage(dir: string): Promise<string | undefined> {
   } catch {
     // Swallow failure
   }
+
   return undefined;
-
-  async function listFiles(dirName: string, depth: number): Promise<string[]> {
-    const ret = await fs.readdir(dirName, { encoding: 'utf-8', withFileTypes: true });
-
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    return (await Promise.all(ret.map(async (f) => {
-      if (f.isDirectory()) {
-        if (depth <= 1) {
-          return Promise.resolve([]);
-        }
-        return listFiles(path.join(dirName, f.name), depth - 1);
-      } else {
-        return Promise.resolve([f.name]);
-      }
-    }))).flatMap(xs => xs);
-  }
 }

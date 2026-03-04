@@ -9,19 +9,18 @@ export async function deploysSuccessfully(fixture: TestFixture, language: string
     await fixture.shell(['pip', 'install', '-r', 'requirements.txt']);
   }
 
-  const stackArn = await fixture.cdkDeploy(
+  await fixture.cdkDeploy(
     fixture.stackNamePrefix,
     { neverRequireApproval: true, verbose: true, captureStderr: false },
     true,
   );
   const response = await fixture.aws.cloudFormation.send(
     new DescribeStacksCommand({
-      StackName: stackArn,
+      StackName: fixture.stackNamePrefix,
     }),
   );
 
   expect(response.Stacks?.[0].StackStatus).toEqual('CREATE_COMPLETE');
-  await fixture.cdkDestroy(fixture.stackNamePrefix);
 }
 
 export async function fromStackCreatesDeployableApp(fixture: TestFixture, language: string) {
@@ -35,34 +34,31 @@ export async function fromStackCreatesDeployableApp(fixture: TestFixture, langua
       ),
     }),
   );
-  try {
-    let stackStatus = 'CREATE_IN_PROGRESS';
-    while (stackStatus === 'CREATE_IN_PROGRESS') {
-      stackStatus = await (
-        await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: migrateStackName }))
-      ).Stacks?.[0].StackStatus!;
-      await sleep(1000);
-    }
-    await fixture.cdk(['migrate', '--language', language, '--stack-name', migrateStackName, '--from-stack'], {
-      modEnv: { MIGRATE_INTEG_TEST: '1' },
-      neverRequireApproval: true,
-      verbose: true,
-      captureStderr: false,
-    });
-    await fixture.shell(['cd', path.join(fixture.integTestDir, migrateStackName)]);
-    await fixture.cdk(['deploy', migrateStackName], {
-      neverRequireApproval: true,
-      verbose: true,
-      captureStderr: false,
-    });
-    const response = await fixture.aws.cloudFormation.send(
-      new DescribeStacksCommand({
-        StackName: migrateStackName,
-      }),
-    );
 
-    expect(response.Stacks?.[0].StackStatus).toEqual('UPDATE_COMPLETE');
-  } finally {
-    await fixture.cdkDestroy('migrate-stack');
+  let stackStatus = 'CREATE_IN_PROGRESS';
+  while (stackStatus === 'CREATE_IN_PROGRESS') {
+    stackStatus = await (
+      await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: migrateStackName }))
+    ).Stacks?.[0].StackStatus!;
+    await sleep(1000);
   }
+  await fixture.cdk(['migrate', '--language', language, '--stack-name', migrateStackName, '--from-stack'], {
+    modEnv: { MIGRATE_INTEG_TEST: '1' },
+    neverRequireApproval: true,
+    verbose: true,
+    captureStderr: false,
+  });
+  await fixture.shell(['cd', path.join(fixture.integTestDir, migrateStackName)]);
+  await fixture.cdk(['deploy', migrateStackName], {
+    neverRequireApproval: true,
+    verbose: true,
+    captureStderr: false,
+  });
+  const response = await fixture.aws.cloudFormation.send(
+    new DescribeStacksCommand({
+      StackName: migrateStackName,
+    }),
+  );
+
+  expect(response.Stacks?.[0].StackStatus).toEqual('UPDATE_COMPLETE');
 }

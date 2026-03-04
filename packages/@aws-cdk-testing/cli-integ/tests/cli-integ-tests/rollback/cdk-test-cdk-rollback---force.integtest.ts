@@ -13,36 +13,33 @@ integTest(
       modEnv: { PHASE: phase },
       verbose: false,
     });
-    try {
-      phase = '2b'; // Fail update and also fail rollback
 
-      // Should fail
-      const deployOutput = await fixture.cdkDeploy('test-rollback', {
-        options: ['--no-rollback'],
-        modEnv: { PHASE: phase },
-        verbose: false,
-        allowErrExit: true,
-      });
+    phase = '2b'; // Fail update and also fail rollback
 
-      expect(deployOutput).toContain('UPDATE_FAILED');
+    // Should fail
+    const deployOutput = await fixture.cdkDeploy('test-rollback', {
+      options: ['--no-rollback'],
+      modEnv: { PHASE: phase },
+      verbose: false,
+      allowErrExit: true,
+    });
 
-      // Should still fail
-      const rollbackOutput = await fixture.cdk(['rollback'], {
-        modEnv: { PHASE: phase },
-        verbose: false,
-        allowErrExit: true,
-      });
+    expect(deployOutput).toContain('UPDATE_FAILED');
 
-      expect(rollbackOutput).toContain('Failing rollback');
+    // Should still fail
+    const rollbackOutput = await fixture.cdk(['rollback'], {
+      modEnv: { PHASE: phase },
+      verbose: false,
+      allowErrExit: true,
+    });
 
-      // Rollback and force cleanup
-      await fixture.cdk(['rollback', '--force'], {
-        modEnv: { PHASE: phase },
-        verbose: false,
-      });
-    } finally {
-      await fixture.cdkDestroy('test-rollback');
-    }
+    expect(rollbackOutput).toContain('Failing rollback');
+
+    // Rollback and force cleanup
+    await fixture.cdk(['rollback', '--force'], {
+      modEnv: { PHASE: phase },
+      verbose: false,
+    });
   }),
 );
 

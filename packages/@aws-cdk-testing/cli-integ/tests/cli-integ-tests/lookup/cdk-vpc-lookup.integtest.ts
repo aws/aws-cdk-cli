@@ -5,9 +5,6 @@ jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-c
 integTest(
   'VPC Lookup',
   withDefaultFixture(async (fixture) => {
-    fixture.log('Making sure we are clean before starting.');
-    await fixture.cdkDestroy('define-vpc', { modEnv: { ENABLE_VPC_TESTING: 'DEFINE' } });
-
     fixture.log('Setting up: creating a VPC with known tags');
     await fixture.cdkDeploy('define-vpc', { modEnv: { ENABLE_VPC_TESTING: 'DEFINE' } });
     fixture.log('Setup complete!');
