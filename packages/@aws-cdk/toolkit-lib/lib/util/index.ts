@@ -6,6 +6,8 @@ export * from './cloudformation';
 export * from './content-hash';
 export * from './directories';
 export * from './format-error';
+export * from './glob-matcher';
+export * from './guess-language';
 export * from './json';
 export * from './net';
 export * from './objects';

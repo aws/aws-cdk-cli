@@ -926,6 +926,13 @@ export interface DeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * @default - 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * Whether to build all assets before deploying the first stack (useful for failing Docker builds)
    *
    * @default - true
@@ -1039,8 +1046,6 @@ export interface ImportOptions {
 
   /**
    * If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed
-   *
-   * aliases: r
    *
    * @default - undefined
    */

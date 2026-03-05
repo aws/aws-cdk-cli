@@ -594,6 +594,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Whether to build/publish assets in parallel',
         })
+        .option('asset-build-concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of asset builds to run in parallel',
+          requiresArg: true,
+        })
         .option('asset-prebuild', {
           default: true,
           type: 'boolean',
@@ -669,7 +675,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('record-resource-mapping', {
           default: undefined,
           type: 'string',
-          alias: 'r',
           requiresArg: true,
           desc: 'If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed',
         })

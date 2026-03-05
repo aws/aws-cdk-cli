@@ -4,7 +4,7 @@ import type { SpanDefinition } from './span';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
-import type { BuildAsset, DeployConfirmationRequest, PublishAsset, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
+import type { BuildAsset, DeployConfirmationRequest, PublishAsset, PublishAssetEvent, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { DriftResultPayload } from '../../../payloads/drift';
 import type { FeatureFlagChangeRequest } from '../../../payloads/flags';
@@ -212,6 +212,27 @@ export const IO = {
     code: 'CDK_TOOLKIT_I5221',
     description: 'Publishing the asset has completed',
     interface: 'Duration',
+  }),
+
+  CDK_ASSETS_I5270: make.info<PublishAssetEvent>({
+    code: 'CDK_ASSETS_I5270',
+    description: 'Publishing the asset has started',
+    interface: 'PublishAssetEvent',
+  }),
+  CDK_ASSETS_I5271: make.debug<PublishAssetEvent>({
+    code: 'CDK_ASSETS_I5271',
+    description: 'Debug messaged emitted during publishing of the asset',
+    interface: 'PublishAssetEvent',
+  }),
+  CDK_ASSETS_I5275: make.info<PublishAssetEvent>({
+    code: 'CDK_ASSETS_I5275',
+    description: 'Publishing the asset has completed successfully',
+    interface: 'PublishAssetEvent',
+  }),
+  CDK_ASSETS_E5279: make.error<PublishAssetEvent>({
+    code: 'CDK_ASSETS_E5279',
+    description: 'There was an error while publishing the asset',
+    interface: 'PublishAssetEvent',
   }),
 
   // Watch (53xx)

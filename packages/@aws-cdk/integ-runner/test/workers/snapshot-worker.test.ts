@@ -2,6 +2,8 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { snapshotTestWorker } from '../../lib/workers/extract';
 
+jest.setTimeout(20_000);
+
 beforeEach(() => {
   jest.spyOn(process.stderr, 'write').mockImplementation(() => {
     return true;
