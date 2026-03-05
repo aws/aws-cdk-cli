@@ -412,4 +412,19 @@ describe('fromAssemblyDirectory', () => {
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
   });
+
+  test('does not hold read lock when holdLock is false', async () => {
+    await using outdir = autoCleanOutDir();
+    const fixtureDir = path.join(__dirname, '..', '..', '_fixtures', 'two-empty-stacks', 'cdk.out');
+    await fs.copy(fixtureDir, outdir.dir);
+
+    const cx = await toolkit.fromAssemblyDirectory(outdir.dir, { holdLock: false });
+    const assembly = await cx.produce();
+
+    const lockFiles = (await fs.readdir(outdir.dir)).filter(name =>
+      name.startsWith(`read.${process.pid}.`) && name.endsWith('.lock'));
+
+    expect(lockFiles).toEqual([]);
+    await assembly.dispose();
+  });
 });

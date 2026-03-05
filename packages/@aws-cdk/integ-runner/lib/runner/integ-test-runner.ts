@@ -493,6 +493,7 @@ export class IntegTestRunner extends IntegRunner {
           app: path.relative(this.directory, this.snapshotDir),
           lookups: expectedTestSuite?.enableLookups,
         });
+        this.cleanupSnapshotReadLocks();
       }
       // now deploy the "actual" test.
       await this.cdk.deploy({
@@ -605,4 +606,5 @@ export class IntegTestRunner extends IntegRunner {
       throw e;
     }
   }
+
 }

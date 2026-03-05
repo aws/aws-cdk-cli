@@ -354,6 +354,8 @@ export abstract class IntegRunner {
       fs.removeSync(this.snapshotDir);
     }
 
+    this.cleanupSnapshotReadLocks();
+
     const actualTestSuite = await this.actualTestSuite();
 
     // if lookups are enabled then we need to synth again
@@ -389,6 +391,19 @@ export abstract class IntegRunner {
     const actualTestSuite = await this.actualTestSuite();
     if (actualTestSuite.type === 'legacy-test-suite') {
       (actualTestSuite as LegacyIntegTestSuite).saveManifest(this.snapshotDir, this.legacyContext);
+    }
+  }
+
+  protected cleanupSnapshotReadLocks(): void {
+    if (!fs.existsSync(this.snapshotDir)) {
+      return;
+    }
+
+    const prefix = `read.${process.pid}.`;
+    for (const entry of fs.readdirSync(this.snapshotDir)) {
+      if (entry.startsWith(prefix) && entry.endsWith('.lock')) {
+        fs.removeSync(path.join(this.snapshotDir, entry));
+      }
     }
   }
 

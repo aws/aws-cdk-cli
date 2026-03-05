@@ -48,7 +48,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
 
     expect(mockedFs.pathExistsSync).toHaveBeenCalledWith(fullSnapshotPath);
     expect(mockedFs.statSync).toHaveBeenCalledWith(fullSnapshotPath);
-    expect(mockToolkit.fromAssemblyDirectory).toHaveBeenCalledWith(fullSnapshotPath);
+    expect(mockToolkit.fromAssemblyDirectory).toHaveBeenCalledWith(fullSnapshotPath, { holdLock: false });
     expect(mockToolkit.fromCdkApp).not.toHaveBeenCalled();
   });
 

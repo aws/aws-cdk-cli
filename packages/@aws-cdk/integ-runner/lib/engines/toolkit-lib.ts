@@ -103,14 +103,21 @@ export class ToolkitLibRunnerEngine implements ICdk {
     });
 
     try {
-      await using lock = await this.toolkit.synth(cx, {
+      // Explicitly manage the lock lifecycle instead of using 'await using'
+      // to ensure it's properly released before any subsequent synth operations
+      const lock = await this.toolkit.synth(cx, {
         validateStacks: false,
         stacks: {
           strategy: StackSelectionStrategy.ALL_STACKS,
           failOnEmpty: false,
         },
       });
-      await this.validateRegion(lock);
+      try {
+        await this.validateRegion(lock);
+      } finally {
+        // Always dispose the lock to avoid conflicts with subsequent synth operations
+        await lock.dispose();
+      }
     } catch (e: any) {
       if (e.message.includes('Missing context keys')) {
         // @TODO - silently ignore missing context
@@ -140,15 +147,26 @@ export class ToolkitLibRunnerEngine implements ICdk {
    */
   public async deploy(options: DeployOptions) {
     const cx = await this.cx(options);
-    await this.toolkit.deploy(cx, {
-      roleArn: options.roleArn,
-      traceLogs: options.traceLogs,
-      stacks: this.stackSelector(options),
-      deploymentMethod: {
-        method: 'change-set',
-      },
-      outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
-    });
+    try {
+      await this.toolkit.deploy(cx, {
+        roleArn: options.roleArn,
+        traceLogs: options.traceLogs,
+        stacks: this.stackSelector(options),
+        deploymentMethod: {
+          method: 'change-set',
+        },
+        outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
+      });
+    } finally {
+      // Always dispose the cloud assembly source to release any locks
+      if (this.isDisposableCloudAssemblySource(cx)) {
+        await cx.dispose();
+      }
+
+      if (options.output) {
+        this.cleanupReadLocks(path.join(this.options.workingDirectory, options.output));
+      }
+    }
   }
 
   /**
@@ -202,7 +220,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
     // check if the app is a path to existing snapshot and then use it as an assembly directory
     const potentialCxPath = path.join(this.options.workingDirectory, options.app);
     if (fs.pathExistsSync(potentialCxPath) && fs.statSync(potentialCxPath).isDirectory()) {
-      return this.toolkit.fromAssemblyDirectory(potentialCxPath);
+      return this.toolkit.fromAssemblyDirectory(potentialCxPath, { holdLock: false });
     }
 
     let outdir;
@@ -239,6 +257,25 @@ export class ToolkitLibRunnerEngine implements ICdk {
       patterns: options.stacks ?? ['**'],
       expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
     };
+  }
+
+  private cleanupReadLocks(directory: string): void {
+    if (!fs.pathExistsSync(directory)) {
+      return;
+    }
+
+    const prefix = `read.${process.pid}.`;
+    for (const entry of fs.readdirSync(directory)) {
+      if (entry.startsWith(prefix) && entry.endsWith('.lock')) {
+        fs.removeSync(path.join(directory, entry));
+      }
+    }
+  }
+
+  private isDisposableCloudAssemblySource(
+    source: ICloudAssemblySource,
+  ): source is ICloudAssemblySource & { dispose: () => Promise<void> } {
+    return typeof (source as { dispose?: unknown }).dispose === 'function';
   }
 
   /**

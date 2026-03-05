@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
+import * as fs from 'fs-extra';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
+jest.mock('fs-extra');
 
 const MockedToolkit = Toolkit as jest.MockedClass<typeof Toolkit>;
 const MockedBaseCredentials = BaseCredentials as jest.Mocked<typeof BaseCredentials>;
+const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe('ToolkitLibRunnerEngine', () => {
   let mockToolkit: jest.Mocked<Toolkit>;
@@ -13,6 +16,7 @@ describe('ToolkitLibRunnerEngine', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedFs.pathExistsSync.mockReturnValue(false);
     mockToolkit = {
       synth: jest.fn(),
       fromCdkApp: jest.fn(),
@@ -32,7 +36,7 @@ describe('ToolkitLibRunnerEngine', () => {
   describe('synth', () => {
     it('should use fromCdkApp and produce for fast synthesis', async () => {
       const mockCx = { produce: jest.fn() };
-      const mockLock = { [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+      const mockLock = { dispose: jest.fn(), [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
       mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
@@ -57,7 +61,7 @@ describe('ToolkitLibRunnerEngine', () => {
           assetMetadata: false,
         },
       });
-      expect(mockLock[Symbol.asyncDispose]).toHaveBeenCalled();
+      expect(mockLock.dispose).toHaveBeenCalled();
     });
 
     it('should handle missing context error silently', async () => {
@@ -143,6 +147,29 @@ describe('ToolkitLibRunnerEngine', () => {
         },
         outputsFile: '/test/dir/assertion-results.json',
       });
+    });
+
+    it('cleans up read lock files in output directory after deploy', async () => {
+      const mockCx = {};
+      const outputDir = '/test/dir/cdk.out';
+      const pidPrefix = `read.${process.pid}.`;
+      const matchingLock = `${pidPrefix}1.lock`;
+      const otherLock = 'read.99999.1.lock';
+
+      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.deploy.mockResolvedValue({} as any);
+      mockedFs.pathExistsSync.mockReturnValueOnce(false).mockReturnValue(true);
+      mockedFs.readdirSync.mockReturnValue([matchingLock, otherLock, 'other.txt'] as any);
+
+      await engine.deploy({
+        app: 'test-app',
+        stacks: ['stack1'],
+        output: 'cdk.out',
+      });
+
+      expect(mockedFs.removeSync).toHaveBeenCalledWith(`${outputDir}/${matchingLock}`);
+      expect(mockedFs.removeSync).not.toHaveBeenCalledWith(`${outputDir}/${otherLock}`);
+      expect(mockedFs.removeSync).not.toHaveBeenCalledWith(`${outputDir}/other.txt`);
     });
   });
 
