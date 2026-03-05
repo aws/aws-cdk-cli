@@ -534,6 +534,7 @@ export class Deployments {
         stack: options.stack,
         stackName: deployName,
         ioHelper: this.ioHelper,
+        s3Client: env.sdk.s3(),
       });
       await monitor.start();
 
