@@ -368,6 +368,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
             examplePermissionsBoundary: argv.examplePermissionsBoundary,
             customPermissionsBoundary: argv.customPermissionsBoundary,
+            permissionsBoundaryAllRoles: args.permissionsBoundaryAllRoles,
             trustedAccounts: arrayFromYargs(args.trust),
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
