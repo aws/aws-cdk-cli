@@ -1,11 +1,16 @@
 import * as chalk from 'chalk';
+import { deepEqual } from './diff/util';
 
 const ADDITION = chalk.green('[+]');
 const UPDATE = chalk.yellow('[~]');
 const REMOVAL = chalk.red('[-]');
 
 /**
- * Formatter for Fn::ForEach diff output
+ * Formatter for Fn::ForEach diff output.
+ *
+ * Fn::ForEach is a CloudFormation intrinsic that expands a template fragment
+ * over a collection at deploy time. Its value is an array:
+ *   [collection, { "LogicalId${Var}": { Type, Properties } }]
  */
 export class ForEachDiffFormatter {
   /**
@@ -20,9 +25,21 @@ export class ForEachDiffFormatter {
     const changeType = this.getChangeType(oldValue, newValue);
     const value = newValue ?? oldValue;
 
+    if (!Array.isArray(value) || value.length < 2) {
+      lines.push(`${this.changeSymbol(changeType)} ${chalk.cyan(key)} (unrecognized ForEach structure)`);
+      return lines;
+    }
+
     const loopName = key.replace('Fn::ForEach::', '');
     const [collection, templateObj] = value;
-    const [[templateKey, templateValue]] = Object.entries(templateObj as Record<string, any>);
+    const entries = Object.entries(templateObj as Record<string, any>);
+
+    if (entries.length === 0) {
+      lines.push(`${this.changeSymbol(changeType)} ${chalk.cyan(key)} (empty ForEach template)`);
+      return lines;
+    }
+
+    const [[templateKey, templateValue]] = entries;
 
     const count = Array.isArray(collection)
       ? `${collection.length} resources`
@@ -33,15 +50,15 @@ export class ForEachDiffFormatter {
     );
     lines.push(`    Loop variable: ${chalk.blue(loopName)}`);
     lines.push(`    Collection: ${this.formatCollection(collection)}`);
-    lines.push(`    └── ${templateKey} ${chalk.cyan(templateValue.Type)}`);
+    lines.push(`    └── ${templateKey} ${chalk.cyan(templateValue?.Type ?? 'Unknown')}`);
 
     if (changeType === 'update' && oldValue && newValue) {
-      const oldProps = oldValue[1][Object.keys(oldValue[1])[0]]?.Properties ?? {};
-      const newProps = newValue[1][Object.keys(newValue[1])[0]]?.Properties ?? {};
+      const oldProps = oldValue[1]?.[Object.keys(oldValue[1])[0]]?.Properties ?? {};
+      const newProps = newValue[1]?.[Object.keys(newValue[1])[0]]?.Properties ?? {};
       const propDiff = this.diffProperties(oldProps, newProps);
       lines.push(...propDiff.map(l => `        ${l}`));
     } else {
-      for (const [propKey, propValue] of Object.entries(templateValue.Properties ?? {})) {
+      for (const [propKey, propValue] of Object.entries(templateValue?.Properties ?? {})) {
         lines.push(`        ${propKey}: ${this.formatValue(propValue)}`);
       }
     }
@@ -88,7 +105,7 @@ export class ForEachDiffFormatter {
         lines.push(`${ADDITION} ${key}: ${this.formatValue(newVal)}`);
       } else if (newVal === undefined) {
         lines.push(`${REMOVAL} ${key}: ${this.formatValue(oldVal)}`);
-      } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      } else if (!deepEqual(oldVal, newVal)) {
         lines.push(`${UPDATE} ${key}: ${this.formatValue(oldVal)} → ${this.formatValue(newVal)}`);
       }
     }
