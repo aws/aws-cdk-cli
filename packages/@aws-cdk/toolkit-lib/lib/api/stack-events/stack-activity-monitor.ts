@@ -214,7 +214,53 @@ export class StackActivityMonitor {
     try {
       const response = await this.s3Client.getObject({ Bucket: bucket, Key: key });
       if (response.Body) {
-        return await response.Body.transformToString();
+        const output = JSON.parse(await response.Body.transformToString());
+
+        const lines: string[] = ['NonCompliant Rules:'];
+
+        // Extract only non-compliant rule names and error / custom messages
+        output.forEach((item: any) => {
+          if (!item.not_compliant || item.not_compliant.length === 0) {
+            return;
+          }
+
+          item.not_compliant.forEach((notCompliant: any) => {
+            const rule = notCompliant.Rule;
+            lines.push(`• ${rule.name}`);
+
+            (rule.checks || []).forEach((check: any) => {
+              const clause = check.Clause;
+              const clauseData = clause.Binary || clause.Unary;
+              if (!clauseData) {
+                return;
+              }
+
+              // Use custom_message if present and not empty, otherwise use error_message
+              let message = clauseData.messages.custom_message && clauseData.messages.custom_message !== ''
+                ? clauseData.messages.custom_message
+                : clauseData.messages.error_message;
+
+              if (message) {
+                // Truncate if message exceeds 4 lines or 400 chars
+                const messageLines = message.split('\n');
+                const maxChars = 400;
+                const maxLines = 4;
+
+                if (messageLines.length > maxLines || message.length > maxChars) {
+                  if (messageLines.length > maxLines) {
+                    message = messageLines.slice(0, maxLines).join('\n') + '\n  [truncated...]';
+                  } else {
+                    message = message.substring(0, maxChars) + '[truncated...]';
+                  }
+                }
+
+                lines.push(`  ${message}`);
+              }
+            });
+          });
+        });
+
+        return lines.join('\n');
       }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -244,7 +290,8 @@ export class StackActivityMonitor {
         if (s3Location) {
           const s3Content = await this.fetchS3Content(s3Location.bucket, s3Location.key);
           if (s3Content) {
-            resourceEvent.event.HookStatusReason = s3Content;
+            const location = `Full output was written to s3://${s3Location.bucket}/${s3Location.key}`;
+            resourceEvent.event.HookStatusReason = s3Content + '\n' + location;
           }
         }
       }
