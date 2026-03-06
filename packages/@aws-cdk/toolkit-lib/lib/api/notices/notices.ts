@@ -210,7 +210,7 @@ export class Notices {
         }
       }
       await this.ioHelper.notify(IO.CDK_TOOLKIT_I0100.msg(
-        `If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
+        `If you don't want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge ${filteredNotices[0].notice.issueNumber}".`,
       ));
     }
 
