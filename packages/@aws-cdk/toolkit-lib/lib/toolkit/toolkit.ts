@@ -1,6 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -71,7 +72,7 @@ import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
-import type { ElapsedTime, IoHelper } from '../api/io/private';
+import type { ElapsedTime, IMessageSpan, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
@@ -597,7 +598,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
 
       // The generated stack has no resources
-      if (Object.keys(stack.template.Resources || {}).length === 0) {
+      const resourceCount = Object.keys(stack.template.Resources || {}).length;
+      if (resourceCount === 0) {
         // stack is empty and doesn't exist => do nothing
         const stackExists = await deployments.stackExists({ stack });
         if (!stackExists) {
@@ -662,6 +664,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           current: stackIndex,
           stack,
         });
+      deploySpan.incCounter('resources', resourceCount);
 
       let tags = options.tags;
       if (!tags || tags.length === 0) {
@@ -1427,7 +1430,9 @@ async function synthAndMeasure(
   const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
   try {
     const ret = await assemblyFromSource(synthSpan.asHelper, cx);
+    countAssemblyResults(synthSpan, ret.assembly);
     const synthDuration = await synthSpan.end({});
+
     return Object.assign(ret, { synthDuration });
   } catch (error: any) {
     // End the span even if we had a failure
@@ -1438,4 +1443,20 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
+}
+
+function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
+  const stacksRecursively = assembly.stacksRecursively;
+  span.incCounter('stacks', stacksRecursively.length);
+  span.incCounter('assemblies', asmCount(assembly));
+  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
+  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
+
+  function asmCount(x: cxapi.CloudAssembly): number {
+    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
+  }
+}
+
+function sum(xs: number[]) {
+  return xs.reduce((a, b) => a + b, 0);
 }
