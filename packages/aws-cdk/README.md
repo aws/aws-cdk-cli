@@ -19,6 +19,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
 | [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
 | [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
+| [`cdk publish`](#cdk-publish)             | Publish assets for stack(s) without deploying (unstable)                          |
 | [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
 | [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
 | [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
@@ -610,6 +611,31 @@ This flowchart provides a high-level overview of the deployment process.
 For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
 
 ![Deploy flowchart](./images/deploy-flowchart.png)
+
+### `cdk publish`
+
+Publishes assets for the specified stack(s) without performing a deployment.
+
+> [!CAUTION]
+> `cdk publish` is under development and therefore must be opted in via the
+> `--unstable` flag: `cdk publish --unstable=publish`. `--unstable` indicates that the scope and
+> API of feature might still change. Otherwise the feature is generally production
+> ready and fully supported.
+
+Publishes assets (such as Docker images and file assets) for the specified stack(s) to their respective destinations (ECR repositories, S3 buckets) without performing a deployment.
+
+This is useful in CI/CD pipelines where you want to separate the build/publish phase from the deployment phase, allowing you to publish assets once and deploy to multiple environments using the already-published assets.
+
+```console
+$ # Publish assets for a single stack
+$ cdk publish MyStack --unstable=publish
+
+$ # Publish assets for all stacks
+$ cdk publish --all --unstable=publish
+
+$ # Force re-publish even if assets already exist
+$ cdk publish MyStack --unstable=publish --force
+```
 
 ### `cdk rollback`
 

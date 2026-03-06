@@ -160,6 +160,16 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'publish':
+      commandOptions = {
+        all: args.all,
+        exclusively: args.exclusively,
+        force: args.force,
+        concurrency: args.concurrency,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'import':
       commandOptions = {
         execute: args.execute,
@@ -443,6 +453,12 @@ export function convertConfigToUserInput(config: any): UserInput {
     validateBootstrapVersion: config.rollback?.validateBootstrapVersion,
     orphan: config.rollback?.orphan,
   };
+  const publishOptions = {
+    all: config.publish?.all,
+    exclusively: config.publish?.exclusively,
+    force: config.publish?.force,
+    concurrency: config.publish?.concurrency,
+  };
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
@@ -546,6 +562,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
+    publish: publishOptions,
     import: importOptions,
     watch: watchOptions,
     destroy: destroyOptions,
