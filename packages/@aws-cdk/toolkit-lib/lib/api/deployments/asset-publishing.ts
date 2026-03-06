@@ -14,10 +14,11 @@ import {
   AssetPublishing,
 } from '@aws-cdk/cdk-assets-lib';
 import { type Environment, UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
+import type { PublishAssetEvent } from '../../payloads/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK, SdkProvider } from '../aws-auth/private';
-import type { IoMessageLevel } from '../io';
-import type { IoHelper } from '../io/private';
+import type { IoMessageMaker, IoHelper } from '../io/private';
+import { IO } from '../io/private';
 import { Mode } from '../plugin';
 
 interface PublishAssetsOptions {
@@ -167,17 +168,22 @@ export class PublishingAws implements IAws {
   }
 }
 
-const EVENT_TO_MSG_LEVEL: Record<EventType, IoMessageLevel | false> = {
-  build: 'debug',
-  cached: 'debug',
-  check: 'debug',
-  debug: 'debug',
-  fail: 'error',
-  found: 'debug',
-  start: 'info',
-  success: 'info',
-  upload: 'debug',
-  shell_open: 'debug',
+const EVENT_TO_MSG_MAKER: Record<EventType, IoMessageMaker<PublishAssetEvent> | false> = {
+  // tracked events
+  start: IO.CDK_ASSETS_I5270,
+  success: IO.CDK_ASSETS_I5275,
+  fail: IO.CDK_ASSETS_E5279,
+
+  // debug events
+  build: IO.CDK_ASSETS_I5271,
+  cached: IO.CDK_ASSETS_I5271,
+  check: IO.CDK_ASSETS_I5271,
+  debug: IO.CDK_ASSETS_I5271,
+  found: IO.CDK_ASSETS_I5271,
+  upload: IO.CDK_ASSETS_I5271,
+  shell_open: IO.CDK_ASSETS_I5271,
+
+  // dropped events
   shell_stderr: false,
   shell_stdout: false,
   shell_close: false,
@@ -193,9 +199,15 @@ export abstract class BasePublishProgressListener implements IPublishProgressLis
   protected abstract getMessage(type: EventType, event: IPublishProgress): string;
 
   public onPublishEvent(type: EventType, event: IPublishProgress): void {
-    const level = EVENT_TO_MSG_LEVEL[type];
-    if (level) {
-      void this.ioHelper.defaults[level](this.getMessage(type, event));
+    const io = EVENT_TO_MSG_MAKER[type];
+    if (io) {
+      const message = this.getMessage(type, event);
+      void this.ioHelper.notify(io.msg(message, {
+        type,
+        message,
+        progressPercentage: event.percentComplete,
+        asset: event.currentAsset,
+      }));
     }
   }
 }

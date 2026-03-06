@@ -705,8 +705,8 @@ hotswap your stacks while respecting inter-stack dependencies.
 $ cdk watch --concurrency 5
 ```
 
-**Note**: This command is considered experimental, and might have breaking changes in the future.
-The same limitations apply to to `watch` deployments as do to `--hotswap` deployments. See the
+**Note**: The same limitations apply to to `watch` deployments as do to `--hotswap` deployments.
+It is not recommended to use `watch` for production deployments. See the
 *Hotswap deployments for faster development* section for more information.
 
 ### `cdk import`

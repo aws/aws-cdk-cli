@@ -13,6 +13,7 @@
 /.github/workflows/codecov.yml linguist-generated
 /.github/workflows/integ.yml linguist-generated
 /.github/workflows/issue-label-assign.yml linguist-generated
+/.github/workflows/issue-regression-labeler.yml linguist-generated
 /.github/workflows/large-pr-checker.yml linguist-generated
 /.github/workflows/pr-labeler.yml linguist-generated
 /.github/workflows/pull-request-lint.yml linguist-generated

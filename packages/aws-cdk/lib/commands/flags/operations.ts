@@ -390,7 +390,7 @@ export class FlagOperations {
     const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
     const cdkJson = JSON.parse(cdkJsonContent);
 
-    if (flagNames.length === 1 && !params.safe) {
+    if (flagNames.length === 1 && !params.safe && !params.all) {
       const boolValue = params.value === 'true';
       cdkJson.context[String(flagNames[0])] = boolValue;
       await this.ioHelper.defaults.info(`Setting flag '${flagNames}' to: ${boolValue}`);

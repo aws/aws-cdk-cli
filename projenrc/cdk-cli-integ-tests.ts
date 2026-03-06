@@ -537,6 +537,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
         idToken: github.workflows.JobPermission.WRITE,
       },
       env: {
+        // Integ tests heavily rely on processing stdout, node warnings (mostly deprecations) are muddying this.
+        // We can disable any warnings here, there's plenty of other places we will see them.
+        NODE_NO_WARNINGS: '1',
         // Otherwise Maven is too noisy
         MAVEN_ARGS: '--no-transfer-progress',
         // This is not actually a canary, but this prevents the tests from making
