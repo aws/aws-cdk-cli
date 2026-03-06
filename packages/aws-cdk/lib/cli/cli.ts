@@ -12,9 +12,14 @@ import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
+import { ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { cdkCliErrorName } from './telemetry/error';
+import type { ErrorDetails } from './telemetry/schema';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
+import { trapErrors } from './util/trap-errors';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices } from '../api';
@@ -33,11 +38,7 @@ import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { ProxyAgentProvider } from './proxy-agent';
-import { cdkCliErrorName } from './telemetry/error';
-import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
-import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -154,11 +155,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const refreshNotices = (async () => {
     // the cdk notices command has it's own refresh
     if (shouldDisplayNotices && cmd !== 'notices') {
-      try {
-        return await notices.refresh();
-      } catch (e: any) {
-        await ioHelper.defaults.debug(`Could not refresh notices: ${e}`);
-      }
+      await trapErrors(ioHelper, 'Could not refresh notices', () => notices.refresh());
     }
   })();
 
@@ -220,13 +217,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     await refreshNotices;
     if (cmd === 'notices') {
+      // do not trap errors here
+      // this is the notices command itself, any error should be loud
       await notices.refresh({ force: true });
       await notices.display({
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
-      await notices.display();
+      await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
     }
   }
 
