@@ -131,13 +131,26 @@ describe('ForEach integration (fullDiff → formatDifferences)', () => {
   function collectOutput(cb: (stream: NodeJS.WritableStream) => void): string {
     const chunks: string[] = [];
     const stream = {
-      write(chunk: string) { chunks.push(chunk); return true; },
-      end() {},
-      on() { return this; },
-      once() { return this; },
-      emit() { return false; },
-      addListener() { return this; },
-      removeListener() { return this; },
+      write(chunk: string) {
+        chunks.push(chunk); return true;
+      },
+      end() {
+      },
+      on() {
+        return this;
+      },
+      once() {
+        return this;
+      },
+      emit() {
+        return false;
+      },
+      addListener() {
+        return this;
+      },
+      removeListener() {
+        return this;
+      },
     } as any;
     cb(stream);
     return chunks.join('');
@@ -230,7 +243,7 @@ describe('ForEach integration (fullDiff → formatDifferences)', () => {
       { Resources: {} },
       {
         Resources: {
-          MyBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'solo' } },
+          'MyBucket': { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'solo' } },
           'Fn::ForEach::Env': [
             ['dev', 'prod'],
             { 'Bucket${Env}': { Type: 'AWS::S3::Bucket', Properties: {} } },
