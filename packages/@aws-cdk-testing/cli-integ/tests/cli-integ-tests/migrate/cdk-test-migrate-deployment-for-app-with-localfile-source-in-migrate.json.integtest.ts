@@ -44,13 +44,8 @@ integTest(
     fixture.log(`Deleted stack ${stackName}, orphaning ${queueName}`);
 
     // Create new stack from existing queue
-    try {
-      fixture.log(`Deploying new stack ${stackName}, migrating ${queueName} into stack`);
-      await fixture.cdkDeploy('migrate-stack');
-    } finally {
-      // Cleanup
-      await fixture.cdkDestroy('migrate-stack');
-    }
+    fixture.log(`Deploying new stack ${stackName}, migrating ${queueName} into stack`);
+    await fixture.cdkDeploy('migrate-stack');
   }),
 );
 

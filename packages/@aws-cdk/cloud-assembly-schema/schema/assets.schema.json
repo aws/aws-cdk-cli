@@ -168,6 +168,13 @@
                         "type": "string"
                     }
                 },
+                "dockerBuildContexts": {
+                    "description": "Additional build contexts\n\nOnly allowed when `directory` is set. (Default - No additional build contexts)",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "dockerBuildSsh": {
                     "description": "SSH agent socket or keys\n\nRequires building with docker buildkit. (Default - No ssh flag is set)",
                     "type": "string"

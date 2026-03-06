@@ -51,6 +51,10 @@
       "type": "build"
     },
     {
+      "name": "@types/picomatch",
+      "type": "build"
+    },
+    {
       "name": "@types/split2",
       "type": "build"
     },
@@ -351,22 +355,21 @@
       "type": "runtime"
     },
     {
+      "name": "fast-glob",
+      "type": "runtime"
+    },
+    {
       "name": "fs-extra",
       "version": "^9",
       "type": "runtime"
     },
     {
-      "name": "glob",
-      "type": "runtime"
-    },
-    {
-      "name": "minimatch",
-      "version": "10.0.1",
-      "type": "runtime"
-    },
-    {
       "name": "p-limit",
       "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "picomatch",
       "type": "runtime"
     },
     {

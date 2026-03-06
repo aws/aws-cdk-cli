@@ -56,7 +56,10 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
     // integration test environment, so wait for a longer timeout there.
     //
     // In production, have a short timeout to not hold up the user experience.
-    const timeout = process.env.TESTING_CDK ? 30_000 : 3_000;
+    const timeout = process.env.CDK_NOTICES_TIMEOUT !== undefined
+      ? parseInt(process.env.CDK_NOTICES_TIMEOUT, 10)
+      : process.env.TESTING_CDK
+        ? 30_000 : 3_000;
 
     const options: RequestOptions = {
       agent: this.agent,

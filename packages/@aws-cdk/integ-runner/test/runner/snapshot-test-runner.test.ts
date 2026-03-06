@@ -217,9 +217,9 @@ describe('IntegTest runSnapshotTests', () => {
           stacks: ['stackabc'],
         },
       }));
-      expect(cdkMock.mocks.synthFast).toHaveBeenCalledTimes(1);
-      expect(cdkMock.mocks.synthFast).toHaveBeenCalledWith({
-        execCmd: ['node', 'test/test-data/xxxxx.integ-test2.js'],
+      expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(1);
+      expect(cdkMock.mocks.synth).toHaveBeenCalledWith({
+        app: 'node test/test-data/xxxxx.integ-test2.js',
         env: expect.objectContaining({
           CDK_INTEG_ACCOUNT: '12345678',
           CDK_INTEG_REGION: 'test-region',

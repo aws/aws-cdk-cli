@@ -1,4 +1,5 @@
 import * as semver from 'semver';
+import { languageDisplayName } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import type { ConstructTreeNode } from '../tree';
 import { loadTreeFromDir } from '../tree';
@@ -11,8 +12,26 @@ function normalizeComponents(xs: Array<Component | Component[]>): Component[][] 
   return xs.map(x => Array.isArray(x) ? x : [x]);
 }
 
+/**
+ * Returns the DNF components for a notice.
+ * Uses componentsV2 when schemaVersion is '2', otherwise falls back to components.
+ */
+function dnfComponents(notice: Notice): Component[][] {
+  if (notice.schemaVersion === '2' && notice.componentsV2) {
+    return normalizeComponents(notice.componentsV2);
+  }
+  return normalizeComponents(notice.components);
+}
+
+function renderComponent(c: Component): string {
+  if (c.name.startsWith('language:')) {
+    return `${languageDisplayName(c.name.slice('language:'.length))} apps`;
+  }
+  return `${c.name}: ${c.version}`;
+}
+
 function renderConjunction(xs: Component[]): string {
-  return xs.map(c => `${c.name}: ${c.version}`).join(' AND ');
+  return xs.map(renderComponent).join(' AND ');
 }
 
 interface ActualComponent {
@@ -40,7 +59,7 @@ interface ActualComponent {
   readonly dynamicName?: string;
 
   /**
-   * If matched, what we should put in the set of dynamic values insstead of the version.
+   * If matched, what we should put in the set of dynamic values instead of the version.
    *
    * Only used if `dynamicName` is set; by default we will add the actual version
    * of the component.
@@ -55,6 +74,13 @@ export interface NoticesFilterFilterOptions {
   readonly cliVersion: string;
   readonly outDir: string;
   readonly bootstrappedEnvironments: BootstrappedEnvironment[];
+
+  /**
+   * The detected CDK app language.
+   *
+   * @default - no language component is added
+   */
+  readonly language?: string;
 }
 
 export class NoticesFilter {
@@ -111,6 +137,14 @@ export class NoticesFilter {
 
       // Bootstrap environments
       ...bootstrappedEnvironments,
+
+      // Language
+      ...(options.language ? [{
+        name: `language:${options.language}`,
+        version: '0.0.0',
+        dynamicName: 'LANGUAGE',
+        dynamicValue: languageDisplayName(options.language),
+      }] : []),
     ];
   }
 
@@ -119,7 +153,7 @@ export class NoticesFilter {
    */
   private findForNamedComponents(data: Notice[], actualComponents: ActualComponent[]): FilteredNotice[] {
     return data.flatMap(notice => {
-      const ors = this.resolveAliases(normalizeComponents(notice.components));
+      const ors = this.resolveAliases(dnfComponents(notice));
 
       // Find the first set of the disjunctions of which all components match against the actual components.
       // Return the actual components we found so that we can inject their dynamic values. A single filter
@@ -232,7 +266,7 @@ export class FilteredNotice {
   }
 
   public format(): string {
-    const componentsValue = normalizeComponents(this.notice.components).map(renderConjunction).join(', ');
+    const componentsValue = dnfComponents(this.notice).map(renderConjunction).join(', ');
     return this.resolveDynamicValues([
       `${this.notice.issueNumber}\t${this.notice.title}`,
       this.formatOverview(),

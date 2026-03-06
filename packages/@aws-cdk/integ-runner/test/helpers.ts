@@ -1,14 +1,37 @@
 import * as path from 'path';
-import type { CdkCliWrapperOptions, DeployOptions, ICdk, ListOptions, SynthFastOptions, SynthOptions } from '@aws-cdk/cdk-cli-wrapper';
 import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
+import type { DeployOptions, ICdk, ListOptions, SynthOptions } from '../lib/engines/cdk-interface';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
+
+/**
+ * Options for creating a MockCdkProvider
+ */
+export interface MockCdkProviderOptions {
+  /**
+   * The directory to run the cdk commands from
+   */
+  readonly directory: string;
+
+  /**
+   * Additional environment variables to set
+   *
+   * @default - no additional env vars
+   */
+  readonly env?: { [name: string]: string };
+
+  /**
+   * Show the output from running the CDK CLI
+   *
+   * @default false
+   */
+  readonly showOutput?: boolean;
+}
 
 export interface MockCdkMocks {
   deploy?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
   watch?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
   synth?: jest.MockedFn<(options: SynthOptions) => Promise<void>>;
-  synthFast?: jest.MockedFn<(options: SynthFastOptions) => Promise<void>>;
   destroy?: jest.MockedFn<(options: DestroyOptions) => Promise<void>>;
   list?: jest.MockedFn<(options: ListOptions) => Promise<string[]>>;
 }
@@ -17,12 +40,11 @@ export class MockCdkProvider {
   public readonly cdk: ICdk;
   public readonly mocks: MockCdkMocks = {};
 
-  constructor(_options: CdkCliWrapperOptions) {
+  constructor(_options: MockCdkProviderOptions) {
     this.cdk = {
       deploy: jest.fn().mockImplementation(),
       watch: jest.fn().mockImplementation(),
       synth: jest.fn().mockImplementation(),
-      synthFast: jest.fn().mockImplementation(),
       destroy: jest.fn().mockImplementation(),
       list: jest.fn().mockResolvedValue([]),
     };
@@ -45,10 +67,6 @@ export class MockCdkProvider {
     this.mocks.synth = mock ?? jest.fn().mockImplementation();
     this.cdk.synth = this.mocks.synth;
   }
-  public mockSynthFast(mock?: MockCdkMocks['synthFast']) {
-    this.mocks.synthFast = mock ?? jest.fn().mockImplementation();
-    this.cdk.synthFast = this.mocks.synthFast;
-  }
   public mockDestroy(mock?: MockCdkMocks['destroy']) {
     this.mocks.destroy = mock ?? jest.fn().mockImplementation();
     this.cdk.destroy = this.mocks.destroy;
@@ -61,7 +79,6 @@ export class MockCdkProvider {
     this.mockDeploy(mocks.deploy);
     this.mockWatch(mocks.watch);
     this.mockSynth(mocks.synth);
-    this.mockSynthFast(mocks.synthFast);
     this.mockDestroy(mocks.destroy);
     this.mockList(mocks.list);
 
@@ -93,14 +110,14 @@ export class MockCdkProvider {
     const results = await integTest.testSnapshot();
 
     // THEN
-    expect(this.mocks.synthFast).toHaveBeenCalledTimes(2);
-    expect(this.mocks.synthFast).toHaveBeenCalledWith({
+    expect(this.mocks.synth).toHaveBeenCalledTimes(2);
+    expect(this.mocks.synth).toHaveBeenCalledWith({
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
       }),
       context: expect.any(Object),
-      execCmd: ['node', 'test/test-data/' + integTestFile],
+      app: 'node test/test-data/' + integTestFile,
       output: actualSnapshotLocation ?? `test/test-data/cdk-integ.out.${integTestFile}.snapshot`,
     });
 

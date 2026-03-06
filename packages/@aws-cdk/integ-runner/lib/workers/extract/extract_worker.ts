@@ -28,7 +28,6 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
 
     try {
       const runner = new IntegTestRunner({
-        engine: request.engine,
         test,
         profile: request.profile,
         region: request.region,
@@ -96,7 +95,6 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
   const verbosity = options.verbosity ?? 0;
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
-    engine: options.engine,
     test,
     profile: options.profile,
     region: options.region,
@@ -141,7 +139,6 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
 
   try {
     const runner = new IntegSnapshotRunner({
-      engine: options.engine,
       test,
       showOutput: options.verbose ?? false,
     });

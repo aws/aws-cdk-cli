@@ -7,7 +7,6 @@ integTest(
   withDefaultFixture(async (fixture) => {
     await fixture.cdkDeploy('builtin-lambda-function');
     fixture.log('Setup complete!');
-    await fixture.cdkDestroy('builtin-lambda-function');
   }),
 );
 

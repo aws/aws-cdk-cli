@@ -58,12 +58,14 @@ export class ResourceGraph {
         const exp = exports[value['Fn::ImportValue']];
         if (exp != null) {
           const v = exp.value;
-          if ('Fn::GetAtt' in v) {
-            const id = Array.isArray(v['Fn::GetAtt']) ? v['Fn::GetAtt'][0] : v['Fn::GetAtt'].split('.')[0];
-            return [`${exp.stackName}.${id}`];
-          }
-          if ('Ref' in v) {
-            return [`${exp.stackName}.${v.Ref}`];
+          if (v != null && typeof v === 'object') {
+            if ('Fn::GetAtt' in v) {
+              const id = Array.isArray(v['Fn::GetAtt']) ? v['Fn::GetAtt'][0] : v['Fn::GetAtt'].split('.')[0];
+              return [`${exp.stackName}.${id}`];
+            }
+            if ('Ref' in v) {
+              return [`${exp.stackName}.${v.Ref}`];
+            }
           }
           return [`${exp.stackName}.${v}`];
         }

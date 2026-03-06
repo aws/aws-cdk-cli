@@ -210,8 +210,10 @@ export async function makeConfig(): Promise<CliConfig> {
           },
           'concurrency': { type: 'number', desc: 'Maximum number of simultaneous deployments (dependency permitting) to execute.', default: 1, requiresArg: true },
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
+          'asset-build-concurrency': { type: 'number', desc: 'Maximum number of asset builds to run in parallel', default: 1, requiresArg: true },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
+          'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
         },
         arg: {
           name: 'STACKS',
@@ -266,7 +268,6 @@ export async function makeConfig(): Promise<CliConfig> {
           },
           'record-resource-mapping': {
             type: 'string',
-            alias: 'r',
             requiresArg: true,
             desc: 'If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping ' +
               'will be written in the given file path. No actual import operation will be performed',

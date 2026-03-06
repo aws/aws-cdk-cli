@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
@@ -28,6 +29,7 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
+import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -36,7 +38,6 @@ import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { getLanguageFromAlias } from '../commands/language';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -146,6 +147,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
+    language: await guessLanguage(process.cwd()),
     httpOptions: { agent: proxyAgent },
     cliVersion: versionNumber(),
   });
@@ -409,6 +411,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
           assetParallelism: configuration.settings.get(['assetParallelism']),
+          assetBuildConcurrency: configuration.settings.get(['assetBuildConcurrency']),
           assetBuildTime: configuration.settings.get(['assetPrebuild'])
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
@@ -643,6 +646,9 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
       if (args.importExistingResources) {
         throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
       }
+      if (args.revertDrift) {
+        throw new ToolkitError('--revert-drift cannot be used with method=direct');
+      }
       deploymentMethod = { method: 'direct' };
       break;
     case 'change-set':
@@ -651,6 +657,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case 'prepare-change-set':
@@ -659,6 +666,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: false,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case undefined:
@@ -668,6 +676,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: watch ? true : args.execute ?? true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
   }

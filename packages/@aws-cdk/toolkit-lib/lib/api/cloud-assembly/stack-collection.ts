@@ -42,7 +42,11 @@ export class StackCollection {
         id: stack.displayName ?? stack.id,
         name: stack.stackName,
         environment: stack.environment,
-        metadata: stack.manifest.metadata,
+
+        // Might be huge so load it lazily
+        get metadata() {
+          return stack.metadata;
+        },
         dependencies: [],
       };
 

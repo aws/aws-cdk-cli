@@ -50,7 +50,7 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 /**
  * Ending the span returns the observed duration
  */
-interface ElapsedTime {
+export interface ElapsedTime {
   readonly asMs: number;
   readonly asSec: number;
 }
