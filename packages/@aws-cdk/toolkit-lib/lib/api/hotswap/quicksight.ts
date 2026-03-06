@@ -5,7 +5,7 @@ import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
 const QUICKSIGHT_RESOURCE_TYPES: Record<string, { hotswappableProps: string[]; service: string }> = {
   'AWS::QuickSight::DataSet': { hotswappableProps: ['PhysicalTableMap', 'LogicalTableMap', 'Name'], service: 'quicksight-dataset' },
-  'AWS::QuickSight::DataSource': { hotswappableProps: ['DataSourceParameters', 'Name', 'Credentials'], service: 'quicksight-datasource' },
+  'AWS::QuickSight::DataSource': { hotswappableProps: ['DataSourceParameters', 'Name'], service: 'quicksight-datasource' },
   'AWS::QuickSight::Dashboard': { hotswappableProps: ['Definition', 'Name', 'SourceEntity'], service: 'quicksight-dashboard' },
   'AWS::QuickSight::Analysis': { hotswappableProps: ['Definition', 'Name', 'SourceEntity'], service: 'quicksight-analysis' },
   'AWS::QuickSight::Template': { hotswappableProps: ['Definition', 'Name', 'SourceEntity'], service: 'quicksight-template' },
@@ -68,31 +68,36 @@ export async function isHotswappableQuickSightChange(
         }
       }
 
+      const evaluatedName = props.Name !== undefined
+        ? (evaluatedProps.Name ?? await evaluateCfnTemplate.evaluateCfnExpression(props.Name))
+        : undefined;
+
       switch (change.newValue.Type) {
         case 'AWS::QuickSight::DataSet':
           await sdk.quickSight().updateDataSet({
             AwsAccountId: awsAccountId,
             DataSetId: resourceId,
-            Name: evaluatedProps.Name ?? props.Name,
+            Name: evaluatedName,
             PhysicalTableMap: evaluatedProps.PhysicalTableMap,
             LogicalTableMap: evaluatedProps.LogicalTableMap,
-            ImportMode: props.ImportMode,
+            ImportMode: props.ImportMode !== undefined
+              ? await evaluateCfnTemplate.evaluateCfnExpression(props.ImportMode)
+              : undefined,
           });
           break;
         case 'AWS::QuickSight::DataSource':
           await sdk.quickSight().updateDataSource({
             AwsAccountId: awsAccountId,
             DataSourceId: resourceId,
-            Name: evaluatedProps.Name ?? props.Name,
+            Name: evaluatedName,
             DataSourceParameters: evaluatedProps.DataSourceParameters,
-            Credentials: evaluatedProps.Credentials,
           });
           break;
         case 'AWS::QuickSight::Dashboard':
           await sdk.quickSight().updateDashboard({
             AwsAccountId: awsAccountId,
             DashboardId: resourceId,
-            Name: evaluatedProps.Name ?? props.Name,
+            Name: evaluatedName,
             Definition: evaluatedProps.Definition,
             SourceEntity: evaluatedProps.SourceEntity,
           });
@@ -101,7 +106,7 @@ export async function isHotswappableQuickSightChange(
           await sdk.quickSight().updateAnalysis({
             AwsAccountId: awsAccountId,
             AnalysisId: resourceId,
-            Name: evaluatedProps.Name ?? props.Name,
+            Name: evaluatedName,
             Definition: evaluatedProps.Definition,
             SourceEntity: evaluatedProps.SourceEntity,
           });
@@ -110,7 +115,7 @@ export async function isHotswappableQuickSightChange(
           await sdk.quickSight().updateTemplate({
             AwsAccountId: awsAccountId,
             TemplateId: resourceId,
-            Name: evaluatedProps.Name ?? props.Name,
+            Name: evaluatedName,
             Definition: evaluatedProps.Definition,
             SourceEntity: evaluatedProps.SourceEntity,
           });
