@@ -1,14 +1,17 @@
+import { Readable } from 'stream';
 import {
   DescribeStackEventsCommand,
   ResourceStatus,
   type StackEvent,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { sdkStreamMixin } from '@smithy/util-stream';
 import type { IIoHost } from '../../../lib/api/io';
 import { asIoHelper } from '../../../lib/api/io/private';
 import { StackActivityMonitor } from '../../../lib/api/stack-events';
 import { testStack } from '../../_helpers/assembly';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { MockSdk, mockCloudFormationClient, mockS3Client, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 
 let sdk: MockSdk;
 let monitor: StackActivityMonitor;
@@ -28,6 +31,7 @@ beforeEach(async () => {
     stackName: 'StackName',
     changeSetCreationTime: new Date(T100),
     pollingInterval: 0,
+    s3Client: sdk.s3(),
   }).start();
 
   restoreSdkMocksToDefault();
@@ -281,4 +285,340 @@ const expectEvent = (id: number) => expect.objectContaining({
   data: expect.objectContaining({
     event: expect.objectContaining({ EventId: String(id) }),
   }),
+});
+
+describe('GuardHook S3 fetching', () => {
+  test('fetches and replaces HookStatusReason with S3 content when S3 URL is present', async () => {
+    const guardHookDetails = `[
+  {
+    "name": "STDIN",
+    "metadata": {},
+    "status": "FAIL",
+    "not_compliant": [
+      {
+        "Rule": {
+          "name": "AWS_S3_Bucket_PublicAccessBlockConfiguration",
+          "metadata": {},
+          "messages": {
+            "custom_message": null,
+            "error_message": null
+          },
+          "checks": [
+            {
+              "Clause": {
+                "Unary": {
+                  "context": " Properties.PublicAccessBlockConfiguration exists",
+                  "messages": {
+                    "custom_message": "",
+                    "error_message": "Check was not compliant as property [PublicAccessBlockConfiguration] is missing."
+                  },
+                  "check": {}
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "Rule": {
+          "name": "AWS_S3_Bucket_Encryption",
+          "metadata": {},
+          "messages": {
+            "custom_message": null,
+            "error_message": null
+          },
+          "checks": [
+            {
+              "Clause": {
+                "Binary": {
+                  "context": " Properties.BucketEncryption.ServerSideEncryptionConfiguration[*].ServerSideEncryptionByDefault.SSEAlgorithm EQUALS AES256",
+                  "messages": {
+                    "custom_message": "Buckets must use AES256 encryption",
+                    "error_message": "Check was not compliant as property [BucketEncryption] is missing."
+                  },
+                  "check": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "not_applicable": ["AWS_SNS_Topic_Encryption"],
+    "compliant": ["AWS_S3_Bucket_OwnershipControls"]
+  }
+]`;
+    const guardHookErrorDetails = `NonCompliant Rules:
+[AWS_S3_Bucket_PublicAccessBlockConfiguration]
+• Check was not compliant as property [PublicAccessBlockConfiguration] is missing.
+[AWS_S3_Bucket_Encryption]
+• Buckets must use AES256 encryption
+Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
+
+    const stream = new Readable();
+    stream.push(guardHookDetails);
+    stream.push(null);
+    const sdkStream = sdkStreamMixin(stream);
+
+    mockS3Client.on(GetObjectCommand).resolvesOnce({
+      Body: sdkStream as any,
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookStatusReason: 'Template failed validation. Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json',
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockS3Client).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+    expect(mockS3Client).toHaveReceivedCommandWith(GetObjectCommand, {
+      Bucket: 'test-guard-logs-bucket',
+      Key: 'cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json',
+    });
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(3);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: guardHookErrorDetails,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3, expectStop());
+  });
+
+  test('keeps original HookStatusReason when S3 fetch fails', async () => {
+    mockS3Client.on(GetObjectCommand).rejectsOnce('Access denied');
+
+    const originalMessage = 'Template failed validation. Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json';
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookStatusReason: originalMessage,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockS3Client).toHaveReceivedCommandTimes(GetObjectCommand, 1);
+    expect(mockS3Client).toHaveReceivedCommandWith(GetObjectCommand, {
+      Bucket: 'test-guard-logs-bucket',
+      Key: 'cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json',
+    });
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(4);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        level: 'warn',
+        message: 'Failed to fetch Guard Hook details from s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json: Access denied',
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
+  });
+
+  test('truncates error messages that exceed 4 lines', async () => {
+    const guardHookDetails = `[
+  {
+    "name": "STDIN",
+    "metadata": {},
+    "status": "FAIL",
+    "not_compliant": [
+      {
+        "Rule": {
+          "name": "AWS_Long_Error_Message",
+          "metadata": {},
+          "messages": {
+            "custom_message": null,
+            "error_message": null
+          },
+          "checks": [
+            {
+              "Clause": {
+                "Unary": {
+                  "context": "some context",
+                  "messages": {
+                    "custom_message": "Line 1\\nLine 2\\nLine 3\\nLine 4\\nLine 5\\nLine 6",
+                    "error_message": "fallback error"
+                  },
+                  "check": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]`;
+
+    const expectedOutput = `NonCompliant Rules:
+[AWS_Long_Error_Message]
+• Line 1
+Line 2
+Line 3
+Line 4
+  [truncated...]
+Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
+
+    const stream = new Readable();
+    stream.push(guardHookDetails);
+    stream.push(null);
+    const sdkStream = sdkStreamMixin(stream);
+
+    mockS3Client.on(GetObjectCommand).resolvesOnce({
+      Body: sdkStream as any,
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookStatusReason: 'Template failed validation. Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json',
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(3);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expectedOutput,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3, expectStop());
+  });
+
+  test('truncates error messages that exceed 400 characters', async () => {
+    const longMessage = 'A'.repeat(500);
+    const guardHookDetails = `[
+  {
+    "name": "STDIN",
+    "metadata": {},
+    "status": "FAIL",
+    "not_compliant": [
+      {
+        "Rule": {
+          "name": "AWS_Long_Char_Message",
+          "metadata": {},
+          "messages": {
+            "custom_message": null,
+            "error_message": null
+          },
+          "checks": [
+            {
+              "Clause": {
+                "Unary": {
+                  "context": "some context",
+                  "messages": {
+                    "custom_message": "${longMessage}",
+                    "error_message": "fallback error"
+                  },
+                  "check": {}
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]`;
+
+    const expectedOutput = `NonCompliant Rules:
+[AWS_Long_Char_Message]
+• ${'A'.repeat(400)}[truncated...]
+Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
+
+    const stream = new Readable();
+    stream.push(guardHookDetails);
+    stream.push(null);
+    const sdkStream = sdkStreamMixin(stream);
+
+    mockS3Client.on(GetObjectCommand).resolvesOnce({
+      Body: sdkStream as any,
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'TestResource',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookStatusReason: 'Template failed validation. Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json',
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(3);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expectedOutput,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3, expectStop());
+  });
 });

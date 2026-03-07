@@ -5,7 +5,7 @@ import { StackEventPoller } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import { stackEventHasErrorMessage } from '../../util';
-import type { ICloudFormationClient } from '../aws-auth/private';
+import type { ICloudFormationClient, IS3Client } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
@@ -14,6 +14,11 @@ export interface StackActivityMonitorProps {
    * The CloudFormation client
    */
   readonly cfn: ICloudFormationClient;
+
+  /**
+   * The S3 client for fetching Guard Hook error details
+   */
+  readonly s3Client: IS3Client;
 
   /**
    * The IoHelper used for messaging
@@ -93,6 +98,7 @@ export class StackActivityMonitor {
   private readonly ioHelper: IoHelper;
   private readonly stackName: string;
   private readonly stack: CloudFormationStackArtifact;
+  private readonly s3Client: IS3Client;
 
   constructor({
     cfn,
@@ -102,10 +108,12 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
+    s3Client,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackName = stackName;
+    this.s3Client = s3Client;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
@@ -187,6 +195,83 @@ export class StackActivityMonitor {
   }
 
   /**
+   * Extracts S3 bucket and key from a Guard Hook status reason message
+   * Pattern: "...Full output was written to s3://bucket-name/path/to/file.json"
+   */
+  private extractS3Location(hookStatusReason: string): { bucket: string; key: string } | undefined {
+    const s3UrlPattern = /Full output was written to s3:\/\/([^/]+)\/(.+)$/;
+    const match = hookStatusReason.match(s3UrlPattern);
+    if (match) {
+      return { bucket: match[1], key: match[2] };
+    }
+    return undefined;
+  }
+
+  /**
+   * Fetches the content of an S3 object and returns it as a string
+   */
+  private async fetchS3Content(bucket: string, key: string): Promise<string | undefined> {
+    try {
+      const response = await this.s3Client.getObject({ Bucket: bucket, Key: key });
+      if (response.Body) {
+        const output = JSON.parse(await response.Body.transformToString());
+
+        const lines: string[] = ['NonCompliant Rules:'];
+
+        // Extract only non-compliant rule names and error / custom messages
+        output.forEach((item: any) => {
+          if (!item.not_compliant || item.not_compliant.length === 0) {
+            return;
+          }
+
+          item.not_compliant.forEach((notCompliant: any) => {
+            const rule = notCompliant.Rule;
+            lines.push(`[${rule.name}]`);
+
+            (rule.checks || []).forEach((check: any) => {
+              const clause = check.Clause;
+              const clauseData = clause.Binary || clause.Unary;
+              if (!clauseData) {
+                return;
+              }
+
+              // Use custom_message if present and not empty, otherwise use error_message
+              let message = clauseData.messages.custom_message && clauseData.messages.custom_message !== ''
+                ? clauseData.messages.custom_message
+                : clauseData.messages.error_message;
+
+              if (message) {
+                // Truncate if message exceeds 4 lines or 400 chars
+                const messageLines = message.split('\n');
+                const maxChars = 400;
+                const maxLines = 4;
+
+                if (messageLines.length > maxLines || message.length > maxChars) {
+                  if (messageLines.length > maxLines) {
+                    message = messageLines.slice(0, maxLines).join('\n') + '\n  [truncated...]';
+                  } else {
+                    message = message.substring(0, maxChars) + '[truncated...]';
+                  }
+                }
+
+                lines.push(`• ${message}`);
+              }
+            });
+          });
+        });
+
+        return lines.join('\n');
+      }
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      await this.ioHelper.defaults.warn(
+        util.format('Failed to fetch Guard Hook details from s3://%s/%s: %s', bucket, key, errorMessage),
+      );
+    }
+    return undefined;
+  }
+
+  /**
    * Reads all new events from the stack history
    *
    * The events are returned in reverse chronological order; we continue to the next page if we
@@ -198,6 +283,18 @@ export class StackActivityMonitor {
 
     for (const resourceEvent of pollEvents) {
       this.progressMonitor.process(resourceEvent.event);
+
+      // If Guard Hook, replace HookStatusReason with full output from S3
+      if (resourceEvent.event.HookStatusReason) {
+        const s3Location = this.extractS3Location(resourceEvent.event.HookStatusReason);
+        if (s3Location) {
+          const s3Content = await this.fetchS3Content(s3Location.bucket, s3Location.key);
+          if (s3Content) {
+            const location = `Full output was written to s3://${s3Location.bucket}/${s3Location.key}`;
+            resourceEvent.event.HookStatusReason = s3Content + '\n' + location;
+          }
+        }
+      }
 
       const activity: StackActivity = {
         deployment: monitorId,
