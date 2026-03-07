@@ -1,16 +1,8 @@
-import { PublishVersionCommand, UpdateAliasCommand } from '@aws-sdk/client-lambda';
+import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { PublishVersionCommand } from '@aws-sdk/client-lambda';
 import { HotswapMode } from '../../../lib/api/hotswap';
-import { mockLambdaClient } from '../../_helpers/mock-sdk';
+import { mockCloudControlClient, mockLambdaClient } from '../../_helpers/mock-sdk';
 import * as setup from '../_helpers/hotswap-test-setup';
-
-jest.mock('@aws-sdk/client-lambda', () => {
-  const original = jest.requireActual('@aws-sdk/client-lambda');
-
-  return {
-    ...original,
-    waitUntilFunctionUpdated: jest.fn(),
-  };
-});
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
@@ -198,10 +190,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockLambdaClient).toHaveReceivedCommandWith(UpdateAliasCommand, {
-      FunctionName: 'my-function',
-      FunctionVersion: 'v2',
-      Name: 'dev',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::Lambda::Alias',
+      Identifier: 'my-function|dev',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/FunctionVersion', value: 'v2' }]),
     });
   });
 });

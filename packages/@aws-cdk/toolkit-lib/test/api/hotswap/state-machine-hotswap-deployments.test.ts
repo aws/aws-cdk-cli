@@ -1,6 +1,6 @@
-import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
+import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { HotswapMode } from '../../../lib/api/hotswap';
-import { mockStepFunctionsClient } from '../../_helpers/mock-sdk';
+import { mockCloudControlClient } from '../../_helpers/mock-sdk';
 import * as setup from '../_helpers/hotswap-test-setup';
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
@@ -28,7 +28,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).toBeUndefined();
-      expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
     } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
       // WHEN
       const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
@@ -36,7 +36,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       // THEN
       expect(deployStackResult).not.toBeUndefined();
       expect(deployStackResult?.noOp).toEqual(true);
-      expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
     }
   });
 
@@ -74,9 +74,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '{ Prop: "new-value" }',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::StepFunctions::StateMachine',
+        Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        PatchDocument: JSON.stringify([{ op: 'replace', path: '/DefinitionString', value: '{ Prop: "new-value" }' }]),
       });
     },
   );
@@ -145,20 +146,25 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: JSON.stringify(
-          {
-            StartAt: 'SuccessState',
-            States: {
-              SuccessState: {
-                Type: 'Succeed',
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::StepFunctions::StateMachine',
+        Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/DefinitionString',
+          value: JSON.stringify(
+            {
+              StartAt: 'SuccessState',
+              States: {
+                SuccessState: {
+                  Type: 'Succeed',
+                },
               },
             },
-          },
-          null,
-          2,
-        ),
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+            null,
+            2,
+          ),
+        }]),
       });
     },
   );
@@ -202,9 +208,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '{ "Prop" : "new-value" }',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::StepFunctions::StateMachine',
+        Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        PatchDocument: JSON.stringify([{ op: 'replace', path: '/DefinitionString', value: '{ "Prop" : "new-value" }' }]),
       });
     },
   );
@@ -257,16 +264,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
         // THEN
         expect(deployStackResult).toBeUndefined();
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
         // THEN
         expect(deployStackResult).not.toBeUndefined();
-        expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-          definition: '{ "Prop" : "new-value" }',
-          stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+          TypeName: 'AWS::StepFunctions::StateMachine',
+          Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+          PatchDocument: JSON.stringify([{ op: 'replace', path: '/DefinitionString', value: '{ "Prop" : "new-value" }' }]),
         });
       }
     },
@@ -305,7 +313,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
         // THEN
         expect(deployStackResult).toBeUndefined();
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
@@ -313,7 +321,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         // THEN
         expect(deployStackResult).not.toBeUndefined();
         expect(deployStackResult?.noOp).toEqual(true);
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       }
     },
   );
@@ -361,9 +369,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      definition: 'asset-param-2',
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:machine-name',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:machine-name',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/DefinitionString', value: 'asset-param-2' }]),
     });
   });
 
@@ -431,9 +440,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '"Resource": arn:swa:lambda:here:123456789012:function:my-func',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::StepFunctions::StateMachine',
+        Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        PatchDocument: JSON.stringify([{ op: 'replace', path: '/DefinitionString', value: '"Resource": arn:swa:lambda:here:123456789012:function:my-func' }]),
       });
     },
   );
@@ -625,13 +635,18 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        EventBus2Arn: 'arn:swa:events:here:123456789012:event-bus/my-event-bus',
-        EventBus2Name: 'my-event-bus',
-        EventBus2Ref: 'my-event-bus',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          EventBus2Arn: 'arn:swa:events:here:123456789012:event-bus/my-event-bus',
+          EventBus2Name: 'my-event-bus',
+          EventBus2Ref: 'my-event-bus',
+        }),
+      }]),
     });
   });
 
@@ -708,12 +723,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        TableName: 'my-dynamodb-table',
-        TableArn: 'arn:swa:dynamodb:here:123456789012:table/my-dynamodb-table',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          TableName: 'my-dynamodb-table',
+          TableArn: 'arn:swa:dynamodb:here:123456789012:table/my-dynamodb-table',
+        }),
+      }]),
     });
   });
 
@@ -766,12 +786,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        KeyId: 'a-key',
-        KeyArn: 'arn:swa:kms:here:123456789012:key/a-key',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          KeyId: 'a-key',
+          KeyArn: 'arn:swa:kms:here:123456789012:key/a-key',
+        }),
+      }]),
     });
   });
 
@@ -810,6 +835,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(deployStackResult).not.toBeUndefined();
     expect(deployStackResult?.noOp).toEqual(true);
-    expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
   });
 });

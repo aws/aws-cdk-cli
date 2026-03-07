@@ -1,10 +1,8 @@
-import type { UpdateProjectCommandInput } from '@aws-sdk/client-codebuild';
 import {
   type HotswapChange,
   classifyChanges,
 } from './common';
 import type { ResourceChange } from '../../payloads/hotswap';
-import { lowerCaseFirstCharacter, transformObjectKeys } from '../../util';
 import type { SDK } from '../aws-auth/private';
 import type { EvaluateCloudFormationTemplate } from '../cloudformation';
 
@@ -22,9 +20,6 @@ export async function isHotswappableCodeBuildProjectChange(
   const classifiedChanges = classifyChanges(change, ['Source', 'Environment', 'SourceVersion']);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
   if (classifiedChanges.namesOfHotswappableProps.length > 0) {
-    const updateProjectInput: UpdateProjectCommandInput = {
-      name: '',
-    };
     const projectName = await evaluateCfnTemplate.establishResourcePhysicalName(
       logicalId,
       change.newValue.Properties?.Name,
@@ -48,30 +43,28 @@ export async function isHotswappableCodeBuildProjectChange(
       hotswappable: true,
       service: 'codebuild',
       apply: async (sdk: SDK) => {
-        updateProjectInput.name = projectName;
+        const patchOps: Array<{ op: string; path: string; value: any }> = [];
 
         for (const updatedPropName in change.propertyUpdates) {
           const updatedProp = change.propertyUpdates[updatedPropName];
           switch (updatedPropName) {
             case 'Source':
-              updateProjectInput.source = transformObjectKeys(
-                await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue),
-                convertSourceCloudformationKeyToSdkKey,
-              );
+              patchOps.push({ op: 'replace', path: '/Source', value: await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue) });
               break;
             case 'Environment':
-              updateProjectInput.environment = await transformObjectKeys(
-                await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue),
-                lowerCaseFirstCharacter,
-              );
+              patchOps.push({ op: 'replace', path: '/Environment', value: await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue) });
               break;
             case 'SourceVersion':
-              updateProjectInput.sourceVersion = await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue);
+              patchOps.push({ op: 'replace', path: '/SourceVersion', value: await evaluateCfnTemplate.evaluateCfnExpression(updatedProp.newValue) });
               break;
           }
         }
 
-        await sdk.codeBuild().updateProject(updateProjectInput);
+        await sdk.cloudControl().updateResource({
+          TypeName: 'AWS::CodeBuild::Project',
+          Identifier: projectName,
+          PatchDocument: JSON.stringify(patchOps),
+        });
       },
     });
   }
@@ -79,9 +72,9 @@ export async function isHotswappableCodeBuildProjectChange(
   return ret;
 }
 
-function convertSourceCloudformationKeyToSdkKey(key: string): string {
-  if (key.toLowerCase() === 'buildspec') {
-    return key.toLowerCase();
-  }
-  return lowerCaseFirstCharacter(key);
-}
+// function convertSourceCloudformationKeyToSdkKey(key: string): string {
+//   if (key.toLowerCase() === 'buildspec') {
+//     return key.toLowerCase();
+//   }
+//   return lowerCaseFirstCharacter(key);
+// }

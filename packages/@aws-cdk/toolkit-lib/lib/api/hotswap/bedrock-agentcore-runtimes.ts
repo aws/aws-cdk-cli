@@ -1,8 +1,4 @@
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
-import type {
-  AgentRuntimeArtifact as SdkAgentRuntimeArtifact,
-  AgentManagedRuntimeType,
-} from '@aws-sdk/client-bedrock-agentcore-control';
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { ResourceChange } from '../../payloads/hotswap';
@@ -55,40 +51,35 @@ export async function isHotswappableBedrockAgentCoreRuntimeChange(
     hotswappable: true,
     service: 'bedrock-agentcore',
     apply: async (sdk: SDK) => {
-      const bedrockAgentCore = sdk.bedrockAgentCoreControl();
-
-      const currentRuntime = await bedrockAgentCore.getAgentRuntime({
-        agentRuntimeId,
+      const currentResource = await sdk.cloudControl().getResource({
+        TypeName: 'AWS::BedrockAgentCore::Runtime',
+        Identifier: agentRuntimeId,
       });
 
-      // While UpdateAgentRuntimeRequest type allows undefined,
-      // the API will fail at runtime if these required properties are not provided.
-      if (!currentRuntime.agentRuntimeArtifact) {
-        throw new ToolkitError('Current runtime does not have an artifact');
+      const currentProps = JSON.parse(currentResource.ResourceDescription?.Properties ?? '{}');
+
+      const desiredState: Record<string, any> = {
+        ...currentProps,
+      };
+
+      if (runtimeChange.artifact) {
+        desiredState.AgentRuntimeArtifact = toCfnAgentRuntimeArtifact(runtimeChange.artifact);
       }
-      if (!currentRuntime.roleArn) {
-        throw new ToolkitError('Current runtime does not have a roleArn');
+      if (runtimeChange.description !== undefined) {
+        desiredState.Description = runtimeChange.description;
       }
-      if (!currentRuntime.networkConfiguration) {
-        throw new ToolkitError('Current runtime does not have a networkConfiguration');
+      if (runtimeChange.environmentVariables !== undefined) {
+        desiredState.EnvironmentVariables = runtimeChange.environmentVariables;
       }
 
-      // All properties must be explicitly specified, otherwise they will be reset to
-      // default values. We pass all properties from the current runtime and override
-      // only the ones that have changed.
-      await bedrockAgentCore.updateAgentRuntime({
-        agentRuntimeId,
-        agentRuntimeArtifact: runtimeChange.artifact
-          ? toSdkAgentRuntimeArtifact(runtimeChange.artifact)
-          : currentRuntime.agentRuntimeArtifact,
-        roleArn: currentRuntime.roleArn,
-        networkConfiguration: currentRuntime.networkConfiguration,
-        description: runtimeChange.description ?? currentRuntime.description,
-        authorizerConfiguration: currentRuntime.authorizerConfiguration,
-        requestHeaderConfiguration: currentRuntime.requestHeaderConfiguration,
-        protocolConfiguration: currentRuntime.protocolConfiguration,
-        lifecycleConfiguration: currentRuntime.lifecycleConfiguration,
-        environmentVariables: runtimeChange.environmentVariables ?? currentRuntime.environmentVariables,
+      const patchOps = Object.entries(desiredState).map(([key, value]) => ({
+        op: 'replace', path: `/${key}`, value,
+      }));
+
+      await sdk.cloudControl().updateResource({
+        TypeName: 'AWS::BedrockAgentCore::Runtime',
+        Identifier: agentRuntimeId,
+        PatchDocument: JSON.stringify(patchOps),
       });
     },
   });
@@ -170,24 +161,59 @@ async function evaluateAgentRuntimeArtifact(
   return undefined;
 }
 
-function toSdkAgentRuntimeArtifact(artifact: AgentRuntimeArtifact): SdkAgentRuntimeArtifact {
+// function toSdkAgentRuntimeArtifact(artifact: AgentRuntimeArtifact): SdkAgentRuntimeArtifact {
+//   if (artifact.codeConfiguration) {
+//     const code = artifact.codeConfiguration.code.s3
+//       ? { s3: artifact.codeConfiguration.code.s3 }
+//       : undefined;
+
+//     return {
+//       codeConfiguration: {
+//         code,
+//         runtime: artifact.codeConfiguration.runtime as AgentManagedRuntimeType,
+//         entryPoint: artifact.codeConfiguration.entryPoint,
+//       },
+//     };
+//   }
+
+//   if (artifact.containerConfiguration) {
+//     return {
+//       containerConfiguration: artifact.containerConfiguration,
+//     };
+//   }
+
+//   // never reached
+//   throw new ToolkitError('AgentRuntimeArtifact must have either codeConfiguration or containerConfiguration');
+// }
+
+function toCfnAgentRuntimeArtifact(artifact: AgentRuntimeArtifact): Record<string, any> {
   if (artifact.codeConfiguration) {
     const code = artifact.codeConfiguration.code.s3
-      ? { s3: artifact.codeConfiguration.code.s3 }
-      : undefined;
+      ? {
+        S3: {
+          Bucket: artifact.codeConfiguration.code.s3.bucket,
+          Prefix: artifact.codeConfiguration.code.s3.prefix,
+          ...(artifact.codeConfiguration.code.s3.versionId && {
+            VersionId: artifact.codeConfiguration.code.s3.versionId,
+          }),
+        },
+      }
+      : {};
 
     return {
-      codeConfiguration: {
-        code,
-        runtime: artifact.codeConfiguration.runtime as AgentManagedRuntimeType,
-        entryPoint: artifact.codeConfiguration.entryPoint,
+      CodeConfiguration: {
+        Code: code,
+        Runtime: artifact.codeConfiguration.runtime,
+        EntryPoint: artifact.codeConfiguration.entryPoint,
       },
     };
   }
 
   if (artifact.containerConfiguration) {
     return {
-      containerConfiguration: artifact.containerConfiguration,
+      ContainerConfiguration: {
+        ContainerUri: artifact.containerConfiguration.containerUri,
+      },
     };
   }
 

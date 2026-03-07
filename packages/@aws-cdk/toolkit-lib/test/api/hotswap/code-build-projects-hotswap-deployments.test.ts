@@ -1,6 +1,6 @@
-import { UpdateProjectCommand } from '@aws-sdk/client-codebuild';
+import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { HotswapMode } from '../../../lib/api/hotswap';
-import { mockCodeBuildClient } from '../../_helpers/mock-sdk';
+import { mockCloudControlClient } from '../../_helpers/mock-sdk';
 import * as setup from '../_helpers/hotswap-test-setup';
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
@@ -28,7 +28,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).toBeUndefined();
-      expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
     } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
       // WHEN
       const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
@@ -36,7 +36,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       // THEN
       expect(deployStackResult).not.toBeUndefined();
       expect(deployStackResult?.noOp).toEqual(true);
-      expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
     }
   });
 
@@ -86,12 +86,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'my-project',
-        source: {
-          type: 'NO_SOURCE',
-          buildspec: 'new-spec',
-        },
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'my-project',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/Source',
+          value: {
+            BuildSpec: 'new-spec',
+            Type: 'NO_SOURCE',
+          },
+        }]),
       });
     },
   );
@@ -144,9 +149,14 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'my-project',
-        sourceVersion: 'v2',
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'my-project',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/SourceVersion',
+          value: 'v2',
+        }]),
       });
     },
   );
@@ -235,27 +245,32 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'my-project',
-        environment: {
-          computeType: 'BUILD_GENERAL1_SMALL',
-          environmentVariables: [
-            {
-              name: 'SUPER_IMPORTANT_ENV_VAR',
-              type: 'PLAINTEXT',
-              value: 'changed value',
-            },
-            {
-              name: 'NEW_IMPORTANT_ENV_VAR',
-              type: 'PLAINTEXT',
-              value: 'new value',
-            },
-          ],
-          image: 'aws/codebuild/standard:1.0',
-          imagePullCredentialsType: 'CODEBUILD',
-          privilegedMode: false,
-          type: 'LINUX_CONTAINER',
-        },
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'my-project',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/Environment',
+          value: {
+            ComputeType: 'BUILD_GENERAL1_SMALL',
+            EnvironmentVariables: [
+              {
+                Name: 'SUPER_IMPORTANT_ENV_VAR',
+                Type: 'PLAINTEXT',
+                Value: 'changed value',
+              },
+              {
+                Name: 'NEW_IMPORTANT_ENV_VAR',
+                Type: 'PLAINTEXT',
+                Value: 'new value',
+              },
+            ],
+            Image: 'aws/codebuild/standard:1.0',
+            ImagePullCredentialsType: 'CODEBUILD',
+            PrivilegedMode: false,
+            Type: 'LINUX_CONTAINER',
+          },
+        }]),
       });
     },
   );
@@ -317,12 +332,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'mybucket-project',
-        source: {
-          type: 'NO_SOURCE',
-          buildspec: 'new-spec',
-        },
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'mybucket-project',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/Source',
+          value: {
+            BuildSpec: 'new-spec',
+            Type: 'NO_SOURCE',
+          },
+        }]),
       });
     },
   );
@@ -386,12 +406,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'my-project',
-        source: {
-          type: 'NO_SOURCE',
-          buildspec: 'new-spec',
-        },
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'my-project',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/Source',
+          value: {
+            BuildSpec: 'new-spec',
+            Type: 'NO_SOURCE',
+          },
+        }]),
       });
     },
   );
@@ -554,12 +579,17 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
       // THEN
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-        name: 'mock-project-resource-id',
-        source: {
-          type: 'NO_SOURCE',
-          buildspec: 'new-spec',
-        },
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::CodeBuild::Project',
+        Identifier: 'mock-project-resource-id',
+        PatchDocument: JSON.stringify([{
+          op: 'replace',
+          path: '/Source',
+          value: {
+            BuildSpec: 'new-spec',
+            Type: 'NO_SOURCE',
+          },
+        }]),
       });
     },
   );
@@ -605,7 +635,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
         // THEN
         expect(deployStackResult).toBeUndefined();
-        expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
@@ -613,7 +643,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         // THEN
         expect(deployStackResult).not.toBeUndefined();
         expect(deployStackResult?.noOp).toEqual(true);
-        expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       }
     },
   );
@@ -663,19 +693,24 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
         // THEN
         expect(deployStackResult).toBeUndefined();
-        expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
         // THEN
         expect(deployStackResult).not.toBeUndefined();
-        expect(mockCodeBuildClient).toHaveReceivedCommandWith(UpdateProjectCommand, {
-          name: 'mock-project-resource-id',
-          source: {
-            type: 'NO_SOURCE',
-            buildspec: 'new-spec',
-          },
+        expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+          TypeName: 'AWS::CodeBuild::Project',
+          Identifier: 'mock-project-resource-id',
+          PatchDocument: JSON.stringify([{
+            op: 'replace',
+            path: '/Source',
+            value: {
+              BuildSpec: 'new-spec',
+              Type: 'NO_SOURCE',
+            },
+          }]),
         });
       }
     },
@@ -725,7 +760,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
         // THEN
         expect(deployStackResult).toBeUndefined();
-        expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
@@ -733,7 +768,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         // THEN
         expect(deployStackResult).not.toBeUndefined();
         expect(deployStackResult?.noOp).toEqual(true);
-        expect(mockCodeBuildClient).not.toHaveReceivedCommand(UpdateProjectCommand);
+        expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       }
     },
   );

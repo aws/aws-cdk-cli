@@ -1,6 +1,5 @@
 import { Writable } from 'stream';
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
-import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { AffectedResource, ResourceChange } from '../../payloads/hotswap';
@@ -75,35 +74,47 @@ export async function isHotswappableLambdaFunctionChange(
       service: 'lambda',
       apply: async (sdk: SDK) => {
         const lambda = sdk.lambda();
+        const cloudControl = sdk.cloudControl();
         const operations: Promise<any>[] = [];
 
         if (lambdaCodeChange.code !== undefined || lambdaCodeChange.configurations !== undefined) {
-          if (lambdaCodeChange.code !== undefined) {
-            const updateFunctionCodeResponse = await lambda.updateFunctionCode({
-              FunctionName: functionName,
-              S3Bucket: lambdaCodeChange.code.s3Bucket,
-              S3Key: lambdaCodeChange.code.s3Key,
-              ImageUri: lambdaCodeChange.code.imageUri,
-              ZipFile: lambdaCodeChange.code.functionCodeZip,
-              S3ObjectVersion: lambdaCodeChange.code.s3ObjectVersion,
-            });
+          const patchOps: Array<{ op: string; path: string; value: unknown }> = [];
 
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
+          if (lambdaCodeChange.code !== undefined) {
+            // Code properties are writeOnlyProperties in the CloudFormation schema,
+            // so they must use 'add' instead of 'replace'
+            if (lambdaCodeChange.code.s3Bucket) {
+              patchOps.push(
+                { op: 'add', path: '/Code/S3Bucket', value: lambdaCodeChange.code.s3Bucket },
+                { op: 'add', path: '/Code/S3Key', value: lambdaCodeChange.code.s3Key },
+              );
+              if (lambdaCodeChange.code.s3ObjectVersion) {
+                patchOps.push({ op: 'add', path: '/Code/S3ObjectVersion', value: lambdaCodeChange.code.s3ObjectVersion });
+              }
+            }
+            if (lambdaCodeChange.code.imageUri) {
+              patchOps.push({ op: 'add', path: '/Code/ImageUri', value: lambdaCodeChange.code.imageUri });
+            }
+            if (lambdaCodeChange.code.functionCodeZip) {
+              patchOps.push({ op: 'add', path: '/Code/ZipFile', value: lambdaCodeChange.code.functionCodeZip.toString('base64') });
+            }
           }
 
           if (lambdaCodeChange.configurations !== undefined) {
-            const updateRequest: UpdateFunctionConfigurationCommandInput = {
-              FunctionName: functionName,
-            };
             if (lambdaCodeChange.configurations.description !== undefined) {
-              updateRequest.Description = lambdaCodeChange.configurations.description;
+              patchOps.push({ op: 'replace', path: '/Description', value: lambdaCodeChange.configurations.description });
             }
             if (lambdaCodeChange.configurations.environment !== undefined) {
-              updateRequest.Environment = lambdaCodeChange.configurations.environment;
+              patchOps.push({ op: 'replace', path: '/Environment', value: lambdaCodeChange.configurations.environment });
             }
-            const updateFunctionCodeResponse = await lambda.updateFunctionConfiguration(updateRequest);
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
           }
+          await cloudControl.updateResource({
+            TypeName: 'AWS::Lambda::Function',
+            Identifier: functionName,
+            PatchDocument: JSON.stringify(patchOps),
+          });
+
+          await waitForCloudControlUpdateToFinish(lambda, functionName);
 
           // only if the code changed is there any point in publishing a new Version
           const versions = dependencies.filter((d) => d.resourceType === 'AWS::Lambda::Version');
@@ -118,10 +129,12 @@ export async function isHotswappableLambdaFunctionChange(
               const versionUpdate = await publishVersionPromise;
               for (const alias of aliases) {
                 operations.push(
-                  lambda.updateAlias({
-                    FunctionName: functionName,
-                    Name: alias.physicalName,
-                    FunctionVersion: versionUpdate.Version,
+                  cloudControl.updateResource({
+                    TypeName: 'AWS::Lambda::Alias',
+                    Identifier: `${functionName}|${alias.physicalName}`,
+                    PatchDocument: JSON.stringify([
+                      { op: 'replace', path: '/FunctionVersion', value: versionUpdate.Version },
+                    ]),
                   }),
                 );
               }
@@ -296,6 +309,18 @@ function zipString(fileName: string, rawString: string): Promise<Buffer> {
 }
 
 /**
+ * Wait for a Cloud Control API update request to complete.
+ */
+async function waitForCloudControlUpdateToFinish(
+  lambda: ILambdaClient,
+  functionName: string,
+): Promise<void> {
+  await lambda.waitUntilFunctionUpdated(2, {
+    FunctionName: functionName,
+  });
+}
+
+/**
  * After a Lambda Function is updated, it cannot be updated again until the
  * `State=Active` and the `LastUpdateStatus=Successful`.
  *
@@ -303,23 +328,23 @@ function zipString(fileName: string, rawString: string): Promise<Buffer> {
  * or very slowly. For example, Zip based functions _not_ in a VPC can take ~1 second whereas VPC
  * or Container functions can take ~25 seconds (and 'idle' VPC functions can take minutes).
  */
-async function waitForLambdasPropertiesUpdateToFinish(
-  currentFunctionConfiguration: FunctionConfiguration,
-  lambda: ILambdaClient,
-  functionName: string,
-): Promise<void> {
-  const functionIsInVpcOrUsesDockerForCode =
-    currentFunctionConfiguration.VpcConfig?.VpcId || currentFunctionConfiguration.PackageType === 'Image';
+// async function waitForLambdasPropertiesUpdateToFinish(
+//   currentFunctionConfiguration: FunctionConfiguration,
+//   lambda: ILambdaClient,
+//   functionName: string,
+// ): Promise<void> {
+//   const functionIsInVpcOrUsesDockerForCode =
+//     currentFunctionConfiguration.VpcConfig?.VpcId || currentFunctionConfiguration.PackageType === 'Image';
 
-  // if the function is deployed in a VPC or if it is a container image function
-  // then the update will take much longer and we can wait longer between checks
-  // otherwise, the update will be quick, so a 1-second delay is fine
-  const delaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 1;
+//   // if the function is deployed in a VPC or if it is a container image function
+//   // then the update will take much longer and we can wait longer between checks
+//   // otherwise, the update will be quick, so a 1-second delay is fine
+//   const delaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 1;
 
-  await lambda.waitUntilFunctionUpdated(delaySeconds, {
-    FunctionName: functionName,
-  });
-}
+//   await lambda.waitUntilFunctionUpdated(delaySeconds, {
+//     FunctionName: functionName,
+//   });
+// }
 
 /**
  * Get file extension from Lambda runtime string.

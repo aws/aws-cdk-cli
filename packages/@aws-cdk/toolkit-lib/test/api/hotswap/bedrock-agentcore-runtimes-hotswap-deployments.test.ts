@@ -1,39 +1,45 @@
-import { GetAgentRuntimeCommand, UpdateAgentRuntimeCommand } from '@aws-sdk/client-bedrock-agentcore-control';
+import { GetResourceCommand, UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { HotswapMode } from '../../../lib/api/hotswap';
-import { mockBedrockAgentCoreControlClient } from '../../_helpers/mock-sdk';
+import { mockCloudControlClient } from '../../_helpers/mock-sdk';
 import * as setup from '../_helpers/hotswap-test-setup';
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
+const defaultCurrentProperties = {
+  AgentRuntimeId: 'my-runtime',
+  RoleArn: 'arn:aws:iam::123456789012:role/MyRole',
+  NetworkConfiguration: {
+    NetworkMode: 'VPC',
+    NetworkModeConfig: {
+      Subnets: ['subnet-1', 'subnet-2'],
+      SecurityGroups: ['sg-1'],
+    },
+  },
+  AgentRuntimeArtifact: {
+    CodeConfiguration: {
+      Code: {
+        S3: {
+          Bucket: 'my-bucket',
+          Prefix: 'code.zip',
+        },
+      },
+      Runtime: 'PYTHON_3_13',
+      EntryPoint: ['app.py'],
+    },
+  },
+};
+
 beforeEach(() => {
   hotswapMockSdkProvider = setup.setupHotswapTests();
-  mockBedrockAgentCoreControlClient.on(GetAgentRuntimeCommand).resolves({
-    agentRuntimeId: 'my-runtime',
-    roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-    networkConfiguration: {
-      networkMode: 'VPC',
-      networkModeConfig: {
-        subnets: ['subnet-1', 'subnet-2'],
-        securityGroups: ['sg-1'],
-      },
-    },
-    agentRuntimeArtifact: {
-      codeConfiguration: {
-        code: {
-          s3: {
-            bucket: 'my-bucket',
-            prefix: 'code.zip',
-          },
-        },
-        runtime: 'PYTHON_3_13',
-        entryPoint: ['app.py'],
-      },
+  mockCloudControlClient.on(GetResourceCommand).resolves({
+    ResourceDescription: {
+      Properties: JSON.stringify(defaultCurrentProperties),
     },
   });
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
-  test('calls the updateAgentRuntime() API when it receives only an S3 code difference in a Runtime', async () => {
+  test('calls the updateResource() API when it receives only an S3 code difference in a Runtime', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -106,32 +112,28 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockBedrockAgentCoreControlClient).toHaveReceivedCommandWith(UpdateAgentRuntimeCommand, {
-      agentRuntimeId: 'my-runtime',
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'new-code.zip',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::BedrockAgentCore::Runtime',
+      Identifier: 'my-runtime',
+      PatchDocument: JSON.stringify(Object.entries({
+        ...defaultCurrentProperties,
+        AgentRuntimeArtifact: {
+          CodeConfiguration: {
+            Code: {
+              S3: {
+                Bucket: 'my-bucket',
+                Prefix: 'new-code.zip',
+              },
             },
+            Runtime: 'PYTHON_3_13',
+            EntryPoint: ['app.py'],
           },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
         },
-      },
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
+      }).map(([key, value]) => ({ op: 'replace', path: `/${key}`, value }))),
     });
   });
 
-  test('calls the updateAgentRuntime() API when it receives only a container image difference in a Runtime', async () => {
+  test('calls the updateResource() API when it receives only a container image difference in a Runtime', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -190,26 +192,26 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockBedrockAgentCoreControlClient).toHaveReceivedCommandWith(UpdateAgentRuntimeCommand, {
-      agentRuntimeId: 'my-runtime',
-      agentRuntimeArtifact: {
-        containerConfiguration: {
-          containerUri: '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:new-tag',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::BedrockAgentCore::Runtime',
+      Identifier: 'my-runtime',
+      PatchDocument: JSON.stringify(Object.entries({
+        ...defaultCurrentProperties,
+        AgentRuntimeArtifact: {
+          ContainerConfiguration: {
+            ContainerUri: '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:new-tag',
+          },
         },
-      },
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
+      }).map(([key, value]) => ({ op: 'replace', path: `/${key}`, value }))),
     });
   });
 
-  test('calls the updateAgentRuntime() API when it receives only a description change', async () => {
+  test('calls the updateResource() API when it receives only a description change', async () => {
     // GIVEN
+    const currentPropsWithDescription = {
+      ...defaultCurrentProperties,
+      Description: 'Old description',
+    };
     setup.setCurrentCfnStackTemplate({
       Resources: {
         Runtime: {
@@ -244,29 +246,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     setup.pushStackResourceSummaries(
       setup.stackSummaryOf('Runtime', 'AWS::BedrockAgentCore::Runtime', 'my-runtime'),
     );
-    mockBedrockAgentCoreControlClient.on(GetAgentRuntimeCommand).resolves({
-      agentRuntimeId: 'my-runtime',
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      ResourceDescription: {
+        Properties: JSON.stringify(currentPropsWithDescription),
       },
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'code.zip',
-            },
-          },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
-        },
-      },
-      description: 'Old description',
     });
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
@@ -307,34 +290,24 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockBedrockAgentCoreControlClient).toHaveReceivedCommandWith(UpdateAgentRuntimeCommand, {
-      agentRuntimeId: 'my-runtime',
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'code.zip',
-            },
-          },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
-        },
-      },
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
-      description: 'New description',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::BedrockAgentCore::Runtime',
+      Identifier: 'my-runtime',
+      PatchDocument: JSON.stringify(Object.entries({
+        ...currentPropsWithDescription,
+        Description: 'New description',
+      }).map(([key, value]) => ({ op: 'replace', path: `/${key}`, value }))),
     });
   });
 
-  test('calls the updateAgentRuntime() API when it receives only environment variables changes', async () => {
+  test('calls the updateResource() API when it receives only environment variables changes', async () => {
     // GIVEN
+    const currentPropsWithEnvVars = {
+      ...defaultCurrentProperties,
+      EnvironmentVariables: {
+        KEY1: 'value1',
+      },
+    };
     setup.setCurrentCfnStackTemplate({
       Resources: {
         Runtime: {
@@ -371,30 +344,9 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     setup.pushStackResourceSummaries(
       setup.stackSummaryOf('Runtime', 'AWS::BedrockAgentCore::Runtime', 'my-runtime'),
     );
-    mockBedrockAgentCoreControlClient.on(GetAgentRuntimeCommand).resolves({
-      agentRuntimeId: 'my-runtime',
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'code.zip',
-            },
-          },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
-        },
-      },
-      environmentVariables: {
-        KEY1: 'value1',
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      ResourceDescription: {
+        Properties: JSON.stringify(currentPropsWithEnvVars),
       },
     });
     const cdkStackArtifact = setup.cdkStackArtifactOf({
@@ -439,36 +391,20 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockBedrockAgentCoreControlClient).toHaveReceivedCommandWith(UpdateAgentRuntimeCommand, {
-      agentRuntimeId: 'my-runtime',
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'code.zip',
-            },
-          },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::BedrockAgentCore::Runtime',
+      Identifier: 'my-runtime',
+      PatchDocument: JSON.stringify(Object.entries({
+        ...currentPropsWithEnvVars,
+        EnvironmentVariables: {
+          KEY1: 'value1',
+          KEY2: 'value2',
         },
-      },
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
-      environmentVariables: {
-        KEY1: 'value1',
-        KEY2: 'value2',
-      },
+      }).map(([key, value]) => ({ op: 'replace', path: `/${key}`, value }))),
     });
   });
 
-  test('does not call the updateAgentRuntime() API when a non-hotswappable property changes', async () => {
+  test('does not call the updateResource() API when a non-hotswappable property changes', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -545,10 +481,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     } else {
       expect(deployStackResult).not.toBeUndefined();
     }
-    expect(mockBedrockAgentCoreControlClient).not.toHaveReceivedCommand(UpdateAgentRuntimeCommand);
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
   });
 
-  test('calls the updateAgentRuntime() API with S3 versionId when specified', async () => {
+  test('calls the updateResource() API with S3 versionId when specified', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -623,29 +559,25 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockBedrockAgentCoreControlClient).toHaveReceivedCommandWith(UpdateAgentRuntimeCommand, {
-      agentRuntimeId: 'my-runtime',
-      agentRuntimeArtifact: {
-        codeConfiguration: {
-          code: {
-            s3: {
-              bucket: 'my-bucket',
-              prefix: 'code.zip',
-              versionId: 'v2',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::BedrockAgentCore::Runtime',
+      Identifier: 'my-runtime',
+      PatchDocument: JSON.stringify(Object.entries({
+        ...defaultCurrentProperties,
+        AgentRuntimeArtifact: {
+          CodeConfiguration: {
+            Code: {
+              S3: {
+                Bucket: 'my-bucket',
+                Prefix: 'code.zip',
+                VersionId: 'v2',
+              },
             },
+            Runtime: 'PYTHON_3_13',
+            EntryPoint: ['app.py'],
           },
-          runtime: 'PYTHON_3_13',
-          entryPoint: ['app.py'],
         },
-      },
-      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
-      networkConfiguration: {
-        networkMode: 'VPC',
-        networkModeConfig: {
-          subnets: ['subnet-1', 'subnet-2'],
-          securityGroups: ['sg-1'],
-        },
-      },
+      }).map(([key, value]) => ({ op: 'replace', path: `/${key}`, value }))),
     });
   });
 });

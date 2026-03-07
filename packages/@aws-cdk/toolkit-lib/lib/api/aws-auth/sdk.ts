@@ -34,12 +34,21 @@ import {
   UpdateAgentRuntimeCommand,
 } from '@aws-sdk/client-bedrock-agentcore-control';
 import type {
+  CreateResourceCommandInput,
+  CreateResourceCommandOutput,
   GetResourceCommandInput,
   GetResourceCommandOutput,
+  GetResourceRequestStatusCommandInput,
+  GetResourceRequestStatusCommandOutput,
   ListResourcesCommandInput,
   ListResourcesCommandOutput,
+  UpdateResourceCommandInput,
+  UpdateResourceCommandOutput,
 } from '@aws-sdk/client-cloudcontrol';
 import {
+  GetResourceRequestStatusCommand,
+  CreateResourceCommand,
+  UpdateResourceCommand,
   CloudControlClient,
   GetResourceCommand,
   ListResourcesCommand,
@@ -445,8 +454,11 @@ export interface IBedrockAgentCoreControlClient {
 }
 
 export interface ICloudControlClient {
+  createResource(input: CreateResourceCommandInput): Promise<CreateResourceCommandOutput>;
   listResources(input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput>;
   getResource(input: GetResourceCommandInput): Promise<GetResourceCommandOutput>;
+  getResourceRequestStatus(input: GetResourceRequestStatusCommandInput): Promise<GetResourceRequestStatusCommandOutput>;
+  updateResource(input: UpdateResourceCommandInput): Promise<UpdateResourceCommandOutput>;
 }
 
 export interface ICloudFormationClient {
@@ -711,10 +723,16 @@ export class SDK {
   public cloudControl(): ICloudControlClient {
     const client = new CloudControlClient(this.config);
     return {
+      createResource: (input: CreateResourceCommandInput): Promise<CreateResourceCommandOutput> =>
+        client.send(new CreateResourceCommand(input)),
       listResources: (input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput> =>
         client.send(new ListResourcesCommand(input)),
       getResource: (input: GetResourceCommandInput): Promise<GetResourceCommandOutput> =>
         client.send(new GetResourceCommand(input)),
+      getResourceRequestStatus: (input: GetResourceRequestStatusCommandInput): Promise<GetResourceRequestStatusCommandOutput> =>
+        client.send(new GetResourceRequestStatusCommand(input)),
+      updateResource: (input: UpdateResourceCommandInput): Promise<UpdateResourceCommandOutput> =>
+        client.send(new UpdateResourceCommand(input)),
     };
   }
 

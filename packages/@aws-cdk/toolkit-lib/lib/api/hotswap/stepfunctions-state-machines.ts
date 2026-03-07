@@ -44,10 +44,15 @@ export async function isHotswappableStateMachineChange(
       hotswappable: true,
       service: 'stepfunctions-service',
       apply: async (sdk: SDK) => {
-        // not passing the optional properties leaves them unchanged
-        await sdk.stepFunctions().updateStateMachine({
-          stateMachineArn,
-          definition: await evaluateCfnTemplate.evaluateCfnExpression(change.propertyUpdates.DefinitionString.newValue),
+        const cloudControl = sdk.cloudControl();
+        const definition = await evaluateCfnTemplate.evaluateCfnExpression(change.propertyUpdates.DefinitionString.newValue);
+
+        await cloudControl.updateResource({
+          TypeName: 'AWS::StepFunctions::StateMachine',
+          Identifier: stateMachineArn,
+          PatchDocument: JSON.stringify([
+            { op: 'replace', path: '/DefinitionString', value: definition },
+          ]),
         });
       },
     });
