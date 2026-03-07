@@ -226,7 +226,7 @@ export class StackActivityMonitor {
 
           item.not_compliant.forEach((notCompliant: any) => {
             const rule = notCompliant.Rule;
-            lines.push(`• ${rule.name}`);
+            lines.push(`[${rule.name}]`);
 
             (rule.checks || []).forEach((check: any) => {
               const clause = check.Clause;
@@ -254,7 +254,7 @@ export class StackActivityMonitor {
                   }
                 }
 
-                lines.push(`  ${message}`);
+                lines.push(`• ${message}`);
               }
             });
           });
