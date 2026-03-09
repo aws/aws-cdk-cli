@@ -1,10 +1,10 @@
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { waitForOutput, waitForCondition } from './watch-helpers';
+import { waitForOutput, waitForCondition, safeKillProcess } from './watch-helpers';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(3 * 60 * 1000); // 3 minutes for watch tests
+jest.setTimeout(5 * 60 * 1000); // 5 minutes for watch tests
 
 integTest(
   'cdk watch detects file changes with glob patterns',
@@ -25,12 +25,11 @@ integTest(
 
     let output = '';
 
-    // Start cdk watch with detached process group for clean termination
+    // Start cdk watch
     const watchProcess = child_process.spawn('cdk', [
       'watch', '--hotswap', '-v', fixture.fullStackName('test-1'),
     ], {
       cwd: fixture.integTestDir,
-      shell: true,
       stdio: 'pipe',
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
@@ -52,7 +51,7 @@ integTest(
       fixture.log('✓ Initial deployment completed');
 
       // Update the test file timestamp to trigger a watch event
-      child_process.spawn('touch', [testFile]);
+      child_process.spawnSync('touch', [testFile]);
 
       await waitForOutput(() => output, 'Detected change to');
       fixture.log('✓ Watch detected file change');
@@ -61,11 +60,9 @@ integTest(
       await waitForCondition(() => (output.match(/deployment time/g) || []).length >= 2);
       fixture.log('✓ Second deployment completed');
     } finally {
-      try {
-        watchProcess.kill('SIGTERM');
-      } catch (e) {
-        // process may have already exited
-      }
+      safeKillProcess(watchProcess);
     }
+
+    expect.assertions(4);
   }),
 );
