@@ -31,7 +31,7 @@ integTest(
     ], {
       cwd: fixture.integTestDir,
       shell: true,
-      stdio: 'pipe',
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
