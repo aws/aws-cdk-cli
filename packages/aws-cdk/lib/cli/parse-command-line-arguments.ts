@@ -589,6 +589,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Whether to build/publish assets in parallel',
         })
+        .option('asset-build-concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of asset builds to run in parallel',
+          requiresArg: true,
+        })
         .option('asset-prebuild', {
           default: true,
           type: 'boolean',
@@ -598,6 +604,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to deploy if the app contains no stacks',
+        })
+        .option('revert-drift', {
+          default: false,
+          type: 'boolean',
+          desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
     )
     .command('rollback [STACKS..]', 'Rolls back the stack(s) named STACKS to their last stable state', (yargs: Argv) =>

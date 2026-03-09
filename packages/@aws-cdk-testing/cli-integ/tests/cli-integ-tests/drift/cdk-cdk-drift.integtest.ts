@@ -1,6 +1,7 @@
 import { DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
-import { GetFunctionCommand, UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
-import { integTest, sleep, withDefaultFixture } from '../../../lib';
+import { UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
+import { waitForLambdaUpdateComplete } from './drift_helpers';
+import { integTest, withDefaultFixture } from '../../../lib';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -63,34 +64,3 @@ integTest(
     }
   }),
 );
-
-async function waitForLambdaUpdateComplete(fixture: any, functionName: string): Promise<void> {
-  const delaySeconds = 5;
-  const timeout = 30_000; // timeout after 30s
-  const deadline = Date.now() + timeout;
-
-  while (true) {
-    const response = await fixture.aws.lambda.send(
-      new GetFunctionCommand({
-        FunctionName: functionName,
-      }),
-    );
-
-    const lastUpdateStatus = response.Configuration?.LastUpdateStatus;
-
-    if (lastUpdateStatus === 'Successful') {
-      return; // Update completed successfully
-    }
-
-    if (lastUpdateStatus === 'Failed') {
-      throw new Error('Lambda function update failed');
-    }
-
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out after ${timeout / 1000} seconds.`);
-    }
-
-    // Wait before checking again
-    await sleep(delaySeconds * 1000);
-  }
-}

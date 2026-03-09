@@ -919,6 +919,13 @@ export interface DeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * @default - 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * Whether to build all assets before deploying the first stack (useful for failing Docker builds)
    *
    * @default - true
@@ -931,6 +938,13 @@ export interface DeployOptions {
    * @default - false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Create a drift-aware change set that brings actual resource states in line with template definitions
+   *
+   * @default - false
+   */
+  readonly revertDrift?: boolean;
 
   /**
    * Positional argument for deploy
