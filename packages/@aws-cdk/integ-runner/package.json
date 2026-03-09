@@ -77,7 +77,7 @@
     "chalk": "^4",
     "chokidar": "^4",
     "fs-extra": "^9",
-    "workerpool": "^6",
+    "workerpool": "^10",
     "yargs": "^16"
   },
   "keywords": [
