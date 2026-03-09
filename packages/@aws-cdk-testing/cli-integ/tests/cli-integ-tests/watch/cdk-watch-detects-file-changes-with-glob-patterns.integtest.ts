@@ -31,7 +31,7 @@ integTest(
     ], {
       cwd: fixture.integTestDir,
       shell: true,
-      detached: true,
+      stdio: 'pipe',
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
@@ -61,9 +61,10 @@ integTest(
       await waitForCondition(() => (output.match(/deployment time/g) || []).length >= 2);
       fixture.log('✓ Second deployment completed');
     } finally {
-      // Kill the entire process group (negative PID)
-      if (watchProcess.pid) {
-        process.kill(-watchProcess.pid, 'SIGTERM');
+      try {
+        watchProcess.kill('SIGTERM');
+      } catch (e) {
+        // process may have already exited
       }
     }
   }),

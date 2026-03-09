@@ -32,7 +32,7 @@ integTest(
     ], {
       cwd: fixture.integTestDir,
       shell: true,
-      detached: true,
+      stdio: 'pipe',
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
@@ -79,9 +79,10 @@ integTest(
       await waitForOutput(() => output, 'Detected change to');
       fixture.log('✓ Watch still detects changes to included files');
     } finally {
-      // Kill the entire process group (negative PID)
-      if (watchProcess.pid) {
-        process.kill(-watchProcess.pid, 'SIGTERM');
+      try {
+        watchProcess.kill('SIGTERM');
+      } catch {
+        // process may have already exited
       }
     }
   }),
