@@ -118,7 +118,7 @@
     "fast-deep-equal": "^3.1.3",
     "fast-glob": "^3.3.3",
     "fs-extra": "^9",
-    "p-limit": "^3",
+    "p-limit": "^6",
     "picomatch": "^4",
     "semver": "^7.7.4",
     "split2": "^4.2.0",
