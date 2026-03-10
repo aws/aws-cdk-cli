@@ -208,6 +208,72 @@ export class StackActivityMonitor {
   }
 
   /**
+   * Truncates a message if it exceeds the line or character limits
+   */
+  private truncateMessage(message: string, maxLines: number = 4, maxChars: number = 400): string {
+    const messageLines = message.split('\n');
+
+    if (messageLines.length > maxLines) {
+      return messageLines.slice(0, maxLines).join('\n') + '\n  [truncated...]';
+    }
+
+    if (message.length > maxChars) {
+      return message.substring(0, maxChars) + '[truncated...]';
+    }
+
+    return message;
+  }
+
+  /**
+   * Extracts messages from a check, handling both Clause and Disjunctions structures
+   */
+  private extractMessagesFromCheck(check: any, lines: string[]): void {
+    // Handle Clause case
+    if (check.Clause) {
+      const clause = check.Clause;
+      const clauseData = clause.Binary || clause.Unary;
+
+      // Use custom_message if present and not empty, otherwise use error_message
+      let message = clauseData.messages.custom_message && clauseData.messages.custom_message !== ''
+        ? clauseData.messages.custom_message
+        : clauseData.messages.error_message;
+
+      if (message) {
+        message = this.truncateMessage(message);
+        lines.push(`• ${message}`);
+      }
+    } else if (check.Disjunctions) {
+      // Handle Disjunctions case
+      // Recursively process nested checks within Disjunctions
+      (check.Disjunctions.checks || []).forEach((nestedCheck: any) => {
+        this.extractMessagesFromCheck(nestedCheck, lines);
+      });
+    }
+  }
+
+  /**
+   * Parses Guard Hook output JSON and formats it into a human-readable string
+   */
+  private parseGuardHookOutput(jsonOutput: any): string {
+    const lines: string[] = ['NonCompliant Rules:', ''];
+    // Extract only non-compliant rule names and error / custom messages
+    jsonOutput.forEach((item: any) => {
+      if (!item.not_compliant || item.not_compliant.length === 0) {
+        return;
+      }
+      item.not_compliant.forEach((notCompliant: any) => {
+        const rule = notCompliant.Rule;
+        lines.push(`[${rule.name}]`);
+        (rule.checks || []).forEach((check: any) => {
+          this.extractMessagesFromCheck(check, lines);
+        });
+        lines.push('');
+      });
+    });
+    return lines.join('\n');
+  }
+
+  /**
    * Fetches the content of an S3 object and returns it as a string
    */
   private async fetchS3Content(bucket: string, key: string): Promise<string | undefined> {
@@ -215,52 +281,7 @@ export class StackActivityMonitor {
       const response = await this.s3Client.getObject({ Bucket: bucket, Key: key });
       if (response.Body) {
         const output = JSON.parse(await response.Body.transformToString());
-
-        const lines: string[] = ['NonCompliant Rules:'];
-
-        // Extract only non-compliant rule names and error / custom messages
-        output.forEach((item: any) => {
-          if (!item.not_compliant || item.not_compliant.length === 0) {
-            return;
-          }
-
-          item.not_compliant.forEach((notCompliant: any) => {
-            const rule = notCompliant.Rule;
-            lines.push(`[${rule.name}]`);
-
-            (rule.checks || []).forEach((check: any) => {
-              const clause = check.Clause;
-              const clauseData = clause.Binary || clause.Unary;
-              if (!clauseData) {
-                return;
-              }
-
-              // Use custom_message if present and not empty, otherwise use error_message
-              let message = clauseData.messages.custom_message && clauseData.messages.custom_message !== ''
-                ? clauseData.messages.custom_message
-                : clauseData.messages.error_message;
-
-              if (message) {
-                // Truncate if message exceeds 4 lines or 400 chars
-                const messageLines = message.split('\n');
-                const maxChars = 400;
-                const maxLines = 4;
-
-                if (messageLines.length > maxLines || message.length > maxChars) {
-                  if (messageLines.length > maxLines) {
-                    message = messageLines.slice(0, maxLines).join('\n') + '\n  [truncated...]';
-                  } else {
-                    message = message.substring(0, maxChars) + '[truncated...]';
-                  }
-                }
-
-                lines.push(`• ${message}`);
-              }
-            });
-          });
-        });
-
-        return lines.join('\n');
+        return this.parseGuardHookOutput(output);
       }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);

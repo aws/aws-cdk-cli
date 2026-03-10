@@ -305,15 +305,21 @@ describe('GuardHook S3 fetching', () => {
           },
           "checks": [
             {
-              "Clause": {
-                "Unary": {
-                  "context": " Properties.PublicAccessBlockConfiguration exists",
-                  "messages": {
-                    "custom_message": "",
-                    "error_message": "Check was not compliant as property [PublicAccessBlockConfiguration] is missing."
-                  },
-                  "check": {}
-                }
+              "Disjunctions": {
+                "checks": [
+                  {
+                    "Clause": {
+                      "Unary": {
+                        "context": " Properties.PublicAccessBlockConfiguration exists",
+                        "messages": {
+                          "custom_message": "",
+                          "error_message": "Check was not compliant as property [PublicAccessBlockConfiguration] is missing."
+                        },
+                        "check": {}
+                      }
+                    }
+                  }
+                ]
               }
             }
           ]
@@ -349,10 +355,13 @@ describe('GuardHook S3 fetching', () => {
   }
 ]`;
     const guardHookErrorDetails = `NonCompliant Rules:
+
 [AWS_S3_Bucket_PublicAccessBlockConfiguration]
 • Check was not compliant as property [PublicAccessBlockConfiguration] is missing.
+
 [AWS_S3_Bucket_Encryption]
 • Buckets must use AES256 encryption
+
 Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
 
     const stream = new Readable();
@@ -489,12 +498,14 @@ Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report
 ]`;
 
     const expectedOutput = `NonCompliant Rules:
+
 [AWS_Long_Error_Message]
 • Line 1
 Line 2
 Line 3
 Line 4
   [truncated...]
+
 Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
 
     const stream = new Readable();
@@ -576,8 +587,10 @@ Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report
 ]`;
 
     const expectedOutput = `NonCompliant Rules:
+
 [AWS_Long_Char_Message]
 • ${'A'.repeat(400)}[truncated...]
+
 Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
 
     const stream = new Readable();
