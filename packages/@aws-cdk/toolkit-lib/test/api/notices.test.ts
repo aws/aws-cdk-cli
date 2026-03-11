@@ -424,7 +424,7 @@ describe(NoticesFilter, () => {
         bootstrappedEnvironments: bootstrappedEnvironments,
       });
       expect((await filtered).map((f) => f.notice)).toEqual([BASIC_BOOTSTRAP_NOTICE]);
-      expect((await filtered).map((f) => f.format()).join('\n')).toContain('env1,env2');
+      expect((await filtered).map((f) => f.format()).join('\n')).toContain('env1 env2');
     });
 
     test('ignores invalid bootstrap versions', async () => {

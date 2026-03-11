@@ -52,7 +52,7 @@ interface ActualComponent {
    * placeholders look like `{resolve:XYZ}`.
    *
    * If there is more than one component with the same dynamic name, they are
-   * joined by ','.
+   * joined by ' '.
    *
    * @default - Don't add to the set of dynamic values
    */
@@ -188,7 +188,7 @@ export class NoticesFilter {
    * Adds dynamic values from the given ActualComponents
    *
    * If there are multiple components with the same dynamic name, they are joined
-   * by a comma.
+   * by a space.
    */
   private addDynamicValues(comps: ActualComponent[], notice: FilteredNotice) {
     const dynamicValues: Record<string, string[]> = {};
@@ -199,7 +199,7 @@ export class NoticesFilter {
       }
     }
     for (const [key, values] of Object.entries(dynamicValues)) {
-      notice.addDynamicValue(key, values.join(','));
+      notice.addDynamicValue(key, values.join(' '));
     }
   }
 
