@@ -198,6 +198,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         exclusively: args.exclusively,
         force: args.force,
+        concurrency: args.concurrency,
         STACKS: args.STACKS,
       };
       break;

@@ -1214,6 +1214,13 @@ export interface DestroyOptions {
   readonly force?: boolean;
 
   /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for destroy
    */
   readonly STACKS?: Array<string>;

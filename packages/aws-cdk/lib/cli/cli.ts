@@ -470,6 +470,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           exclusively: args.exclusively,
           force: args.force,
           roleArn: args.roleArn,
+          concurrency: args.concurrency,
         });
 
       case 'gc':

@@ -16,6 +16,7 @@ import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
+  buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
@@ -1000,8 +1001,7 @@ export class CdkToolkit {
   public async destroy(options: DestroyOptions) {
     const ioHelper = this.ioHost.asIoHelper();
 
-    // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
+    const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
 
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
@@ -1017,9 +1017,18 @@ export class CdkToolkit {
       }
     }
 
+    const concurrency = options.concurrency || 1;
     const action = options.fromDeploy ? 'deploy' : 'destroy';
-    for (const [index, stack] of stacks.stackArtifacts.entries()) {
-      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), index + 1, stacks.stackCount);
+    let destroyCount = 0;
+
+    if (concurrency > 1) {
+      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+    }
+
+    const destroyStack = async (stackNode: StackNode) => {
+      const stack = stackNode.stack;
+      destroyCount++;
+      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), destroyCount, stacks.stackCount);
       try {
         await this.props.deployments.destroyStack({
           stack,
@@ -1031,7 +1040,10 @@ export class CdkToolkit {
         await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
         throw e;
       }
-    }
+    };
+
+    const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
+    await workGraph.processStacks(concurrency, destroyStack);
   }
 
   public async list(
@@ -1914,6 +1926,11 @@ export interface DestroyOptions {
    * Whether the destroy request came from a deploy.
    */
   fromDeploy?: boolean;
+
+  /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   */
+  concurrency?: number;
 }
 
 /**
@@ -2210,3 +2227,4 @@ function requiresApproval(requireApproval: RequireApproval, permissionChangeType
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }
+
