@@ -119,6 +119,21 @@ export class WorkGraph {
   }
 
   /**
+   * Execute all stack nodes in dependency order with the given concurrency.
+   *
+   * Unlike `doParallel`, this method only handles stack nodes and takes a
+   * simple callback. Intended for destroy where there are no asset nodes.
+   */
+  public processStacks(concurrency: number, fn: (stackNode: StackNode) => Promise<void>) {
+    return this.forAllArtifacts(concurrency, async (x: WorkNode) => {
+      if (x.type !== 'stack') {
+        return;
+      }
+      await fn(x);
+    });
+  }
+
+  /**
    * Return the set of unblocked nodes
    */
   public async ready(): Promise<ReadonlyArray<WorkNode>> {

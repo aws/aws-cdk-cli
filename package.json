@@ -24,7 +24,7 @@
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/credential-providers": "^3",
     "@aws-sdk/lib-storage": "^3",
-    "@cdklabs/eslint-plugin": "^1.5.5",
+    "@cdklabs/eslint-plugin": "^1.5.6",
     "@stylistic/eslint-plugin": "^3",
     "@types/node": "ts5.9",
     "@typescript-eslint/eslint-plugin": "^8",
@@ -40,7 +40,7 @@
     "jest-junit": "^16",
     "nx": "^20.8.4",
     "prettier": "^2.8",
-    "projen": "^0.99.17",
+    "projen": "^0.99.19",
     "semver": "^7.7.4",
     "ts-node": "^10.9.2",
     "typescript": "5.9"

@@ -214,6 +214,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-build-concurrency': { type: 'number', desc: 'Maximum number of asset builds to run in parallel', default: 1, requiresArg: true },
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
+          'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
         },
         arg: {
           name: 'STACKS',
@@ -344,6 +345,7 @@ export async function makeConfig(): Promise<CliConfig> {
           all: { type: 'boolean', default: false, desc: 'Destroy all available stacks' },
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only destroy requested stacks, don\'t include dependees' },
           force: { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
+          concurrency: { type: 'number', desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.', default: 1, requiresArg: true },
         },
       },
       'diff': {

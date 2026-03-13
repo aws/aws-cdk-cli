@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MemoryStream } from './corking';
 
-const SKIP_TESTS = fs.readFileSync(path.join(__dirname, '..', 'skip-tests.txt'), { encoding: 'utf-8' })
-  .split('\n')
-  .map(x => x.trim())
+const SKIP_TESTS = [
+  ...readSkipFile(path.join(__dirname, '..', 'skip-tests.txt')),
+  ...readSkipFile(process.env.CDK_INTEG_SKIP_TESTS_FILE),
+  ...(process.env.CDK_INTEG_SKIP_TESTS ?? '').split(','),
+].map(x => x.trim())
   .filter(x => x && !x.startsWith('#'));
 
 if (SKIP_TESTS.length > 0) {
@@ -232,4 +234,15 @@ async function atomicWrite(fileName: string, contents: string) {
   const tmp = `${fileName}.${process.pid}`;
   await fs.promises.writeFile(tmp, contents);
   await fs.promises.rename(tmp, fileName);
+}
+
+function readSkipFile(filePath?: string): string[] {
+  if (!filePath) {
+    return [];
+  }
+  try {
+    return fs.readFileSync(filePath, { encoding: 'utf-8' }).split('\n');
+  } catch {
+    return [];
+  }
 }

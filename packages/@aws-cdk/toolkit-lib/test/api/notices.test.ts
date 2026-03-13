@@ -1111,7 +1111,7 @@ describe(Notices, () => {
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({
         containing:
-          'If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
+          'If you don\'t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
       });
     });
 
@@ -1144,7 +1144,7 @@ describe(Notices, () => {
       });
       ioHost.expectMessage({
         containing:
-          'If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
+          'If you don\'t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
       });
     });
 
@@ -1158,7 +1158,7 @@ describe(Notices, () => {
       ioHost.expectMessage({ containing: new FilteredNotice(BASIC_NOTICE).format() });
       ioHost.expectMessage({
         containing:
-          'If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
+          'If you don\'t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 16603".',
       });
     });
 

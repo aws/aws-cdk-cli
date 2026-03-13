@@ -947,6 +947,13 @@ export interface DeployOptions {
   readonly ignoreNoStacks?: boolean;
 
   /**
+   * Create a drift-aware change set that brings actual resource states in line with template definitions
+   *
+   * @default - false
+   */
+  readonly revertDrift?: boolean;
+
+  /**
    * Positional argument for deploy
    */
   readonly STACKS?: Array<string>;
@@ -1212,6 +1219,13 @@ export interface DestroyOptions {
    * @default - undefined
    */
   readonly force?: boolean;
+
+  /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
 
   /**
    * Positional argument for destroy

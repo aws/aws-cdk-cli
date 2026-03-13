@@ -26,7 +26,18 @@ export function diffParameter(oldValue: types.Parameter, newValue: types.Paramet
   return new types.ParameterDifference(oldValue, newValue);
 }
 
-export function diffResource(oldValue?: types.Resource, newValue?: types.Resource): types.ResourceDifference {
+export function diffResource(oldValue?: types.Resource, newValue?: types.Resource, logicalId?: string): types.ResourceDifference {
+  // Fn::ForEach entries are arrays, not standard {Type, Properties} resource objects.
+  // Synthesize a virtual resource type so isDifferent works correctly.
+  if (logicalId && logicalId.startsWith('Fn::ForEach::')) {
+    const forEachType = 'Fn::ForEach';
+    return new types.ResourceDifference(oldValue, newValue, {
+      resourceType: { oldType: oldValue ? forEachType : undefined, newType: newValue ? forEachType : undefined },
+      propertyDiffs: {},
+      otherDiffs: !deepEqual(oldValue, newValue) ? { Value: new types.Difference(oldValue, newValue) } : {},
+    });
+  }
+
   const resourceType = {
     oldType: oldValue && oldValue.Type,
     newType: newValue && newValue.Type,
