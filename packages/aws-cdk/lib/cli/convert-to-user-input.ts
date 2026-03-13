@@ -473,6 +473,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     all: config.destroy?.all,
     exclusively: config.destroy?.exclusively,
     force: config.destroy?.force,
+    concurrency: config.destroy?.concurrency,
   };
   const diffOptions = {
     exclusively: config.diff?.exclusively,
