@@ -37,9 +37,9 @@
     semver "^7.7.3"
 
 "@aws-cdk/cx-api@^2":
-  version "2.241.0"
-  resolved "https://registry.yarnpkg.com/@aws-cdk/cx-api/-/cx-api-2.241.0.tgz#3261004ab42ed51c413d139d92bef229330aa6d1"
-  integrity sha512-629QCWGTPmL+z4qxseeWXZnbfjAMDc3FIGGi1mbi8qDXmgcUUhkzpT+TvIAKOlTzF/ox7MOd/aNzoY4D9n68Vg==
+  version "2.243.0"
+  resolved "https://registry.yarnpkg.com/@aws-cdk/cx-api/-/cx-api-2.243.0.tgz#06d89ce9f918ba7e4f941e56aba898b76b18b597"
+  integrity sha512-9ToAQq5jvVRZbtDYy8Nomkx494oqpjNno2BN/bHyYiUi28omcK8beH6OhwrpKO6U0Ul/aB9R1LxHpgGuvA7Idg==
   dependencies:
     "@aws-cdk/cloud-assembly-api" "^2.1.1"
     semver "^7.7.4"
