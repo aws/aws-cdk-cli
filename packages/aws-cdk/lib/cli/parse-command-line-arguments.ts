@@ -787,6 +787,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'f',
           desc: 'Do not ask for confirmation before destroying the stacks',
+        })
+        .option('concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.',
+          requiresArg: true,
         }),
     )
     .command(

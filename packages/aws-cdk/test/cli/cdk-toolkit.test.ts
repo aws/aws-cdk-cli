@@ -1226,6 +1226,63 @@ describe('destroy', () => {
       });
     }).resolves;
   });
+
+  test('destroy with concurrency', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['*'] },
+      exclusively: false,
+      force: true,
+      concurrency: 5,
+    });
+  });
+
+  test('destroy respects dependency order with concurrency', async () => {
+    const stackC: TestStackArtifact = {
+      stackName: 'Test-Stack-C',
+      template: { Resources: { TemplateName: 'Test-Stack-C' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+    };
+    const stackD: TestStackArtifact = {
+      stackName: 'Test-Stack-D',
+      template: { Resources: { TemplateName: 'Test-Stack-D' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+      depends: [stackC.stackName],
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [stackC, stackD],
+    });
+
+    const destroyOrder: string[] = [];
+    const fakeDeployments = new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+      'Test-Stack-D': { Baz: 'Zinga!' },
+    });
+    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
+    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
+      destroyOrder.push(options.stack.stackName);
+      return originalDestroyStack(options);
+    };
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: fakeDeployments,
+    });
+
+    await toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] },
+      exclusively: false,
+      force: true,
+      concurrency: 10,
+    });
+
+    // stackD depends on stackC, so D must be destroyed before C
+    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
+  });
 });
 
 describe('watch', () => {

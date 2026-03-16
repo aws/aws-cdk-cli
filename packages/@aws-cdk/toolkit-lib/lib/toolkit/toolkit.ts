@@ -90,7 +90,7 @@ import { ResourceMigrator } from '../api/resource-import';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
-import { WorkGraphBuilder } from '../api/work-graph';
+import { WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
@@ -1250,8 +1250,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
-    // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await assembly.selectStacksV2(selectStacks)).reversed();
+    const stacks = await assembly.selectStacksV2(selectStacks);
 
     const ret: DestroyResult = {
       stacks: [],
@@ -1265,16 +1264,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return ret;
     }
 
+    const concurrency = options.concurrency || 1;
+    let destroyCount = 0;
+
     const destroySpan = await ioHelper.span(SPAN.DESTROY_ACTION).begin({
       stacks: stacks.stackArtifacts,
     });
     try {
-      for (const [index, stack] of stacks.stackArtifacts.entries()) {
+      const destroyStack = async (stackNode: StackNode) => {
+        const stack = stackNode.stack;
+        destroyCount++;
         try {
           const singleDestroySpan = await ioHelper.span(SPAN.DESTROY_STACK)
-            .begin(chalk.green(`${chalk.blue(stack.displayName)}: destroying... [${index + 1}/${stacks.stackCount}]`), {
+            .begin(chalk.green(`${chalk.blue(stack.displayName)}: destroying... [${destroyCount}/${stacks.stackCount}]`), {
               total: stacks.stackCount,
-              current: index + 1,
+              current: destroyCount,
               stack,
             });
           const deployments = await this.deploymentsForAction(action);
@@ -1300,7 +1304,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await ioHelper.notify(IO.CDK_TOOLKIT_E7900.msg(`\n ❌  ${chalk.blue(stack.displayName)}: ${action} failed ${e}`, { error: e }));
           throw e;
         }
-      }
+      };
+
+      const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
+      await workGraph.processStacks(concurrency, destroyStack);
 
       return ret;
     } finally {

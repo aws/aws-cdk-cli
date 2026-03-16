@@ -755,6 +755,12 @@
           "type": "boolean",
           "alias": "f",
           "desc": "Do not ask for confirmation before destroying the stacks"
+        },
+        "concurrency": {
+          "type": "number",
+          "desc": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
+          "default": 1,
+          "requiresArg": true
         }
       }
     },

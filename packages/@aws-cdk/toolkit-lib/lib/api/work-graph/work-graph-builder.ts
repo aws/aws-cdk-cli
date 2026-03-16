@@ -189,3 +189,4 @@ function stacksFromAssets(artifacts: cxapi.CloudArtifact[]) {
 function onlyStacks(artifacts: cxapi.CloudArtifact[]) {
   return artifacts.filter(x => cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact(x));
 }
+

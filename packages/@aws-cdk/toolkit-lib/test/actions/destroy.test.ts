@@ -82,6 +82,18 @@ describe('destroy', () => {
     }));
   });
 
+  test('destroy with concurrency', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      concurrency: 3,
+    });
+
+    // THEN
+    expect(mockDestroyStack).toHaveBeenCalledTimes(2);
+  });
+
   test('action disposes of assembly produced by source', async () => {
     // GIVEN
     const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);

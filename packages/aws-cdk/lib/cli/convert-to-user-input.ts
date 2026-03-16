@@ -198,6 +198,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         exclusively: args.exclusively,
         force: args.force,
+        concurrency: args.concurrency,
         STACKS: args.STACKS,
       };
       break;
@@ -472,6 +473,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     all: config.destroy?.all,
     exclusively: config.destroy?.exclusively,
     force: config.destroy?.force,
+    concurrency: config.destroy?.concurrency,
   };
   const diffOptions = {
     exclusively: config.diff?.exclusively,
