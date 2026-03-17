@@ -170,7 +170,7 @@ describe('TelemetrySession', () => {
     }));
   });
 
-  test('attack agent', async () => {
+  test('attach agent', async () => {
     session.attachAgent(true);
 
     await session.emit({

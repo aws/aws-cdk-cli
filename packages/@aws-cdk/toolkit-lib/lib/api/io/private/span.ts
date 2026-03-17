@@ -30,12 +30,18 @@ export interface SpanDefinition<S extends object, E extends SpanEnd> {
 /**
  * Arguments to the span.end() function
  *
- * `SpanEnd` represents fields that are added by the underlying `end` function.
+ * `SpanEndArguments<T>` are the fields that a user still needs to supply, it
+ * fields in the type `T` that aren't also in `SpanEnd`. `SpanEnd` represents
+ * fields that are automatically added by the underlying `end` function.
  *
- * - In principle, the intersection of the underlying type and the SpanEnd keys
- *   are made optional, the rest is the same as the underlying type.
- * - If the expected type is subsumed by the SpanEnd type, then either void or
- *   their intersection with all fields optional.
+ * Fields that are already in `SpanEnd` are still rendered as optionals, so you
+ * can override them (but you don't have to).
+ *
+ * - Does the following: fields that are shared between `T` and `SpanEnd` are
+ *   made optional, and the rest of the keys of `T` are required.
+ *
+ * - If `T` is fully subsumed by the `SpanEnd` type, then an object type with
+ *   all fields optional, OR 'void' so you can avoid passing an argument at all.
  */
 type SpanEndArguments<T> = keyof T extends keyof SpanEnd
   ? (Pick<Partial<SpanEnd>, keyof T & keyof SpanEnd> | void)

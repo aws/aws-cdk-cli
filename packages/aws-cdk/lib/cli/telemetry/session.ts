@@ -27,7 +27,7 @@ export interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
   readonly error?: ErrorDetails;
-  counters?: Record<string, number>;
+  readonly counters?: Record<string, number>;
 }
 
 /**

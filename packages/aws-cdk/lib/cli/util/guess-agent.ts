@@ -6,7 +6,8 @@
  * with `yes` or `don't know`.
  */
 export function guessAgent(): true | undefined {
-  if ((process.env.AWS_EXECUTION_ENV ?? '').toLocaleLowerCase().includes('amazonq')) {
+  const awsExecutionEnv = (process.env.AWS_EXECUTION_ENV ?? '').toLocaleLowerCase();
+  if (awsExecutionEnv.includes('amazonq') || awsExecutionEnv.includes('kiro')) {
     return true;
   }
 
