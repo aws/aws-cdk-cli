@@ -261,10 +261,7 @@ export function writeContextToEnv(env: Env, context: Context, completeness: 'add
  *
  * @param assembly - the assembly to check
  */
-async function checkContextOverflowSupport(assembly: CloudAssembly, ioHelper: IoHelper): Promise<void> {
-  const traceFn = (msg: string) => ioHelper.defaults.trace(msg);
-  const tree = await loadTree(assembly, traceFn);
-
+async function checkContextOverflowSupport(tree: ConstructTreeNode | undefined, ioHelper: IoHelper): Promise<void> {
   // We're dealing with an old version of the framework here. It is unaware of the temporary
   // file, which means that it will ignore the context overflow.
   if (!frameworkSupportsContextOverflow(tree)) {
@@ -273,19 +270,31 @@ async function checkContextOverflowSupport(assembly: CloudAssembly, ioHelper: Io
 }
 
 /**
+ * Find the `aws-cdk-lib` library version by inspecting construct tree debug information
+ */
+export function findConstructLibraryVersion(tree: ConstructTreeNode | undefined): string | undefined {
+  let ret: string | undefined = undefined;
+
+  some(tree, node => {
+    const fqn = node.constructInfo?.fqn;
+    const version = node.constructInfo?.version;
+    if (fqn?.startsWith('aws-cdk-lib.') || fqn?.startsWith('@aws-cdk/core.')) {
+      ret = version;
+      return true;
+    }
+    return false;
+  });
+
+  return ret !== '0.0.0' ? ret : undefined;
+}
+
+/**
  * Checks if the framework supports context overflow
  */
 export function frameworkSupportsContextOverflow(tree: ConstructTreeNode | undefined): boolean {
-  return !some(tree, node => {
-    const fqn = node.constructInfo?.fqn;
-    const version = node.constructInfo?.version;
-    return (
-      fqn === 'aws-cdk-lib.App' // v2 app
-      && version !== '0.0.0' // ignore developer builds
-      && version != null && lte(version, '2.38.0') // last version not supporting large context
-    ) // v2
-    || fqn === '@aws-cdk/core.App'; // v1 app => not supported
-  });
+  const version = findConstructLibraryVersion(tree);
+
+  return !version || !lte(version, '2.38.0');
 }
 
 /**
@@ -299,7 +308,10 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
       // We sort as we deploy
       topoSort: false,
     });
-    await checkContextOverflowSupport(assembly, ioHelper);
+
+    const tree = await loadTree(assembly, ioHelper.defaults.trace.bind(ioHelper.defaults));
+    await checkContextOverflowSupport(tree, ioHelper);
+
     return assembly;
   } catch (err: any) {
     if (err.message.includes(cxschema.VERSION_MISMATCH)) {
