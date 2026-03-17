@@ -230,7 +230,92 @@ describe('formatSecurityDiff', () => {
   });
 });
 
-describe('nested stack mangled character filtering', () => {
+describe('mangled character filtering', () => {
+  test('filters mangled non-ASCII diffs for root stacks', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(0);
+    expect(sanitized).toContain('Omitted');
+    expect(sanitized).toContain('There were no differences');
+  });
+
+  test('does not filter mangled diffs when strict is true', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff({ strict: true });
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(sanitized).not.toContain('Omitted');
+    expect(sanitized).toContain('Description');
+  });
+
+  test('does not filter when diffs are real, not mangled', () => {
+    const oldTemplate = {
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: {
+          Bucket: { Type: 'AWS::S3::Bucket' },
+          Queue: { Type: 'AWS::SQS::Queue' },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(sanitized).not.toContain('Omitted');
+    expect(sanitized).toContain('AWS::SQS::Queue');
+  });
+
   test('filters mangled characters using the nested stack deployed template', () => {
     const nestedDeployed = {
       Description: '????',
@@ -248,7 +333,6 @@ describe('nested stack mangled character filtering', () => {
       },
     };
 
-    // Mock must support _template mutation used by formatStackDiffHelper for nested stacks
     let _template = rootTemplate;
     const mockArtifact = {
       get template() {
@@ -280,10 +364,8 @@ describe('nested stack mangled character filtering', () => {
     const result = formatter.formatStackDiff();
     const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
 
-    // Root stack resources must not leak into nested stack diff
     expect(sanitized).not.toContain('AWS::CloudFormation::Stack');
     expect(sanitized).toContain('nested-stack');
-    // The non-ASCII description diff should be filtered as mangled noise
     expect(sanitized).toContain('Omitted');
   });
 });
