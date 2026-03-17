@@ -224,5 +224,11 @@ export interface HotswapResult extends Duration, HotswapDeploymentDetails {
    */
   readonly hotswapped: boolean;
 
+  /**
+   * An error that occurred during the hotswap deployment, if any.
+   *
+   * When set, `hotswapped` will be `false`. The error is captured so that
+   * the hotswap span can be ended with full context before re-throwing.
+   */
   readonly error?: Error;
 }
