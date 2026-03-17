@@ -3,10 +3,10 @@ import { UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
 import { CfnEvaluationException } from '../../../lib/api/cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
+import type { HotswapResult } from '../../../lib/payloads/hotswap';
 import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../_helpers/mock-sdk';
 
 import * as setup from '../_helpers/hotswap-test-setup';
-import { HotswapResult } from '../../../lib/payloads/hotswap';
 
 jest.mock('@aws-sdk/client-lambda', () => {
   const original = jest.requireActual('@aws-sdk/client-lambda');
