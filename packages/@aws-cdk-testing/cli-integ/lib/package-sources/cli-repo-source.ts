@@ -39,7 +39,7 @@ export class TestCliRepoSource implements ITestCliSource {
   }
 
   public async makeCliAvailable() {
-    addToShellPath(this.cliPath);
+    addToShellPath(path.resolve(this.cliPath));
   }
 
   public requestedVersion() {
