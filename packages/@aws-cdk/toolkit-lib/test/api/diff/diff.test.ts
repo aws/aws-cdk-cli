@@ -229,3 +229,62 @@ describe('formatSecurityDiff', () => {
     );
   });
 });
+
+describe('nested stack mangled character filtering', () => {
+  test('filters mangled characters using the nested stack deployed template', () => {
+    const nestedDeployed = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const nestedGenerated = {
+      Description: '文字化け',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    // Mock must support _template mutation used by formatStackDiffHelper for nested stacks
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested: {
+            deployedTemplate: nestedDeployed,
+            generatedTemplate: nestedGenerated,
+            physicalName: 'nested-stack',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    // Root stack resources must not leak into nested stack diff
+    expect(sanitized).not.toContain('AWS::CloudFormation::Stack');
+    expect(sanitized).toContain('nested-stack');
+    // The non-ASCII description diff should be filtered as mangled noise
+    expect(sanitized).toContain('Omitted');
+  });
+});
+
