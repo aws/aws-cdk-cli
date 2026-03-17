@@ -12,6 +12,7 @@ import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import { ErrorName } from '../telemetry/schema';
 import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
@@ -624,6 +625,16 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
   }
   if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
     return eventResult('DEPLOY', msg);
+  }
+  // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
+  // Instead we reuse the existing Hotswap span.
+  if (IO.CDK_TOOLKIT_I5410.is(msg)) {
+    const data = msg.data as any;
+    return {
+      eventType: 'HOTSWAP',
+      duration: data.duration ?? 0,
+      error: data.hotswapped ? undefined : { name: ErrorName.TOOLKIT_ERROR, message: 'Hotswap not applicable' }, // Need an error for a FAIL state
+    };
   }
   return undefined;
 

@@ -112,6 +112,12 @@ export async function tryHotswapDeployment(
 
   await hotswapSpan.end(result);
 
+  // This is a hotswap error that was caught during the hotswapDeployment function
+  // It is thrown after the hotswap span ends so it can be reported to telemetry
+  if (result.error) {
+    throw result.error;
+  }
+
   if (result?.hotswapped === true) {
     return {
       type: 'did-deploy-stack',
@@ -188,14 +194,20 @@ async function hotswapDeployment(
   }
 
   // apply the short-circuitable changes
-  await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
+  let error: Error | undefined;
+  try {
+    await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
+  } catch (e: any) {
+    error = e;
+  }
 
   return {
     stack,
     mode: hotswapMode,
-    hotswapped: true,
+    hotswapped: !error,
     hotswappableChanges,
     nonHotswappableChanges,
+    error,
   };
 }
 

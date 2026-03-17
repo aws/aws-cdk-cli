@@ -223,4 +223,6 @@ export interface HotswapResult extends Duration, HotswapDeploymentDetails {
    * `false` indicates that the deployment could not be hotswapped and full deployment may be attempted as fallback.
    */
   readonly hotswapped: boolean;
+
+  readonly error?: Error;
 }
