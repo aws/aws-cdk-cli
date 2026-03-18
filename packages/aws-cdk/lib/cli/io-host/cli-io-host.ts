@@ -645,13 +645,12 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
 }
 
 function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
-  const data = result as any;
   return {
     eventType: 'HOTSWAP' as const,
-    duration: result.duration ?? 0,
-    ...(data.error ? {
+    duration: result.duration,
+    ...(result.error ? {
       error: {
-        name: cdkCliErrorName(data.error.name),
+        name: cdkCliErrorName(result.error.name),
       },
     } : {}),
     counters: {
