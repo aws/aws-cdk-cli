@@ -208,19 +208,12 @@ export class StackActivityMonitor {
   }
 
   /**
-   * Truncates a message if it exceeds the line or character limits
+   * Truncates a message if it exceeds character limits
    */
-  private truncateMessage(message: string, maxLines: number = 4, maxChars: number = 400): string {
-    const messageLines = message.split('\n');
-
-    if (messageLines.length > maxLines) {
-      return messageLines.slice(0, maxLines).join('\n') + '\n  [truncated...]';
-    }
-
+  private truncateMessage(message: string, maxChars: number = 400): string {
     if (message.length > maxChars) {
       return message.substring(0, maxChars) + '[truncated...]';
     }
-
     return message;
   }
 
@@ -239,6 +232,8 @@ export class StackActivityMonitor {
         : clauseData.messages.error_message;
 
       if (message) {
+        // Replace whitepace including newlines with single spaces to reduce output size
+        message = message.trim().replace(/\s+/g, ' ');
         message = this.truncateMessage(message);
         lines.push(`• ${message}`);
       }
@@ -258,9 +253,6 @@ export class StackActivityMonitor {
     const lines: string[] = ['NonCompliant Rules:', ''];
     // Extract only non-compliant rule names and error / custom messages
     jsonOutput.forEach((item: any) => {
-      if (!item.not_compliant || item.not_compliant.length === 0) {
-        return;
-      }
       item.not_compliant.forEach((notCompliant: any) => {
         const rule = notCompliant.Rule;
         lines.push(`[${rule.name}]`);

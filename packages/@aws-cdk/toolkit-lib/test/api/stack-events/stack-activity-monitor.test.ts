@@ -462,7 +462,7 @@ Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report
     expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
   });
 
-  test('truncates error messages that exceed 4 lines', async () => {
+  test('collapses newlines and other whitespace to single space', async () => {
     const guardHookDetails = `[
   {
     "name": "STDIN",
@@ -483,7 +483,7 @@ Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report
                 "Unary": {
                   "context": "some context",
                   "messages": {
-                    "custom_message": "Line 1\\nLine 2\\nLine 3\\nLine 4\\nLine 5\\nLine 6",
+                    "custom_message": "    Line 1\\nLine 2\\nLine 3       Line 3 part 2    ",
                     "error_message": "fallback error"
                   },
                   "check": {}
@@ -500,11 +500,7 @@ Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report
     const expectedOutput = `NonCompliant Rules:
 
 [AWS_Long_Error_Message]
-• Line 1
-Line 2
-Line 3
-Line 4
-  [truncated...]
+• Line 1 Line 2 Line 3 Line 3 part 2
 
 Full output was written to s3://test-guard-logs-bucket/cfn-guard-validate-report/AWS--S3--Bucket-AwsS3Bucket/1234567890123.json`;
 
