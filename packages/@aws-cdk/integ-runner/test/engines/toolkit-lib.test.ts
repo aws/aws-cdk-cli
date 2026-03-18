@@ -234,3 +234,92 @@ describe('ToolkitLibRunnerEngine', () => {
     });
   });
 });
+
+describe('per-action profile override', () => {
+  let mockToolkit: jest.Mocked<Toolkit>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockToolkit = {
+      synth: jest.fn(),
+      fromCdkApp: jest.fn(),
+      list: jest.fn(),
+      deploy: jest.fn(),
+      watch: jest.fn(),
+      destroy: jest.fn(),
+    } as any;
+    MockedToolkit.mockImplementation(() => mockToolkit);
+    MockedBaseCredentials.awsCliCompatible = jest.fn();
+  });
+
+  it('should use a different profile for deploy when cdkCommandOptions specifies one', async () => {
+    const engine = new ToolkitLibRunnerEngine({
+      workingDirectory: '/test',
+      region: 'us-dummy-1',
+      profile: 'default-profile',
+    });
+
+    expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+      profile: 'default-profile',
+      defaultRegion: 'us-dummy-1',
+    });
+
+    const mockCx = {};
+    mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+
+    await engine.deploy({
+      app: 'test-app',
+      stacks: ['stack1'],
+      profile: 'override-profile',
+    });
+
+    expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+      profile: 'override-profile',
+      defaultRegion: 'us-dummy-1',
+    });
+  });
+
+  it('should use a different profile for destroy when cdkCommandOptions specifies one', async () => {
+    const engine = new ToolkitLibRunnerEngine({
+      workingDirectory: '/test',
+      region: 'us-dummy-1',
+      profile: 'default-profile',
+    });
+
+    const mockCx = {};
+    mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+
+    await engine.destroy({
+      app: 'test-app',
+      stacks: ['stack1'],
+      profile: 'override-profile',
+    });
+
+    expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+      profile: 'override-profile',
+      defaultRegion: 'us-dummy-1',
+    });
+  });
+
+  it('should reuse the default toolkit when deploy profile matches constructor profile', async () => {
+    const engine = new ToolkitLibRunnerEngine({
+      workingDirectory: '/test',
+      region: 'us-dummy-1',
+      profile: 'same-profile',
+    });
+
+    const constructorCallCount = MockedToolkit.mock.calls.length;
+
+    const mockCx = {};
+    mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+
+    await engine.deploy({
+      app: 'test-app',
+      stacks: ['stack1'],
+      profile: 'same-profile',
+    });
+
+    expect(MockedToolkit).toHaveBeenCalledTimes(constructorCallCount);
+  });
+});
+

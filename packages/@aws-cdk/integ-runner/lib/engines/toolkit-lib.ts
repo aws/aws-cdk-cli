@@ -59,31 +59,51 @@ export class ToolkitLibRunnerEngine implements ICdk {
     // don't pass it to the toolkit.
     this.ioHost = new IntegRunnerIoHost();
 
-    this.toolkit = new Toolkit({
-      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
-      sdkConfig: {
-        baseCredentials: BaseCredentials.awsCliCompatible({
-          profile: options.profile,
-          defaultRegion: options.region,
-        }),
-      },
-      // @TODO - these options are currently available on the action calls
-      // but toolkit-lib needs them at the constructor level.
-      // Need to decide what to do with them.
-      //
-      // Validations
-      //  - assemblyFailureAt: options.strict ?? options.ignoreErrors
-      // Logging
-      //  - options.color
-      // SDK
-      //  - options.proxy
-      //  - options.caBundlePath
-    });
+    this.toolkit = this.createToolkit(options.profile, options.region);
+
+    // @TODO - these options are currently available on the action calls
+    // but toolkit-lib needs them at the constructor level.
+    // Need to decide what to do with them.
+    //
+    // Validations
+    //  - assemblyFailureAt: options.strict ?? options.ignoreErrors
+    // Logging
+    //  - options.color
+    // SDK
+    //  - options.proxy
+    //  - options.caBundlePath
 
     // @TODO - similar to the above, but in toolkit-lib these options would go on the IoHost
     //  - options.trace
     //  - options.verbose
     //  - options.json
+  }
+
+  /**
+   * Creates a Toolkit instance with the given profile and region.
+   */
+  private createToolkit(profile: string | undefined, region: string): Toolkit {
+    return new Toolkit({
+      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
+      sdkConfig: {
+        baseCredentials: BaseCredentials.awsCliCompatible({
+          profile,
+          defaultRegion: region,
+        }),
+      },
+    });
+  }
+
+  /**
+   * Returns the appropriate Toolkit for the given options.
+   * If the options specify a profile different from the engine's default,
+   * a new Toolkit is created with the overridden profile.
+   */
+  private toolkitFor(options: { profile?: string }): Toolkit {
+    if (options.profile && options.profile !== this.options.profile) {
+      return this.createToolkit(options.profile, this.options.region);
+    }
+    return this.toolkit;
   }
 
   /**
@@ -139,8 +159,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Deploys the CDK app
    */
   public async deploy(options: DeployOptions) {
-    const cx = await this.cx(options);
-    await this.toolkit.deploy(cx, {
+    const toolkit = this.toolkitFor(options);
+    const cx = await this.cx(options, toolkit);
+    await toolkit.deploy(cx, {
       roleArn: options.roleArn,
       traceLogs: options.traceLogs,
       stacks: this.stackSelector(options),
@@ -183,9 +204,10 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Destroys the CDK app
    */
   public async destroy(options: DestroyOptions) {
-    const cx = await this.cx(options);
+    const toolkit = this.toolkitFor(options);
+    const cx = await this.cx(options, toolkit);
 
-    await this.toolkit.destroy(cx, {
+    await toolkit.destroy(cx, {
       roleArn: options.roleArn,
       stacks: this.stackSelector(options),
     });
@@ -194,15 +216,17 @@ export class ToolkitLibRunnerEngine implements ICdk {
   /**
    * Creates a Cloud Assembly Source from the provided options.
    */
-  private async cx(options: CxOptions): Promise<ICloudAssemblySource> {
+  private async cx(options: CxOptions, toolkit?: Toolkit): Promise<ICloudAssemblySource> {
     if (!options.app) {
       throw new Error('No app provided');
     }
 
+    const tk = toolkit ?? this.toolkit;
+
     // check if the app is a path to existing snapshot and then use it as an assembly directory
     const potentialCxPath = path.join(this.options.workingDirectory, options.app);
     if (fs.pathExistsSync(potentialCxPath) && fs.statSync(potentialCxPath).isDirectory()) {
-      return this.toolkit.fromAssemblyDirectory(potentialCxPath);
+      return tk.fromAssemblyDirectory(potentialCxPath);
     }
 
     let outdir;
@@ -210,7 +234,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       outdir = path.join(this.options.workingDirectory, options.output);
     }
 
-    return this.toolkit.fromCdkApp(options.app, {
+    return tk.fromCdkApp(options.app, {
       workingDirectory: this.options.workingDirectory,
       outdir,
       lookups: options.lookups,
