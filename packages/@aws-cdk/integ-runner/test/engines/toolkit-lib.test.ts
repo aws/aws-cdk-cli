@@ -288,7 +288,7 @@ describe('ToolkitLibRunnerEngine', () => {
       });
     });
 
-    it('should reuse the default toolkit when deploy profile matches constructor profile', async () => {
+    it('should create a new toolkit even when deploy profile matches constructor profile', async () => {
       MockedBaseCredentials.awsCliCompatible = jest.fn();
 
       const sameProfileEngine = new ToolkitLibRunnerEngine({
@@ -308,7 +308,8 @@ describe('ToolkitLibRunnerEngine', () => {
         profile: 'same-profile',
       });
 
-      expect(MockedToolkit).toHaveBeenCalledTimes(constructorCallCount);
+      // A new Toolkit is always created for deploy, even when profile matches
+      expect(MockedToolkit).toHaveBeenCalledTimes(constructorCallCount + 1);
     });
   });
 });

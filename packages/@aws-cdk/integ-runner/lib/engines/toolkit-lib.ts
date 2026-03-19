@@ -95,18 +95,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
   }
 
   /**
-   * Returns the appropriate Toolkit for the given options.
-   * If the options specify a profile different from the engine's default,
-   * a new Toolkit is created with the overridden profile.
-   */
-  private toolkitFor(options: { profile?: string }): Toolkit {
-    if (options.profile && options.profile !== this.options.profile) {
-      return this.createToolkit(options.profile, this.options.region);
-    }
-    return this.toolkit;
-  }
-
-  /**
    * Synthesizes the CDK app
    */
   public async synth(options: SynthOptions) {
@@ -159,8 +147,8 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Deploys the CDK app
    */
   public async deploy(options: DeployOptions) {
-    const toolkit = this.toolkitFor(options);
-    const cx = await this.cx(options, toolkit);
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const cx = await this.cx(options);
     await toolkit.deploy(cx, {
       roleArn: options.roleArn,
       traceLogs: options.traceLogs,
@@ -204,8 +192,8 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Destroys the CDK app
    */
   public async destroy(options: DestroyOptions) {
-    const toolkit = this.toolkitFor(options);
-    const cx = await this.cx(options, toolkit);
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const cx = await this.cx(options);
 
     await toolkit.destroy(cx, {
       roleArn: options.roleArn,
@@ -216,17 +204,15 @@ export class ToolkitLibRunnerEngine implements ICdk {
   /**
    * Creates a Cloud Assembly Source from the provided options.
    */
-  private async cx(options: CxOptions, toolkit?: Toolkit): Promise<ICloudAssemblySource> {
+  private async cx(options: CxOptions): Promise<ICloudAssemblySource> {
     if (!options.app) {
       throw new Error('No app provided');
     }
 
-    const tk = toolkit ?? this.toolkit;
-
     // check if the app is a path to existing snapshot and then use it as an assembly directory
     const potentialCxPath = path.join(this.options.workingDirectory, options.app);
     if (fs.pathExistsSync(potentialCxPath) && fs.statSync(potentialCxPath).isDirectory()) {
-      return tk.fromAssemblyDirectory(potentialCxPath);
+      return this.toolkit.fromAssemblyDirectory(potentialCxPath);
     }
 
     let outdir;
@@ -234,7 +220,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       outdir = path.join(this.options.workingDirectory, options.output);
     }
 
-    return tk.fromCdkApp(options.app, {
+    return this.toolkit.fromCdkApp(options.app, {
       workingDirectory: this.options.workingDirectory,
       outdir,
       lookups: options.lookups,
