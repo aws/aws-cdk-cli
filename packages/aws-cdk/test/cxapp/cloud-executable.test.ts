@@ -3,6 +3,13 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { DefaultSelection } from '../../lib/cxapp/cloud-assembly';
 import { registerContextProvider } from '../../lib/context-providers';
 import { MockCloudExecutable } from '../_helpers/assembly';
+import { TestIoHost } from '../_helpers/io-host';
+
+let ioHost: TestIoHost;
+beforeEach(() => {
+  jest.restoreAllMocks();
+  ioHost = new TestIoHost('trace');
+});
 
 describe('AWS::CDK::Metadata', () => {
   test('is not generated for new frameworks', async () => {
@@ -27,13 +34,19 @@ test('stop executing if context providers are not making progress', async () => 
   });
 
   const cloudExecutable = await MockCloudExecutable.create({
-    stacks: [{
-      stackName: 'thestack',
-      template: { resource: 'noerrorresource' },
-    }],
+    stacks: [
+      {
+        stackName: 'thestack',
+        template: { resource: 'noerrorresource' },
+      },
+    ],
     // Always return the same missing keys, synthesis should still finish.
     missing: [
-      { key: 'abcdef', props: { account: '1324', region: 'us-east-1' }, provider: cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER },
+      {
+        key: 'abcdef',
+        props: { account: '1324', region: 'us-east-1' },
+        provider: cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER,
+      },
     ],
   });
   const cxasm = await cloudExecutable.synthesize();
@@ -47,13 +60,19 @@ test('stop executing if context providers are not making progress', async () => 
 test('fails if lookups are disabled and missing context is synthesized', async () => {
   // GIVEN
   const cloudExecutable = await MockCloudExecutable.create({
-    stacks: [{
-      stackName: 'thestack',
-      template: { resource: 'noerrorresource' },
-    }],
+    stacks: [
+      {
+        stackName: 'thestack',
+        template: { resource: 'noerrorresource' },
+      },
+    ],
     // Always return the same missing keys, synthesis should still finish.
     missing: [
-      { key: 'abcdef', props: { account: '1324', region: 'us-east-1' }, provider: cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER },
+      {
+        key: 'abcdef',
+        props: { account: '1324', region: 'us-east-1' },
+        provider: cxschema.ContextProvider.AVAILABILITY_ZONE_PROVIDER,
+      },
     ],
   });
   cloudExecutable.configuration.settings.set(['lookups'], false);
@@ -62,31 +81,57 @@ test('fails if lookups are disabled and missing context is synthesized', async (
   await expect(cloudExecutable.synthesize()).rejects.toThrow(/Context lookups have been disabled/);
 });
 
-async function testCloudExecutable(
-  { env, versionReporting = true, schemaVersion }:
-  { env?: string; versionReporting?: boolean; schemaVersion?: string } = {},
-) {
-  const cloudExec = await MockCloudExecutable.create({
-    stacks: [{
-      stackName: 'withouterrors',
-      env,
-      template: { resource: 'noerrorresource' },
-    },
-    {
-      stackName: 'witherrors',
-      env,
-      template: { resource: 'errorresource' },
-      metadata: {
-        '/resource': [
-          {
-            type: cxschema.ArtifactMetadataEntryType.ERROR,
-            data: 'this is an error',
-          },
-        ],
-      },
-    }],
-    schemaVersion,
+test('emits stack counters', async () => {
+  const cx = await testCloudExecutable({
+    env: 'aws://012345678912/us-east-1',
+    versionReporting: true,
+    schemaVersion: '8.0.0',
   });
+  await cx.synthesize();
+
+  // Separate tests as colorizing hampers detection
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    data: expect.objectContaining({
+      counters: expect.objectContaining({
+        assemblies: 1,
+        stacks: 2,
+      }),
+    }),
+  }));
+});
+
+async function testCloudExecutable({
+  env,
+  versionReporting = true,
+  schemaVersion,
+}: { env?: string; versionReporting?: boolean; schemaVersion?: string } = {}) {
+  const cloudExec = await MockCloudExecutable.create(
+    {
+      stacks: [
+        {
+          stackName: 'withouterrors',
+          env,
+          template: { resource: 'noerrorresource' },
+        },
+        {
+          stackName: 'witherrors',
+          env,
+          template: { resource: 'errorresource' },
+          metadata: {
+            '/resource': [
+              {
+                type: cxschema.ArtifactMetadataEntryType.ERROR,
+                data: 'this is an error',
+              },
+            ],
+          },
+        },
+      ],
+      schemaVersion,
+    },
+    undefined,
+    ioHost,
+  );
   cloudExec.configuration.settings.set(['versionReporting'], versionReporting);
 
   return cloudExec;

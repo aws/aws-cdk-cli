@@ -67,7 +67,7 @@ integTest(
           },
           nodeVersion: expect.anything(),
         },
-        project: {},
+        project: expect.objectContaining({}),
         duration: {
           total: expect.anything(),
         },
@@ -115,7 +115,7 @@ integTest(
           },
           nodeVersion: expect.anything(),
         },
-        project: {},
+        project: expect.objectContaining({}),
         duration: {
           total: expect.anything(),
         },

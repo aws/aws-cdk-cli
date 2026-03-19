@@ -38,6 +38,7 @@ export interface SessionEnvironment {
   };
   readonly ci: boolean;
   readonly nodeVersion: string;
+  readonly agent?: boolean;
 }
 
 interface Environment extends SessionEnvironment {
@@ -72,6 +73,7 @@ interface Dependency {
 
 interface SessionProject {
   readonly dependencies?: Dependency[];
+  readonly language?: string;
 }
 
 interface Project extends SessionProject {
