@@ -56,18 +56,18 @@ integTest(
           eventId: expect.stringContaining(':1'),
           timestamp: expect.anything(),
         }),
-        environment: {
+        environment: expect.objectContaining({
           ci: expect.anything(),
           os: {
             platform: expect.anything(),
             release: expect.anything(),
           },
           nodeVersion: expect.anything(),
-        },
-        project: {},
-        duration: {
+        }),
+        project: expect.objectContaining({}),
+        duration: expect.objectContaining({
           total: expect.anything(),
-        },
+        }),
       }),
       expect.objectContaining({
         event: expect.objectContaining({
@@ -104,18 +104,18 @@ integTest(
           eventId: expect.stringContaining(':2'),
           timestamp: expect.anything(),
         }),
-        environment: {
+        environment: expect.objectContaining({
           ci: expect.anything(),
           os: {
             platform: expect.anything(),
             release: expect.anything(),
           },
           nodeVersion: expect.anything(),
-        },
-        project: {},
-        duration: {
+        }),
+        project: expect.objectContaining({}),
+        duration: expect.objectContaining({
           total: expect.anything(),
-        },
+        }),
       }),
     ]);
     fs.unlinkSync(telemetryFile);

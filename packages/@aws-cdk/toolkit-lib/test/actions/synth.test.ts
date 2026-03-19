@@ -23,6 +23,22 @@ describe('synth', () => {
     }));
   });
 
+  test('emits stack counters', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.synth(cx);
+
+    // Separate tests as colorizing hampers detection
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          assemblies: 1,
+          stacks: 2,
+        }),
+      }),
+    }));
+  });
+
   test('synth from app', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'two-empty-stacks');
