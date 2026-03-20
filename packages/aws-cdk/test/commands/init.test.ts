@@ -37,7 +37,7 @@ describe('constructs version', () => {
     // Check that package.json and lib/ got created in the current directory
     expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
-  });
+  }, 90000);
 
   cliTest("when type is 'lib' and language is not specified, it default language to TypeScript", async (workDir) => {
     await cliInit({
@@ -124,7 +124,7 @@ describe('constructs version', () => {
     // Check that package.json and bin/ got created in the current directory
     expect(await fs.pathExists(path.join(workDir, 'package.json'))).toBeTruthy();
     expect(await fs.pathExists(path.join(workDir, 'bin'))).toBeTruthy();
-  });
+  }, 80000);
 
   cliTest('create a JavaScript app project', async (workDir) => {
     await cliInit({

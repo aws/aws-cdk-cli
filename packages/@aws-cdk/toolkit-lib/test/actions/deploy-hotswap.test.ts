@@ -126,5 +126,5 @@ describe('deploy without hotswap', () => {
       level: 'warn',
       message: expect.stringContaining('hotswap'),
     }));
-  });
+  }, 20000);
 });

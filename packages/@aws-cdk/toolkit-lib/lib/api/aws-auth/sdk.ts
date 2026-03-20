@@ -124,6 +124,8 @@ import type {
   ExecuteStackRefactorCommandOutput,
   DescribeEventsCommandOutput,
   DescribeEventsCommandInput,
+  DescribeTypeCommandInput,
+  DescribeTypeCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -164,6 +166,7 @@ import {
   DescribeStackResourceDriftsCommand,
   DetectStackDriftCommand,
   DetectStackResourceDriftCommand,
+  DescribeTypeCommand,
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
 } from '@aws-sdk/client-cloudformation';
@@ -506,6 +509,7 @@ export interface ICloudFormationClient {
   paginatedListStacks(input: ListStacksCommandInput): Promise<StackSummary[]>;
   paginatedDescribeEvents(input: DescribeEventsCommandInput): Promise<OperationEvent[]>;
   createStackRefactor(input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput>;
+  describeType(input: DescribeTypeCommandInput): Promise<DescribeTypeCommandOutput>;
   executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
@@ -738,7 +742,10 @@ export class SDK {
 
   public cloudFormation(): ICloudFormationClient {
     const client = new CloudFormationClient({
-      ...this.config,
+      credentials: this.config.credentials,
+      customUserAgent: this.config.customUserAgent,
+      requestHandler: this.config.requestHandler,
+      logger: this.config.logger,
       retryStrategy: new ConfiguredRetryStrategy(11, (attempt: number) => 1000 * (2 ** attempt)),
     });
     return {
@@ -840,6 +847,9 @@ export class SDK {
       },
       createStackRefactor: (input: CreateStackRefactorCommandInput): Promise<CreateStackRefactorCommandOutput> => {
         return client.send(new CreateStackRefactorCommand(input));
+      },
+      describeType: (input: DescribeTypeCommandInput): Promise<DescribeTypeCommandOutput> => {
+        return client.send(new DescribeTypeCommand(input));
       },
       executeStackRefactor: (input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput> => {
         return client.send(new ExecuteStackRefactorCommand(input));

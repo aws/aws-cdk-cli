@@ -758,7 +758,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         // WHEN
         const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
-        // THEN
+        // THEN -- CCAPI fallback is attempted but swallowed; result is a no-op deploy
         expect(deployStackResult).toBeUndefined();
         expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
       } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {

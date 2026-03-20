@@ -11,6 +11,7 @@ import type { CloudFormationStack, NestedStackTemplates } from '../cloudformatio
 import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from './appsync-mapping-templates';
 import { isHotswappableBedrockAgentCoreRuntimeChange } from './bedrock-agentcore-runtimes';
+import { tryCloudControlHotswap, CloudControlHotswapError } from './cloud-control-resource';
 import { isHotswappableCodeBuildProjectChange } from './code-build-projects';
 import type {
   HotswapChange,
@@ -268,7 +269,10 @@ async function classifyResourceChanges(
         RESOURCE_DETECTORS[resourceType](logicalId, hotswappableChangeCandidate, evaluateCfnTemplate, hotswapPropertyOverrides),
       );
     } else {
-      nonHotswappableResources.push(nonHotswappableResource(hotswappableChangeCandidate));
+      // Fall back to generic Cloud Control API hotswap for unrecognized resource types
+      promises.push(() =>
+        tryCloudControlHotswap(logicalId, hotswappableChangeCandidate, evaluateCfnTemplate, sdk),
+      );
     }
   }
 
@@ -525,6 +529,17 @@ async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswa
   try {
     await hotswapOperation.apply(sdk);
   } catch (e: any) {
+    // CCAPI fallback failed — swallow and report as non-hotswappable
+    if (e instanceof CloudControlHotswapError) {
+      // eslint-disable-next-line no-console
+      console.error('CCAPI error details:', e.cause.message);
+      await ioSpan.notify(IO.CDK_TOOLKIT_I5402.msg(
+        hotswapOperation.change.resources.map(r => format(`   ${ICON} %s %s`, chalk.bold(resourceText(r)), chalk.yellow('could not be hotswapped via Cloud Control API, will require a full deployment'))).join('\n'),
+        hotswapOperation.change,
+      ));
+      sdk.removeCustomUserAgent(customUserAgent);
+      return;
+    }
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       const result: WaiterResult = JSON.parse(formatErrorMessage(e));
       const error = new ToolkitError(formatWaiterErrorResult(result));
