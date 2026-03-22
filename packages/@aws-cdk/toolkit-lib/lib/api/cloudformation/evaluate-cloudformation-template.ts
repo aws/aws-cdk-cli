@@ -1,11 +1,11 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { NestedStackTemplates } from './nested-stack-helpers';
-import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
 import type { ResourceMetadata } from '../resource-metadata';
 import { resourceMetadata } from '../resource-metadata';
+import type { NestedStackTemplates } from './nested-stack-helpers';
+import type { Template } from './stack-helpers';
 
 export interface ListStackResources {
   listStackResources(): Promise<StackResourceSummary[]>;
@@ -17,14 +17,25 @@ export class LazyListStackResources implements ListStackResources {
   constructor(
     private readonly sdk: SDK,
     private readonly stackName: string,
-  ) {
-  }
+  ) {}
 
   public async listStackResources(): Promise<StackResourceSummary[]> {
     if (this.stackResources === undefined) {
-      this.stackResources = this.sdk.cloudFormation().listStackResources({
-        StackName: this.stackName,
-      });
+      this.stackResources = this.sdk
+        .cloudFormation()
+        .listStackResources({
+          StackName: this.stackName,
+        })
+        .catch((e: any) => {
+          if (
+            e.Code === 'ValidationError' ||
+            e.name === 'ValidationError' ||
+            (e.message && e.message.includes('ValidationError'))
+          ) {
+            return [];
+          }
+          throw e;
+        });
     }
     return this.stackResources;
   }
@@ -34,14 +45,12 @@ export interface LookupExport {
   lookupExport(name: string): Promise<Export | undefined>;
 }
 
-export class LookupExportError extends Error {
-}
+export class LookupExportError extends Error {}
 
 export class LazyLookupExport implements LookupExport {
   private cachedExports: { [name: string]: Export } = {};
 
-  constructor(private readonly sdk: SDK) {
-  }
+  constructor(private readonly sdk: SDK) {}
 
   async lookupExport(name: string): Promise<Export | undefined> {
     if (this.cachedExports[name]) {
@@ -79,8 +88,7 @@ export class LazyLookupExport implements LookupExport {
   }
 }
 
-export class CfnEvaluationException extends Error {
-}
+export class CfnEvaluationException extends Error {}
 
 export interface ResourceDefinition {
   readonly LogicalId: string;
@@ -479,7 +487,7 @@ export class EvaluateCloudFormationTemplate {
     return specialCaseResourceType
       ? specialCaseResourceType
       : // this is the default case
-      resourceType.split('::')[2].toLowerCase();
+        resourceType.split('::')[2].toLowerCase();
   }
 }
 

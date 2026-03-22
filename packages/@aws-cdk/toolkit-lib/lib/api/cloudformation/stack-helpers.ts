@@ -1,6 +1,6 @@
 import type { Stack, Tag } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { formatErrorMessage, deserializeStructure } from '../../util';
+import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import { StackStatus } from '../stack-events';
 
@@ -32,7 +32,11 @@ export class CloudFormationStack {
       const response = await cfn.describeStacks({ StackName: stackName });
       return new CloudFormationStack(cfn, stackName, response.Stacks && response.Stacks[0], retrieveProcessedTemplate);
     } catch (e: any) {
-      if (e.name === 'ValidationError' && formatErrorMessage(e) === `Stack with id ${stackName} does not exist`) {
+      if (
+        e.name === 'ValidationError' ||
+        e.Code === 'ValidationError' ||
+        (e.message && e.message.includes('does not exist'))
+      ) {
         return new CloudFormationStack(cfn, stackName, undefined);
       }
       throw e;
@@ -62,8 +66,7 @@ export class CloudFormationStack {
     public readonly stackName: string,
     private readonly stack?: Stack,
     private readonly retrieveProcessedTemplate: boolean = false,
-  ) {
-  }
+  ) {}
 
   /**
    * Retrieve the stack's deployed template

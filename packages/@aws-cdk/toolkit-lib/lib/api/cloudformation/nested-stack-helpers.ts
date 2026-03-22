@@ -1,10 +1,10 @@
-import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as fs from 'fs-extra';
-import { LazyListStackResources, type ListStackResources } from './evaluate-cloudformation-template';
-import { CloudFormationStack, type Template } from './stack-helpers';
+import * as path from 'path';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';
+import { LazyListStackResources, type ListStackResources } from './evaluate-cloudformation-template';
+import { CloudFormationStack, type Template } from './stack-helpers';
 
 export interface RootTemplateWithNestedStacks {
   readonly deployedRootTemplate: Template;
@@ -121,7 +121,11 @@ async function getNestedStackArn(
     const stackResources = await listStackResources?.listStackResources();
     return stackResources?.find((sr) => sr.LogicalResourceId === nestedStackLogicalId)?.PhysicalResourceId;
   } catch (e: any) {
-    if (formatErrorMessage(e).startsWith('Stack with id ') && formatErrorMessage(e).endsWith(' does not exist')) {
+    if (
+      e.Code === 'ValidationError' ||
+      e.name === 'ValidationError' ||
+      (formatErrorMessage(e).startsWith('Stack with id ') && formatErrorMessage(e).endsWith(' does not exist'))
+    ) {
       return;
     }
     throw e;
