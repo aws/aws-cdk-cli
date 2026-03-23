@@ -195,8 +195,6 @@ describe('list', () => {
 
 describe('deploy', () => {
   test('sets requireDeployApproval on CliIoHost', async () => {
-    // GIVEN
-
     const toolkit = defaultToolkitSetup();
     const requireApproval = RequireApproval.ANYCHANGE;
     await toolkit.deploy({
