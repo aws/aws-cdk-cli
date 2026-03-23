@@ -1,8 +1,8 @@
 import * as child_process from 'child_process';
+import { readFileSync } from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
 import { AssemblyError } from '../../../toolkit/toolkit-error';
-import { readFileSync } from 'fs';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
@@ -87,8 +87,8 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
           const contents = tryReadFile(options.errorCodeFile);
           if (contents) {
             const errorInStdErr = contents
-              .split('\n').
-              find(code => stdErrString.includes(`${SYNTH_ERROR_CODE_MARKERS[0]}${code}${SYNTH_ERROR_CODE_MARKERS[1]}`));
+              .split('\n')
+              .find(c => stdErrString.includes(`${SYNTH_ERROR_CODE_MARKERS[0]}${c}${SYNTH_ERROR_CODE_MARKERS[1]}`));
 
             if (errorInStdErr) {
               // Attach the synth error code. We don't need to change the message; the underlying error will already have been
