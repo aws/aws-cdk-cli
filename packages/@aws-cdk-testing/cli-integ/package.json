@@ -79,7 +79,7 @@
     "@aws-sdk/client-sns": "^3.1004.0",
     "@aws-sdk/client-sso": "^3.1004.0",
     "@aws-sdk/client-sts": "^3.1004.0",
-    "@aws-sdk/credential-providers": "^3.1004.0",
+    "@aws-sdk/credential-providers": "^3.1014.0",
     "@cdklabs/cdk-atmosphere-client": "^0.0.91",
     "@octokit/rest": "^20",
     "@smithy/types": "^4.13.0",
