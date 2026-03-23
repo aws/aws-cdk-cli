@@ -1,10 +1,10 @@
+import * as path from 'path';
 import { format } from 'util';
 import { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import * as path from 'path';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, execInChildProcess } from '../api';

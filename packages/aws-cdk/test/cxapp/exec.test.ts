@@ -1,10 +1,10 @@
 jest.mock('child_process');
+import * as fs from 'fs';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';
 import * as sinon from 'sinon';
-import * as fs from 'fs';
 import { ImportMock } from 'ts-mock-imports';
 import { RWLock } from '../../lib/api';
 import { Configuration } from '../../lib/cli/user-configuration';
