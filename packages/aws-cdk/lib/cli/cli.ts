@@ -402,16 +402,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('Can not supply both --[no-]execute and --method at the same time');
         }
 
-        const requireDeployApproval = configuration.settings.get(['requireApproval']);
-        // ioHost.requireDeployApproval = requireDeployApproval;
-
         return cli.deploy({
           selector,
           exclusively: args.exclusively,
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
-          requireApproval: requireDeployApproval,
+          requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
           deploymentMethod: determineDeploymentMethod(args, configuration),
