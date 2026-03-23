@@ -4,6 +4,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as cdk from 'aws-cdk-lib';
 import * as semver from 'semver';
 import * as sinon from 'sinon';
+import * as fs from 'fs';
 import { ImportMock } from 'ts-mock-imports';
 import { RWLock } from '../../lib/api';
 import { Configuration } from '../../lib/cli/user-configuration';
@@ -292,6 +293,58 @@ test('cli releases the outdir lock when execProgram throws', async () => {
   // check that the lock is released
   const lock = await new RWLock(output).acquireWrite();
   await lock.release();
+});
+
+test('errors in the subprocess stderr output are captured if they are also written to the $CDK_ERROR_FILE', async () => {
+  // GIVEN
+  config.settings.set(['app'], 'cloud-executable');
+  mockSpawn({
+    commandLine: 'cloud-executable',
+    sideEffect: (_, options) => {
+      const errFile = options.env?.CDK_ERROR_FILE;
+      if (!errFile) {
+        throw new Error('Expecting $CDK_ERROR_FILE, but not set');
+      }
+
+      fs.writeFileSync(errFile, 'SomeErrorCode', 'utf-8');
+    },
+    stderr: '«SomeErrorCode» There was an error',
+    exitCode: 1,
+  });
+
+  // WHEN
+  try {
+    await execProgram(sdkProvider, ioHelper, config);
+  } catch (e: any) {
+    if (!ToolkitError.isAssemblyError(e)) {
+      throw new Error(`Expected AssemblyError but got ${e}`);
+    }
+    expect(e.synthErrorCode).toEqual('SomeErrorCode');
+    return;
+  }
+  throw new Error('Expected execProgram() to throw, but it didn\'t');
+});
+
+test('marked-up error codes are ignored if they do not match the error file', async () => {
+  // GIVEN
+  config.settings.set(['app'], 'cloud-executable');
+  mockSpawn({
+    commandLine: 'cloud-executable',
+    stderr: '«SomeErrorCode» There was an error',
+    exitCode: 1,
+  });
+
+  // WHEN
+  try {
+    await execProgram(sdkProvider, ioHelper, config);
+  } catch (e: any) {
+    if (!ToolkitError.isAssemblyError(e)) {
+      throw new Error(`Expected AssemblyError but got ${e}`);
+    }
+    expect(e.synthErrorCode).toEqual(undefined);
+    return;
+  }
+  throw new Error('Expected execProgram() to throw, but it didn\'t');
 });
 
 function writeOutputAssembly() {

@@ -62,9 +62,9 @@ export class ToolkitError extends Error {
 
   constructor(message: string, type: string = 'toolkit', cause?: unknown) {
     super(message);
+    this.name = this.constructor.name;
     Object.setPrototypeOf(this, ToolkitError.prototype);
     Object.defineProperty(this, TOOLKIT_ERROR_SYMBOL, { value: true });
-    this.name = new.target.name;
     this.type = type;
     this.source = 'toolkit';
     this.cause = cause;
@@ -120,11 +120,24 @@ export class AssemblyError extends ToolkitError {
    */
   public readonly stacks?: cxapi.CloudFormationStackArtifact[];
 
+  private _synthErrorCode: string | undefined;
+
   private constructor(message: string, stacks?: cxapi.CloudFormationStackArtifact[], cause?: unknown) {
     super(message, 'assembly', cause);
     Object.setPrototypeOf(this, AssemblyError.prototype);
     Object.defineProperty(this, ASSEMBLY_ERROR_SYMBOL, { value: true });
     this.stacks = stacks;
+  }
+
+  /**
+   * The synthesis error code
+   */
+  public get synthErrorCode(): string | undefined {
+    return this._synthErrorCode;
+  }
+
+  public attachSynthesisErrorCode(synthesisErrorCode: string) {
+    this._synthErrorCode = synthesisErrorCode;
   }
 }
 
