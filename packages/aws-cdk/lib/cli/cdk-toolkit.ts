@@ -504,13 +504,13 @@ export class CdkToolkit {
         });
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const motivation = requireApproval === RequireApproval.ANYCHANGE 
-            ? `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'` 
+          const motivation = requireApproval === RequireApproval.ANYCHANGE
+            ? `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`
             : '"--require-approval" is enabled and stack includes security-sensitive updates';
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
 
           // the ioHost uses this internally to determine if a confirmation
-          // is actually needed, so it needs the same value we have here. 
+          // is actually needed, so it needs the same value we have here.
           // ideally this would threaded into the request instead of it being an instance field.
           this.ioHost.requireDeployApproval = requireApproval;
 
