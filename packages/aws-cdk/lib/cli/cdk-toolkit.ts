@@ -425,6 +425,8 @@ export class CdkToolkit {
       ...options,
     });
 
+    // the ioHost uses this internally to determine if a confirmation
+    // is actually needed, so it needs the same value we determine here.
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
     this.ioHost.requireDeployApproval = requireApproval;
 
