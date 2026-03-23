@@ -1,14 +1,29 @@
-import { ErrorName } from './schema';
+import { ToolkitError } from "@aws-cdk/toolkit-lib";
+import { ServiceException } from "@smithy/smithy-client";
 
-export function cdkCliErrorName(name: string): ErrorName {
-  // We only record error names that we control. Errors coming from dependencies
-  // contain text that we have no control over so it is safer to not send it.
-  if (!isKnownErrorName(name)) {
-    return ErrorName.UNKNOWN_ERROR;
+/**
+ * Return the transmitted error code for this error object
+ *
+ * We are taking care to only transmit errors that originate from AWS systems
+ * (this toolkit itself, the CDK construct library, the AWS SDK, AWS services).
+ */
+export function cdkCliErrorName(err: Error): string {
+  if (ServiceException.isInstance(err)) {
+    // SDK and/or Service error
+    return `SDK:${err.name}`;
   }
-  return name;
+
+  if (ToolkitError.isAssemblyError(err) && err.synthErrorCode) {
+    // If we have a synth code, return that
+    return `Synth:${err.synthErrorCode}`;
+  }
+
+  if (ToolkitError.isToolkitError(err)) {
+    // Any old error originating from us
+    return err.name;
+  }
+
+  // Off-limits error
+  return 'UnknownError';
 }
 
-function isKnownErrorName(name: string): name is ErrorName {
-  return Object.values(ErrorName).includes(name as ErrorName);
-}
