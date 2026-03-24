@@ -18,10 +18,14 @@ export const UNKNOWN_ERROR_CODE = 'UnknownError';
  * (this toolkit itself, the CDK construct library, the AWS SDK, AWS services).
  */
 export function cdkCliErrorName(err: Error): string {
+  const spec = firstSpecificCause(err);
+  if (spec) {
+    return spec;
+  }
+
   if (ToolkitError.isToolkitError(err)) {
-    // Any old error originating from us.
-    // Get a specific cause, if any, otherwise just the class name
-    return firstSpecificCause(err) ?? err.name;
+    // We don't have a specific error code, return the generic one from our own error set
+    return err.name;
   }
 
   // Off-limits error
@@ -48,6 +52,7 @@ function firstSpecificCause(error: Error): string | undefined {
  * Return a specific error code for the given function, or undefined if we don't have a specific code
  */
 function specificErrorCode(err: Error): string | undefined {
+  console.log(err, ServiceException.isInstance(err));
   if (ServiceException.isInstance(err)) {
     // SDK and/or Service error
     return `sdk:${err.name}`;
