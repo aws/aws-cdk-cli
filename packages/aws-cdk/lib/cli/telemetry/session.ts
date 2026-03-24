@@ -13,6 +13,7 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
+import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -93,7 +94,7 @@ export class TelemetrySession {
     process.on('SIGINT', async () => {
       try {
         await this.end({
-          name: 'UserInterrupted',
+          name: USER_INTERRUPTED_CODE,
           message: ABORTED_ERROR_MESSAGE,
         });
       } catch (e: any) {
