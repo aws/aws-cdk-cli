@@ -6,5 +6,5 @@ test('returns known error names', () => {
 });
 
 test('returns UnknownError for unknown error names', () => {
-  expect(cdkCliErrorName(new Error('ExpiredToken: damn'))).toEqual('UnknownError');
+  expect(cdkCliErrorName(new Error('ExpiredToken: hot diddly'))).toEqual('UnknownError');
 });
