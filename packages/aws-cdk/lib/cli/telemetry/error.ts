@@ -52,7 +52,6 @@ function firstSpecificCause(error: Error): string | undefined {
  * Return a specific error code for the given function, or undefined if we don't have a specific code
  */
 function specificErrorCode(err: Error): string | undefined {
-  console.log(err, ServiceException.isInstance(err));
   if (ServiceException.isInstance(err)) {
     // SDK and/or Service error
     return `sdk:${err.name}`;

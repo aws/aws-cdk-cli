@@ -113,6 +113,7 @@
     "@smithy/middleware-endpoint": "^4.4.23",
     "@smithy/property-provider": "^4.2.11",
     "@smithy/shared-ini-file-loader": "^4.4.6",
+    "@smithy/smithy-client": "^4.12.7",
     "@smithy/types": "^4.13.0",
     "@smithy/util-retry": "^4.2.11",
     "@smithy/util-waiter": "^4.2.11",
