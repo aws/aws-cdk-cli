@@ -492,6 +492,9 @@ const cloudFormationDiff = configureProject(
     devDeps: [
       'fast-check',
     ],
+    peerDependencyOptions: {
+      pinnedDevDependency: false,
+    },
     peerDeps: [
       sdkDepForLib('@aws-sdk/client-cloudformation'),
     ],
