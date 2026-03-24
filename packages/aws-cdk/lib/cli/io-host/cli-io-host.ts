@@ -377,7 +377,7 @@ export class CliIoHost implements IIoHost {
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
     const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
     if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
-      false;
+      return false;
     }
 
     switch (this.requireDeployApproval) {

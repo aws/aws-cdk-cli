@@ -194,6 +194,18 @@ describe('list', () => {
 });
 
 describe('deploy', () => {
+  test('sets requireDeployApproval on CliIoHost', async () => {
+    const toolkit = defaultToolkitSetup();
+    const requireApproval = RequireApproval.ANYCHANGE;
+    await toolkit.deploy({
+      selector: { patterns: ['**'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval,
+    });
+
+    expect(ioHost.requireDeployApproval).toEqual(requireApproval);
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
