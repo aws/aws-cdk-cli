@@ -89,7 +89,7 @@ integTest(
           Action: ['s3:PutObject'],
           Resource: `arn:aws:s3:::${logsBucket}/*`,
         },
-      ]
+      ],
     );
 
     // Step 5: Activate the AWS Guard Hook type in this region
