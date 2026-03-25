@@ -103,15 +103,21 @@ export class CloudAssembly implements ICloudAssembly {
   public readonly manifest: cxschema.AssemblyManifest;
 
   /**
+   * The load options used to create this assembly, propagated to nested assemblies.
+   */
+  private readonly loadOptions?: cxschema.LoadManifestOptions;
+
+  /**
    * Reads a cloud assembly from the specified directory.
    * @param directory - The root directory of the assembly.
    */
   constructor(directory: string, loadOptions?: cxschema.LoadManifestOptions) {
     this.directory = directory;
+    this.loadOptions = loadOptions;
 
-    this.manifest = cxschema.Manifest.loadAssemblyManifest(path.join(directory, MANIFEST_FILE), loadOptions);
+    this.manifest = cxschema.Manifest.loadAssemblyManifest(path.join(directory, MANIFEST_FILE), this.loadOptions);
     this.version = this.manifest.version;
-    this.artifacts = this.renderArtifacts(loadOptions?.topoSort ?? true);
+    this.artifacts = this.renderArtifacts(this.loadOptions?.topoSort ?? true);
     this.runtime = this.manifest.runtime || { libraries: { } };
 
     Object.defineProperty(this, CLOUD_ASSEMBLY_SYMBOL, { value: true });

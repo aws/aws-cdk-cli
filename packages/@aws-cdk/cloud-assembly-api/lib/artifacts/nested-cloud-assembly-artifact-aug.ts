@@ -11,7 +11,7 @@ const cacheSym = Symbol();
 Object.defineProperty(NestedCloudAssemblyArtifact.prototype, 'nestedAssembly', {
   get() {
     if (!this[cacheSym]) {
-      this[cacheSym] = new CloudAssembly(this.fullPath);
+      this[cacheSym] = new CloudAssembly(this.fullPath, this.assembly.loadOptions);
     }
     return this[cacheSym];
   },
