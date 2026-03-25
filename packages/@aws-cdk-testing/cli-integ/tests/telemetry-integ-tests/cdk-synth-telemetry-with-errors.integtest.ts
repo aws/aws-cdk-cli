@@ -120,7 +120,7 @@ integTest(
           total: expect.anything(),
         },
         error: {
-          name: 'AssemblyError',
+          name: 'synth:AnnotationErrors',
         },
       }),
     ]);
