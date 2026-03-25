@@ -135,8 +135,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Lists the stacks in the CDK app
    */
   public async list(options: ListOptions): Promise<string[]> {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
-    const stacks = await this.toolkit.list(cx, {
+    const stacks = await toolkit.list(cx, {
       stacks: this.stackSelector(options),
     });
 
@@ -164,9 +165,10 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Watches the CDK app for changes and deploys them automatically
    */
   public async watch(options: WatchOptions, events?: WatchEvents) {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
     try {
-      const watcher = await this.toolkit.watch(cx, {
+      const watcher = await toolkit.watch(cx, {
         roleArn: options.roleArn,
         traceLogs: options.traceLogs,
         stacks: this.stackSelector(options),

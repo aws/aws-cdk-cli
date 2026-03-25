@@ -288,6 +288,57 @@ describe('ToolkitLibRunnerEngine', () => {
       });
     });
 
+    it('should use a different profile for list when options specify one', async () => {
+      MockedBaseCredentials.awsCliCompatible = jest.fn();
+
+      const overrideEngine = new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        profile: 'default-profile',
+      });
+
+      const mockCx = {};
+      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.list.mockResolvedValue([]);
+
+      await overrideEngine.list({
+        app: 'test-app',
+        stacks: ['stack1'],
+        profile: 'override-profile',
+      });
+
+      expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+        profile: 'override-profile',
+        defaultRegion: 'us-dummy-1',
+      });
+    });
+
+    it('should use a different profile for watch when options specify one', async () => {
+      MockedBaseCredentials.awsCliCompatible = jest.fn();
+
+      const overrideEngine = new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        profile: 'default-profile',
+      });
+
+      const mockCx = {};
+      const mockWatcher = { waitForEnd: jest.fn() };
+      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.watch.mockResolvedValue(mockWatcher as any);
+
+      await overrideEngine.watch({
+        app: 'test-app',
+        stacks: ['stack1'],
+        profile: 'override-profile',
+      });
+
+      expect(MockedBaseCredentials.awsCliCompatible).toHaveBeenCalledWith({
+        profile: 'override-profile',
+        defaultRegion: 'us-dummy-1',
+      });
+    });
+
     it('should create a new toolkit even when deploy profile matches constructor profile', async () => {
       MockedBaseCredentials.awsCliCompatible = jest.fn();
 
