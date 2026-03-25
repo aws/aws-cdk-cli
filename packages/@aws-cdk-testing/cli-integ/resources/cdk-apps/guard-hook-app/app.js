@@ -1,4 +1,4 @@
-const cdk = require('aws-cdk-lib');
+const cdk = require('aws-cdk-lib/core');
 const s3 = require('aws-cdk-lib/aws-s3');
 const iam = require('aws-cdk-lib/aws-iam');
 const s3deploy = require('aws-cdk-lib/aws-s3-deployment');
@@ -28,14 +28,12 @@ class GuardHookSetupStack extends cdk.Stack {
 
     // S3 bucket for Guard rules
     const rulesBucket = new s3.Bucket(this, 'RulesBucket', {
-      bucketName: `${stackPrefix}-guard-rules`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
     // S3 bucket for Guard logs
     const logsBucket = new s3.Bucket(this, 'LogsBucket', {
-      bucketName: `${stackPrefix}-guard-logs`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
@@ -43,7 +41,7 @@ class GuardHookSetupStack extends cdk.Stack {
     // Grant CDK deploy role read access to the logs bucket.
     // The bootstrap deploy role only has cross-account S3 permissions; same-account
     // access is granted by bucket policies, per the bootstrap template's design intent.
-    const deployRoleArn = this.synthesizer.deployRoleArn;
+    const deployRoleArn = cdk.Fn.sub(this.synthesizer.deployRoleArn);
     logsBucket.addToResourcePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       principals: [new iam.ArnPrincipal(deployRoleArn)],
