@@ -650,7 +650,7 @@ function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
     duration: result.duration,
     ...(result.error ? {
       error: {
-        name: cdkCliErrorName(result.error.name),
+        name: cdkCliErrorName(result.error),
       },
     } : {}),
     counters: {

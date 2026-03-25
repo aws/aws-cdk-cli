@@ -142,7 +142,7 @@ export class CloudExecutable implements ICloudAssemblySource {
       }
     } catch (e: any) {
       error = {
-        name: cdkCliErrorName(e.name),
+        name: cdkCliErrorName(e),
       };
       throw e;
     } finally {

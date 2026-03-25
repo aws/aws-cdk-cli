@@ -1199,6 +1199,7 @@ const cli = configureProject(
       '@aws-sdk/client-sfn',
       '@aws-sdk/client-ssm',
       '@aws-sdk/client-sts',
+      '@smithy/smithy-client',
       '@aws-sdk/credential-providers',
       '@aws-sdk/ec2-metadata-service',
       '@aws-sdk/lib-storage',
