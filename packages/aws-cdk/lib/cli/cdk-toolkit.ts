@@ -251,16 +251,18 @@ export class CdkToolkit {
       // Compare single stack against fixed template
       if (stacks.stackCount !== 1) {
         throw new ToolkitError(
+          'SingleStackRequired',
           'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
         );
       }
 
       if (!(await fs.pathExists(options.templatePath))) {
-        throw new ToolkitError(`There is no file at ${options.templatePath}`);
+        throw new ToolkitError('TemplateNotFound', `There is no file at ${options.templatePath}`);
       }
 
       if (options.importExistingResources) {
         throw new ToolkitError(
+          'ImportWithTemplatePath',
           'Can only use --import-existing-resources flag when comparing against deployed stacks.',
         );
       }
@@ -475,6 +477,7 @@ export class CdkToolkit {
       if (!stack.environment) {
         // eslint-disable-next-line @stylistic/max-len
         throw new ToolkitError(
+          'MissingEnvironment',
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
       }
@@ -535,7 +538,7 @@ export class CdkToolkit {
 
       for (const notificationArn of notificationArns ?? []) {
         if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError(`Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
         }
       }
 
@@ -560,7 +563,7 @@ export class CdkToolkit {
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
-            throw new ToolkitError('This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
+            throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
           }
 
           const r = await this.props.deployments.deployStack({
@@ -638,7 +641,7 @@ export class CdkToolkit {
             }
 
             default:
-              throw new ToolkitError(`Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
+              throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
           }
         }
 
@@ -668,6 +671,7 @@ export class CdkToolkit {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
         const wrappedError = new ToolkitError(
+          'DeployFailed',
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
 
@@ -791,11 +795,11 @@ export class CdkToolkit {
         await this.ioHost.asIoHelper().defaults.info(`\n✨  Rollback time: ${formatTime(elapsedRollbackTime).toString()}s\n`);
       } catch (e: any) {
         await this.ioHost.asIoHelper().defaults.error('\n ❌  %s failed: %s', chalk.bold(stack.displayName), formatErrorMessage(e));
-        throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
+        throw new ToolkitError('RollbackFailed', 'Rollback failed (use --force to orphan failing resources)');
       }
     }
     if (!anyRollbackable) {
-      throw new ToolkitError('No stacks were in a state that could be rolled back');
+      throw new ToolkitError('NoRollbackableStacks', 'No stacks were in a state that could be rolled back');
     }
   }
 
@@ -808,6 +812,7 @@ export class CdkToolkit {
       this.props.configuration.settings.get(['watch']);
     if (!watchSettings) {
       throw new ToolkitError(
+        'WatchConfigMissing',
         "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
         'Make sure to add a "watch" key to your cdk.json',
       );
@@ -927,12 +932,13 @@ export class CdkToolkit {
 
     if (stacks.stackCount > 1) {
       throw new ToolkitError(
+        'AmbiguousStackSelection',
         `Stack selection is ambiguous, please choose a specific stack for import [${stacks.stackArtifacts.map((x) => x.id).join(', ')}]`,
       );
     }
 
     if (!process.stdout.isTTY && !options.resourceMappingFile) {
-      throw new ToolkitError('--resource-mapping is required when input is not a terminal');
+      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping is required when input is not a terminal');
     }
 
     const stack = stacks.stackArtifacts[0];
@@ -1200,11 +1206,13 @@ export class CdkToolkit {
       if (userEnvironmentSpecs.length > 0) {
         // User did request this glob
         throw new ToolkitError(
+          'InvalidEnvironmentGlob',
           `'${globSpecs}' is not an environment name. Specify an environment name like 'aws://123456789012/us-east-1', or run in a directory with 'cdk.json' to use wildcards.`,
         );
       } else {
         // User did not request anything
         throw new ToolkitError(
+          'EnvironmentRequired',
           "Specify an environment name like 'aws://123456789012/us-east-1', or run in a directory with 'cdk.json'.",
         );
       }
@@ -1273,7 +1281,7 @@ export class CdkToolkit {
       } else if (scanType == TemplateSourceOptions.STACK) {
         const template = await readFromStack(options.stackName, this.props.sdkProvider, environment);
         if (!template) {
-          throw new ToolkitError(`No template found for stack-name: ${options.stackName}`);
+          throw new ToolkitError('StackTemplateNotFound', `No template found for stack-name: ${options.stackName}`);
         }
         generateTemplateOutput = {
           migrateJson: {
@@ -1283,7 +1291,7 @@ export class CdkToolkit {
         };
       } else {
         // We shouldn't ever get here, but just in case.
-        throw new ToolkitError(`Invalid source option provided: ${scanType}`);
+        throw new ToolkitError('InvalidSourceOption', `Invalid source option provided: ${scanType}`);
       }
       const stack = generateStack(generateTemplateOutput.migrateJson.templateBody, options.stackName, language);
       await this.ioHost.asIoHelper().defaults.info(chalk.green(' ⏳  Generating CDK app for %s...'), chalk.blue(options.stackName));
@@ -1317,7 +1325,7 @@ export class CdkToolkit {
 
   public async refactor(options: RefactorOptions): Promise<number> {
     if (options.revert && !options.overrideFile) {
-      throw new ToolkitError('The --revert option can only be used with the --override-file option.');
+      throw new ToolkitError('RevertRequiresOverrideFile', 'The --revert option can only be used with the --override-file option.');
     }
 
     try {
@@ -1345,7 +1353,7 @@ export class CdkToolkit {
         return [];
       }
       if (!fs.pathExistsSync(filePath)) {
-        throw new ToolkitError(`The mapping file ${filePath} does not exist`);
+        throw new ToolkitError('MappingFileNotFound', `The mapping file ${filePath} does not exist`);
       }
       const groups = parseMappingGroups(fs.readFileSync(filePath).toString('utf-8'));
 
@@ -1449,7 +1457,7 @@ export class CdkToolkit {
    */
   private validateStacksSelected(stacks: StackCollection, stackNames: string[]) {
     if (stackNames.length != 0 && stacks.stackCount == 0) {
-      throw new ToolkitError(`No stacks match the name(s) ${stackNames}`);
+      throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
     }
   }
 
@@ -1469,7 +1477,7 @@ export class CdkToolkit {
 
     // Could have been a glob so check that we evaluated to exactly one
     if (stacks.stackCount > 1) {
-      throw new ToolkitError(`This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
+      throw new ToolkitError('MultipleStacksMatched', `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
     }
 
     return assembly.stackById(stacks.firstStack.id);

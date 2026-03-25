@@ -55,16 +55,16 @@ export class Bootstrapper {
     const params = options.parameters ?? {};
 
     if (params.trustedAccounts?.length) {
-      throw new ToolkitError('--trust can only be passed for the modern bootstrap experience.');
+      throw new ToolkitError('TrustRequiresModernBootstrap', '--trust can only be passed for the modern bootstrap experience.');
     }
     if (params.cloudFormationExecutionPolicies?.length) {
-      throw new ToolkitError('--cloudformation-execution-policies can only be passed for the modern bootstrap experience.');
+      throw new ToolkitError('ExecutionPoliciesRequiresModernBootstrap', '--cloudformation-execution-policies can only be passed for the modern bootstrap experience.');
     }
     if (params.createCustomerMasterKey !== undefined) {
-      throw new ToolkitError('--bootstrap-customer-key can only be passed for the modern bootstrap experience.');
+      throw new ToolkitError('CustomerKeyRequiresModernBootstrap', '--bootstrap-customer-key can only be passed for the modern bootstrap experience.');
     }
     if (params.qualifier) {
-      throw new ToolkitError('--qualifier can only be passed for the modern bootstrap experience.');
+      throw new ToolkitError('QualifierRequiresModernBootstrap', '--qualifier can only be passed for the modern bootstrap experience.');
     }
 
     const toolkitStackName = options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
@@ -98,6 +98,7 @@ export class Bootstrapper {
 
     if (params.createCustomerMasterKey !== undefined && params.kmsKeyId) {
       throw new ToolkitError(
+        'ConflictingKmsKeyOptions',
         "You cannot pass '--bootstrap-kms-key-id' and '--bootstrap-customer-key' together. Specify one or the other",
       );
     }
@@ -116,7 +117,7 @@ export class Bootstrapper {
     ]);
     const invalid = intersection(allTrusted, new Set(params.untrustedAccounts));
     if (invalid.size > 0) {
-      throw new ToolkitError(`Accounts cannot be both trusted and untrusted. Found: ${[...invalid].join(',')}`);
+      throw new ToolkitError('AccountBothTrustedAndUntrusted', `Accounts cannot be both trusted and untrusted. Found: ${[...invalid].join(',')}`);
     }
 
     const removeUntrusted = (accounts: string[]) =>
@@ -156,6 +157,7 @@ export class Bootstrapper {
       );
     } else if (cloudFormationExecutionPolicies.length === 0) {
       throw new ToolkitError(
+        'MissingExecutionPoliciesForTrust',
         `Please pass \'--cloudformation-execution-policies\' when using \'--trust\' to specify deployment permissions. Try a managed policy of the form \'arn:${partition}:iam::aws:policy/<PolicyName>\'.`,
       );
     } else {
@@ -235,7 +237,7 @@ export class Bootstrapper {
     // parameters yet will fail to deploy.
     if (params.denyExternalId !== undefined) {
       if (!templateParameters.includes('DenyExternalId')) {
-        throw new ToolkitError('The selected bootstrap template does not accept the DenyExternalId parameter');
+        throw new ToolkitError('DenyExternalIdNotSupported', 'The selected bootstrap template does not accept the DenyExternalId parameter');
       }
       bootstrapTemplateParameters.DenyExternalId = `${params.denyExternalId}`;
     }
@@ -266,7 +268,7 @@ export class Bootstrapper {
     );
     const policyName = arn.split('/').pop();
     if (!policyName) {
-      throw new ToolkitError('Could not retrieve the example permission boundary!');
+      throw new ToolkitError('PermissionBoundaryRetrievalFailed', 'Could not retrieve the example permission boundary!');
     }
     return Promise.resolve(policyName);
   }
@@ -348,7 +350,7 @@ export class Bootstrapper {
     if (createPolicyResponse.Policy?.Arn) {
       return createPolicyResponse.Policy.Arn;
     } else {
-      throw new ToolkitError(`Could not retrieve the example permission boundary ${arn}!`);
+      throw new ToolkitError('PermissionBoundaryCreateFailed', `Could not retrieve the example permission boundary ${arn}!`);
     }
   }
 
@@ -359,7 +361,7 @@ export class Bootstrapper {
     const regexp: RegExp = /[\w+\/=,.@-]+/;
     const matches = regexp.exec(permissionsBoundary);
     if (!(matches && matches.length === 1 && matches[0] === permissionsBoundary)) {
-      throw new ToolkitError(`The permissions boundary name ${permissionsBoundary} does not match the IAM conventions.`);
+      throw new ToolkitError('InvalidPermissionBoundaryName', `The permissions boundary name ${permissionsBoundary} does not match the IAM conventions.`);
     }
   }
 

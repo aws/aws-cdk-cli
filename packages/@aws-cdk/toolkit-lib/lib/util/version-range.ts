@@ -8,7 +8,7 @@ export type RangeType = 'bracket' | 'major.*' | 'pep' ;
 export function rangeFromSemver(ver: string, targetType: RangeType) {
   const re = ver.match(/^([^\d]*)([\d.]*)[^\s]*$/);
   if (!re || !semver.valid(re[2])) {
-    throw new ToolkitError('not a semver or unsupported range syntax');
+    throw new ToolkitError('InvalidSemverRange', 'not a semver or unsupported range syntax');
   }
   const prefixPart = re[1];
   const verPart = re[2];
@@ -27,7 +27,7 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
         case '^':
           return `${semver.major(verPart)}.*`;
         default:
-          throw new ToolkitError(`unsupported range syntax - ${prefixPart}`);
+          throw new ToolkitError('UnsupportedRangeSyntax', `unsupported range syntax - ${prefixPart}`);
       }
     case 'bracket':
       switch (prefixPart) {
@@ -37,7 +37,7 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
         case '^':
           return `[${verPart},${semver.major(verPart)+1}.0.0)`;
         default:
-          throw new ToolkitError(`unsupported range syntax - ${prefixPart}`);
+          throw new ToolkitError('UnsupportedRangeSyntax', `unsupported range syntax - ${prefixPart}`);
       }
     case 'pep':
       switch (prefixPart) {
@@ -47,7 +47,7 @@ export function rangeFromSemver(ver: string, targetType: RangeType) {
         case '^':
           return `>=${verPart},<${semver.major(verPart)+1}.0.0`;
         default:
-          throw new ToolkitError(`unsupported range syntax - ${prefixPart}`);
+          throw new ToolkitError('UnsupportedRangeSyntax', `unsupported range syntax - ${prefixPart}`);
       }
   }
 }

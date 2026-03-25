@@ -482,12 +482,12 @@ export class CliIoHost implements IIoHost {
 
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
-        throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
+        throw new ToolkitError('TtyNotAttached', `${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
       }
 
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
-        throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+        throw new ToolkitError('ConcurrencyConflict', `${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
       }
 
       // Basic confirmation prompt
@@ -495,7 +495,7 @@ export class CliIoHost implements IIoHost {
       if (isConfirmationPrompt(msg)) {
         const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
         if (!confirmed) {
-          throw new ToolkitError('Aborted by user');
+          throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
         return confirmed;
       }

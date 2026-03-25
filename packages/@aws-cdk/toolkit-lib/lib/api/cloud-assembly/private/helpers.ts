@@ -36,7 +36,7 @@ function detectSynthvarConflicts<A extends object>(obj: A) {
     },
     set(target, prop, value) {
       if (['CDK_CONTEXT', 'CDK_OUTDIR'].includes(String(prop))) {
-        throw new ToolkitError('process.env is temporarily immutable. Set \'clobberEnv: false\' if you want to run multiple \'fromAssemblyBuilder\' synths concurrently');
+        throw new ToolkitError('EnvImmutableDuringSynth', 'process.env is temporarily immutable. Set \'clobberEnv: false\' if you want to run multiple \'fromAssemblyBuilder\' synths concurrently');
       }
       (target as any)[prop] = value;
       return true;

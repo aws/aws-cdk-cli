@@ -593,6 +593,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       if (!stack.environment) {
         throw new ToolkitError(
+          'StackEnvironmentMissing',
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
       }
@@ -639,7 +640,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         templateDiffs: formatter.diffs,
       }));
       if (!deployConfirmed) {
-        throw new ToolkitError('Aborted by user');
+        throw new ToolkitError('DeployAborted', 'Aborted by user');
       }
 
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
@@ -653,7 +654,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       for (const notificationArn of notificationArns ?? []) {
         if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError(`Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
         }
       }
 
@@ -679,7 +680,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
-            throw new ToolkitError('This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
+            throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
           }
 
           const r = await deployments.deployStack({
@@ -715,7 +716,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('Aborted by user');
+                throw new ToolkitError('RollbackAborted', 'Aborted by user');
               }
 
               // Perform a rollback
@@ -741,7 +742,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('Aborted by user');
+                throw new ToolkitError('ReplacementRollbackAborted', 'Aborted by user');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -750,7 +751,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             }
 
             default:
-              throw new ToolkitError(`Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
+              throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
           }
         }
 
@@ -787,6 +788,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
         throw new ToolkitError(
+          'DeployStackFailed',
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' '),
         );
       } finally {
@@ -1059,11 +1061,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
-        throw ToolkitError.withCause('Rollback failed (use --force to orphan failing resources)', e);
+        throw ToolkitError.withCause('RollbackFailed', 'Rollback failed (use --force to orphan failing resources)', e);
       }
     }
     if (!anyRollbackable) {
-      throw new ToolkitError('No stacks were in a state that could be rolled back');
+      throw new ToolkitError('NoRollbackableStacks', 'No stacks were in a state that could be rolled back');
     }
 
     return ret;
@@ -1201,7 +1203,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
         }
       }
-      throw new ToolkitError(`Cannot find resource in location ${location}`);
+      throw new ToolkitError('ResourceLocationNotFound', `Cannot find resource in location ${location}`);
     }
 
     async function confirm(force: boolean): Promise<boolean> {
@@ -1414,7 +1416,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
     if (!this.unstableFeatures.includes(requestedFeature)) {
-      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
     }
   }
 }

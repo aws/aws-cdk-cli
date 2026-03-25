@@ -30,7 +30,7 @@ export function prepareDiff(
     case 'change-set':
       return cfnDiff(ioHelper, stacks, deployments, options, sdkProvider, true);
     default:
-      throw new ToolkitError(formatErrorMessage(`Unknown diff method ${options.method}`));
+      throw new ToolkitError('UnknownDiffMethod', formatErrorMessage(`Unknown diff method ${options.method}`));
   }
 }
 
@@ -40,12 +40,13 @@ async function localFileDiff(stacks: StackCollection, options: DiffOptions): Pro
   // Compare single stack against fixed template
   if (stacks.stackCount !== 1) {
     throw new ToolkitError(
+      'SingleStackRequired',
       'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
     );
   }
 
   if (!(await fs.pathExists(methodOptions.path))) {
-    throw new ToolkitError(`There is no file at ${methodOptions.path}`);
+    throw new ToolkitError('TemplateFileNotFound', `There is no file at ${methodOptions.path}`);
   }
 
   const file = fs.readFileSync(methodOptions.path).toString();
@@ -134,7 +135,7 @@ async function changeSetDiff(
     });
   } catch (e: any) {
     if (!fallBackToTemplate) {
-      throw new ToolkitError(`describeStacks call failed with ${e} for ${stack.stackName}, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
+      throw new ToolkitError('DescribeStacksFailed', `describeStacks call failed with ${e} for ${stack.stackName}, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
     }
 
     await ioHelper.defaults.debug(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`);
@@ -156,7 +157,7 @@ async function changeSetDiff(
     });
   } else {
     if (!fallBackToTemplate) {
-      throw new ToolkitError(`the stack '${stack.stackName}' has not been deployed to CloudFormation, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
+      throw new ToolkitError('StackNotDeployed', `the stack '${stack.stackName}' has not been deployed to CloudFormation, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
     }
 
     await ioHelper.defaults.debug(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`);

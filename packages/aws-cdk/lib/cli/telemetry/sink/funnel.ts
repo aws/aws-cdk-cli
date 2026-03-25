@@ -16,7 +16,7 @@ export class Funnel {
 
   constructor(props: FunnelProps) {
     if (props.sinks.length > 5) {
-      throw new ToolkitError(`Funnel class supports a maximum of 5 parallel sinks, got ${props.sinks.length} sinks.`);
+      throw new ToolkitError('MaxSinksExceeded', `Funnel class supports a maximum of 5 parallel sinks, got ${props.sinks.length} sinks.`);
     }
 
     this.sinks = props.sinks;

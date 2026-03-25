@@ -11,7 +11,7 @@ export * from './test-io-host';
 function fixturePath(...parts: string[]): string {
   const ret = path.normalize(path.join(__dirname, '..', '_fixtures', ...parts));
   if (!fs.existsSync(ret)) {
-    throw new ToolkitError(`App Fixture not found: ${ret}`);
+    throw new ToolkitError('FixtureNotFound', `App Fixture not found: ${ret}`);
   }
   return ret;
 }
@@ -58,7 +58,7 @@ export function builderFixture(toolkit: CloudAssemblySourceBuilder, name: string
 export function cdkOutFixture(toolkit: CloudAssemblySourceBuilder, name: string, props: AssemblyDirectoryProps = {}) {
   const outdir = path.join(__dirname, '..', '_fixtures', name, 'cdk.out');
   if (!fs.existsSync(outdir)) {
-    throw new ToolkitError(`Assembly Dir Fixture ${name} does not exist in ${outdir}`);
+    throw new ToolkitError('FixtureNotFound', `Assembly Dir Fixture ${name} does not exist in ${outdir}`);
   }
   return toolkit.fromAssemblyDirectory(outdir, props);
 }

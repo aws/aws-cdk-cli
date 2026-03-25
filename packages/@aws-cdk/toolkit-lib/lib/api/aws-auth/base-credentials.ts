@@ -71,7 +71,7 @@ export class BaseCredentials {
       public async sdkBaseConfig() {
         return {
           credentialProvider: () => {
-            throw new AuthenticationError('No credentials available due to BaseCredentials.none()');
+            throw new AuthenticationError('NoBaseCredentials', 'No credentials available due to BaseCredentials.none()');
           },
         };
       }

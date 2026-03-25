@@ -44,7 +44,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   let app = config.settings.get(['app']);
   if (!app) {
-    throw new ToolkitError(`--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
+    throw new ToolkitError('AppRequired', `--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
   }
 
   // bypass "synth" if app points to a cloud assembly
@@ -68,15 +68,15 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
-    throw new ToolkitError('unexpected: --output is required');
+    throw new ToolkitError('OutputRequired', 'unexpected: --output is required');
   }
   if (typeof outdir !== 'string') {
-    throw new ToolkitError(`--output takes a string, got ${JSON.stringify(outdir)}`);
+    throw new ToolkitError('OutputNotString', `--output takes a string, got ${JSON.stringify(outdir)}`);
   }
   try {
     await fs.mkdirp(outdir);
   } catch (error: any) {
-    throw new ToolkitError(`Could not create output directory ${outdir} (${error.message})`);
+    throw new ToolkitError('OutputDirCreateFailed', `Could not create output directory ${outdir} (${error.message})`);
   }
 
   await debugFn(`outdir: ${outdir}`);
@@ -140,7 +140,7 @@ export function createAssembly(appDir: string) {
     if (error.message.includes(cxschema.VERSION_MISMATCH)) {
       // this means the CLI version is too old.
       // we instruct the user to upgrade.
-      throw new ToolkitError(`This CDK CLI is not compatible with the CDK library used by your application. Please upgrade the CLI to the latest version.\n(${error.message})`);
+      throw new ToolkitError('CliVersionMismatch', `This CDK CLI is not compatible with the CDK library used by your application. Please upgrade the CLI to the latest version.\n(${error.message})`);
     }
     throw error;
   }

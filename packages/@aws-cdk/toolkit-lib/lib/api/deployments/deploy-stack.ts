@@ -246,6 +246,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     const deletedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new ToolkitError(
+        'FailedStackCleanupFailed',
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
       );
     }
@@ -416,7 +417,7 @@ class FullCloudFormationDeployment {
     const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
-      throw new ToolkitError('Importing resources requires a changeset deployment');
+      throw new ToolkitError('ImportRequiresChangeSet', 'Importing resources requires a changeset deployment');
     }
 
     switch (deploymentMethod.method) {
@@ -641,11 +642,11 @@ class FullCloudFormationDeployment {
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
-        throw new ToolkitError('Stack deploy failed (the stack disappeared while we were deploying it)');
+        throw new ToolkitError('StackDisappeared', 'Stack deploy failed (the stack disappeared while we were deploying it)');
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
+      throw new ToolkitError('StackDeployFailed', suffixWithErrors(formatErrorMessage(e), monitor.errors));
     } finally {
       await monitor.stop();
     }
@@ -730,12 +731,12 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+      throw new ToolkitError('StackDestroyFailed', `Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
     }
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
+    throw new ToolkitError('StackDestroyFailed', suffixWithErrors(formatErrorMessage(e), monitor.errors));
   } finally {
     if (monitor) {
       await monitor.stop();

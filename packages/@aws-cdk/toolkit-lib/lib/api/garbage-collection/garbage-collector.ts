@@ -94,14 +94,14 @@ export class ObjectAsset {
 
   private getTag(tag: string) {
     if (!this.cached_tags) {
-      throw new ToolkitError('Cannot call getTag before allTags');
+      throw new ToolkitError('TagsNotLoaded', 'Cannot call getTag before allTags');
     }
     return this.cached_tags.find((t: any) => t.Key === tag)?.Value;
   }
 
   private hasTag(tag: string) {
     if (!this.cached_tags) {
-      throw new ToolkitError('Cannot call hasTag before allTags');
+      throw new ToolkitError('TagsNotLoaded', 'Cannot call hasTag before allTags');
     }
     return this.cached_tags.some((t: any) => t.Key === tag);
   }
@@ -243,7 +243,7 @@ export class GarbageCollector {
         await this.garbageCollectEcr(sdk, activeAssets, backgroundStackRefresh);
       }
     } catch (err: any) {
-      throw new ToolkitError(err);
+      throw new ToolkitError('GarbageCollectionFailed', err);
     } finally {
       backgroundStackRefresh.stop();
     }
@@ -317,7 +317,7 @@ export class GarbageCollector {
         printer.reportScannedAsset(batch.length);
       }
     } catch (err: any) {
-      throw new ToolkitError(err);
+      throw new ToolkitError('EcrGarbageCollectionFailed', err);
     } finally {
       printer.stop();
     }
@@ -394,7 +394,7 @@ export class GarbageCollector {
         printer.reportScannedAsset(batch.length);
       }
     } catch (err: any) {
-      throw new ToolkitError(err);
+      throw new ToolkitError('S3GarbageCollectionFailed', err);
     } finally {
       printer.stop();
     }
@@ -760,7 +760,7 @@ export class GarbageCollector {
       const yes = ['y', 'yes'];
       const all = ['a', 'all', 'delete-all'];
       if (!response || ![...yes, ...all].includes(response.toLowerCase())) {
-        throw new ToolkitError('Deletion aborted by user');
+        throw new ToolkitError('DeletionAborted', 'Deletion aborted by user');
       } else if (all.includes(response.toLowerCase())) {
         this.confirm = false;
       }
