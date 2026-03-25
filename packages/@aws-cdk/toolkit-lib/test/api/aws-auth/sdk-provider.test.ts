@@ -26,6 +26,7 @@ import bockfs from '../../_helpers/bockfs';
 import { undoAllSdkMocks } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 if (!require('vm').Module) {
   throw new Error('This test suite must be run with \'env NODE_OPTIONS="--experimental-vm-modules" jest ...\', or Jest cannot properly test ESM modules inside the SDK JS v3');
 }
