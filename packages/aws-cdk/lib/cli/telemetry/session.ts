@@ -3,7 +3,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
-import { type EventType, type SessionSchema, type State, type ErrorDetails, ErrorName } from './schema';
+import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink/sink-interface';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
@@ -13,6 +13,7 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
+import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -93,7 +94,7 @@ export class TelemetrySession {
     process.on('SIGINT', async () => {
       try {
         await this.end({
-          name: ErrorName.TOOLKIT_ERROR,
+          name: USER_INTERRUPTED_CODE,
           message: ABORTED_ERROR_MESSAGE,
         });
       } catch (e: any) {

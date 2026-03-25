@@ -750,7 +750,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
       error = {
-        name: cdkCliErrorName(err.name),
+        name: cdkCliErrorName(err),
       };
       process.exitCode = 1;
     })

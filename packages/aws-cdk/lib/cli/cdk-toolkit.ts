@@ -676,7 +676,7 @@ export class CdkToolkit {
         );
 
         error = {
-          name: cdkCliErrorName(wrappedError.name),
+          name: cdkCliErrorName(wrappedError),
         };
 
         throw wrappedError;
