@@ -1,6 +1,6 @@
 import { AssemblyError, AuthenticationError } from '@aws-cdk/toolkit-lib';
+import { ServiceException } from '@smithy/smithy-client';
 import { cdkCliErrorName } from '../../../lib/cli/telemetry/error';
-import { ServiceException } from "@smithy/smithy-client";
 
 test('returns known error names', () => {
   expect(cdkCliErrorName(new AuthenticationError('Oh no'))).toEqual(AuthenticationError.name);

@@ -1,5 +1,5 @@
-import { AssemblyError, AuthenticationError, ContextProviderError, ToolkitError } from "@aws-cdk/toolkit-lib";
-import { ServiceException } from "@smithy/smithy-client";
+import { AssemblyError, AuthenticationError, ContextProviderError, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ServiceException } from '@smithy/smithy-client';
 
 /**
  * The error code when a user hits Ctrl-C
