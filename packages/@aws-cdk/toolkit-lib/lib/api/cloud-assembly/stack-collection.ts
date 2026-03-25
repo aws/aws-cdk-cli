@@ -122,11 +122,15 @@ export class StackCollection {
     }
 
     if (errors && failAt != 'none') {
-      throw AssemblyError.withStacks('Found errors', this.stackArtifacts);
+      const error = AssemblyError.withStacks('Found errors', this.stackArtifacts);
+      error.attachSynthesisErrorCode('AnnotationErrors');
+      throw error;
     }
 
     if (warnings && failAt === 'warn') {
-      throw AssemblyError.withStacks('Found warnings (--strict mode)', this.stackArtifacts);
+      const error = AssemblyError.withStacks('Found warnings (--strict mode)', this.stackArtifacts);
+      error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+      throw error;
     }
   }
 }
