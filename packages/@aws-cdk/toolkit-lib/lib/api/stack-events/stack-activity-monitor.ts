@@ -5,11 +5,11 @@ import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
+import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
 import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
-import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
 
 export interface StackActivityMonitorProps {
   /**
