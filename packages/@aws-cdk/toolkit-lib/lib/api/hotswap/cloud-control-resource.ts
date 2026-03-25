@@ -27,6 +27,10 @@ export async function isHotswappableCloudControlChange(
     return ret;
   }
 
+  // maybe we pass a list of allowed property changes per resource if we know what resources are hotswappable via CCAPIs?
+
+  // this is pretty much useless, wouldn't all changes register as hotswappable? 
+  // Since the resource change should be in the list of changedPropNames
   const classifiedChanges = classifyChanges(change, changedPropNames);
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
@@ -35,6 +39,8 @@ export async function isHotswappableCloudControlChange(
   }
 
   const resourceType = change.newValue.Type;
+
+  // this will need to get relocated, since we will have an allow list for supported resource types
   const identifier = await resolveCloudControlIdentifier(logicalId, resourceType, change, evaluateCfnTemplate, sdk);
   if (!identifier) {
     ret.push(nonHotswappableChange(
@@ -74,11 +80,13 @@ export async function isHotswappableCloudControlChange(
           change.propertyUpdates[propName].newValue,
         );
         if (JSON.stringify(currentProps[propName]) !== JSON.stringify(newValue)) {
+          // we should only be replacing, not adding...
           const op = propName in currentProps ? 'replace' : 'add';
           patchOps.push({ op, path: `/${propName}`, value: newValue });
         }
       }
 
+      // do we throw some kind of error here? Like hotswap failed, nothing to hotswap?
       if (patchOps.length === 0) {
         return;
       }
@@ -110,7 +118,7 @@ export async function tryCloudControlHotswap(
     if (!result.hotswappable) {
       return result;
     }
-
+    // I think we might have some duplicate work going on since a similar thing is happening in hotswap-deployment.ts - need to figure out the right place for this
     // Wrap the apply function to catch CCAPI errors and convert them to rejections
     const originalApply = result.apply;
     return {
@@ -126,6 +134,8 @@ export async function tryCloudControlHotswap(
   });
 }
 
+// there has to be a better way to get the identifier...this feels messy and I do not like it
+// this looks like it is correct, I still don't like it but at this point I'm not sure of a better solution - maybe I don't like because the code looks kind of messy
 /**
  * Resolves the Cloud Control API identifier for a resource.
  *
