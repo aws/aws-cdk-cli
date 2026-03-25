@@ -16,7 +16,7 @@ import { determineAllowCrossAccountAssetPublishing } from './checks';
 import { deployStack, destroyStack } from './deploy-stack';
 import type { DeployStackResult } from './deployment-result';
 import type { DeploymentMethod } from '../../actions/deploy';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import type {
@@ -548,12 +548,12 @@ export class Deployments {
         }
         finalStackState = successStack;
 
-        const errors = monitor.errors.join(', ');
+        const errors = monitor.allErrorMessages.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages);
       } finally {
         await monitor.stop();
       }
@@ -568,8 +568,9 @@ export class Deployments {
         continue;
       }
 
-      throw new ToolkitError(
+      throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
+        monitor.rootCauseErrorCode,
       );
     }
     throw new ToolkitError(

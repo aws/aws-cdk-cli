@@ -2,6 +2,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
+const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError');
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
@@ -22,6 +23,13 @@ export class ToolkitError extends Error {
    */
   public static isAuthenticationError(x: any): x is AuthenticationError {
     return ToolkitError.isToolkitError(x) && AUTHENTICATION_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of DeploymentError.
+   */
+  public static isDeploymentError(x: any): x is DeploymentError {
+    return ToolkitError.isToolkitError(x) && DEPLOYMENT_ERROR_SYMBOL in x;
   }
 
   /**
@@ -142,6 +150,25 @@ export class AssemblyError extends ToolkitError {
 }
 
 /**
+ * Represents a deployment-related error in the AWS CDK Toolkit.
+ */
+export class DeploymentError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  public readonly deploymentErrorCode?: string;
+
+  constructor(message: string, deploymentErrorCode?: string) {
+    super(message, 'deployment');
+    Object.setPrototypeOf(this, DeploymentError.prototype);
+    Object.defineProperty(this, DEPLOYMENT_ERROR_SYMBOL, { value: true });
+    this.deploymentErrorCode = deploymentErrorCode;
+  }
+}
+
+/**
  * Represents an error originating from a Context Provider
  */
 export class ContextProviderError extends ToolkitError {
@@ -181,3 +208,10 @@ export class NoResultsFoundError extends ContextProviderError {
     Object.defineProperty(this, NO_RESULTS_FOUND_ERROR_SYMBOL, { value: true });
   }
 }
+
+export abstract class DeploymentErrorCodes {
+  public static readonly STACK_DISAPPEARED_ERROR_CODE = 'StackDisappeared';
+  public static readonly UNKNOWN_ERROR = 'UnknownError';
+  public static readonly PRIVATE_RESOURCE_ERROR = 'PrivateResourceError';
+}
+

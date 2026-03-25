@@ -14,7 +14,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
@@ -131,11 +131,11 @@ export async function waitForChangeSet(
     if (isEarlyValidationError) {
       const details = await validationReporter?.fetchDetails(changeSetName, stackName);
       if (details) {
-        throw new ToolkitError(details);
+        throw new DeploymentError(details);
       }
     }
     // eslint-disable-next-line @stylistic/max-len
-    throw new ToolkitError(
+    throw new DeploymentError(
       `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
         description.StatusReason || 'no reason provided'
       }`,
@@ -143,7 +143,7 @@ export async function waitForChangeSet(
   });
 
   if (!ret) {
-    throw new ToolkitError('Change set took too long to be created; aborting');
+    throw new DeploymentError('Change set took too long to be created; aborting');
   }
 
   return ret;
@@ -446,7 +446,7 @@ export async function waitForStackDeploy(
       `The stack named ${stackName} failed creation, it may need to be manually deleted from the AWS console: ${status}`,
     );
   } else if (!status.isDeploySuccess) {
-    throw new ToolkitError(`The stack named ${stackName} failed to deploy: ${status}`);
+    throw new DeploymentError(`The stack named ${stackName} failed to deploy: ${status}`);
   }
 
   return stack;
