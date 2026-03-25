@@ -3,6 +3,7 @@ import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
 import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
 import { displayVersionMessage } from './display-version';
@@ -11,12 +12,17 @@ import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
+import { ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { cdkCliErrorName } from './telemetry/error';
+import type { ErrorDetails } from './telemetry/schema';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
+import { trapErrors } from './util/trap-errors';
+import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
-import { ToolkitInfo, Notices } from '../api';
+import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -28,15 +34,12 @@ import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
+import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { ProxyAgentProvider } from './proxy-agent';
-import { cdkCliErrorName } from './telemetry/error';
-import type { ErrorDetails } from './telemetry/schema';
 import { isCI } from './util/ci';
-import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { getLanguageFromAlias } from '../commands/language';
+import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -112,6 +115,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
+  ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
+  ioHost.telemetry?.attachAgent(guessAgent());
+
   /**
    * The default value for displaying (and refreshing) notices on all commands.
    *
@@ -146,17 +152,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     ioHost,
     context: configuration.context,
     output: configuration.settings.get(['outdir']),
+    language: await guessLanguage(process.cwd()),
     httpOptions: { agent: proxyAgent },
     cliVersion: versionNumber(),
   });
   const refreshNotices = (async () => {
     // the cdk notices command has it's own refresh
     if (shouldDisplayNotices && cmd !== 'notices') {
-      try {
-        return await notices.refresh();
-      } catch (e: any) {
-        await ioHelper.defaults.debug(`Could not refresh notices: ${e}`);
-      }
+      await trapErrors(ioHelper, 'Could not refresh notices', () => notices.refresh());
     }
   })();
 
@@ -186,6 +189,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         await outDirLock?.release();
         const { assembly, lock } = await execProgram(aws, ioHost.asIoHelper(), config);
         outDirLock = lock;
+
+        const tree = await loadTree(assembly, ioHelper.defaults.trace.bind(ioHelper.defaults));
+        if (tree) {
+          const v = findConstructLibraryVersion(tree);
+          if (v) {
+            ioHost.telemetry?.attachCdkLibVersion(v);
+          }
+        }
+
         return assembly;
       }),
     ioHelper: ioHost.asIoHelper(),
@@ -204,7 +216,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await loadPlugins(configuration.settings);
 
   if ((typeof cmd) !== 'string') {
-    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof cmd})`);
+    throw new ToolkitError('InvalidArgType', `First argument should be a string. Got: ${cmd} (${typeof cmd})`);
   }
 
   try {
@@ -218,13 +230,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     await refreshNotices;
     if (cmd === 'notices') {
+      // do not trap errors here
+      // this is the notices command itself, any error should be loud
       await notices.refresh({ force: true });
       await notices.display({
         includeAcknowledged: !argv.unacknowledged,
         showTotal: argv.unacknowledged,
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
-      await notices.display();
+      await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
     }
   }
 
@@ -240,7 +254,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     });
 
     if (args.all && args.STACKS) {
-      throw new ToolkitError('You must either specify a list of Stacks or the `--all` argument');
+      throw new ToolkitError('StacksOrAllRequired', 'You must either specify a list of Stacks or the `--all` argument');
     }
 
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
@@ -326,7 +340,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'refactor':
         if (!configuration.settings.get(['unstable']).includes('refactor')) {
-          throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
+          throw new ToolkitError('UnstableRefactor', 'Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
         }
 
         ioHost.currentAction = 'refactor';
@@ -385,7 +399,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (args.execute !== undefined && args.method !== undefined) {
-          throw new ToolkitError('Can not supply both --[no-]execute and --method at the same time');
+          throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
 
         return cli.deploy({
@@ -409,6 +423,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           traceLogs: args.logs,
           concurrency: args.concurrency,
           assetParallelism: configuration.settings.get(['assetParallelism']),
+          assetBuildConcurrency: configuration.settings.get(['assetBuildConcurrency']),
           assetBuildTime: configuration.settings.get(['assetPrebuild'])
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
@@ -468,12 +483,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           exclusively: args.exclusively,
           force: args.force,
           roleArn: args.roleArn,
+          concurrency: args.concurrency,
         });
 
       case 'gc':
         ioHost.currentAction = 'gc';
         if (!configuration.settings.get(['unstable']).includes('gc')) {
-          throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
+          throw new ToolkitError('UnstableGc', 'Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
@@ -496,7 +512,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'flags';
 
         if (!configuration.settings.get(['unstable']).includes('flags')) {
-          throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
+          throw new ToolkitError('UnstableFlags', 'Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
         }
         const toolkit = new Toolkit({
           ioHost,
@@ -539,7 +555,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'cli-telemetry':
         ioHost.currentAction = 'cli-telemetry';
         if (args.enable === undefined && args.disable === undefined && args.status === undefined) {
-          throw new ToolkitError('Must specify \'--enable\', \'--disable\', or \'--status\'');
+          throw new ToolkitError('TelemetryArgRequired', 'Must specify \'--enable\', \'--disable\', or \'--status\'');
         }
 
         if (args.status) {
@@ -556,7 +572,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         } else {
           // Gate custom template support with unstable flag
           if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
-            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+            throw new ToolkitError('UnstableInit', 'Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
           }
           return cliInit({
             ioHelper,
@@ -590,7 +606,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return ioHost.defaults.result(versionWithBuild());
 
       default:
-        throw new ToolkitError('Unknown command: ' + command);
+        throw new ToolkitError('UnknownCommand', 'Unknown command: ' + command);
     }
   }
 }
@@ -638,10 +654,13 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
   switch (args.method) {
     case 'direct':
       if (args.changeSetName) {
-        throw new ToolkitError('--change-set-name cannot be used with method=direct');
+        throw new ToolkitError('ChangeSetNameWithDirect', '--change-set-name cannot be used with method=direct');
       }
       if (args.importExistingResources) {
-        throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
+        throw new ToolkitError('ImportWithDirect', '--import-existing-resources cannot be enabled with method=direct');
+      }
+      if (args.revertDrift) {
+        throw new ToolkitError('RevertDriftWithDirect', '--revert-drift cannot be used with method=direct');
       }
       deploymentMethod = { method: 'direct' };
       break;
@@ -651,6 +670,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case 'prepare-change-set':
@@ -659,6 +679,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: false,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
     case undefined:
@@ -668,6 +689,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
         execute: watch ? true : args.execute ?? true,
         changeSetName: args.changeSetName,
         importExistingResources: args.importExistingResources,
+        revertDrift: args.revertDrift,
       };
       break;
   }
@@ -694,7 +716,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
 
 function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watch?: boolean): HotswapMode {
   if (hotswap && hotswapFallback) {
-    throw new ToolkitError('Can not supply both --hotswap and --hotswap-fallback at the same time');
+    throw new ToolkitError('ConflictingHotswapArgs', 'Can not supply both --hotswap and --hotswap-fallback at the same time');
   } else if (!hotswap && !hotswapFallback) {
     if (hotswap === undefined && hotswapFallback === undefined) {
       return watch ? HotswapMode.HOTSWAP_ONLY : HotswapMode.FULL_DEPLOYMENT;
@@ -728,7 +750,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
       error = {
-        name: cdkCliErrorName(err.name),
+        name: cdkCliErrorName(err),
       };
       process.exitCode = 1;
     })

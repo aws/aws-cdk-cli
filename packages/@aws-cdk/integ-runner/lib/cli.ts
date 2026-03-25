@@ -4,9 +4,9 @@ import * as path from 'path';
 import * as chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
-import type { EngineOptions } from './runner/engine';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
+import { processUnstableFeatures, availableFeaturesDescription } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
 import { runSnapshotTests, runIntegrationTests } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
@@ -32,9 +32,9 @@ export function parseCliArgs(args: string[] = []) {
     .option('dry-run', { type: 'boolean', default: false, desc: 'do not actually deploy the stack. just update the snapshot (not recommended!)' })
     .option('update-on-failed', { type: 'boolean', default: false, desc: 'rerun integration tests and update snapshots for failed tests.' })
     .option('force', { type: 'boolean', default: false, desc: 'Rerun all integration tests even if tests are passing' })
-    .option('parallel-regions', { type: 'array', desc: 'Tests are run in parallel across these regions. To prevent tests from running in parallel, provide only a single region', default: [] })
+    .option('parallel-regions', { type: 'array', desc: 'Tests are run in parallel across these regions. To prevent tests from running in parallel, provide only a single region', default: [], coerce: splitByComma })
     .options('directory', { type: 'string', default: 'test', desc: 'starting directory to discover integration tests. Tests will be discovered recursively from this directory' })
-    .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [] })
+    .options('profiles', { type: 'array', desc: 'list of AWS profiles to use. Tests will be run in parallel across each profile+regions', default: [], coerce: splitByComma })
     .options('max-workers', { type: 'number', desc: 'The max number of workerpool workers to use when running integration tests in parallel', default: 16 })
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
@@ -52,7 +52,7 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
-    .option('unstable', { type: 'array', desc: 'Opt-in to using unstable features. By using these flags you acknowledges that scope and APIs of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to.', nargs: 1, choices: ['toolkit-lib-engine', 'deprecated-cli-engine'], default: [] })
+    .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .strict()
     .parse(args);
 
@@ -79,7 +79,10 @@ export function parseCliArgs(args: string[] = []) {
   }
 
   const requestedTests = fromFile
-    ? (fs.readFileSync(fromFile, { encoding: 'utf8' })).split('\n').filter(x => x)
+    ? (fs.readFileSync(fromFile, { encoding: 'utf8' }))
+      .split('\n')
+      .filter(x => x)
+      .filter(x => !x.startsWith('#'))
     : (tests.length > 0 ? tests : undefined); // 'undefined' means no request
 
   if (argv['disable-update-workflow'] !== undefined && argv['update-workflow'] !== undefined) {
@@ -116,22 +119,20 @@ export function parseCliArgs(args: string[] = []) {
 }
 
 export async function main(args: string[]) {
-  let engineForError;
   try {
     const options = parseCliArgs(args);
-    const engine = engineFromOptions(options);
-    engineForError = engine.engine;
-    await run(options, engine);
+
+    // Process unstable features and emit appropriate warnings
+    options.unstable = processUnstableFeatures(options.unstable);
+
+    await run(options);
   } catch (err: any) {
     logger.error(err);
-    if (engineForError === 'toolkit-lib') {
-      logger.warning('\n[Notice] You are using the new default engine to run integration tests. If you think the above failure has been caused by the new engine, you may choose to temporarily revert to the old engine by adding the `--unstable=deprecated-cli-engine` option. Please note that this engine is deprecated and scheduled to be removed in January 2026.\n\nIf reverting to the old engine resolves an issue for you, please let us know so we can address this in the new engine. Report issues here: https://github.com/aws/aws-cdk-cli/issues/new/choose');
-    }
     throw err;
   }
 }
 
-async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineOptions) {
+async function run(options: ReturnType<typeof parseCliArgs>) {
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
   // List only prints the discovered tests
@@ -162,7 +163,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
-        engine,
       });
       for (const failure of failedSnapshots) {
         logger.warning(`Failed: ${failure.fileName}`);
@@ -186,7 +186,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
     if (options.runUpdateOnFailed || options.force) {
       const { success, metrics } = await runIntegrationTests({
         pool,
-        engine,
         tests: testsToRun,
         regions: options.testRegions,
         profiles: options.profiles,
@@ -212,7 +211,6 @@ async function run(options: ReturnType<typeof parseCliArgs>, { engine }: EngineO
     } else if (options.watch) {
       await watchIntegrationTest(pool, {
         watch: true,
-        engine,
         verbosity: options.verbosity,
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
@@ -334,10 +332,10 @@ function configFromFile(fileName?: string): Record<string, any> {
   }
 }
 
-function engineFromOptions(options: { unstable?: string[] }): Required<EngineOptions> {
-  if (options.unstable?.includes('deprecated-cli-engine')) {
-    logger.warning('[Deprecation Notice] You have opted-in to use the deprecated CLI engine which is scheduled to be removed in January 2026. If you have encountered blockers while using the new default engine, please let us know by opening an issue: https://github.com/aws/aws-cdk-cli/issues/new/choose\n\nTo use the new default engine, remove the `--unstable=deprecated-cli-engine` option.');
-    return { engine: 'cli-wrapper' };
-  }
-  return { engine: 'toolkit-lib' };
+/**
+ * Coerce function for yargs array options to support comma-separated values.
+ * Yargs doesn't natively split `--option=a,b,c` into ['a', 'b', 'c'].
+ */
+function splitByComma(xs: string[]): string[] {
+  return xs.flatMap(x => x.split(',')).map(x => x.trim());
 }

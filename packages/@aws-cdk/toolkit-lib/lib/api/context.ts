@@ -99,7 +99,7 @@ export class Context {
 
     const bag = this.bags[index];
     if (bag.readOnly) {
-      throw new ToolkitError(`Context file ${fileName} is read only!`);
+      throw new ToolkitError('ContextReadOnly', `Context file ${fileName} is read only!`);
     }
 
     await bag.save(fileName);

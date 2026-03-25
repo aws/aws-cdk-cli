@@ -139,10 +139,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cdk-cli-wrapper",
-      "type": "runtime"
-    },
-    {
       "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },

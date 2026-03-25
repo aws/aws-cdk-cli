@@ -141,8 +141,10 @@ export function convertYargsToUserInput(args: any): UserInput {
         logs: args.logs,
         concurrency: args.concurrency,
         assetParallelism: args.assetParallelism,
+        assetBuildConcurrency: args.assetBuildConcurrency,
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
+        revertDrift: args.revertDrift,
         STACKS: args.STACKS,
       };
       break;
@@ -196,6 +198,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         all: args.all,
         exclusively: args.exclusively,
         force: args.force,
+        concurrency: args.concurrency,
         STACKS: args.STACKS,
       };
       break;
@@ -429,8 +432,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     logs: config.deploy?.logs,
     concurrency: config.deploy?.concurrency,
     assetParallelism: config.deploy?.assetParallelism,
+    assetBuildConcurrency: config.deploy?.assetBuildConcurrency,
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
+    revertDrift: config.deploy?.revertDrift,
   };
   const rollbackOptions = {
     all: config.rollback?.all,
@@ -468,6 +473,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     all: config.destroy?.all,
     exclusively: config.destroy?.exclusively,
     force: config.destroy?.force,
+    concurrency: config.destroy?.concurrency,
   };
   const diffOptions = {
     exclusively: config.diff?.exclusively,

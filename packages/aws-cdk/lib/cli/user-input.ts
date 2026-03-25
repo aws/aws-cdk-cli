@@ -919,6 +919,13 @@ export interface DeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * @default - 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * Whether to build all assets before deploying the first stack (useful for failing Docker builds)
    *
    * @default - true
@@ -931,6 +938,13 @@ export interface DeployOptions {
    * @default - false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Create a drift-aware change set that brings actual resource states in line with template definitions
+   *
+   * @default - false
+   */
+  readonly revertDrift?: boolean;
 
   /**
    * Positional argument for deploy
@@ -1032,8 +1046,6 @@ export interface ImportOptions {
 
   /**
    * If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed
-   *
-   * aliases: r
    *
    * @default - undefined
    */
@@ -1200,6 +1212,13 @@ export interface DestroyOptions {
    * @default - undefined
    */
   readonly force?: boolean;
+
+  /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
 
   /**
    * Positional argument for destroy

@@ -125,6 +125,7 @@ describe('validate version without bootstrap stack', () => {
       cliVersion: '1.0.0',
       data: [],
       outDir: 'cdk.out',
+      language: undefined,
     });
   });
 

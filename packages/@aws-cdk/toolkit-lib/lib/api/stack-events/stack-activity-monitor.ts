@@ -179,7 +179,7 @@ export class StackActivityMonitor {
   }
 
   private findMetadataFor(logicalId: string | undefined) {
-    const metadata = this.stack.manifest?.metadata;
+    const metadata = this.stack.metadata;
     if (!logicalId || !metadata) {
       return undefined;
     }

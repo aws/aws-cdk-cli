@@ -5,6 +5,11 @@ import type { SpanDefinition } from '../../api-private';
 
 export interface EventResult extends Duration {
   error?: ErrorDetails;
+
+  /**
+   * Counts of noteworthy things in this event
+   */
+  counters?: Record<string, number>;
 }
 
 export interface EventStart {
@@ -66,9 +71,3 @@ export const CLI_PRIVATE_SPAN = {
     end: CLI_PRIVATE_IO.CDK_CLI_I3001,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;
-
-export const CLI_TELEMETRY_CODES = [
-  CLI_PRIVATE_IO.CDK_CLI_I1001,
-  CLI_PRIVATE_IO.CDK_CLI_I2001,
-  CLI_PRIVATE_IO.CDK_CLI_I3001,
-];

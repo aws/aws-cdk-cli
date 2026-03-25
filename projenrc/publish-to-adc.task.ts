@@ -2,7 +2,6 @@ import { createReadStream } from 'fs';
 import { S3 } from '@aws-sdk/client-s3';
 import { fromTemporaryCredentials, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { Upload } from '@aws-sdk/lib-storage';
-import { glob } from 'glob';
 
 /**
  * Takes files from `dist/standalone` and moves them to specific ADC buckets

@@ -33,7 +33,7 @@ export async function shell(ioHelper: IoHelper, command: string[]): Promise<stri
       if (code === 0) {
         resolve(Buffer.from(stdout).toString('utf-8'));
       } else {
-        reject(new ToolkitError(`${commandLine} exited with error code ${code}`));
+        reject(new ToolkitError('CommandFailed', `${commandLine} exited with error code ${code}`));
       }
     });
   });

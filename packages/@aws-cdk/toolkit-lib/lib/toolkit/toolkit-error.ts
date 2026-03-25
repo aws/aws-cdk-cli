@@ -41,8 +41,8 @@ export class ToolkitError extends Error {
   /**
    * A ToolkitError with an original error as cause
    */
-  public static withCause(message: string, error: unknown): ToolkitError {
-    return new ToolkitError(message, 'toolkit', error);
+  public static withCause(errorCode: string, message: string, error: unknown): ToolkitError {
+    return new ToolkitError(errorCode, message, 'toolkit', error);
   }
 
   /**
@@ -60,11 +60,11 @@ export class ToolkitError extends Error {
    */
   public readonly cause?: unknown;
 
-  constructor(message: string, type: string = 'toolkit', cause?: unknown) {
+  constructor(errorCode: string, message: string, type: string = 'toolkit', cause?: unknown) {
     super(message);
+    this.name = errorCode;
     Object.setPrototypeOf(this, ToolkitError.prototype);
     Object.defineProperty(this, TOOLKIT_ERROR_SYMBOL, { value: true });
-    this.name = new.target.name;
     this.type = type;
     this.source = 'toolkit';
     this.cause = cause;
@@ -80,8 +80,8 @@ export class AuthenticationError extends ToolkitError {
    */
   public readonly source = 'user';
 
-  constructor(message: string) {
-    super(message, 'authentication');
+  constructor(errorCode: string, message: string) {
+    super(errorCode, message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
     Object.defineProperty(this, AUTHENTICATION_ERROR_SYMBOL, { value: true });
   }
@@ -120,11 +120,24 @@ export class AssemblyError extends ToolkitError {
    */
   public readonly stacks?: cxapi.CloudFormationStackArtifact[];
 
+  private _synthErrorCode: string | undefined;
+
   private constructor(message: string, stacks?: cxapi.CloudFormationStackArtifact[], cause?: unknown) {
-    super(message, 'assembly', cause);
+    super('AssemblyError', message, 'assembly', cause);
     Object.setPrototypeOf(this, AssemblyError.prototype);
     Object.defineProperty(this, ASSEMBLY_ERROR_SYMBOL, { value: true });
     this.stacks = stacks;
+  }
+
+  /**
+   * The synthesis error code
+   */
+  public get synthErrorCode(): string | undefined {
+    return this._synthErrorCode;
+  }
+
+  public attachSynthesisErrorCode(synthesisErrorCode: string) {
+    this._synthErrorCode = synthesisErrorCode;
   }
 }
 
@@ -142,8 +155,8 @@ export class ContextProviderError extends ToolkitError {
   /**
    * A ContextProviderError with an original error as cause
    */
-  public static withCause(message: string, error: unknown): ContextProviderError {
-    return new ContextProviderError(message, error);
+  public static withCause(errorCode: string, message: string, error: unknown): ContextProviderError {
+    return new ContextProviderError(errorCode, message, error);
   }
 
   /**
@@ -151,8 +164,8 @@ export class ContextProviderError extends ToolkitError {
    */
   public readonly source = 'user';
 
-  constructor(message: string, cause?: unknown) {
-    super(message, 'context-provider', cause);
+  constructor(errorCode: string, message: string, cause?: unknown) {
+    super(errorCode, message, 'context-provider', cause);
     Object.setPrototypeOf(this, ContextProviderError.prototype);
     Object.defineProperty(this, CONTEXT_PROVIDER_ERROR_SYMBOL, { value: true });
   }
@@ -163,7 +176,7 @@ export class ContextProviderError extends ToolkitError {
  */
 export class NoResultsFoundError extends ContextProviderError {
   constructor(message: string) {
-    super(message);
+    super('NoResultsFound', message);
     Object.setPrototypeOf(this, NoResultsFoundError.prototype);
     Object.defineProperty(this, NO_RESULTS_FOUND_ERROR_SYMBOL, { value: true });
   }

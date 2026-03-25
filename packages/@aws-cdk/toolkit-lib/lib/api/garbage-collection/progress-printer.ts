@@ -48,7 +48,7 @@ export class ProgressPrinter {
     // This is because if this.setInterval is reassigned to another setInterval,
     // the original setInterval remains and can no longer be cleared.
     if (this.setInterval) {
-      throw new ToolkitError('ProgressPrinter is already running. Stop it first using the stop() method before starting it again.');
+      throw new ToolkitError('PrinterAlreadyRunning', 'ProgressPrinter is already running. Stop it first using the stop() method before starting it again.');
     }
 
     this.setInterval = setInterval(() => {

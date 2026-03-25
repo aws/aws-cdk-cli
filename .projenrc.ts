@@ -2,14 +2,14 @@ import * as path from 'path';
 import { yarn } from 'cdklabs-projen-project-types';
 import { TypeScriptWorkspace, type TypeScriptWorkspaceOptions } from 'cdklabs-projen-project-types/lib/yarn';
 import * as pj from 'projen';
-import type { Job } from 'projen/lib/github/workflows-model';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
-import { CdkCliIntegTestsWorkflow } from './projenrc/cdk-cli-integ-tests';
+import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
+import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
@@ -230,7 +230,7 @@ const repoProject = new yarn.Monorepo({
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
     'cdklabs-projen-project-types',
-    'glob',
+    'fast-glob',
     'semver',
     '@aws-sdk/client-s3',
     '@aws-sdk/credential-providers',
@@ -294,6 +294,14 @@ const repoProject = new yarn.Monorepo({
       },
     },
   },
+
+  pullRequestTemplateContents: [
+    'Fixes #',
+    '',
+    '### Checklist',
+    '- [ ] This change contains a major version upgrade for a dependency and I confirm all breaking changes are addressed',
+    '  - Release notes for the new version:',
+  ],
 
   buildWorkflowOptions: {
     preBuildSteps: [
@@ -421,6 +429,7 @@ const cloudAssemblySchema = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
   }),
 );
+fixupTestTask(cloudAssemblySchema);
 
 new JsiiBuild(cloudAssemblySchema, {
   docgen: false,
@@ -483,6 +492,9 @@ const cloudFormationDiff = configureProject(
     devDeps: [
       'fast-check',
     ],
+    peerDependencyOptions: {
+      pinnedDevDependency: false,
+    },
     peerDeps: [
       sdkDepForLib('@aws-sdk/client-cloudformation'),
     ],
@@ -516,6 +528,8 @@ const cloudFormationDiff = configureProject(
   }),
 );
 
+fixupTestTask(cloudFormationDiff);
+
 // #endregion
 
 //////////////////////////////////////////////////////////////////////
@@ -548,6 +562,7 @@ const cloudAssemblyApi = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
+fixupTestTask(cloudAssemblyApi);
 
 // #endregion
 
@@ -657,7 +672,7 @@ const cdkAssetsLib = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       'archiver',
-      'glob',
+      'fast-glob',
       'mime@^2',
       sdkDepForLib('@aws-sdk/client-ecr'),
       sdkDepForLib('@aws-sdk/client-s3'),
@@ -667,11 +682,12 @@ const cdkAssetsLib = configureProject(
       sdkDepForLib('@aws-sdk/lib-storage'),
       smithyDepForLib('@smithy/config-resolver'),
       smithyDepForLib('@smithy/node-config-provider'),
-      'minimatch@10.0.1',
+      'picomatch',
     ],
     devDeps: [
       '@types/archiver',
       '@types/mime@^2',
+      '@types/picomatch',
       'fs-extra',
       'graceful-fs',
       'jszip',
@@ -709,6 +725,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
 cdkAssetsLib.package.addField('exports', {
@@ -786,6 +803,8 @@ const cdkAssetsCli = configureProject(
     ]),
   }),
 );
+
+fixupTestTask(cdkAssetsCli);
 
 cdkAssetsCli.gitignore.addPatterns(
   '*.js',
@@ -870,11 +889,11 @@ const toolkitLib = configureProject(
       'chokidar@^4',
       'fast-deep-equal',
       'fs-extra@^9',
-      'glob',
-      'minimatch@10.0.1',
+      'picomatch',
       'p-limit@^3',
       'semver',
       'split2',
+      'fast-glob',
       'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
@@ -887,6 +906,7 @@ const toolkitLib = configureProject(
       '@microsoft/api-extractor',
       '@smithy/util-stream',
       '@types/fs-extra',
+      '@types/picomatch',
       '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
@@ -938,7 +958,7 @@ const toolkitLib = configureProject(
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
-
+fixupTestTask(toolkitLib);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1134,6 +1154,7 @@ const cli = configureProject(
       '@types/archiver',
       '@types/fs-extra@^9',
       '@types/mockery',
+      '@types/picomatch',
       '@types/promptly',
       '@types/semver',
       '@types/sinon',
@@ -1178,6 +1199,7 @@ const cli = configureProject(
       '@aws-sdk/client-sfn',
       '@aws-sdk/client-ssm',
       '@aws-sdk/client-sts',
+      '@smithy/smithy-client',
       '@aws-sdk/credential-providers',
       '@aws-sdk/ec2-metadata-service',
       '@aws-sdk/lib-storage',
@@ -1195,8 +1217,8 @@ const cli = configureProject(
       'decamelize@^5', // Non-ESM
       'enquirer',
       'fs-extra@^9',
-      'glob',
-      'minimatch@10.0.1',
+      'fast-glob',
+      'picomatch',
       'p-limit@^3',
       'p-queue@^6',
       'promptly',
@@ -1282,6 +1304,7 @@ new pj.javascript.UpgradeDependencies(cli, {
 });
 
 new TypecheckTests(cli);
+fixupTestTask(cli);
 
 // Eslint rules
 cli.eslint?.addRules({
@@ -1310,47 +1333,16 @@ cli.gitignore.addPatterns(
   '!lib/init-templates/**',
 );
 
-// People should not have imported from the `aws-cdk` package, but they have in the past.
-// We have identified all locations that are currently used, are maintaining a backwards compat
-// layer for those. Future imports will be rejected.
+// We are exporting some metadata from the CLI to make it more accessible for users.
+// Beyond that, this is a CLI package and users MUST NOT use the code directly.
+// Instead, they should use @aws-cdk/toolkit-lib.
 cli.package.addField('exports', {
-  // package.json is always reasonable
   './package.json': './package.json',
   './build-info.json': './build-info.json',
-  // The rest is legacy
-  '.': './lib/legacy-exports.js',
-  './bin/cdk': './bin/cdk',
+
+  // We are keeping the historic bootstrap-template.yaml import path.
+  // This could probably be handled better, but is good enough and easy to maintain.
   './lib/api/bootstrap/bootstrap-template.yaml': './lib/api/bootstrap/bootstrap-template.yaml',
-  './lib/util': './lib/legacy-exports.js',
-  './lib': './lib/legacy-exports.js',
-  './lib/api/plugin': './lib/legacy-exports.js',
-  './lib/util/content-hash': './lib/legacy-exports.js',
-  './lib/settings': './lib/legacy-exports.js',
-  './lib/api/bootstrap': './lib/legacy-exports.js',
-  './lib/api/cxapp/cloud-assembly': './lib/legacy-exports.js',
-  './lib/api/cxapp/cloud-executable': './lib/legacy-exports.js',
-  './lib/api/cxapp/exec': './lib/legacy-exports.js',
-  './lib/diff': './lib/legacy-exports.js',
-  './lib/api/util/string-manipulation': './lib/legacy-exports.js',
-  './lib/util/console-formatters': './lib/legacy-exports.js',
-  './lib/util/tracing': './lib/legacy-exports.js',
-  './lib/commands/docs': './lib/legacy-exports.js',
-  './lib/api/hotswap/common': './lib/legacy-exports.js',
-  './lib/util/objects': './lib/legacy-exports.js',
-  './lib/api/deployments': './lib/legacy-exports.js',
-  './lib/util/directories': './lib/legacy-exports.js',
-  './lib/version': './lib/legacy-exports.js',
-  './lib/init': './lib/legacy-exports.js',
-  './lib/api/aws-auth/cached': './lib/legacy-exports.js',
-  './lib/api/deploy-stack': './lib/legacy-exports.js',
-  './lib/api/evaluate-cloudformation-template': './lib/legacy-exports.js',
-  './lib/api/aws-auth/credential-plugins': './lib/legacy-exports.js',
-  './lib/api/aws-auth/awscli-compatible': './lib/legacy-exports.js',
-  './lib/notices': './lib/legacy-exports.js',
-  './lib/index': './lib/legacy-exports.js',
-  './lib/api/aws-auth/index.js': './lib/legacy-exports.js',
-  './lib/api/aws-auth': './lib/legacy-exports.js',
-  './lib/logging': './lib/legacy-exports.js',
 });
 
 cli.gitignore.addPatterns('build-info.json');
@@ -1371,7 +1363,7 @@ for (const resourceCommand of includeCliResourcesCommands) {
 
 new BundleCli(cli, {
   allowedLicenses: BUNDLED_LICENSES,
-  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$',
   test: 'bin/cdk --version',
   entryPoints: [
     'lib/index.js',
@@ -1385,50 +1377,6 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('test/integ/cli/sam_cdk_integ_app/**/*');
   tsconfig?.addExclude('vendor/**/*');
 }
-
-// #endregion
-//////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-cli-wrapper
-
-const cdkCliWrapper = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-cli-wrapper',
-    description: 'CDK CLI Wrapper Library',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-    ],
-    nextVersionCommand: `tsx ../../../projenrc/next-version.ts copyVersion:../../../${cliPackageJson}`,
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/cdk-cli-wrapper'),
-
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          branches: 62,
-        },
-      },
-    }),
-
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-  }),
-);
-
-/* Can't have this -- the integ-runner depends on this package
-(() => {
-  const integ = cdkCliWrapper.addTask('integ', {
-    exec: 'integ-runner --language javascript',
-  });
-  cdkCliWrapper.testTask.spawn(integ);
-})();
-*/
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1470,7 +1418,6 @@ const integRunner = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      cdkCliWrapper.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
@@ -1496,7 +1443,7 @@ const integRunner = configureProject(
     allowPrivateDeps: true,
     tsconfig: {
       compilerOptions: {
-        ...defaultTsOptions,
+        ...toolkitLibTsCompilerOptions,
       },
     },
     jestOptions: jestOptionsForProject({
@@ -1531,6 +1478,7 @@ integRunner.tsconfig?.addExclude('test/language-tests/**/integ.*.ts');
 integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
 
 new TypecheckTests(integRunner);
+fixupTestTask(integRunner);
 
 new BundleCli(integRunner, {
   externals: {
@@ -1540,7 +1488,7 @@ new BundleCli(integRunner, {
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
-  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$|^cdk-cli-wrapper$',
+  dontAttribute: '^@aws-cdk/|^@cdklabs/|^cdk-assets$',
   test: 'bin/integ-runner --version',
   entryPoints: [
     'lib/index.js',
@@ -1588,7 +1536,7 @@ const cliInteg = configureProject(
       'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
-      'glob@^9',
+      'fast-glob',
       'make-runnable@^1',
       'mockttp@^3',
       'npm@^11',
@@ -1752,13 +1700,12 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', 'THIRD_PARTY_LICENSES'],
 });
-
-((repo.github?.tryFindWorkflow('integ')?.getJob('prepare') as Job | undefined)?.env ?? {}).DEBUG = 'true';
 
 // Set allowed scopes based on monorepo packages
 const disallowed = new Set([

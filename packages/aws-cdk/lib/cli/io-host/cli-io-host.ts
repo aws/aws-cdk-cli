@@ -2,7 +2,7 @@ import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
@@ -10,9 +10,10 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
-import { CLI_PRIVATE_IO, CLI_TELEMETRY_CODES } from '../telemetry/messages';
-import type { EventType } from '../telemetry/schema';
+import { CLI_PRIVATE_IO } from '../telemetry/messages';
+import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
 import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
@@ -349,12 +350,9 @@ export class CliIoHost implements IIoHost {
 
   private async maybeEmitTelemetry(msg: IoMessage<unknown>) {
     try {
-      if (this.telemetry && isTelemetryMessage(msg)) {
-        await this.telemetry.emit({
-          eventType: getEventType(msg),
-          duration: msg.data.duration,
-          error: msg.data.error,
-        });
+      const telemetryEvent = eventFromMessage(msg);
+      if (telemetryEvent) {
+        await this.telemetry?.emit(telemetryEvent);
       }
     } catch (e: any) {
       await this.defaults.trace(`Emit Telemetry Failed ${e.message}`);
@@ -379,7 +377,7 @@ export class CliIoHost implements IIoHost {
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
     const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
     if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
-      false;
+      return false;
     }
 
     switch (this.requireDeployApproval) {
@@ -484,12 +482,12 @@ export class CliIoHost implements IIoHost {
 
       // only talk to user if STDIN is a terminal (otherwise, fail)
       if (!this.isTTY) {
-        throw new ToolkitError(`${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
+        throw new ToolkitError('TtyNotAttached', `${motivation}, but terminal (TTY) is not attached so we are unable to get a confirmation from the user`);
       }
 
       // only talk to user if concurrency is 1 (otherwise, fail)
       if (concurrency > 1) {
-        throw new ToolkitError(`${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
+        throw new ToolkitError('ConcurrencyConflict', `${motivation}, but concurrency is greater than 1 so we are unable to get a confirmation from the user`);
       }
 
       // Basic confirmation prompt
@@ -497,7 +495,7 @@ export class CliIoHost implements IIoHost {
       if (isConfirmationPrompt(msg)) {
         const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
         if (!confirmed) {
-          throw new ToolkitError('Aborted by user');
+          throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
         return confirmed;
       }
@@ -618,19 +616,47 @@ function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
   return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
 }
 
-function isTelemetryMessage(msg: IoMessage<unknown>): msg is IoMessage<EventResult> {
-  return CLI_TELEMETRY_CODES.some((c) => c.is(msg));
+function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
+  if (CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg)) {
+    return eventResult('SYNTH', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg)) {
+    return eventResult('INVOKE', msg);
+  }
+  if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
+    return eventResult('DEPLOY', msg);
+  }
+  // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
+  // Instead we reuse the existing Hotswap span.
+  if (IO.CDK_TOOLKIT_I5410.is(msg)) {
+    // Create a telemetry-compatible result
+    return hotswapToEventResult(msg.data);
+  }
+  return undefined;
+
+  function eventResult(eventType: TelemetryEvent['eventType'], m: IoMessage<EventResult>): TelemetryEvent {
+    return {
+      eventType,
+      duration: m.data.duration,
+      error: m.data.error,
+      counters: m.data.counters,
+    };
+  }
 }
 
-function getEventType(msg: IoMessage<unknown>): EventType {
-  switch (msg.code) {
-    case CLI_PRIVATE_IO.CDK_CLI_I1001.code:
-      return 'SYNTH';
-    case CLI_PRIVATE_IO.CDK_CLI_I2001.code:
-      return 'INVOKE';
-    case CLI_PRIVATE_IO.CDK_CLI_I3001.code:
-      return 'DEPLOY';
-    default:
-      throw new ToolkitError(`Unrecognized Telemetry Message Code: ${msg.code}`);
-  }
+function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
+  return {
+    eventType: 'HOTSWAP' as const,
+    duration: result.duration,
+    ...(result.error ? {
+      error: {
+        name: cdkCliErrorName(result.error),
+      },
+    } : {}),
+    counters: {
+      hotswapped: result.hotswapped ? 1 : 0,
+      hotswappableChanges: result.hotswappableChanges.length,
+      nonHotswappableChanges: result.nonHotswappableChanges.length,
+    },
+  };
 }

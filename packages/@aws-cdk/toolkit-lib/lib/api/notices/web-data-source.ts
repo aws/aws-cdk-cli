@@ -49,14 +49,17 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
     // Check connectivity before attempting network request
     const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
     if (!hasConnectivity) {
-      throw new ToolkitError('No internet connectivity detected');
+      throw new ToolkitError('NoConnectivity', 'No internet connectivity detected');
     }
 
     // We are observing lots of timeouts when running in a massively parallel
     // integration test environment, so wait for a longer timeout there.
     //
     // In production, have a short timeout to not hold up the user experience.
-    const timeout = process.env.TESTING_CDK ? 30_000 : 3_000;
+    const timeout = process.env.CDK_NOTICES_TIMEOUT !== undefined
+      ? parseInt(process.env.CDK_NOTICES_TIMEOUT, 10)
+      : process.env.TESTING_CDK
+        ? 30_000 : 3_000;
 
     const options: RequestOptions = {
       agent: this.agent,
@@ -67,7 +70,7 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
 
       let timer = setTimeout(() => {
         if (req) {
-          req.destroy(new ToolkitError('Request timed out'));
+          req.destroy(new ToolkitError('RequestTimeout', 'Request timed out'));
         }
       }, timeout);
 
@@ -88,26 +91,26 @@ export class WebsiteNoticeDataSource implements NoticeDataSource {
                 try {
                   const data = JSON.parse(rawData).notices as Notice[];
                   if (!data) {
-                    throw new ToolkitError("'notices' key is missing from received data");
+                    throw new ToolkitError('MissingNoticesKey', "'notices' key is missing from received data");
                   }
                   resolve(data ?? []);
                 } catch (e: any) {
-                  reject(ToolkitError.withCause(`Parse error: ${formatErrorMessage(e)}`, e));
+                  reject(ToolkitError.withCause('NoticesParseError', `Parse error: ${formatErrorMessage(e)}`, e));
                 }
               });
               res.on('error', e => {
-                reject(ToolkitError.withCause(formatErrorMessage(e), e));
+                reject(ToolkitError.withCause('NoticesResponseError', formatErrorMessage(e), e));
               });
             } else {
-              reject(new ToolkitError(`${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
+              reject(new ToolkitError('HttpStatusError', `${humanHttpStatusError(res.statusCode!)} (Status code: ${res.statusCode})`));
             }
           },
         );
         req.on('error', e => {
-          reject(ToolkitError.withCause(humanNetworkError(e), e));
+          reject(ToolkitError.withCause('NetworkError', humanNetworkError(e), e));
         });
       } catch (e: any) {
-        reject(ToolkitError.withCause(formatErrorMessage(e), e));
+        reject(ToolkitError.withCause('NoticesRequestError', formatErrorMessage(e), e));
       }
     });
 

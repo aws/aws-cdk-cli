@@ -67,6 +67,16 @@ export interface LoadManifestOptions {
    * @default true
    */
   readonly topoSort?: boolean;
+
+  /**
+   * Validate the file according to the declared JSON Schema
+   *
+   * Be aware that JSON Schema validation has a significant performance cost
+   * (about 10x over not validating).
+   *
+   * @default false, unless $TESTING_CDK is set to '1'
+   */
+  readonly validateSchema?: boolean;
 }
 
 /**
@@ -206,24 +216,23 @@ export abstract class Manifest {
       );
     }
 
-    // now validate the format is good.
-    const validator = new jsonschema.Validator();
-    const result = validator.validate(manifest, schema, {
-      // does exist but is not in the TypeScript definitions
-      nestedErrors: true,
+    if (options?.validateSchema ?? (process.env.TESTING_CDK === '1')) {
+      // now validate the format is good.
+      const validator = new jsonschema.Validator();
+      const result = validator.validate(manifest, schema, {
+        nestedErrors: true,
+        allowUnknownAttributes: false,
+        preValidateProperty: Manifest.validateAssumeRoleAdditionalOptions,
+      });
 
-      allowUnknownAttributes: false,
-      preValidateProperty: Manifest.validateAssumeRoleAdditionalOptions,
-    });
-
-    let errors = result.errors;
-    if (options?.skipEnumCheck) {
-      // Enum validations aren't useful when
-      errors = stripEnumErrors(errors);
-    }
-
-    if (errors.length > 0) {
-      throw new Error(`Invalid assembly manifest:\n${errors.map((e) => e.stack).join('\n')}`);
+      let errors = result.errors;
+      if (options?.skipEnumCheck) {
+        // Enum validations aren't useful when
+        errors = stripEnumErrors(errors);
+      }
+      if (errors.length > 0) {
+        throw new Error(`Invalid assembly manifest:\n${errors.map((e) => e.stack).join('\n')}`);
+      }
     }
   }
 
@@ -238,7 +247,9 @@ export abstract class Manifest {
       version: Manifest.version(),
       minimumCliVersion: Manifest.cliVersion(),
     } satisfies assembly.AssemblyManifest;
+
     Manifest.validate(withVersion, schema);
+
     if (preprocess) {
       withVersion = preprocess(withVersion);
     }

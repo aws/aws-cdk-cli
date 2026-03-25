@@ -17,7 +17,6 @@ import type { MappingGroup } from '../../actions';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { pLimit } from '../../util/concurrency';
 
-export * from './exclude';
 export * from './context';
 
 interface StackGroup {
@@ -57,6 +56,7 @@ export async function usePrescribedMappings(
     for (const destination of Object.values(group.resources)) {
       if (destinations.has(destination)) {
         throw new ToolkitError(
+          'DuplicateDestinationResource',
           `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
         );
       }
@@ -68,11 +68,12 @@ export async function usePrescribedMappings(
   for (const group of stackGroups) {
     for (const [source, destination] of Object.entries(group.resources)) {
       if (!inUse(source, group.stacks)) {
-        throw new ToolkitError(`Source resource '${source}' does not exist in environment ${group.account}/${group.region}`);
+        throw new ToolkitError('SourceResourceNotFound', `Source resource '${source}' does not exist in environment ${group.account}/${group.region}`);
       }
 
       if (inUse(destination, group.stacks)) {
         throw new ToolkitError(
+          'DestinationResourceInUse',
           `Destination resource '${destination}' already in use in environment ${group.account}/${group.region}`,
         );
       }
@@ -88,7 +89,7 @@ export async function usePrescribedMappings(
   function inUse(location: string, stacks: CloudFormationStack[]): boolean {
     const [stackName, logicalId] = location.split('.');
     if (stackName == null || logicalId == null) {
-      throw new ToolkitError(`Invalid location '${location}'`);
+      throw new ToolkitError('InvalidResourceLocation', `Invalid location '${location}'`);
     }
     const stack = stacks.find((s) => s.stackName === stackName);
     return stack != null && stack.template.Resources?.[logicalId] != null;

@@ -24,7 +24,7 @@ export interface ResourceMetadata {
  * @returns The resource metadata, or undefined if the resource was not found
  */
 export function resourceMetadata(stack: CloudFormationStackArtifact, logicalId: string): ResourceMetadata | undefined {
-  const metadata = stack.manifest?.metadata;
+  const metadata = stack.metadata;
   if (!metadata) {
     return undefined;
   }

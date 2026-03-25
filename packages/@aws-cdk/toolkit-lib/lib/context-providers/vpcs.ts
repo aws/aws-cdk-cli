@@ -28,10 +28,10 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
 
     const vpcs = response.Vpcs || [];
     if (vpcs.length === 0) {
-      throw new ContextProviderError(`Could not find any VPCs matching ${JSON.stringify(args)}`);
+      throw new ContextProviderError('VpcNotFound', `Could not find any VPCs matching ${JSON.stringify(args)}`);
     }
     if (vpcs.length > 1) {
-      throw new ContextProviderError(`Found ${vpcs.length} VPCs matching ${JSON.stringify(args)}; please narrow the search criteria`);
+      throw new ContextProviderError('MultipleVpcsFound', `Found ${vpcs.length} VPCs matching ${JSON.stringify(args)}; please narrow the search criteria`);
     }
 
     return vpcs[0];
@@ -85,13 +85,13 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
 
       if (!isValidSubnetType(type)) {
         // eslint-disable-next-line @stylistic/max-len
-        throw new ContextProviderError(
+        throw new ContextProviderError('InvalidSubnetType',
           `Subnet ${subnet.SubnetArn} has invalid subnet type ${type} (must be ${SubnetType.Public}, ${SubnetType.Private} or ${SubnetType.Isolated})`,
         );
       }
 
       if (args.subnetGroupNameTag && !getTag(args.subnetGroupNameTag, subnet.Tags)) {
-        throw new ContextProviderError(
+        throw new ContextProviderError('MissingSubnetGroupTag',
           `Invalid subnetGroupNameTag: Subnet ${subnet.SubnetArn} does not have an associated tag with Key='${args.subnetGroupNameTag}'`,
         );
       }
@@ -100,7 +100,7 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
       const routeTableId = routeTables.routeTableIdForSubnetId(subnet.SubnetId);
 
       if (!routeTableId) {
-        throw new ContextProviderError(
+        throw new ContextProviderError('MissingRouteTable',
           `Subnet ${subnet.SubnetArn} does not have an associated route table (and there is no "main" table)`,
         );
       }
@@ -283,7 +283,7 @@ function groupSubnets(subnets: Subnet[]): SubnetGroups {
   for (const group of groups) {
     const groupAZs = group.subnets.map((s) => s.az);
     if (!arraysEqual(groupAZs, azs)) {
-      throw new ContextProviderError(`Not all subnets in VPC have the same AZs: ${groupAZs} vs ${azs}`);
+      throw new ContextProviderError('InconsistentSubnetAzs', `Not all subnets in VPC have the same AZs: ${groupAZs} vs ${azs}`);
     }
   }
 

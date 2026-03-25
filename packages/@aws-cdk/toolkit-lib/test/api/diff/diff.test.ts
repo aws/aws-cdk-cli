@@ -229,3 +229,144 @@ describe('formatSecurityDiff', () => {
     );
   });
 });
+
+describe('mangled character filtering', () => {
+  test('filters mangled non-ASCII diffs for root stacks', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(0);
+    expect(sanitized).toContain('Omitted');
+    expect(sanitized).toContain('There were no differences');
+  });
+
+  test('does not filter mangled diffs when strict is true', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff({ strict: true });
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(sanitized).not.toContain('Omitted');
+    expect(sanitized).toContain('Description');
+  });
+
+  test('does not filter when diffs are real, not mangled', () => {
+    const oldTemplate = {
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: {
+          Bucket: { Type: 'AWS::S3::Bucket' },
+          Queue: { Type: 'AWS::SQS::Queue' },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(sanitized).not.toContain('Omitted');
+    expect(sanitized).toContain('AWS::SQS::Queue');
+  });
+
+  test('filters mangled characters using the nested stack deployed template', () => {
+    const nestedDeployed = {
+      Description: '????',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const nestedGenerated = {
+      Description: '文字化け',
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    };
+
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested: {
+            deployedTemplate: nestedDeployed,
+            generatedTemplate: nestedGenerated,
+            physicalName: 'nested-stack',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+
+    const result = formatter.formatStackDiff();
+    const sanitized = result.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(sanitized).not.toContain('AWS::CloudFormation::Stack');
+    expect(sanitized).toContain('nested-stack');
+    expect(sanitized).toContain('Omitted');
+  });
+});
+

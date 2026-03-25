@@ -1109,7 +1109,7 @@ export interface PutObjectRequest {
    *          server-side encryption using Key Management Service (KMS) keys (SSE-KMS). Setting this header to
    *             <code>true</code> causes Amazon S3 to use an S3 Bucket Key for object encryption with
    *          SSE-KMS.</p>
-   *          <p>Specifying this header with a PUT action doesn’t affect bucket-level settings for S3
+   *          <p>Specifying this header with a PUT action doesn't affect bucket-level settings for S3
    *          Bucket Key.</p>
    *          <note>
    *             <p>This functionality is not supported for directory buckets.</p>

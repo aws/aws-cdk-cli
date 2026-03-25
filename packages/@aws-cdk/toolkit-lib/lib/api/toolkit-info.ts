@@ -165,6 +165,7 @@ class ExistingToolkitInfo extends ToolkitInfo {
   private requireOutput(output: string): string {
     if (!(output in this.bootstrapStack.outputs)) {
       throw new ToolkitError(
+        'MissingBootstrapStackOutput',
         `The CDK toolkit stack (${this.bootstrapStack.stackName}) does not have an output named ${output}. Use 'cdk bootstrap' to correct this.`,
       );
     }
@@ -193,31 +194,31 @@ class BootstrapStackNotFoundInfo extends ToolkitInfo {
   }
 
   public get bootstrapStack(): CloudFormationStack {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public get bucketUrl(): string {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public get bucketName(): string {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public get repositoryName(): string {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public get version(): number {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public get variant(): string {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 
   public prepareEcrRepository(): Promise<EcrRepositoryInfo> {
-    throw new ToolkitError(this.errorMessage);
+    throw new ToolkitError('BootstrapStackNotFound', this.errorMessage);
   }
 }
 

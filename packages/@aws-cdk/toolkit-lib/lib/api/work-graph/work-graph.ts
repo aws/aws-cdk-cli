@@ -21,7 +21,7 @@ export class WorkGraph {
   public addNodes(...nodes: WorkNode[]) {
     for (const node of nodes) {
       if (this.nodes[node.id]) {
-        throw new ToolkitError(`Duplicate use of node id: ${node.id}`);
+        throw new ToolkitError('DuplicateNodeId', `Duplicate use of node id: ${node.id}`);
       }
 
       const ld = this.lazyDependencies.get(node.id);
@@ -89,7 +89,7 @@ export class WorkGraph {
   public node(id: string) {
     const ret = this.nodes[id];
     if (!ret) {
-      throw new ToolkitError(`No node with id ${id} among ${Object.keys(this.nodes)}`);
+      throw new ToolkitError('NodeNotFound', `No node with id ${id} among ${Object.keys(this.nodes)}`);
     }
     return ret;
   }
@@ -115,6 +115,21 @@ export class WorkGraph {
           await actions.publishAsset(x);
           break;
       }
+    });
+  }
+
+  /**
+   * Execute all stack nodes in dependency order with the given concurrency.
+   *
+   * Unlike `doParallel`, this method only handles stack nodes and takes a
+   * simple callback. Intended for destroy where there are no asset nodes.
+   */
+  public processStacks(concurrency: number, fn: (stackNode: StackNode) => Promise<void>) {
+    return this.forAllArtifacts(concurrency, async (x: WorkNode) => {
+      if (x.type !== 'stack') {
+        return;
+      }
+      await fn(x);
     });
   }
 
@@ -302,7 +317,7 @@ export class WorkGraph {
     if (this.readyPool.length === 0 && activeCount === 0 && pendingCount > 0) {
       const cycle = this.findCycle() ?? ['No cycle found!'];
       await this.ioHelper.defaults.trace(`Cycle ${cycle.join(' -> ')} in graph ${this}`);
-      throw new ToolkitError(`Unable to make progress anymore, dependency cycle between remaining artifacts: ${cycle.join(' -> ')} (run with -vv for full graph)`);
+      throw new ToolkitError('DependencyCycle', `Unable to make progress anymore, dependency cycle between remaining artifacts: ${cycle.join(' -> ')} (run with -vv for full graph)`);
     }
   }
 

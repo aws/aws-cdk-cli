@@ -1,6 +1,6 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { minimatch } from 'minimatch';
+import { isMatch as picomatch } from 'picomatch';
 import type { SdkProvider, StackCollection } from '../api';
 
 export function looksLikeGlob(environment: string) {
@@ -19,11 +19,11 @@ export async function globEnvironmentsFromStacks(stacks: StackCollection, enviro
     availableEnvironments.push(actual);
   }
 
-  const environments = distinct(availableEnvironments).filter(env => environmentGlobs.find(glob => minimatch(env!.name, glob)));
+  const environments = distinct(availableEnvironments).filter(env => environmentGlobs.find(glob => picomatch(env!.name, glob)));
   if (environments.length === 0) {
     const globs = JSON.stringify(environmentGlobs);
     const envList = availableEnvironments.length > 0 ? availableEnvironments.map(env => env!.name).join(', ') : '<none>';
-    throw new ToolkitError(`No environments were found when selecting across ${globs} (available: ${envList})`);
+    throw new ToolkitError('NoEnvironmentsFound', `No environments were found when selecting across ${globs} (available: ${envList})`);
   }
 
   return environments;
@@ -38,7 +38,7 @@ export function environmentsFromDescriptors(envSpecs: string[]): cxapi.Environme
   for (const spec of envSpecs) {
     const parts = spec.replace(/^aws:\/\//, '').split('/');
     if (parts.length !== 2) {
-      throw new ToolkitError(`Expected environment name in format 'aws://<account>/<region>', got: ${spec}`);
+      throw new ToolkitError('InvalidEnvironmentFormat', `Expected environment name in format 'aws://<account>/<region>', got: ${spec}`);
     }
 
     ret.push({

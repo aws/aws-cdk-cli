@@ -36,15 +36,15 @@ jest.mock('chokidar', () => ({
   watch: mockChokidarWatch,
 }));
 const fakeChokidarWatch = {
-  get includeArgs(): string[] {
+  get watchPath(): string {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
-    // the include args are the first parameter to the 'watch()' call
+    // the watch path is the first parameter to the 'watch()' call
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get excludeArgs(): string[] {
+  get ignoredFn(): (path: string) => boolean {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
-    // the ignore args are a property of the second parameter to the 'watch()' call
+    // the ignored function is a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
     return chokidarWatchOpts.ignored;
   },
@@ -64,7 +64,7 @@ import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployment
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
-import type { Template, SdkProvider } from '../../lib/api';
+import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -194,6 +194,18 @@ describe('list', () => {
 });
 
 describe('deploy', () => {
+  test('sets requireDeployApproval on CliIoHost', async () => {
+    const toolkit = defaultToolkitSetup();
+    const requireApproval = RequireApproval.ANYCHANGE;
+    await toolkit.deploy({
+      selector: { patterns: ['**'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval,
+    });
+
+    expect(ioHost.requireDeployApproval).toEqual(requireApproval);
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
@@ -336,6 +348,122 @@ describe('deploy', () => {
       }));
 
       publishEntry.mockRestore();
+    });
+
+    describe('assetBuildConcurrency', () => {
+      let buildSpy: jest.SpyInstance;
+
+      afterEach(() => {
+        buildSpy?.mockRestore();
+      });
+
+      test('is passed when assetParallelism is true', async () => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism: true,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 4,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('is ignored when assetParallelism is false', async () => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism: false,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test.each([
+        true,
+        false,
+        undefined,
+      ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism) => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
     });
 
     test('with stacks all stacks specified as wildcard', async () => {
@@ -569,6 +697,27 @@ describe('deploy', () => {
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
     });
+  });
+
+  test('emits resource counters', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-B'] },
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    const deploy = notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_CLI_I3001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
   });
 
   test('globless bootstrap uses environment without question', async () => {
@@ -1089,6 +1238,63 @@ describe('destroy', () => {
       });
     }).resolves;
   });
+
+  test('destroy with concurrency', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['*'] },
+      exclusively: false,
+      force: true,
+      concurrency: 5,
+    });
+  });
+
+  test('destroy respects dependency order with concurrency', async () => {
+    const stackC: TestStackArtifact = {
+      stackName: 'Test-Stack-C',
+      template: { Resources: { TemplateName: 'Test-Stack-C' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+    };
+    const stackD: TestStackArtifact = {
+      stackName: 'Test-Stack-D',
+      template: { Resources: { TemplateName: 'Test-Stack-D' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+      depends: [stackC.stackName],
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [stackC, stackD],
+    });
+
+    const destroyOrder: string[] = [];
+    const fakeDeployments = new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+      'Test-Stack-D': { Baz: 'Zinga!' },
+    });
+    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
+    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
+      destroyOrder.push(options.stack.stackName);
+      return originalDestroyStack(options);
+    };
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: fakeDeployments,
+    });
+
+    await toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] },
+      exclusively: false,
+      force: true,
+      concurrency: 10,
+    });
+
+    // stackD depends on stackC, so D must be destroyed before C
+    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
+  });
 });
 
 describe('watch', () => {
@@ -1115,8 +1321,8 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const includeArgs = fakeChokidarWatch.includeArgs;
-    expect(includeArgs.length).toBe(1);
+    // With chokidar v4, we watch the root directory and use ignored function for filtering
+    expect(fakeChokidarWatch.watchPath).toBe('.');
   });
 
   test("allows providing a single string in 'watch.include'", async () => {
@@ -1130,7 +1336,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir')).toBe(false); // included - not ignored
+    expect(ignoredFn('my-dir/file.ts')).toBe(false); // included - not ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(true); // not included - ignored
   });
 
   test("allows providing an array of strings in 'watch.include'", async () => {
@@ -1144,7 +1355,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.includeArgs).toStrictEqual(['my-dir1', '**/my-dir2/*']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir1')).toBe(false); // matches first pattern - not ignored
+    expect(ignoredFn('nested/my-dir2/file.ts')).toBe(false); // matches second pattern - not ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(true); // matches neither - ignored
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1157,7 +1373,14 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    expect(fakeChokidarWatch.excludeArgs).toStrictEqual(['cdk.out/**', '**/.*', '**/.*/**', '**/node_modules/**']);
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('cdk.out/stack.template.json')).toBe(true); // output dir - ignored
+    expect(ignoredFn('.hidden')).toBe(true); // dot file - ignored
+    expect(ignoredFn('.git/config')).toBe(true); // dot directory - ignored
+    expect(ignoredFn('node_modules/package/index.js')).toBe(true); // node_modules - ignored
+    expect(ignoredFn('src/app.ts')).toBe(false); // regular file - not ignored
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1171,9 +1394,12 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const excludeArgs = fakeChokidarWatch.excludeArgs;
-    expect(excludeArgs.length).toBe(5);
-    expect(excludeArgs[0]).toBe('my-dir');
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir')).toBe(true); // excluded - ignored
+    expect(ignoredFn('my-dir/file.ts')).toBe(true); // excluded - ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(false); // not excluded - not ignored
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1187,10 +1413,13 @@ describe('watch', () => {
       deploymentMethod: { method: 'hotswap' },
     });
 
-    const excludeArgs = fakeChokidarWatch.excludeArgs;
-    expect(excludeArgs.length).toBe(6);
-    expect(excludeArgs[0]).toBe('my-dir1');
-    expect(excludeArgs[1]).toBe('**/my-dir2');
+    // Verify we watch root directory and filter via ignored function
+    expect(fakeChokidarWatch.watchPath).toBe('.');
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn('my-dir1')).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('my-dir1/file.ts')).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('nested/my-dir2')).toBe(true); // matches second exclude - ignored
+    expect(ignoredFn('other-dir/file.ts')).toBe(false); // matches neither exclude - not ignored
   });
 
   test('allows watching with deploy concurrency', async () => {

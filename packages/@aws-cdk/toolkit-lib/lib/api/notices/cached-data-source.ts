@@ -36,7 +36,7 @@ export class CachedDataSource implements NoticeDataSource {
           expiration: Date.now() + TIME_TO_LIVE_ERROR,
           notices: [],
         };
-        throw ToolkitError.withCause('Failed to load CDK notices. Please try again later.', e);
+        throw ToolkitError.withCause('NoticesFetchFailed', 'Failed to load CDK notices. Please try again later.', e);
       } finally {
         await this.save(updatedData);
       }

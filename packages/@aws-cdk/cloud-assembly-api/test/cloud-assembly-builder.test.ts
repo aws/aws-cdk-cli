@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema/lib';
+import * as semver from 'semver';
 import * as cxapi from '../lib';
 
 test('cloud assembly builder', () => {
@@ -174,6 +175,67 @@ test('write and read nested cloud assembly artifact', () => {
 
   const nested = art?.nestedAssembly;
   expect(nested?.artifacts.length).toEqual(0);
+});
+
+test('nested assembly inherits load options from parent', () => {
+  // GIVEN
+  const outdir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-assembly-builder-tests'));
+  const session = new cxapi.CloudAssemblyBuilder(outdir);
+  const futureVersion = semver.inc(cxschema.Manifest.version(), 'major')!;
+
+  const innerAsmDir = path.join(outdir, 'nested');
+  new cxapi.CloudAssemblyBuilder(innerAsmDir).buildAssembly();
+
+  const nestedManifestPath = path.join(innerAsmDir, 'manifest.json');
+  const nestedManifest = JSON.parse(fs.readFileSync(nestedManifestPath, 'utf-8'));
+  nestedManifest.version = futureVersion;
+  fs.writeFileSync(nestedManifestPath, JSON.stringify(nestedManifest));
+
+  session.addArtifact('NestedAssembly', {
+    type: cxschema.ArtifactType.NESTED_CLOUD_ASSEMBLY,
+    properties: {
+      directoryName: 'nested',
+    } as cxschema.NestedCloudAssemblyProperties,
+  });
+  session.buildAssembly();
+
+  // WHEN
+  const asm = new cxapi.CloudAssembly(outdir, { skipVersionCheck: true });
+  const art = asm.nestedAssemblies[0];
+
+  // THEN
+  expect(() => art.nestedAssembly).not.toThrow();
+  expect(art.nestedAssembly.version).toEqual(futureVersion);
+});
+
+test('nested assembly without load options fails on version mismatch', () => {
+  // GIVEN
+  const outdir = fs.mkdtempSync(path.join(os.tmpdir(), 'cloud-assembly-builder-tests'));
+  const session = new cxapi.CloudAssemblyBuilder(outdir);
+  const futureVersion = semver.inc(cxschema.Manifest.version(), 'major')!;
+
+  const innerAsmDir = path.join(outdir, 'nested');
+  new cxapi.CloudAssemblyBuilder(innerAsmDir).buildAssembly();
+
+  const nestedManifestPath = path.join(innerAsmDir, 'manifest.json');
+  const nestedManifest = JSON.parse(fs.readFileSync(nestedManifestPath, 'utf-8'));
+  nestedManifest.version = futureVersion;
+  fs.writeFileSync(nestedManifestPath, JSON.stringify(nestedManifest));
+
+  session.addArtifact('NestedAssembly', {
+    type: cxschema.ArtifactType.NESTED_CLOUD_ASSEMBLY,
+    properties: {
+      directoryName: 'nested',
+    } as cxschema.NestedCloudAssemblyProperties,
+  });
+  session.buildAssembly();
+
+  // WHEN
+  const asm = new cxapi.CloudAssembly(outdir);
+  const art = asm.nestedAssemblies[0];
+
+  // THEN
+  expect(() => art.nestedAssembly).toThrow(/Cloud assembly schema version mismatch/);
 });
 
 test('missing values are reported to top-level asm', () => {
