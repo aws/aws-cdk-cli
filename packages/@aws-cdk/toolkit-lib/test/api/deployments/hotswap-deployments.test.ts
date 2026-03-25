@@ -3,6 +3,7 @@ import { UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda';
 import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
 import { CfnEvaluationException } from '../../../lib/api/cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
+import type { HotswapResult } from '../../../lib/payloads/hotswap';
 import { MockSdk, mockCloudFormationClient, mockLambdaClient, mockStepFunctionsClient } from '../../_helpers/mock-sdk';
 
 import * as setup from '../_helpers/hotswap-test-setup';
@@ -683,5 +684,83 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       S3Bucket: 'current-bucket',
       S3Key: 'new-key',
     });
+  });
+});
+
+describe('hotswap span', () => {
+  const lambdaTemplate = (s3Key: string) => ({
+    Resources: {
+      Func: {
+        Type: 'AWS::Lambda::Function',
+        Properties: {
+          Code: { S3Bucket: 'bucket', S3Key: s3Key },
+          FunctionName: 'my-function',
+        },
+        Metadata: { 'aws:asset:path': 'old-path' },
+      },
+    },
+  });
+
+  beforeEach(() => {
+    setup.ioHost.clear();
+  });
+
+  function spanEndMessage() {
+    return setup.ioHost.messages.find((m) => m.code === 'CDK_TOOLKIT_I5410');
+  }
+
+  test('successful hotswap ends span with hotswapped: true and no error', async () => {
+    setup.setCurrentCfnStackTemplate(lambdaTemplate('old-key'));
+    const artifact = setup.cdkStackArtifactOf({ template: lambdaTemplate('new-key') });
+
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    const msg = spanEndMessage();
+    expect(msg).toBeDefined();
+    const result = msg!.data as HotswapResult;
+    expect(result.hotswapped).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(result.hotswappableChanges.length).toBeGreaterThan(0);
+  });
+
+  test('SDK apply error ends span with hotswapped: false and error set, then re-throws', async () => {
+    setup.setCurrentCfnStackTemplate(lambdaTemplate('old-key'));
+    const artifact = setup.cdkStackArtifactOf({ template: lambdaTemplate('new-key') });
+    mockLambdaClient.on(UpdateFunctionCodeCommand).rejects(new Error('SDK boom'));
+
+    await expect(
+      hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact),
+    ).rejects.toThrow('SDK boom');
+
+    const msg = spanEndMessage();
+    expect(msg).toBeDefined();
+    const result = msg!.data as HotswapResult;
+    expect(result.hotswapped).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.hotswappableChanges.length).toBeGreaterThan(0);
+  });
+
+  test('non-hotswappable changes in fall-back mode ends span with hotswapped: false and no error', async () => {
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Something: { Type: 'AWS::CloudFormation::SomethingElse', Properties: { Prop: 'old' } },
+      },
+    });
+    const artifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Something: { Type: 'AWS::CloudFormation::SomethingElse', Properties: { Prop: 'new' } },
+        },
+      },
+    });
+
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.FALL_BACK, artifact);
+
+    const msg = spanEndMessage();
+    expect(msg).toBeDefined();
+    const result = msg!.data as HotswapResult;
+    expect(result.hotswapped).toBe(false);
+    expect(result.error).toBeUndefined();
+    expect(result.nonHotswappableChanges.length).toBeGreaterThan(0);
   });
 });

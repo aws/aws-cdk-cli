@@ -425,7 +425,10 @@ export class CdkToolkit {
       ...options,
     });
 
+    // the ioHost uses this internally to determine if a confirmation
+    // is actually needed, so it needs the same value we determine here.
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
+    this.ioHost.requireDeployApproval = requireApproval;
 
     const parameterMap = buildParameterMap(options.parameters);
 
@@ -504,8 +507,11 @@ export class CdkToolkit {
         });
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates';
+          const motivation = requireApproval === RequireApproval.ANYCHANGE
+            ? `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`
+            : '"--require-approval" is enabled and stack includes security-sensitive updates';
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
+
           await askUserConfirmation(
             this.ioHost,
             IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
@@ -666,7 +672,7 @@ export class CdkToolkit {
         );
 
         error = {
-          name: cdkCliErrorName(wrappedError.name),
+          name: cdkCliErrorName(wrappedError),
         };
 
         throw wrappedError;

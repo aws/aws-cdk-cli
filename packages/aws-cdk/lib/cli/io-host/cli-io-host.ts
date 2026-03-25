@@ -2,7 +2,7 @@ import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
@@ -10,6 +10,7 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { TelemetryEvent } from '../telemetry/session';
@@ -376,7 +377,7 @@ export class CliIoHost implements IIoHost {
   private skipApprovalStep(msg: IoRequest<any, any>): boolean {
     const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
     if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
-      false;
+      return false;
     }
 
     switch (this.requireDeployApproval) {
@@ -625,6 +626,12 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
   if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
     return eventResult('DEPLOY', msg);
   }
+  // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
+  // Instead we reuse the existing Hotswap span.
+  if (IO.CDK_TOOLKIT_I5410.is(msg)) {
+    // Create a telemetry-compatible result
+    return hotswapToEventResult(msg.data);
+  }
   return undefined;
 
   function eventResult(eventType: TelemetryEvent['eventType'], m: IoMessage<EventResult>): TelemetryEvent {
@@ -635,4 +642,21 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
       counters: m.data.counters,
     };
   }
+}
+
+function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
+  return {
+    eventType: 'HOTSWAP' as const,
+    duration: result.duration,
+    ...(result.error ? {
+      error: {
+        name: cdkCliErrorName(result.error),
+      },
+    } : {}),
+    counters: {
+      hotswapped: result.hotswapped ? 1 : 0,
+      hotswappableChanges: result.hotswappableChanges.length,
+      nonHotswappableChanges: result.nonHotswappableChanges.length,
+    },
+  };
 }

@@ -315,6 +315,10 @@
       "type": "runtime"
     },
     {
+      "name": "@smithy/smithy-client",
+      "type": "runtime"
+    },
+    {
       "name": "@smithy/types",
       "type": "runtime"
     },

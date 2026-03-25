@@ -435,6 +435,73 @@ describe('CliIoHost', () => {
         },
       }));
     });
+
+    test('emit telemetry on HOTSWAP event with successful hotswap', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ c: 3 }],
+          stack: {},
+          mode: 'hotswap-only',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          hotswapped: 1,
+          hotswappableChanges: 2,
+          nonHotswappableChanges: 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with error', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 200,
+          hotswapped: false,
+          hotswappableChanges: [{ a: 1 }],
+          nonHotswappableChanges: [],
+          stack: {},
+          mode: 'hotswap-only',
+          error: new Error('SDK call failed'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 200,
+        error: expect.objectContaining({
+          name: 'UnknownError',
+        }),
+        counters: {
+          hotswapped: 0,
+          hotswappableChanges: 1,
+          nonHotswappableChanges: 0,
+        },
+      }));
+    });
   });
 
   describe('requestResponse', () => {
