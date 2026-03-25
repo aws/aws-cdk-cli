@@ -150,7 +150,7 @@ export class CloudAssembly extends BaseStackAssembly {
         if (topLevelStacks.length === 1) {
           return new StackCollection(this, topLevelStacks);
         } else {
-          throw new ToolkitError('MultipleStacksMatchNoSelector', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+          throw new ToolkitError('NoSelectorGiven', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
           `Stacks: ${stacks.map(x => x.hierarchicalId).join(' · ')}`);
         }
       default:
