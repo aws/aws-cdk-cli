@@ -233,7 +233,7 @@ export class AwsCliCompatible {
       return token;
     } catch (err: any) {
       await debugFn('Failed to get MFA token', err);
-      const e = new AuthenticationError(`Error fetching MFA token: ${err.message ?? err}`);
+      const e = new AuthenticationError('MfaTokenError', `Error fetching MFA token: ${err.message ?? err}`);
       e.name = 'SharedIniFileCredentialsProviderFailure';
       throw e;
     }

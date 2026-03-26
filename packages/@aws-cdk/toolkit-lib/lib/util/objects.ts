@@ -98,7 +98,7 @@ export function deepSet(x: any, path: string[], value: any) {
   path = path.slice();
 
   if (path.length === 0) {
-    throw new ToolkitError('Path may not be empty');
+    throw new ToolkitError('EmptyPath', 'Path may not be empty');
   }
 
   while (path.length > 1 && isObject(x)) {
@@ -115,7 +115,7 @@ export function deepSet(x: any, path: string[], value: any) {
   }
 
   if (!isObject(x)) {
-    throw new ToolkitError(`Expected an object, got '${x}'`);
+    throw new ToolkitError('ExpectedObject', `Expected an object, got '${x}'`);
   }
 
   const finalKey = path[0];

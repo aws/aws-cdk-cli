@@ -404,6 +404,7 @@ export class Deployments {
     if (options.changeSetName || options.execute !== undefined) {
       if (deploymentMethod) {
         throw new ToolkitError(
+          'ConflictingDeploymentOptions',
           "You cannot supply both 'deploymentMethod' and 'changeSetName/execute'. Supply one or the other.",
         );
       }
@@ -453,7 +454,7 @@ export class Deployments {
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
     let resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
     if (options.orphanFailedResources && resourcesToSkip.length > 0) {
-      throw new ToolkitError('Cannot combine --force with --orphan');
+      throw new ToolkitError('ConflictingRollbackOptions', 'Cannot combine --force with --orphan');
     }
 
     const env = await this.envs.accessStackForMutableStackOperations(options.stack);
@@ -526,7 +527,7 @@ export class Deployments {
           return { stackArn, notInRollbackableState: true };
 
         default:
-          throw new ToolkitError(`Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
+          throw new ToolkitError('UnexpectedRollbackChoice', `Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
       }
 
       const monitor = new StackActivityMonitor({
@@ -544,7 +545,7 @@ export class Deployments {
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
-          throw new ToolkitError('Stack deploy failed (the stack disappeared while we were rolling it back)');
+          throw new ToolkitError('StackDisappeared', 'Stack deploy failed (the stack disappeared while we were rolling it back)');
         }
         finalStackState = successStack;
 
@@ -570,10 +571,11 @@ export class Deployments {
 
       throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
-        monitor.rootCauseErrorCode,
+        monitor.rootCauseErrorCode ?? 'RollbackFailed',
       );
     }
     throw new ToolkitError(
+      'RollbackStalled',
       "Rollback did not finish after a large number of iterations; stopping because it looks like we're not making progress anymore. You can retry if rollback was progressing as expected.",
     );
   }
@@ -629,7 +631,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, resolvedEnvironment, options.stackName);
     await publisher.buildEntry(asset);
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to build asset ${asset.displayName(false)}`);
+      throw new ToolkitError('AssetBuildFailed', `Failed to build asset ${asset.displayName(false)}`);
     }
   }
 
@@ -650,7 +652,7 @@ export class Deployments {
       force: options.forcePublish,
     });
     if (publisher.hasFailures) {
-      throw ToolkitError.withCause(`Failed to publish asset ${asset.displayName(true)}`, new AggregateError(publisher.failures.map(f => f.error)));
+      throw ToolkitError.withCause('AssetPublishFailed', `Failed to publish asset ${asset.displayName(true)}`, new AggregateError(publisher.failures.map(f => f.error)));
     }
   }
 
@@ -689,7 +691,7 @@ export class Deployments {
     try {
       await envResources.validateVersion(requiresBootstrapStackVersion, bootstrapStackVersionSsmParameter);
     } catch (e: any) {
-      throw new ToolkitError(`${stackName}: ${formatErrorMessage(e)}`);
+      throw new ToolkitError('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`);
     }
   }
 

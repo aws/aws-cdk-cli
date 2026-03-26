@@ -3,7 +3,7 @@ import { ServiceException } from '@smithy/smithy-client';
 import { cdkCliErrorName } from '../../../lib/cli/telemetry/error';
 
 test('returns known error names', () => {
-  expect(cdkCliErrorName(new AuthenticationError('Oh no'))).toEqual(AuthenticationError.name);
+  expect(cdkCliErrorName(new AuthenticationError('OhNoCode', 'Oh no'))).toEqual('OhNoCode');
 });
 
 test('returns UnknownError for unknown error names', () => {

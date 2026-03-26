@@ -43,7 +43,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
     const allStacks = major(asm.version) < 10 ? asm.stacks : asm.stacksRecursively;
 
     if (allStacks.length === 0 && (selector.failOnEmpty ?? true)) {
-      throw new ToolkitError('This app contains no stacks');
+      throw new ToolkitError('NoStacksInApp', 'This app contains no stacks');
     }
 
     const extend = expandToExtendEnum(selector.expand);
@@ -55,13 +55,13 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
       case StackSelectionStrategy.MAIN_ASSEMBLY:
         if (topLevelStacks.length < 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('No stack found in the main cloud assembly. Use "list" to print manifest');
+          throw new ToolkitError('NoStackInMainAssembly', 'No stack found in the main cloud assembly. Use "list" to print manifest');
         }
         return this.extendStacks(topLevelStacks, allStacks, extend);
       case StackSelectionStrategy.ONLY_SINGLE:
         if (topLevelStacks.length !== 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+          throw new ToolkitError('MultipleStacksWithoutSelector', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
           `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`);
         }
         return new StackCollection(this, topLevelStacks);
@@ -73,6 +73,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
         ) {
           // @todo text should probably be handled in io host
           throw new ToolkitError(
+            'AmbiguousStackSelection',
             `Stack selection is ambiguous, please choose a specific stack for import [${allStacks.map(x => x.hierarchicalId).join(',')}]`,
           );
         }
@@ -82,6 +83,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
         ) {
           // @todo text should probably be handled in io host
           throw new ToolkitError(
+            'NoStacksMatched',
             `Stack selection is ambiguous, please choose a specific stack for import [${allStacks.map(x => x.hierarchicalId).join(',')}]`,
           );
         }

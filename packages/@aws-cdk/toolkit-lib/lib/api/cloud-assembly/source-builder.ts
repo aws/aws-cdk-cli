@@ -483,7 +483,7 @@ export abstract class CloudAssemblySourceBuilder {
           try {
             fs.mkdirpSync(outdir);
           } catch (e: any) {
-            throw new ToolkitError(`Could not create output directory at '${outdir}' (${e.message}).`);
+            throw new ToolkitError('OutputDirectoryCreateFailed', `Could not create output directory at '${outdir}' (${e.message}).`);
           }
 
           await using execution = await ExecutionEnvironment.create(services, {

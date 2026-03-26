@@ -10,7 +10,7 @@ export function environmentsFromDescriptors(envSpecs: string[]): cxapi.Environme
   for (const spec of envSpecs) {
     const parts = spec.replace(/^aws:\/\//, '').split('/');
     if (parts.length !== 2) {
-      throw new ToolkitError(`Expected environment name in format 'aws://<account>/<region>', got: ${spec}`);
+      throw new ToolkitError('InvalidEnvironmentFormat', `Expected environment name in format 'aws://<account>/<region>', got: ${spec}`);
     }
 
     ret.push({

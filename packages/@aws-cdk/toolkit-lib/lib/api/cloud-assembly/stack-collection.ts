@@ -21,7 +21,7 @@ export class StackCollection {
 
   public get firstStack() {
     if (this.stackCount < 1) {
-      throw new ToolkitError('StackCollection contains no stack artifacts (trying to access the first one)');
+      throw new ToolkitError('EmptyStackCollection', 'StackCollection contains no stack artifacts (trying to access the first one)');
     }
     return this.stackArtifacts[0];
   }
@@ -122,11 +122,15 @@ export class StackCollection {
     }
 
     if (errors && failAt != 'none') {
-      throw AssemblyError.withStacks('Found errors', this.stackArtifacts);
+      const error = AssemblyError.withStacks('Found errors', this.stackArtifacts);
+      error.attachSynthesisErrorCode('AnnotationErrors');
+      throw error;
     }
 
     if (warnings && failAt === 'warn') {
-      throw AssemblyError.withStacks('Found warnings (--strict mode)', this.stackArtifacts);
+      const error = AssemblyError.withStacks('Found warnings (--strict mode)', this.stackArtifacts);
+      error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+      throw error;
     }
   }
 }

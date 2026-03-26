@@ -247,6 +247,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
+        'FailedStackCleanupFailed',
       );
     }
     // Update variable to mark that the stack does not exist anymore, but avoid
@@ -416,7 +417,7 @@ class FullCloudFormationDeployment {
     const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
-      throw new ToolkitError('Importing resources requires a changeset deployment');
+      throw new ToolkitError('ImportRequiresChangeSet', 'Importing resources requires a changeset deployment');
     }
 
     switch (deploymentMethod.method) {
@@ -645,7 +646,7 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode);
+      throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDeployFailed');
     } finally {
       await monitor.stop();
     }
@@ -730,12 +731,12 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+      throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode);
+    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {
     if (monitor) {
       await monitor.stop();

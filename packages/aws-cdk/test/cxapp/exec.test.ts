@@ -88,7 +88,7 @@ test('cli throws when manifest version > schema version', async () => {
 
   config.settings.set(['app'], 'cdk.out');
 
-  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new ToolkitError(expectedError));
+  await expect(execProgram(sdkProvider, ioHelper, config)).rejects.toEqual(new ToolkitError('CliVersionMismatch', expectedError));
 }, TEN_SECOND_TIMEOUT);
 
 test('cli does not throw when manifest version = schema version', async () => {

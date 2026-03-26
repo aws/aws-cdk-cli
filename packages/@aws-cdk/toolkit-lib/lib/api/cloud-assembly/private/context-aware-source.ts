@@ -77,6 +77,7 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
 
         if (!this.canLookup) {
           throw new ToolkitError(
+            'ContextLookupsDisabled',
             'Context lookups have been disabled. '
             + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
             + `Missing context keys: '${missingKeys.join(', ')}'`);

@@ -319,7 +319,7 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
       // we instruct the user to upgrade.
       const message = 'This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application. Please upgrade to the latest version.';
       await ioHelper.notify(IO.CDK_ASSEMBLY_E1111.msg(message, { error: err }));
-      throw new ToolkitError(`${message}\n(${err.message}`);
+      throw new ToolkitError('AssemblyVersionMismatch', `${message}\n(${err.message}`);
     }
     throw err;
   }

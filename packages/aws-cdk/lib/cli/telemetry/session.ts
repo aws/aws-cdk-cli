@@ -201,7 +201,7 @@ export class TelemetrySession {
 
   private get sessionInfo(): SessionSchema {
     if (!this._sessionInfo) {
-      throw new ToolkitError('Session Info not initialized. Call begin() first.');
+      throw new ToolkitError('SessionNotInitialized', 'Session Info not initialized. Call begin() first.');
     }
     return this._sessionInfo;
   }

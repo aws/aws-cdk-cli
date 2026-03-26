@@ -159,7 +159,7 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
       actualTemplatePath = path.join(fromPath, templatePath);
 
       if (!await fs.pathExists(actualTemplatePath)) {
-        throw new ToolkitError(`Template path does not exist: ${actualTemplatePath}`);
+        throw new ToolkitError('TemplatePathNotFound', `Template path does not exist: ${actualTemplatePath}`);
       }
     }
 
@@ -171,17 +171,18 @@ async function loadLocalTemplate(fromPath: string, templatePath?: string): Promi
         const availableTemplates = await findPotentialTemplates(fromPath);
         if (availableTemplates.length > 0) {
           throw new ToolkitError(
+            'TemplatePathRequired',
             'Use --template-path to specify which template to use.',
           );
         }
       }
-      throw new ToolkitError('Custom template must contain at least one language directory');
+      throw new ToolkitError('NoLanguageDirectory', 'Custom template must contain at least one language directory');
     }
 
     return template;
   } catch (error: any) {
     const displayPath = templatePath ? `${fromPath}/${templatePath}` : fromPath;
-    throw new ToolkitError(`Failed to load template from path: ${displayPath}. ${error.message}`);
+    throw new ToolkitError('TemplateLoadFailed', `Failed to load template from path: ${displayPath}. ${error.message}`);
   }
 }
 
@@ -194,7 +195,7 @@ async function loadBuiltinTemplate(ioHelper: IoHelper, type?: string, language?:
   const template = (await availableInitTemplates()).find((t) => t.hasName(templateType));
   if (!template) {
     await printAvailableTemplates(ioHelper, language);
-    throw new ToolkitError(`Unknown init template: ${templateType}`);
+    throw new ToolkitError('UnknownTemplate', `Unknown init template: ${templateType}`);
   }
 
   return template;
@@ -227,7 +228,7 @@ async function resolveLanguage(ioHelper: IoHelper, template: InitTemplate, reque
     await ioHelper.defaults.info(
       `Available languages for ${chalk.green(type || template.name)}: ${template.languages.map((l) => chalk.blue(l)).join(', ')}`,
     );
-    throw new ToolkitError('No language was selected');
+    throw new ToolkitError('NoLanguageSelected', 'No language was selected');
   })();
 }
 
@@ -280,7 +281,7 @@ async function getLanguageDirectories(templatePath: string): Promise<{ languages
           const hasValidLanguageFiles = await hasLanguageFiles(languageDirectoryPath, getLanguageExtensions(directoryEntry.name));
           return hasValidLanguageFiles ? directoryEntry.name : null;
         } catch (error: any) {
-          throw new ToolkitError(`Cannot read language directory '${directoryEntry.name}': ${error.message}`);
+          throw new ToolkitError('LanguageDirectoryReadFailed', `Cannot read language directory '${directoryEntry.name}': ${error.message}`);
         }
       });
 
@@ -291,7 +292,7 @@ async function getLanguageDirectories(templatePath: string): Promise<{ languages
       entries,
     };
   } catch (error: any) {
-    throw new ToolkitError(`Cannot read template directory '${templatePath}': ${error.message}`);
+    throw new ToolkitError('TemplateDirectoryReadFailed', `Cannot read template directory '${templatePath}': ${error.message}`);
   }
 }
 
@@ -360,7 +361,7 @@ export class InitTemplate {
     const basePath = path.resolve(templatePath);
 
     if (!await fs.pathExists(basePath)) {
-      throw new ToolkitError(`Template path does not exist: ${basePath}`);
+      throw new ToolkitError('TemplatePathNotFound', `Template path does not exist: ${basePath}`);
     }
 
     let templateSourcePath = basePath;
@@ -380,7 +381,7 @@ export class InitTemplate {
 
         if (!hasValidFiles) {
           // If we found a language directory but it doesn't contain valid files, we should inform the user
-          throw new ToolkitError(`Found '${langDir}' directory but it doesn't contain the expected language files. Ensure the template contains ${langDir} source files.`);
+          throw new ToolkitError('InvalidLanguageFiles', `Found '${langDir}' directory but it doesn't contain the expected language files. Ensure the template contains ${langDir} source files.`);
         }
       }
     }
@@ -443,7 +444,7 @@ export class InitTemplate {
         `The ${chalk.blue(language)} language is not supported for ${chalk.green(this.name)} ` +
           `(it supports: ${this.languages.map((l) => chalk.blue(l)).join(', ')})`,
       );
-      throw new ToolkitError(`Unsupported language: ${language}`);
+      throw new ToolkitError('UnsupportedLanguage', `Unsupported language: ${language}`);
     }
 
     const projectInfo: ProjectInfo = {
@@ -747,7 +748,7 @@ async function assertIsEmptyDirectory(workDir: string) {
   try {
     const stats = await fs.stat(workDir);
     if (!stats.isDirectory()) {
-      throw new ToolkitError(`Path exists but is not a directory: ${workDir}`);
+      throw new ToolkitError('PathNotDirectory', `Path exists but is not a directory: ${workDir}`);
     }
 
     const files = await fs.readdir(workDir);
@@ -755,6 +756,7 @@ async function assertIsEmptyDirectory(workDir: string) {
 
     if (visibleFiles.length > 0) {
       throw new ToolkitError(
+        'DirectoryNotEmpty',
         '`cdk init` cannot be run in a non-empty directory!\n' +
         `Found ${visibleFiles.length} visible files in ${workDir}:\n` +
         visibleFiles.map(f => `  - ${f}`).join('\n'),
@@ -763,11 +765,12 @@ async function assertIsEmptyDirectory(workDir: string) {
   } catch (e: any) {
     if (e.code === 'ENOENT') {
       throw new ToolkitError(
+        'DirectoryNotFound',
         `Directory does not exist: ${workDir}\n` +
         'Please create the directory first using: mkdir -p ' + workDir,
       );
     }
-    throw new ToolkitError(`Failed to validate directory ${workDir}: ${e.message}`);
+    throw new ToolkitError('DirectoryValidationFailed', `Failed to validate directory ${workDir}: ${e.message}`);
   }
 }
 
@@ -972,7 +975,7 @@ async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }:
       if (status === 0) {
         return ok(stdout);
       } else {
-        return fail(new ToolkitError(`${cmd} exited with status ${status}`));
+        return fail(new ToolkitError('CommandFailed', `${cmd} exited with status ${status}`));
       }
     });
   }).catch(async (err) => {
@@ -1003,7 +1006,7 @@ async function loadInitVersions(): Promise<Versions> {
   };
   for (const [key, value] of Object.entries(ret)) {
     if (!value) {
-      throw new ToolkitError(`Missing init version from ${initVersionFile}: ${key}`);
+      throw new ToolkitError('MissingInitVersion', `Missing init version from ${initVersionFile}: ${key}`);
     }
   }
 
