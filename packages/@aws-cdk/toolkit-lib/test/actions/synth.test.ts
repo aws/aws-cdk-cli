@@ -1,8 +1,9 @@
+import { ContextProvider } from '@aws-cdk/cloud-assembly-schema';
 import * as cdk from 'aws-cdk-lib';
+import type { AssemblyBuilder } from '../../lib/api';
+import { RWLock } from '../../lib/api';
 import { Toolkit } from '../../lib/toolkit';
 import { appFixture, autoCleanOutDir, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { AssemblyBuilder, RWLock } from '../../lib/api';
-import { ContextProvider } from '@aws-cdk/cloud-assembly-schema';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });

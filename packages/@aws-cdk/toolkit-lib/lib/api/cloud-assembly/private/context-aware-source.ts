@@ -1,3 +1,4 @@
+import { AsyncDisposableBox } from './disposable-box';
 import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
@@ -7,7 +8,6 @@ import type { IContextStore } from '../context-store';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 import { missingContextKeys } from './helpers';
 import { equalSets } from '../../../util/sets';
-import { AsyncDisposableBox } from './disposable-box';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
