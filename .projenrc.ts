@@ -1548,7 +1548,7 @@ const cliInteg = configureProject(
       'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
-      'jest-junit@^15',
+      'jest-junit@^16',
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',

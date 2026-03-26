@@ -2,8 +2,6 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'synth --quiet can be specified in cdk.json',
   withDefaultFixture(async (fixture) => {

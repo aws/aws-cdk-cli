@@ -1,8 +1,6 @@
 import { AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('deploy role cannot be assumed with external id', withoutBootstrap(async (fixture) => {
   const bootstrapStackName = fixture.bootstrapStackName;
 

@@ -1,7 +1,5 @@
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000);
-
 integTest(
   'cdk doctor displays diagnostic information',
   withDefaultFixture(async (fixture) => {

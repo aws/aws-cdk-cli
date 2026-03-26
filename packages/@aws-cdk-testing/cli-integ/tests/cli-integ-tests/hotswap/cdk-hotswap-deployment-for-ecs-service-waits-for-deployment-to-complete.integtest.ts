@@ -2,8 +2,6 @@ import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'hotswap deployment for ecs service waits for deployment to complete',
   withDefaultFixture(async (fixture) => {

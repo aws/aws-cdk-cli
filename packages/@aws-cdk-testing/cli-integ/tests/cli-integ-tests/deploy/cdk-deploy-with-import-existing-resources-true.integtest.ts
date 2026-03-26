@@ -1,8 +1,6 @@
 import { DescribeStacksCommand, ListChangeSetsCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('deploy with import-existing-resources true', withDefaultFixture(async (fixture) => {
   const stackArn = await fixture.cdkDeploy('test-2', {
     options: ['--no-execute', '--import-existing-resources'],
