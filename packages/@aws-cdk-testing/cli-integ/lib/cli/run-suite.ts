@@ -114,6 +114,13 @@ async function main() {
         describe: 'The test suite shard to execute in a format of (?<shardIndex>\d+)/(?<shardCount>\d+). `shardIndex` describes which shard to select while `shardCount` controls the number of shards the suite should be split into. `shardIndex` and `shardCount` have to be 1-based, positive numbers, and `shardIndex` has to be lower than or equal to `shardCount`.',
         type: 'string',
         requiresArg: true,
+      })
+      .options('retry', {
+        describe: 'Number of times to retry failed tests.',
+        type: 'number',
+        requiresArg: true,
+        default: !!(process.env.CI || process.env.CODEBUILD_BUILD_ID) ? 2 : 0,
+        defaultDescription: '2 in CI/CodeBuild, 0 otherwise',
       }), () => {
     },
     )
@@ -183,6 +190,8 @@ async function main() {
       : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest');
   }
 
+  process.env.JEST_RETRY_TIMES = String(args.retry);
+
   console.log('------> Configuration');
   console.log(`        Test suite:         ${suiteName}`);
   console.log(`        Test version:       ${thisPackageVersion()}`);
@@ -190,6 +199,7 @@ async function main() {
   console.log(`        Library source:     ${librarySource.sourceDescription}`);
   console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
   console.log(`        cdk-assets source:  ${cdkAssetsSource.assert().sourceDescription}`);
+  console.log(`        Retry:              ${args.retry}`);
 
   if (args.verbose) {
     process.env.VERBOSE = '1';
