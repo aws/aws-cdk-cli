@@ -1340,6 +1340,10 @@ cli.package.addField('exports', {
   './package.json': './package.json',
   './build-info.json': './build-info.json',
 
+  // Required for some node setups, though unclear why exactly.
+  // @see https://github.com/aws/aws-cdk-cli/issues/1263
+  './bin/cdk': './bin/cdk',
+
   // We are keeping the historic bootstrap-template.yaml import path.
   // This could probably be handled better, but is good enough and easy to maintain.
   './lib/api/bootstrap/bootstrap-template.yaml': './lib/api/bootstrap/bootstrap-template.yaml',
