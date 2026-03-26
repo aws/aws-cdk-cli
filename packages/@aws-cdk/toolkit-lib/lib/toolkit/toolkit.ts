@@ -97,6 +97,7 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 
 export interface ToolkitOptions {
   /**
@@ -320,11 +321,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
-
-    const stacks = await assembly.selectStacksV2(stacksOpt(options));
-    const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
+    // NOTE: NOT 'await using' because we plan to return ownership to the caller.
+    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
+    const stacks = await assembly.value.selectStacksV2(stacksOpt(options));
+    const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
 
     // if we have a single stack, print it to STDOUT
@@ -355,7 +355,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
 
-    return new CachedCloudAssembly(assembly);
+    return new CachedCloudAssembly(assembly.take());
   }
 
   /**

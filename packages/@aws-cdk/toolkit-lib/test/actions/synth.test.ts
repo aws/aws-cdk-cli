@@ -1,5 +1,7 @@
+import * as cdk from 'aws-cdk-lib';
 import { Toolkit } from '../../lib/toolkit';
-import { appFixture, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { appFixture, autoCleanOutDir, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { AssemblyBuilder, RWLock } from '../../lib/api';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -104,5 +106,69 @@ describe('synth', () => {
     await synthResult.dispose();
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+
+  test('assembly is disposed when synth fails due to error annotations', async () => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+
+    const builder: AssemblyBuilder = async (props) => {
+      const app = new cdk.App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+      const stack = new cdk.Stack(app, 'SomeStack');
+
+      cdk.Annotations.of(stack).addError('Some error');
+
+      return app.synth();
+    };
+
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      outdir: synthDir.dir,
+    });
+
+    // WHEN
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Found errors/);
+
+    // There should not be a lock remaining in the given output directory
+    const lock = new RWLock(synthDir.dir);
+    expect(await lock._currentReaders()).toEqual([]);
+    expect(await lock._currentWriter()).toEqual(undefined);
+  });
+
+  test('assembly is disposed when synth fails due to context lookup', async () => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+
+    const builder: AssemblyBuilder = async (props) => {
+      const app = new cdk.App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+      const stack = new cdk.Stack(app, 'SomeStack');
+      stack.reportMissingContextKey({
+        key: 'some-key',
+        provider: 'no-such-provider' as any,
+        props: {
+          account: '1234',
+          region: 'asdf',
+        },
+      });
+
+      return app.synth();
+    };
+
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      outdir: synthDir.dir,
+    });
+
+    // WHEN
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Unrecognized context provider name/);
+
+    // There should not be a lock remaining in the given output directory
+    const lock = new RWLock(synthDir.dir);
+    expect(await lock._currentReaders()).toEqual([]);
+    expect(await lock._currentWriter()).toEqual(undefined);
   });
 });

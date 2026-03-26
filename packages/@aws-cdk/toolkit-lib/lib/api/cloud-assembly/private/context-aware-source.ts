@@ -7,6 +7,7 @@ import type { IContextStore } from '../context-store';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 import { missingContextKeys } from './helpers';
 import { equalSets } from '../../../util/sets';
+import { AsyncDisposableBox } from './disposable-box';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -68,9 +69,9 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     while (true) {
-      const readableAsm = await this.source.produce();
+      await using readableAsm = new AsyncDisposableBox(await this.source.produce());
 
-      const assembly = readableAsm.cloudAssembly;
+      const assembly = readableAsm.value.cloudAssembly;
       if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {
         const missingKeysSet = missingContextKeys(assembly.manifest.missing);
         const missingKeys = Array.from(missingKeysSet);
@@ -107,12 +108,12 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
 
           // Execute again. Unlock the assembly here so that the producer can acquire
           // a read lock on the directory again.
-          await readableAsm._unlock();
+          await readableAsm.value._unlock();
           continue;
         }
       }
 
-      return readableAsm;
+      return readableAsm.take();
     }
   }
 }
