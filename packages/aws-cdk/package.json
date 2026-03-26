@@ -154,6 +154,7 @@
   "version": "0.0.0",
   "types": "lib/index.d.ts",
   "exports": {
+    "./bin/cdk": "./bin/cdk",
     "./package.json": "./package.json",
     "./build-info.json": "./build-info.json",
     "./lib/api/bootstrap/bootstrap-template.yaml": "./lib/api/bootstrap/bootstrap-template.yaml"
