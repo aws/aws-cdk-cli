@@ -317,6 +317,10 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+);
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);

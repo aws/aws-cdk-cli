@@ -126,43 +126,17 @@ async function changeSetDiff(
   fallBackToTemplate: boolean = true,
   importExistingResources: boolean = false,
 ): Promise<any | undefined> {
-  let stackExists = false;
-  try {
-    stackExists = await deployments.stackExists({
-      stack,
-      deployName: stack.stackName,
-      tryLookupRole: true,
-    });
-  } catch (e: any) {
-    if (!fallBackToTemplate) {
-      throw new ToolkitError('DescribeStacksFailed', `describeStacks call failed with ${e} for ${stack.stackName}, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
-    }
-
-    await ioHelper.defaults.debug(`Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences.\n`);
-    await ioHelper.defaults.debug(formatErrorMessage(e));
-    stackExists = false;
-  }
-
-  if (stackExists) {
-    return cfnApi.createDiffChangeSet(ioHelper, {
-      stack,
-      uuid: uuid.v4(),
-      deployments,
-      willExecute: false,
-      sdkProvider,
-      parameters: parameters,
-      resourcesToImport,
-      failOnError: !fallBackToTemplate,
-      importExistingResources,
-    });
-  } else {
-    if (!fallBackToTemplate) {
-      throw new ToolkitError('StackNotDeployed', `the stack '${stack.stackName}' has not been deployed to CloudFormation, set fallBackToTemplate to true or use DiffMethod.templateOnly to base the diff on template differences.`);
-    }
-
-    await ioHelper.defaults.debug(`the stack '${stack.stackName}' has not been deployed to CloudFormation, skipping changeset creation.`);
-    return;
-  }
+  return cfnApi.createDiffChangeSet(ioHelper, {
+    stack,
+    uuid: uuid.v4(),
+    deployments,
+    willExecute: false,
+    sdkProvider,
+    parameters: parameters,
+    resourcesToImport,
+    failOnError: !fallBackToTemplate,
+    importExistingResources,
+  });
 }
 
 /**

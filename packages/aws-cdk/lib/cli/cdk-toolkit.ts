@@ -315,43 +315,9 @@ export class CdkToolkit {
           removeNonImportResources(stack);
         }
 
-        let changeSet = undefined;
-
-        if (options.changeSet) {
-          let stackExists = false;
-          try {
-            stackExists = await this.props.deployments.stackExists({
-              stack,
-              deployName: stack.stackName,
-              tryLookupRole: true,
-            });
-          } catch (e: any) {
-            await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
-            if (!quiet) {
-              await this.ioHost.asIoHelper().defaults.info(
-                `Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences (run again with -v to see the reason)\n`,
-              );
-            }
-            stackExists = false;
-          }
-
-          if (stackExists) {
-            changeSet = await cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
-              stack,
-              uuid: uuid.v4(),
-              deployments: this.props.deployments,
-              willExecute: false,
-              sdkProvider: this.props.sdkProvider,
-              parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-              resourcesToImport,
-              importExistingResources: options.importExistingResources,
-            });
-          } else {
-            await this.ioHost.asIoHelper().defaults.debug(
-              `the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`,
-            );
-          }
-        }
+        const changeSet = (options.changeSet || options.changeSetOnly)
+          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
+          : undefined;
 
         const mappings = allMappings.find(m =>
           m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
@@ -391,6 +357,49 @@ export class CdkToolkit {
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
     return diffs && options.fail ? 1 : 0;
+  }
+
+  /**
+   * Try to create a diff changeset for the given stack.
+   * Returns undefined if the stack cannot be accessed and changeSetOnly is not set.
+   */
+  private async tryCreateDiffChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    options: DiffOptions,
+    parameterMap: { [name: string]: { [name: string]: string | undefined } },
+    resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
+    quiet: boolean,
+  ) {
+    try {
+      await this.props.deployments.stackExists({
+        stack,
+        deployName: stack.stackName,
+        tryLookupRole: true,
+      });
+    } catch (e: any) {
+      if (options.changeSetOnly) {
+        throw ToolkitError.withCause('DescribeStacksFailed', `Could not access stack '${stack.stackName}'. Please check your permissions or remove the --change-set-only option to fall back to a template-only diff.`, e);
+      }
+      await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
+      if (!quiet) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `Could not access stack '${stack.stackName}', falling back to template-only diff. Use --change-set-only to fail instead. Run with -v to see the reason.\n`,
+        );
+      }
+      return undefined;
+    }
+
+    return cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+      stack,
+      uuid: uuid.v4(),
+      deployments: this.props.deployments,
+      willExecute: false,
+      sdkProvider: this.props.sdkProvider,
+      parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+      resourcesToImport,
+      importExistingResources: options.importExistingResources,
+      failOnError: options.changeSetOnly,
+    });
   }
 
   public async deploy(options: DeployOptions) {
@@ -1625,6 +1634,14 @@ export interface DiffOptions {
    * @default true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Only use changeset to compute the diff, fail if it cannot be created.
+   * Implies changeSet.
+   *
+   * @default false
+   */
+  readonly changeSetOnly?: boolean;
 
   /**
    * Whether or not the change set imports resources that already exist.

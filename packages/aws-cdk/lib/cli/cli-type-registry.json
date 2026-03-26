@@ -818,6 +818,11 @@
           "desc": "Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.",
           "default": true
         },
+        "change-set-only": {
+          "type": "boolean",
+          "desc": "Only use changeset to compute the diff, fail if it cannot be created. Implies --change-set.",
+          "default": false
+        },
         "import-existing-resources": {
           "type": "boolean",
           "desc": "Whether or not the change set imports resources that already exist",

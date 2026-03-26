@@ -326,6 +326,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           changeSet: args['change-set'],
+          changeSetOnly: args['change-set-only'],
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],

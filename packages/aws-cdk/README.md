@@ -185,6 +185,8 @@ The `change-set` flag will make `diff` create a change set and extract resource 
 The `--no-change-set` mode will consider any change to a property that requires replacement to be a resource replacement,
 even if the change is purely cosmetic (like replacing a resource reference with a hardcoded arn).
 
+The `--change-set-only` flag enforces that the diff is always computed using a change set. If the change set cannot be created (e.g. due to missing permissions or nested stacks), the command will fail instead of silently falling back to a less accurate template-only diff.
+
 The `--import-existing-resources` option will make `diff` create a change set and compare it using
 the CloudFormation resource import mechanism. This allows CDK to detect changes and show report of resources that
 will be imported rather added. Use this flag when preparing to import existing resources into a CDK stack to

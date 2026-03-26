@@ -850,6 +850,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             alias: 'changeset',
             desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
           })
+          .option('change-set-only', {
+            default: false,
+            type: 'boolean',
+            desc: 'Only use changeset to compute the diff, fail if it cannot be created. Implies --change-set.',
+          })
           .option('import-existing-resources', {
             default: false,
             type: 'boolean',

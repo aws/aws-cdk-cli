@@ -1302,6 +1302,13 @@ export interface DiffOptions {
   readonly changeSet?: boolean;
 
   /**
+   * Only use changeset to compute the diff, fail if it cannot be created. Implies --change-set.
+   *
+   * @default - false
+   */
+  readonly changeSetOnly?: boolean;
+
+  /**
    * Whether or not the change set imports resources that already exist
    *
    * @default - false

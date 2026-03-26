@@ -402,7 +402,7 @@ describe('imports', () => {
     fs.rmSync('migrate.json');
   });
 
-  test('imports render correctly for a nonexistant stack without creating a changeset', async () => {
+  test('imports render correctly for a nonexistant stack and diff creates a changeset', async () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
@@ -411,7 +411,7 @@ describe('imports', () => {
 
     // THEN
     const plainTextOutput = output();
-    expect(createDiffChangeSet).not.toHaveBeenCalled();
+    expect(createDiffChangeSet).toHaveBeenCalled();
     expect(plainTextOutput).toContain(`Stack A
 Parameters and rules created during migration do not affect resource configuration.
 Resources
@@ -744,7 +744,7 @@ describe('stack exists checks', () => {
     expect(cloudFormation.stackExists).not.toHaveBeenCalled();
   });
 
-  test('diff falls back to classic diff when stack does not exist', async () => {
+  test('diff creates changeset for new stacks', async () => {
     // GIVEN
     const stackExists = jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(false));
     const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
@@ -760,7 +760,7 @@ describe('stack exists checks', () => {
     // THEN
     expect(exitCode).toBe(0);
     expect(stackExists).toHaveBeenCalled();
-    expect(createDiffChangeSet).not.toHaveBeenCalled();
+    expect(createDiffChangeSet).toHaveBeenCalled();
   });
 
   test('diff falls back to classic diff when stackExists call fails', async () => {
@@ -784,6 +784,50 @@ describe('stack exists checks', () => {
     expect(exitCode).toBe(0);
     expect(stackExists).toHaveBeenCalled();
     expect(createDiffChangeSet).not.toHaveBeenCalled();
+  });
+
+  test('--change-set-only throws when stackExists call fails', async () => {
+    // GIVEN
+    jest.spyOn(cloudFormation, 'stackExists').mockImplementation(() => {
+      throw new Error('Fail fail fail');
+    });
+
+    // WHEN / THEN
+    await expect(toolkit.diff({
+      stackNames: ['A'],
+      changeSetOnly: true,
+    })).rejects.toThrow(/Could not access stack 'A'/);
+  });
+
+  test('--change-set-only creates changeset for new stacks', async () => {
+    // GIVEN
+    jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(false));
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
+
+    // WHEN
+    await toolkit.diff({
+      stackNames: ['A'],
+      changeSetOnly: true,
+    });
+
+    // THEN
+    expect(createDiffChangeSet).toHaveBeenCalled();
+  });
+
+  test('--change-set-only implies --change-set', async () => {
+    // GIVEN
+    jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(true));
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
+
+    // WHEN
+    await toolkit.diff({
+      stackNames: ['A'],
+      changeSet: false,
+      changeSetOnly: true,
+    });
+
+    // THEN
+    expect(createDiffChangeSet).toHaveBeenCalled();
   });
 });
 
