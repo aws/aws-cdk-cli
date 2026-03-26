@@ -161,7 +161,7 @@ export class DeploymentError extends ToolkitError {
   public readonly deploymentErrorCode: string;
 
   constructor(message: string, deploymentErrorCode: string) {
-    super(message, 'deployment');
+    super('DeploymentError', message, 'deployment');
     Object.setPrototypeOf(this, DeploymentError.prototype);
     Object.defineProperty(this, DEPLOYMENT_ERROR_SYMBOL, { value: true });
     this.deploymentErrorCode = deploymentErrorCode;
