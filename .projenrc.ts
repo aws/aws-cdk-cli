@@ -1677,10 +1677,12 @@ new CdkCliIntegTestsWorkflow(repo, {
     toolkitLib,
 
     // The `tool-integrations` job installs the amplify-cli package,
-    // which depends on @aws-cdk/cloudformation-diff as a transitive dependency through toolkit-lib
+    // which depends on @aws-cdk/cloudformation-diff and @aws-cdk/cloud-assembly-api
+    // as a transitive dependency through toolkit-lib.
     // Since we are not enforcing the use of the local version of toolkit-lib in this test,
-    // it might attempt to install a version of @aws-cdk/cloudformation-diff that's not locally available.
+    // it might attempt to install a version of these that's not locally available.
     cloudFormationDiff,
+    cloudAssemblyApi,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',
