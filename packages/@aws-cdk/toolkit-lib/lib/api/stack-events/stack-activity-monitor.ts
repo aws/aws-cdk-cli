@@ -307,19 +307,55 @@ export class StackActivityMonitor {
   }
 }
 
+// Some custom resource types that the CDK standard library creates that we
+// would like to see it if they fail.
+const OUR_CUSTOM_RESOURCE_TYPES = [
+  'Custom::AWS',
+  'Custom::AWSCDK-EKS-Cluster',
+  'Custom::AWSCDK-EKS-FargateProfile',
+  'Custom::AWSCDK-EKS-HelmChart',
+  'Custom::AWSCDK-EKS-KubernetesObjectValue',
+  'Custom::AWSCDK-EKS-KubernetesPatch',
+  'Custom::AWSCDK-EKS-KubernetesResource',
+  'Custom::AWSCDKCfnJson',
+  'Custom::AWSCDKCfnJsonStringify',
+  'Custom::AWSCDKOpenIdConnectProvider',
+  'Custom::CDKBucketDeployment',
+  'Custom::CloudwatchLogResourcePolicy',
+  'Custom::CrossAccountZoneDelegation',
+  'Custom::CrossRegionExportReader',
+  'Custom::CrossRegionExportWriter',
+  'Custom::CrossRegionStringParameterReader',
+  'Custom::DeleteExistingRecordSet',
+  'Custom::DescribeCognitoUserPoolClient',
+  'Custom::DynamoDBReplica',
+  'Custom::ECRAutoDeleteImages',
+  'Custom::ElasticsearchAccessPolicy',
+  'Custom::LogRetention',
+  'Custom::OpenSearchAccessPolicy',
+  'Custom::S3AutoDeleteObjects',
+  'Custom::S3BucketNotifications',
+  'Custom::SyntheticsAutoDeleteUnderlyingResources',
+  'Custom::Trigger',
+  'Custom::UserPoolCloudFrontDomainName',
+  'Custom::VpcRestrictDefaultSG',
+];
+
 /**
  * Extract an error code from the given stack event.
  *
  * Always contains the services, and includes the handler error code if available.
  */
 export function extractErrorCode(event: StackEvent): string {
+  const isOurCustomResource = OUR_CUSTOM_RESOURCE_TYPES.includes(event.ResourceType ?? '');
+
   // Get the resource type; if it is non-AWS then we are done.
   const resourceTypeParts = (event.ResourceType ?? '').split('::');
-  if (resourceTypeParts[0] !== 'AWS') {
+  if (resourceTypeParts[0] !== 'AWS' && !isOurCustomResource) {
     return DeploymentErrorCodes.PRIVATE_RESOURCE_ERROR;
   }
 
-  const resourceType = resourceTypeParts.slice(1).join('');
+  const resourceType = isOurCustomResource ? resourceTypeParts.join('') : resourceTypeParts.slice(1).join('');
 
   const reason = event.ResourceStatusReason ?? '';
 
