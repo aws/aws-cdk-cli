@@ -102,6 +102,27 @@ IAM Statement Changes
     }));
   });
 
+  test('request response contains stack diff when there are no security changes', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    // Message includes formatted stack diff (not just security diff)
+    expect(request).toContain('AWS::S3::Bucket');
+    expect(request).toContain('Do you wish to deploy these changes');
+
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        motivation: expect.stringContaining('stack includes updates.'),
+        permissionChangeType: 'none',
+      }),
+    }));
+  });
+
   describe('deployment options', () => {
     test('parameters are passed in', async () => {
       // WHEN

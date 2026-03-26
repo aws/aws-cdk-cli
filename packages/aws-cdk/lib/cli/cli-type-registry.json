@@ -437,7 +437,7 @@
             "any-change",
             "broadening"
           ],
-          "desc": "What security-sensitive changes need manual approval"
+          "desc": "What changes require manual approval"
         },
         "notification-arns": {
           "type": "array",

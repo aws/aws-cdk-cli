@@ -510,10 +510,12 @@ export class CdkToolkit {
         });
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const motivation = requireApproval === RequireApproval.ANYCHANGE
-            ? `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`
-            : '"--require-approval" is enabled and stack includes security-sensitive updates';
-          await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
+          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+          const motivation = hasSecurityChanges
+            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
+            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+          await this.ioHost.asIoHelper().defaults.info(diffOutput);
 
           await askUserConfirmation(
             this.ioHost,
@@ -2236,7 +2238,7 @@ function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'in
 
 /**
  * Determine if manual approval is required or not. Requires approval for
- * - RequireApproval.ANY_CHANGE
+ * - RequireApproval.ANYCHANGE
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
  */
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {

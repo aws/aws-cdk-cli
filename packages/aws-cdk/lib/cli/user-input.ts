@@ -749,7 +749,7 @@ export interface DeployOptions {
   readonly exclusively?: boolean;
 
   /**
-   * What security-sensitive changes need manual approval
+   * What changes require manual approval
    *
    * @default - undefined
    */

@@ -460,7 +460,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           choices: ['never', 'any-change', 'broadening'],
-          desc: 'What security-sensitive changes need manual approval',
+          desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
           type: 'array',
