@@ -2,7 +2,7 @@ import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { IoMessage } from '../../api/io';
 import { IO } from '../../api/io/private';
 import { type StackActivity, type StackProgress } from '../../payloads';
-import { maxResourceTypeLength, stackEventHasErrorMessage } from '../../util';
+import { isCancellationEvent, isErrorEvent, isRootStackEvent, maxResourceTypeLength } from '../../util';
 
 export interface IActivityPrinter {
   notify(msg: IoMessage<unknown>): void;
@@ -102,11 +102,10 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
       this.resourcesInProgress[activity.event.LogicalResourceId] = activity;
     }
 
-    if (stackEventHasErrorMessage(status)) {
-      const isCancelled = (activity.event.ResourceStatusReason ?? '').indexOf('cancelled') > -1;
-
-      // Cancelled is not an interesting failure reason
-      if (!isCancelled) {
+    if (isErrorEvent(activity.event)) {
+      // Cancelled is not an interesting failure reason, and we also don't care about root stack events
+      // (but we DO care about nested stack events, historically, so I will leave that behavior now)
+      if (!isCancellationEvent(activity.event) && !isRootStackEvent(activity.event)) {
         this.failures.push(activity);
       }
     }

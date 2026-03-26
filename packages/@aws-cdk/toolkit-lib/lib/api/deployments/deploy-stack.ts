@@ -27,7 +27,7 @@ import {
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
@@ -245,9 +245,9 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     await cfn.deleteStack({ StackName: deployName });
     const deletedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError(
-        'FailedStackCleanupFailed',
+      throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
+        'FailedStackCleanupFailed',
       );
     }
     // Update variable to mark that the stack does not exist anymore, but avoid
@@ -642,11 +642,11 @@ class FullCloudFormationDeployment {
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
-        throw new ToolkitError('StackDisappeared', 'Stack deploy failed (the stack disappeared while we were deploying it)');
+        throw new DeploymentError('Stack deploy failed (the stack disappeared while we were deploying it)', DeploymentErrorCodes.STACK_DISAPPEARED_ERROR_CODE);
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new ToolkitError('StackDeployFailed', suffixWithErrors(formatErrorMessage(e), monitor.errors));
+      throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDeployFailed');
     } finally {
       await monitor.stop();
     }
@@ -731,12 +731,12 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError('StackDestroyFailed', `Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+      throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new ToolkitError('StackDestroyFailed', suffixWithErrors(formatErrorMessage(e), monitor.errors));
+    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {
     if (monitor) {
       await monitor.stop();

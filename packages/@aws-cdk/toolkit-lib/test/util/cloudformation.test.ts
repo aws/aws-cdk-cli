@@ -1,4 +1,5 @@
-import { validateSnsTopicArn, stackEventHasErrorMessage, maxResourceTypeLength } from '../../lib/util/cloudformation';
+import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import { validateSnsTopicArn, maxResourceTypeLength, isErrorEvent } from '../../lib/util/cloudformation';
 
 describe('validateSnsTopicArn', () => {
   test('empty string', () => {
@@ -108,3 +109,13 @@ describe('maxResourceTypeLength', () => {
     expect(maxResourceTypeLength(undefined)).toBe('AWS::CloudFormation::Stack'.length);
   });
 });
+
+function stackEventHasErrorMessage(status: StackEvent['ResourceStatus']) {
+  return isErrorEvent({
+    EventId: 'EventId',
+    StackId: 'StackId',
+    StackName: 'StackName',
+    Timestamp: new Date(),
+    ResourceStatus: status,
+  });
+}

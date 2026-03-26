@@ -39,9 +39,9 @@ test('prints "IN_PROGRESS" ResourceStatus', () => {
     historyActivityPrinter.stop();
   });
 
-  expect(output[0].trim()).toStrictEqual(
+  expect(output.map(x => x.trim())).toEqual([
     `stack-name | 0/4 | ${HUMAN_TIME} | ${chalk.reset('CREATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
-  );
+  ]);
 });
 
 test('prints "Failed Resources:" list, when at least one deployment fails', () => {
@@ -88,17 +88,12 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
     historyActivityPrinter.stop();
   });
 
-  expect(output.length).toStrictEqual(4);
-  expect(output[0].trim()).toStrictEqual(
+  expect(output.map(x => x.trim())).toEqual([
     `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
-  );
-  expect(output[1].trim()).toStrictEqual(
     `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
-  );
-  expect(output[2].trim()).toStrictEqual('Failed resources:');
-  expect(output[3].trim()).toStrictEqual(
+    'Failed resources:',
     `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
-  );
+  ]);
 });
 
 test('print failed resources because of hook failures', () => {
@@ -149,15 +144,10 @@ test('print failed resources because of hook failures', () => {
     historyActivityPrinter.stop();
   });
 
-  expect(output.length).toStrictEqual(4);
-  expect(output[0].trim()).toStrictEqual(
+  expect(output.map(x => x.trim())).toEqual([
     `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
-  );
-  expect(output[1].trim()).toStrictEqual(
     `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
-  );
-  expect(output[2].trim()).toStrictEqual('Failed resources:');
-  expect(output[3].trim()).toStrictEqual(
+    'Failed resources:',
     `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
-  );
+  ]);
 });
