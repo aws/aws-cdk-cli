@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Toolkit } from '../../lib/toolkit';
 import { appFixture, autoCleanOutDir, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { AssemblyBuilder, RWLock } from '../../lib/api';
+import { ContextProvider } from '@aws-cdk/cloud-assembly-schema';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -149,7 +150,7 @@ describe('synth', () => {
       const stack = new cdk.Stack(app, 'SomeStack');
       stack.reportMissingContextKey({
         key: 'some-key',
-        provider: 'no-such-provider' as any,
+        provider: ContextProvider.PLUGIN,
         props: {
           account: '1234',
           region: 'asdf',
@@ -164,7 +165,7 @@ describe('synth', () => {
     });
 
     // WHEN
-    await expect(toolkit.synth(cx)).rejects.toThrow(/Unrecognized context provider name/);
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Unrecognized plugin context provider name/);
 
     // There should not be a lock remaining in the given output directory
     const lock = new RWLock(synthDir.dir);
