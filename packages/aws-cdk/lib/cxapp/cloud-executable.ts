@@ -1,9 +1,8 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { countAssemblyResults, ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
-import type { IMessageSpan, IoHelper } from '../../lib/api-private';
+import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
@@ -173,22 +172,4 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
     }
   }
   return true;
-}
-
-function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
-  const stacksRecursively = assembly.stacksRecursively;
-
-  span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
-
-  span.incCounter('assemblies', asmCount(assembly));
-
-  function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
-  }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }

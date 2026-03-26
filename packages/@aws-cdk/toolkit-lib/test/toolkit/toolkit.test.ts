@@ -8,11 +8,18 @@
 import * as chalk from 'chalk';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
+import * as cdk from 'aws-cdk-lib';
+
+const ioHost: TestIoHost = new TestIoHost();
+let toolkit: Toolkit;
+beforeEach(() => {
+  ioHost.clear();
+  toolkit = new Toolkit({ ioHost, color: false });
+});
 
 describe('message formatting', () => {
   test('emojis can be stripped from message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, emojis: false });
+    toolkit = new Toolkit({ ioHost, emojis: false });
 
     await toolkit.ioHost.notify({
       message: '💯Smile123😀',
@@ -32,9 +39,6 @@ describe('message formatting', () => {
   });
 
   test('color can be stripped from message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, color: false });
-
     await toolkit.ioHost.notify({
       message: chalk.red('RED') + chalk.bold('BOLD') + chalk.blue('BLUE'),
       action: 'deploy',
@@ -53,9 +57,6 @@ describe('message formatting', () => {
   });
 
   test('whitespace is always trimmed from a message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, color: false });
-
     await toolkit.ioHost.notify({
       message: '   test message\n\n',
       action: 'deploy',
@@ -73,3 +74,39 @@ describe('message formatting', () => {
     }));
   });
 });
+
+test('outputs of assembly are measured', async () => {
+  const builder = await toolkit.fromAssemblyBuilder(async (props) => {
+    const app = new cdk.App({
+      outdir: props.outdir,
+      context: props.context,
+    });
+
+    const s1 = new cdk.Stack(app, 'Stack1');
+    new cdk.Stack(app, 'Stack2');
+
+    cdk.Annotations.of(s1)._addTrackableError('SomeErrorCode', 'This is bad mkay');
+
+    return app.synth();
+  });
+
+  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Found errors/);
+
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    data: expect.objectContaining({
+      counters: expect.objectContaining({
+        "errorAnn:SomeErrorCode": 1,
+        "assemblies": 1,
+        "errorAnns": 1,
+        "stacks": 2,
+      }),
+    }),
+  }));
+});
+
+declare module 'aws-cdk-lib' {
+  interface Annotations {
+    // Declare this private function, which definitely exists (pinky promise)
+    _addTrackableError(id: string, message: string): void;
+  }
+}
