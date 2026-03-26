@@ -7,8 +7,6 @@ import type { DockerDomainCredentialSource } from '../../../../../@aws-cdk/cdk-a
 import type { TestFixture } from '../../../lib';
 import { integTest, withDefaultFixture, withRetry, retry } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
   withRetry(withDefaultFixture(async (fixture) => {

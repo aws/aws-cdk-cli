@@ -247,7 +247,16 @@ async function main() {
     // (but slowly) if this flag is set.
     process.env.TESTING_CDK = '1';
 
+    // jest-junit reporter configuration
+    process.env.JEST_SUITE_NAME = 'jest tests';
+    process.env.JEST_JUNIT_OUTPUT_DIR = 'coverage';
+
     await jest.run([
+      '--reporters=default',
+      '--reporters=jest-junit',
+      // Override Jest's default 5s timeout which is too low for integ tests.
+      // Tests using withAws() will further override this to 2 hours to account for region lock wait times.
+      '--testTimeout=60000',
       '--randomize',
       ...args.seed ? [`--seed=${args.seed}`] : [],
       ...args.runInBand ? ['-i'] : [],

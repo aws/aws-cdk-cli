@@ -2,8 +2,6 @@ import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { InvokeCommand } from '@aws-sdk/client-lambda';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'deploy and test stack with lambda asset',
   withDefaultFixture(async (fixture) => {

@@ -188,7 +188,7 @@ export async function shellWithAction(
 
   const env = options.env ?? (options.modEnv ? { ...process.env, ...options.modEnv } : undefined);
 
-  const child = child_process.spawn(command[0], command.slice(1), {
+  const child = child_process.spawn(command.join(' '), [], {
     ...options,
     env,
     // Need this for Windows where we want .cmd and .bat to be found as well.

@@ -2,8 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('can dump the template, modify and use it to deploy a custom bootstrap stack', withoutBootstrap(async (fixture) => {
   let template = await fixture.cdkBootstrapModern({
     // toolkitStackName doesn't matter for this particular invocation

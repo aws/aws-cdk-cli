@@ -11,15 +11,7 @@ module.exports = {
 
   testEnvironment: "node",
 
-  // Because of the way Jest concurrency works, this timeout includes waiting
-  // for the lock. Which is almost never what we actually care about. Set it high.
-  testTimeout: 2 * 60 * 60_000,
-
   maxWorkers: maxWorkers(),
-  reporters: [
-    "default",
-    ["jest-junit", { suiteName: "jest tests", outputDirectory: "coverage" }]
-  ],
 
   // Both of the following things are necessary to discover test files that are
   // potentially installed into `node_modules`.

@@ -1,8 +1,6 @@
 import { ListImagesCommand } from '@aws-sdk/client-ecr';
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'Garbage Collection tags unused ecr images',
   withoutBootstrap(async (fixture) => {
