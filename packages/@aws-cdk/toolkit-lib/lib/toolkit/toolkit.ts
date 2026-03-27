@@ -321,7 +321,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    // NOTE: NOT 'await using' because we plan to return ownership to the caller.
     await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
     const stacks = await assembly.value.selectStacksV2(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
