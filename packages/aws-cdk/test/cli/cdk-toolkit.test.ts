@@ -194,6 +194,37 @@ describe('list', () => {
 });
 
 describe('deploy', () => {
+  test('sets requireDeployApproval on CliIoHost', async () => {
+    const toolkit = defaultToolkitSetup();
+    const requireApproval = RequireApproval.ANYCHANGE;
+    await toolkit.deploy({
+      selector: { patterns: ['**'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval,
+    });
+
+    expect(ioHost.requireDeployApproval).toEqual(requireApproval);
+  });
+
+  test('any-change approval shows stack diff when there are no security changes', async () => {
+    const toolkit = defaultToolkitSetup();
+    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // The confirmation prompt should use the non-security motivation and report no permission changes
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      message: expect.stringContaining("'any-change'"),
+      data: expect.objectContaining({
+        permissionChangeType: 'none',
+      }),
+    }));
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
@@ -685,6 +716,27 @@ describe('deploy', () => {
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
     });
+  });
+
+  test('emits resource counters', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-B'] },
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    const deploy = notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_CLI_I3001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
   });
 
   test('globless bootstrap uses environment without question', async () => {

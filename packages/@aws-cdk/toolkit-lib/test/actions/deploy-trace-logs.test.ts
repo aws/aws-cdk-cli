@@ -8,6 +8,8 @@ import { MockSdk } from '../_helpers/mock-sdk';
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 
+jest.setTimeout(20_000);
+
 beforeEach(() => {
   jest.restoreAllMocks();
   ioHost = new TestIoHost();

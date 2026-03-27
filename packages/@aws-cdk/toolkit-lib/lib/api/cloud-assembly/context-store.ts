@@ -126,7 +126,7 @@ export class FileContext implements IContextStore {
       }
     }
     if (!this._cache || typeof this._cache !== 'object') {
-      throw new ToolkitError(`${this.fileName} must contain an object, got: ${JSON.stringify(this._cache)}`);
+      throw new ToolkitError('InvalidContextFile', `${this.fileName} must contain an object, got: ${JSON.stringify(this._cache)}`);
     }
     return this._cache;
   }

@@ -571,7 +571,7 @@ interface Intrinsic {
 
 async function asyncGlobalReplace(str: string, regex: RegExp, cb: (x: string) => Promise<string>): Promise<string> {
   if (!regex.global) {
-    throw new ToolkitError('Regex must be created with /g flag');
+    throw new ToolkitError('RegexMissingGlobalFlag', 'Regex must be created with /g flag');
   }
 
   const ret = new Array<string>();

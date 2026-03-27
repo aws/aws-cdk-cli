@@ -11,13 +11,13 @@ export class SecurityGroupContextProviderPlugin implements ContextProviderPlugin
 
   async getValue(args: SecurityGroupContextQuery): Promise<SecurityGroupContextResponse> {
     if (args.securityGroupId && args.securityGroupName) {
-      throw new ContextProviderError(
+      throw new ContextProviderError('ConflictingSecurityGroupFilters',
         "'securityGroupId' and 'securityGroupName' can not be specified both when looking up a security group",
       );
     }
 
     if (!args.securityGroupId && !args.securityGroupName) {
-      throw new ContextProviderError("'securityGroupId' or 'securityGroupName' must be specified to look up a security group");
+      throw new ContextProviderError('MissingSecurityGroupFilter', "'securityGroupId' or 'securityGroupName' must be specified to look up a security group");
     }
 
     const ec2 = (await initContextProviderSdk(this.aws, args)).ec2();
@@ -43,11 +43,11 @@ export class SecurityGroupContextProviderPlugin implements ContextProviderPlugin
 
     const securityGroups = response.SecurityGroups ?? [];
     if (securityGroups.length === 0) {
-      throw new ContextProviderError(`No security groups found matching ${JSON.stringify(args)}`);
+      throw new ContextProviderError('SecurityGroupNotFound', `No security groups found matching ${JSON.stringify(args)}`);
     }
 
     if (securityGroups.length > 1) {
-      throw new ContextProviderError(`More than one security groups found matching ${JSON.stringify(args)}`);
+      throw new ContextProviderError('MultipleSecurityGroupsFound', `More than one security groups found matching ${JSON.stringify(args)}`);
     }
 
     const [securityGroup] = securityGroups;

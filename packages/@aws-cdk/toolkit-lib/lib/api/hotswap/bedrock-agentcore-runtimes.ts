@@ -64,13 +64,13 @@ export async function isHotswappableBedrockAgentCoreRuntimeChange(
       // While UpdateAgentRuntimeRequest type allows undefined,
       // the API will fail at runtime if these required properties are not provided.
       if (!currentRuntime.agentRuntimeArtifact) {
-        throw new ToolkitError('Current runtime does not have an artifact');
+        throw new ToolkitError('RuntimeMissingArtifact', 'Current runtime does not have an artifact');
       }
       if (!currentRuntime.roleArn) {
-        throw new ToolkitError('Current runtime does not have a roleArn');
+        throw new ToolkitError('RuntimeMissingRoleArn', 'Current runtime does not have a roleArn');
       }
       if (!currentRuntime.networkConfiguration) {
-        throw new ToolkitError('Current runtime does not have a networkConfiguration');
+        throw new ToolkitError('RuntimeMissingNetworkConfig', 'Current runtime does not have a networkConfiguration');
       }
 
       // All properties must be explicitly specified, otherwise they will be reset to
@@ -124,6 +124,7 @@ async function evaluateBedrockAgentCoreRuntimeProps(
       default:
         // never reached
         throw new ToolkitError(
+          'UnexpectedHotswapProperty',
           'Unexpected hotswappable property for BedrockAgentCore Runtime. Please report this at github.com/aws/aws-cdk/issues/new/choose',
         );
     }
@@ -192,7 +193,7 @@ function toSdkAgentRuntimeArtifact(artifact: AgentRuntimeArtifact): SdkAgentRunt
   }
 
   // never reached
-  throw new ToolkitError('AgentRuntimeArtifact must have either codeConfiguration or containerConfiguration');
+  throw new ToolkitError('RuntimeArtifactMissingConfig', 'AgentRuntimeArtifact must have either codeConfiguration or containerConfiguration');
 }
 
 interface CfnAgentRuntimeArtifact {

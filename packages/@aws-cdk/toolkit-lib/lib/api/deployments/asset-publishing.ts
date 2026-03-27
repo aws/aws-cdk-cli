@@ -55,7 +55,7 @@ export async function publishAssets(
     targetEnv.region === undefined ||
     targetEnv.account === UNKNOWN_REGION
   ) {
-    throw new ToolkitError(`Asset publishing requires resolved account and region, got ${JSON.stringify(targetEnv)}`);
+    throw new ToolkitError('UnresolvedEnvironment', `Asset publishing requires resolved account and region, got ${JSON.stringify(targetEnv)}`);
   }
 
   const publisher = new AssetPublishing(manifest, {
@@ -65,11 +65,10 @@ export async function publishAssets(
     publishInParallel: options.parallel ?? true,
     buildAssets: true,
     publishAssets: true,
-    quiet: false,
   });
   await publisher.publish({ allowCrossAccount: options.allowCrossAccount });
   if (publisher.hasFailures) {
-    throw new ToolkitError('Failed to publish one or more assets. See the error messages above for more information.');
+    throw new ToolkitError('AssetPublishFailed', 'Failed to publish one or more assets. See the error messages above for more information.');
   }
 }
 
@@ -136,7 +135,6 @@ export class PublishingAws implements IAws {
       env, // region, name, account
       assumeRuleArn: options.assumeRoleArn,
       assumeRoleExternalId: options.assumeRoleExternalId,
-      quiet: options.quiet,
     };
 
     if (options.assumeRoleAdditionalOptions) {
@@ -159,7 +157,6 @@ export class PublishingAws implements IAws {
           assumeRoleExternalId: options.assumeRoleExternalId,
           assumeRoleAdditionalOptions: options.assumeRoleAdditionalOptions,
         },
-        options.quiet,
       )
     ).sdk;
     this.sdkCache.set(cacheKey, sdk);

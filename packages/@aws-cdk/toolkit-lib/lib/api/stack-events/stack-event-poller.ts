@@ -1,5 +1,5 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import { formatErrorMessage } from '../../util';
+import { formatErrorMessage, isRootStackEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
 export interface StackEventPollerProps {
@@ -73,9 +73,12 @@ export class StackEventPoller {
   /**
    * Poll for new stack events
    *
-   * Will not return events older than events indicated by the constructor filters.
+   * Will read all events that are available up until the oldest events
+   * indicated by the constructor filters, or until it encounters events that it
+   * has already read before.
    *
-   * Recurses into nested stacks, and returns events old-to-new.
+   * Recurses into nested stacks, and returns events old-to-new. Multiple
+   * invocations to `poll` will return *newer* events (also in old-to-new order).
    */
   public async poll(): Promise<ResourceEvent[]> {
     const events: ResourceEvent[] = await this.doPoll();
@@ -114,9 +117,7 @@ export class StackEventPoller {
           }
           this.eventIds.add(event.EventId!);
 
-          // The events for the stack itself are also included next to events about resources; we can test for them in this way.
-          const isParentStackEvent = event.PhysicalResourceId === event.StackId;
-
+          const isParentStackEvent = isRootStackEvent(event);
           if (isParentStackEvent && this.props.stackStatuses?.includes(event.ResourceStatus ?? '')) {
             return events;
           }

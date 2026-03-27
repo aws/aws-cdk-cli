@@ -3,8 +3,6 @@ import { UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
 import { waitForLambdaUpdateComplete } from './drift_helpers';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'cdk drift',
   withDefaultFixture(async (fixture) => {

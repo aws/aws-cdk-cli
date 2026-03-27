@@ -232,6 +232,7 @@ async function evaluateLambdaFunctionProps(
       default:
         // we will never get here, but just in case we do throw an error
         throw new ToolkitError(
+          'UnexpectedHotswapProperty',
           'while apply()ing, found a property that cannot be hotswapped. Please report this at github.com/aws/aws-cdk/issues/new/choose',
         );
     }

@@ -3,8 +3,6 @@ import { CreatePolicyCommand, DeletePolicyCommand, GetRoleCommand } from '@aws-s
 import { integTest, withoutBootstrap } from '../../../lib';
 import eventually from '../../../lib/eventually';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('can remove customPermissionsBoundary', withoutBootstrap(async (fixture) => {
   const bootstrapStackName = fixture.bootstrapStackName;
   const policyName = `${bootstrapStackName}-pb`;

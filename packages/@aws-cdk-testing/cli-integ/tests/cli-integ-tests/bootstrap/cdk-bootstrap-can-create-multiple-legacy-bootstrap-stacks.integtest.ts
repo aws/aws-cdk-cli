@@ -1,8 +1,6 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('can create multiple legacy bootstrap stacks', withoutBootstrap(async (fixture) => {
   const bootstrapStackName1 = `${fixture.bootstrapStackName}-1`;
   const bootstrapStackName2 = `${fixture.bootstrapStackName}-2`;

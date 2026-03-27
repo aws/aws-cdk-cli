@@ -1076,7 +1076,7 @@ export class SDK {
 
           return upload.done();
         } catch (e: any) {
-          throw new AuthenticationError(`Upload failed: ${formatErrorMessage(e)}`);
+          throw new AuthenticationError('S3UploadFailed', `Upload failed: ${formatErrorMessage(e)}`);
         }
       },
     };
@@ -1131,7 +1131,7 @@ export class SDK {
         const accountId = result.Account;
         const partition = result.Arn!.split(':')[1];
         if (!accountId) {
-          throw new AuthenticationError("STS didn't return an account ID");
+          throw new AuthenticationError('NoAccountId', "STS didn't return an account ID");
         }
         await this.debug(`Default account ID: ${accountId}`);
 

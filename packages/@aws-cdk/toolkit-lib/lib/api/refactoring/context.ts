@@ -114,6 +114,7 @@ export class RefactoringContext {
     if (bootstrapVersion != null && bootstrapVersion < 28) {
       const environment = `aws://${this.environment.account}/${this.environment.region}`;
       throw new ToolkitError(
+        'BootstrapVersionTooLow',
         `The CDK toolkit stack in environment ${environment} doesn't support refactoring. Please run 'cdk bootstrap ${environment}' to update it.`,
       );
     }
@@ -147,6 +148,7 @@ export class RefactoringContext {
     if (roleArns.size !== 1) {
       // Unlikely to happen. But if it does, we can't proceed
       throw new ToolkitError(
+        'MultipleDeploymentRoles',
         `Multiple stacks in environment aws://${env.account}/${env.region} have different deployment role ARNs. Cannot proceed.`,
       );
     }
@@ -232,7 +234,7 @@ function resourceMoves(
     message.push('Hint: by default, only deployed stacks that have the same name as a local stack are included.');
     message.push('If you want to include additional deployed stacks for comparison, re-run the command with the option \'--additional-stack-name=<STACK>\' for each stack.');
 
-    throw new ToolkitError(message.join('\n'));
+    throw new ToolkitError('RefactorResourceMismatch', message.join('\n'));
   }
 
   return Object.values(removeUnmovedResources(zip(digestsBefore, digestsAfter)));

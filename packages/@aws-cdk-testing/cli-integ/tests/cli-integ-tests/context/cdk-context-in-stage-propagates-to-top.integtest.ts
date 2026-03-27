@@ -1,7 +1,5 @@
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'context in stage propagates to top',
   withoutBootstrap(async (fixture) => {

@@ -50,19 +50,19 @@ export async function getBootstrapStackInfo(sdk: SDK, stackName: string): Promis
     const stackResponse = await cfn.describeStacks({ StackName: stackName });
 
     if (!stackResponse.Stacks || stackResponse.Stacks.length === 0) {
-      throw new ToolkitError(`Toolkit stack ${stackName} not found`);
+      throw new ToolkitError('ToolkitStackNotFound', `Toolkit stack ${stackName} not found`);
     }
 
     const stack = stackResponse.Stacks[0];
     const versionOutput = stack.Outputs?.find(output => output.OutputKey === 'BootstrapVersion');
 
     if (!versionOutput?.OutputValue) {
-      throw new ToolkitError(`Unable to find BootstrapVersion output in the toolkit stack ${stackName}`);
+      throw new ToolkitError('BootstrapVersionNotFound', `Unable to find BootstrapVersion output in the toolkit stack ${stackName}`);
     }
 
     const bootstrapVersion = parseInt(versionOutput.OutputValue);
     if (isNaN(bootstrapVersion)) {
-      throw new ToolkitError(`Invalid BootstrapVersion value: ${versionOutput.OutputValue}`);
+      throw new ToolkitError('InvalidBootstrapVersion', `Invalid BootstrapVersion value: ${versionOutput.OutputValue}`);
     }
 
     // try to get bucketname from the logical resource id. If there is no
@@ -81,6 +81,6 @@ export async function getBootstrapStackInfo(sdk: SDK, stackName: string): Promis
       bootstrapVersion,
     };
   } catch (e) {
-    throw new ToolkitError(`Error retrieving toolkit stack info: ${e}`);
+    throw new ToolkitError('ToolkitStackInfoError', `Error retrieving toolkit stack info: ${e}`);
   }
 }

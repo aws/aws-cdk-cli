@@ -3,7 +3,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
-import { type EventType, type SessionSchema, type State, type ErrorDetails, ErrorName } from './schema';
+import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink/sink-interface';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
@@ -13,6 +13,7 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
+import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -27,6 +28,22 @@ export interface TelemetryEvent {
   readonly eventType: EventType;
   readonly duration: number;
   readonly error?: ErrorDetails;
+  readonly counters?: Record<string, number>;
+}
+
+/**
+ * Timer of a single event
+ */
+export interface Timing {
+  /**
+   * Total time spent in this operation
+   */
+  totalMs: number;
+
+  /**
+   * Count of operations that together took `totalMs`.
+   */
+  count: number;
 }
 
 export class TelemetrySession {
@@ -77,7 +94,7 @@ export class TelemetrySession {
     process.on('SIGINT', async () => {
       try {
         await this.end({
-          name: ErrorName.TOOLKIT_ERROR,
+          name: USER_INTERRUPTED_CODE,
           message: ABORTED_ERROR_MESSAGE,
         });
       } catch (e: any) {
@@ -98,6 +115,52 @@ export class TelemetrySession {
   }
 
   /**
+   * Attach a language guess
+   */
+  public attachLanguage(language: string | undefined) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
+    if (language) {
+      mutable(this.sessionInfo.project).language = language;
+    }
+  }
+
+  /**
+   * Attach our best guess at running under an agent or not
+   */
+  public attachAgent(isAgent: boolean | undefined) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
+    mutable(this.sessionInfo.environment).agent = isAgent;
+  }
+
+  /**
+   * Attach the CDK library version
+   *
+   * By default the telemetry will guess at the CDK library version if it so
+   * happens that the CDK project is an NPM project and the CDK CLI is executed
+   * in the root of NPM project with `aws-cdk-lib` available in `node_modules`.
+   * This may succeed or may fail.
+   *
+   * Once we have produced and loaded the cloud assembly more accurate
+   * information becomes available that we can add in.
+   */
+  public attachCdkLibVersion(libVersion: string) {
+    // Don't want to crash accidentally
+    if (!this._sessionInfo) {
+      return;
+    }
+
+    mutable(this.sessionInfo.identifiers).cdkLibraryVersion = libVersion;
+  }
+
+  /**
    * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
    * and notifies with an optional error message in the data.
    */
@@ -110,6 +173,7 @@ export class TelemetrySession {
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
+
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,
@@ -131,12 +195,13 @@ export class TelemetrySession {
           name: event.error.name,
         },
       } : {}),
+      ...(event.counters && Object.keys(event.counters).length > 0 ? { counters: event.counters } : {}),
     });
   }
 
   private get sessionInfo(): SessionSchema {
     if (!this._sessionInfo) {
-      throw new ToolkitError('Session Info not initialized. Call begin() first.');
+      throw new ToolkitError('SessionNotInitialized', 'Session Info not initialized. Call begin() first.');
     }
     return this._sessionInfo;
   }
@@ -154,4 +219,8 @@ function isAbortedError(error?: ErrorDetails) {
     return true;
   }
   return false;
+}
+
+function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
+  return x;
 }

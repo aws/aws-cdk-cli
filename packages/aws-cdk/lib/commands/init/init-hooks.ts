@@ -106,7 +106,7 @@ async function dotnetAddProject(ioHelper: IoHelper, targetDirectory: string, con
       return;
     } catch (e: any) {
       if (attempt === MAX_ATTEMPTS) {
-        throw new ToolkitError(`Could not add project ${pname}.${ext} to solution ${pname}.sln. ${formatErrorMessage(e)}`);
+        throw new ToolkitError('DotnetSlnAddFailed', `Could not add project ${pname}.${ext} to solution ${pname}.sln. ${formatErrorMessage(e)}`);
       }
 
       // Sleep for a bit then try again

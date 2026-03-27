@@ -27,14 +27,14 @@ import {
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { EnvironmentResourcesRegistry } from '../environment';
-import { HotswapPropertyOverrides, HotswapMode, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
+import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
@@ -161,24 +161,6 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
-   *
-   * @deprecated  Use 'deploymentMethod' instead
-   */
-  readonly hotswap?: HotswapMode;
-
-  /**
-   * Extra properties that configure hotswap behavior
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
-
-  /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
    * @default - Nothing extra is appended to the User-Agent header
@@ -211,28 +193,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const stackEnv = options.resolvedEnvironment;
 
   let deploymentMethod = options.deploymentMethod ?? { method: 'change-set' };
-  // Honor the old hotswap option because this API is exported from the CLI as part of the legacy exports
-  // @TODO remove when we don't have legacy exports anymore
-  if (options.hotswap && deploymentMethod?.method !== 'hotswap') {
-    switch (options.hotswap) {
-      case HotswapMode.HOTSWAP_ONLY:
-        deploymentMethod = {
-          method: 'hotswap',
-          properties: options.hotswapPropertyOverrides,
-        };
-        break;
-      case HotswapMode.FALL_BACK:
-        deploymentMethod = {
-          method: 'hotswap',
-          properties: options.hotswapPropertyOverrides,
-          fallback: deploymentMethod,
-        };
-        break;
-      case HotswapMode.FULL_DEPLOYMENT:
-        break;
-    }
-  }
-
   options.sdk.appendCustomUserAgent(options.extraUserAgent);
   const cfn = options.sdk.cloudFormation();
   const deployName = options.deployName || stackArtifact.stackName;
@@ -245,8 +205,9 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     await cfn.deleteStack({ StackName: deployName });
     const deletedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError(
+      throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
+        'FailedStackCleanupFailed',
       );
     }
     // Update variable to mark that the stack does not exist anymore, but avoid
@@ -416,7 +377,7 @@ class FullCloudFormationDeployment {
     const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
-      throw new ToolkitError('Importing resources requires a changeset deployment');
+      throw new ToolkitError('ImportRequiresChangeSet', 'Importing resources requires a changeset deployment');
     }
 
     switch (deploymentMethod.method) {
@@ -641,11 +602,11 @@ class FullCloudFormationDeployment {
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
-        throw new ToolkitError('Stack deploy failed (the stack disappeared while we were deploying it)');
+        throw new DeploymentError('Stack deploy failed (the stack disappeared while we were deploying it)', DeploymentErrorCodes.STACK_DISAPPEARED_ERROR_CODE);
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
+      throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDeployFailed');
     } finally {
       await monitor.stop();
     }
@@ -730,12 +691,12 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     await cfn.deleteStack({ StackName: deployName, RoleARN: options.roleArn });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, deployName);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
-      throw new ToolkitError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`);
+      throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new ToolkitError(suffixWithErrors(formatErrorMessage(e), monitor.errors));
+    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {
     if (monitor) {
       await monitor.stop();

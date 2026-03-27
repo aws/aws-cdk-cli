@@ -55,7 +55,7 @@ export class Settings {
 
   public clear() {
     if (this.readOnly) {
-      throw new ToolkitError('Cannot clear(): settings are readonly');
+      throw new ToolkitError('SettingsReadOnly', 'Cannot clear(): settings are readonly');
     }
     this.settings = {};
   }
@@ -70,7 +70,7 @@ export class Settings {
 
   public set(path: string[], value: any): Settings {
     if (this.readOnly) {
-      throw new ToolkitError(`Can't set ${path}: settings object is readonly`);
+      throw new ToolkitError('SettingsReadOnly', `Can't set ${path}: settings object is readonly`);
     }
     if (path.length === 0) {
       // deepSet can't handle this case

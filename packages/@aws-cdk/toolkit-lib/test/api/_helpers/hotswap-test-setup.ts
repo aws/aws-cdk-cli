@@ -28,7 +28,7 @@ let currentCfnStack: FakeCloudformationStack;
 const currentCfnStackResources: StackResourceSummary[] = [];
 let stackTemplates: { [stackName: string]: any };
 let currentNestedCfnStackResources: { [stackName: string]: StackResourceSummary[] };
-let ioHost = new TestIoHost();
+export let ioHost = new TestIoHost();
 
 export function setupHotswapTests(): HotswapMockSdkProvider {
   restoreSdkMocksToDefault();

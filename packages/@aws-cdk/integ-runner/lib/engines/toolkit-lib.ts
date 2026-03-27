@@ -59,31 +59,39 @@ export class ToolkitLibRunnerEngine implements ICdk {
     // don't pass it to the toolkit.
     this.ioHost = new IntegRunnerIoHost();
 
-    this.toolkit = new Toolkit({
-      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
-      sdkConfig: {
-        baseCredentials: BaseCredentials.awsCliCompatible({
-          profile: options.profile,
-          defaultRegion: options.region,
-        }),
-      },
-      // @TODO - these options are currently available on the action calls
-      // but toolkit-lib needs them at the constructor level.
-      // Need to decide what to do with them.
-      //
-      // Validations
-      //  - assemblyFailureAt: options.strict ?? options.ignoreErrors
-      // Logging
-      //  - options.color
-      // SDK
-      //  - options.proxy
-      //  - options.caBundlePath
-    });
+    this.toolkit = this.createToolkit(options.profile, options.region);
+
+    // @TODO - these options are currently available on the action calls
+    // but toolkit-lib needs them at the constructor level.
+    // Need to decide what to do with them.
+    //
+    // Validations
+    //  - assemblyFailureAt: options.strict ?? options.ignoreErrors
+    // Logging
+    //  - options.color
+    // SDK
+    //  - options.proxy
+    //  - options.caBundlePath
 
     // @TODO - similar to the above, but in toolkit-lib these options would go on the IoHost
     //  - options.trace
     //  - options.verbose
     //  - options.json
+  }
+
+  /**
+   * Creates a Toolkit instance with the given profile and region.
+   */
+  private createToolkit(profile: string | undefined, region: string): Toolkit {
+    return new Toolkit({
+      ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
+      sdkConfig: {
+        baseCredentials: BaseCredentials.awsCliCompatible({
+          profile,
+          defaultRegion: region,
+        }),
+      },
+    });
   }
 
   /**
@@ -127,8 +135,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Lists the stacks in the CDK app
    */
   public async list(options: ListOptions): Promise<string[]> {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
-    const stacks = await this.toolkit.list(cx, {
+    const stacks = await toolkit.list(cx, {
       stacks: this.stackSelector(options),
     });
 
@@ -139,8 +148,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Deploys the CDK app
    */
   public async deploy(options: DeployOptions) {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
-    await this.toolkit.deploy(cx, {
+    await toolkit.deploy(cx, {
       roleArn: options.roleArn,
       traceLogs: options.traceLogs,
       stacks: this.stackSelector(options),
@@ -155,9 +165,10 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Watches the CDK app for changes and deploys them automatically
    */
   public async watch(options: WatchOptions, events?: WatchEvents) {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
     try {
-      const watcher = await this.toolkit.watch(cx, {
+      const watcher = await toolkit.watch(cx, {
         roleArn: options.roleArn,
         traceLogs: options.traceLogs,
         stacks: this.stackSelector(options),
@@ -183,9 +194,10 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Destroys the CDK app
    */
   public async destroy(options: DestroyOptions) {
+    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
     const cx = await this.cx(options);
 
-    await this.toolkit.destroy(cx, {
+    await toolkit.destroy(cx, {
       roleArn: options.roleArn,
       stacks: this.stackSelector(options),
     });

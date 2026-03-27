@@ -17,7 +17,7 @@ export class SSMContextProviderPlugin implements ContextProviderPlugin {
     const account = args.account;
 
     if (!('parameterName' in args)) {
-      throw new ContextProviderError('parameterName must be provided in props for SSMContextProviderPlugin');
+      throw new ContextProviderError('MissingParameterName', 'parameterName must be provided in props for SSMContextProviderPlugin');
     }
     const parameterName = args.parameterName;
     await this.io.debug(`Reading SSM parameter ${account}:${region}:${parameterName}`);
@@ -29,7 +29,7 @@ export class SSMContextProviderPlugin implements ContextProviderPlugin {
       return args.dummyValue;
     }
     if (parameterNotFound) {
-      throw new ContextProviderError(`SSM parameter not available in account ${account}, region ${region}: ${parameterName}`);
+      throw new ContextProviderError('SsmParameterNotFound', `SSM parameter not available in account ${account}, region ${region}: ${parameterName}`);
     }
     // will not be undefined because we've handled undefined cases above
     return response.Parameter!.Value;

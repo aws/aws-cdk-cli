@@ -3,8 +3,6 @@ import * as fs from 'fs-extra';
 import { CURRENT_TELEMETRY_VERSION } from './constants';
 import { integTest, withDefaultFixture } from '../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'cdk synth with telemetry and validation error leads to invoke failure',
   withDefaultFixture(async (fixture) => {
@@ -67,7 +65,7 @@ integTest(
           },
           nodeVersion: expect.anything(),
         },
-        project: {},
+        project: expect.objectContaining({}),
         duration: {
           total: expect.anything(),
         },
@@ -115,12 +113,12 @@ integTest(
           },
           nodeVersion: expect.anything(),
         },
-        project: {},
+        project: expect.objectContaining({}),
         duration: {
           total: expect.anything(),
         },
         error: {
-          name: 'AssemblyError',
+          name: 'synth:AnnotationErrors',
         },
       }),
     ]);

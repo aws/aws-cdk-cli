@@ -1,10 +1,10 @@
 import { AssemblyError, AuthenticationError, ContextProviderError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 describe('toolkit error', () => {
-  let toolkitError = new ToolkitError('Test toolkit error');
-  let toolkitCauseError = ToolkitError.withCause('Test toolkit error', new Error('other error'));
-  let authError = new AuthenticationError('Test authentication error');
-  let contextProviderError = new ContextProviderError('Test context provider error');
+  let toolkitError = new ToolkitError('TestError', 'Test toolkit error');
+  let toolkitCauseError = ToolkitError.withCause('TestError', 'Test toolkit error', new Error('other error'));
+  let authError = new AuthenticationError('TestAuthError', 'Test authentication error');
+  let contextProviderError = new ContextProviderError('TestContextError', 'Test context provider error');
   let assemblyError = AssemblyError.withStacks('Test authentication error', []);
   let assemblyCauseError = AssemblyError.withCause('Test authentication error', new Error('other error'));
   let noResultsError = new NoResultsFoundError('Test no results error');

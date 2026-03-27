@@ -1,19 +1,19 @@
 /**
- * In what scenarios should the CLI ask for approval
+ * Specify what changes require manual approval.
  */
 export enum RequireApproval {
   /**
-   * Never ask for approval
+   * Approval is not required
    */
   NEVER = 'never',
 
   /**
-   * Prompt for approval for any type of change to the stack
+   * Manual approval required for any change to the stack
    */
   ANYCHANGE = 'any-change',
 
   /**
-   * Only prompt for approval if there are security related changes
+   * Manual approval required if changes involve a broadening of permissions or security group rules
    */
   BROADENING = 'broadening',
 }

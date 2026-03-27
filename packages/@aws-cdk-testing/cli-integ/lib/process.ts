@@ -59,7 +59,10 @@ export class Process {
    * Spawn a process without a forcing a TTY.
    */
   public static spawn(command: string, args: string[], options: child.SpawnOptions = {}): IProcess {
-    const process = child.spawn(command, args, {
+    // Join command and args into a single shell string to avoid DEP0190 deprecation warning
+    // (passing args with shell: true is deprecated because they are not escaped).
+    const fullCommand = [command, ...args].join(' ');
+    const process = child.spawn(fullCommand, [], {
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...options,

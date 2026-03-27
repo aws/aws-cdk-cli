@@ -1,6 +1,7 @@
 /* eslint-disable import/order */
 import * as child_process from 'child_process';
 import * as events from 'events';
+import * as stream from 'node:stream';
 
 if (!(child_process as any).spawn.mockImplementationOnce) {
   throw new Error('Call "jest.mock(\'child_process\');" at the top of the test file!');
@@ -11,11 +12,12 @@ export interface Invocation {
   cwd?: string;
   exitCode?: number;
   stdout?: string;
+  stderr?: string;
 
   /**
    * Run this function as a side effect, if present
    */
-  sideEffect?: () => void;
+  sideEffect?: (binary: string, options: child_process.SpawnOptions) => void;
 }
 
 export function mockSpawn(...invocations: Invocation[]) {
@@ -30,18 +32,23 @@ export function mockSpawn(...invocations: Invocation[]) {
       }
 
       if (invocation.sideEffect) {
-        invocation.sideEffect();
+        invocation.sideEffect(binary, options);
       }
 
       const child: any = new events.EventEmitter();
-      child.stdin = new events.EventEmitter();
+      child.stdin = new stream.Writable();
       child.stdin.write = jest.fn();
       child.stdin.end = jest.fn();
-      child.stdout = new events.EventEmitter();
-      child.stderr = new events.EventEmitter();
+      child.stdout = new stream.PassThrough();
+      child.stderr = new stream.PassThrough();
 
       if (invocation.stdout) {
-        mockEmit(child.stdout, 'data', invocation.stdout);
+        child.stdout.push(invocation.stdout);
+        child.stdout.push(null);
+      }
+      if (invocation.stderr) {
+        child.stderr.push(invocation.stderr);
+        child.stderr.push(null);
       }
       mockEmit(child, 'close', invocation.exitCode ?? 0);
       mockEmit(child, 'exit', invocation.exitCode ?? 0);

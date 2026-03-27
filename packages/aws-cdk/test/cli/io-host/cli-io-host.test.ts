@@ -7,6 +7,7 @@ import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
+import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 
 let passThrough: PassThrough;
 
@@ -382,6 +383,28 @@ describe('CliIoHost', () => {
       expect(telemetryEmitSpy).not.toHaveBeenCalled();
     });
 
+    test('emit telemetry with counters', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message = {
+        ...CLI_PRIVATE_IO.CDK_CLI_I1001.msg('telemetry message', {
+          duration: 123,
+          counters: {
+            tests: 15,
+          },
+        }),
+        action: 'synth' as const,
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'SYNTH',
+        counters: { tests: 15 },
+      }));
+    });
+
     test('emit telemetry with error name', async () => {
       // Create a message that should trigger telemetry using the actual message code
       const message: IoMessage<unknown> = {
@@ -409,6 +432,73 @@ describe('CliIoHost', () => {
         error: {
           name: 'MyError',
           message: 'Some message',
+        },
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with successful hotswap', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ c: 3 }],
+          stack: {},
+          mode: 'hotswap-only',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          hotswapped: 1,
+          hotswappableChanges: 2,
+          nonHotswappableChanges: 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with error', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 200,
+          hotswapped: false,
+          hotswappableChanges: [{ a: 1 }],
+          nonHotswappableChanges: [],
+          stack: {},
+          mode: 'hotswap-only',
+          error: new Error('SDK call failed'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 200,
+        error: expect.objectContaining({
+          name: 'UnknownError',
+        }),
+        counters: {
+          hotswapped: 0,
+          hotswappableChanges: 1,
+          nonHotswappableChanges: 0,
         },
       }));
     });

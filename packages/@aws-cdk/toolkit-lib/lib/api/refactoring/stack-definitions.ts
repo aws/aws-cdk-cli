@@ -117,7 +117,7 @@ export async function generateStackDefinitions(
       ),
     );
 
-    throw new ToolkitError('Template too large to refactor ("cdk bootstrap" is required)');
+    throw new ToolkitError('TemplateTooLargeToRefactor', 'Template too large to refactor ("cdk bootstrap" is required)');
   }
 
   const stackDefinitions: StackDefinition[] = [];
