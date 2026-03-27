@@ -32,6 +32,10 @@ const ALL_REGIONS = [
   'ap-southeast-7',
   'ca-west-1',
   'mx-central-1',
+
+  // currently experiencing service distruptions.
+  // 'me-central-1',
+  // 'me-south-1',
 ];
 
 export function allBut(exclude: string[]): string[] {
