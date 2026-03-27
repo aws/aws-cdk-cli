@@ -38,6 +38,6 @@ integTest('hotswap deployment supports AppSync APIs with many functions',
     for (const i of Array(50).keys()) {
       expect(deployOutput).toContain(`AWS::AppSync::FunctionConfiguration 'appsync_function${i}' hotswapped!`);
     }
-  }, { aws: { regions: SUPPORTED_REGIONS }}),
+  }, { aws: { regions: SUPPORTED_REGIONS } }),
 );
 
