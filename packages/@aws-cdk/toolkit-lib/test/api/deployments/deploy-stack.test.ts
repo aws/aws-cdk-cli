@@ -285,6 +285,39 @@ test('call CreateStack when method=direct and the stack doesnt exist yet', async
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateStackCommand);
 });
 
+test('execute-change-set describes and executes an existing change set', async () => {
+  // GIVEN - stack and change set exist
+  givenStackExists();
+  givenChangeSetExists({ ChangeSetName: 'MyChangeSet', Status: ChangeSetStatus.CREATE_COMPLETE });
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+  });
+
+  // THEN - should execute the change set without creating a new one
+  expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('execute-change-set throws if change set is not ready', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+    Stacks: [{ ...baseResponse }],
+  });
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+    Status: 'FAILED',
+    StatusReason: 'some reason',
+  });
+
+  // WHEN/THEN
+  await expect(testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+  })).rejects.toThrow('not ready for execution');
+});
+
 test('call UpdateStack when method=direct and the stack exists already', async () => {
   // WHEN
   givenStackExists();

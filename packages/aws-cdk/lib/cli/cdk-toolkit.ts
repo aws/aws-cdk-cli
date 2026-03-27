@@ -31,7 +31,7 @@ import {
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { ExpandStackSelection, ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import { isChangeSetDeployment, isExecutingChangeSetDeployment, isNonExecutingChangeSetDeployment, toExecuteChangeSetDeployment } from '../api/deploy-private';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
@@ -415,6 +415,37 @@ export class CdkToolkit {
       this.ioHost.stackProgress = options.progress;
     }
 
+    // the ioHost uses this internally to determine if a confirmation
+    // is actually needed, so it needs the same value we determine here.
+    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
+    this.ioHost.requireDeployApproval = requireApproval;
+
+    // execute-change-set is a new flow that we can just delegate to toolkit-lib
+    if (options.deploymentMethod?.method === 'execute-change-set') {
+      await this.toolkit.deploy(this.props.cloudExecutable, {
+        deploymentMethod: options.deploymentMethod,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+          expand: ExpandStackSelection.NONE,
+        },
+        roleArn: options.roleArn,
+        forceDeployment: options.force,
+        rollback: options.rollback,
+        reuseAssets: options.reuseAssets,
+        concurrency: options.concurrency,
+        traceLogs: options.traceLogs,
+        notificationArns: options.notificationArns,
+        tags: options.tags,
+        outputsFile: options.outputsFile,
+        assetParallelism: options.assetParallelism,
+        assetBuildConcurrency: options.assetBuildConcurrency,
+        assetBuildTime: options.assetBuildTime,
+        parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
+      });
+      return;
+    }
+
     const startSynthTime = new Date().getTime();
     const stackCollection = await this.selectStacksForDeploy(
       options.selector,
@@ -438,11 +469,6 @@ export class CdkToolkit {
       toolkitStackName: this.toolkitStackName,
       ...options,
     });
-
-    // the ioHost uses this internally to determine if a confirmation
-    // is actually needed, so it needs the same value we determine here.
-    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
-    this.ioHost.requireDeployApproval = requireApproval;
 
     const parameterMap = buildParameterMap(options.parameters);
 

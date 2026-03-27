@@ -13,9 +13,9 @@ import * as uuid from 'uuid';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import { publishAssets } from './asset-publishing';
 import { addMetadataAssetsToManifest } from './assets';
-import type {
+import {
+  type ParameterChanges,
   ParameterValues,
-  ParameterChanges,
 } from './cfn-api';
 import {
   changeSetHasNoChanges,
@@ -27,7 +27,7 @@ import {
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
-import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, ExecuteChangeSetDeployment } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
@@ -43,7 +43,6 @@ import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
 import { EarlyValidationReporter } from './early-validation';
-import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 
 export interface DeployStackOptions {
   /**
@@ -129,7 +128,7 @@ export interface DeployStackOptions {
    *
    * @default - Change set with defaults
    */
-  readonly deploymentMethod?: DeploymentMethod | ExecuteChangeSetDeployment;
+  readonly deploymentMethod?: DeploymentMethod;
 
   /**
    * The collection of extra parameters
@@ -196,11 +195,27 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const stackArtifact = options.stack;
   const stackEnv = options.resolvedEnvironment;
 
-  let deploymentMethod = options.deploymentMethod ?? { method: 'change-set' };
+  const inputMethod = options.deploymentMethod ?? { method: 'change-set' };
+  let deploymentMethod: DeploymentMethod = inputMethod;
+
   options.sdk.appendCustomUserAgent(options.extraUserAgent);
   const cfn = options.sdk.cloudFormation();
   const deployName = options.deployName || stackArtifact.stackName;
   let cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
+
+  // execute-change-set: skip template/asset work, go straight to FullCloudFormationDeployment
+  if (deploymentMethod.method === 'execute-change-set') {
+    const fullDeployment = new FullCloudFormationDeployment(
+      deploymentMethod,
+      options,
+      cloudFormationStack,
+      stackArtifact,
+      new ParameterValues({}, {}),
+      {},
+      ioHelper,
+    );
+    return fullDeployment.performDeployment();
+  }
 
   if (cloudFormationStack.stackStatus.isCreationFailure) {
     await ioHelper.defaults.debug(

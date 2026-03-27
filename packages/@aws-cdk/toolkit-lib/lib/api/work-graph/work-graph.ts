@@ -6,6 +6,12 @@ import type { IoHelper } from '../io/private';
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
 export class WorkGraph {
+  /**
+   * A helper to declare a noop action.
+   */
+  public static readonly NOOP: (..._: any[]) => Promise<void> = async () => {
+  };
+
   public readonly nodes: Record<string, WorkNode>;
   private readonly readyPool: Array<WorkNode> = [];
   private readonly lazyDependencies = new Map<string, string[]>();

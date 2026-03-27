@@ -152,9 +152,9 @@ export async function makeConfig(): Promise<CliConfig> {
           'method': {
             alias: 'm',
             type: 'string',
-            choices: ['direct', 'change-set', 'prepare-change-set'],
+            choices: ['direct', 'change-set', 'prepare-change-set', 'execute-change-set'],
             requiresArg: true,
-            desc: 'How to perform the deployment. Direct is a bit faster but lacks progress information',
+            desc: 'How to perform the deployment. "change-set" (default) creates and executes a change set. "prepare-change-set" creates a change set without executing it. "execute-change-set" executes a previously created change set, bypassing synthesis entirely. "direct" skips change sets for faster deployments but lacks progress information',
           },
           'import-existing-resources': { type: 'boolean', desc: 'Indicates if the stack set imports resources that already exist.', default: false },
           'force': { alias: 'f', type: 'boolean', desc: 'Always deploy stack even if templates are identical', default: false },

@@ -409,6 +409,11 @@ be deployed and then executes it. This behavior can be controlled with the
 - `--method=prepare-change-set`: create the change set but don't execute it.
   This is useful if you have external tools that will inspect the change set or
   you have an approval process for change sets.
+- `--method=execute-change-set`: execute a previously created change set. This
+  bypasses change set creation and asset publishing entirely. Requires exactly
+  one stack name. Defaults to the `cdk-deploy-change-set` change set name if
+  `--change-set-name` is not provided. This is useful for two-step deployment
+  workflows where you first review a change set and then execute it.
 - `--method=direct`: do not create a change set but apply the change immediately.
   This is typically a bit faster than creating a change set, but it loses
   the progress information.
@@ -428,8 +433,23 @@ set to make it easier to later execute:
 $ cdk deploy --method=prepare-change-set --change-set-name MyChangeSetName
 ```
 
-For more control over when stack changes are deployed, the CDK can generate a
-CloudFormation change set but not execute it.
+To review a change set before executing it, use a two-step workflow:
+
+```console
+$ # Step 1: Create the change set without executing it
+$ cdk deploy MyStack --method=prepare-change-set
+
+$ # Step 2: Review the change set (e.g., in the AWS Console or via CLI)
+
+$ # Step 3: Execute the change set
+$ cdk deploy MyStack --method=execute-change-set
+```
+
+A custom change set name can be provided with `--change-set-name` in both steps.
+
+When using `--method=execute-change-set`, the options `--force`, `--parameters`,
+`--import-existing-resources`, and `--revert-drift` cannot be used
+since the change set has already been created.
 
 #### Import existing resources
 

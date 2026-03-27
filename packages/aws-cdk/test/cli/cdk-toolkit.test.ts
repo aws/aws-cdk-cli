@@ -59,6 +59,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
+import { Toolkit } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -617,6 +618,39 @@ describe('deploy', () => {
           deploymentMethod: expect.objectContaining({ method: 'change-set' }),
         }),
       );
+    });
+  });
+
+  describe('with method=execute-change-set', () => {
+    test('delegates to toolkit-lib without synthesizing or calling deployStack', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockResolvedValue(undefined as any);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
+      });
+
+      // THEN - delegates to toolkit-lib and bypasses the legacy deployStack path
+      expect(toolkitDeploySpy).toHaveBeenCalledWith(
+        cloudExecutable,
+        expect.objectContaining({
+          deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
+          parameters: undefined,
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).not.toHaveBeenCalled();
+      expect(mockCfnDeployments.prepareStack).not.toHaveBeenCalled();
     });
   });
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -10,6 +11,7 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
+  waitForChangeSet,
   waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
@@ -18,7 +20,6 @@ import { deployStack, destroyStack } from './deploy-stack';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
-import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
@@ -92,7 +93,7 @@ export interface DeployStackOptions {
    *
    * @default - Change set with default options
    */
-  readonly deploymentMethod?: DeploymentMethod | ExecuteChangeSetDeployment;
+  readonly deploymentMethod?: DeploymentMethod;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -463,6 +464,12 @@ export class Deployments {
       await cfn.deleteStack({ StackName: deployName });
       await waitForStackDelete(cfn, this.ioHelper, deployName);
     }
+  }
+
+  public async describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<DescribeChangeSetCommandOutput> {
+    const env = await this.envs.accessStackForMutableStackOperations(stack);
+    const cfn = env.sdk.cloudFormation();
+    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, { fetchAll: true });
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {

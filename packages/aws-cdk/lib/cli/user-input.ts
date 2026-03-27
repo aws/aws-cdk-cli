@@ -792,7 +792,7 @@ export interface DeployOptions {
   readonly changeSetName?: string;
 
   /**
-   * How to perform the deployment. Direct is a bit faster but lacks progress information
+   * How to perform the deployment. "change-set" (default) creates and executes a change set. "prepare-change-set" creates a change set without executing it. "execute-change-set" executes a previously created change set, bypassing synthesis entirely. "direct" skips change sets for faster deployments but lacks progress information
    *
    * aliases: m
    *
