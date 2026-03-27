@@ -115,6 +115,8 @@ import type {
   ExecuteStackRefactorCommandOutput,
   DescribeEventsCommandOutput,
   DescribeEventsCommandInput,
+  GetHookResultCommandInput,
+  GetHookResultCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -157,6 +159,7 @@ import {
   DetectStackResourceDriftCommand,
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
+  GetHookResultCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
@@ -497,6 +500,7 @@ export interface ICloudFormationClient {
   executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  getHookResult(input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -848,6 +852,8 @@ export class SDK {
           input,
         );
       },
+      getHookResult: (input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput> =>
+        client.send(new GetHookResultCommand(input)),
     };
   }
 

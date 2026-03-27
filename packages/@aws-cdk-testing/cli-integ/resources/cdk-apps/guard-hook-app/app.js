@@ -38,17 +38,6 @@ class GuardHookSetupStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
-    // Grant CDK deploy role read access to the logs bucket.
-    // The bootstrap deploy role only has cross-account S3 permissions; same-account
-    // access is granted by bucket policies, per the bootstrap template's design intent.
-    const deployRoleArn = cdk.Fn.sub(this.synthesizer.deployRoleArn);
-    logsBucket.addToResourcePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      principals: [new iam.ArnPrincipal(deployRoleArn)],
-      actions: ['s3:GetObject', 's3:GetObjectVersion'],
-      resources: [logsBucket.arnForObjects('*')],
-    }));
-
     // Upload Guard rule to rules bucket
     new s3deploy.BucketDeployment(this, 'UploadGuardRule', {
       sources: [s3deploy.Source.data(guardRuleKey, guardRuleContent)],
@@ -81,6 +70,13 @@ class GuardHookSetupStack extends cdk.Stack {
       },
       logBucket: logsBucket.bucketName,
       targetOperations: ['RESOURCE'],
+      stackFilters: {
+        filteringCriteria: "ANY",
+        stackNames: {
+          // Do not evalute this stack with the hook
+          exclude: [cdk.Aws.STACK_NAME]
+        }
+      }
     });
   }
 }

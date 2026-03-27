@@ -5,7 +5,7 @@ import { StackEventPoller } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import { stackEventHasErrorMessage } from '../../util';
-import type { ICloudFormationClient, IS3Client } from '../aws-auth/private';
+import type { ICloudFormationClient } from '../aws-auth/private';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
@@ -14,11 +14,6 @@ export interface StackActivityMonitorProps {
    * The CloudFormation client
    */
   readonly cfn: ICloudFormationClient;
-
-  /**
-   * The S3 client for fetching Guard Hook error details
-   */
-  readonly s3Client: IS3Client;
 
   /**
    * The IoHelper used for messaging
@@ -98,7 +93,7 @@ export class StackActivityMonitor {
   private readonly ioHelper: IoHelper;
   private readonly stackName: string;
   private readonly stack: CloudFormationStackArtifact;
-  private readonly s3Client: IS3Client;
+  private readonly cfn: ICloudFormationClient;
 
   constructor({
     cfn,
@@ -108,12 +103,11 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
-    s3Client,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackName = stackName;
-    this.s3Client = s3Client;
+    this.cfn = cfn;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
@@ -195,93 +189,52 @@ export class StackActivityMonitor {
   }
 
   /**
-   * Extracts S3 bucket and key from a Guard Hook status reason message
-   * Pattern: "...Full output was written to s3://bucket-name/path/to/file.json"
+   * Trims leading/trailing whitespace, collapses all internal whitespace
+   * (including newlines) to a single space, and truncates to `maxChars`
+   * characters, appending `[...truncated]` when the original was longer.
    */
-  private extractS3Location(hookStatusReason: string): { bucket: string; key: string } | undefined {
-    const s3UrlPattern = /Full output was written to s3:\/\/([^/]+)\/(.+)$/;
-    const match = hookStatusReason.match(s3UrlPattern);
-    if (match) {
-      return { bucket: match[1], key: match[2] };
-    }
-    return undefined;
+  private normalizeMessage(message: string, maxChars: number = 400): string {
+    const normalized = message.trim().replace(/\s+/g, ' ');
+    return normalized.length > maxChars
+      ? normalized.substring(0, maxChars) + '[...truncated]'
+      : normalized;
   }
 
   /**
-   * Truncates a message if it exceeds character limits
+   * Fetches Guard Hook annotation details via GetHookResult API and formats them
+   * into a human-readable string. Returns undefined if the fetch fails or there
+   * are no failed annotations.
    */
-  private truncateMessage(message: string, maxChars: number = 400): string {
-    if (message.length > maxChars) {
-      return message.substring(0, maxChars) + '[truncated...]';
-    }
-    return message;
-  }
-
-  /**
-   * Extracts messages from a check, handling both Clause and Disjunctions structures
-   */
-  private extractMessagesFromCheck(check: any, lines: string[]): void {
-    // Handle Clause case
-    if (check.Clause) {
-      const clause = check.Clause;
-      const clauseData = clause.Binary || clause.Unary;
-
-      // Use custom_message if present and not empty, otherwise use error_message
-      let message = clauseData.messages.custom_message && clauseData.messages.custom_message !== ''
-        ? clauseData.messages.custom_message
-        : clauseData.messages.error_message;
-
-      if (message) {
-        // Replace whitepace including newlines with single spaces to reduce output size
-        message = message.trim().replace(/\s+/g, ' ');
-        message = this.truncateMessage(message);
-        lines.push(`• ${message}`);
-      }
-    } else if (check.Disjunctions) {
-      // Handle Disjunctions case
-      // Recursively process nested checks within Disjunctions
-      (check.Disjunctions.checks || []).forEach((nestedCheck: any) => {
-        this.extractMessagesFromCheck(nestedCheck, lines);
-      });
-    }
-  }
-
-  /**
-   * Parses Guard Hook output JSON and formats it into a human-readable string
-   */
-  private parseGuardHookOutput(jsonOutput: any): string {
-    const lines: string[] = ['NonCompliant Rules:', ''];
-    // Extract only non-compliant rule names and error / custom messages
-    jsonOutput.forEach((item: any) => {
-      item.not_compliant.forEach((notCompliant: any) => {
-        const rule = notCompliant.Rule;
-        lines.push(`[${rule.name}]`);
-        (rule.checks || []).forEach((check: any) => {
-          this.extractMessagesFromCheck(check, lines);
-        });
-        lines.push('');
-      });
-    });
-    return lines.join('\n');
-  }
-
-  /**
-   * Fetches the content of an S3 object and returns it as a string
-   */
-  private async fetchS3Content(bucket: string, key: string): Promise<string | undefined> {
+  private async fetchGuardHookAnnotations(hookInvocationId: string): Promise<string | undefined> {
     try {
-      const response = await this.s3Client.getObject({ Bucket: bucket, Key: key });
-      if (response.Body) {
-        const output = JSON.parse(await response.Body.transformToString());
-        return this.parseGuardHookOutput(output);
+      const result = await this.cfn.getHookResult({ HookResultId: hookInvocationId });
+      const annotations = result.Annotations ?? [];
+      const failedAnnotations = annotations.filter((a) => a.Status === 'FAILED');
+      if (failedAnnotations.length === 0) {
+        return undefined;
       }
+
+      const lines: string[] = ['NonCompliant Rules:', ''];
+      for (const annotation of failedAnnotations) {
+        if (annotation.AnnotationName) {
+          lines.push(`[${annotation.AnnotationName}]`);
+        }
+        if (annotation.StatusMessage) {
+          lines.push(`• ${this.normalizeMessage(annotation.StatusMessage)}`);
+        }
+        if (annotation.RemediationMessage) {
+          lines.push(`Remediation: ${this.normalizeMessage(annotation.RemediationMessage)}`);
+        }
+        lines.push('');
+      }
+      return lines.join('\n').trimEnd();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       await this.ioHelper.defaults.warn(
-        util.format('Failed to fetch Guard Hook details from s3://%s/%s: %s', bucket, key, errorMessage),
+        util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
       );
+      return undefined;
     }
-    return undefined;
   }
 
   /**
@@ -297,15 +250,11 @@ export class StackActivityMonitor {
     for (const resourceEvent of pollEvents) {
       this.progressMonitor.process(resourceEvent.event);
 
-      // If Guard Hook, replace HookStatusReason with full output from S3
-      if (resourceEvent.event.HookStatusReason) {
-        const s3Location = this.extractS3Location(resourceEvent.event.HookStatusReason);
-        if (s3Location) {
-          const s3Content = await this.fetchS3Content(s3Location.bucket, s3Location.key);
-          if (s3Content) {
-            const location = `Full output was written to s3://${s3Location.bucket}/${s3Location.key}`;
-            resourceEvent.event.HookStatusReason = s3Content + '\n' + location;
-          }
+      // If this is a failed Guard Hook event with an invocation ID, fetch annotations
+      if (resourceEvent.event.HookInvocationId) {
+        const annotations = await this.fetchGuardHookAnnotations(resourceEvent.event.HookInvocationId);
+        if (annotations) {
+          resourceEvent.event.HookStatusReason = annotations;
         }
       }
 

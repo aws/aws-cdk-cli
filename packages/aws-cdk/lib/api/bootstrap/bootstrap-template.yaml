@@ -688,6 +688,8 @@ Resources:
                   - sts:GetCallerIdentity
                   # `cdk import`
                   - cloudformation:GetTemplateSummary
+                  # `cdk deploy` CloudFormation Hook annotation display on hook failure
+                  - cloudformation:GetHookResult
                 Resource: "*"
                 Effect: Allow
               - Sid: CliStagingBucket
@@ -815,7 +817,7 @@ Resources:
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
       # Also update this value below (see comment there)
-      Value: '30'
+      Value: '31'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
@@ -850,4 +852,4 @@ Outputs:
     # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
     # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
     # duplicate the value here and use a build-time test to ensure the two values are the same.
-    Value: '30'
+    Value: '31'

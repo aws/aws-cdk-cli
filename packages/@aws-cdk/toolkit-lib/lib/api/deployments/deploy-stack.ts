@@ -630,7 +630,6 @@ class FullCloudFormationDeployment {
       resourcesTotal: expectedChanges,
       ioHelper: this.ioHelper,
       changeSetCreationTime: startTime,
-      s3Client: this.options.sdk.s3(),
     });
     await monitor.start();
 
@@ -722,7 +721,6 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     stack: options.stack,
     stackName: deployName,
     ioHelper: ioHelper,
-    s3Client: options.sdk.s3(),
   });
   await monitor.start();
 
