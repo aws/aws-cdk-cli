@@ -90,7 +90,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },
           'deny-external-id': { type: 'boolean', desc: 'Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ', default: undefined },
           'tags': { type: 'array', alias: 't', desc: 'Tags to add for the stack (KEY=VALUE)', default: [] },
-          'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)', default: true },
+          'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'trust': { type: 'array', desc: 'The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)', default: [] },
           'trust-for-lookup': { type: 'array', desc: 'The AWS account IDs that should be trusted to look up values in this environment (may be repeated, modern bootstrapping only)', default: [] },
           'untrust': { type: 'array', desc: 'The AWS account IDs that should not be trusted by this environment (may be repeated, modern bootstrapping only)', default: [] },
@@ -147,7 +147,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
-          'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)', deprecated: true },
+          'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)', deprecated: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create (only if method is not direct)' },
           'method': {
             alias: 'm',
@@ -253,7 +253,7 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: false,
         },
         options: {
-          'execute': { type: 'boolean', desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)', default: true },
+          'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'rollback': {
@@ -356,14 +356,21 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only diff requested stacks, don\'t include dependencies' },
           'context-lines': { type: 'number', desc: 'Number of context lines to include in arbitrary JSON diff rendering', default: 3, requiresArg: true },
-          'template': { type: 'string', desc: 'The path to the CloudFormation template to compare with', requiresArg: true },
+          'template': { type: 'string', desc: 'The path to the CloudFormation template to compare with. Implies --method=template', requiresArg: true },
           'strict': { type: 'boolean', desc: 'Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule', default: false },
           'security-only': { type: 'boolean', desc: 'Only diff for broadened security changes', default: false },
           'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff' },
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
-          'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true },
-          'change-set-only': { type: 'boolean', desc: 'Only use changeset to compute the diff, fail if it cannot be created. Implies --change-set.', default: false },
+          'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
+          'method': {
+            alias: 'm',
+            type: 'string',
+            default: 'auto',
+            choices: ['auto', 'change-set', 'template'],
+            requiresArg: true,
+            desc: 'How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.',
+          },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
           'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
         },

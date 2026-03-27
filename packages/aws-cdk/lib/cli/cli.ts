@@ -325,8 +325,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
-          changeSet: args['change-set'],
-          changeSetOnly: args['change-set-only'],
+          method: determineDiffMethod(args),
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
@@ -648,6 +647,28 @@ function arrayFromYargs(xs: string[]): string[] | undefined {
     return undefined;
   }
   return xs.filter((x) => x !== '');
+}
+
+/**
+ * Resolve the diff method from CLI args.
+ * --method takes precedence, then deprecated --change-set, then --template implies template.
+ */
+function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
+  if (args.method && args.method !== 'auto') {
+    return args.method;
+  }
+
+  // Deprecated --no-change-set maps to template
+  if (args['change-set'] === false) {
+    return 'template';
+  }
+
+  // --template implies template
+  if (args.template) {
+    return 'template';
+  }
+
+  return 'auto';
 }
 
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {

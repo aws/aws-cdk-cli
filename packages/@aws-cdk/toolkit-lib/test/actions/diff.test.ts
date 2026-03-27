@@ -344,7 +344,7 @@ describe('diff', () => {
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/Could not create a change set, and --change-set-only is set/);
+      })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
     });
 
     test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {

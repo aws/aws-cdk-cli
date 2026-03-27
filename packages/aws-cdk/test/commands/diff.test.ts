@@ -95,7 +95,7 @@ describe('fixed template', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: undefined,
+      method: undefined,
       templatePath,
     });
 
@@ -188,7 +188,7 @@ describe('import existing resources', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: true,
+      method: 'auto',
       importExistingResources: true,
     });
 
@@ -226,7 +226,7 @@ Resources
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: true,
+      method: 'auto',
       importExistingResources: false,
     });
 
@@ -246,7 +246,7 @@ Resources
     expect(exitCode).toBe(0);
   });
 
-  test('when invoked with no changeSet flag', async () => {
+  test('when invoked with method=template', async () => {
     // WHEN
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
@@ -264,7 +264,7 @@ Resources
 
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: undefined,
+      method: 'template',
       importExistingResources: true,
     });
 
@@ -301,7 +301,7 @@ Resources
     await expect(async () => {
       await toolkit.diff({
         stackNames: ['A'],
-        changeSet: undefined,
+        method: undefined,
         templatePath: templatePath,
         importExistingResources: true,
       });
@@ -406,7 +406,7 @@ describe('imports', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: true,
+      method: 'auto',
     });
 
     // THEN
@@ -433,7 +433,7 @@ Resources
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      changeSet: true,
+      method: 'auto',
     });
 
     // THEN
@@ -730,13 +730,13 @@ describe('stack exists checks', () => {
     );
   });
 
-  test('diff does not check for stack existence when --no-change-set is passed', async () => {
+  test('diff does not check for stack existence with method=template', async () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
       fail: false,
       quiet: true,
-      changeSet: false,
+      method: 'template',
     });
 
     // THEN
@@ -754,7 +754,7 @@ describe('stack exists checks', () => {
       stackNames: ['A', 'A'],
       fail: false,
       quiet: true,
-      changeSet: true,
+      method: 'auto',
     });
 
     // THEN
@@ -763,7 +763,7 @@ describe('stack exists checks', () => {
     expect(createDiffChangeSet).toHaveBeenCalled();
   });
 
-  test('diff falls back to classic diff when stackExists call fails', async () => {
+  test('method=auto falls back to template diff when stackExists call fails', async () => {
     // GIVEN
     const stackExists = jest.spyOn(cloudFormation, 'stackExists');
     const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
@@ -777,7 +777,7 @@ describe('stack exists checks', () => {
       stackNames: ['A', 'A'],
       fail: false,
       quiet: true,
-      changeSet: true,
+      method: 'auto',
     });
 
     // THEN
@@ -786,7 +786,7 @@ describe('stack exists checks', () => {
     expect(createDiffChangeSet).not.toHaveBeenCalled();
   });
 
-  test('--change-set-only throws when stackExists call fails', async () => {
+  test('method=change-set throws when stackExists call fails', async () => {
     // GIVEN
     jest.spyOn(cloudFormation, 'stackExists').mockImplementation(() => {
       throw new Error('Fail fail fail');
@@ -795,11 +795,11 @@ describe('stack exists checks', () => {
     // WHEN / THEN
     await expect(toolkit.diff({
       stackNames: ['A'],
-      changeSetOnly: true,
+      method: 'change-set',
     })).rejects.toThrow(/Could not access stack 'A'/);
   });
 
-  test('--change-set-only creates changeset for new stacks', async () => {
+  test('method=change-set creates changeset for new stacks', async () => {
     // GIVEN
     jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(false));
     const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
@@ -807,23 +807,7 @@ describe('stack exists checks', () => {
     // WHEN
     await toolkit.diff({
       stackNames: ['A'],
-      changeSetOnly: true,
-    });
-
-    // THEN
-    expect(createDiffChangeSet).toHaveBeenCalled();
-  });
-
-  test('--change-set-only implies --change-set', async () => {
-    // GIVEN
-    jest.spyOn(cloudFormation, 'stackExists').mockReturnValue(Promise.resolve(true));
-    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
-
-    // WHEN
-    await toolkit.diff({
-      stackNames: ['A'],
-      changeSet: false,
-      changeSetOnly: true,
+      method: 'change-set',
     });
 
     // THEN
@@ -1098,7 +1082,7 @@ describe('nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      changeSet: false,
+      method: 'template',
     });
 
     // THEN
@@ -1162,7 +1146,7 @@ There were no differences`);
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      changeSet: true,
+      method: 'auto',
     });
 
     // THEN

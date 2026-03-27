@@ -315,7 +315,7 @@ export class CdkToolkit {
           removeNonImportResources(stack);
         }
 
-        const changeSet = (options.changeSet || options.changeSetOnly)
+        const changeSet = (options.method !== 'template')
           ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
           : undefined;
 
@@ -377,13 +377,13 @@ export class CdkToolkit {
         tryLookupRole: true,
       });
     } catch (e: any) {
-      if (options.changeSetOnly) {
-        throw ToolkitError.withCause('DescribeStacksFailed', `Could not access stack '${stack.stackName}'. Please check your permissions or remove the --change-set-only option to fall back to a template-only diff.`, e);
+      if (options.method === 'change-set') {
+        throw ToolkitError.withCause('DescribeStacksFailed', `Could not access stack '${stack.stackName}'. Please check your permissions or use '--method=auto' to allow falling back to a template diff.`, e);
       }
       await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
       if (!quiet) {
         await this.ioHost.asIoHelper().defaults.info(
-          `Could not access stack '${stack.stackName}', falling back to template-only diff. Use --change-set-only to fail instead. Run with -v to see the reason.\n`,
+          `Could not access stack '${stack.stackName}', falling back to template diff. Use '--method=change-set' to fail instead. Run with -v to see the reason.\n`,
         );
       }
       return undefined;
@@ -398,7 +398,7 @@ export class CdkToolkit {
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       resourcesToImport,
       importExistingResources: options.importExistingResources,
-      failOnError: options.changeSetOnly,
+      failOnError: options.method === 'change-set',
     });
   }
 
@@ -1629,19 +1629,14 @@ export interface DiffOptions {
   readonly parameters?: { [name: string]: string | undefined };
 
   /**
-   * Whether or not to create, analyze, and subsequently delete a changeset
+   * How to compute the diff.
+   * - 'change-set': always use a changeset, fail if it cannot be created
+   * - 'template': skip changeset, compare templates directly
+   * - 'auto': try changeset, fall back to template on failure
    *
-   * @default true
+   * @default 'auto'
    */
-  readonly changeSet?: boolean;
-
-  /**
-   * Only use changeset to compute the diff, fail if it cannot be created.
-   * Implies changeSet.
-   *
-   * @default false
-   */
-  readonly changeSetOnly?: boolean;
+  readonly method?: 'auto' | 'change-set' | 'template';
 
   /**
    * Whether or not the change set imports resources that already exist.

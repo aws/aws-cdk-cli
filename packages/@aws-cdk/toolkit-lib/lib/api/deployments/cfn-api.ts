@@ -195,9 +195,9 @@ export async function createDiffChangeSet(
   for (const resource of Object.values(options.stack.template.Resources ?? {})) {
     if ((resource as any).Type === 'AWS::CloudFormation::Stack') {
       if (options.failOnError) {
-        throw new ToolkitError('NestedStacksNotSupported', 'Changeset diff is not supported for stacks with nested stacks. Please remove the --change-set-only option to fall back to a template-only diff.');
+        throw new ToolkitError('NestedStacksNotSupported', 'Changeset diff is not supported for stacks with nested stacks. Please use \'--method=auto\' to allow falling back to a template diff.');
       }
-      await ioHelper.defaults.debug('This stack contains one or more nested stacks, falling back to template-only diff...');
+      await ioHelper.defaults.debug('This stack contains one or more nested stacks, falling back to template diff...');
 
       return undefined;
     }
@@ -252,7 +252,7 @@ async function uploadBodyParameterAndCreateChangeSet(
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
     await ioHelper.defaults.info(
-      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
+      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
     );
 
     return await createChangeSet(ioHelper, {
@@ -271,7 +271,7 @@ async function uploadBodyParameterAndCreateChangeSet(
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
     if (options.failOnError) {
-      throw ToolkitError.withCause('ChangeSetCreationFailed', 'Could not create a change set, and --change-set-only is set. Please check your permissions or remove the --change-set-only option to fall back to a template-only diff.', e);
+      throw ToolkitError.withCause('ChangeSetCreationFailed', 'Could not create a change set, and \'--method=change-set\' was specified. Please check your permissions or use \'--method=auto\' to allow falling back to a template diff.', e);
     }
 
     await ioHelper.defaults.debug(String(e));

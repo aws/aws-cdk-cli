@@ -1,7 +1,7 @@
 import { integTest, withDefaultFixture } from '../../../lib';
 
 integTest(
-  'cdk diff --change-set-only succeeds for deployed stack',
+  'cdk diff --method=change-set succeeds for deployed stack',
   withDefaultFixture(async (fixture) => {
     // GIVEN - deploy with one role
     await fixture.cdkDeploy('iam-roles', {
@@ -10,8 +10,8 @@ integTest(
       },
     });
 
-    // WHEN - diff with an additional role using --change-set-only
-    const diff = await fixture.cdk(['diff', '--change-set-only', fixture.fullStackName('iam-roles')], {
+    // WHEN - diff with an additional role using --method=change-set
+    const diff = await fixture.cdk(['diff', '--method=change-set', fixture.fullStackName('iam-roles')], {
       modEnv: {
         NUMBER_OF_ROLES: '2',
       },
