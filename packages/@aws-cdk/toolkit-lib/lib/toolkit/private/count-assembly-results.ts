@@ -25,4 +25,9 @@ function sum(xs: number[]) {
   return xs.reduce((a, b) => a + b, 0);
 }
 
+/**
+ * Well-known and agreed-upon value between aws-cdk-lib and the toolkit
+ *
+ * Do not change, obviously.
+ */
 const ANNOTATION_ERROR_CODE_TYPE = 'aws:cdk:error-code';
