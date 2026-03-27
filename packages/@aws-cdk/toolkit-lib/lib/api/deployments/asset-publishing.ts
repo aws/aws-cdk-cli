@@ -65,7 +65,6 @@ export async function publishAssets(
     publishInParallel: options.parallel ?? true,
     buildAssets: true,
     publishAssets: true,
-    quiet: false,
   });
   await publisher.publish({ allowCrossAccount: options.allowCrossAccount });
   if (publisher.hasFailures) {
@@ -136,7 +135,6 @@ export class PublishingAws implements IAws {
       env, // region, name, account
       assumeRuleArn: options.assumeRoleArn,
       assumeRoleExternalId: options.assumeRoleExternalId,
-      quiet: options.quiet,
     };
 
     if (options.assumeRoleAdditionalOptions) {
@@ -159,7 +157,6 @@ export class PublishingAws implements IAws {
           assumeRoleExternalId: options.assumeRoleExternalId,
           assumeRoleAdditionalOptions: options.assumeRoleAdditionalOptions,
         },
-        options.quiet,
       )
     ).sdk;
     this.sdkCache.set(cacheKey, sdk);

@@ -144,7 +144,6 @@ export class SdkProvider {
     environment: Environment,
     mode: Mode,
     options?: CredentialsOptions,
-    quiet = false,
   ): Promise<SdkForEnvironment> {
     const env = await this.resolveEnvironment(environment);
 
@@ -192,8 +191,7 @@ export class SdkProvider {
       if (baseCreds.source === 'correctDefault' || baseCreds.source === 'plugin') {
         await this.ioHelper.defaults.debug(err.message);
 
-        const level = quiet ? 'debug' : 'warn';
-        await this.ioHelper.defaults[level](
+        await this.ioHelper.defaults.warn(
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
         );
         return {
