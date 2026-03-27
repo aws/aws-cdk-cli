@@ -93,6 +93,52 @@ test('passes through deploymentMethod with hotswap to deployStack()', async () =
   );
 });
 
+test('prepareStack calls deployStack with execute: false and returns successful result', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN
+  const result = await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', changeSetName: 'my-cs' },
+  });
+
+  // THEN
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deploymentMethod: { method: 'change-set', changeSetName: 'my-cs', execute: false },
+    }),
+    expect.anything(),
+  );
+  expect(result).toEqual(expect.objectContaining({
+    type: 'did-deploy-stack',
+    noOp: false,
+    changeSet: { Status: 'CREATE_COMPLETE' },
+  }));
+});
+
+test('prepareStack returns undefined for non-success results', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'replacement-requires-rollback',
+  });
+
+  // WHEN
+  const result = await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+  });
+
+  // THEN
+  expect(result).toBeUndefined();
+});
+
 test('placeholders are substituted in CloudFormation execution role', async () => {
   await deployments.deployStack({
     stack: testStack({

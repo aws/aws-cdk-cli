@@ -1,3 +1,4 @@
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export type DeployStackResult =
@@ -12,6 +13,12 @@ export interface SuccessfulDeployStackResult {
   readonly noOp: boolean;
   readonly outputs: { [name: string]: string };
   readonly stackArn: string;
+
+  /**
+   * The change set that was created during deployment, if any.
+   * Populated when using `change-set` deployment method with `execute: false`.
+   */
+  readonly changeSet?: DescribeChangeSetCommandOutput;
 }
 
 /** The stack is currently in a failpaused state, and needs to be rolled back before the deployment */
