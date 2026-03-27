@@ -585,8 +585,6 @@ export class CdkToolkit {
             reuseAssets: options.reuseAssets,
             notificationArns,
             tags,
-            execute: options.execute,
-            changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
             forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
@@ -594,7 +592,6 @@ export class CdkToolkit {
             rollback,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
-            ignoreNoStacks: options.ignoreNoStacks,
           });
 
           switch (r.type) {
@@ -1670,23 +1667,6 @@ interface CfnDeployOptions {
    * Role to pass to CloudFormation for deployment
    */
   roleArn?: string;
-
-  /**
-   * Optional name to use for the CloudFormation change set.
-   * If not provided, a name will be generated automatically.
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  changeSetName?: string;
-
-  /**
-   * Whether to execute the ChangeSet
-   * Not providing `execute` parameter will result in execution of ChangeSet
-   *
-   * @default true
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  execute?: boolean;
 
   /**
    * Deployment method

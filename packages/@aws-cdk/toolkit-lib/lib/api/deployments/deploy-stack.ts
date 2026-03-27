@@ -34,7 +34,7 @@ import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { EnvironmentResourcesRegistry } from '../environment';
-import { HotswapPropertyOverrides, HotswapMode, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
+import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
@@ -161,24 +161,6 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
-   *
-   * @deprecated  Use 'deploymentMethod' instead
-   */
-  readonly hotswap?: HotswapMode;
-
-  /**
-   * Extra properties that configure hotswap behavior
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
-
-  /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
    * @default - Nothing extra is appended to the User-Agent header
@@ -211,28 +193,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const stackEnv = options.resolvedEnvironment;
 
   let deploymentMethod = options.deploymentMethod ?? { method: 'change-set' };
-  // Honor the old hotswap option because this API is exported from the CLI as part of the legacy exports
-  // @TODO remove when we don't have legacy exports anymore
-  if (options.hotswap && deploymentMethod?.method !== 'hotswap') {
-    switch (options.hotswap) {
-      case HotswapMode.HOTSWAP_ONLY:
-        deploymentMethod = {
-          method: 'hotswap',
-          properties: options.hotswapPropertyOverrides,
-        };
-        break;
-      case HotswapMode.FALL_BACK:
-        deploymentMethod = {
-          method: 'hotswap',
-          properties: options.hotswapPropertyOverrides,
-          fallback: deploymentMethod,
-        };
-        break;
-      case HotswapMode.FULL_DEPLOYMENT:
-        break;
-    }
-  }
-
   options.sdk.appendCustomUserAgent(options.extraUserAgent);
   const cfn = options.sdk.cloudFormation();
   const deployName = options.deployName || stackArtifact.stackName;

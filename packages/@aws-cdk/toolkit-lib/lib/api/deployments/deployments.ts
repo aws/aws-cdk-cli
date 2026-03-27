@@ -30,7 +30,6 @@ import {
   makeBodyParameter,
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
-import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
@@ -86,22 +85,6 @@ export interface DeployStackOptions {
   readonly tags?: Tag[];
 
   /**
-   * Stage the change set but don't execute it
-   *
-   * @default true
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly execute?: boolean;
-
-  /**
-   * Optional name to use for the CloudFormation change set.
-   * If not provided, a name will be generated automatically.
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly changeSetName?: string;
-
-  /**
    * Select the deployment method (direct or using a change set)
    *
    * @default - Change set with default options
@@ -137,24 +120,6 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswap?: HotswapMode;
-
-  /**
-   * Properties that configure hotswap behavior
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
-
-  /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
    * @default - Nothing extra is appended to the User-Agent header
@@ -179,14 +144,6 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
-
-  /**
-   * Whether to deploy if the app contains no stacks.
-   *
-   * @deprecated this option seems to be unsed inside deployments
-   * @default false
-   */
-  readonly ignoreNoStacks?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -398,23 +355,6 @@ export class Deployments {
   }
 
   public async deployStack(options: DeployStackOptions): Promise<DeployStackResult> {
-    let deploymentMethod = options.deploymentMethod;
-    // Honor the old options because this API is exported from the CLI as part of the legacy exports
-    // @TODO remove when we don't have legacy exports anymore
-    if (options.changeSetName || options.execute !== undefined) {
-      if (deploymentMethod) {
-        throw new ToolkitError(
-          'ConflictingDeploymentOptions',
-          "You cannot supply both 'deploymentMethod' and 'changeSetName/execute'. Supply one or the other.",
-        );
-      }
-      deploymentMethod = {
-        method: 'change-set',
-        changeSetName: options.changeSetName,
-        execute: options.execute,
-      };
-    }
-
     const env = await this.envs.accessStackForMutableStackOperations(options.stack);
 
     // Do a verification of the bootstrap stack version
@@ -437,13 +377,11 @@ export class Deployments {
       reuseAssets: options.reuseAssets,
       envResources: env.resources,
       tags: options.tags,
-      deploymentMethod,
+      deploymentMethod: options.deploymentMethod,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
-      hotswap: options.hotswap,
-      hotswapPropertyOverrides: options.hotswapPropertyOverrides,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
