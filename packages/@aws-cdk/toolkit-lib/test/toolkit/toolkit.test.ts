@@ -5,10 +5,10 @@
  *  - Source Builders: Tests for the Cloud Assembly Source Builders are in `test/api/cloud-assembly/source-builder.test.ts`
  */
 
+import * as cdk from 'aws-cdk-lib';
 import * as chalk from 'chalk';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
-import * as cdk from 'aws-cdk-lib';
 
 const ioHost: TestIoHost = new TestIoHost();
 let toolkit: Toolkit;
@@ -95,10 +95,10 @@ test('outputs of assembly are measured', async () => {
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     data: expect.objectContaining({
       counters: expect.objectContaining({
-        "errorAnn:SomeErrorCode": 1,
-        "assemblies": 1,
-        "errorAnns": 1,
-        "stacks": 2,
+        'errorAnn:SomeErrorCode': 1,
+        'assemblies': 1,
+        'errorAnns': 1,
+        'stacks': 2,
       }),
     }),
   }));
