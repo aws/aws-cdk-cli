@@ -1,6 +1,6 @@
-import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
-import { IMessageSpan } from '../../api/io/private/span';
+import type { IMessageSpan } from '../../api/io/private/span';
 
 export function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
   const stacksRecursively = assembly.stacksRecursively;
