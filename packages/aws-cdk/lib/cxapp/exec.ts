@@ -1,4 +1,4 @@
-import * as childProcess from 'child_process';
+import * as path from 'path';
 import { format } from 'util';
 import { CloudAssembly } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
@@ -7,7 +7,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../lib/api-private';
 import type { SdkProvider, IReadLock } from '../api';
-import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings } from '../api';
+import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, execInChildProcess } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
@@ -20,6 +20,7 @@ export interface ExecProgramResult {
 /** Invokes the cloud executable and returns JSON output */
 export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: Configuration): Promise<ExecProgramResult> {
   const debugFn = (msg: string) => ioHelper.defaults.debug(msg);
+  let errorFile: string | undefined;
 
   const params = synthParametersFromSettings(config.settings);
 
@@ -43,7 +44,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   let app = config.settings.get(['app']);
   if (!app) {
-    throw new ToolkitError(`--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
+    throw new ToolkitError('AppRequired', `--app is required either in command-line, in ${PROJECT_CONFIG} or in ${USER_DEFAULTS}`);
   }
 
   // bypass "synth" if app points to a cloud assembly
@@ -67,27 +68,32 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   const outdir = config.settings.get(['output']);
   if (!outdir) {
-    throw new ToolkitError('unexpected: --output is required');
+    throw new ToolkitError('OutputRequired', 'unexpected: --output is required');
   }
   if (typeof outdir !== 'string') {
-    throw new ToolkitError(`--output takes a string, got ${JSON.stringify(outdir)}`);
+    throw new ToolkitError('OutputNotString', `--output takes a string, got ${JSON.stringify(outdir)}`);
   }
   try {
     await fs.mkdirp(outdir);
   } catch (error: any) {
-    throw new ToolkitError(`Could not create output directory ${outdir} (${error.message})`);
+    throw new ToolkitError('OutputDirCreateFailed', `Could not create output directory ${outdir} (${error.message})`);
   }
 
   await debugFn(`outdir: ${outdir}`);
 
   env[cxapi.OUTDIR_ENV] = outdir;
 
-  // Acquire a lock on the output directory
-  const writerLock = await new RWLock(outdir).acquireWrite();
-
   // Send version information
   env[cxapi.CLI_ASM_VERSION_ENV] = cxschema.Manifest.version();
   env[cxapi.CLI_VERSION_ENV] = versionNumber();
+
+  // Acquire a lock on the output directory
+  const writerLock = await new RWLock(outdir).acquireWrite();
+
+  // Prepare an errorFile location
+  errorFile = path.join(outdir, 'error.txt');
+  await fs.promises.rm(errorFile, { force: true });
+  env.CDK_ERROR_FILE = errorFile;
 
   await debugFn(format('env:', env));
 
@@ -107,36 +113,12 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   async function exec(commandAndArgs: string) {
     try {
-      await new Promise<void>((ok, fail) => {
-        // We use a slightly lower-level interface to:
-        //
-        // - Pass arguments in an array instead of a string, to get around a
-        //   number of quoting issues introduced by the intermediate shell layer
-        //   (which would be different between Linux and Windows).
-        //
-        // - Inherit stderr from controlling terminal. We don't use the captured value
-        //   anyway, and if the subprocess is printing to it for debugging purposes the
-        //   user gets to see it sooner. Plus, capturing doesn't interact nicely with some
-        //   processes like Maven.
-        const proc = childProcess.spawn(commandAndArgs, {
-          stdio: ['ignore', 'inherit', 'inherit'],
-          detached: false,
-          shell: true,
-          env: {
-            ...process.env,
-            ...env,
-          },
-        });
-
-        proc.on('error', fail);
-
-        proc.on('exit', code => {
-          if (code === 0) {
-            return ok();
-          } else {
-            return fail(new ToolkitError(`${commandAndArgs}: Subprocess exited with error ${code}`));
-          }
-        });
+      return await execInChildProcess(commandAndArgs, {
+        env: {
+          ...process.env,
+          ...env,
+        },
+        errorCodeFile: errorFile,
       });
     } catch (e: any) {
       await debugFn(`failed command: ${commandAndArgs}`);
@@ -158,7 +140,7 @@ export function createAssembly(appDir: string) {
     if (error.message.includes(cxschema.VERSION_MISMATCH)) {
       // this means the CLI version is too old.
       // we instruct the user to upgrade.
-      throw new ToolkitError(`This CDK CLI is not compatible with the CDK library used by your application. Please upgrade the CLI to the latest version.\n(${error.message})`);
+      throw new ToolkitError('CliVersionMismatch', `This CDK CLI is not compatible with the CDK library used by your application. Please upgrade the CLI to the latest version.\n(${error.message})`);
     }
     throw error;
   }

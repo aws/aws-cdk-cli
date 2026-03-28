@@ -111,7 +111,7 @@ export async function refreshStacks(props: RefreshStacksProps) {
       props.activeAssets.rememberStack(stack);
     }
   } catch (err) {
-    throw new ToolkitError(`Error refreshing stacks: ${err}`);
+    throw new ToolkitError('StackRefreshFailed', `Error refreshing stacks: ${err}`);
   }
 }
 
@@ -198,7 +198,7 @@ export class BackgroundStackRefresh {
     // We will wait for the latest refresh to land or reject if it takes too long
     return Promise.race([
       new Promise(resolve => this.queuedPromises.push(resolve)),
-      new Promise((_, reject) => setTimeout(() => reject(new ToolkitError('refreshStacks took too long; the background thread likely threw an error')), ms)),
+      new Promise((_, reject) => setTimeout(() => reject(new ToolkitError('StackRefreshTimeout', 'refreshStacks took too long; the background thread likely threw an error')), ms)),
     ]);
   }
 

@@ -2,8 +2,6 @@ import { existsSync } from 'fs';
 import * as path from 'path';
 import { integTest, withSamIntegrationFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'CDK synth bundled functions as expected',
   withSamIntegrationFixture(async (fixture) => {

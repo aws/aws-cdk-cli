@@ -87,14 +87,14 @@ export async function provideContextValues(
       const plugin = pluginHost.contextProviderPlugins[providerName.substring(PLUGIN_PROVIDER_PREFIX.length + 1)];
       if (!plugin) {
         // eslint-disable-next-line @stylistic/max-len
-        throw new ContextProviderError(`Unrecognized plugin context provider name: ${missingContext.provider}.`);
+        throw new ContextProviderError('UnrecognizedPlugin', `Unrecognized plugin context provider name: ${missingContext.provider}.`);
       }
       factory = () => plugin;
     } else {
       factory = availableContextProviders[providerName];
       if (!factory) {
         // eslint-disable-next-line @stylistic/max-len
-        throw new ContextProviderError(`Unrecognized context provider name: ${missingContext.provider}. You might need to update the toolkit to match the version of the construct library.`);
+        throw new ContextProviderError('UnrecognizedProvider', `Unrecognized context provider name: ${missingContext.provider}. You might need to update the toolkit to match the version of the construct library.`);
       }
     }
 

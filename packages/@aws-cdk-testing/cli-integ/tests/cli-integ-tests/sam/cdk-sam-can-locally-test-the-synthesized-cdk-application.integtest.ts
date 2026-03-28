@@ -1,7 +1,5 @@
 import { integTest, withSamIntegrationFixture, randomInteger } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'sam can locally test the synthesized cdk application',
   withSamIntegrationFixture(async (fixture) => {

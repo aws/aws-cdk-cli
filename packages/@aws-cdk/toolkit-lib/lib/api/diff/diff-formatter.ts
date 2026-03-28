@@ -268,7 +268,7 @@ export class DiffFormatter {
       // detect and filter out mangled characters from the diff
       if (diff.differenceCount && !options.strict) {
         const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(this.newTemplate.template)));
-        const mangledDiff = fullDiff(this.oldTemplate, mangledNewTemplate, this.changeSet);
+        const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, this.changeSet);
         filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
         if (filteredChangesCount > 0) {
           diff = mangledDiff;

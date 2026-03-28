@@ -9,6 +9,7 @@ import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-inte
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
+import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
@@ -316,6 +317,10 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+);
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
@@ -491,6 +496,9 @@ const cloudFormationDiff = configureProject(
     devDeps: [
       'fast-check',
     ],
+    peerDependencyOptions: {
+      pinnedDevDependency: false,
+    },
     peerDeps: [
       sdkDepForLib('@aws-sdk/client-cloudformation'),
     ],
@@ -1195,6 +1203,7 @@ const cli = configureProject(
       '@aws-sdk/client-sfn',
       '@aws-sdk/client-ssm',
       '@aws-sdk/client-sts',
+      '@smithy/smithy-client',
       '@aws-sdk/credential-providers',
       '@aws-sdk/ec2-metadata-service',
       '@aws-sdk/lib-storage',
@@ -1328,47 +1337,20 @@ cli.gitignore.addPatterns(
   '!lib/init-templates/**',
 );
 
-// People should not have imported from the `aws-cdk` package, but they have in the past.
-// We have identified all locations that are currently used, are maintaining a backwards compat
-// layer for those. Future imports will be rejected.
+// We are exporting some metadata from the CLI to make it more accessible for users.
+// Beyond that, this is a CLI package and users MUST NOT use the code directly.
+// Instead, they should use @aws-cdk/toolkit-lib.
 cli.package.addField('exports', {
-  // package.json is always reasonable
   './package.json': './package.json',
   './build-info.json': './build-info.json',
-  // The rest is legacy
-  '.': './lib/legacy-exports.js',
+
+  // Required for some node setups, though unclear why exactly.
+  // @see https://github.com/aws/aws-cdk-cli/issues/1263
   './bin/cdk': './bin/cdk',
+
+  // We are keeping the historic bootstrap-template.yaml import path.
+  // This could probably be handled better, but is good enough and easy to maintain.
   './lib/api/bootstrap/bootstrap-template.yaml': './lib/api/bootstrap/bootstrap-template.yaml',
-  './lib/util': './lib/legacy-exports.js',
-  './lib': './lib/legacy-exports.js',
-  './lib/api/plugin': './lib/legacy-exports.js',
-  './lib/util/content-hash': './lib/legacy-exports.js',
-  './lib/settings': './lib/legacy-exports.js',
-  './lib/api/bootstrap': './lib/legacy-exports.js',
-  './lib/api/cxapp/cloud-assembly': './lib/legacy-exports.js',
-  './lib/api/cxapp/cloud-executable': './lib/legacy-exports.js',
-  './lib/api/cxapp/exec': './lib/legacy-exports.js',
-  './lib/diff': './lib/legacy-exports.js',
-  './lib/api/util/string-manipulation': './lib/legacy-exports.js',
-  './lib/util/console-formatters': './lib/legacy-exports.js',
-  './lib/util/tracing': './lib/legacy-exports.js',
-  './lib/commands/docs': './lib/legacy-exports.js',
-  './lib/api/hotswap/common': './lib/legacy-exports.js',
-  './lib/util/objects': './lib/legacy-exports.js',
-  './lib/api/deployments': './lib/legacy-exports.js',
-  './lib/util/directories': './lib/legacy-exports.js',
-  './lib/version': './lib/legacy-exports.js',
-  './lib/init': './lib/legacy-exports.js',
-  './lib/api/aws-auth/cached': './lib/legacy-exports.js',
-  './lib/api/deploy-stack': './lib/legacy-exports.js',
-  './lib/api/evaluate-cloudformation-template': './lib/legacy-exports.js',
-  './lib/api/aws-auth/credential-plugins': './lib/legacy-exports.js',
-  './lib/api/aws-auth/awscli-compatible': './lib/legacy-exports.js',
-  './lib/notices': './lib/legacy-exports.js',
-  './lib/index': './lib/legacy-exports.js',
-  './lib/api/aws-auth/index.js': './lib/legacy-exports.js',
-  './lib/api/aws-auth': './lib/legacy-exports.js',
-  './lib/logging': './lib/legacy-exports.js',
 });
 
 cli.gitignore.addPatterns('build-info.json');
@@ -1574,7 +1556,7 @@ const cliInteg = configureProject(
       'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
-      'jest-junit@^15',
+      'jest-junit@^16',
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',
@@ -1703,10 +1685,12 @@ new CdkCliIntegTestsWorkflow(repo, {
     toolkitLib,
 
     // The `tool-integrations` job installs the amplify-cli package,
-    // which depends on @aws-cdk/cloudformation-diff as a transitive dependency through toolkit-lib
+    // which depends on @aws-cdk/cloudformation-diff and @aws-cdk/cloud-assembly-api
+    // as a transitive dependency through toolkit-lib.
     // Since we are not enforcing the use of the local version of toolkit-lib in this test,
-    // it might attempt to install a version of @aws-cdk/cloudformation-diff that's not locally available.
+    // it might attempt to install a version of these that's not locally available.
     cloudFormationDiff,
+    cloudAssemblyApi,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',
@@ -1726,6 +1710,7 @@ new CodeCovWorkflow(repo, {
 });
 
 new IssueLabeler(repo);
+new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {

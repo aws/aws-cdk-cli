@@ -131,14 +131,14 @@ export class ResourceGraph {
 
   public inNeighbors(node: string): string[] {
     if (!(node in this.edges)) {
-      throw new ToolkitError(`Node ${node} not found in the graph`);
+      throw new ToolkitError('RefactorGraphNodeNotFound', `Node ${node} not found in the graph`);
     }
     return Array.from(this.reverseEdges[node] || []);
   }
 
   public outNeighbors(node: string): string[] {
     if (!(node in this.edges)) {
-      throw new ToolkitError(`Node ${node} not found in the graph`);
+      throw new ToolkitError('RefactorGraphNodeNotFound', `Node ${node} not found in the graph`);
     }
     return Array.from(this.edges[node] || []);
   }

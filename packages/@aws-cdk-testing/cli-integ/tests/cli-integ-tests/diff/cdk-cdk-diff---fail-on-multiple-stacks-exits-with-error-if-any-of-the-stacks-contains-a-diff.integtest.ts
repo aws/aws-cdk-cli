@@ -1,7 +1,5 @@
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'cdk diff --fail on multiple stacks exits with error if any of the stacks contains a diff',
   withDefaultFixture(async (fixture) => {

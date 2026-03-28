@@ -244,7 +244,7 @@ export class ResourceImporter {
       if (allowNonAdditions) {
         await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
       } else {
-        throw new ToolkitError('No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
+        throw new ToolkitError('ImportNonAdditionChanges', 'No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
           `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
       }
     }

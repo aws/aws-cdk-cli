@@ -113,61 +113,108 @@ describe('stack monitor event ordering and pagination', () => {
 describe('stack monitor, collecting errors from events', () => {
   test('return errors from the root stack', async () => {
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
-      StackEvents: [addErrorToStackEvent(event(100))],
+      StackEvents: [errorEvent(100)],
     });
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.errors).toStrictEqual(['Test Error']);
+    expect(monitor.allErrorMessages).toStrictEqual(['Test Error']);
   });
 
-  test('return errors from the nested stack', async () => {
-    mockCloudFormationClient
-      .on(DescribeStackEventsCommand)
-      .resolvesOnce({
-        StackEvents: [
-          addErrorToStackEvent(event(102), {
-            logicalResourceId: 'nestedStackLogicalResourceId',
-            physicalResourceId: 'nestedStackPhysicalResourceId',
-            resourceType: 'AWS::CloudFormation::Stack',
-            resourceStatusReason: 'nested stack failed',
-            resourceStatus: ResourceStatus.UPDATE_FAILED,
-          }),
-          addErrorToStackEvent(event(100), {
-            logicalResourceId: 'nestedStackLogicalResourceId',
-            physicalResourceId: 'nestedStackPhysicalResourceId',
-            resourceType: 'AWS::CloudFormation::Stack',
-            resourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
-          }),
-        ],
-      })
-      .resolvesOnce({
-        StackEvents: [
-          addErrorToStackEvent(event(101), {
-            logicalResourceId: 'nestedResource',
-            resourceType: 'Some::Nested::Resource',
-            resourceStatusReason: 'actual failure error message',
-          }),
-        ],
-      });
+  test('find error code in the root stack', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [errorEvent(100, {
+        resourceStatusReason: 'Test Error (Error Code: OhNo)',
+      })],
+    });
 
-    await eventually(
-      () =>
-        expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(1, DescribeStackEventsCommand, {
-          StackName: 'StackName',
-        }),
-      2,
-    );
-
-    await eventually(
-      () =>
-        expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(2, DescribeStackEventsCommand, {
-          StackName: 'nestedStackPhysicalResourceId',
-        }),
-      2,
-    );
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.errors).toStrictEqual(['actual failure error message', 'nested stack failed']);
+    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:OhNo');
+  });
+
+  test('errors without a clear regex match are reported as unknown', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [errorEvent(100)],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:UnknownError');
+  });
+
+  test('error code does not include resource type for non-AWS resources', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [errorEvent(100, {
+        resourceType: 'Private::Resource::Type',
+      })],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+    expect(monitor.rootCauseErrorCode).toStrictEqual('PrivateResourceError');
+  });
+
+  describe('return errors from the nested stack', () => {
+    beforeEach(() => {
+      mockCloudFormationClient
+        .on(DescribeStackEventsCommand)
+        .resolvesOnce({
+          StackEvents: [
+            errorEvent(102, {
+              logicalResourceId: 'nestedStackLogicalResourceId',
+              physicalResourceId: 'nestedStackPhysicalResourceId',
+              resourceType: 'AWS::CloudFormation::Stack',
+              resourceStatusReason: 'nested stack failed',
+              resourceStatus: ResourceStatus.UPDATE_FAILED,
+            }),
+            errorEvent(100, {
+              logicalResourceId: 'nestedStackLogicalResourceId',
+              physicalResourceId: 'nestedStackPhysicalResourceId',
+              resourceType: 'AWS::CloudFormation::Stack',
+              resourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+            }),
+          ],
+        })
+        .resolvesOnce({
+          StackEvents: [
+            errorEvent(101, {
+              logicalResourceId: 'nestedResource',
+              resourceType: 'AWS::Nested::Resource',
+              resourceStatusReason: 'actual failure error message (Error Code: Explosion)',
+            }),
+          ],
+        });
+    });
+
+    async function monitorSettled() {
+      await eventually(
+        () =>
+          expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(1, DescribeStackEventsCommand, {
+            StackName: 'StackName',
+          }),
+        2,
+      );
+
+      await eventually(
+        () =>
+          expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(2, DescribeStackEventsCommand, {
+            StackName: 'nestedStackPhysicalResourceId',
+          }),
+        2,
+      );
+      await monitor.stop();
+    }
+
+    test('error message', async() => {
+      await monitorSettled();
+      expect(monitor.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
+    });
+
+    test('error code', async() => {
+      await monitorSettled();
+      expect(monitor.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
+    });
   });
 
   test('does not consider events without physical resource id for monitoring nested stacks', async () => {
@@ -175,7 +222,7 @@ describe('stack monitor, collecting errors from events', () => {
       .on(DescribeStackEventsCommand)
       .resolvesOnce({
         StackEvents: [
-          addErrorToStackEvent(event(100), {
+          errorEvent(100, {
             logicalResourceId: 'nestedStackLogicalResourceId',
             physicalResourceId: '',
             resourceType: 'AWS::CloudFormation::Stack',
@@ -186,7 +233,7 @@ describe('stack monitor, collecting errors from events', () => {
       })
       .resolvesOnce({
         StackEvents: [
-          addErrorToStackEvent(event(101), {
+          errorEvent(101, {
             logicalResourceId: 'OtherResource',
             resourceType: 'Some::Other::Resource',
             resourceStatusReason: 'some failure',
@@ -197,7 +244,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.errors).toStrictEqual(['nested stack failed', 'some failure']);
+    expect(monitor.allErrorMessages).toStrictEqual(['some failure']);
     expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(1, DescribeStackEventsCommand, {
       StackName: 'StackName',
     });
@@ -210,7 +257,7 @@ describe('stack monitor, collecting errors from events', () => {
   test('does not check for nested stacks that have already completed successfully', async () => {
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
       StackEvents: [
-        addErrorToStackEvent(event(100), {
+        errorEvent(100, {
           logicalResourceId: 'nestedStackLogicalResourceId',
           physicalResourceId: 'nestedStackPhysicalResourceId',
           resourceType: 'AWS::CloudFormation::Stack',
@@ -223,7 +270,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.errors).toStrictEqual([]);
+    expect(monitor.allErrorMessages).toStrictEqual([]);
   });
 });
 
@@ -241,6 +288,10 @@ function event(nr: number): StackEvent {
   };
 }
 
+function errorEvent(nr: number, props?: Parameters<typeof addErrorToStackEvent>[1]) {
+  return addErrorToStackEvent(event(nr), props);
+}
+
 function addErrorToStackEvent(
   eventToUpdate: StackEvent,
   props: {
@@ -252,7 +303,7 @@ function addErrorToStackEvent(
   } = {},
 ): StackEvent {
   eventToUpdate.ResourceStatus = props.resourceStatus ?? ResourceStatus.UPDATE_FAILED;
-  eventToUpdate.ResourceType = props.resourceType ?? 'Test::Resource::Type';
+  eventToUpdate.ResourceType = props.resourceType ?? 'AWS::Resource::Type';
   eventToUpdate.ResourceStatusReason = props.resourceStatusReason ?? 'Test Error';
   eventToUpdate.LogicalResourceId = props.logicalResourceId ?? 'testLogicalId';
   eventToUpdate.PhysicalResourceId = props.physicalResourceId ?? 'testPhysicalResourceId';

@@ -14,10 +14,10 @@ export async function execNpmView(currentVersion: string) {
     ]);
 
     if (latestResult.stderr && latestResult.stderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for latest version failed: ${latestResult.stderr.trim()}`);
+      throw new ToolkitError('NpmViewLatestFailed', `npm view command for latest version failed: ${latestResult.stderr.trim()}`);
     }
     if (currentResult.stderr && currentResult.stderr.trim().length > 0) {
-      throw new ToolkitError(`npm view command for current version failed: ${currentResult.stderr.trim()}`);
+      throw new ToolkitError('NpmViewCurrentFailed', `npm view command for current version failed: ${currentResult.stderr.trim()}`);
     }
 
     const latestVersion = latestResult.stdout;

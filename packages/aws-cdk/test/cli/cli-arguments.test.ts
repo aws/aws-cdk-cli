@@ -61,6 +61,7 @@ describe('yargs', () => {
         previousParameters: true,
         progress: undefined,
         requireApproval: undefined,
+        revertDrift: false,
         rollback: false,
         tags: undefined,
         toolkitStackName: undefined,

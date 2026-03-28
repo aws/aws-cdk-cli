@@ -53,6 +53,10 @@ export function withAws<A extends TestContext>(
   block: (context: A & AwsContext & DisableBootstrapContext) => Promise<void>,
   options: AwsContextOptions = {},
 ): (context: A) => Promise<void> {
+  // Set a high Jest timeout because it includes the time waiting for locks; account for worst-case single-threaded runtime.
+  // This is not the actual test execution time. The effective test timeout is handled by withTimeout().
+  jest.setTimeout(2 * 60 * 60_000);
+
   return async (context: A) => {
     const disableBootstrap = options.disableBootstrap ?? false;
 

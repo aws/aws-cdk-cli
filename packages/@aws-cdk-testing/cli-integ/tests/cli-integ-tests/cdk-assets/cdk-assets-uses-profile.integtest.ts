@@ -3,8 +3,6 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('cdk-assets uses profile when specified', withDefaultFixture(async (fixture) => {
   const currentCreds = await fixture.aws.credentials();
 

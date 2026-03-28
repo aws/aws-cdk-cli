@@ -16,7 +16,7 @@ import { determineAllowCrossAccountAssetPublishing } from './checks';
 import { deployStack, destroyStack } from './deploy-stack';
 import type { DeployStackResult } from './deployment-result';
 import type { DeploymentMethod } from '../../actions/deploy';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
 import type {
@@ -30,7 +30,6 @@ import {
   makeBodyParameter,
 } from '../cloudformation';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
-import type { HotswapMode, HotswapPropertyOverrides } from '../hotswap/common';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
@@ -86,22 +85,6 @@ export interface DeployStackOptions {
   readonly tags?: Tag[];
 
   /**
-   * Stage the change set but don't execute it
-   *
-   * @default true
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly execute?: boolean;
-
-  /**
-   * Optional name to use for the CloudFormation change set.
-   * If not provided, a name will be generated automatically.
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly changeSetName?: string;
-
-  /**
    * Select the deployment method (direct or using a change set)
    *
    * @default - Change set with default options
@@ -137,24 +120,6 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * Whether to perform a 'hotswap' deployment.
-   * A 'hotswap' deployment will attempt to short-circuit CloudFormation
-   * and update the affected resources like Lambda functions directly.
-   *
-   * @default - `HotswapMode.FULL_DEPLOYMENT` for regular deployments, `HotswapMode.HOTSWAP_ONLY` for 'watch' deployments
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswap?: HotswapMode;
-
-  /**
-   * Properties that configure hotswap behavior
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  readonly hotswapPropertyOverrides?: HotswapPropertyOverrides;
-
-  /**
    * The extra string to append to the User-Agent header when performing AWS SDK calls.
    *
    * @default - Nothing extra is appended to the User-Agent header
@@ -179,14 +144,6 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
-
-  /**
-   * Whether to deploy if the app contains no stacks.
-   *
-   * @deprecated this option seems to be unsed inside deployments
-   * @default false
-   */
-  readonly ignoreNoStacks?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -398,22 +355,6 @@ export class Deployments {
   }
 
   public async deployStack(options: DeployStackOptions): Promise<DeployStackResult> {
-    let deploymentMethod = options.deploymentMethod;
-    // Honor the old options because this API is exported from the CLI as part of the legacy exports
-    // @TODO remove when we don't have legacy exports anymore
-    if (options.changeSetName || options.execute !== undefined) {
-      if (deploymentMethod) {
-        throw new ToolkitError(
-          "You cannot supply both 'deploymentMethod' and 'changeSetName/execute'. Supply one or the other.",
-        );
-      }
-      deploymentMethod = {
-        method: 'change-set',
-        changeSetName: options.changeSetName,
-        execute: options.execute,
-      };
-    }
-
     const env = await this.envs.accessStackForMutableStackOperations(options.stack);
 
     // Do a verification of the bootstrap stack version
@@ -436,13 +377,11 @@ export class Deployments {
       reuseAssets: options.reuseAssets,
       envResources: env.resources,
       tags: options.tags,
-      deploymentMethod,
+      deploymentMethod: options.deploymentMethod,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
-      hotswap: options.hotswap,
-      hotswapPropertyOverrides: options.hotswapPropertyOverrides,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
@@ -453,7 +392,7 @@ export class Deployments {
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
     let resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
     if (options.orphanFailedResources && resourcesToSkip.length > 0) {
-      throw new ToolkitError('Cannot combine --force with --orphan');
+      throw new ToolkitError('ConflictingRollbackOptions', 'Cannot combine --force with --orphan');
     }
 
     const env = await this.envs.accessStackForMutableStackOperations(options.stack);
@@ -526,7 +465,7 @@ export class Deployments {
           return { stackArn, notInRollbackableState: true };
 
         default:
-          throw new ToolkitError(`Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
+          throw new ToolkitError('UnexpectedRollbackChoice', `Unexpected rollback choice: ${cloudFormationStack.stackStatus.rollbackChoice}`);
       }
 
       const monitor = new StackActivityMonitor({
@@ -544,16 +483,16 @@ export class Deployments {
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
-          throw new ToolkitError('Stack deploy failed (the stack disappeared while we were rolling it back)');
+          throw new ToolkitError('StackDisappeared', 'Stack deploy failed (the stack disappeared while we were rolling it back)');
         }
         finalStackState = successStack;
 
-        const errors = monitor.errors.join(', ');
+        const errors = monitor.allErrorMessages.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages);
       } finally {
         await monitor.stop();
       }
@@ -568,11 +507,13 @@ export class Deployments {
         continue;
       }
 
-      throw new ToolkitError(
+      throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
+        monitor.rootCauseErrorCode ?? 'RollbackFailed',
       );
     }
     throw new ToolkitError(
+      'RollbackStalled',
       "Rollback did not finish after a large number of iterations; stopping because it looks like we're not making progress anymore. You can retry if rollback was progressing as expected.",
     );
   }
@@ -628,7 +569,7 @@ export class Deployments {
     const publisher = this.cachedPublisher(assetManifest, resolvedEnvironment, options.stackName);
     await publisher.buildEntry(asset);
     if (publisher.hasFailures) {
-      throw new ToolkitError(`Failed to build asset ${asset.displayName(false)}`);
+      throw new ToolkitError('AssetBuildFailed', `Failed to build asset ${asset.displayName(false)}`);
     }
   }
 
@@ -649,7 +590,7 @@ export class Deployments {
       force: options.forcePublish,
     });
     if (publisher.hasFailures) {
-      throw ToolkitError.withCause(`Failed to publish asset ${asset.displayName(true)}`, new AggregateError(publisher.failures.map(f => f.error)));
+      throw ToolkitError.withCause('AssetPublishFailed', `Failed to publish asset ${asset.displayName(true)}`, new AggregateError(publisher.failures.map(f => f.error)));
     }
   }
 
@@ -688,7 +629,7 @@ export class Deployments {
     try {
       await envResources.validateVersion(requiresBootstrapStackVersion, bootstrapStackVersionSsmParameter);
     } catch (e: any) {
-      throw new ToolkitError(`${stackName}: ${formatErrorMessage(e)}`);
+      throw new ToolkitError('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`);
     }
   }
 

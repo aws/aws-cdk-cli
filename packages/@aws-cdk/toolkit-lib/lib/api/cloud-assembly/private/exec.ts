@@ -1,4 +1,5 @@
-import * as child_process from 'node:child_process';
+import * as child_process from 'child_process';
+import { readFileSync } from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import split = require('split2');
 import { AssemblyError } from '../../../toolkit/toolkit-error';
@@ -9,10 +10,13 @@ interface ExecOptions {
   eventPublisher?: EventPublisher;
   env?: { [key: string]: string | undefined };
   cwd?: string;
+  errorCodeFile?: string;
 }
 
 /**
  * Execute a command line in a child process
+ *
+ * Based on the errors it throws, this assumes the process it is executing is a CDK app.
  */
 export async function execInChildProcess(commandAndArgs: string, options: ExecOptions = {}) {
   return new Promise<void>((ok, fail) => {
@@ -60,19 +64,55 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       return eventPublisher('data_stderr', line);
     });
 
-    proc.on('error', fail);
+    proc.on('error', (e) => {
+      fail(AssemblyError.withCause(`Failed to execute CDK app: ${commandAndArgs}`, e));
+    });
 
     proc.on('exit', code => {
       if (code === 0) {
         return ok();
       } else {
+        const stdErrString = stderr.join('\n');
+
         let cause: Error | undefined;
         if (stderr.length) {
-          cause = new Error(stderr.join('\n'));
+          cause = new Error(stdErrString);
           cause.name = 'ExecutionError';
         }
-        return fail(AssemblyError.withCause(`${commandAndArgs}: Subprocess exited with error ${code}`, cause));
+
+        let error = AssemblyError.withCause(`${commandAndArgs}: Subprocess exited with error ${code}`, cause);
+
+        // Search for an error code, and throw that if we have it
+        if (options.errorCodeFile) {
+          const contents = tryReadFile(options.errorCodeFile);
+          if (contents) {
+            const errorInStdErr = contents
+              .split('\n')
+              .find(c => stdErrString.includes(`${SYNTH_ERROR_CODE_MARKERS[0]}${c}${SYNTH_ERROR_CODE_MARKERS[1]}`));
+
+            if (errorInStdErr) {
+              // Attach the synth error code. We don't need to change the message; the underlying error will already have been
+              // printed to stderr.
+              error.attachSynthesisErrorCode(errorInStdErr);
+            }
+          }
+        }
+
+        return fail(error);
       }
     });
   });
+}
+
+const SYNTH_ERROR_CODE_MARKERS = ['«', '»'];
+
+function tryReadFile(name: string): string | undefined {
+  try {
+    return readFileSync(name, 'utf-8');
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      return undefined;
+    }
+    throw e;
+  }
 }

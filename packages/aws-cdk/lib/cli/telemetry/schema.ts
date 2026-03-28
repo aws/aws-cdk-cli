@@ -24,7 +24,7 @@ interface SessionEvent {
   readonly command: Command;
 }
 
-export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY';
+export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY' | 'HOTSWAP';
 export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
 interface Event extends SessionEvent {
   readonly state: State;
@@ -38,6 +38,7 @@ export interface SessionEnvironment {
   };
   readonly ci: boolean;
   readonly nodeVersion: string;
+  readonly agent?: boolean;
 }
 
 interface Environment extends SessionEnvironment {
@@ -50,16 +51,8 @@ interface Duration {
 
 type Counters = { [key: string]: number };
 
-export enum ErrorName {
-  TOOLKIT_ERROR = 'ToolkitError',
-  AUTHENTICATION_ERROR = 'AuthenticationError',
-  ASSEMBLY_ERROR = 'AssemblyError',
-  CONTEXT_PROVIDER_ERROR = 'ContextProviderError',
-  UNKNOWN_ERROR = 'UnknownError',
-}
-
 export interface ErrorDetails {
-  readonly name: ErrorName;
+  readonly name: string;
   readonly message?: string; // sanitized stack message
   readonly stackTrace?: string; // sanitized stack trace
   readonly logs?: string; // sanitized stack logs
@@ -72,6 +65,7 @@ interface Dependency {
 
 interface SessionProject {
   readonly dependencies?: Dependency[];
+  readonly language?: string;
 }
 
 interface Project extends SessionProject {

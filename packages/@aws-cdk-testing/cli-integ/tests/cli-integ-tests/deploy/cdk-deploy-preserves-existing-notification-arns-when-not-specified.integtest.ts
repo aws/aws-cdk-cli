@@ -2,8 +2,6 @@ import { DescribeStacksCommand, UpdateStackCommand, waitUntilStackUpdateComplete
 import { CreateTopicCommand, DeleteTopicCommand } from '@aws-sdk/client-sns';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('deploy preserves existing notification arns when not specified', withDefaultFixture(async (fixture) => {
   const topicName = `${fixture.stackNamePrefix}-topic`;
 

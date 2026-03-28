@@ -1,8 +1,6 @@
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { integTest, withoutBootstrap, randomString } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'Garbage Collection keeps in use s3 objects',
   withoutBootstrap(async (fixture) => {

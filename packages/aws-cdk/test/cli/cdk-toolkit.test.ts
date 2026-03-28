@@ -194,6 +194,37 @@ describe('list', () => {
 });
 
 describe('deploy', () => {
+  test('sets requireDeployApproval on CliIoHost', async () => {
+    const toolkit = defaultToolkitSetup();
+    const requireApproval = RequireApproval.ANYCHANGE;
+    await toolkit.deploy({
+      selector: { patterns: ['**'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval,
+    });
+
+    expect(ioHost.requireDeployApproval).toEqual(requireApproval);
+  });
+
+  test('any-change approval shows stack diff when there are no security changes', async () => {
+    const toolkit = defaultToolkitSetup();
+    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // The confirmation prompt should use the non-security motivation and report no permission changes
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      message: expect.stringContaining("'any-change'"),
+      data: expect.objectContaining({
+        permissionChangeType: 'none',
+      }),
+    }));
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
@@ -685,6 +716,27 @@ describe('deploy', () => {
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
     });
+  });
+
+  test('emits resource counters', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-B'] },
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    const deploy = notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_CLI_I3001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
   });
 
   test('globless bootstrap uses environment without question', async () => {
@@ -1204,6 +1256,63 @@ describe('destroy', () => {
         fromDeploy: true,
       });
     }).resolves;
+  });
+
+  test('destroy with concurrency', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['*'] },
+      exclusively: false,
+      force: true,
+      concurrency: 5,
+    });
+  });
+
+  test('destroy respects dependency order with concurrency', async () => {
+    const stackC: TestStackArtifact = {
+      stackName: 'Test-Stack-C',
+      template: { Resources: { TemplateName: 'Test-Stack-C' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+    };
+    const stackD: TestStackArtifact = {
+      stackName: 'Test-Stack-D',
+      template: { Resources: { TemplateName: 'Test-Stack-D' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+      depends: [stackC.stackName],
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [stackC, stackD],
+    });
+
+    const destroyOrder: string[] = [];
+    const fakeDeployments = new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+      'Test-Stack-D': { Baz: 'Zinga!' },
+    });
+    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
+    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
+      destroyOrder.push(options.stack.stackName);
+      return originalDestroyStack(options);
+    };
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: fakeDeployments,
+    });
+
+    await toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] },
+      exclusively: false,
+      force: true,
+      concurrency: 10,
+    });
+
+    // stackD depends on stackC, so D must be destroyed before C
+    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
   });
 });
 
