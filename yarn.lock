@@ -20,21 +20,13 @@
     "@aws-cdk/service-spec-types" "^0.0.233"
     "@cdklabs/tskb" "^0.0.4"
 
-"@aws-cdk/cloud-assembly-api@^2.1.1", "@aws-cdk/cloud-assembly-api@^2.2.0":
+"@aws-cdk/cloud-assembly-api@^2.2.0":
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-api/-/cloud-assembly-api-2.2.1.tgz#43884b6637c002731115ff922bd256dd8b231ef5"
   integrity sha512-24ARpDQzF39UTickUgDH6RIs5otPG4aaKJZ93XUSNwiPSR9T+h7gXSF982+NZVYK+7SetQaqrVbm4lcF6dmXWw==
   dependencies:
     jsonschema "~1.4.1"
     semver "^7.7.4"
-
-"@aws-cdk/cloud-assembly-schema@^52.1.0":
-  version "52.2.0"
-  resolved "https://registry.yarnpkg.com/@aws-cdk/cloud-assembly-schema/-/cloud-assembly-schema-52.2.0.tgz#8e085198e5243c6791affb740146058adeb1e6a1"
-  integrity sha512-ourZjixQ/UfsZc7gdk3vt1eHBODMUjQTYYYCY3ZX8fiXyHtWNDAYZPrXUK96jpCC2fLP+tfHTJrBjZ563pmcEw==
-  dependencies:
-    jsonschema "~1.4.1"
-    semver "^7.7.3"
 
 "@aws-cdk/cloud-assembly-schema@^53.0.0":
   version "53.9.0"
@@ -5177,27 +5169,6 @@ available-typed-arrays@^1.0.7:
   integrity sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==
   dependencies:
     possible-typed-array-names "^1.0.0"
-
-aws-cdk-lib@2.244.0:
-  version "2.244.0"
-  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.244.0.tgz#db3b253279010676f54e07bb75cb5c644854875d"
-  integrity sha512-j5FVeZv5W+v6j6OnW8RjoN04T+8pYvDJJV7yXhhj4IiGDKPgMH3fflQLQXJousd2QQk+nSAjghDVJcrZ4GFyGA==
-  dependencies:
-    "@aws-cdk/asset-awscli-v1" "2.2.263"
-    "@aws-cdk/asset-node-proxy-agent-v6" "^2.1.1"
-    "@aws-cdk/cloud-assembly-api" "^2.1.1"
-    "@aws-cdk/cloud-assembly-schema" "^52.1.0"
-    "@balena/dockerignore" "^1.0.2"
-    case "1.6.3"
-    fs-extra "^11.3.3"
-    ignore "^5.3.2"
-    jsonschema "^1.5.0"
-    mime-types "^2.1.35"
-    minimatch "^10.2.3"
-    punycode "^2.3.1"
-    semver "^7.7.4"
-    table "^6.9.0"
-    yaml "1.10.2"
 
 aws-cdk-lib@2.245.0:
   version "2.245.0"
@@ -13679,11 +13650,6 @@ yaml@1, yaml@1.10.3, yaml@^1:
   version "1.10.3"
   resolved "https://registry.yarnpkg.com/yaml/-/yaml-1.10.3.tgz#76e407ed95c42684fb8e14641e5de62fe65bbcb3"
   integrity sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==
-
-yaml@1.10.2:
-  version "1.10.2"
-  resolved "https://registry.yarnpkg.com/yaml/-/yaml-1.10.2.tgz#2301c5ffbf12b467de8da2333a459e29e7920e4b"
-  integrity sha512-r3vXyErRCYJ7wg28yvBY5VSoAF8ZvlcW9/BwUzEtUsjvX/DKs24dIkuwjtuprwJJHsbyUbLApepYTR1BN4uHrg==
 
 yaml@^2.2.2, yaml@^2.6.0, yaml@^2.8.3:
   version "2.8.3"
