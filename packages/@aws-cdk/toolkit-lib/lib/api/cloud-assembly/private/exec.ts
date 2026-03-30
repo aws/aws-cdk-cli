@@ -45,10 +45,10 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
     const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
       switch (type) {
         case 'data_stdout':
-          process.stdout.write(line);
+          process.stdout.write(line + '\n');
           return;
         case 'data_stderr':
-          process.stderr.write(line);
+          process.stderr.write(line + '\n');
           return;
         case 'open':
         case 'close':
