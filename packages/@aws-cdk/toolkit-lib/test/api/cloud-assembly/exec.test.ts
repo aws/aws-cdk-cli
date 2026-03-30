@@ -9,11 +9,13 @@ describe('execInChildProcess', () => {
     const origStderrWrite = process.stderr.write.bind(process.stderr);
 
     process.stdout.write = ((chunk: any, ...args: any[]) => {
+      void args;
       stdoutWrites.push(String(chunk));
       return true;
     }) as any;
 
     process.stderr.write = ((chunk: any, ...args: any[]) => {
+      void args;
       stderrWrites.push(String(chunk));
       return true;
     }) as any;
