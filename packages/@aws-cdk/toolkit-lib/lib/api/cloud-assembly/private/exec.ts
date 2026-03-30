@@ -32,7 +32,12 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
       cwd: options.cwd,
-      env: options.env,
+      env: {
+        // On Windwows, Python will default to cp1252 when not connected to a terminal, but we
+        // expect it to be UTF-8 below (to be able to split on lines).
+        PYTHONIOENCODING: 'utf-8',
+        ...options.env,
+      },
 
       // We are using 'shell: true' on purprose. Traditionally we have allowed shell features in
       // this string, so we have to continue to do so into the future. On Windows, this is simply
@@ -45,10 +50,10 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
     const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
       switch (type) {
         case 'data_stdout':
-          process.stdout.write(line);
+          process.stdout.write(line + '\n');
           return;
         case 'data_stderr':
-          process.stderr.write(line);
+          process.stderr.write(line + '\n');
           return;
         case 'open':
         case 'close':

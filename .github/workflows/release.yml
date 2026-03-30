@@ -83,7 +83,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloud-assembly-schema
       - name: "@aws-cdk/cloud-assembly-schema: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: packages/@aws-cdk/cloud-assembly-schema/dist
@@ -95,7 +95,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloudformation-diff
       - name: "@aws-cdk/cloudformation-diff: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: packages/@aws-cdk/cloudformation-diff/dist
@@ -107,7 +107,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloud-assembly-api
       - name: "@aws-cdk/cloud-assembly-api: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-cloud-assembly-api_build-artifact
           path: packages/@aws-cdk/cloud-assembly-api/dist
@@ -119,7 +119,7 @@ jobs:
         working-directory: packages/@aws-cdk/cli-plugin-contract
       - name: "@aws-cdk/cli-plugin-contract: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: packages/@aws-cdk/cli-plugin-contract/dist
@@ -131,7 +131,7 @@ jobs:
         working-directory: packages/@aws-cdk/cdk-assets-lib
       - name: "@aws-cdk/cdk-assets-lib: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-cdk-assets-lib_build-artifact
           path: packages/@aws-cdk/cdk-assets-lib/dist
@@ -143,7 +143,7 @@ jobs:
         working-directory: packages/cdk-assets
       - name: "cdk-assets: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: cdk-assets_build-artifact
           path: packages/cdk-assets/dist
@@ -155,7 +155,7 @@ jobs:
         working-directory: packages/@aws-cdk/toolkit-lib
       - name: "@aws-cdk/toolkit-lib: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: packages/@aws-cdk/toolkit-lib/dist
@@ -167,7 +167,7 @@ jobs:
         working-directory: packages/aws-cdk
       - name: "aws-cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk_build-artifact
           path: packages/aws-cdk/dist
@@ -179,7 +179,7 @@ jobs:
         working-directory: packages/cdk
       - name: "cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: cdk_build-artifact
           path: packages/cdk/dist
@@ -191,7 +191,7 @@ jobs:
         working-directory: packages/@aws-cdk/integ-runner
       - name: "@aws-cdk/integ-runner: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: packages/@aws-cdk/integ-runner/dist
@@ -203,7 +203,7 @@ jobs:
         working-directory: packages/@aws-cdk-testing/cli-integ
       - name: "@aws-cdk-testing/cli-integ: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: packages/@aws-cdk-testing/cli-integ/dist
@@ -241,7 +241,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -266,7 +266,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -311,7 +311,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -358,7 +358,7 @@ jobs:
         with:
           python-version: 3.x
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -399,7 +399,7 @@ jobs:
         with:
           dotnet-version: 6.x
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -440,7 +440,7 @@ jobs:
         with:
           go-version: ^1.18.0
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
@@ -482,7 +482,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
@@ -507,7 +507,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
@@ -536,7 +536,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-api_build-artifact
           path: dist
@@ -561,7 +561,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cloud-assembly-api_build-artifact
           path: dist
@@ -590,7 +590,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
@@ -615,7 +615,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
@@ -644,7 +644,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cdk-assets-lib_build-artifact
           path: dist
@@ -669,7 +669,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-cdk-assets-lib_build-artifact
           path: dist
@@ -698,7 +698,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: cdk-assets_build-artifact
           path: dist
@@ -723,7 +723,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: cdk-assets_build-artifact
           path: dist
@@ -752,7 +752,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist
@@ -777,7 +777,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist
@@ -806,7 +806,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -831,7 +831,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -860,7 +860,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: cdk_build-artifact
           path: dist
@@ -885,7 +885,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: cdk_build-artifact
           path: dist
@@ -914,7 +914,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: dist
@@ -939,7 +939,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: dist
@@ -968,7 +968,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
@@ -993,7 +993,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Download build artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
