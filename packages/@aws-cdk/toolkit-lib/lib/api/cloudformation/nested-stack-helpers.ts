@@ -137,6 +137,15 @@ function isCdkManagedNestedStack(stackResource: any): stackResource is NestedSta
   );
 }
 
+/**
+ * Returns true if the given template contains any `AWS::CloudFormation::Stack` resources.
+ */
+export function templateContainsNestedStacks(template: any): boolean {
+  return Object.values(template?.Resources ?? {}).some(
+    (resource: any) => resource.Type === 'AWS::CloudFormation::Stack',
+  );
+}
+
 export interface NestedStackTemplates {
   readonly physicalName: string | undefined;
   readonly deployedTemplate: Template;
