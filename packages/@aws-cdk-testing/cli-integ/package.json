@@ -95,7 +95,7 @@
     "node-pty": "^1.1.0",
     "npm": "^11",
     "p-queue": "^6",
-    "proxy-agent": "^6.5.0",
+    "proxy-agent": "^7.0.0",
     "semver": "^7",
     "sinon": "^9",
     "ts-jest": "^29",
