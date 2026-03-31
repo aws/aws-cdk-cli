@@ -449,7 +449,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.publish({
           selector,
           exclusively: args.exclusively,
-          roleArn: args.roleArn,
           force: args.force,
           concurrency: args.concurrency,
         });

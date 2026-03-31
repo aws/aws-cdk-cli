@@ -821,7 +821,6 @@ export class CdkToolkit {
       },
       force: options.force,
       concurrency: options.concurrency,
-      roleArn: options.roleArn,
     });
   }
 
@@ -1927,13 +1926,6 @@ export interface PublishOptions {
    * @default 1
    */
   readonly concurrency?: number;
-
-  /**
-   * Role to pass to CloudFormation for deployment
-   *
-   * @default - Current role
-   */
-  readonly roleArn?: string;
 }
 
 export interface ImportOptions extends CfnDeployOptions {

@@ -546,8 +546,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       deployStack: async () => {
         // No-op: we're only publishing assets, not deploying
       },
-      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
-      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.force),
+      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, undefined),
+      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
     });
 
     await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully\n'));

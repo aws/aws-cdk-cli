@@ -22,13 +22,6 @@ export interface PublishOptions {
    * @default 1
    */
   readonly concurrency?: number;
-
-  /**
-   * Role to pass to CloudFormation for asset operations
-   *
-   * @default - Current role
-   */
-  readonly roleArn?: string;
 }
 
 export interface PublishResult {
