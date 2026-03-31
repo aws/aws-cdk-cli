@@ -12,7 +12,7 @@ integTest(
     const output = await fixture.cdk(['publish', fullStackName, '--unstable=publish']);
     expect(output).toMatch('Assets published successfully');
 
-    // assert the stack wan not deployed
+    // assert the stack was not deployed
     await expect(fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: fullStackName })))
       .rejects.toThrow(/does not exist/);
   }),
