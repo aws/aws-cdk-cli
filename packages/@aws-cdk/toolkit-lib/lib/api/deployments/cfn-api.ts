@@ -248,7 +248,10 @@ async function uploadBodyParameterAndCreateChangeSet(
       env.resources,
     );
     const cfn = env.sdk.cloudFormation();
-    const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
+    const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
+    // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
+    // that was never executed. Treat it as non-existent for changeset purposes.
+    const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
     await ioHelper.defaults.info(
