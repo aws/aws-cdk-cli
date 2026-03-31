@@ -119,6 +119,10 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
           ...env,
         },
         errorCodeFile: errorFile,
+
+        // Not capturing the stdout/stderr of the CDK app. It must remain attached to a terminal
+        // if the parent process is attached to a terminal.
+        captureOutput: false,
       });
     } catch (e: any) {
       await debugFn(`failed command: ${commandAndArgs}`);
