@@ -1,7 +1,6 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -73,7 +72,7 @@ import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
-import type { ElapsedTime, IMessageSpan, IoHelper } from '../api/io/private';
+import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
@@ -98,6 +97,7 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { countAssemblyResults } from './private/count-assembly-results';
 
 export interface ToolkitOptions {
   /**
@@ -373,6 +373,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
+    let securityDiffs = 0;
 
     const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
@@ -392,11 +393,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       // Stack Diff
       diffs += stackDiff.numStacksWithChanges;
+      securityDiffs += securityDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
       await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
         stack: templateInfo.newTemplate,
         diffs: formatter.diffs,
         numStacksWithChanges: stackDiff.numStacksWithChanges,
+        numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
         formattedDiff: {
           diff: stackDiff.formattedDiff,
@@ -407,6 +410,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
       numStacksWithChanges: diffs,
+      numStacksWithSecurityChanges: securityDiffs,
       diffs: templateDiffs,
     });
 
@@ -1456,20 +1460,4 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
-}
-
-function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
-  const stacksRecursively = assembly.stacksRecursively;
-  span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('assemblies', asmCount(assembly));
-  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
-
-  function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
-  }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }

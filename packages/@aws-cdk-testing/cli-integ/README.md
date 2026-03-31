@@ -70,10 +70,10 @@ $ bin/run-suite --cli-version=2.34.5 <SUITE_NAME>
 $ bin/run-suite --framework-version=2.34.5 <SUITE_NAME>
 ```
 
-To run a specific test, add `-t` and a substring of the test name. For example:
+To run a specific test, add `-F`/`-t` and a substring of the test name. For example:
 
 ```shell
-bin/run-suite -a cli-integ-tests -t 'load old assemblies'
+bin/run-suite -a cli-integ-tests -F some-test.integ -t 'load old assemblies'
 ```
 
 ### Running a test suite against binaries
@@ -132,16 +132,16 @@ of the suite, detailing which tests passed/failed, and some additional statistic
 
 > For exmaple: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
 
-To debug a failing test, navigate to the execution logs and search for the name of the test. 
+To debug a failing test, navigate to the execution logs and search for the name of the test.
 You'll find a verbose log that displays all operations taken during the test.
 
-Unlike running locally, PRs make use of the *Atmosphere* service, an internal CDK service designed 
-to provide integration tests with clean AWS environments. It allows us to run many concurrent tests, 
-and significantly reduce suite durations. Most of the time, *Atmosphere* should be transparent to you, 
-but sometimes, tests that pass locally may fail during PRs because of additional restrictions 
+Unlike running locally, PRs make use of the *Atmosphere* service, an internal CDK service designed
+to provide integration tests with clean AWS environments. It allows us to run many concurrent tests,
+and significantly reduce suite durations. Most of the time, *Atmosphere* should be transparent to you,
+but sometimes, tests that pass locally may fail during PRs because of additional restrictions
 it imposes:
 
-- **Service Control Policy (SCP):** AWS environments (i.e accounts) are subject to an SCP that denies access 
+- **Service Control Policy (SCP):** AWS environments (i.e accounts) are subject to an SCP that denies access
 to specific services. For example, you might see a failure similar to:
 
    ```

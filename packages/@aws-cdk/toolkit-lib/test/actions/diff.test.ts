@@ -271,6 +271,97 @@ describe('diff', () => {
     }));
   });
 
+  test('security diff detects changes in nested stacks', async () => {
+    // GIVEN - mock nested stacks with IAM
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          IamChild2: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+        },
+      },
+      nestedStacks: {
+        IamChild: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: {
+              Role: {
+                Type: 'AWS::IAM::Role',
+                Properties: {
+                  AssumeRolePolicyDocument: {
+                    Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                  },
+                },
+              },
+            },
+          },
+          physicalName: 'IamChild',
+          nestedStackTemplates: {},
+        },
+        IamChild2: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: {
+              Role: {
+                Type: 'AWS::IAM::Role',
+                Properties: {
+                  AssumeRolePolicyDocument: {
+                    Statement: [{ Effect: 'Allow', Principal: { Service: 'ec2.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                  },
+                },
+              },
+            },
+          },
+          physicalName: 'IamChild2',
+          nestedStackTemplates: {},
+        },
+        NoSecChild: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+          },
+          physicalName: 'NoSecChild',
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
+    });
+
+    // THEN - security diff should contain nested stack IAM changes
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'warn',
+      message: expect.stringContaining('This deployment will make potentially sensitive changes'),
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      data: expect.objectContaining({
+        formattedDiff: expect.objectContaining({
+          security: expect.stringContaining('sts:AssumeRole'),
+        }),
+      }),
+    }));
+
+    // Verify security change count is reported
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      data: expect.objectContaining({
+        numStacksWithSecurityChanges: 2,
+      }),
+    }));
+  });
+
   test('TemplateOnly diff method does not try to find changeSet', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-bucket');
