@@ -628,7 +628,7 @@ Publishes assets for the specified stack(s) without performing a deployment.
 
 Publishes assets (such as Docker images and file assets) for the specified stack(s) to their respective destinations (ECR repositories, S3 buckets) without performing a deployment.
 
-This is useful in CI/CD pipelines where you want to separate the build/publish phase from the deployment phase, allowing you to publish assets once and deploy to multiple environments using the already-published assets.
+This is useful in CI/CD pipelines where you want to separate the asset build/publish phase from the deployment phase.
 
 ```console
 $ # Publish assets for a single stack
