@@ -11,6 +11,13 @@ interface ExecOptions {
   env?: { [key: string]: string | undefined };
   cwd?: string;
   errorCodeFile?: string;
+
+  /**
+   * Whether to capture output and send it into the event publisher, or stdout if no event publisher is supplied.
+   *
+   * @default true
+   */
+  captureOutput?: boolean;
 }
 
 /**
@@ -19,6 +26,8 @@ interface ExecOptions {
  * Based on the errors it throws, this assumes the process it is executing is a CDK app.
  */
 export async function execInChildProcess(commandAndArgs: string, options: ExecOptions = {}) {
+  const captureOutput = options.captureOutput ?? true;
+
   return new Promise<void>((ok, fail) => {
     // We use a slightly lower-level interface to:
     //
@@ -29,7 +38,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
     // - We have to capture any output to stdout and stderr sp we can pass it on to the IoHost
     //   To ensure messages get to the user fast, we will emit every full line we receive.
     const proc = child_process.spawn(commandAndArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'],
       detached: false,
       cwd: options.cwd,
       env: {
@@ -63,11 +72,13 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
 
     const stderr = new Array<string>();
 
-    proc.stdout.pipe(split()).on('data', (line) => eventPublisher('data_stdout', line));
-    proc.stderr.pipe(split()).on('data', (line) => {
-      stderr.push(line);
-      return eventPublisher('data_stderr', line);
-    });
+    if (captureOutput) {
+      proc.stdout!.pipe(split()).on('data', (line) => eventPublisher('data_stdout', line));
+      proc.stderr!.pipe(split()).on('data', (line) => {
+        stderr.push(line);
+        return eventPublisher('data_stderr', line);
+      });
+    }
 
     proc.on('error', (e) => {
       fail(AssemblyError.withCause(`Failed to execute CDK app: ${commandAndArgs}`, e));
@@ -91,9 +102,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
         if (options.errorCodeFile) {
           const contents = tryReadFile(options.errorCodeFile);
           if (contents) {
-            const errorInStdErr = contents
-              .split('\n')
-              .find(c => stdErrString.includes(`${SYNTH_ERROR_CODE_MARKERS[0]}${c}${SYNTH_ERROR_CODE_MARKERS[1]}`));
+            const errorInStdErr = contents.split('\n')[0];
 
             if (errorInStdErr) {
               // Attach the synth error code. We don't need to change the message; the underlying error will already have been
@@ -108,8 +117,6 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
     });
   });
 }
-
-const SYNTH_ERROR_CODE_MARKERS = ['«', '»'];
 
 function tryReadFile(name: string): string | undefined {
   try {

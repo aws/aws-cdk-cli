@@ -295,7 +295,7 @@ test('cli releases the outdir lock when execProgram throws', async () => {
   await lock.release();
 });
 
-test('errors in the subprocess stderr output are captured if they are also written to the $CDK_ERROR_FILE', async () => {
+test('the first error written to the $CDK_ERROR_FILE are attached to the AssemblyError', async () => {
   // GIVEN
   config.settings.set(['app'], 'cloud-executable');
   mockSpawn({
@@ -308,7 +308,7 @@ test('errors in the subprocess stderr output are captured if they are also writt
 
       fs.writeFileSync(errFile, 'SomeErrorCode', 'utf-8');
     },
-    stderr: '«SomeErrorCode» There was an error',
+    stderr: 'There was an error',
     exitCode: 1,
   });
 
@@ -320,28 +320,6 @@ test('errors in the subprocess stderr output are captured if they are also writt
       throw new Error(`Expected AssemblyError but got ${e}`);
     }
     expect(e.synthErrorCode).toEqual('SomeErrorCode');
-    return;
-  }
-  throw new Error('Expected execProgram() to throw, but it didn\'t');
-});
-
-test('marked-up error codes are ignored if they do not match the error file', async () => {
-  // GIVEN
-  config.settings.set(['app'], 'cloud-executable');
-  mockSpawn({
-    commandLine: 'cloud-executable',
-    stderr: '«SomeErrorCode» There was an error',
-    exitCode: 1,
-  });
-
-  // WHEN
-  try {
-    await execProgram(sdkProvider, ioHelper, config);
-  } catch (e: any) {
-    if (!ToolkitError.isAssemblyError(e)) {
-      throw new Error(`Expected AssemblyError but got ${e}`);
-    }
-    expect(e.synthErrorCode).toEqual(undefined);
     return;
   }
   throw new Error('Expected execProgram() to throw, but it didn\'t');
