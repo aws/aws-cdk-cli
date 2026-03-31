@@ -32,7 +32,7 @@ describe('publish', () => {
 
     // THEN
     expect(result.publishedAssets.length).toBeGreaterThan(0);
-    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
+    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'result' });
   });
 
   test('publishes assets for multiple stacks', async () => {
@@ -44,7 +44,7 @@ describe('publish', () => {
 
     // THEN
     expect(result.publishedAssets.length).toBeGreaterThan(0);
-    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
+    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'result' });
   });
 
   test('returns result when no stacks are selected', async () => {
@@ -66,7 +66,7 @@ describe('publish', () => {
 
     // THEN
     expect(result.publishedAssets.length).toBeGreaterThan(0);
-    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
+    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'result' });
   });
 
   test('respects force option', async () => {
@@ -79,7 +79,7 @@ describe('publish', () => {
 
     // THEN
     expect(result.publishedAssets.length).toBeGreaterThan(0);
-    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'info' });
+    ioHost.expectMessage({ containing: 'Assets published successfully', level: 'result' });
   });
 
   test('skips already published assets when force is false', async () => {
