@@ -665,7 +665,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('concurrency', {
           default: 1,
           type: 'number',
-          desc: 'Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.',
+          desc: 'Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.',
           requiresArg: true,
         }),
     )

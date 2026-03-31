@@ -17,7 +17,7 @@ export interface PublishOptions {
   readonly force?: boolean;
 
   /**
-   * Maximum number of simultaneous asset publishing operations
+   * Maximum number of simultaneous asset operations (building and publishing)
    *
    * @default 1
    */

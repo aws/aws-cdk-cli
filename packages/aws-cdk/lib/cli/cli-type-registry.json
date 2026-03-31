@@ -637,7 +637,7 @@
         },
         "concurrency": {
           "type": "number",
-          "desc": "Maximum number of simultaneous asset publishing operations (dependency permitting) to execute.",
+          "desc": "Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.",
           "default": 1,
           "requiresArg": true
         }
