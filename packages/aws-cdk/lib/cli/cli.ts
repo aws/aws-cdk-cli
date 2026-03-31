@@ -444,7 +444,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'publish':
         ioHost.currentAction = 'publish';
         if (!configuration.settings.get(['unstable']).includes('publish')) {
-          throw new ToolkitError('Unstable feature use: \'publish\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish --unstable=publish\'');
+          throw new ToolkitError('UnstablePublish', 'Unstable feature use: \'publish\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish --unstable=publish\'');
         }
         return cli.publish({
           selector,
