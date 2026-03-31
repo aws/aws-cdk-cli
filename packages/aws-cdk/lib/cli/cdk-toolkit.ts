@@ -277,12 +277,12 @@ export class CdkToolkit {
       });
 
       if (options.securityOnly) {
-        const securityDiff = formatter.formatSecurityDiff();
+        const securityDiff = formatter.formatSecurityDiff({ quiet });
         // Warn, count, and display the diff only if the reported changes are broadening permissions
         if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
           await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
-          diffs += 1;
+          diffs += securityDiff.numStacksWithChanges;
         }
       } else {
         const diff = formatter.formatStackDiff({
@@ -336,12 +336,12 @@ export class CdkToolkit {
         });
 
         if (options.securityOnly) {
-          const securityDiff = formatter.formatSecurityDiff();
+          const securityDiff = formatter.formatSecurityDiff({ quiet });
           // Warn, count, and display the diff only if the reported changes are broadening permissions
           if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
             await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
             await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
-            diffs += 1;
+            diffs += securityDiff.numStacksWithChanges;
           }
         } else {
           const diff = formatter.formatStackDiff({

@@ -374,6 +374,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
+    let securityDiffs = 0;
 
     const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
@@ -393,11 +394,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       // Stack Diff
       diffs += stackDiff.numStacksWithChanges;
+      securityDiffs += securityDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
       await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
         stack: templateInfo.newTemplate,
         diffs: formatter.diffs,
         numStacksWithChanges: stackDiff.numStacksWithChanges,
+        numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
         formattedDiff: {
           diff: stackDiff.formattedDiff,
@@ -408,6 +411,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
       numStacksWithChanges: diffs,
+      numStacksWithSecurityChanges: securityDiffs,
       diffs: templateDiffs,
     });
 

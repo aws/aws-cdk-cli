@@ -46,6 +46,12 @@ export interface StackDiff extends SingleStack {
   readonly numStacksWithChanges: number;
 
   /**
+   * Total number of stacks that have security-related changes.
+   * Can be higher than `1` if the stack has nested stacks.
+   */
+  readonly numStacksWithSecurityChanges: number;
+
+  /**
    * Structural diff of the stack
    * Can include more than a single diff if the stack has nested stacks.
    */
@@ -70,6 +76,10 @@ export interface DiffResult extends Duration {
    * Total number of stacks that have changes
    */
   readonly numStacksWithChanges: number;
+  /**
+   * Total number of stacks that have security-related changes
+   */
+  readonly numStacksWithSecurityChanges: number;
   /**
    * Structural diff of all selected stacks
    */
