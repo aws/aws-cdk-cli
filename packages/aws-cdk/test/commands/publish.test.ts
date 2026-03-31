@@ -75,7 +75,6 @@ describe('publish', () => {
       selector: { patterns: ['Stack1'] },
       force: true,
       concurrency: 5,
-      roleArn: 'arn:aws:iam::123456789012:role/TestRole',
     });
 
     // THEN
@@ -84,7 +83,6 @@ describe('publish', () => {
       expect.objectContaining({
         force: true,
         concurrency: 5,
-        roleArn: 'arn:aws:iam::123456789012:role/TestRole',
       }),
     );
   });
