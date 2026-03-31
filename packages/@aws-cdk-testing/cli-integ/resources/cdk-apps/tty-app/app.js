@@ -9,7 +9,7 @@ if (!stackPrefix) {
 class MyStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
-    new sns.Topic(this, 'topic');
+    new cdk.aws_sns.Topic(this, 'topic');
   }
 }
 
