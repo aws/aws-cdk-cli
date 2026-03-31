@@ -423,7 +423,7 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
-  // 9: Bootstrap  & gc (9xxx)
+  // 9: Bootstrap, gc, flags & publish (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
@@ -453,11 +453,17 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // flags (93xxx)
+  // flags (93xx)
   CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
     code: 'CDK_TOOLKIT_I9300',
     description: 'Confirm the feature flag configuration changes',
     interface: 'FeatureFlagChangeRequest',
+  }),
+
+  // publish (94xx)
+  CDK_TOOLKIT_I9400: make.info({
+    code: 'CDK_TOOLKIT_I9400',
+    description: 'All assets are already published',
   }),
 
   // Notices

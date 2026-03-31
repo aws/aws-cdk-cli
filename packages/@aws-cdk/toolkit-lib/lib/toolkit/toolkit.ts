@@ -530,7 +530,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       .filter((n): n is AssetPublishNode => n.type === 'asset-publish');
 
     if (assetNodes.length === 0) {
-      await ioHelper.defaults.info(chalk.green('\n✨  All assets are already published\n'));
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9400.msg(chalk.green('\n✨  All assets are already published\n')));
       return {
         publishedAssets: [],
       };
