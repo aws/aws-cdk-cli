@@ -38,8 +38,12 @@ import type {
   GetResourceCommandOutput,
   ListResourcesCommandInput,
   ListResourcesCommandOutput,
+  UpdateResourceCommandInput,
+  UpdateResourceCommandOutput,
 } from '@aws-sdk/client-cloudcontrol';
 import {
+  UpdateResourceCommand,
+
   CloudControlClient,
   GetResourceCommand,
   ListResourcesCommand,
@@ -115,6 +119,8 @@ import type {
   ExecuteStackRefactorCommandOutput,
   DescribeEventsCommandOutput,
   DescribeEventsCommandInput,
+  DescribeTypeCommandInput,
+  DescribeTypeCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -157,6 +163,7 @@ import {
   DetectStackResourceDriftCommand,
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
+  DescribeTypeCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
@@ -447,6 +454,7 @@ export interface IBedrockAgentCoreControlClient {
 export interface ICloudControlClient {
   listResources(input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput>;
   getResource(input: GetResourceCommandInput): Promise<GetResourceCommandOutput>;
+  updateResource(input: UpdateResourceCommandInput): Promise<UpdateResourceCommandOutput>;
 }
 
 export interface ICloudFormationClient {
@@ -469,6 +477,7 @@ export interface ICloudFormationClient {
   describeStackResources(input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput>;
   detectStackDrift(input: DetectStackDriftCommandInput): Promise<DetectStackDriftCommandOutput>;
   detectStackResourceDrift(input: DetectStackResourceDriftCommandInput): Promise<DetectStackResourceDriftCommandOutput>;
+  describeType(input: DescribeTypeCommandInput): Promise<DescribeTypeCommandOutput>;
   executeChangeSet(input: ExecuteChangeSetCommandInput): Promise<ExecuteChangeSetCommandOutput>;
   getGeneratedTemplate(input: GetGeneratedTemplateCommandInput): Promise<GetGeneratedTemplateCommandOutput>;
   getTemplate(input: GetTemplateCommandInput): Promise<GetTemplateCommandOutput>;
@@ -574,7 +583,7 @@ export interface ILambdaClient {
     input: UpdateFunctionConfigurationCommandInput,
   ): Promise<UpdateFunctionConfigurationCommandOutput>;
   // Waiters
-  waitUntilFunctionUpdated(delaySeconds: number, input: UpdateFunctionConfigurationCommandInput): Promise<WaiterResult>;
+  waitUntilFunctionUpdated(minDelaySeconds: number, maxDelaySeconds: number, input: UpdateFunctionConfigurationCommandInput): Promise<WaiterResult>;
 }
 
 export interface IRoute53Client {
@@ -715,6 +724,8 @@ export class SDK {
         client.send(new ListResourcesCommand(input)),
       getResource: (input: GetResourceCommandInput): Promise<GetResourceCommandOutput> =>
         client.send(new GetResourceCommand(input)),
+      updateResource: (input: UpdateResourceCommandInput): Promise<UpdateResourceCommandOutput> =>
+        client.send(new UpdateResourceCommand(input)),
     };
   }
 
@@ -762,6 +773,8 @@ export class SDK {
         client.send(new DescribeStacksCommand(input)),
       describeStackResources: (input: DescribeStackResourcesCommandInput): Promise<DescribeStackResourcesCommandOutput> =>
         client.send(new DescribeStackResourcesCommand(input)),
+      describeType: (input: DescribeTypeCommandInput): Promise<DescribeTypeCommandOutput> =>
+        client.send(new DescribeTypeCommand(input)),
       executeChangeSet: (input: ExecuteChangeSetCommandInput): Promise<ExecuteChangeSetCommandOutput> =>
         client.send(new ExecuteChangeSetCommand(input)),
       getGeneratedTemplate: (input: GetGeneratedTemplateCommandInput): Promise<GetGeneratedTemplateCommandOutput> =>
@@ -1014,15 +1027,16 @@ export class SDK {
         client.send(new UpdateFunctionConfigurationCommand(input)),
       // Waiters
       waitUntilFunctionUpdated: (
-        delaySeconds: number,
+        minDelaySeconds: number,
+        maxDelaySeconds: number,
         input: UpdateFunctionConfigurationCommandInput,
       ): Promise<WaiterResult> => {
         return waitUntilFunctionUpdatedV2(
           {
             client,
-            maxDelay: delaySeconds,
-            minDelay: delaySeconds,
-            maxWaitTime: delaySeconds * 60,
+            maxDelay: maxDelaySeconds,
+            minDelay: minDelaySeconds,
+            maxWaitTime: maxDelaySeconds * 60,
           },
           input,
         );

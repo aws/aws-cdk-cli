@@ -118,7 +118,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
-        minDelay: 5,
+        minDelay: 3,
         maxDelay: 5,
         maxWaitTime: 5 * 60,
       }),

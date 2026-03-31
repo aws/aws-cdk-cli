@@ -313,10 +313,11 @@ async function waitForLambdasPropertiesUpdateToFinish(
 
   // if the function is deployed in a VPC or if it is a container image function
   // then the update will take much longer and we can wait longer between checks
-  // otherwise, the update will be quick, so a 1-second delay is fine
-  const delaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 1;
+  // otherwise, the update will be quick. This is reflected in the delay times we
+  // set for exponential backoff while waiting
+  const minDelaySeconds = functionIsInVpcOrUsesDockerForCode ? 3 : 1, maxDelaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 3;
 
-  await lambda.waitUntilFunctionUpdated(delaySeconds, {
+  await lambda.waitUntilFunctionUpdated(minDelaySeconds, maxDelaySeconds, {
     FunctionName: functionName,
   });
 }

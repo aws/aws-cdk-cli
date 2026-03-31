@@ -1,4 +1,4 @@
-import { ListExportsCommand } from '@aws-sdk/client-cloudformation';
+import { ListExportsCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import type { Template } from '../../../lib/api/cloudformation';
 import {
   CfnEvaluationException,
@@ -61,6 +61,180 @@ describe('evaluateCfnExpression', () => {
 
       // THEN
       expect(result).toEqual('Testing Fn::Sub Foo=testing Bar=1');
+    });
+  });
+
+  describe('Fn::GetAtt with processedTemplate fallback', () => {
+    const createEvalWithProcessedTemplate = (template: Template, processedTemplate: Template) =>
+      new EvaluateCloudFormationTemplate({
+        template,
+        stackName: 'test-stack',
+        parameters: {},
+        account: '0123456789',
+        region: 'ap-south-east-2',
+        partition: 'aws',
+        sdk,
+        stackArtifact: {} as any,
+        processedTemplate,
+      });
+
+    test('falls back to processedTemplate for unsupported resource type', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Foo: { 'Fn::GetAtt': ['MyCustom', 'Bar'] },
+            },
+          },
+        },
+      };
+      const processedTemplate: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Foo: 'resolved-bar-value',
+            },
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
+      // Push a stack resource so findPhysicalNameFor works
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Bar'] });
+      expect(result).toEqual('resolved-bar-value');
+    });
+
+    test('falls back to processedTemplate for unsupported attribute on known resource type', async () => {
+      const template: Template = {
+        Resources: {
+          MyBucket: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Tag: { 'Fn::GetAtt': ['MyBucket', 'WebsiteURL'] },
+            },
+          },
+        },
+      };
+      const processedTemplate: Template = {
+        Resources: {
+          MyBucket: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Tag: 'http://my-bucket.s3-website.ap-south-east-2.amazonaws.com',
+            },
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyBucket',
+          PhysicalResourceId: 'my-bucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyBucket', 'WebsiteURL'] });
+      expect(result).toEqual('http://my-bucket.s3-website.ap-south-east-2.amazonaws.com');
+    });
+
+    test('throws CfnEvaluationException when processedTemplate also has no value', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, {});
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Missing'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
+    });
+
+    test('resolves Fn::GetAtt nested inside Fn::Join via processedTemplate fallback', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Output: { 'Fn::GetAtt': ['MyCustom', 'Output'] },
+            },
+          },
+        },
+      };
+      const processedTemplate: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Output: 'the-output',
+            },
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Output'] });
+      expect(result).toEqual('the-output');
+    });
+
+    test('still uses hardcoded format when resource type is supported', async () => {
+      // Lambda Arn is in the hardcoded map — should NOT fall back to processedTemplate
+      const template: Template = {
+        Resources: {
+          MyFunc: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, {});
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyFunc',
+          PhysicalResourceId: 'my-func',
+          ResourceType: 'AWS::Lambda::Function',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyFunc', 'Arn'] });
+      expect(result).toEqual('arn:aws:lambda:ap-south-east-2:0123456789:function:my-func');
     });
   });
 

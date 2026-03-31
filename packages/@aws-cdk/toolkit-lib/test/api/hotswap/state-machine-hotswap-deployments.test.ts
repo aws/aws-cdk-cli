@@ -1,12 +1,31 @@
-import { UpdateStateMachineCommand } from '@aws-sdk/client-sfn';
+import { GetResourceCommand, UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { DescribeTypeCommand } from '@aws-sdk/client-cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
-import { mockStepFunctionsClient } from '../../_helpers/mock-sdk';
+import { mockCloudControlClient, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 import * as setup from '../_helpers/hotswap-test-setup';
 
 let hotswapMockSdkProvider: setup.HotswapMockSdkProvider;
 
 beforeEach(() => {
   hotswapMockSdkProvider = setup.setupHotswapTests();
+
+  mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+    Schema: JSON.stringify({
+      primaryIdentifier: ['/properties/Arn'],
+    }),
+  });
+
+  mockCloudControlClient.on(GetResourceCommand).resolves({
+    ResourceDescription: {
+      Properties: JSON.stringify({
+        Arn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+        StateMachineName: 'my-machine',
+        DefinitionString: '{ Prop: "old-value" }',
+      }),
+    },
+  });
+
+  mockCloudControlClient.on(UpdateResourceCommand).resolves({});
 });
 
 describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hotswapMode) => {
@@ -23,300 +42,219 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
 
     if (hotswapMode === HotswapMode.FALL_BACK) {
-      // WHEN
       const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
       expect(deployStackResult).toBeUndefined();
-      expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
-    } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
-      // WHEN
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    } else {
       const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
       expect(deployStackResult).not.toBeUndefined();
       expect(deployStackResult?.noOp).toEqual(true);
-      expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
     }
   });
 
-  test(
-    'calls the updateStateMachine() API when it receives only a definitionString change without Fn::Join in a state machine',
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
+  test('calls Cloud Control updateResource when it receives only a definitionString change', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: '{ Prop: "old-value" }',
+            StateMachineName: 'my-machine',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
-              DefinitionString: '{ Prop: "old-value" }',
+              DefinitionString: '{ Prop: "new-value" }',
               StateMachineName: 'my-machine',
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: '{ Prop: "new-value" }',
-                StateMachineName: 'my-machine',
-              },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: '{ Prop: "new-value" }',
+      }]),
+    });
+  });
+
+  test('calls Cloud Control updateResource when it receives a definitionString change with Fn::Join', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: {
+              'Fn::Join': ['\n', ['{', '  "StartAt" : "SuccessState"', '}']],
             },
+            StateMachineName: 'my-machine',
           },
         },
-      });
-
-      // WHEN
-      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
-      expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '{ Prop: "new-value" }',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      });
-    },
-  );
-
-  test(
-    'calls the updateStateMachine() API when it receives only a definitionString change with Fn::Join in a state machine',
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': [
-                  '\n',
-                  [
-                    '{',
-                    '  "StartAt" : "SuccessState"',
-                    '  "States" : {',
-                    '    "SuccessState": {',
-                    '      "Type": "Pass"',
-                    '      "Result": "Success"',
-                    '      "End": true',
-                    '    }',
-                    '  }',
-                    '}',
-                  ],
-                ],
+                'Fn::Join': ['\n', ['{', '  "StartAt": "FailState"', '}']],
               },
               StateMachineName: 'my-machine',
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: {
-                  'Fn::Join': [
-                    '\n',
-                    [
-                      '{',
-                      '  "StartAt": "SuccessState",',
-                      '  "States": {',
-                      '    "SuccessState": {',
-                      '      "Type": "Succeed"',
-                      '    }',
-                      '  }',
-                      '}',
-                    ],
-                  ],
-                },
-                StateMachineName: 'my-machine',
-              },
-            },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommand(UpdateResourceCommand);
+  });
+
+  test('calls Cloud Control updateResource when the state machine has no name', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: '{ "Prop" : "old-value" }',
           },
         },
-      });
-
-      // WHEN
-      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
-      expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: JSON.stringify(
-          {
-            StartAt: 'SuccessState',
-            States: {
-              SuccessState: {
-                Type: 'Succeed',
-              },
-            },
-          },
-          null,
-          2,
-        ),
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      });
-    },
-  );
-
-  test(
-    'calls the updateStateMachine() API when it receives a change to the definitionString in a state machine that has no name',
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
-              DefinitionString: '{ "Prop" : "old-value" }',
+              DefinitionString: '{ "Prop" : "new-value" }',
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: '{ "Prop" : "new-value" }',
-              },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommand(UpdateResourceCommand);
+  });
+
+  test('hotswaps a non-DefinitionString property change via Cloud Control API (all properties are hotswappable via CCAPI)', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: '{ "Prop" : "old-value" }',
+            LoggingConfiguration: {
+              IncludeExecutionData: true,
             },
           },
         },
-      });
-
-      // WHEN
-      setup.pushStackResourceSummaries(
-        setup.stackSummaryOf(
-          'Machine',
-          'AWS::StepFunctions::StateMachine',
-          'arn:swa:states:here:123456789012:stateMachine:my-machine',
-        ),
-      );
-      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
-      expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '{ "Prop" : "new-value" }',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      });
-    },
-  );
-
-  test(
-    `does not call the updateStateMachine() API when it receives a change to a property that is not the definitionString in a state machine
-        alongside a hotswappable change in CLASSIC mode but does in HOTSWAP_ONLY mode`,
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
-              DefinitionString: '{ "Prop" : "old-value" }',
+              DefinitionString: '{ "Prop" : "new-value" }',
               LoggingConfiguration: {
-                // non-definitionString property
-                IncludeExecutionData: true,
+                IncludeExecutionData: false,
               },
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: '{ "Prop" : "new-value" }',
-                LoggingConfiguration: {
-                  IncludeExecutionData: false,
-                },
-              },
-            },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommand(UpdateResourceCommand);
+  });
+
+  test('does not call Cloud Control when a resource with a non-StateMachine type is changed', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Machine: {
+          Type: 'AWS::NotStepFunctions::NotStateMachine',
+          Properties: {
+            DefinitionString: '{ Prop: "old-value" }',
           },
         },
-      });
-
-      setup.pushStackResourceSummaries(
-        setup.stackSummaryOf(
-          'Machine',
-          'AWS::StepFunctions::StateMachine',
-          'arn:swa:states:here:123456789012:stateMachine:my-machine',
-        ),
-      );
-      if (hotswapMode === HotswapMode.FALL_BACK) {
-        // WHEN
-        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-        // THEN
-        expect(deployStackResult).toBeUndefined();
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
-      } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
-        // WHEN
-        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-        // THEN
-        expect(deployStackResult).not.toBeUndefined();
-        expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-          definition: '{ "Prop" : "new-value" }',
-          stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-        });
-      }
-    },
-  );
-
-  test(
-    'does not call the updateStateMachine() API when a resource has a DefinitionString property but is not an AWS::StepFunctions::StateMachine is changed',
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
+      },
+    });
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
           Machine: {
             Type: 'AWS::NotStepFunctions::NotStateMachine',
             Properties: {
-              DefinitionString: '{ Prop: "old-value" }',
+              DefinitionString: '{ Prop: "new-value" }',
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Machine: {
-              Type: 'AWS::NotStepFunctions::NotStateMachine',
-              Properties: {
-                DefinitionString: '{ Prop: "new-value" }',
-              },
-            },
-          },
-        },
-      });
+      },
+    });
 
-      if (hotswapMode === HotswapMode.FALL_BACK) {
-        // WHEN
-        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-        // THEN
-        expect(deployStackResult).toBeUndefined();
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
-      } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
-        // WHEN
-        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-        // THEN
-        expect(deployStackResult).not.toBeUndefined();
-        expect(deployStackResult?.noOp).toEqual(true);
-        expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
-      }
-    },
-  );
+    if (hotswapMode === HotswapMode.FALL_BACK) {
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+      expect(deployStackResult).toBeUndefined();
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    } else {
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+      expect(deployStackResult).not.toBeUndefined();
+      expect(deployStackResult?.noOp).toEqual(true);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    }
+  });
 
   test('can correctly hotswap old style synth changes', async () => {
     // GIVEN
@@ -332,6 +270,9 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         },
       },
     });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:machine-name'),
+    );
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Parameters: { AssetParam2: { Type: String } },
@@ -348,212 +289,172 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     });
 
     // WHEN
-    setup.pushStackResourceSummaries(
-      setup.stackSummaryOf(
-        'Machine',
-        'AWS::StepFunctions::StateMachine',
-        'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      ),
-    );
     const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact, {
       AssetParam2: 'asset-param-2',
     });
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      definition: 'asset-param-2',
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:machine-name',
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:machine-name',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: 'asset-param-2',
+      }]),
     });
   });
 
-  test(
-    'calls the updateStateMachine() API when it receives a change to the definitionString that uses Attributes in a state machine',
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
-        Resources: {
-          Func: {
-            Type: 'AWS::Lambda::Function',
+  test('calls Cloud Control updateResource when definitionString uses Fn::GetAtt', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Func: { Type: 'AWS::Lambda::Function' },
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: {
+              'Fn::Join': ['\n', ['{', '  "StartAt" : "SuccessState"', '}']],
+            },
+            StateMachineName: 'my-machine',
           },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+      setup.stackSummaryOf('Func', 'AWS::Lambda::Function', 'my-func'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Func: { Type: 'AWS::Lambda::Function' },
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': [
-                  '\n',
-                  [
-                    '{',
-                    '  "StartAt" : "SuccessState"',
-                    '  "States" : {',
-                    '    "SuccessState": {',
-                    '      "Type": "Succeed"',
-                    '    }',
-                    '  }',
-                    '}',
-                  ],
-                ],
+                'Fn::Join': ['', ['"Resource": ', { 'Fn::GetAtt': ['Func', 'Arn'] }]],
               },
               StateMachineName: 'my-machine',
             },
           },
         },
-      });
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Func: {
-              Type: 'AWS::Lambda::Function',
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: '"Resource": arn:swa:lambda:here:123456789012:function:my-func',
+      }]),
+    });
+  });
+
+  test('will not perform a hotswap deployment if it cannot find a Ref target', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Parameters: { Param1: { Type: 'String' } },
+      Resources: {
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: {
+              'Fn::Join': ['', ['{ Prop: "old-value" }, ', '{ "Param" : ', { 'Fn::Sub': '${Param1}' }, ' }']],
             },
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: {
-                  'Fn::Join': ['', ['"Resource": ', { 'Fn::GetAtt': ['Func', 'Arn'] }]],
-                },
-                StateMachineName: 'my-machine',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Parameters: { Param1: { Type: 'String' } },
+        Resources: {
+          Machine: {
+            Type: 'AWS::StepFunctions::StateMachine',
+            Properties: {
+              DefinitionString: {
+                'Fn::Join': ['', ['{ Prop: "new-value" }, ', '{ "Param" : ', { 'Fn::Sub': '${Param1}' }, ' }']],
               },
             },
           },
         },
-      });
+      },
+    });
 
-      // WHEN
-      setup.pushStackResourceSummaries(
-        setup.stackSummaryOf(
-          'Machine',
-          'AWS::StepFunctions::StateMachine',
-          'arn:swa:states:here:123456789012:stateMachine:my-machine',
-        ),
-        setup.stackSummaryOf('Func', 'AWS::Lambda::Function', 'my-func'),
-      );
+    if (hotswapMode === HotswapMode.FALL_BACK) {
+      // THEN – falls back because the property can't be resolved
       const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
-
-      // THEN
+      expect(deployStackResult).toBeUndefined();
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    } else {
+      // THEN – marked non-hotswappable, noOp
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
       expect(deployStackResult).not.toBeUndefined();
-      expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-        definition: '"Resource": arn:swa:lambda:here:123456789012:function:my-func',
-        stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      });
-    },
-  );
+      expect(deployStackResult?.noOp).toEqual(true);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    }
+  });
 
-  test(
-    "will not perform a hotswap deployment if it cannot find a Ref target (outside the state machine's name)",
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
-        Parameters: {
-          Param1: { Type: 'String' },
+  test("will not perform a hotswap deployment if it doesn't know how to handle a specific attribute", async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Bucket: { Type: 'AWS::S3::Bucket' },
+        Machine: {
+          Type: 'AWS::StepFunctions::StateMachine',
+          Properties: {
+            DefinitionString: {
+              'Fn::Join': ['', ['{ Prop: "old-value" }, ', '{ "S3Bucket" : ', { 'Fn::GetAtt': ['Bucket', 'UnknownAttribute'] }, ' }']],
+            },
+            StateMachineName: 'my-machine',
+          },
         },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+      setup.stackSummaryOf('Bucket', 'AWS::S3::Bucket', 'my-bucket'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
         Resources: {
+          Bucket: { Type: 'AWS::S3::Bucket' },
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': ['', ['{ Prop: "old-value" }, ', '{ "Param" : ', { 'Fn::Sub': '${Param1}' }, ' }']],
-              },
-            },
-          },
-        },
-      });
-      setup.pushStackResourceSummaries(
-        setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'my-machine'),
-      );
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Parameters: {
-            Param1: { Type: 'String' },
-          },
-          Resources: {
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: {
-                  'Fn::Join': ['', ['{ Prop: "new-value" }, ', '{ "Param" : ', { 'Fn::Sub': '${Param1}' }, ' }']],
-                },
-              },
-            },
-          },
-        },
-      });
-
-      // THEN
-      await expect(() => hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact)).rejects.toThrow(
-        /Parameter or resource 'Param1' could not be found for evaluation/,
-      );
-    },
-  );
-
-  test(
-    "will not perform a hotswap deployment if it doesn't know how to handle a specific attribute (outside the state machines's name)",
-    async () => {
-      // GIVEN
-      setup.setCurrentCfnStackTemplate({
-        Resources: {
-          Bucket: {
-            Type: 'AWS::S3::Bucket',
-          },
-          Machine: {
-            Type: 'AWS::StepFunctions::StateMachine',
-            Properties: {
-              DefinitionString: {
-                'Fn::Join': [
-                  '',
-                  [
-                    '{ Prop: "old-value" }, ',
-                    '{ "S3Bucket" : ',
-                    { 'Fn::GetAtt': ['Bucket', 'UnknownAttribute'] },
-                    ' }',
-                  ],
-                ],
+                'Fn::Join': ['', ['{ Prop: "new-value" }, ', '{ "S3Bucket" : ', { 'Fn::GetAtt': ['Bucket', 'UnknownAttribute'] }, ' }']],
               },
               StateMachineName: 'my-machine',
             },
           },
         },
-      });
-      setup.pushStackResourceSummaries(
-        setup.stackSummaryOf(
-          'Machine',
-          'AWS::StepFunctions::StateMachine',
-          'arn:swa:states:here:123456789012:stateMachine:my-machine',
-        ),
-        setup.stackSummaryOf('Bucket', 'AWS::S3::Bucket', 'my-bucket'),
-      );
-      const cdkStackArtifact = setup.cdkStackArtifactOf({
-        template: {
-          Resources: {
-            Bucket: {
-              Type: 'AWS::S3::Bucket',
-            },
-            Machine: {
-              Type: 'AWS::StepFunctions::StateMachine',
-              Properties: {
-                DefinitionString: {
-                  'Fn::Join': [
-                    '',
-                    [
-                      '{ Prop: "new-value" }, ',
-                      '{ "S3Bucket" : ',
-                      { 'Fn::GetAtt': ['Bucket', 'UnknownAttribute'] },
-                      ' }',
-                    ],
-                  ],
-                },
-                StateMachineName: 'my-machine',
-              },
-            },
-          },
-        },
-      });
+      },
+    });
 
-      // THEN
-      await expect(() => hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact)).rejects.toThrow(
-        "We don't support the 'UnknownAttribute' attribute of the 'AWS::S3::Bucket' resource. This is a CDK limitation. Please report it at https://github.com/aws/aws-cdk/issues/new/choose",
-      );
-    },
-  );
+    if (hotswapMode === HotswapMode.FALL_BACK) {
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+      expect(deployStackResult).toBeUndefined();
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    } else {
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+      expect(deployStackResult).not.toBeUndefined();
+      expect(deployStackResult?.noOp).toEqual(true);
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    }
+  });
 
   test('knows how to handle attributes of the AWS::Events::EventBus resource', async () => {
     // GIVEN
@@ -561,58 +462,43 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       Resources: {
         EventBus: {
           Type: 'AWS::Events::EventBus',
-          Properties: {
-            Name: 'my-event-bus',
-          },
+          Properties: { Name: 'my-event-bus' },
         },
         Machine: {
           Type: 'AWS::StepFunctions::StateMachine',
           Properties: {
             DefinitionString: {
-              'Fn::Join': [
-                '',
-                [
-                  '{"EventBus1Arn":"',
-                  { 'Fn::GetAtt': ['EventBus', 'Arn'] },
-                  '","EventBus1Name":"',
-                  { 'Fn::GetAtt': ['EventBus', 'Name'] },
-                  '","EventBus1Ref":"',
-                  { Ref: 'EventBus' },
-                  '"}',
-                ],
-              ],
+              'Fn::Join': ['', [
+                '{"EventBus1Arn":"', { 'Fn::GetAtt': ['EventBus', 'Arn'] },
+                '","EventBus1Name":"', { 'Fn::GetAtt': ['EventBus', 'Name'] },
+                '","EventBus1Ref":"', { Ref: 'EventBus' }, '"}',
+              ]],
             },
             StateMachineName: 'my-machine',
           },
         },
       },
     });
-    setup.pushStackResourceSummaries(setup.stackSummaryOf('EventBus', 'AWS::Events::EventBus', 'my-event-bus'));
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('EventBus', 'AWS::Events::EventBus', 'my-event-bus'),
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Resources: {
           EventBus: {
             Type: 'AWS::Events::EventBus',
-            Properties: {
-              Name: 'my-event-bus',
-            },
+            Properties: { Name: 'my-event-bus' },
           },
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': [
-                  '',
-                  [
-                    '{"EventBus2Arn":"',
-                    { 'Fn::GetAtt': ['EventBus', 'Arn'] },
-                    '","EventBus2Name":"',
-                    { 'Fn::GetAtt': ['EventBus', 'Name'] },
-                    '","EventBus2Ref":"',
-                    { Ref: 'EventBus' },
-                    '"}',
-                  ],
-                ],
+                'Fn::Join': ['', [
+                  '{"EventBus2Arn":"', { 'Fn::GetAtt': ['EventBus', 'Arn'] },
+                  '","EventBus2Name":"', { 'Fn::GetAtt': ['EventBus', 'Name'] },
+                  '","EventBus2Ref":"', { Ref: 'EventBus' }, '"}',
+                ]],
               },
               StateMachineName: 'my-machine',
             },
@@ -621,17 +507,23 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       },
     });
 
-    // THEN
+    // WHEN
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
+    // THEN
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        EventBus2Arn: 'arn:swa:events:here:123456789012:event-bus/my-event-bus',
-        EventBus2Name: 'my-event-bus',
-        EventBus2Ref: 'my-event-bus',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          EventBus2Arn: 'arn:swa:events:here:123456789012:event-bus/my-event-bus',
+          EventBus2Name: 'my-event-bus',
+          EventBus2Ref: 'my-event-bus',
+        }),
+      }]),
     });
   });
 
@@ -642,18 +534,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         Table: {
           Type: 'AWS::DynamoDB::Table',
           Properties: {
-            KeySchema: [
-              {
-                AttributeName: 'name',
-                KeyType: 'HASH',
-              },
-            ],
-            AttributeDefinitions: [
-              {
-                AttributeName: 'name',
-                AttributeType: 'S',
-              },
-            ],
+            KeySchema: [{ AttributeName: 'name', KeyType: 'HASH' }],
+            AttributeDefinitions: [{ AttributeName: 'name', AttributeType: 'S' }],
             BillingMode: 'PAY_PER_REQUEST',
           },
         },
@@ -666,25 +548,18 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         },
       },
     });
-    setup.pushStackResourceSummaries(setup.stackSummaryOf('Table', 'AWS::DynamoDB::Table', 'my-dynamodb-table'));
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Table', 'AWS::DynamoDB::Table', 'my-dynamodb-table'),
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Resources: {
           Table: {
             Type: 'AWS::DynamoDB::Table',
             Properties: {
-              KeySchema: [
-                {
-                  AttributeName: 'name',
-                  KeyType: 'HASH',
-                },
-              ],
-              AttributeDefinitions: [
-                {
-                  AttributeName: 'name',
-                  AttributeType: 'S',
-                },
-              ],
+              KeySchema: [{ AttributeName: 'name', KeyType: 'HASH' }],
+              AttributeDefinitions: [{ AttributeName: 'name', AttributeType: 'S' }],
               BillingMode: 'PAY_PER_REQUEST',
             },
           },
@@ -692,10 +567,10 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': [
-                  '',
-                  ['{"TableName":"', { Ref: 'Table' }, '","TableArn":"', { 'Fn::GetAtt': ['Table', 'Arn'] }, '"}'],
-                ],
+                'Fn::Join': ['', [
+                  '{"TableName":"', { Ref: 'Table' },
+                  '","TableArn":"', { 'Fn::GetAtt': ['Table', 'Arn'] }, '"}',
+                ]],
               },
               StateMachineName: 'my-machine',
             },
@@ -704,16 +579,22 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       },
     });
 
-    // THEN
+    // WHEN
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
+    // THEN
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        TableName: 'my-dynamodb-table',
-        TableArn: 'arn:swa:dynamodb:here:123456789012:table/my-dynamodb-table',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          TableName: 'my-dynamodb-table',
+          TableArn: 'arn:swa:dynamodb:here:123456789012:table/my-dynamodb-table',
+        }),
+      }]),
     });
   });
 
@@ -723,9 +604,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       Resources: {
         Key: {
           Type: 'AWS::KMS::Key',
-          Properties: {
-            Description: 'magic-key',
-          },
+          Properties: { Description: 'magic-key' },
         },
         Machine: {
           Type: 'AWS::StepFunctions::StateMachine',
@@ -736,24 +615,25 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         },
       },
     });
-    setup.pushStackResourceSummaries(setup.stackSummaryOf('Key', 'AWS::KMS::Key', 'a-key'));
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Key', 'AWS::KMS::Key', 'a-key'),
+      setup.stackSummaryOf('Machine', 'AWS::StepFunctions::StateMachine', 'arn:swa:states:here:123456789012:stateMachine:my-machine'),
+    );
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Resources: {
           Key: {
             Type: 'AWS::KMS::Key',
-            Properties: {
-              Description: 'magic-key',
-            },
+            Properties: { Description: 'magic-key' },
           },
           Machine: {
             Type: 'AWS::StepFunctions::StateMachine',
             Properties: {
               DefinitionString: {
-                'Fn::Join': [
-                  '',
-                  ['{"KeyId":"', { Ref: 'Key' }, '","KeyArn":"', { 'Fn::GetAtt': ['Key', 'Arn'] }, '"}'],
-                ],
+                'Fn::Join': ['', [
+                  '{"KeyId":"', { Ref: 'Key' },
+                  '","KeyArn":"', { 'Fn::GetAtt': ['Key', 'Arn'] }, '"}',
+                ]],
               },
               StateMachineName: 'my-machine',
             },
@@ -762,16 +642,22 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       },
     });
 
-    // THEN
+    // WHEN
     const result = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
 
+    // THEN
     expect(result).not.toBeUndefined();
-    expect(mockStepFunctionsClient).toHaveReceivedCommandWith(UpdateStateMachineCommand, {
-      stateMachineArn: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
-      definition: JSON.stringify({
-        KeyId: 'a-key',
-        KeyArn: 'arn:swa:kms:here:123456789012:key/a-key',
-      }),
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::StepFunctions::StateMachine',
+      Identifier: 'arn:swa:states:here:123456789012:stateMachine:my-machine',
+      PatchDocument: JSON.stringify([{
+        op: 'replace',
+        path: '/DefinitionString',
+        value: JSON.stringify({
+          KeyId: 'a-key',
+          KeyArn: 'arn:swa:kms:here:123456789012:key/a-key',
+        }),
+      }]),
     });
   });
 
@@ -810,6 +696,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(deployStackResult).not.toBeUndefined();
     expect(deployStackResult?.noOp).toEqual(true);
-    expect(mockStepFunctionsClient).not.toHaveReceivedCommand(UpdateStateMachineCommand);
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
   });
 });
