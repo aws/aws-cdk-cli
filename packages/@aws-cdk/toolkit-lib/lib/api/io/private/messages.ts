@@ -12,7 +12,7 @@ import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
-import type { PublishAssetsPayload } from '../../../payloads/publish';
+import type { PublishAssetsPayload, PublishResultPayload } from '../../../payloads/publish';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
@@ -470,6 +470,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9401',
     description: 'Publishing assets',
     interface: 'PublishAssetsPayload',
+  }),
+  CDK_TOOLKIT_I9402: make.result<PublishResultPayload>({
+    code: 'CDK_TOOLKIT_I9402',
+    description: 'Publish results on success',
+    interface: 'PublishResultPayload',
   }),
 
   // Notices

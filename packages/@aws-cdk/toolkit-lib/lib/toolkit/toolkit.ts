@@ -553,8 +553,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
     });
 
-    await ioHelper.defaults.info(chalk.green('\n✨  Assets published successfully\n'));
     const publishedAssets = assetNodes.map(n => n.asset);
+    await ioHelper.notify(IO.CDK_TOOLKIT_I9402.msg(chalk.green('\n✨  Assets published successfully\n'), { result: { publishedAssets } }));
 
     return {
       publishedAssets,
