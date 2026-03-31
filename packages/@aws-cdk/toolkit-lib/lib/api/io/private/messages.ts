@@ -12,6 +12,7 @@ import type { AssetBatchDeletionRequest } from '../../../payloads/gc';
 import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableChange, HotswapResult } from '../../../payloads/hotswap';
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
+import type { PublishAssetsPayload } from '../../../payloads/publish';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
@@ -464,6 +465,11 @@ export const IO = {
   CDK_TOOLKIT_I9400: make.info({
     code: 'CDK_TOOLKIT_I9400',
     description: 'All assets are already published',
+  }),
+  CDK_TOOLKIT_I9401: make.info<PublishAssetsPayload>({
+    code: 'CDK_TOOLKIT_I9401',
+    description: 'Publishing assets',
+    interface: 'PublishAssetsPayload',
   }),
 
   // Notices

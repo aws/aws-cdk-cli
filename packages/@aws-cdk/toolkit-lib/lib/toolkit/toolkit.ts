@@ -536,6 +536,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       };
     }
 
+    const assets = assetNodes.map(n => n.asset);
+    await ioHelper.notify(IO.CDK_TOOLKIT_I9401.msg('Publishing assets', { assets }));
+
     const graphConcurrency: Concurrency = {
       'stack': 1,
       'asset-build': options.concurrency ?? 1,
