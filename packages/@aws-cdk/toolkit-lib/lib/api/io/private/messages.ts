@@ -13,7 +13,7 @@ import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableCh
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
-import type { PublishAssetsPayload, PublishResultPayload } from '../../../payloads/publish';
+import type { PublishAssetsPayload, PublishAssetsResultPayload } from '../../../payloads/publish-assets';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
@@ -471,10 +471,10 @@ export const IO = {
     description: 'Publishing assets',
     interface: 'PublishAssetsPayload',
   }),
-  CDK_TOOLKIT_I9402: make.result<PublishResultPayload>({
+  CDK_TOOLKIT_I9402: make.result<PublishAssetsResultPayload>({
     code: 'CDK_TOOLKIT_I9402',
-    description: 'Publish results on success',
-    interface: 'PublishResultPayload',
+    description: 'Publish assets results on success',
+    interface: 'PublishAssetsResultPayload',
   }),
 
   // Notices

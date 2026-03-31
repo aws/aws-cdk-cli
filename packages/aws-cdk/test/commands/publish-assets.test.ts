@@ -3,7 +3,7 @@ import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 
-describe('publish', () => {
+describe('publish-assets', () => {
   let cloudExecutable: MockCloudExecutable;
   let cloudFormation: jest.Mocked<Deployments>;
   let toolkit: CdkToolkit;
@@ -32,8 +32,8 @@ describe('publish', () => {
       sdkProvider: cloudExecutable.sdkProvider,
     });
 
-    // Mock the toolkit.publish method from toolkit-lib
-    jest.spyOn((toolkit as any).toolkit, 'publish').mockResolvedValue(undefined);
+    // Mock the toolkit.publishAssets method from toolkit-lib
+    jest.spyOn((toolkit as any).toolkit, 'publishAssets').mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -42,13 +42,13 @@ describe('publish', () => {
 
   test('publishes with correct stack selector and force option', async () => {
     // WHEN
-    await toolkit.publish({
+    await toolkit.publishAssets({
       selector: { patterns: ['Stack1'] },
       force: true,
     });
 
     // THEN
-    expect((toolkit as any).toolkit.publish).toHaveBeenCalledWith(
+    expect((toolkit as any).toolkit.publishAssets).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         stacks: expect.objectContaining({
@@ -61,24 +61,24 @@ describe('publish', () => {
 
   test('publishes successfully', async () => {
     // WHEN
-    await toolkit.publish({
+    await toolkit.publishAssets({
       selector: { patterns: ['Stack1'] },
     });
 
     // THEN
-    expect((toolkit as any).toolkit.publish).toHaveBeenCalled();
+    expect((toolkit as any).toolkit.publishAssets).toHaveBeenCalled();
   });
 
   test('passes all options correctly', async () => {
     // WHEN
-    await toolkit.publish({
+    await toolkit.publishAssets({
       selector: { patterns: ['Stack1'] },
       force: true,
       concurrency: 5,
     });
 
     // THEN
-    expect((toolkit as any).toolkit.publish).toHaveBeenCalledWith(
+    expect((toolkit as any).toolkit.publishAssets).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         force: true,

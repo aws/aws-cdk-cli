@@ -66,8 +66,8 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
-    } else if (args.includes('publish')) {
-      result = { ...result, _: ['publish'] };
+    } else if (args.includes('publish-assets')) {
+      result = { ...result, _: ['publish-assets'] };
 
       // Handle publish-specific flags
       if (args.includes('--exclusively')) {
@@ -532,7 +532,7 @@ describe('gc command tests', () => {
   });
 });
 
-describe('publish command tests', () => {
+describe('publish-assets command tests', () => {
   let originalCliIoHostInstance: any;
 
   beforeEach(() => {
@@ -545,7 +545,7 @@ describe('publish command tests', () => {
   });
 
   test('throw error when unstable flag is not set', async () => {
-    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue(undefined);
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publishAssets').mockResolvedValue(undefined);
 
     (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn() };
     (ioHost as any).asIoHelper = () => ioHelper;
@@ -567,12 +567,12 @@ describe('publish command tests', () => {
 
     Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
 
-    await expect(exec(['publish'])).rejects.toThrow(/Unstable feature use.*publish.*unstable/);
+    await expect(exec(['publish-assets'])).rejects.toThrow(/Unstable feature use.*publish-assets.*unstable/);
     expect(publishSpy).not.toHaveBeenCalled();
   });
 
   test('should pass options to publish method', async () => {
-    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publish').mockResolvedValue(undefined);
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publishAssets').mockResolvedValue(undefined);
 
     (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
     (ioHost as any).asIoHelper = () => ioHelper;
@@ -583,7 +583,7 @@ describe('publish command tests', () => {
       loadConfigFiles: jest.fn().mockResolvedValue(undefined),
       settings: {
         get: jest.fn().mockImplementation((key: string[]) => {
-          if (key[0] === 'unstable') return ['publish'];
+          if (key[0] === 'unstable') return ['publish-assets'];
           return undefined;
         }),
       },
@@ -594,7 +594,7 @@ describe('publish command tests', () => {
 
     Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
 
-    await exec(['publish', '--unstable=publish', '--exclusively', '--force', '--concurrency', '4']);
+    await exec(['publish-assets', '--unstable=publish-assets', '--exclusively', '--force', '--concurrency', '4']);
 
     expect(publishSpy).toHaveBeenCalledWith(
       expect.objectContaining({

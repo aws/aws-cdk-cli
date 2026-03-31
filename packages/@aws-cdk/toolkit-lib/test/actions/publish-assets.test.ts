@@ -22,11 +22,11 @@ beforeEach(() => {
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
 
-describe('publish', () => {
+describe('publish-assets', () => {
   test('publishes assets for a single stack', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-asset');
-    const result = await toolkit.publish(cx, {
+    const result = await toolkit.publishAssets(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
@@ -38,7 +38,7 @@ describe('publish', () => {
   test('publishes assets for multiple stacks', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-different-stacks');
-    const result = await toolkit.publish(cx, {
+    const result = await toolkit.publishAssets(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
@@ -50,7 +50,7 @@ describe('publish', () => {
   test('returns result when no stacks are selected', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-asset');
-    const result = await toolkit.publish(cx, {
+    const result = await toolkit.publishAssets(cx, {
       stacks: { patterns: ['NonExistentStack'], strategy: StackSelectionStrategy.PATTERN_MATCH },
     });
 
@@ -62,7 +62,7 @@ describe('publish', () => {
   test('can invoke publish action without options', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-asset');
-    const result = await toolkit.publish(cx);
+    const result = await toolkit.publishAssets(cx);
 
     // THEN
     expect(result.publishedAssets.length).toBeGreaterThan(0);
@@ -72,7 +72,7 @@ describe('publish', () => {
   test('respects force option', async () => {
     // WHEN - publish with force
     const cx = await builderFixture(toolkit, 'stack-with-asset');
-    const result = await toolkit.publish(cx, {
+    const result = await toolkit.publishAssets(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       force: true,
     });
@@ -88,7 +88,7 @@ describe('publish', () => {
 
     // WHEN - publish without force
     const cx = await builderFixture(toolkit, 'stack-with-asset');
-    const result = await toolkit.publish(cx, {
+    const result = await toolkit.publishAssets(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       force: false,
     });

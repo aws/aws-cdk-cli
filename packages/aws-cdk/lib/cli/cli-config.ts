@@ -246,7 +246,7 @@ export async function makeConfig(): Promise<CliConfig> {
           },
         },
       },
-      'publish': {
+      'publish-assets': {
         description: 'Publish assets for the given stack(s) without deploying',
         arg: {
           name: 'STACKS',

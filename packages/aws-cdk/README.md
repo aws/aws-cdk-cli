@@ -19,7 +19,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
 | [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
 | [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
-| [`cdk publish`](#cdk-publish)             | Publish assets for stack(s) without deploying (unstable)                          |
+| [`cdk publish-assets`](#cdk-publish-assets)| Publish assets for stack(s) without deploying (unstable)                         |
 | [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
 | [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
 | [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
@@ -616,13 +616,13 @@ For technical implementation details (function calls, file locations), see [docs
 
 ![Deploy flowchart](./images/deploy-flowchart.png)
 
-### `cdk publish`
+### `cdk publish-assets`
 
 Publishes assets for the specified stack(s) without performing a deployment.
 
 > [!CAUTION]
-> `cdk publish` is under development and therefore must be opted in via the
-> `--unstable` flag: `cdk publish --unstable=publish`. `--unstable` indicates that the scope and
+> `cdk publish-assets` is under development and therefore must be opted in via the
+> `--unstable` flag: `cdk publish-assets --unstable=publish-assets`. `--unstable` indicates that the scope and
 > API of feature might still change. Otherwise the feature is generally production
 > ready and fully supported.
 
@@ -632,13 +632,13 @@ This is useful in CI/CD pipelines where you want to separate the build/publish p
 
 ```console
 $ # Publish assets for a single stack
-$ cdk publish MyStack --unstable=publish
+$ cdk publish-assets MyStack --unstable=publish-assets
 
 $ # Publish assets for all stacks
-$ cdk publish --all --unstable=publish
+$ cdk publish-assets --all --unstable=publish-assets
 
 $ # Force re-publish even if assets already exist
-$ cdk publish MyStack --unstable=publish --force
+$ cdk publish-assets MyStack --unstable=publish-assets --force
 ```
 
 ### `cdk rollback`

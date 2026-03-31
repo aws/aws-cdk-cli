@@ -612,7 +612,7 @@
         }
       }
     },
-    "publish": {
+    "publish-assets": {
       "description": "Publish assets for the given stack(s) without deploying",
       "arg": {
         "name": "STACKS",

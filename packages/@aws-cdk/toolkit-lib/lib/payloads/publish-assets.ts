@@ -1,5 +1,5 @@
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
-import type { PublishResult } from '../actions';
+import type { PublishAssetsResult } from '../actions';
 
 export interface PublishAssetsPayload {
   /**
@@ -8,9 +8,9 @@ export interface PublishAssetsPayload {
   readonly assets: IManifestEntry[];
 }
 
-export interface PublishResultPayload {
+export interface PublishAssetsResultPayload {
   /**
-   * The publish result
+   * The publish assets result
    */
-  readonly result: PublishResult;
+  readonly result: PublishAssetsResult;
 }

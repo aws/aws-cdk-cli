@@ -1,7 +1,7 @@
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import type { StackSelector } from '../../api/cloud-assembly';
 
-export interface PublishOptions {
+export interface PublishAssetsOptions {
   /**
    * Select stacks to publish assets for
    *
@@ -24,7 +24,7 @@ export interface PublishOptions {
   readonly concurrency?: number;
 }
 
-export interface PublishResult {
+export interface PublishAssetsResult {
   /**
    * List of assets that were published
    */

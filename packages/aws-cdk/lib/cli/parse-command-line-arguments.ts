@@ -643,7 +643,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
         }),
     )
-    .command('publish [STACKS..]', 'Publish assets for the given stack(s) without deploying', (yargs: Argv) =>
+    .command('publish-assets [STACKS..]', 'Publish assets for the given stack(s) without deploying', (yargs: Argv) =>
       yargs
         .option('all', {
           default: false,

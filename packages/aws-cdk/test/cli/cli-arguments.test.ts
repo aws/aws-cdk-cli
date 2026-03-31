@@ -158,7 +158,7 @@ describe('config', () => {
       metadata: expect.anything(),
       migrate: expect.anything(),
       rollback: expect.anything(),
-      publish: expect.anything(),
+      publishAssets: expect.anything(),
       synth: expect.anything(),
       watch: expect.anything(),
       notices: expect.anything(),

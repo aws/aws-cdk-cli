@@ -63,7 +63,7 @@ export interface UserInput {
   /**
    * Publish assets for the given stack(s) without deploying
    */
-  readonly publish?: PublishOptions;
+  readonly publishAssets?: PublishAssetsOptions;
 
   /**
    * Import existing resource(s) into the given STACK
@@ -1011,7 +1011,7 @@ export interface RollbackOptions {
  *
  * @struct
  */
-export interface PublishOptions {
+export interface PublishAssetsOptions {
   /**
    * Publish assets for all available stacks
    *
@@ -1045,7 +1045,7 @@ export interface PublishOptions {
   readonly concurrency?: number;
 
   /**
-   * Positional argument for publish
+   * Positional argument for publish-assets
    */
   readonly STACKS?: Array<string>;
 }

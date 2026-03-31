@@ -160,7 +160,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
-    case 'publish':
+    case 'publish-assets':
       commandOptions = {
         all: args.all,
         exclusively: args.exclusively,
@@ -455,11 +455,11 @@ export function convertConfigToUserInput(config: any): UserInput {
     validateBootstrapVersion: config.rollback?.validateBootstrapVersion,
     orphan: config.rollback?.orphan,
   };
-  const publishOptions = {
-    all: config.publish?.all,
-    exclusively: config.publish?.exclusively,
-    force: config.publish?.force,
-    concurrency: config.publish?.concurrency,
+  const publishAssetsOptions = {
+    all: config.publishAssets?.all,
+    exclusively: config.publishAssets?.exclusively,
+    force: config.publishAssets?.force,
+    concurrency: config.publishAssets?.concurrency,
   };
   const importOptions = {
     execute: config.import?.execute,
@@ -566,7 +566,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
-    publish: publishOptions,
+    publishAssets: publishAssetsOptions,
     import: importOptions,
     watch: watchOptions,
     destroy: destroyOptions,

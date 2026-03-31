@@ -441,12 +441,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           orphanLogicalIds: args.orphan,
         });
 
-      case 'publish':
-        ioHost.currentAction = 'publish';
-        if (!configuration.settings.get(['unstable']).includes('publish')) {
-          throw new ToolkitError('UnstablePublish', 'Unstable feature use: \'publish\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish --unstable=publish\'');
+      case 'publish-assets':
+        ioHost.currentAction = 'publish-assets';
+        if (!configuration.settings.get(['unstable']).includes('publish-assets')) {
+          throw new ToolkitError('UnstablePublishAssets', 'Unstable feature use: \'publish-assets\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish-assets --unstable=publish-assets\'');
         }
-        return cli.publish({
+        return cli.publishAssets({
           selector,
           exclusively: args.exclusively,
           force: args.force,

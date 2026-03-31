@@ -46,7 +46,7 @@ import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
-import type { PublishOptions, PublishResult } from '../actions/publish';
+import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
@@ -490,12 +490,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   /**
-   * Publish Action
+   * Publish Assets Action
    *
    * Publishes assets for the selected stacks without deploying
    */
-  public async publish(cx: ICloudAssemblySource, options: PublishOptions = {}): Promise<PublishResult> {
-    const ioHelper = asIoHelper(this.ioHost, 'publish');
+  public async publishAssets(cx: ICloudAssemblySource, options: PublishAssetsOptions = {}): Promise<PublishAssetsResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'publish-assets');
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
@@ -509,7 +509,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       };
     }
 
-    const deployments = await this.deploymentsForAction('publish');
+    const deployments = await this.deploymentsForAction('publish-assets');
 
     const stacks = stackCollection.stackArtifacts;
     const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [

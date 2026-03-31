@@ -812,8 +812,8 @@ export class CdkToolkit {
     }
   }
 
-  public async publish(options: PublishOptions): Promise<void> {
-    await this.toolkit.publish(this.props.cloudExecutable, {
+  public async publishAssets(options: PublishAssetsOptions): Promise<void> {
+    await this.toolkit.publishAssets(this.props.cloudExecutable, {
       stacks: {
         patterns: options.selector.patterns,
         strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
@@ -1900,7 +1900,7 @@ export interface RollbackOptions {
   readonly validateBootstrapStackVersion?: boolean;
 }
 
-export interface PublishOptions {
+export interface PublishAssetsOptions {
   /**
    * Criteria for selecting stacks
    */
