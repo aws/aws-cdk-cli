@@ -33,6 +33,9 @@ if (process.env.PACKAGE_LAYOUT_VERSION === '1') {
     aws_ecr_assets: docker,
     aws_appsync: appsync,
     aws_bedrockagentcore: bedrockagentcore,
+    aws_events: events,
+    aws_dynamodb: dynamodb,
+    aws_bedrock: bedrock,
     Stack
   } = require('aws-cdk-lib');
 }
@@ -711,6 +714,59 @@ class AgentCoreHotswapStack extends cdk.Stack {
   }
 }
 
+class CloudControlHotswapStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    // DynamoDB table — a dependency that other resources reference
+    const table = new dynamodb.Table(this, 'Table', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ElastiCache serverless cache — another dependency resource
+    const cache = new cdk.CfnResource(this, 'Cache', {
+      type: 'AWS::ElastiCache::ServerlessCache',
+      properties: {
+        Engine: 'valkey',
+        ServerlessCacheName: `${cdk.Stack.of(this).stackName}-cache`.substring(0, 40).toLowerCase(),
+      },
+    });
+
+    // SQS Queue — hotswapped via CCAPI, references the DynamoDB table ARN in its tag
+    const queue = new sqs.Queue(this, 'Queue', {
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
+    cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
+
+    // Bedrock Agent — hotswapped via CCAPI, references the DynamoDB table name
+    const agentRole = new iam.Role(this, 'AgentRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+    });
+    const agent = new bedrock.CfnAgent(this, 'Agent', {
+      agentName: `${cdk.Stack.of(this).stackName}-agent`.substring(0, 40),
+      agentResourceRoleArn: agentRole.roleArn,
+      instruction: process.env.DYNAMIC_CC_PROPERTY_VALUE
+        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}`
+        : `You help query the table ${table.tableName}. original`,
+      foundationModel: 'anthropic.claude-instant-v1',
+    });
+
+    // Events Rule — hotswapped via CCAPI, references the ElastiCache cache ARN
+    const rule = new events.Rule(this, 'Rule', {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: process.env.DYNAMIC_CC_PROPERTY_VALUE
+        ? `Rule for cache ${cache.getAtt('ARN')}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}`
+        : `Rule for cache ${cache.getAtt('ARN')}. original`,
+    });
+
+    new cdk.CfnOutput(this, 'QueueUrl', { value: queue.queueUrl });
+    new cdk.CfnOutput(this, 'AgentName', { value: agent.ref });
+    new cdk.CfnOutput(this, 'RuleName', { value: rule.ruleName });
+  }
+}
+
 class DockerStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
@@ -990,6 +1046,7 @@ switch (stackSet) {
     new LambdaHotswapStack(app, `${stackPrefix}-lambda-hotswap`);
     new EcsHotswapStack(app, `${stackPrefix}-ecs-hotswap`);
     new AgentCoreHotswapStack(app, `${stackPrefix}-agentcore-hotswap`);
+    new CloudControlHotswapStack(app, `${stackPrefix}-cc-hotswap`);
     new AppSyncHotswapStack(app, `${stackPrefix}-appsync-hotswap`);
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
