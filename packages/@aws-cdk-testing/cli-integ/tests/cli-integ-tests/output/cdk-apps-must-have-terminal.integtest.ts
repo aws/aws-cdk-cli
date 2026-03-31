@@ -8,6 +8,6 @@ integTest(
     await fixture.cdkSynth({
       tty: true,
     });
-  })),
+  }), { disableBootstrap: true }),
 );
 

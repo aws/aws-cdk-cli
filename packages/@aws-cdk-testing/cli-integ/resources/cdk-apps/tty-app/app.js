@@ -1,5 +1,5 @@
 var cdk = require('aws-cdk-lib');
-var tty = reuqire('tty');
+var tty = require('tty');
 
 const stackPrefix = process.env.STACK_NAME_PREFIX;
 if (!stackPrefix) {
@@ -14,7 +14,7 @@ class MyStack extends cdk.Stack {
 }
 
 if (!tty.isatty(1) || !tty.isatty(2)) {
-  throw new Error('CHECK_TTY is set to true, but stdout or stderr is not attached to a TTY');
+  throw new Error('stdout or stderr is not attached to a TTY');
 }
 
 const app = new cdk.App();
