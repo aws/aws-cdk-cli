@@ -34,7 +34,7 @@ export class RWLock {
 
     const readers = await this._currentReaders();
     if (readers.length > 0) {
-      throw new ToolkitError(`Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
+      throw new ToolkitError('ConcurrentReadLock', `Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
 
     await writeFileAtomic(this.writerFile, this.pidString);
@@ -101,7 +101,7 @@ export class RWLock {
   private async assertNoOtherWriters() {
     const writer = await this._currentWriter();
     if (writer) {
-      throw new ToolkitError(`Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
+      throw new ToolkitError('ConcurrentWriteLock', `Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
   }
 

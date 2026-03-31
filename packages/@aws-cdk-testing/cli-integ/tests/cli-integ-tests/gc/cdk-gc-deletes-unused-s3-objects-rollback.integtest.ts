@@ -1,8 +1,6 @@
 import { ListObjectsV2Command, PutObjectTaggingCommand } from '@aws-sdk/client-s3';
 import { integTest, withoutBootstrap, randomString } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 const DAY = 24 * 60 * 60 * 1000;
 const S3_ISOLATED_TAG = 'aws-cdk:isolated';
 

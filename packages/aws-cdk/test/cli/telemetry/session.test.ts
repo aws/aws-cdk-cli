@@ -1,6 +1,7 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
-import { ErrorName, type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
+import { type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/sink/io-host-sink';
 import { withEnv } from '../../_helpers/with-env';
@@ -55,7 +56,7 @@ describe('TelemetrySession', () => {
       eventType: 'SYNTH',
       duration: 1234,
       error: {
-        name: ErrorName.TOOLKIT_ERROR,
+        name: ToolkitError.name,
       },
     });
 
@@ -73,7 +74,7 @@ describe('TelemetrySession', () => {
       eventType: 'SYNTH',
       duration: 1234,
       error: {
-        name: ErrorName.TOOLKIT_ERROR,
+        name: ToolkitError.name,
         message: '__CDK-Toolkit__Aborted',
       },
     });
@@ -136,6 +137,54 @@ describe('TelemetrySession', () => {
 
     // THEN
     expect(clientFlushSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('attach cdk library version', async () => {
+    session.attachCdkLibVersion('1.2.3');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        cdkLibraryVersion: '1.2.3',
+      }),
+    }));
+  });
+
+  test('attach language', async () => {
+    session.attachLanguage('basic');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      project: expect.objectContaining({
+        language: 'basic',
+      }),
+    }));
+  });
+
+  test('attach agent', async () => {
+    session.attachAgent(true);
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      environment: expect.objectContaining({
+        agent: true,
+      }),
+    }));
   });
 });
 

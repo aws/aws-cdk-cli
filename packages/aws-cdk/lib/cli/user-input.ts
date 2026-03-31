@@ -497,7 +497,7 @@ export interface BootstrapOptions {
   readonly tags?: Array<string>;
 
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)
+   * Whether to execute the change set (--no-execute will NOT execute the change set)
    *
    * @default - true
    */
@@ -754,7 +754,7 @@ export interface DeployOptions {
   readonly exclusively?: boolean;
 
   /**
-   * What security-sensitive changes need manual approval
+   * What changes require manual approval
    *
    * @default - undefined
    */
@@ -777,7 +777,7 @@ export interface DeployOptions {
   readonly tags?: Array<string>;
 
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)
+   * Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)
    *
    * @deprecated true
    * @default - undefined
@@ -924,6 +924,13 @@ export interface DeployOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * @default - 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * Whether to build all assets before deploying the first stack (useful for failing Docker builds)
    *
    * @default - true
@@ -936,6 +943,13 @@ export interface DeployOptions {
    * @default - false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Create a drift-aware change set that brings actual resource states in line with template definitions
+   *
+   * @default - false
+   */
+  readonly revertDrift?: boolean;
 
   /**
    * Positional argument for deploy
@@ -1043,7 +1057,7 @@ export interface PublishOptions {
  */
 export interface ImportOptions {
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)
+   * Whether to execute the change set (--no-execute will NOT execute the change set)
    *
    * @default - true
    */
@@ -1249,6 +1263,13 @@ export interface DestroyOptions {
   readonly force?: boolean;
 
   /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for destroy
    */
   readonly STACKS?: Array<string>;
@@ -1277,7 +1298,7 @@ export interface DiffOptions {
   readonly contextLines?: number;
 
   /**
-   * The path to the CloudFormation template to compare with
+   * The path to the CloudFormation template to compare with. Implies --method=template
    *
    * @default - undefined
    */
@@ -1321,13 +1342,23 @@ export interface DiffOptions {
   readonly quiet?: boolean;
 
   /**
-   * Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.
+   * Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.
    *
    * aliases: changeset
    *
+   * @deprecated use --method instead
    * @default - true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.
+   *
+   * aliases: m
+   *
+   * @default - "auto"
+   */
+  readonly method?: string;
 
   /**
    * Whether or not the change set imports resources that already exist

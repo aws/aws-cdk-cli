@@ -64,7 +64,7 @@ export async function makeBodyParameter(
       ),
     );
 
-    throw new ToolkitError('Template too large to deploy ("cdk bootstrap" is required)');
+    throw new ToolkitError('TemplateTooLargeToDeploy', 'Template too large to deploy ("cdk bootstrap" is required)');
   }
 
   const templateHash = contentHash(templateJson);
@@ -126,7 +126,7 @@ export async function restUrlFromManifest(url: string, environment: Environment)
   // Yes, this is extremely crude, but we don't actually need this so I'm not inclined to spend
   // a lot of effort trying to thread the right value to this location.
   if (url.indexOf(doNotUseMarker) > -1) {
-    throw new ToolkitError("Cannot use '${AWS::Partition}' in the 'stackTemplateAssetObjectUrl' field");
+    throw new ToolkitError('PartitionPlaceholderNotSupported', "Cannot use '${AWS::Partition}' in the 'stackTemplateAssetObjectUrl' field");
   }
 
   const s3Url = url.match(/s3:\/\/([^/]+)\/(.*)$/);

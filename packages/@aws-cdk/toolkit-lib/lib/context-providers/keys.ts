@@ -46,12 +46,12 @@ export class KeyContextProviderPlugin implements ContextProviderPlugin {
       const keyId = (args.dummyValue as { keyId: string }).keyId;
       return { TargetKeyId: keyId };
     }
-    throw new ContextProviderError(`Could not find any key with alias named ${args.aliasName}`);
+    throw new ContextProviderError('KeyNotFound', `Could not find any key with alias named ${args.aliasName}`);
   }
 
   private async readKeyProps(alias: AliasListEntry, args: KeyContextQuery): Promise<KeyContextResponse> {
     if (!alias.TargetKeyId) {
-      throw new ContextProviderError(`Could not find any key with alias named ${args.aliasName}`);
+      throw new ContextProviderError('KeyMissingTargetId', `Could not find any key with alias named ${args.aliasName}`);
     }
 
     await this.io.debug(`Key found ${alias.TargetKeyId}`);

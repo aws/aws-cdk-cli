@@ -3,8 +3,6 @@ import { integTest, withoutBootstrap } from '../../../lib';
 
 const ECR_ISOLATED_TAG = 'aws-cdk.isolated';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'Garbage Collection untags in-use ecr images',
   withoutBootstrap(async (fixture) => {

@@ -122,7 +122,7 @@ async function invalidateContext(ioHelper: IoHelper, context: Context, key: stri
     // Value must be in readonly bag
     await ioHelper.defaults.error('Only context values specified in %s can be reset through the CLI', chalk.blue(PROJECT_CONTEXT));
     if (!force) {
-      throw new ToolkitError(`Cannot reset readonly context value with key: ${key}`);
+      throw new ToolkitError('ReadonlyContextKey', `Cannot reset readonly context value with key: ${key}`);
     }
   }
 
@@ -144,12 +144,12 @@ async function invalidateContext(ioHelper: IoHelper, context: Context, key: stri
 
     // throw when none of the matches were reset
     if (!force && unset.length === 0) {
-      throw new ToolkitError('None of the matched context values could be reset');
+      throw new ToolkitError('NoResettableContextValues', 'None of the matched context values could be reset');
     }
     return;
   }
   if (!force) {
-    throw new ToolkitError(`No context value matching key: ${key}`);
+    throw new ToolkitError('ContextKeyNotFound', `No context value matching key: ${key}`);
   }
 }
 
@@ -193,7 +193,7 @@ function keyByNumber(context: Context, n: number) {
       return key;
     }
   }
-  throw new ToolkitError(`No context key with number: ${n}`);
+  throw new ToolkitError('ContextKeyNumberNotFound', `No context key with number: ${n}`);
 }
 
 /**

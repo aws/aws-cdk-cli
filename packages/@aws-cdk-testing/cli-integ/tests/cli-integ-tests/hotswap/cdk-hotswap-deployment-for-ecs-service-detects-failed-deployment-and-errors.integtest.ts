@@ -1,7 +1,5 @@
 import { integTest, withExtendedTimeoutFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'hotswap deployment for ecs service detects failed deployment and errors',
   withExtendedTimeoutFixture(async (fixture) => {

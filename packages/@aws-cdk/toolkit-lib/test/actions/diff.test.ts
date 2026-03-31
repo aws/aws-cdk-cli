@@ -1,5 +1,6 @@
 import * as path from 'path';
-import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
@@ -8,7 +9,7 @@ import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -343,19 +344,33 @@ describe('diff', () => {
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/Could not create a change set and failOnError is set/);
+      })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
     });
 
-    test('ChangeSet diff method throws if stack not found and fallBackToTemplate = false', async () => {
-      // GIVEN
+    test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {
+      // GIVEN - stack doesn't exist
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
 
       // WHEN
       const cx = await builderFixture(toolkit, 'stack-with-bucket');
-      await expect(async () => toolkit.diff(cx, {
+      await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/the stack 'Stack1' has not been deployed to CloudFormation/);
+      });
+
+      // THEN - a CREATE changeset was made
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetType: 'CREATE',
+      }));
     });
   });
 

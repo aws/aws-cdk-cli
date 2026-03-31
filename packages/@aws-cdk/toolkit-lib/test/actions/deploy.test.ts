@@ -1,6 +1,7 @@
 import { StackParameters } from '../../lib/actions/deploy';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deployments';
 import * as deployments from '../../lib/api/deployments';
+import { WorkGraphBuilder } from '../../lib/api/work-graph';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
@@ -39,6 +40,22 @@ describe('deploy', () => {
 
     // THEN
     successfulDeployment();
+  });
+
+  test('emits resource counters', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.deploy(cx);
+
+    // THEN
+    const deploy = ioHost.notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_TOOLKIT_I5001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
   });
 
   test('request response contains security diff', async () => {
@@ -81,6 +98,27 @@ IAM Statement Changes
             }),
           }),
         }),
+      }),
+    }));
+  });
+
+  test('request response contains stack diff when there are no security changes', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    // Message includes formatted stack diff (not just security diff)
+    expect(request).toContain('AWS::S3::Bucket');
+    expect(request).toContain('Do you wish to deploy these changes');
+
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        motivation: expect.stringContaining('stack includes updates.'),
+        permissionChangeType: 'none',
       }),
     }));
   });
@@ -160,6 +198,83 @@ IAM Statement Changes
       expect(publishSingleAsset).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
         forcePublish: true,
       }));
+    });
+
+    describe('assetBuildConcurrency', () => {
+      let buildSpy: jest.SpyInstance;
+
+      afterEach(() => {
+        buildSpy?.mockRestore();
+      });
+
+      test('is passed when assetParallelism is true', async () => {
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const cx = await builderFixture(toolkit, 'stack-with-asset');
+
+        await toolkit.deploy(cx, {
+          assetParallelism: true,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 4,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('is ignored when assetParallelism is false', async () => {
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const cx = await builderFixture(toolkit, 'stack-with-asset');
+
+        await toolkit.deploy(cx, {
+          assetParallelism: false,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test.each([
+        true,
+        false,
+        undefined,
+      ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism) => {
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const cx = await builderFixture(toolkit, 'stack-with-asset');
+
+        await toolkit.deploy(cx, {
+          assetParallelism,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
     });
   });
 

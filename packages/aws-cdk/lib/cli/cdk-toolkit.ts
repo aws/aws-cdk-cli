@@ -16,6 +16,7 @@ import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
+  buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
@@ -251,16 +252,18 @@ export class CdkToolkit {
       // Compare single stack against fixed template
       if (stacks.stackCount !== 1) {
         throw new ToolkitError(
+          'SingleStackRequired',
           'Can only select one stack when comparing to fixed template. Use --exclusively to avoid selecting multiple stacks.',
         );
       }
 
       if (!(await fs.pathExists(options.templatePath))) {
-        throw new ToolkitError(`There is no file at ${options.templatePath}`);
+        throw new ToolkitError('TemplateNotFound', `There is no file at ${options.templatePath}`);
       }
 
       if (options.importExistingResources) {
         throw new ToolkitError(
+          'ImportWithTemplatePath',
           'Can only use --import-existing-resources flag when comparing against deployed stacks.',
         );
       }
@@ -313,43 +316,9 @@ export class CdkToolkit {
           removeNonImportResources(stack);
         }
 
-        let changeSet = undefined;
-
-        if (options.changeSet) {
-          let stackExists = false;
-          try {
-            stackExists = await this.props.deployments.stackExists({
-              stack,
-              deployName: stack.stackName,
-              tryLookupRole: true,
-            });
-          } catch (e: any) {
-            await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
-            if (!quiet) {
-              await this.ioHost.asIoHelper().defaults.info(
-                `Checking if the stack ${stack.stackName} exists before creating the changeset has failed, will base the diff on template differences (run again with -v to see the reason)\n`,
-              );
-            }
-            stackExists = false;
-          }
-
-          if (stackExists) {
-            changeSet = await cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
-              stack,
-              uuid: uuid.v4(),
-              deployments: this.props.deployments,
-              willExecute: false,
-              sdkProvider: this.props.sdkProvider,
-              parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-              resourcesToImport,
-              importExistingResources: options.importExistingResources,
-            });
-          } else {
-            await this.ioHost.asIoHelper().defaults.debug(
-              `the stack '${stack.stackName}' has not been deployed to CloudFormation or describeStacks call failed, skipping changeset creation.`,
-            );
-          }
-        }
+        const changeSet = (options.method !== 'template')
+          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
+          : undefined;
 
         const mappings = allMappings.find(m =>
           m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
@@ -391,6 +360,49 @@ export class CdkToolkit {
     return diffs && options.fail ? 1 : 0;
   }
 
+  /**
+   * Try to create a diff changeset for the given stack.
+   * Returns undefined if the stack cannot be accessed and changeSetOnly is not set.
+   */
+  private async tryCreateDiffChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    options: DiffOptions,
+    parameterMap: { [name: string]: { [name: string]: string | undefined } },
+    resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
+    quiet: boolean,
+  ) {
+    try {
+      await this.props.deployments.stackExists({
+        stack,
+        deployName: stack.stackName,
+        tryLookupRole: true,
+      });
+    } catch (e: any) {
+      if (options.method === 'change-set') {
+        throw ToolkitError.withCause('DescribeStacksFailed', `Could not access stack '${stack.stackName}'. Please check your permissions or use '--method=auto' to allow falling back to a template diff.`, e);
+      }
+      await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
+      if (!quiet) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `Could not access stack '${stack.stackName}', falling back to template diff. Use '--method=change-set' to fail instead. Run with -v to see the reason.\n`,
+        );
+      }
+      return undefined;
+    }
+
+    return cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+      stack,
+      uuid: uuid.v4(),
+      deployments: this.props.deployments,
+      willExecute: false,
+      sdkProvider: this.props.sdkProvider,
+      parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+      resourcesToImport,
+      importExistingResources: options.importExistingResources,
+      failOnError: options.method === 'change-set',
+    });
+  }
+
   public async deploy(options: DeployOptions) {
     if (options.watch) {
       return this.watch(options);
@@ -425,7 +437,10 @@ export class CdkToolkit {
       ...options,
     });
 
+    // the ioHost uses this internally to determine if a confirmation
+    // is actually needed, so it needs the same value we determine here.
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
+    this.ioHost.requireDeployApproval = requireApproval;
 
     const parameterMap = buildParameterMap(options.parameters);
 
@@ -472,11 +487,13 @@ export class CdkToolkit {
       if (!stack.environment) {
         // eslint-disable-next-line @stylistic/max-len
         throw new ToolkitError(
+          'MissingEnvironment',
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
       }
 
-      if (Object.keys(stack.template.Resources || {}).length === 0) {
+      const resourceCount = Object.keys(stack.template.Resources || {}).length;
+      if (resourceCount === 0) {
         // The generated stack has no resources
         if (!(await this.props.deployments.stackExists({ stack }))) {
           await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
@@ -503,8 +520,13 @@ export class CdkToolkit {
         });
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const motivation = '"--require-approval" is enabled and stack includes security-sensitive updates';
-          await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
+          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+          const motivation = hasSecurityChanges
+            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
+            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+          await this.ioHost.asIoHelper().defaults.info(diffOutput);
+
           await askUserConfirmation(
             this.ioHost,
             IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
@@ -528,7 +550,7 @@ export class CdkToolkit {
 
       for (const notificationArn of notificationArns ?? []) {
         if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError(`Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
         }
       }
 
@@ -543,6 +565,7 @@ export class CdkToolkit {
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
       const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+      deploySpan.incCounter('resources', resourceCount);
       let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
@@ -552,7 +575,7 @@ export class CdkToolkit {
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
-            throw new ToolkitError('This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
+            throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
           }
 
           const r = await this.props.deployments.deployStack({
@@ -563,8 +586,6 @@ export class CdkToolkit {
             reuseAssets: options.reuseAssets,
             notificationArns,
             tags,
-            execute: options.execute,
-            changeSetName: options.changeSetName,
             deploymentMethod: options.deploymentMethod,
             forceDeployment: options.force,
             parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
@@ -572,7 +593,6 @@ export class CdkToolkit {
             rollback,
             extraUserAgent: options.extraUserAgent,
             assetParallelism: options.assetParallelism,
-            ignoreNoStacks: options.ignoreNoStacks,
           });
 
           switch (r.type) {
@@ -630,7 +650,7 @@ export class CdkToolkit {
             }
 
             default:
-              throw new ToolkitError(`Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
+              throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
           }
         }
 
@@ -660,11 +680,12 @@ export class CdkToolkit {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
         const wrappedError = new ToolkitError(
+          'DeployFailed',
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
         );
 
         error = {
-          name: cdkCliErrorName(wrappedError.name),
+          name: cdkCliErrorName(wrappedError),
         };
 
         throw wrappedError;
@@ -722,7 +743,7 @@ export class CdkToolkit {
 
     const graphConcurrency: Concurrency = {
       'stack': concurrency,
-      'asset-build': 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
       'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
     };
 
@@ -783,11 +804,11 @@ export class CdkToolkit {
         await this.ioHost.asIoHelper().defaults.info(`\n✨  Rollback time: ${formatTime(elapsedRollbackTime).toString()}s\n`);
       } catch (e: any) {
         await this.ioHost.asIoHelper().defaults.error('\n ❌  %s failed: %s', chalk.bold(stack.displayName), formatErrorMessage(e));
-        throw new ToolkitError('Rollback failed (use --force to orphan failing resources)');
+        throw new ToolkitError('RollbackFailed', 'Rollback failed (use --force to orphan failing resources)');
       }
     }
     if (!anyRollbackable) {
-      throw new ToolkitError('No stacks were in a state that could be rolled back');
+      throw new ToolkitError('NoRollbackableStacks', 'No stacks were in a state that could be rolled back');
     }
   }
 
@@ -813,6 +834,7 @@ export class CdkToolkit {
       this.props.configuration.settings.get(['watch']);
     if (!watchSettings) {
       throw new ToolkitError(
+        'WatchConfigMissing',
         "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
         'Make sure to add a "watch" key to your cdk.json',
       );
@@ -932,12 +954,13 @@ export class CdkToolkit {
 
     if (stacks.stackCount > 1) {
       throw new ToolkitError(
+        'AmbiguousStackSelection',
         `Stack selection is ambiguous, please choose a specific stack for import [${stacks.stackArtifacts.map((x) => x.id).join(', ')}]`,
       );
     }
 
     if (!process.stdout.isTTY && !options.resourceMappingFile) {
-      throw new ToolkitError('--resource-mapping is required when input is not a terminal');
+      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping is required when input is not a terminal');
     }
 
     const stack = stacks.stackArtifacts[0];
@@ -1014,8 +1037,7 @@ export class CdkToolkit {
   public async destroy(options: DestroyOptions) {
     const ioHelper = this.ioHost.asIoHelper();
 
-    // The stacks will have been ordered for deployment, so reverse them for deletion.
-    const stacks = (await this.selectStacksForDestroy(options.selector, options.exclusively)).reversed();
+    const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
 
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
@@ -1031,9 +1053,18 @@ export class CdkToolkit {
       }
     }
 
+    const concurrency = options.concurrency || 1;
     const action = options.fromDeploy ? 'deploy' : 'destroy';
-    for (const [index, stack] of stacks.stackArtifacts.entries()) {
-      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), index + 1, stacks.stackCount);
+    let destroyCount = 0;
+
+    if (concurrency > 1) {
+      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+    }
+
+    const destroyStack = async (stackNode: StackNode) => {
+      const stack = stackNode.stack;
+      destroyCount++;
+      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), destroyCount, stacks.stackCount);
       try {
         await this.props.deployments.destroyStack({
           stack,
@@ -1045,7 +1076,10 @@ export class CdkToolkit {
         await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
         throw e;
       }
-    }
+    };
+
+    const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
+    await workGraph.processStacks(concurrency, destroyStack);
   }
 
   public async list(
@@ -1194,11 +1228,13 @@ export class CdkToolkit {
       if (userEnvironmentSpecs.length > 0) {
         // User did request this glob
         throw new ToolkitError(
+          'InvalidEnvironmentGlob',
           `'${globSpecs}' is not an environment name. Specify an environment name like 'aws://123456789012/us-east-1', or run in a directory with 'cdk.json' to use wildcards.`,
         );
       } else {
         // User did not request anything
         throw new ToolkitError(
+          'EnvironmentRequired',
           "Specify an environment name like 'aws://123456789012/us-east-1', or run in a directory with 'cdk.json'.",
         );
       }
@@ -1267,7 +1303,7 @@ export class CdkToolkit {
       } else if (scanType == TemplateSourceOptions.STACK) {
         const template = await readFromStack(options.stackName, this.props.sdkProvider, environment);
         if (!template) {
-          throw new ToolkitError(`No template found for stack-name: ${options.stackName}`);
+          throw new ToolkitError('StackTemplateNotFound', `No template found for stack-name: ${options.stackName}`);
         }
         generateTemplateOutput = {
           migrateJson: {
@@ -1277,7 +1313,7 @@ export class CdkToolkit {
         };
       } else {
         // We shouldn't ever get here, but just in case.
-        throw new ToolkitError(`Invalid source option provided: ${scanType}`);
+        throw new ToolkitError('InvalidSourceOption', `Invalid source option provided: ${scanType}`);
       }
       const stack = generateStack(generateTemplateOutput.migrateJson.templateBody, options.stackName, language);
       await this.ioHost.asIoHelper().defaults.info(chalk.green(' ⏳  Generating CDK app for %s...'), chalk.blue(options.stackName));
@@ -1311,7 +1347,7 @@ export class CdkToolkit {
 
   public async refactor(options: RefactorOptions): Promise<number> {
     if (options.revert && !options.overrideFile) {
-      throw new ToolkitError('The --revert option can only be used with the --override-file option.');
+      throw new ToolkitError('RevertRequiresOverrideFile', 'The --revert option can only be used with the --override-file option.');
     }
 
     try {
@@ -1339,7 +1375,7 @@ export class CdkToolkit {
         return [];
       }
       if (!fs.pathExistsSync(filePath)) {
-        throw new ToolkitError(`The mapping file ${filePath} does not exist`);
+        throw new ToolkitError('MappingFileNotFound', `The mapping file ${filePath} does not exist`);
       }
       const groups = parseMappingGroups(fs.readFileSync(filePath).toString('utf-8'));
 
@@ -1443,7 +1479,7 @@ export class CdkToolkit {
    */
   private validateStacksSelected(stacks: StackCollection, stackNames: string[]) {
     if (stackNames.length != 0 && stacks.stackCount == 0) {
-      throw new ToolkitError(`No stacks match the name(s) ${stackNames}`);
+      throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
     }
   }
 
@@ -1463,7 +1499,7 @@ export class CdkToolkit {
 
     // Could have been a glob so check that we evaluated to exactly one
     if (stacks.stackCount > 1) {
-      throw new ToolkitError(`This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
+      throw new ToolkitError('MultipleStacksMatched', `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
     }
 
     return assembly.stackById(stacks.firstStack.id);
@@ -1604,11 +1640,14 @@ export interface DiffOptions {
   readonly parameters?: { [name: string]: string | undefined };
 
   /**
-   * Whether or not to create, analyze, and subsequently delete a changeset
+   * How to compute the diff.
+   * - 'change-set': always use a changeset, fail if it cannot be created
+   * - 'template': skip changeset, compare templates directly
+   * - 'auto': try changeset, fall back to template on failure
    *
-   * @default true
+   * @default 'auto'
    */
-  readonly changeSet?: boolean;
+  readonly method?: 'auto' | 'change-set' | 'template';
 
   /**
    * Whether or not the change set imports resources that already exist.
@@ -1642,23 +1681,6 @@ interface CfnDeployOptions {
    * Role to pass to CloudFormation for deployment
    */
   roleArn?: string;
-
-  /**
-   * Optional name to use for the CloudFormation change set.
-   * If not provided, a name will be generated automatically.
-   *
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  changeSetName?: string;
-
-  /**
-   * Whether to execute the ChangeSet
-   * Not providing `execute` parameter will result in execution of ChangeSet
-   *
-   * @default true
-   * @deprecated Use 'deploymentMethod' instead
-   */
-  execute?: boolean;
 
   /**
    * Deployment method
@@ -1812,6 +1834,15 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
   readonly assetParallelism?: boolean;
 
   /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * This setting only has an effect if `assetParallelism` is set to `true`.
+   *
+   * @default 1
+   */
+  readonly assetBuildConcurrency?: number;
+
+  /**
    * When to build assets
    *
    * The default is the Docker-friendly default.
@@ -1954,6 +1985,11 @@ export interface DestroyOptions {
    * Whether the destroy request came from a deploy.
    */
   fromDeploy?: boolean;
+
+  /**
+   * Maximum number of simultaneous destroys (dependency permitting) to execute.
+   */
+  concurrency?: number;
 }
 
 /**
@@ -2243,10 +2279,11 @@ function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'in
 
 /**
  * Determine if manual approval is required or not. Requires approval for
- * - RequireApproval.ANY_CHANGE
+ * - RequireApproval.ANYCHANGE
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
  */
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
 }
+

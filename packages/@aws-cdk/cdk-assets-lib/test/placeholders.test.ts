@@ -81,7 +81,6 @@ test('correct calls are made', async () => {
 
   expect(ecrClient).toHaveBeenCalledWith({
     assumeRoleArn: 'arn:aws:role-current_account',
-    quiet: undefined,
     region: 'explicit_region',
   });
 

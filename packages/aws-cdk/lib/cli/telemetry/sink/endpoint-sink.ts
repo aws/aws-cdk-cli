@@ -47,7 +47,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
     this.endpoint = new URL(props.endpoint);
 
     if (!this.endpoint.hostname || !this.endpoint.pathname) {
-      throw new ToolkitError(`Telemetry Endpoint malformed. Received hostname: ${this.endpoint.hostname}, pathname: ${this.endpoint.pathname}`);
+      throw new ToolkitError('MalformedEndpoint', `Telemetry Endpoint malformed. Received hostname: ${this.endpoint.hostname}, pathname: ${this.endpoint.pathname}`);
     }
 
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
@@ -145,7 +145,7 @@ function doRequest(
 
     req.on('error', ko);
     req.on('timeout', () => {
-      const error = new ToolkitError(`Timeout after ${REQUEST_ATTEMPT_TIMEOUT_MS}ms, aborting request`);
+      const error = new ToolkitError('RequestTimeout', `Timeout after ${REQUEST_ATTEMPT_TIMEOUT_MS}ms, aborting request`);
       req.destroy(error);
     });
 

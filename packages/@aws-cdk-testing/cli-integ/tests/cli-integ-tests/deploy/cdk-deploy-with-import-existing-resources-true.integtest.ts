@@ -1,7 +1,12 @@
 import { DescribeStacksCommand, ListChangeSetsCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
+import * as regions from '../../../lib/regions';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
+const SUPPORTED_REGIONS = regions.allBut([
+  // quirk: ImportExistingResources behaves differently in these regions.
+  'eu-south-1',
+  'ap-southeast-3',
+]);
 
 integTest('deploy with import-existing-resources true', withDefaultFixture(async (fixture) => {
   const stackArn = await fixture.cdkDeploy('test-2', {
@@ -25,5 +30,5 @@ integTest('deploy with import-existing-resources true', withDefaultFixture(async
   expect(changeSets.length).toEqual(1);
   expect(changeSets[0].Status).toEqual('CREATE_COMPLETE');
   expect(changeSets[0].ImportExistingResources).toEqual(true);
-}));
+}, { aws: { regions: SUPPORTED_REGIONS } }));
 

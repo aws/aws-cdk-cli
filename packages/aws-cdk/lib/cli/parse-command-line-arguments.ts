@@ -267,7 +267,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('execute', {
           default: true,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)',
         })
         .option('trust', {
           type: 'array',
@@ -460,7 +460,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           choices: ['never', 'any-change', 'broadening'],
-          desc: 'What security-sensitive changes need manual approval',
+          desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
           type: 'array',
@@ -478,7 +478,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('execute', {
           default: undefined,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)',
           deprecated: true,
         })
         .option('change-set-name', {
@@ -589,6 +589,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Whether to build/publish assets in parallel',
         })
+        .option('asset-build-concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of asset builds to run in parallel',
+          requiresArg: true,
+        })
         .option('asset-prebuild', {
           default: true,
           type: 'boolean',
@@ -598,6 +604,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to deploy if the app contains no stacks',
+        })
+        .option('revert-drift', {
+          default: false,
+          type: 'boolean',
+          desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
     )
     .command('rollback [STACKS..]', 'Rolls back the stack(s) named STACKS to their last stable state', (yargs: Argv) =>
@@ -663,7 +674,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('execute', {
           default: true,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)',
         })
         .option('change-set-name', {
           default: undefined,
@@ -802,6 +813,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'f',
           desc: 'Do not ask for confirmation before destroying the stacks',
+        })
+        .option('concurrency', {
+          default: 1,
+          type: 'number',
+          desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.',
+          requiresArg: true,
         }),
     )
     .command(
@@ -824,7 +841,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('template', {
             default: undefined,
             type: 'string',
-            desc: 'The path to the CloudFormation template to compare with',
+            desc: 'The path to the CloudFormation template to compare with. Implies --method=template',
             requiresArg: true,
           })
           .option('strict', {
@@ -857,7 +874,16 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: true,
             type: 'boolean',
             alias: 'changeset',
-            desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+            desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+            deprecated: 'use --method instead',
+          })
+          .option('method', {
+            default: 'auto',
+            alias: 'm',
+            type: 'string',
+            choices: ['auto', 'change-set', 'template'],
+            requiresArg: true,
+            desc: 'How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.',
           })
           .option('import-existing-resources', {
             default: false,

@@ -3,8 +3,6 @@ import * as path from 'path';
 import * as yaml from 'yaml';
 import { integTest, withoutBootstrap } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('a customized template vendor will not overwrite the default template', withoutBootstrap(async (fixture) => {
   // Initial bootstrap
   const toolkitStackName = fixture.bootstrapStackName;

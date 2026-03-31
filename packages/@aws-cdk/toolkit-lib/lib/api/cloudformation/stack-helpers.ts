@@ -183,7 +183,7 @@ export class CloudFormationStack {
 
   private assertExists() {
     if (!this.exists) {
-      throw new ToolkitError(`No stack named '${this.stackName}'`);
+      throw new ToolkitError('StackNotFound', `No stack named '${this.stackName}'`);
     }
   }
 }

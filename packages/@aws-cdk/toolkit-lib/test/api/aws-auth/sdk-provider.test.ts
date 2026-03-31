@@ -26,6 +26,11 @@ import bockfs from '../../_helpers/bockfs';
 import { undoAllSdkMocks } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+if (!require('vm').Module) {
+  throw new Error('This test suite must be run with \'env NODE_OPTIONS="--experimental-vm-modules" jest ...\', or Jest cannot properly test ESM modules inside the SDK JS v3');
+}
+
 // As part of the imports above we import `mock-sdk.ts` which automatically mocks
 // all SDK clients. We don't want that for this test suite, so undo it.
 undoAllSdkMocks();

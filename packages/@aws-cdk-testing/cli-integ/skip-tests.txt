@@ -6,4 +6,3 @@
 # when performing a certain version's regression tests.
 #
 # Put a test name on a line by itself to skip it.
-amplify integration

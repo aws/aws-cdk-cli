@@ -1,4 +1,4 @@
-import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
+import type { EventType, IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { PermissionChangeType } from './diff';
@@ -48,9 +48,30 @@ export interface BuildAsset {
 }
 
 export interface PublishAsset {
-
   /**
    * The asset that is published
    */
   readonly asset: IManifestEntry;
+}
+
+export interface PublishAssetEvent {
+  /**
+   * The type of the asset publishing event
+   */
+  readonly type: EventType;
+
+  /**
+   * Event message
+   */
+  readonly message: string;
+
+  /**
+   * How far is the publishing along (as percentage).
+   */
+  readonly progressPercentage: number;
+
+  /**
+   * Asset currently being published (if any)
+   */
+  readonly asset?: IManifestEntry;
 }

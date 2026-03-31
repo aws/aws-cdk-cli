@@ -64,7 +64,7 @@ import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployment
 import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
-import type { Template, SdkProvider } from '../../lib/api';
+import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -194,6 +194,37 @@ describe('list', () => {
 });
 
 describe('deploy', () => {
+  test('sets requireDeployApproval on CliIoHost', async () => {
+    const toolkit = defaultToolkitSetup();
+    const requireApproval = RequireApproval.ANYCHANGE;
+    await toolkit.deploy({
+      selector: { patterns: ['**'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval,
+    });
+
+    expect(ioHost.requireDeployApproval).toEqual(requireApproval);
+  });
+
+  test('any-change approval shows stack diff when there are no security changes', async () => {
+    const toolkit = defaultToolkitSetup();
+    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // The confirmation prompt should use the non-security motivation and report no permission changes
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      message: expect.stringContaining("'any-change'"),
+      data: expect.objectContaining({
+        permissionChangeType: 'none',
+      }),
+    }));
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();
@@ -336,6 +367,122 @@ describe('deploy', () => {
       }));
 
       publishEntry.mockRestore();
+    });
+
+    describe('assetBuildConcurrency', () => {
+      let buildSpy: jest.SpyInstance;
+
+      afterEach(() => {
+        buildSpy?.mockRestore();
+      });
+
+      test('is passed when assetParallelism is true', async () => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism: true,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 4,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test('is ignored when assetParallelism is false', async () => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism: false,
+          assetBuildConcurrency: 4,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
+
+      test.each([
+        true,
+        false,
+        undefined,
+      ])('defaults to 1 when assetParallelism=%s and assetBuildConcurrency is not specified', async (assetParallelism) => {
+        cloudExecutable = await MockCloudExecutable.create({
+          stacks: [MockStack.MOCK_STACK_WITH_ASSET],
+        });
+        const deployments = new FakeCloudFormation({});
+
+        const mockWorkGraph = {
+          doParallel: jest.fn().mockResolvedValue(undefined),
+          removeUnnecessaryAssets: jest.fn().mockResolvedValue(undefined),
+        };
+        buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
+
+        const toolkit = new CdkToolkit({
+          ioHost,
+          cloudExecutable,
+          configuration: cloudExecutable.configuration,
+          sdkProvider: cloudExecutable.sdkProvider,
+          deployments,
+        });
+
+        await toolkit.deploy({
+          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          deploymentMethod: { method: 'change-set' },
+          assetParallelism,
+        });
+
+        expect(mockWorkGraph.doParallel).toHaveBeenCalledWith(
+          expect.objectContaining({
+            'asset-build': 1,
+          }),
+          expect.anything(),
+        );
+      });
     });
 
     test('with stacks all stacks specified as wildcard', async () => {
@@ -569,6 +716,27 @@ describe('deploy', () => {
         ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
       });
     });
+  });
+
+  test('emits resource counters', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-B'] },
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    const deploy = notifySpy.mock.calls.map(cs => cs[0]).filter(c => c.code === 'CDK_CLI_I3001');
+    expect(deploy).toContainEqual(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          resources: 1,
+        }),
+      }),
+    }));
   });
 
   test('globless bootstrap uses environment without question', async () => {
@@ -1088,6 +1256,63 @@ describe('destroy', () => {
         fromDeploy: true,
       });
     }).resolves;
+  });
+
+  test('destroy with concurrency', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['*'] },
+      exclusively: false,
+      force: true,
+      concurrency: 5,
+    });
+  });
+
+  test('destroy respects dependency order with concurrency', async () => {
+    const stackC: TestStackArtifact = {
+      stackName: 'Test-Stack-C',
+      template: { Resources: { TemplateName: 'Test-Stack-C' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+    };
+    const stackD: TestStackArtifact = {
+      stackName: 'Test-Stack-D',
+      template: { Resources: { TemplateName: 'Test-Stack-D' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+      depends: [stackC.stackName],
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [stackC, stackD],
+    });
+
+    const destroyOrder: string[] = [];
+    const fakeDeployments = new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+      'Test-Stack-D': { Baz: 'Zinga!' },
+    });
+    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
+    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
+      destroyOrder.push(options.stack.stackName);
+      return originalDestroyStack(options);
+    };
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: fakeDeployments,
+    });
+
+    await toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] },
+      exclusively: false,
+      force: true,
+      concurrency: 10,
+    });
+
+    // stackD depends on stackC, so D must be destroyed before C
+    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
   });
 });
 

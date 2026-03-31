@@ -1,7 +1,14 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
+import * as regions from '../../../lib/regions';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
+const SUPPORTED_REGIONS = regions.allBut([
+  // AppSync isn't supported in these regions
+  'ap-southeast-5',
+  'ap-southeast-7',
+  'ca-west-1',
+  'mx-central-1',
+]);
 
 integTest('hotswap deployment supports AppSync APIs with many functions',
   withDefaultFixture(async (fixture) => {
@@ -31,6 +38,6 @@ integTest('hotswap deployment supports AppSync APIs with many functions',
     for (const i of Array(50).keys()) {
       expect(deployOutput).toContain(`AWS::AppSync::FunctionConfiguration 'appsync_function${i}' hotswapped!`);
     }
-  }),
+  }, { aws: { regions: SUPPORTED_REGIONS } }),
 );
 

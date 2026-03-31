@@ -3,7 +3,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
 import type { IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly } from '../../lib/api-private';
+import { BorrowedAssembly, countAssemblyResults } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import { cdkCliErrorName } from '../cli/telemetry/error';
@@ -96,6 +96,7 @@ export class CloudExecutable implements ICloudAssemblySource {
 
           if (!this.canLookup) {
             throw new ToolkitError(
+              'ContextLookupsDisabled',
               'Context lookups have been disabled. '
               + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
               + `Missing context keys: '${Array.from(missingKeys).join(', ')}'`);
@@ -110,31 +111,38 @@ export class CloudExecutable implements ICloudAssemblySource {
           previouslyMissingKeys = missingKeys;
 
           if (tryLookup) {
-            await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
+            const lookupsTimer = synthSpan.startTimer('lookups');
+            try {
+              await this.props.ioHelper.defaults.debug('Some context information is missing. Fetching...');
 
-            const updates = await contextproviders.provideContextValues(
-              assembly.manifest.missing,
-              this.props.sdkProvider,
-              GLOBAL_PLUGIN_HOST,
-              this.props.ioHelper,
-            );
+              const updates = await contextproviders.provideContextValues(
+                assembly.manifest.missing,
+                this.props.sdkProvider,
+                GLOBAL_PLUGIN_HOST,
+                this.props.ioHelper,
+              );
 
-            for (const [key, value] of Object.entries(updates)) {
-              this.props.configuration.context.set(key, value);
+              for (const [key, value] of Object.entries(updates)) {
+                this.props.configuration.context.set(key, value);
+              }
+
+              // Cache the new context to disk
+              await this.props.configuration.saveContext();
+            } finally {
+              lookupsTimer.stop();
             }
-
-            // Cache the new context to disk
-            await this.props.configuration.saveContext();
 
             // Execute again
             continue;
           }
         }
+
+        countAssemblyResults(synthSpan, assembly);
         return new CloudAssembly(assembly, this.props.ioHelper);
       }
     } catch (e: any) {
       error = {
-        name: cdkCliErrorName(e.name),
+        name: cdkCliErrorName(e),
       };
       throw e;
     } finally {

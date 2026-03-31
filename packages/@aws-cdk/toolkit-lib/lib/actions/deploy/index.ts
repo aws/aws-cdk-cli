@@ -35,6 +35,13 @@ export interface ChangeSetDeployment {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Creates a drift-aware change set that brings actual resource states in line with template definitions.
+   *
+   * @default false
+   */
+  readonly revertDrift?: boolean;
 }
 
 /**
@@ -213,6 +220,15 @@ export interface DeployOptions extends BaseDeployOptions {
    * @default true
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Maximum number of asset builds to run in parallel
+   *
+   * This setting only has an effect if `assetParallelism` is set to `true`.
+   *
+   * @default 1
+   */
+  readonly assetBuildConcurrency?: number;
 
   /**
    * When to build assets

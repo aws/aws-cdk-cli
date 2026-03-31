@@ -249,7 +249,7 @@
         },
         "execute": {
           "type": "boolean",
-          "desc": "Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)",
+          "desc": "Whether to execute the change set (--no-execute will NOT execute the change set)",
           "default": true
         },
         "trust": {
@@ -437,7 +437,7 @@
             "any-change",
             "broadening"
           ],
-          "desc": "What security-sensitive changes need manual approval"
+          "desc": "What changes require manual approval"
         },
         "notification-arns": {
           "type": "array",
@@ -450,7 +450,7 @@
         },
         "execute": {
           "type": "boolean",
-          "desc": "Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)",
+          "desc": "Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)",
           "deprecated": true
         },
         "change-set-name": {
@@ -552,6 +552,12 @@
           "type": "boolean",
           "desc": "Whether to build/publish assets in parallel"
         },
+        "asset-build-concurrency": {
+          "type": "number",
+          "desc": "Maximum number of asset builds to run in parallel",
+          "default": 1,
+          "requiresArg": true
+        },
         "asset-prebuild": {
           "type": "boolean",
           "desc": "Whether to build all assets before deploying the first stack (useful for failing Docker builds)",
@@ -560,6 +566,11 @@
         "ignore-no-stacks": {
           "type": "boolean",
           "desc": "Whether to deploy if the app contains no stacks",
+          "default": false
+        },
+        "revert-drift": {
+          "type": "boolean",
+          "desc": "Create a drift-aware change set that brings actual resource states in line with template definitions",
           "default": false
         }
       },
@@ -641,7 +652,7 @@
       "options": {
         "execute": {
           "type": "boolean",
-          "desc": "Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)",
+          "desc": "Whether to execute the change set (--no-execute will NOT execute the change set)",
           "default": true
         },
         "change-set-name": {
@@ -775,6 +786,12 @@
           "type": "boolean",
           "alias": "f",
           "desc": "Do not ask for confirmation before destroying the stacks"
+        },
+        "concurrency": {
+          "type": "number",
+          "desc": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
+          "default": 1,
+          "requiresArg": true
         }
       }
     },
@@ -798,7 +815,7 @@
         },
         "template": {
           "type": "string",
-          "desc": "The path to the CloudFormation template to compare with",
+          "desc": "The path to the CloudFormation template to compare with. Implies --method=template",
           "requiresArg": true
         },
         "strict": {
@@ -829,8 +846,21 @@
         "change-set": {
           "type": "boolean",
           "alias": "changeset",
-          "desc": "Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.",
-          "default": true
+          "desc": "Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.",
+          "default": true,
+          "deprecated": "use --method instead"
+        },
+        "method": {
+          "alias": "m",
+          "type": "string",
+          "default": "auto",
+          "choices": [
+            "auto",
+            "change-set",
+            "template"
+          ],
+          "requiresArg": true,
+          "desc": "How to compute the diff. \"auto\" attempts to create a change set and falls back to template-only on failure. \"change-set\" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. \"template\" compares templates directly and uses the lookup role."
         },
         "import-existing-resources": {
           "type": "boolean",

@@ -54,7 +54,7 @@ export class PluginHost implements IPluginHost {
       // @see https://nodejs.org/api/modules.html#requireresolverequest-options
       // Not using `withCause()` here, since the node error contains a "Require Stack"
       // as part of the error message that is inherently useless to our users.
-      throw new ToolkitError(`Unable to resolve plug-in: Cannot find module '${moduleSpec}': ${e}`);
+      throw new ToolkitError('PluginResolveFailed', `Unable to resolve plug-in: Cannot find module '${moduleSpec}': ${e}`);
     }
   }
 
@@ -73,7 +73,7 @@ export class PluginHost implements IPluginHost {
       const plugin = require(resolved);
       /* eslint-enable */
       if (!isPlugin(plugin)) {
-        throw new ToolkitError(`Module ${resolved} is not a valid plug-in, or has an unsupported version.`);
+        throw new ToolkitError('InvalidPlugin', `Module ${resolved} is not a valid plug-in, or has an unsupported version.`);
       }
       if (plugin.init) {
         plugin.init(this);
@@ -81,7 +81,7 @@ export class PluginHost implements IPluginHost {
 
       this.alreadyLoaded.add(resolved);
     } catch (e: any) {
-      throw ToolkitError.withCause(`Unable to load plug-in '${resolved}'`, e);
+      throw ToolkitError.withCause('PluginLoadFailed', `Unable to load plug-in '${resolved}'`, e);
     }
 
     function isPlugin(x: any): x is Plugin {
@@ -133,7 +133,7 @@ export class PluginHost implements IPluginHost {
    */
   public registerContextProviderAlpha(pluginProviderName: string, provider: ContextProviderPlugin) {
     if (!isContextProviderPlugin(provider)) {
-      throw new ToolkitError(`Object you gave me does not look like a ContextProviderPlugin: ${inspect(provider)}`);
+      throw new ToolkitError('InvalidContextProvider', `Object you gave me does not look like a ContextProviderPlugin: ${inspect(provider)}`);
     }
     this.contextProviderPlugins[pluginProviderName] = provider;
   }

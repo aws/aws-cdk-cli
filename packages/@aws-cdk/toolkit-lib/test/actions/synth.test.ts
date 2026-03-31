@@ -1,5 +1,9 @@
+import { ContextProvider } from '@aws-cdk/cloud-assembly-schema';
+import * as cdk from 'aws-cdk-lib';
+import type { AssemblyBuilder } from '../../lib/api';
+import { RWLock } from '../../lib/api';
 import { Toolkit } from '../../lib/toolkit';
-import { appFixture, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { appFixture, autoCleanOutDir, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -20,6 +24,22 @@ describe('synth', () => {
       action: 'synth',
       level: 'result',
       message: expect.stringContaining('Successfully synthesized'),
+    }));
+  });
+
+  test('emits stack counters', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.synth(cx);
+
+    // Separate tests as colorizing hampers detection
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        counters: expect.objectContaining({
+          assemblies: 1,
+          stacks: 2,
+        }),
+      }),
     }));
   });
 
@@ -88,5 +108,69 @@ describe('synth', () => {
     await synthResult.dispose();
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+
+  test('assembly is disposed when synth fails due to error annotations', async () => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+
+    const builder: AssemblyBuilder = async (props) => {
+      const app = new cdk.App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+      const stack = new cdk.Stack(app, 'SomeStack');
+
+      cdk.Annotations.of(stack).addError('Some error');
+
+      return app.synth();
+    };
+
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      outdir: synthDir.dir,
+    });
+
+    // WHEN
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Found errors/);
+
+    // There should not be a lock remaining in the given output directory
+    const lock = new RWLock(synthDir.dir);
+    expect(await lock._currentReaders()).toEqual([]);
+    expect(await lock._currentWriter()).toEqual(undefined);
+  });
+
+  test('assembly is disposed when synth fails due to context lookup', async () => {
+    // GIVEN
+    await using synthDir = autoCleanOutDir();
+
+    const builder: AssemblyBuilder = async (props) => {
+      const app = new cdk.App({
+        outdir: props.outdir,
+        context: props.context,
+      });
+      const stack = new cdk.Stack(app, 'SomeStack');
+      stack.reportMissingContextKey({
+        key: 'some-key',
+        provider: ContextProvider.PLUGIN,
+        props: {
+          account: '1234',
+          region: 'asdf',
+        },
+      });
+
+      return app.synth();
+    };
+
+    const cx = await toolkit.fromAssemblyBuilder(builder, {
+      outdir: synthDir.dir,
+    });
+
+    // WHEN
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Unrecognized plugin context provider name/);
+
+    // There should not be a lock remaining in the given output directory
+    const lock = new RWLock(synthDir.dir);
+    expect(await lock._currentReaders()).toEqual([]);
+    expect(await lock._currentWriter()).toEqual(undefined);
   });
 });

@@ -182,9 +182,13 @@ $ cdk diff --quiet --app='node bin/main.js' MyStackName
 
 Note that the CDK::Metadata resource and the `CheckBootstrapVersion` Rule are excluded from `cdk diff` by default. You can force `cdk diff` to display them by passing the `--strict` flag.
 
-The `change-set` flag will make `diff` create a change set and extract resource replacement data from it. This is a bit slower, but will provide no false positives for resource replacement.
-The `--no-change-set` mode will consider any change to a property that requires replacement to be a resource replacement,
-even if the change is purely cosmetic (like replacing a resource reference with a hardcoded arn).
+The `--method` flag controls how the diff is created:
+
+- `--method=auto` (default): Create a change set for accurate resource replacement info if possible, but fall back to a template-only diff if the change set cannot be created (e.g. due to missing permissions).
+- `--method=change-set`: Always uses a change set and fails if it cannot be created. Use this when you need guaranteed accuracy. Uses the deploy role.
+- `--method=template`: Compares templates directly using the lookup role. Faster, but has known inaccuracies. E.g. any change to a property that requires replacement will always be reported as a replacement, even if the change is purely cosmetic and might not actually be replaced.
+
+The deprecated `--change-set` / `--no-change-set` flags map to `--method=auto` and `--method=template` respectively.
 
 The `--import-existing-resources` option will make `diff` create a change set and compare it using
 the CloudFormation resource import mechanism. This allows CDK to detect changes and show report of resources that
@@ -439,10 +443,10 @@ $ cdk deploy --import-existing-resources
 ```
 
 This automatically imports resources in your CDK application that represent
-unmanaged resources in your account. It reduces the manual effort of import operations and 
+unmanaged resources in your account. It reduces the manual effort of import operations and
 avoids deployment failures due to naming conflicts with unmanaged resources in your account.
 
-Use the `--method=prepare-change-set` flag to review which resources are imported or not before deploying a changeset.
+Use the `--method=prepare-change-set` flag to review which resources are imported or not before deploying a change set.
 You can inspect the change set created by CDK from the management console or other external tools.
 
 ```console
@@ -731,8 +735,8 @@ hotswap your stacks while respecting inter-stack dependencies.
 $ cdk watch --concurrency 5
 ```
 
-**Note**: This command is considered experimental, and might have breaking changes in the future.
-The same limitations apply to to `watch` deployments as do to `--hotswap` deployments. See the
+**Note**: The same limitations apply to to `watch` deployments as do to `--hotswap` deployments.
+It is not recommended to use `watch` for production deployments. See the
 *Hotswap deployments for faster development* section for more information.
 
 ### `cdk import`
@@ -927,7 +931,7 @@ In practice this is how CDK Migrate generated applications will operate in the f
 
 | Situation                                                                                         | Result                                                                                                                        |
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack                                                          |
+| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a change set to the existing stack                                                         |
 | Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                                                                      |
 | Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed                                                 |
 | Provided template has overlap with un-managed resources already in the account/region             | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import)                 |

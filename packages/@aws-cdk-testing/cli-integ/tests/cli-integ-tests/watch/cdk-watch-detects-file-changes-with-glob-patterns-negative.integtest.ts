@@ -1,10 +1,10 @@
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { waitForOutput } from './watch-helpers';
+import { waitForOutput, safeKillProcess } from './watch-helpers';
 import { integTest, withDefaultFixture, sleep } from '../../../lib';
 
-jest.setTimeout(3 * 60 * 1000); // 3 minutes for watch tests
+jest.setTimeout(5 * 60 * 1000); // 5 minutes for watch tests
 
 integTest(
   'cdk watch does NOT detect file changes for excluded patterns',
@@ -26,13 +26,12 @@ integTest(
 
     let output = '';
 
-    // Start cdk watch with detached process group for clean termination
+    // Start cdk watch
     const watchProcess = child_process.spawn('cdk', [
       'watch', '--hotswap', '-v', fixture.fullStackName('test-1'),
     ], {
       cwd: fixture.integTestDir,
-      shell: true,
-      detached: true,
+      stdio: 'pipe',
       env: { ...process.env, ...fixture.cdkShellEnv() },
     });
 
@@ -79,10 +78,9 @@ integTest(
       await waitForOutput(() => output, 'Detected change to');
       fixture.log('✓ Watch still detects changes to included files');
     } finally {
-      // Kill the entire process group (negative PID)
-      if (watchProcess.pid) {
-        process.kill(-watchProcess.pid, 'SIGTERM');
-      }
+      safeKillProcess(watchProcess);
     }
+
+    expect.assertions(5);
   }),
 );

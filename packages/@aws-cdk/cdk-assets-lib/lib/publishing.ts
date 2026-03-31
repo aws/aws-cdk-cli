@@ -54,6 +54,9 @@ export interface AssetPublishingOptions {
   readonly publishAssets?: boolean;
 
   /**
+   * Whether to suppress subprocess output
+   *
+   * @default false
    * @deprecated use {@link #subprocessOutputDestination} instead
    */
   readonly quiet?: boolean;
@@ -63,7 +66,7 @@ export interface AssetPublishingOptions {
    *
    * @default 'stdio'
    */
-  subprocessOutputDestination?: SubprocessOutputDestination;
+  readonly subprocessOutputDestination?: SubprocessOutputDestination;
 }
 
 /**
@@ -101,6 +104,7 @@ export class AssetPublishing implements IPublishProgress {
   private readonly publishInParallel: boolean;
   private readonly buildAssets: boolean;
   private readonly publishAssets: boolean;
+  private readonly subprocessOutputDestination: SubprocessOutputDestination;
   private readonly handlerCache = new Map<IManifestEntry, IAssetHandler>();
 
   constructor(
@@ -112,6 +116,7 @@ export class AssetPublishing implements IPublishProgress {
     this.publishInParallel = options.publishInParallel ?? false;
     this.buildAssets = options.buildAssets ?? true;
     this.publishAssets = options.publishAssets ?? true;
+    this.subprocessOutputDestination = options.subprocessOutputDestination ?? (options.quiet ? 'ignore' : 'stdio');
 
     const self = this;
     this.handlerHost = {
@@ -292,15 +297,8 @@ export class AssetPublishing implements IPublishProgress {
     if (existing) {
       return existing;
     }
-    if (this.options.quiet !== undefined && this.options.subprocessOutputDestination) {
-      throw new Error(
-        'Cannot set both quiet and subprocessOutputDestination. Please use only subprocessOutputDestination',
-      );
-    }
-    const subprocessOutputDestination =
-      this.options.subprocessOutputDestination ?? (this.options.quiet ? 'ignore' : 'stdio');
     const ret = makeAssetHandler(this.manifest, asset, this.handlerHost, {
-      subprocessOutputDestination,
+      subprocessOutputDestination: this.subprocessOutputDestination,
     });
     this.handlerCache.set(asset, ret);
     return ret;
