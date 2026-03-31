@@ -953,10 +953,6 @@ const defaultEnv = {
 // Sometimes we don't want to synthesize all stacks because it will impact the results
 const stackSet = process.env.INTEG_STACK_SET || 'default';
 
-if (process.env.CHECK_TTY === 'true' && (!process.stdout.isTTY() || !process.stdout.isTTY())) {
-  throw new Error('CHECK_TTY is set to true, but stdout or stderr is not attached to a TTY');
-}
-
 switch (stackSet) {
   case 'default':
     // Deploy all does a wildcard ${stackPrefix}-test-*
