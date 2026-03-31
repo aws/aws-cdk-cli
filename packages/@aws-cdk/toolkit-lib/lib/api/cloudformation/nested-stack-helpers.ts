@@ -1,5 +1,6 @@
 import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as fs from 'fs-extra';
 import { LazyListStackResources, type ListStackResources } from './evaluate-cloudformation-template';
 import { CloudFormationStack, type Template } from './stack-helpers';
@@ -143,6 +144,11 @@ export interface NestedStackTemplates {
   readonly nestedStackTemplates: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+  /**
+   * The changeset for this nested stack, if available.
+   * Populated when the root changeset was created with `IncludeNestedStacks`.
+   */
+  readonly changeSet?: DescribeChangeSetCommandOutput;
 }
 
 interface StackTemplates {

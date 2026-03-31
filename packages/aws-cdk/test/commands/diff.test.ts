@@ -1280,6 +1280,154 @@ Resources
     expect(plainTextOutput).not.toContain('Stack UnChangedChild');
     expect(exitCode).toBe(0);
   });
+
+  test('diff --security-only counts nested stacks with security changes', async () => {
+    // Override to return nested stacks with IAM
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(
+      (stackArtifact: CloudFormationStackArtifact) => {
+        stackArtifact.template.Resources = {
+          IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          IamChild2: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+        };
+        return Promise.resolve({
+          deployedRootTemplate: {
+            Resources: {
+              IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+              IamChild2: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+              NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+            },
+          },
+          nestedStacks: {
+            IamChild: {
+              deployedTemplate: {},
+              generatedTemplate: {
+                Resources: {
+                  Role: {
+                    Type: 'AWS::IAM::Role',
+                    Properties: {
+                      AssumeRolePolicyDocument: {
+                        Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                      },
+                    },
+                  },
+                },
+              },
+              physicalName: 'IamChild',
+              nestedStackTemplates: {},
+            },
+            IamChild2: {
+              deployedTemplate: {},
+              generatedTemplate: {
+                Resources: {
+                  Role: {
+                    Type: 'AWS::IAM::Role',
+                    Properties: {
+                      AssumeRolePolicyDocument: {
+                        Statement: [{ Effect: 'Allow', Principal: { Service: 'ec2.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                      },
+                    },
+                  },
+                },
+              },
+              physicalName: 'IamChild2',
+              nestedStackTemplates: {},
+            },
+            NoSecChild: {
+              deployedTemplate: {},
+              generatedTemplate: {
+                Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+              },
+              physicalName: 'NoSecChild',
+              nestedStackTemplates: {},
+            },
+          },
+        });
+      },
+    );
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['Parent'],
+      securityOnly: true,
+      method: 'template',
+    });
+
+    // THEN
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('sts:AssumeRole');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 2'),
+    }));
+
+    // NoSecChild should show no-changes message
+    const lines = plainTextOutput.split('\n');
+    const noSecIdx = lines.findIndex(l => l.includes('Stack NoSecChild'));
+    expect(noSecIdx).toBeGreaterThanOrEqual(0);
+    expect(lines[noSecIdx + 1]).toContain('There were no security-related changes');
+
+    expect(exitCode).toBe(0);
+  });
+
+  test('diff --security-only --quiet suppresses stacks without security changes', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(
+      (stackArtifact: CloudFormationStackArtifact) => {
+        stackArtifact.template.Resources = {
+          IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+        };
+        return Promise.resolve({
+          deployedRootTemplate: {
+            Resources: {
+              IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+              NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+            },
+          },
+          nestedStacks: {
+            IamChild: {
+              deployedTemplate: {},
+              generatedTemplate: {
+                Resources: {
+                  Role: {
+                    Type: 'AWS::IAM::Role',
+                    Properties: {
+                      AssumeRolePolicyDocument: {
+                        Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                      },
+                    },
+                  },
+                },
+              },
+              physicalName: 'IamChild',
+              nestedStackTemplates: {},
+            },
+            NoSecChild: {
+              deployedTemplate: {},
+              generatedTemplate: {
+                Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+              },
+              physicalName: 'NoSecChild',
+              nestedStackTemplates: {},
+            },
+          },
+        });
+      },
+    );
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['Parent'],
+      securityOnly: true,
+      quiet: true,
+      method: 'template',
+    });
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('sts:AssumeRole');
+    expect(plainTextOutput).not.toContain('Stack NoSecChild');
+    expect(plainTextOutput).not.toContain('There were no security-related changes');
+    expect(plainTextOutput).not.toContain('Stack Parent');
+    expect(exitCode).toBe(0);
+  });
 });
 
 describe('--strict', () => {
