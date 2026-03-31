@@ -28,7 +28,7 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
   const show = options.show ?? 'always';
 
   const env = options.env ?? (options.modEnv ? { ...process.env, ...options.modEnv } : process.env);
-  const tty = options.interact && options.interact.length > 0;
+  const tty = options.tty || (options.interact && options.interact.length > 0);
 
   // Coerce to `any` because `ShellOptions` contains custom properties
   // that don't exist in the underlying interfaces. We could either rebuild each options map,
@@ -217,6 +217,12 @@ export interface ShellOptions extends child_process.SpawnOptions {
    */
   readonly interact?: UserInteraction[];
 
+  /**
+   * Force a TTY, even if there are no interactions
+   *
+   * @default false
+   */
+  readonly tty?: boolean;
 }
 
 export class ShellHelper {
