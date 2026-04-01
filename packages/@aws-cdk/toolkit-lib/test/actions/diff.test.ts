@@ -8,7 +8,7 @@ import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -42,7 +42,7 @@ beforeEach(() => {
 describe('diff', () => {
   test('sends diff to IoHost', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -64,7 +64,7 @@ describe('diff', () => {
 
   test('returns diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -130,7 +130,7 @@ describe('diff', () => {
       });
 
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       includeMoves: true,
@@ -163,7 +163,7 @@ describe('diff', () => {
 
   test('returns multiple template diffs', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-different-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-different-stacks');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -207,7 +207,7 @@ describe('diff', () => {
 
   test('security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-role');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -253,7 +253,7 @@ describe('diff', () => {
 
   test('no security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -328,7 +328,7 @@ describe('diff', () => {
     });
 
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -364,7 +364,7 @@ describe('diff', () => {
 
   test('TemplateOnly diff method does not try to find changeSet', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -386,7 +386,7 @@ describe('diff', () => {
     test('ChangeSet diff method falls back to template only if changeset not found', async () => {
       // WHEN
       ioHost.level = 'debug';
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet(),
@@ -418,7 +418,7 @@ describe('diff', () => {
 
       // WHEN
       ioHost.level = 'debug';
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ importExistingResources: true }),
@@ -431,7 +431,7 @@ describe('diff', () => {
 
     test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
@@ -450,7 +450,7 @@ describe('diff', () => {
       });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
@@ -468,7 +468,7 @@ describe('diff', () => {
   describe('DiffMethod.LocalFile', () => {
     test('fails with multiple stacks', async () => {
       // WHEN + THEN
-      const cx = await builderFixture(toolkit, 'two-empty-stacks');
+      const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'stack-with-bucket', 'cdk.out', 'Stack1.template.json')),
@@ -477,7 +477,7 @@ describe('diff', () => {
 
     test('fails with bad file path', async () => {
       // WHEN + THEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
@@ -486,7 +486,7 @@ describe('diff', () => {
 
     test('returns regular diff', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
@@ -514,7 +514,7 @@ describe('diff', () => {
 
     test('returns security diff', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),

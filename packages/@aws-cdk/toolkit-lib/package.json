@@ -16,6 +16,7 @@
     "docs": "npx projen docs",
     "eslint": "npx projen eslint",
     "gather-versions": "npx projen gather-versions",
+    "gen-fixture": "npx projen gen-fixture",
     "nx": "npx projen nx",
     "package": "npx projen package",
     "post-compile": "npx projen post-compile",

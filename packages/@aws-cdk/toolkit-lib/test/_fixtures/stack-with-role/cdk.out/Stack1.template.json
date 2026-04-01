@@ -1,12 +1,32 @@
 {
  "Resources": {
+  "Role1ABCC5F0": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": "arn"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Stack1/Role/Resource"
+   }
+  },
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzIx1TNQTCwv1k1OydbNyUzSCy5JTM7WyctPSdXLKtYvMzLRMzTRM1DMKs7M1C0qzSvJzE3VC4LQAFq+4uA/AAAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzIx1TNQTCwv1k1OydbNyUzSqw4uSUzO1kksL47PTMzVqw7Kz0nVcU7LA9G1tTp5+SmpelnF+mVGJnqGJnoGilnFmZm6RaV5JZm5qXpBEBoA9xU+rFgAAAA="
    },
    "Metadata": {
-    "aws:cdk:path": "Stack2/CDKMetadata/Default"
+    "aws:cdk:path": "Stack1/CDKMetadata/Default"
    },
    "Condition": "CDKMetadataAvailable"
   }

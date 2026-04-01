@@ -3,7 +3,7 @@ import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deploy
 import * as deployments from '../../lib/api/deployments';
 import { WorkGraphBuilder } from '../../lib/api/work-graph';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -35,7 +35,7 @@ beforeEach(() => {
 describe('deploy', () => {
   test('deploy from builder', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx);
 
     // THEN
@@ -44,7 +44,7 @@ describe('deploy', () => {
 
   test('emits resource counters', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx);
 
     // THEN
@@ -60,7 +60,7 @@ describe('deploy', () => {
 
   test('request response contains security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-role');
     await toolkit.deploy(cx);
 
     // THEN
@@ -104,7 +104,7 @@ IAM Statement Changes
 
   test('request response contains stack diff when there are no security changes', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.deploy(cx);
 
     // THEN
@@ -126,7 +126,7 @@ IAM Statement Changes
   describe('deployment options', () => {
     test('parameters are passed in', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx, {
         parameters: StackParameters.exactly({
           'my-param': 'my-value',
@@ -144,7 +144,7 @@ IAM Statement Changes
     test('notification arns are passed in', async () => {
       // WHEN
       const arn = 'arn:aws:sns:us-east-1:1111111111:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx, {
         notificationArns: [arn],
       });
@@ -160,7 +160,7 @@ IAM Statement Changes
     test('notification arns from stack are passed in', async () => {
       // WHEN
       const arn = 'arn:aws:sns:us-east-1:222222222222:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-notification-arns');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-notification-arns');
       await toolkit.deploy(cx, {
         notificationArns: [arn],
       });
@@ -180,7 +180,7 @@ IAM Statement Changes
     test('non sns notification arn results in error', async () => {
       // WHEN
       const arn = 'arn:aws:sqs:us-east-1:1111111111:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await expect(async () => toolkit.deploy(cx, {
         notificationArns: [arn],
       })).rejects.toThrow(/Notification arn arn:aws:sqs:us-east-1:1111111111:resource is not a valid arn for an SNS topic/);
@@ -189,7 +189,7 @@ IAM Statement Changes
     test('forceAssetPublishing: true option is used for asset publishing', async () => {
       const publishSingleAsset = jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
-      const cx = await builderFixture(toolkit, 'stack-with-asset');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
         forceAssetPublishing: true,
       });
@@ -214,7 +214,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism: true,
@@ -236,7 +236,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism: false,
@@ -262,7 +262,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism,
@@ -281,7 +281,7 @@ IAM Statement Changes
   describe('deployment results', () => {
     test('did-deploy-result', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -310,7 +310,7 @@ IAM Statement Changes
       });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -337,7 +337,7 @@ IAM Statement Changes
       });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -358,7 +358,7 @@ IAM Statement Changes
     });
 
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     const result = await toolkit.deploy(cx);
 
     // THEN

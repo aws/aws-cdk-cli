@@ -62,3 +62,4 @@ lib/**/*.js.map
 lib/init-templates/**
 !test/_fixtures/**/app.js
 !test/_fixtures/**/cdk.out
+test/_fixtures/**/cdk.out/*.lock

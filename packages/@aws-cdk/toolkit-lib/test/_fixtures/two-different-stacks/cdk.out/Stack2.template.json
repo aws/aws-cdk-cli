@@ -1,9 +1,17 @@
 {
  "Resources": {
+  "MyQueueE6CA6235": {
+   "Type": "AWS::SQS::Queue",
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "Stack2/MyQueue/Resource"
+   }
+  },
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzIx1TNQTCwv1k1OydbNyUzSCy5JTM7WyctPSdXLKtYvMzLRMzTRM1DMKs7M1C0qzSvJzE3VC4LQAFq+4uA/AAAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzIx1TNQTCwv1k1OydbNyUzSqw4uSUzO1kksL44vLizWqw4sTS1N1XFOywMzamt18vJTUvWyivXLjEz0DE30DBSzijMzdYtK80oyc1P1giA0AHDZP4RaAAAA"
    },
    "Metadata": {
     "aws:cdk:path": "Stack2/CDKMetadata/Default"

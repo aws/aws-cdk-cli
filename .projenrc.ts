@@ -1072,6 +1072,11 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
+toolkitLib.addTask('gen-fixture', {
+  description: 'Generate cdk.out for test fixtures',
+  exec: 'tsx scripts/gen-fixture-cdk-out.ts',
+  receiveArgs: true,
+});
 const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
 toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
@@ -1108,6 +1113,7 @@ toolkitLib.gitignore.addPatterns(
   'lib/init-templates/**',
   '!test/_fixtures/**/app.js',
   '!test/_fixtures/**/cdk.out',
+  'test/_fixtures/**/cdk.out/*.lock',
 );
 
 // Add commands for the API Extractor docs

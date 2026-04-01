@@ -119,6 +119,16 @@
         }
       ]
     },
+    "gen-fixture": {
+      "name": "gen-fixture",
+      "description": "Generate cdk.out for test fixtures",
+      "steps": [
+        {
+          "exec": "tsx scripts/gen-fixture-cdk-out.ts",
+          "receiveArgs": true
+        }
+      ]
+    },
     "install": {
       "name": "install",
       "description": "Install project dependencies and update lockfile (non-frozen)",
