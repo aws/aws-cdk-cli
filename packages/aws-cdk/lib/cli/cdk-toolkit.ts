@@ -1891,7 +1891,6 @@ export interface RollbackOptions {
   readonly validateBootstrapStackVersion?: boolean;
 }
 
-
 export interface ImportOptions extends CfnDeployOptions {
   /**
    * Build a physical resource mapping and write it to the given file, without performing the actual import operation
