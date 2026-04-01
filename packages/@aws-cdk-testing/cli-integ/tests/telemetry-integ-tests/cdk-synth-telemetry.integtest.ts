@@ -66,6 +66,9 @@ integTest(
         duration: expect.objectContaining({
           total: expect.anything(),
         }),
+        counters: expect.objectContaining({
+          stacks: expect.anything(),
+        }),
       }),
       expect.objectContaining({
         event: expect.objectContaining({
