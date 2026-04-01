@@ -164,10 +164,6 @@
       "type": "build"
     },
     {
-      "name": "xml-js",
-      "type": "build"
-    },
-    {
       "name": "@aws-cdk/cli-plugin-contract",
       "type": "peer"
     },

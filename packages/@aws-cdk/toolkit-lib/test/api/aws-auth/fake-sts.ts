@@ -1,7 +1,6 @@
 import type { Tag } from '@aws-sdk/client-sts';
 import * as nock from 'nock';
 import * as uuid from 'uuid';
-import * as xmlJs from 'xml-js';
 import { formatErrorMessage } from '../../../lib/util';
 
 interface RegisteredIdentity {
@@ -83,12 +82,12 @@ export class FakeSts {
             parsedBody,
             headers: this.req.headers,
           });
-          const xml = xmlJs.js2xml(response, { compact: true });
+          const xml = js2xml(response);
           cb(null, [200, xml]);
         } catch (e: any) {
           cb(null, [
             400,
-            xmlJs.js2xml(
+            js2xml(
               {
                 ErrorResponse: {
                   _attributes: { xmlns: 'https://sts.amazonaws.com/doc/2011-06-15/' },
@@ -100,7 +99,6 @@ export class FakeSts {
                   RequestId: '1',
                 },
               },
-              { compact: true },
             ),
           ]);
         }
@@ -341,4 +339,33 @@ function urldecode(body: string): Record<string, string> {
     ret[decodeURIComponent(k)] = decodeURIComponent(v);
   }
   return ret;
+}
+
+/**
+ * Convert a compact JS object to XML, replacing xml-js.
+ * Handles `_attributes` for XML attributes and `_text` for text content.
+ */
+function js2xml(obj: any): string {
+  if (typeof obj !== 'object' || obj == null) {
+    return String(obj ?? '');
+  }
+
+  return Object.entries(obj)
+    // Skip special keys: _attributes is handled by the parent element,
+    // and __proto__/constructor/prototype guard against prototype pollution.
+    .filter(([key]) => key !== '_attributes' && key !== '__proto__' && key !== 'constructor' && key !== 'prototype')
+    .map(([key, value]) => {
+      // _text represents raw text content inside an element
+      if (key === '_text') {
+        return String(value);
+      }
+      // _attributes on a child become XML attributes on the opening tag
+      const attrs = Object.hasOwn(value ?? {}, '_attributes') ? (value as any)._attributes : undefined;
+      const attrStr = attrs
+        ? ' ' + Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(' ')
+        : '';
+      const inner = js2xml(value);
+      return `<${key}${attrStr}>${inner}</${key}>`;
+    })
+    .join('');
 }

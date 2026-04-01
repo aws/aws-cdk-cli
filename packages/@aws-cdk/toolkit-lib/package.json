@@ -72,8 +72,7 @@
     "nock": "13",
     "prettier": "^2.8",
     "ts-jest": "^29.4.6",
-    "typescript": "5.9",
-    "xml-js": "^1.6.11"
+    "typescript": "5.9"
   },
   "peerDependencies": {
     "@aws-cdk/cli-plugin-contract": "^0.0.0"

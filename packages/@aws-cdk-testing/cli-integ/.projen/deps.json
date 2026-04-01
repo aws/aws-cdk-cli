@@ -191,11 +191,6 @@
       "type": "runtime"
     },
     {
-      "name": "axios",
-      "version": "^1",
-      "type": "runtime"
-    },
-    {
       "name": "chalk",
       "version": "^4",
       "type": "runtime"

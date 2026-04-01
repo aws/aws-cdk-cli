@@ -17,7 +17,7 @@ import type { Deployments } from './deployments';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
-import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
+import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
@@ -159,6 +159,7 @@ export type PrepareChangeSetOptions = {
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
   importExistingResources?: boolean;
+  includeNestedStacks?: boolean;
   /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
@@ -179,6 +180,7 @@ export type CreateChangeSetOptions = {
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourceToImport[];
   importExistingResources?: boolean;
+  includeNestedStacks?: boolean;
   role?: string;
 };
 
@@ -189,21 +191,10 @@ export async function createDiffChangeSet(
   ioHelper: IoHelper,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
-  // `options.stack` has been modified to include any nested stack templates directly inline with its own template, under a special `NestedTemplate` property.
-  // Thus the parent template's Resources section contains the nested template's CDK metadata check, which uses Fn::Equals.
-  // This causes CreateChangeSet to fail with `Template Error: Fn::Equals cannot be partially collapsed`.
-  for (const resource of Object.values(options.stack.template.Resources ?? {})) {
-    if ((resource as any).Type === 'AWS::CloudFormation::Stack') {
-      if (options.failOnError) {
-        throw new ToolkitError('NestedStacksNotSupported', 'Changeset diff is not supported for stacks with nested stacks. Please use \'--method=auto\' to allow falling back to a template diff.');
-      }
-      await ioHelper.defaults.debug('This stack contains one or more nested stacks, falling back to template diff...');
-
-      return undefined;
-    }
-  }
-
-  return uploadBodyParameterAndCreateChangeSet(ioHelper, options);
+  return uploadBodyParameterAndCreateChangeSet(ioHelper, {
+    ...options,
+    includeNestedStacks: templateContainsNestedStacks(options.stack.template),
+  });
 }
 
 /**
@@ -248,7 +239,10 @@ async function uploadBodyParameterAndCreateChangeSet(
       env.resources,
     );
     const cfn = env.sdk.cloudFormation();
-    const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
+    const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
+    // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
+    // that was never executed. Treat it as non-existent for changeset purposes.
+    const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
     await ioHelper.defaults.info(
@@ -266,6 +260,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       parameters: options.parameters,
       resourcesToImport: options.resourcesToImport,
       importExistingResources: options.importExistingResources,
+      includeNestedStacks: options.includeNestedStacks,
       role: executionRoleArn,
     });
   } catch (e: any) {
@@ -334,6 +329,7 @@ export async function createChangeSet(
     Parameters: stackParams.apiParameters,
     ResourcesToImport: options.resourcesToImport,
     ImportExistingResources: options.importExistingResources,
+    IncludeNestedStacks: options.includeNestedStacks || undefined,
     RoleARN: options.role,
     Tags: toCfnTags(options.stack.tags),
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
