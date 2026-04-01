@@ -2,11 +2,11 @@ import { integTest, withSpecificFixture } from '../../../lib';
 import '../../../lib/assertions';
 
 integTest(
-  'cdk diff --security-only detects security changes in nested stacks',
+  'cdk diff --security-only --method=change-set detects security changes in nested stacks',
   withSpecificFixture('nested-stack-with-iam', async (fixture) => {
     const stackName = fixture.fullStackName('nested-iam');
 
-    const diff = await fixture.cdk(['diff', '--security-only', stackName]);
+    const diff = await fixture.cdk(['diff', '--security-only', '--method=change-set', stackName]);
 
     // Two nested stacks have IAM roles
     expect(diff).toContain('sts:AssumeRole');

@@ -920,7 +920,6 @@ const toolkitLib = configureProject(
       '@types/jest-when',
       'jest-when',
       'nock@13',
-      'xml-js',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -1166,16 +1165,13 @@ const cli = configureProject(
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
-      'axios',
       'constructs',
       'fast-check',
       'jest-environment-node',
       'jest-mock',
-      'madge',
       'nock@13',
       'sinon',
       'ts-mock-imports',
-      'xml-js',
     ],
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -1541,7 +1537,6 @@ const cliInteg = configureProject(
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
       '@smithy/types', // smithy packages don't have the same major version as SDK packages
-      'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
       'fast-glob',

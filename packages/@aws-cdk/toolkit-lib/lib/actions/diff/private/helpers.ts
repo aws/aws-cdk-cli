@@ -1,10 +1,12 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as fs from 'fs-extra';
 import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
 import type { SdkProvider } from '../../../api/aws-auth/private';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
+import type { NestedStackTemplates } from '../../../api/cloudformation';
 import type { Deployments } from '../../../api/deployments';
 import * as cfnApi from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
@@ -99,6 +101,12 @@ async function cfnDiff(
       methodOptions.importExistingResources,
     ) : undefined;
 
+    // If the changeset includes nested stacks, describe each nested changeset
+    // and attach it to the corresponding entry in nestedStacks.
+    if (changeSet) {
+      await attachNestedChangeSetData(deployments, stack, changeSet, nestedStacks);
+    }
+
     const mappings = allMappings.find(m =>
       m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
     )?.mappings ?? {};
@@ -137,6 +145,49 @@ async function changeSetDiff(
     failOnError: !fallBackToTemplate,
     importExistingResources,
   });
+}
+
+/**
+ * Walk the root changeset's Changes looking for nested stack resources
+ * that have their own ChangeSetId. Describe each nested changeset and
+ * attach it to the matching entry in the nestedStacks map.
+ */
+async function attachNestedChangeSetData(
+  deployments: Deployments,
+  stack: cxapi.CloudFormationStackArtifact,
+  rootChangeSet: DescribeChangeSetCommandOutput,
+  nestedStacks: { [logicalId: string]: NestedStackTemplates },
+): Promise<void> {
+  const env = await deployments.envs.accessStackForReadOnlyStackOperations(stack);
+  const cfn = env.sdk.cloudFormation();
+
+  for (const change of rootChangeSet.Changes ?? []) {
+    const rc = change.ResourceChange;
+    if (rc?.ResourceType !== 'AWS::CloudFormation::Stack' || !rc.ChangeSetId || !rc.LogicalResourceId) {
+      continue;
+    }
+
+    const nested = nestedStacks[rc.LogicalResourceId];
+    if (!nested) {
+      continue;
+    }
+
+    const nestedChangeSet = await cfn.describeChangeSet({
+      ChangeSetName: rc.ChangeSetId,
+      StackName: rc.PhysicalResourceId ?? rc.LogicalResourceId,
+    });
+
+    // Replace the entry with one that includes the changeset
+    (nestedStacks as any)[rc.LogicalResourceId] = {
+      ...nested,
+      changeSet: nestedChangeSet,
+    };
+
+    // Recurse into deeper nesting levels
+    if (nestedChangeSet && Object.keys(nested.nestedStackTemplates).length > 0) {
+      await attachNestedChangeSetData(deployments, stack, nestedChangeSet, nested.nestedStackTemplates);
+    }
+  }
 }
 
 /**

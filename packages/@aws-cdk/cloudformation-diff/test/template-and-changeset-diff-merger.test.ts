@@ -991,4 +991,41 @@ describe('method tests', () => {
       expect(queue.isDifferent).toBe(true);
     });
   });
+
+  test('changeset with Add action preserves addition diff', () => {
+    // GIVEN
+    const currentTemplate = {};
+    const newTemplate = {
+      Resources: {
+        NewRole: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+            },
+          },
+        },
+      },
+    };
+
+    // WHEN - changeset says the resource is being added (no Details for Add actions)
+    const diff = fullDiff(currentTemplate, newTemplate, {
+      Changes: [{
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Add',
+          LogicalResourceId: 'NewRole',
+          ResourceType: 'AWS::IAM::Role',
+        },
+      }],
+    });
+
+    // THEN - the resource should still show as an addition, not be filtered out
+    expect(diff.differenceCount).toBe(1);
+    expect(diff.resources.differenceCount).toBe(1);
+    const roleDiff = diff.resources.get('NewRole');
+    expect(roleDiff.isAddition).toBe(true);
+    expect(roleDiff.isDifferent).toBe(true);
+  });
 });

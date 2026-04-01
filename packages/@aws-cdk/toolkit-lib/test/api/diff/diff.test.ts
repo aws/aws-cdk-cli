@@ -1,5 +1,6 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
+import { templateContainsNestedStacks } from '../../../lib/api/cloudformation/nested-stack-helpers';
 import { DiffFormatter } from '../../../lib/api/diff/diff-formatter';
 
 function stripAnsi(s: string): string {
@@ -220,6 +221,8 @@ describe('formatStackDiff', () => {
   });
 
   test('passes per-nested-stack changeset to fullDiff', () => {
+    // A changeset that says the resource has NO property changes filters out
+    // false positives that the template diff would otherwise report.
     const nestedChangeSet = { Changes: [], $metadata: {} };
 
     const rootTemplate = {
@@ -241,6 +244,7 @@ describe('formatStackDiff', () => {
       findMetadataByType: () => [],
     } as any;
 
+    // Template diff sees a metadata change, but the changeset says there are no real changes
     const deployed = {
       Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'old/path' } } },
     };
@@ -265,8 +269,10 @@ describe('formatStackDiff', () => {
     });
     formatter.formatStackDiff();
 
+    // With the changeset (empty Changes), the metadata-only diff is filtered out
     const nestedDiff = formatter.diffs['nested-stack-1'];
     expect(nestedDiff).toBeDefined();
+    // Changeset says no changes — all template differences are filtered as false positives
     expect(nestedDiff.differenceCount).toBe(0);
   });
 
@@ -290,6 +296,7 @@ describe('formatStackDiff', () => {
       findMetadataByType: () => [],
     } as any;
 
+    // Same metadata change, but no changeset to filter it out
     const deployed = {
       Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'old/path' } } },
     };
@@ -307,14 +314,17 @@ describe('formatStackDiff', () => {
             generatedTemplate: generated,
             physicalName: 'nested-stack-1',
             nestedStackTemplates: {},
+            // no changeSet
           },
         },
       },
     });
     formatter.formatStackDiff();
 
+    // Without a changeset, the template diff reports the metadata change as a real difference
     const nestedDiff = formatter.diffs['nested-stack-1'];
     expect(nestedDiff).toBeDefined();
+    // Template-only diff: the resource has a metadata difference
     expect(nestedDiff.differenceCount).toBeGreaterThan(0);
   });
 });
@@ -641,5 +651,32 @@ describe('mangled character filtering', () => {
     expect(sanitized).not.toContain('AWS::CloudFormation::Stack');
     expect(sanitized).toContain('nested-stack');
     expect(sanitized).toContain('Omitted');
+  });
+});
+
+describe('templateContainsNestedStacks', () => {
+  test('returns true when template has AWS::CloudFormation::Stack resources', () => {
+    expect(templateContainsNestedStacks({
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+        Bucket: { Type: 'AWS::S3::Bucket' },
+      },
+    })).toBe(true);
+  });
+
+  test('returns false when template has no nested stacks', () => {
+    expect(templateContainsNestedStacks({
+      Resources: {
+        Bucket: { Type: 'AWS::S3::Bucket' },
+      },
+    })).toBe(false);
+  });
+
+  test('returns false for empty template', () => {
+    expect(templateContainsNestedStacks({})).toBe(false);
+  });
+
+  test('returns false for template with no Resources', () => {
+    expect(templateContainsNestedStacks({ Parameters: {} })).toBe(false);
   });
 });
