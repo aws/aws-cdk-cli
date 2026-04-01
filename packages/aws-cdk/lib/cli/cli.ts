@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
-import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
@@ -447,8 +447,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('UnstablePublishAssets', 'Unstable feature use: \'publish-assets\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish-assets --unstable=publish-assets\'');
         }
         return cli.publishAssets({
-          selector,
-          exclusively: args.exclusively,
+          stacks: convertStackSelector(selector, args.exclusively),
           force: args.force,
           concurrency: args.concurrency,
         });
@@ -643,6 +642,17 @@ async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: s
 
 function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
   return configuration.context.get(featureFlag) ?? cxapi.futureFlagDefault(featureFlag);
+}
+
+/**
+ * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
+ */
+function convertStackSelector(selector: StackSelector, exclusively?: boolean) {
+  return {
+    patterns: selector.patterns,
+    strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+  };
 }
 
 /**

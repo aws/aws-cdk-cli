@@ -2,7 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -20,7 +20,6 @@ import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
-  ExpandStackSelection,
   findCloudWatchLogGroups,
   GarbageCollector,
   removeNonImportResources,
@@ -813,15 +812,7 @@ export class CdkToolkit {
   }
 
   public async publishAssets(options: PublishAssetsOptions): Promise<void> {
-    await this.toolkit.publishAssets(this.props.cloudExecutable, {
-      stacks: {
-        patterns: options.selector.patterns,
-        strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
-      },
-      force: options.force,
-      concurrency: options.concurrency,
-    });
+    await this.toolkit.publishAssets(this.props.cloudExecutable, options);
   }
 
   public async watch(options: WatchOptions) {
@@ -1900,33 +1891,6 @@ export interface RollbackOptions {
   readonly validateBootstrapStackVersion?: boolean;
 }
 
-export interface PublishAssetsOptions {
-  /**
-   * Criteria for selecting stacks
-   */
-  readonly selector: StackSelector;
-
-  /**
-   * Only select the given stack
-   *
-   * @default false
-   */
-  readonly exclusively?: boolean;
-
-  /**
-   * Always publish assets, even if they are already published
-   *
-   * @default false
-   */
-  readonly force?: boolean;
-
-  /**
-   * Maximum number of simultaneous asset operations (building and publishing)
-   *
-   * @default 1
-   */
-  readonly concurrency?: number;
-}
 
 export interface ImportOptions extends CfnDeployOptions {
   /**

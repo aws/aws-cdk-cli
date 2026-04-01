@@ -1,4 +1,4 @@
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
@@ -598,7 +598,11 @@ describe('publish-assets command tests', () => {
 
     expect(publishSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        exclusively: true,
+        stacks: expect.objectContaining({
+          expand: ExpandStackSelection.NONE,
+          patterns: [],
+          strategy: StackSelectionStrategy.ALL_STACKS,
+        }),
         force: true,
         concurrency: 4,
       }),

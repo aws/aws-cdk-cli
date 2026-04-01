@@ -1,3 +1,4 @@
+import { ExpandStackSelection, StackSelectionStrategy } from '@aws-cdk/toolkit-lib';
 import { Deployments } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -43,7 +44,11 @@ describe('publish-assets', () => {
   test('publishes with correct stack selector and force option', async () => {
     // WHEN
     await toolkit.publishAssets({
-      selector: { patterns: ['Stack1'] },
+      stacks: {
+        patterns: ['Stack1'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
+        expand: ExpandStackSelection.UPSTREAM,
+      },
       force: true,
     });
 
@@ -62,7 +67,11 @@ describe('publish-assets', () => {
   test('publishes successfully', async () => {
     // WHEN
     await toolkit.publishAssets({
-      selector: { patterns: ['Stack1'] },
+      stacks: {
+        patterns: ['Stack1'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
+        expand: ExpandStackSelection.UPSTREAM,
+      },
     });
 
     // THEN
@@ -72,7 +81,11 @@ describe('publish-assets', () => {
   test('passes all options correctly', async () => {
     // WHEN
     await toolkit.publishAssets({
-      selector: { patterns: ['Stack1'] },
+      stacks: {
+        patterns: ['Stack1'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
+        expand: ExpandStackSelection.UPSTREAM,
+      },
       force: true,
       concurrency: 5,
     });
