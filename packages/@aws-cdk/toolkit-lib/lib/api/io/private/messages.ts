@@ -13,7 +13,7 @@ import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableCh
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
-import type { PublishAssetsPayload, PublishAssetsResultPayload } from '../../../payloads/publish-assets';
+import type { AssetsPayload } from '../../../payloads/publish-assets';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
@@ -466,15 +466,15 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9400',
     description: 'All assets are already published',
   }),
-  CDK_TOOLKIT_I9401: make.info<PublishAssetsPayload>({
+  CDK_TOOLKIT_I9401: make.info<AssetsPayload>({
     code: 'CDK_TOOLKIT_I9401',
     description: 'Publishing assets',
-    interface: 'PublishAssetsPayload',
+    interface: 'AssetsPayload',
   }),
-  CDK_TOOLKIT_I9402: make.result<PublishAssetsResultPayload>({
+  CDK_TOOLKIT_I9402: make.result<AssetsPayload>({
     code: 'CDK_TOOLKIT_I9402',
     description: 'Publish assets results on success',
-    interface: 'PublishAssetsResultPayload',
+    interface: 'AssetsPayload',
   }),
 
   // Notices

@@ -140,8 +140,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link FeatureFlagChangeRequest} |
 | `CDK_TOOLKIT_I9400` | All assets are already published | `info` | n/a |
-| `CDK_TOOLKIT_I9401` | Publishing assets | `info` | {@link PublishAssetsPayload} |
-| `CDK_TOOLKIT_I9402` | Publish assets results on success | `result` | {@link PublishAssetsResultPayload} |
+| `CDK_TOOLKIT_I9401` | Publishing assets | `info` | {@link AssetsPayload} |
+| `CDK_TOOLKIT_I9402` | Publish assets results on success | `result` | {@link AssetsPayload} |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |
