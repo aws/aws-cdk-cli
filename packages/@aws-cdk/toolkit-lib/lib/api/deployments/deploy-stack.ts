@@ -593,6 +593,7 @@ class FullCloudFormationDeployment {
       resourcesTotal: expectedChanges,
       ioHelper: this.ioHelper,
       changeSetCreationTime: startTime,
+      envResources: this.options.envResources,
     });
     await monitor.start();
 

@@ -13,6 +13,7 @@ import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../
 
 let sdk: MockSdk;
 let monitor: StackActivityMonitor;
+const mockEnvResources = { lookupToolkit: jest.fn().mockResolvedValue({ version: 30 }) };
 let ioHost: IIoHost = {
   notify: jest.fn(),
   requestResponse: jest.fn().mockImplementation((msg) => msg.defaultResponse),
@@ -29,6 +30,7 @@ beforeEach(async () => {
     stackName: 'StackName',
     changeSetCreationTime: new Date(T100),
     pollingInterval: 0,
+    envResources: mockEnvResources as any,
   }).start();
 
   restoreSdkMocksToDefault();
@@ -206,12 +208,12 @@ describe('stack monitor, collecting errors from events', () => {
       await monitor.stop();
     }
 
-    test('error message', async() => {
+    test('error message', async () => {
       await monitorSettled();
       expect(monitor.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
     });
 
-    test('error code', async() => {
+    test('error code', async () => {
       await monitorSettled();
       expect(monitor.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
     });
@@ -413,7 +415,8 @@ describe('GuardHook GetHookResult fetching', () => {
     const hookInvocationId = 'failing-invocation-id';
     const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
 
-    mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce('Access denied');
+    const errorMessage = 'Hook result not found'
+    mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
 
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
       StackEvents: [
@@ -441,7 +444,58 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch Guard Hook details for invocation ${hookInvocationId}: Access denied`,
+        message: `Failed to fetch Guard Hook details for invocation ${hookInvocationId}: ${errorMessage}`,
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
+  });
+
+  test('warns with bootstrap upgrade message when GetHookResult fails due to permissions', async () => {
+    const hookInvocationId = 'failing-invocation-id';
+    const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
+
+    const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult'
+    const currentVersion = 30;
+    mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'NonCompliantBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: originalMessage,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 1);
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(4);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        level: 'warn',
+        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
+            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,

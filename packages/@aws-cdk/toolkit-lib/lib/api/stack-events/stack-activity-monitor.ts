@@ -8,6 +8,7 @@ import type { StackActivity } from '../../payloads/stack-activity';
 import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
 import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
@@ -62,6 +63,14 @@ export interface StackActivityMonitorProps {
    * @default 2_000
    */
   readonly pollingInterval?: number;
+
+  /**
+   * Environment resources, used to look up the bootstrap toolkit version when
+   * diagnosing Guard Hook annotation fetch failures.
+   *
+   * @default - Bootstrap version is not reported in error messages
+   */
+  readonly envResources?: EnvironmentResources;
 }
 
 /**
@@ -111,6 +120,7 @@ export class StackActivityMonitor {
   private readonly stackName: string;
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
+  private readonly envResources?: EnvironmentResources;
 
   constructor({
     cfn,
@@ -120,11 +130,13 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
+    envResources,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackName = stackName;
     this.cfn = cfn;
+    this.envResources = envResources;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
@@ -273,11 +285,33 @@ export class StackActivityMonitor {
         lines.push('');
       }
       return lines.join('\n').trimEnd();
-    } catch (e) {
+    } catch (e: any) {
       const errorMessage = e instanceof Error ? e.message : String(e);
-      await this.ioHelper.defaults.warn(
-        util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
-      );
+
+      const isPermissionsError =
+        e.name === 'AccessDeniedException' ||
+        (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
+
+      if (isPermissionsError && this.envResources) {
+        let currentVersion: number | undefined = undefined;
+        try {
+          currentVersion = (await this.envResources.lookupToolkit()).version;
+        } catch {
+          // ignore errors looking up the bootstrap version
+        }
+
+        await this.ioHelper.defaults.warn(
+          util.format(
+            `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
+            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`
+          ),
+        );
+      } else {
+        await this.ioHelper.defaults.warn(
+          util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
+        );
+      }
+
       return undefined;
     }
   }
