@@ -663,7 +663,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Always publish assets, even if they are already published',
         })
         .option('concurrency', {
-          default: 1,
+          default: 4,
           type: 'number',
           desc: 'Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.',
           requiresArg: true,

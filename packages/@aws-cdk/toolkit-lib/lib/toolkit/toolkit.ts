@@ -543,10 +543,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const assets = assetNodes.map(n => n.asset);
     await ioHelper.notify(IO.CDK_TOOLKIT_I9401.msg('Publishing assets', { assets }));
 
+    const concurrency = options.concurrency ?? 4;
     const graphConcurrency: Concurrency = {
       'stack': 1,
-      'asset-build': options.concurrency ?? 1,
-      'asset-publish': options.concurrency ?? 1,
+      'asset-build': concurrency,
+      'asset-publish': concurrency,
     };
 
     await workGraph.doParallel(graphConcurrency, {

@@ -1040,7 +1040,7 @@ export interface PublishAssetsOptions {
   /**
    * Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.
    *
-   * @default - 1
+   * @default - 4
    */
   readonly concurrency?: number;
 
