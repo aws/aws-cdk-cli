@@ -415,7 +415,7 @@ describe('GuardHook GetHookResult fetching', () => {
     const hookInvocationId = 'failing-invocation-id';
     const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
 
-    const errorMessage = 'Hook result not found'
+    const errorMessage = 'Hook result not found';
     mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
 
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -464,7 +464,7 @@ describe('GuardHook GetHookResult fetching', () => {
     const hookInvocationId = 'failing-invocation-id';
     const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
 
-    const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult'
+    const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult';
     const currentVersion = 30;
     mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
 

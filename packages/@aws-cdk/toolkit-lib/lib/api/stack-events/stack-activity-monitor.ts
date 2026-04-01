@@ -303,7 +303,7 @@ export class StackActivityMonitor {
         await this.ioHelper.defaults.warn(
           util.format(
             `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`
+            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
           ),
         );
       } else {
