@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --check-files --frozen-lockfile
       - name: Reset coverage thresholds
         run: find . -name "jest.config.json" -type f -exec chmod +w {} \; -exec node -e "const fs=require('fs'); const file=process.argv[1]; const data=JSON.parse(fs.readFileSync(file)); data.coverageThreshold={ }; fs.writeFileSync(file, JSON.stringify(data, null, 2));" {} \;
       - name: Build and test CLI

@@ -423,7 +423,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           name: 'Install dependencies',
-          run: 'yarn install --check-files',
+          run: repo.package.installCommand,
         },
         {
           name: 'Bump to realistic versions',

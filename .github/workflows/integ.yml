@@ -50,7 +50,7 @@ jobs:
           node-version: lts/*
           cache: npm
       - name: Install dependencies
-        run: yarn install --check-files
+        run: yarn install --check-files --frozen-lockfile
       - name: Bump to realistic versions
         env:
           TESTING_CANDIDATE: "true"
