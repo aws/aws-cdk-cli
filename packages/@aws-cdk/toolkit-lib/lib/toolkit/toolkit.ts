@@ -165,7 +165,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'flags';
+export type UnstableFeature = 'refactor' | 'flags' | 'publish-assets';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -499,6 +499,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Publishes assets for the selected stacks without deploying
    */
   public async publishAssets(cx: ICloudAssemblySource, options: PublishAssetsOptions = {}): Promise<PublishAssetsResult> {
+    this.requireUnstableFeature('publish-assets');
+
     const ioHelper = asIoHelper(this.ioHost, 'publish-assets');
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);

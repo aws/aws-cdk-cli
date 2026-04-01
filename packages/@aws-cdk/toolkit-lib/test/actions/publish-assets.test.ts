@@ -9,7 +9,7 @@ let toolkit: Toolkit;
 beforeEach(() => {
   jest.restoreAllMocks();
   ioHost = new TestIoHost('info', true);
-  toolkit = new Toolkit({ ioHost });
+  toolkit = new Toolkit({ ioHost, unstableFeatures: ['publish-assets'] });
 
   // Mock deployments methods for asset operations
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
