@@ -1,7 +1,6 @@
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import * as axios from 'axios';
 import type { TestContext } from './integ-test';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
@@ -133,12 +132,8 @@ export class SamIntegrationTestFixture extends TestFixture {
 
     // "Press Ctrl+C to quit" looks to be printed by a Flask server built into SAM CLI.
     return this.samShell(['sam', 'local', 'start-api', ...args], 'Press CTRL+C to quit', ()=>{
-      return new Promise<ActionOutput>((resolve, reject) => {
-        axios.get(`http://127.0.0.1:${port}${apiPath}`).then( resp => {
-          resolve(resp.data);
-        }).catch( error => {
-          reject(new Error(`Failed to invoke api path ${apiPath} on port ${port} with error ${error}`));
-        });
+      return fetch(`http://127.0.0.1:${port}${apiPath}`).then(resp => resp.json()).catch(error => {
+        throw new Error(`Failed to invoke api path ${apiPath} on port ${port} with error ${error}`);
       });
     });
   }
