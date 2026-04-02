@@ -31,7 +31,7 @@ import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolk
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
-import { makeBodyParameter, CfnEvaluationException, CloudFormationStack, templateContainsNestedStacks } from '../cloudformation';
+import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { EnvironmentResourcesRegistry } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
@@ -470,7 +470,6 @@ class FullCloudFormationDeployment {
       Description: `CDK Changeset for execution ${this.uuid}`,
       ClientToken: `create${this.uuid}`,
       ImportExistingResources: importExistingResources,
-      IncludeNestedStacks: templateContainsNestedStacks(this.stackArtifact.template),
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       ...this.commonPrepareOptions(),
     });
