@@ -2,8 +2,6 @@ const cdk = require('aws-cdk-lib');
 const { aws_cloudformation: cfn, aws_sns: sns, aws_ssm: ssm } = cdk;
 
 /**
- * Reproduces https://t.corp.amazon.com/D423570178
- *
  * When IncludeNestedStacks is true, CloudFormation validates all nested stacks
  * together. Export names using Fn::Join with a runtime reference get collapsed
  * to the placeholder {{IntrinsicFunction://Fn::Join}}, causing a false
