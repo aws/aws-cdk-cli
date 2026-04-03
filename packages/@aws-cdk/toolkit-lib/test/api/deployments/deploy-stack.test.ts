@@ -48,6 +48,20 @@ const FAKE_STACK = testStack({
   stackName: 'withouterrors',
 });
 
+const FAKE_STACK_WITH_NESTED_STACK = testStack({
+  stackName: 'withnestedstack',
+  template: {
+    Resources: {
+      NestedStack: {
+        Type: 'AWS::CloudFormation::Stack',
+        Properties: {
+          TemplateURL: 'https://example.com/template.json',
+        },
+      },
+    },
+  },
+});
+
 const FAKE_STACK_WITH_PARAMETERS = testStack({
   stackName: 'withparameters',
   template: {
@@ -1316,3 +1330,17 @@ function givenChangeSetContainsReplacement(replacement: boolean) {
     ] : [],
   });
 }
+
+test('does not pass IncludeNestedStacks even for stacks with nested stacks', async () => {
+  // Regression test: IncludeNestedStacks causes CloudFormation to report false
+  // "duplicate Export names" errors when nested stacks use intrinsic functions
+  // (like Fn::Join) in export names.
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    stack: FAKE_STACK_WITH_NESTED_STACK,
+  });
+
+  const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+  expect(calls.length).toBeGreaterThan(0);
+  expect(calls[0].args[0].input).not.toHaveProperty('IncludeNestedStacks');
+});
