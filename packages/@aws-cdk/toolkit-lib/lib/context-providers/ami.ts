@@ -32,7 +32,7 @@ export class AmiContextProviderPlugin implements ContextProviderPlugin {
     const images = [...(response.Images || [])].filter((i) => i.ImageId !== undefined);
 
     if (images.length === 0) {
-      throw new ContextProviderError('No AMI found that matched the search criteria');
+      throw new ContextProviderError('AmiNotFound', 'No AMI found that matched the search criteria');
     }
 
     // Return the most recent one

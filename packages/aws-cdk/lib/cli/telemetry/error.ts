@@ -1,4 +1,4 @@
-import { AssemblyError, AuthenticationError, ContextProviderError, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { AssemblyError, AuthenticationError, ContextProviderError, DeploymentErrorCodes, ToolkitError } from '@aws-cdk/toolkit-lib';
 import { ServiceException } from '@smithy/smithy-client';
 
 /**
@@ -55,6 +55,10 @@ function specificErrorCode(err: Error): string | undefined {
   if (ServiceException.isInstance(err)) {
     // SDK and/or Service error
     return `sdk:${err.name}`;
+  }
+
+  if (ToolkitError.isDeploymentError(err)) {
+    return `deploy:${err.deploymentErrorCode ?? DeploymentErrorCodes.UNKNOWN_ERROR}`;
   }
 
   if (ToolkitError.isAssemblyError(err) && err.synthErrorCode) {

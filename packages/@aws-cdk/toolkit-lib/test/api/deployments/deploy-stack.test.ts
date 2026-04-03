@@ -21,7 +21,6 @@ import { assertIsSuccessfulDeployStackResult } from '../../../lib/api/deployment
 import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/api/deployments/deploy-stack';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
-import { HotswapMode } from '../../../lib/api/hotswap/common';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
@@ -125,12 +124,12 @@ function standardDeployStackArguments(): DeployStackApiOptions {
   };
 }
 
-test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.CLASSIC`", async () => {
+test('calls tryHotswapDeployment() if deploymentMethod is hotswap with fallback', async () => {
   // WHEN
   const spyOnSdk = jest.spyOn(sdk, 'appendCustomUserAgent');
   await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: HotswapMode.FALL_BACK,
+    deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     extraUserAgent: 'extra-user-agent',
   });
 
@@ -142,7 +141,7 @@ test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.CLASSIC`", async
   expect(spyOnSdk).toHaveBeenCalledWith('cdk-hotswap/fallback');
 });
 
-test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.HOTSWAP_ONLY`", async () => {
+test('calls tryHotswapDeployment() if deploymentMethod is hotswap-only', async () => {
   // we need the first call to return something in the Stacks prop,
   // otherwise the access to `stackId` will fail
   mockCloudFormationClient.on(DescribeStacksCommand).resolves({
@@ -152,7 +151,7 @@ test("calls tryHotswapDeployment() if 'hotswap' is `HotswapMode.HOTSWAP_ONLY`", 
   // WHEN
   const deployStackResult = await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: HotswapMode.HOTSWAP_ONLY,
+    deploymentMethod: { method: 'hotswap' },
     extraUserAgent: 'extra-user-agent',
     forceDeployment: true, // otherwise, deployment would be skipped
   });
@@ -170,7 +169,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: HotswapMode.FALL_BACK,
+    deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     parameters: {
       A: 'A-value',
       B: 'B=value',
@@ -186,7 +185,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
     { A: 'A-value', B: 'B=value' },
     expect.anything(),
     expect.anything(),
-    HotswapMode.FALL_BACK,
+    'fall-back',
     expect.anything(),
   );
 });
@@ -216,7 +215,7 @@ test('correctly passes SSM parameters when hotswapping', async () => {
         },
       },
     }),
-    hotswap: HotswapMode.FALL_BACK,
+    deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     usePreviousParameters: true,
   });
 
@@ -227,7 +226,7 @@ test('correctly passes SSM parameters when hotswapping', async () => {
     { SomeParameter: 'SomeValue' },
     expect.anything(),
     expect.anything(),
-    HotswapMode.FALL_BACK,
+    'fall-back',
     expect.anything(),
   );
 });
@@ -279,11 +278,10 @@ test('method=direct and no updates to be performed', async () => {
   expect(ret).toEqual(expect.objectContaining({ noOp: true }));
 });
 
-test("does not call tryHotswapDeployment() if 'hotswap' is false", async () => {
+test('does not call tryHotswapDeployment() if deploymentMethod is not hotswap', async () => {
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: undefined,
   });
 
   // THEN
@@ -294,7 +292,7 @@ test("rollback still defaults to enabled even if 'hotswap' is enabled", async ()
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: HotswapMode.FALL_BACK,
+    deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     rollback: undefined,
   });
 
@@ -307,11 +305,10 @@ test("rollback still defaults to enabled even if 'hotswap' is enabled", async ()
   );
 });
 
-test("rollback defaults to enabled if 'hotswap' is undefined", async () => {
+test('rollback defaults to enabled if deploymentMethod is not hotswap', async () => {
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    hotswap: undefined,
     rollback: undefined,
   });
 

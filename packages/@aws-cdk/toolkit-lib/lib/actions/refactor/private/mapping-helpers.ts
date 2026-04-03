@@ -15,6 +15,7 @@ export function parseMappingGroups(s: string) {
     for (const destination of Object.values(group.resources)) {
       if (destinations.has(destination)) {
         throw new ToolkitError(
+          'DuplicateDestinationResource',
           `Duplicate destination resource '${destination}' in environment ${group.account}/${group.region}`,
         );
       }
@@ -29,7 +30,7 @@ export function parseMappingGroups(s: string) {
     if (content.environments || !Array.isArray(content.environments)) {
       return content.environments;
     } else {
-      throw new ToolkitError("Expected an 'environments' array");
+      throw new ToolkitError('MissingEnvironmentsArray', "Expected an 'environments' array");
     }
   }
 }

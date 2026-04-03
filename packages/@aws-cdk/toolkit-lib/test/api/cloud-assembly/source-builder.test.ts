@@ -291,7 +291,7 @@ describe('fromCdkApp', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       level: 'error',
       code: 'CDK_ASSEMBLY_E1002',
-      message: expect.stringContaining('ValidationError'),
+      message: expect.stringContaining('FifoQueueNames'),
     }));
   });
 

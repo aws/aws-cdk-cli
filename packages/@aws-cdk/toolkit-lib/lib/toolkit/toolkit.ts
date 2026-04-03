@@ -1,7 +1,6 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -47,6 +46,7 @@ import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
+import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
@@ -65,6 +65,7 @@ import type { ICloudAssemblySource, StackSelector } from '../api/cloud-assembly'
 import { CachedCloudAssembly, StackSelectionStrategy } from '../api/cloud-assembly';
 import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
+import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
@@ -72,7 +73,7 @@ import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
-import type { ElapsedTime, IMessageSpan, IoHelper } from '../api/io/private';
+import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { Mode, PluginHost } from '../api/plugin';
@@ -97,6 +98,7 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { countAssemblyResults } from './private/count-assembly-results';
 
 export interface ToolkitOptions {
   /**
@@ -163,7 +165,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'flags';
+export type UnstableFeature = 'refactor' | 'flags' | 'publish-assets';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -320,11 +322,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    // NOTE: NOT 'await using' because we return ownership to the caller
-    const assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
-
-    const stacks = await assembly.selectStacksV2(stacksOpt(options));
-    const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
+    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
+    const stacks = await assembly.value.selectStacksV2(stacksOpt(options));
+    const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
 
     // if we have a single stack, print it to STDOUT
@@ -355,7 +355,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
 
-    return new CachedCloudAssembly(assembly);
+    return new CachedCloudAssembly(assembly.take());
   }
 
   /**
@@ -374,6 +374,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const contextLines = options.contextLines || 3;
 
     let diffs = 0;
+    let securityDiffs = 0;
 
     const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
     const templateDiffs: { [name: string]: TemplateDiff } = {};
@@ -393,11 +394,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       // Stack Diff
       diffs += stackDiff.numStacksWithChanges;
+      securityDiffs += securityDiff.numStacksWithChanges;
       appendObject(templateDiffs, formatter.diffs);
       await diffSpan.notify(IO.CDK_TOOLKIT_I4002.msg(stackDiff.formattedDiff, {
         stack: templateInfo.newTemplate,
         diffs: formatter.diffs,
         numStacksWithChanges: stackDiff.numStacksWithChanges,
+        numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
         formattedDiff: {
           diff: stackDiff.formattedDiff,
@@ -408,6 +411,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await diffSpan.end(`✨ Number of stacks with differences: ${diffs}`, {
       numStacksWithChanges: diffs,
+      numStacksWithSecurityChanges: securityDiffs,
       diffs: templateDiffs,
     });
 
@@ -490,6 +494,80 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   /**
+   * Publish Assets Action
+   *
+   * Publishes assets for the selected stacks without deploying
+   */
+  public async publishAssets(cx: ICloudAssemblySource, options: PublishAssetsOptions = {}): Promise<PublishAssetsResult> {
+    this.requireUnstableFeature('publish-assets');
+
+    const ioHelper = asIoHelper(this.ioHost, 'publish-assets');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    await this.validateStacksMetadata(stackCollection, ioHelper);
+
+    if (stackCollection.stackCount === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
+      return {
+        publishedAssets: [],
+      };
+    }
+
+    const deployments = await this.deploymentsForAction('publish-assets');
+
+    const stacks = stackCollection.stackArtifacts;
+    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+      stack,
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+    ]);
+
+    const workGraph = new WorkGraphBuilder(
+      ioHelper,
+      true, // prebuild all assets
+    ).build(stacksAndTheirAssetManifests);
+
+    if (!options.force) {
+      await removePublishedAssetsFromWorkGraph(workGraph, deployments, options);
+    }
+
+    const assetNodes = Object.values(workGraph.nodes)
+      .filter((n): n is AssetPublishNode => n.type === 'asset-publish');
+
+    if (assetNodes.length === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9400.msg(chalk.green('\n✨  All assets are already published\n')));
+      return {
+        publishedAssets: [],
+      };
+    }
+
+    const assets = assetNodes.map(n => n.asset);
+    await ioHelper.notify(IO.CDK_TOOLKIT_I9401.msg('Publishing assets', { assets }));
+
+    const concurrency = options.concurrency ?? 4;
+    const graphConcurrency: Concurrency = {
+      'stack': 1,
+      'asset-build': concurrency,
+      'asset-publish': concurrency,
+    };
+
+    await workGraph.doParallel(graphConcurrency, {
+      deployStack: async () => {
+        // No-op: we're only publishing assets, not deploying
+      },
+      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, undefined),
+      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
+    });
+
+    await ioHelper.notify(IO.CDK_TOOLKIT_I9402.msg(chalk.green('\n✨  Assets published successfully\n'), { assets }));
+
+    return {
+      publishedAssets: assets,
+    };
+  }
+
+  /**
    * List Action
    *
    * List selected stacks and their dependencies
@@ -555,36 +633,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const stackOutputs: { [key: string]: any } = {};
     const outputsFile = options.outputsFile;
 
-    const buildAsset = async (assetNode: AssetBuildNode) => {
-      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.buildSingleAsset(
-        assetNode.assetManifestArtifact,
-        assetNode.assetManifest,
-        assetNode.asset,
-        {
-          stack: assetNode.parentStack,
-          roleArn: options.roleArn,
-          stackName: assetNode.parentStack.stackName,
-        },
-      );
-      await buildAssetSpan.end();
-    };
-
-    const publishAsset = async (assetNode: AssetPublishNode) => {
-      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
-        asset: assetNode.asset,
-      });
-      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
-        stack: assetNode.parentStack,
-        roleArn: options.roleArn,
-        stackName: assetNode.parentStack.stackName,
-        forcePublish: options.forceAssetPublishing,
-      });
-      await publishAssetSpan.end();
-    };
-
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
       if (stackCollection.stackCount !== 1) {
@@ -593,6 +641,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       if (!stack.environment) {
         throw new ToolkitError(
+          'StackEnvironmentMissing',
           `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
         );
       }
@@ -626,12 +675,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       });
 
       const securityDiff = formatter.formatSecurityDiff();
+      const stackDiff = formatter.formatStackDiff();
 
-      // Send a request response with the formatted security diff as part of the message,
+      // Send a request response with the diff as part of the message,
       // and the template diff as data
       // (IoHost decides whether to print depending on permissionChangeType)
-      const deployMotivation = '"--require-approval" is enabled and stack includes security-sensitive updates.';
-      const deployQuestion = `${securityDiff.formattedDiff}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
+      const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+      const deployMotivation = hasSecurityChanges
+        ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
+        : '"--require-approval" is enabled and stack includes updates.';
+      const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
+      const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
       const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
         motivation: deployMotivation,
         concurrency,
@@ -639,7 +693,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         templateDiffs: formatter.diffs,
       }));
       if (!deployConfirmed) {
-        throw new ToolkitError('Aborted by user');
+        throw new ToolkitError('DeployAborted', 'Aborted by user');
       }
 
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
@@ -653,7 +707,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       for (const notificationArn of notificationArns ?? []) {
         if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError(`Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
         }
       }
 
@@ -679,7 +733,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
-            throw new ToolkitError('This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
+            throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
           }
 
           const r = await deployments.deployStack({
@@ -715,7 +769,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('Aborted by user');
+                throw new ToolkitError('RollbackAborted', 'Aborted by user');
               }
 
               // Perform a rollback
@@ -741,7 +795,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('Aborted by user');
+                throw new ToolkitError('ReplacementRollbackAborted', 'Aborted by user');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -750,7 +804,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             }
 
             default:
-              throw new ToolkitError(`Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
+              throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
           }
         }
 
@@ -787,6 +841,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
         throw new ToolkitError(
+          'DeployStackFailed',
           [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' '),
         );
       } finally {
@@ -840,8 +895,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await workGraph.doParallel(graphConcurrency, {
       deployStack,
-      buildAsset,
-      publishAsset,
+      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
+      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing),
     });
 
     return ret;
@@ -1059,11 +1114,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       } catch (e: any) {
         await ioHelper.notify(IO.CDK_TOOLKIT_E6900.msg(`\n ❌  ${chalk.bold(stack.displayName)} failed: ${formatErrorMessage(e)}`, { error: e }));
-        throw ToolkitError.withCause('Rollback failed (use --force to orphan failing resources)', e);
+        throw ToolkitError.withCause('RollbackFailed', 'Rollback failed (use --force to orphan failing resources)', e);
       }
     }
     if (!anyRollbackable) {
-      throw new ToolkitError('No stacks were in a state that could be rolled back');
+      throw new ToolkitError('NoRollbackableStacks', 'No stacks were in a state that could be rolled back');
     }
 
     return ret;
@@ -1201,7 +1256,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
         }
       }
-      throw new ToolkitError(`Cannot find resource in location ${location}`);
+      throw new ToolkitError('ResourceLocationNotFound', `Cannot find resource in location ${location}`);
     }
 
     async function confirm(force: boolean): Promise<boolean> {
@@ -1414,8 +1469,57 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
     if (!this.unstableFeatures.includes(requestedFeature)) {
-      throw new ToolkitError(`Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
     }
+  }
+
+  /**
+   * Create a buildAsset function for use in WorkGraph
+   */
+  private createBuildAssetFunction(
+    ioHelper: IoHelper,
+    deployments: Deployments,
+    roleArn: string | undefined,
+  ) {
+    return async (assetNode: AssetBuildNode) => {
+      const buildAssetSpan = await ioHelper.span(SPAN.BUILD_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.buildSingleAsset(
+        assetNode.assetManifestArtifact,
+        assetNode.assetManifest,
+        assetNode.asset,
+        {
+          stack: assetNode.parentStack,
+          roleArn,
+          stackName: assetNode.parentStack.stackName,
+        },
+      );
+      await buildAssetSpan.end();
+    };
+  }
+
+  /**
+   * Create a publishAsset function for use in WorkGraph
+   */
+  private createPublishAssetFunction(
+    ioHelper: IoHelper,
+    deployments: Deployments,
+    roleArn: string | undefined,
+    forcePublish?: boolean,
+  ) {
+    return async (assetNode: AssetPublishNode) => {
+      const publishAssetSpan = await ioHelper.span(SPAN.PUBLISH_ASSET).begin({
+        asset: assetNode.asset,
+      });
+      await deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+        stack: assetNode.parentStack,
+        roleArn,
+        stackName: assetNode.parentStack.stackName,
+        forcePublish,
+      });
+      await publishAssetSpan.end();
+    };
   }
 }
 
@@ -1450,20 +1554,4 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
-}
-
-function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
-  const stacksRecursively = assembly.stacksRecursively;
-  span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('assemblies', asmCount(assembly));
-  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
-
-  function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
-  }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }

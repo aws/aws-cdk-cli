@@ -55,7 +55,7 @@ export function bundledPackageRootDir(start: string, fail?: boolean) {
     }
     if (path.dirname(dirname) === dirname) {
       if (fail ?? true) {
-        throw new ToolkitError('Unable to find package manifest');
+        throw new ToolkitError('PackageManifestNotFound', 'Unable to find package manifest');
       }
       return undefined;
     }

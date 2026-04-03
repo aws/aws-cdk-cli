@@ -14,10 +14,10 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
-import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
+import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 
@@ -131,19 +131,20 @@ export async function waitForChangeSet(
     if (isEarlyValidationError) {
       const details = await validationReporter?.fetchDetails(changeSetName, stackName);
       if (details) {
-        throw new ToolkitError(details);
+        throw new DeploymentError(details, 'EarlyValidationFailure');
       }
     }
     // eslint-disable-next-line @stylistic/max-len
-    throw new ToolkitError(
+    throw new DeploymentError(
       `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
         description.StatusReason || 'no reason provided'
       }`,
+      'ChangeSetCreationFailed',
     );
   });
 
   if (!ret) {
-    throw new ToolkitError('Change set took too long to be created; aborting');
+    throw new DeploymentError('Change set took too long to be created; aborting', 'ChangeSetTimeout');
   }
 
   return ret;
@@ -158,6 +159,7 @@ export type PrepareChangeSetOptions = {
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
   importExistingResources?: boolean;
+  includeNestedStacks?: boolean;
   /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
@@ -178,6 +180,7 @@ export type CreateChangeSetOptions = {
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourceToImport[];
   importExistingResources?: boolean;
+  includeNestedStacks?: boolean;
   role?: string;
 };
 
@@ -188,18 +191,10 @@ export async function createDiffChangeSet(
   ioHelper: IoHelper,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
-  // `options.stack` has been modified to include any nested stack templates directly inline with its own template, under a special `NestedTemplate` property.
-  // Thus the parent template's Resources section contains the nested template's CDK metadata check, which uses Fn::Equals.
-  // This causes CreateChangeSet to fail with `Template Error: Fn::Equals cannot be partially collapsed`.
-  for (const resource of Object.values(options.stack.template.Resources ?? {})) {
-    if ((resource as any).Type === 'AWS::CloudFormation::Stack') {
-      await ioHelper.defaults.debug('This stack contains one or more nested stacks, falling back to template-only diff...');
-
-      return undefined;
-    }
-  }
-
-  return uploadBodyParameterAndCreateChangeSet(ioHelper, options);
+  return uploadBodyParameterAndCreateChangeSet(ioHelper, {
+    ...options,
+    includeNestedStacks: templateContainsNestedStacks(options.stack.template),
+  });
 }
 
 /**
@@ -244,11 +239,14 @@ async function uploadBodyParameterAndCreateChangeSet(
       env.resources,
     );
     const cfn = env.sdk.cloudFormation();
-    const exists = (await CloudFormationStack.lookup(cfn, options.stack.stackName, false)).exists;
+    const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
+    // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
+    // that was never executed. Treat it as non-existent for changeset purposes.
+    const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
 
     const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
     await ioHelper.defaults.info(
-      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --no-change-set to use a less accurate but faster template-only diff)\n',
+      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
     );
 
     return await createChangeSet(ioHelper, {
@@ -262,20 +260,21 @@ async function uploadBodyParameterAndCreateChangeSet(
       parameters: options.parameters,
       resourcesToImport: options.resourcesToImport,
       importExistingResources: options.importExistingResources,
+      includeNestedStacks: options.includeNestedStacks,
       role: executionRoleArn,
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
-    if (!options.failOnError) {
-      await ioHelper.defaults.debug(String(e));
-      await ioHelper.defaults.info(
-        'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
-      );
-
-      return undefined;
+    if (options.failOnError) {
+      throw ToolkitError.withCause('ChangeSetCreationFailed', 'Could not create a change set, and \'--method=change-set\' was specified. Please check your permissions or use \'--method=auto\' to allow falling back to a template diff.', e);
     }
 
-    throw new ToolkitError('Could not create a change set and failOnError is set. (run again with failOnError off to base the diff on template differences)\n', e);
+    await ioHelper.defaults.debug(String(e));
+    await ioHelper.defaults.info(
+      'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
+    );
+
+    return undefined;
   }
 }
 
@@ -310,7 +309,9 @@ export async function createChangeSet(
   ioHelper: IoHelper,
   options: CreateChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput> {
-  await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
+  if (options.exists) {
+    await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
+  }
 
   await ioHelper.defaults.debug(`Attempting to create ChangeSet with name ${options.changeSetName} for stack ${options.stack.stackName}`);
 
@@ -328,6 +329,7 @@ export async function createChangeSet(
     Parameters: stackParams.apiParameters,
     ResourcesToImport: options.resourcesToImport,
     ImportExistingResources: options.importExistingResources,
+    IncludeNestedStacks: options.includeNestedStacks || undefined,
     RoleARN: options.role,
     Tags: toCfnTags(options.stack.tags),
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
@@ -410,6 +412,7 @@ export async function waitForStackDelete(
   const status = stack.stackStatus;
   if (status.isFailure) {
     throw new ToolkitError(
+      'StackDeleteFailed',
       `The stack named ${stackName} is in a failed state. You may need to delete it from the AWS console : ${status}`,
     );
   } else if (status.isDeleted) {
@@ -443,10 +446,11 @@ export async function waitForStackDeploy(
 
   if (status.isCreationFailure) {
     throw new ToolkitError(
+      'StackCreationFailed',
       `The stack named ${stackName} failed creation, it may need to be manually deleted from the AWS console: ${status}`,
     );
   } else if (!status.isDeploySuccess) {
-    throw new ToolkitError(`The stack named ${stackName} failed to deploy: ${status}`);
+    throw new DeploymentError(`The stack named ${stackName} failed to deploy: ${status}`, 'StackDeployFailed');
   }
 
   return stack;
@@ -567,7 +571,7 @@ export class ParameterValues {
     }
 
     if (missingRequired.length > 0) {
-      throw new ToolkitError(`The following CloudFormation Parameters are missing a value: ${missingRequired.join(', ')}`);
+      throw new ToolkitError('MissingParameters', `The following CloudFormation Parameters are missing a value: ${missingRequired.join(', ')}`);
     }
 
     // Just append all supplied overrides that aren't really expected (this

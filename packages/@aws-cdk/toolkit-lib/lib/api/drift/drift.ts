@@ -84,11 +84,11 @@ async function waitForDriftDetection(
     }
 
     if (response.DetectionStatus === 'DETECTION_FAILED') {
-      throw new ToolkitError(`Drift detection failed: ${formatReason(response.DetectionStatusReason)}`);
+      throw new ToolkitError('DriftDetectionFailed', `Drift detection failed: ${formatReason(response.DetectionStatusReason)}`);
     }
 
     if (Date.now() > deadline) {
-      throw new ToolkitError(`Drift detection failed: Timed out after ${maxWaitForDrift / 1000} seconds.`);
+      throw new ToolkitError('DriftDetectionTimeout', `Drift detection failed: Timed out after ${maxWaitForDrift / 1000} seconds.`);
     }
 
     if (Date.now() > checkIn) {

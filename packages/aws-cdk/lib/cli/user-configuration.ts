@@ -28,6 +28,7 @@ export enum Command {
   GC = 'gc',
   FLAGS = 'flags',
   ROLLBACK = 'rollback',
+  PUBLISH_ASSETS = 'publish-assets',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',
   ACK = 'ack',
@@ -49,6 +50,7 @@ const BUNDLING_COMMANDS = [
   Command.SYNTHESIZE,
   Command.WATCH,
   Command.IMPORT,
+  Command.PUBLISH_ASSETS,
 ];
 
 export type Arguments = {
@@ -126,14 +128,14 @@ export class Configuration {
 
   private get projectConfig() {
     if (!this._projectConfig) {
-      throw new ToolkitError('#load has not been called yet!');
+      throw new ToolkitError('ConfigNotLoaded', '#load has not been called yet!');
     }
     return this._projectConfig;
   }
 
   public get projectContext() {
     if (!this._projectContext) {
-      throw new ToolkitError('#load has not been called yet!');
+      throw new ToolkitError('ConfigNotLoaded', '#load has not been called yet!');
     }
     return this._projectContext;
   }
@@ -148,6 +150,7 @@ export class Configuration {
 
     if (userConfig.get(['build'])) {
       throw new ToolkitError(
+        'BuildKeyInUserConfig',
         'The `build` key cannot be specified in the user config (~/.cdk.json), specify it in the project config (cdk.json) instead',
       );
     }
@@ -231,6 +234,7 @@ function prohibitContextKeys(settings: Settings, keys: string[], fileName: strin
   for (const key of keys) {
     if (key in context) {
       throw new ToolkitError(
+        'UnsupportedContextKey',
         `The 'context.${key}' key was found in ${fs_path.resolve(
           fileName,
         )}, but it is no longer supported. Please remove it.`,
@@ -340,11 +344,11 @@ function expectStringList(x: unknown): string[] | undefined {
     return undefined;
   }
   if (!Array.isArray(x)) {
-    throw new ToolkitError(`Expected array, got '${x}'`);
+    throw new ToolkitError('ExpectedArray', `Expected array, got '${x}'`);
   }
   const nonStrings = x.filter((e) => typeof e !== 'string');
   if (nonStrings.length > 0) {
-    throw new ToolkitError(`Expected list of strings, found ${nonStrings}`);
+    throw new ToolkitError('ExpectedStringList', `Expected list of strings, found ${nonStrings}`);
   }
   return x;
 }
@@ -358,6 +362,7 @@ async function parseStringContextListToObject(ioHelper: IoHelper, argv: Argument
       await ioHelper.defaults.debug('CLI argument context: %s=%s', parts[0], parts[1]);
       if (parts[0].match(/^aws:.+/)) {
         throw new ToolkitError(
+          'ReservedContextPrefix',
           `User-provided context cannot use keys prefixed with 'aws:', but ${parts[0]} was provided.`,
         );
       }

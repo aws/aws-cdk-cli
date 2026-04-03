@@ -45,11 +45,19 @@ import * as core from 'aws-cdk-lib/core';
 
 declare const cdk: Toolkit;
 
-const cx = await cdk.fromAssemblyBuilder(async () => {
-  const app = new core.App();
+const cx = await cdk.fromAssemblyBuilder(async (props) => {
+  const app = new core.App({
+    outdir: props.outdir,
+    context: props.context,
+  });
 
   // Define your stacks here
-  new MyStack(app, 'MyStack');
+  new MyStack(app, 'MyStack', {
+    env: {
+      account: props.CDK_DEFAULT_ACCOUNT,
+      region: props.CDK_DEFAULT_REGION,
+    },
+  });
 
   return app.synth();
 });
@@ -285,7 +293,7 @@ Authentication configuration is loaded automatically from the environment, but y
 import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
 
 const cdk = new Toolkit({
-  sdkConfig: { 
+  sdkConfig: {
     baseCredentials: BaseCredentials.awsCliCompatible({ profile: "my-profile" })
   },
 });
@@ -345,16 +353,25 @@ await cdk.fromCdkApp("python app.py");
 ```
 
 The `AssemblyBuilder` function provides basic Toolkit features like Lookups, but otherwise allows you to implement any custom source.
-For example you build an inline CDK app on-the-fly:
+For example you build an inline CDK app on-the-fly. The synth operation parameters that are normally passed to the CDK framework running
+in a subprocess via environment variables, are passed via a parameter object, and you need to pass them into the framework explicitly:
 
 ```ts
 declare const cdk: Toolkit;
 
-const cx = await cdk.fromAssemblyBuilder(async () => {
-  const app = new core.App();
+const cx = await cdk.fromAssemblyBuilder(async (props) => {
+  const app = new core.App({
+    outdir: props.outdir,
+    context: props.context,
+  });
 
   // Define your stacks here
-  new MyStack(app, 'MyStack');
+  new MyStack(app, 'MyStack', {
+    env: {
+      account: props.CDK_DEFAULT_ACCOUNT,
+      region: props.CDK_DEFAULT_REGION,
+    },
+  });
 
   return app.synth();
 });

@@ -38,7 +38,7 @@ export class CodeCovWorkflow extends Component {
         },
         {
           name: 'Install dependencies',
-          run: 'yarn install',
+          run: repo.package.installCommand,
         },
         {
           name: 'Reset coverage thresholds',

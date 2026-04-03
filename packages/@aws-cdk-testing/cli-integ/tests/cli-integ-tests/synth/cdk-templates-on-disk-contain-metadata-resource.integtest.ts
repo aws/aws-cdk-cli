@@ -1,7 +1,5 @@
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'templates on disk contain metadata resource, also in nested assemblies',
   withDefaultFixture(async (fixture) => {

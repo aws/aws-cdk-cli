@@ -206,6 +206,25 @@ describe('deploy', () => {
     expect(ioHost.requireDeployApproval).toEqual(requireApproval);
   });
 
+  test('any-change approval shows stack diff when there are no security changes', async () => {
+    const toolkit = defaultToolkitSetup();
+    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // The confirmation prompt should use the non-security motivation and report no permission changes
+    expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      message: expect.stringContaining("'any-change'"),
+      data: expect.objectContaining({
+        permissionChangeType: 'none',
+      }),
+    }));
+  });
+
   test('fails when no valid stack names are given', async () => {
     // GIVEN
     const toolkit = defaultToolkitSetup();

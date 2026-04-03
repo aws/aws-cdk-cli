@@ -267,7 +267,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('execute', {
           default: true,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)',
         })
         .option('trust', {
           type: 'array',
@@ -460,7 +460,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           choices: ['never', 'any-change', 'broadening'],
-          desc: 'What security-sensitive changes need manual approval',
+          desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
           type: 'array',
@@ -478,7 +478,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('execute', {
           default: undefined,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)',
           deprecated: true,
         })
         .option('change-set-name', {
@@ -643,12 +643,38 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
         }),
     )
+    .command('publish-assets [STACKS..]', 'Publish assets for the given stack(s) without deploying', (yargs: Argv) =>
+      yargs
+        .option('all', {
+          default: false,
+          type: 'boolean',
+          desc: 'Publish assets for all available stacks',
+        })
+        .option('exclusively', {
+          default: undefined,
+          type: 'boolean',
+          alias: 'e',
+          desc: "Only publish assets for requested stacks, don't include dependencies",
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          alias: 'f',
+          desc: 'Always publish assets, even if they are already published',
+        })
+        .option('concurrency', {
+          default: 4,
+          type: 'number',
+          desc: 'Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.',
+          requiresArg: true,
+        }),
+    )
     .command('import [STACK]', 'Import existing resource(s) into the given STACK', (yargs: Argv) =>
       yargs
         .option('execute', {
           default: true,
           type: 'boolean',
-          desc: 'Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)',
+          desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)',
         })
         .option('change-set-name', {
           default: undefined,
@@ -815,7 +841,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('template', {
             default: undefined,
             type: 'string',
-            desc: 'The path to the CloudFormation template to compare with',
+            desc: 'The path to the CloudFormation template to compare with. Implies --method=template',
             requiresArg: true,
           })
           .option('strict', {
@@ -848,7 +874,16 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: true,
             type: 'boolean',
             alias: 'changeset',
-            desc: 'Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+            desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
+            deprecated: 'use --method instead',
+          })
+          .option('method', {
+            default: 'auto',
+            alias: 'm',
+            type: 'string',
+            choices: ['auto', 'change-set', 'template'],
+            requiresArg: true,
+            desc: 'How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.',
           })
           .option('import-existing-resources', {
             default: false,

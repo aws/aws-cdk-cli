@@ -121,6 +121,8 @@ import type {
   DescribeEventsCommandInput,
   DescribeTypeCommandInput,
   DescribeTypeCommandOutput,
+  GetHookResultCommandInput,
+  GetHookResultCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -164,6 +166,7 @@ import {
   waitUntilStackRefactorCreateComplete,
   waitUntilStackRefactorExecuteComplete,
   DescribeTypeCommand,
+  GetHookResultCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
@@ -506,6 +509,7 @@ export interface ICloudFormationClient {
   executeStackRefactor(input: ExecuteStackRefactorCommandInput): Promise<ExecuteStackRefactorCommandOutput>;
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
+  getHookResult(input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -861,6 +865,8 @@ export class SDK {
           input,
         );
       },
+      getHookResult: (input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput> =>
+        client.send(new GetHookResultCommand(input)),
     };
   }
 
@@ -1090,7 +1096,7 @@ export class SDK {
 
           return upload.done();
         } catch (e: any) {
-          throw new AuthenticationError(`Upload failed: ${formatErrorMessage(e)}`);
+          throw new AuthenticationError('S3UploadFailed', `Upload failed: ${formatErrorMessage(e)}`);
         }
       },
     };
@@ -1145,7 +1151,7 @@ export class SDK {
         const accountId = result.Account;
         const partition = result.Arn!.split(':')[1];
         if (!accountId) {
-          throw new AuthenticationError("STS didn't return an account ID");
+          throw new AuthenticationError('NoAccountId', "STS didn't return an account ID");
         }
         await this.debug(`Default account ID: ${accountId}`);
 

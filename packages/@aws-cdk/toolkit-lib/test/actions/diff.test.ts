@@ -1,5 +1,6 @@
 import * as path from 'path';
-import { GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import * as awsauth from '../../lib/api/aws-auth/private';
@@ -7,8 +8,8 @@ import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -41,7 +42,7 @@ beforeEach(() => {
 describe('diff', () => {
   test('sends diff to IoHost', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -63,7 +64,7 @@ describe('diff', () => {
 
   test('returns diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -129,7 +130,7 @@ describe('diff', () => {
       });
 
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       includeMoves: true,
@@ -162,7 +163,7 @@ describe('diff', () => {
 
   test('returns multiple template diffs', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-different-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-different-stacks');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -206,7 +207,7 @@ describe('diff', () => {
 
   test('security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-role');
     const result = await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE, patterns: ['Stack1'] },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -252,7 +253,7 @@ describe('diff', () => {
 
   test('no security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
@@ -270,9 +271,100 @@ describe('diff', () => {
     }));
   });
 
+  test('security diff detects changes in nested stacks', async () => {
+    // GIVEN - mock nested stacks with IAM
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          IamChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          IamChild2: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+          NoSecChild: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'url' } },
+        },
+      },
+      nestedStacks: {
+        IamChild: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: {
+              Role: {
+                Type: 'AWS::IAM::Role',
+                Properties: {
+                  AssumeRolePolicyDocument: {
+                    Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                  },
+                },
+              },
+            },
+          },
+          physicalName: 'IamChild',
+          nestedStackTemplates: {},
+        },
+        IamChild2: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: {
+              Role: {
+                Type: 'AWS::IAM::Role',
+                Properties: {
+                  AssumeRolePolicyDocument: {
+                    Statement: [{ Effect: 'Allow', Principal: { Service: 'ec2.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+                  },
+                },
+              },
+            },
+          },
+          physicalName: 'IamChild2',
+          nestedStackTemplates: {},
+        },
+        NoSecChild: {
+          deployedTemplate: {},
+          generatedTemplate: {
+            Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+          },
+          physicalName: 'NoSecChild',
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
+    });
+
+    // THEN - security diff should contain nested stack IAM changes
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'warn',
+      message: expect.stringContaining('This deployment will make potentially sensitive changes'),
+    }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      data: expect.objectContaining({
+        formattedDiff: expect.objectContaining({
+          security: expect.stringContaining('sts:AssumeRole'),
+        }),
+      }),
+    }));
+
+    // Verify security change count is reported
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      data: expect.objectContaining({
+        numStacksWithSecurityChanges: 2,
+      }),
+    }));
+  });
+
   test('TemplateOnly diff method does not try to find changeSet', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
@@ -294,7 +386,7 @@ describe('diff', () => {
     test('ChangeSet diff method falls back to template only if changeset not found', async () => {
       // WHEN
       ioHost.level = 'debug';
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet(),
@@ -326,7 +418,7 @@ describe('diff', () => {
 
       // WHEN
       ioHost.level = 'debug';
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ importExistingResources: true }),
@@ -339,30 +431,44 @@ describe('diff', () => {
 
     test('ChangeSet diff method throws if changeSet fails and fallBackToTemplate = false', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/Could not create a change set and failOnError is set/);
+      })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
     });
 
-    test('ChangeSet diff method throws if stack not found and fallBackToTemplate = false', async () => {
-      // GIVEN
+    test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {
+      // GIVEN - stack doesn't exist
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
-      await expect(async () => toolkit.diff(cx, {
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
-      })).rejects.toThrow(/the stack 'Stack1' has not been deployed to CloudFormation/);
+      });
+
+      // THEN - a CREATE changeset was made
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetType: 'CREATE',
+      }));
     });
   });
 
   describe('DiffMethod.LocalFile', () => {
     test('fails with multiple stacks', async () => {
       // WHEN + THEN
-      const cx = await builderFixture(toolkit, 'two-empty-stacks');
+      const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'stack-with-bucket', 'cdk.out', 'Stack1.template.json')),
@@ -371,7 +477,7 @@ describe('diff', () => {
 
     test('fails with bad file path', async () => {
       // WHEN + THEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       await expect(async () => toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, 'blah.json')),
@@ -380,7 +486,7 @@ describe('diff', () => {
 
     test('returns regular diff', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-bucket');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
@@ -408,7 +514,7 @@ describe('diff', () => {
 
     test('returns security diff', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       const result = await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),

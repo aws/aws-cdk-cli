@@ -89,7 +89,7 @@ test('toolkit errors with cause are displayed fully', async () => {
   // GIVEN
   contextproviders.registerContextProvider(TEST_PROVIDER, {
     async getValue(_: { [key: string]: any }): Promise<any> {
-      throw ToolkitError.withCause('Something went wrong', new Error('And this is the reason'));
+      throw ToolkitError.withCause('ContextProviderFailed', 'Something went wrong', new Error('And this is the reason'));
     },
   });
 

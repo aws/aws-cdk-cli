@@ -61,6 +61,11 @@ export interface UserInput {
   readonly rollback?: RollbackOptions;
 
   /**
+   * Publish assets for the given stack(s) without deploying
+   */
+  readonly publishAssets?: PublishAssetsOptions;
+
+  /**
    * Import existing resource(s) into the given STACK
    */
   readonly import?: ImportOptions;
@@ -492,7 +497,7 @@ export interface BootstrapOptions {
   readonly tags?: Array<string>;
 
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)
+   * Whether to execute the change set (--no-execute will NOT execute the change set)
    *
    * @default - true
    */
@@ -749,7 +754,7 @@ export interface DeployOptions {
   readonly exclusively?: boolean;
 
   /**
-   * What security-sensitive changes need manual approval
+   * What changes require manual approval
    *
    * @default - undefined
    */
@@ -772,7 +777,7 @@ export interface DeployOptions {
   readonly tags?: Array<string>;
 
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet) (deprecated)
+   * Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)
    *
    * @deprecated true
    * @default - undefined
@@ -1002,13 +1007,57 @@ export interface RollbackOptions {
 }
 
 /**
+ * Publish assets for the given stack(s) without deploying
+ *
+ * @struct
+ */
+export interface PublishAssetsOptions {
+  /**
+   * Publish assets for all available stacks
+   *
+   * @default - false
+   */
+  readonly all?: boolean;
+
+  /**
+   * Only publish assets for requested stacks, don't include dependencies
+   *
+   * aliases: e
+   *
+   * @default - undefined
+   */
+  readonly exclusively?: boolean;
+
+  /**
+   * Always publish assets, even if they are already published
+   *
+   * aliases: f
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
+
+  /**
+   * Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.
+   *
+   * @default - 4
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Positional argument for publish-assets
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
  * Import existing resource(s) into the given STACK
  *
  * @struct
  */
 export interface ImportOptions {
   /**
-   * Whether to execute ChangeSet (--no-execute will NOT execute the ChangeSet)
+   * Whether to execute the change set (--no-execute will NOT execute the change set)
    *
    * @default - true
    */
@@ -1249,7 +1298,7 @@ export interface DiffOptions {
   readonly contextLines?: number;
 
   /**
-   * The path to the CloudFormation template to compare with
+   * The path to the CloudFormation template to compare with. Implies --method=template
    *
    * @default - undefined
    */
@@ -1293,13 +1342,23 @@ export interface DiffOptions {
   readonly quiet?: boolean;
 
   /**
-   * Whether to create a changeset to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.
+   * Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.
    *
    * aliases: changeset
    *
+   * @deprecated use --method instead
    * @default - true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.
+   *
+   * aliases: m
+   *
+   * @default - "auto"
+   */
+  readonly method?: string;
 
   /**
    * Whether or not the change set imports resources that already exist

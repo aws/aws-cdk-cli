@@ -100,7 +100,7 @@ export class CloudAssembly extends BaseStackAssembly {
       if (options.ignoreNoStacks) {
         return new StackCollection(this, []);
       }
-      throw new ToolkitError('This app contains no stacks');
+      throw new ToolkitError('NoStacks', 'This app contains no stacks');
     }
 
     if (allTopLevel) {
@@ -120,7 +120,7 @@ export class CloudAssembly extends BaseStackAssembly {
     if (topLevelStacks.length > 0) {
       return this.extendStacks(topLevelStacks, stacks, extend);
     } else {
-      throw new ToolkitError('No stack found in the main cloud assembly. Use "list" to print manifest');
+      throw new ToolkitError('NoStackInMainAssembly', 'No stack found in the main cloud assembly. Use "list" to print manifest');
     }
   }
 
@@ -150,11 +150,11 @@ export class CloudAssembly extends BaseStackAssembly {
         if (topLevelStacks.length === 1) {
           return new StackCollection(this, topLevelStacks);
         } else {
-          throw new ToolkitError('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+          throw new ToolkitError('NoSelectorGiven', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
           `Stacks: ${stacks.map(x => x.hierarchicalId).join(' · ')}`);
         }
       default:
-        throw new ToolkitError(`invalid default behavior: ${defaultSelection}`);
+        throw new ToolkitError('InvalidDefaultBehavior', `invalid default behavior: ${defaultSelection}`);
     }
   }
 }

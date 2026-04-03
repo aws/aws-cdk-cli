@@ -1,11 +1,14 @@
 import * as util from 'util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import * as uuid from 'uuid';
 import { StackEventPoller } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
-import { stackEventHasErrorMessage } from '../../util';
+import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
+import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
@@ -60,8 +63,26 @@ export interface StackActivityMonitorProps {
    * @default 2_000
    */
   readonly pollingInterval?: number;
+
+  /**
+   * Environment resources, used to look up the bootstrap toolkit version when
+   * diagnosing Guard Hook annotation fetch failures.
+   *
+   * @default - Bootstrap version is not reported in error messages
+   */
+  readonly envResources?: EnvironmentResources;
 }
 
+/**
+ * Drives the monitoring of a Stack deployment
+ *
+ * ```
+ * ┌───────────────────────┐        ┌───────────────────────┐              ┌───────────────────────┐
+ * │         Stack         │ poll() │         Stack         │  process(ev) │         Stack         │
+ * │      EventPoller      │◀───────│    ActivityMonitor    │─────────────▶│    ProgressMonitor    │
+ * └───────────────────────┘        └───────────────────────┘              └───────────────────────┘
+ * ```
+ */
 export class StackActivityMonitor {
   /**
    * The poller used to read stack events
@@ -74,7 +95,12 @@ export class StackActivityMonitor {
    */
   private readonly pollingInterval: number;
 
-  public readonly errors: string[] = [];
+  /**
+   * A list of all non-cancellation errors we have seen.
+   *
+   * By the nature of the order we see events in, will be ordered from oldest to newest.
+   */
+  private readonly _errors: StackEvent[] = [];
 
   private monitorId?: string;
 
@@ -93,6 +119,8 @@ export class StackActivityMonitor {
   private readonly ioHelper: IoHelper;
   private readonly stackName: string;
   private readonly stack: CloudFormationStackArtifact;
+  private readonly cfn: ICloudFormationClient;
+  private readonly envResources?: EnvironmentResources;
 
   constructor({
     cfn,
@@ -102,10 +130,13 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
+    envResources,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackName = stackName;
+    this.cfn = cfn;
+    this.envResources = envResources;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
@@ -113,6 +144,34 @@ export class StackActivityMonitor {
       stackName,
       startTime: changeSetCreationTime?.getTime() ?? Date.now(),
     });
+  }
+
+  /**
+   * Return error messages of all encountered errors (that aren't cancellations)
+   */
+  public get allErrorMessages(): string[] {
+    return this._errors.map(e => e.ResourceStatusReason ?? '');
+  }
+
+  /**
+   * Return error codeds of all encountered errors (that aren't cancellations nor stack errors)
+   *
+   * We don't need to include nested stack errors because our poller will poll the nested stack,
+   * and have returned the actual error as well.
+   */
+  public get allErrorCodes(): string[] {
+    return this._errors
+      .filter(isRegularResourceEvent)
+      .map(extractErrorCode);
+  }
+
+  /**
+   * Take our best guess at the error code of the root cause
+   *
+   * The first error that occurs is the root cause.
+   */
+  public get rootCauseErrorCode(): string | undefined {
+    return this.allErrorCodes[0];
   }
 
   public async start() {
@@ -187,17 +246,94 @@ export class StackActivityMonitor {
   }
 
   /**
+   * Trims leading/trailing whitespace, collapses all internal whitespace
+   * (including newlines) to a single space, and truncates to `maxChars`
+   * characters, appending `[...truncated]` when the original was longer.
+   */
+  private normalizeMessage(message: string, maxChars: number = 400): string {
+    const normalized = message.trim().replace(/\s+/g, ' ');
+    return normalized.length > maxChars
+      ? normalized.substring(0, maxChars) + '[...truncated]'
+      : normalized;
+  }
+
+  /**
+   * Fetches Guard Hook annotation details via GetHookResult API and formats them
+   * into a human-readable string. Returns undefined if the fetch fails or there
+   * are no failed annotations.
+   */
+  private async fetchGuardHookAnnotations(hookInvocationId: string): Promise<string | undefined> {
+    try {
+      const result = await this.cfn.getHookResult({ HookResultId: hookInvocationId });
+      const annotations = result.Annotations ?? [];
+      const failedAnnotations = annotations.filter((a) => a.Status === 'FAILED');
+      if (failedAnnotations.length === 0) {
+        return undefined;
+      }
+
+      const lines: string[] = ['NonCompliant Rules:', ''];
+      for (const annotation of failedAnnotations) {
+        if (annotation.AnnotationName) {
+          lines.push(`[${annotation.AnnotationName}]`);
+        }
+        if (annotation.StatusMessage) {
+          lines.push(`• ${this.normalizeMessage(annotation.StatusMessage)}`);
+        }
+        if (annotation.RemediationMessage) {
+          lines.push(`Remediation: ${this.normalizeMessage(annotation.RemediationMessage)}`);
+        }
+        lines.push('');
+      }
+      return lines.join('\n').trimEnd();
+    } catch (e: any) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+
+      const isPermissionsError =
+        e.name === 'AccessDeniedException' ||
+        (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
+
+      if (isPermissionsError && this.envResources) {
+        let currentVersion: number | undefined = undefined;
+        try {
+          currentVersion = (await this.envResources.lookupToolkit()).version;
+        } catch {
+          // ignore errors looking up the bootstrap version
+        }
+
+        await this.ioHelper.defaults.warn(
+          util.format(
+            `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
+            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
+          ),
+        );
+      } else {
+        await this.ioHelper.defaults.warn(
+          util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
+        );
+      }
+
+      return undefined;
+    }
+  }
+
+  /**
    * Reads all new events from the stack history
    *
-   * The events are returned in reverse chronological order; we continue to the next page if we
-   * see a next page and the last event in the page is new to us (and within the time window).
-   * haven't seen the final event
+   * The events are returned in chronological order by the underlying poller.
    */
   private async readNewEvents(monitorId: string): Promise<void> {
     const pollEvents = await this.poller.poll();
 
     for (const resourceEvent of pollEvents) {
       this.progressMonitor.process(resourceEvent.event);
+
+      // If this is a failed Guard Hook event with an invocation ID, fetch annotations
+      if (resourceEvent.event.HookInvocationId) {
+        const annotations = await this.fetchGuardHookAnnotations(resourceEvent.event.HookInvocationId);
+        if (annotations) {
+          resourceEvent.event.HookStatusReason = annotations;
+        }
+      }
 
       const activity: StackActivity = {
         deployment: monitorId,
@@ -254,14 +390,70 @@ export class StackActivityMonitor {
   }
 
   private checkForErrors(activity: StackActivity) {
-    if (stackEventHasErrorMessage(activity.event.ResourceStatus ?? '')) {
-      const isCancelled = (activity.event.ResourceStatusReason ?? '').indexOf('cancelled') > -1;
-
+    if (isErrorEvent(activity.event)) {
       // Cancelled is not an interesting failure reason, nor is the stack message (stack
       // message will just say something like "stack failed to update")
-      if (!isCancelled && activity.event.StackName !== activity.event.LogicalResourceId) {
-        this.errors.push(activity.event.ResourceStatusReason ?? '');
+      if (!isCancellationEvent(activity.event) && isRegularResourceEvent(activity.event)) {
+        this._errors.push(activity.event);
       }
     }
   }
+}
+
+// Some custom resource types that the CDK standard library creates that we
+// would like to see it if they fail.
+const OUR_CUSTOM_RESOURCE_TYPES = [
+  'Custom::AWS',
+  'Custom::AWSCDK-EKS-Cluster',
+  'Custom::AWSCDK-EKS-FargateProfile',
+  'Custom::AWSCDK-EKS-HelmChart',
+  'Custom::AWSCDK-EKS-KubernetesObjectValue',
+  'Custom::AWSCDK-EKS-KubernetesPatch',
+  'Custom::AWSCDK-EKS-KubernetesResource',
+  'Custom::AWSCDKCfnJson',
+  'Custom::AWSCDKCfnJsonStringify',
+  'Custom::AWSCDKOpenIdConnectProvider',
+  'Custom::CDKBucketDeployment',
+  'Custom::CloudwatchLogResourcePolicy',
+  'Custom::CrossAccountZoneDelegation',
+  'Custom::CrossRegionExportReader',
+  'Custom::CrossRegionExportWriter',
+  'Custom::CrossRegionStringParameterReader',
+  'Custom::DeleteExistingRecordSet',
+  'Custom::DescribeCognitoUserPoolClient',
+  'Custom::DynamoDBReplica',
+  'Custom::ECRAutoDeleteImages',
+  'Custom::ElasticsearchAccessPolicy',
+  'Custom::LogRetention',
+  'Custom::OpenSearchAccessPolicy',
+  'Custom::S3AutoDeleteObjects',
+  'Custom::S3BucketNotifications',
+  'Custom::SyntheticsAutoDeleteUnderlyingResources',
+  'Custom::Trigger',
+  'Custom::UserPoolCloudFrontDomainName',
+  'Custom::VpcRestrictDefaultSG',
+];
+
+/**
+ * Extract an error code from the given stack event.
+ *
+ * Always contains the services, and includes the handler error code if available.
+ */
+export function extractErrorCode(event: StackEvent): string {
+  const isOurCustomResource = OUR_CUSTOM_RESOURCE_TYPES.includes(event.ResourceType ?? '');
+
+  // Get the resource type; if it is non-AWS then we are done.
+  const resourceTypeParts = (event.ResourceType ?? '').split('::');
+  if (resourceTypeParts[0] !== 'AWS' && !isOurCustomResource) {
+    return DeploymentErrorCodes.PRIVATE_RESOURCE_ERROR;
+  }
+
+  const resourceType = isOurCustomResource ? resourceTypeParts.join('') : resourceTypeParts.slice(1).join('');
+
+  const reason = event.ResourceStatusReason ?? '';
+
+  const errorRe = /(?:HandlerErrorCode:|Error Code:) ([a-zA-Z0-9:-]+)/;
+  const handlerCode = reason.match(errorRe);
+
+  return `${resourceType}:${handlerCode ? handlerCode[1] : DeploymentErrorCodes.UNKNOWN_ERROR}`;
 }

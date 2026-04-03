@@ -160,6 +160,16 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'publish-assets':
+      commandOptions = {
+        all: args.all,
+        exclusively: args.exclusively,
+        force: args.force,
+        concurrency: args.concurrency,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'import':
       commandOptions = {
         execute: args.execute,
@@ -214,6 +224,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        method: args.method,
         importExistingResources: args.importExistingResources,
         includeMoves: args.includeMoves,
         STACKS: args.STACKS,
@@ -444,6 +455,12 @@ export function convertConfigToUserInput(config: any): UserInput {
     validateBootstrapVersion: config.rollback?.validateBootstrapVersion,
     orphan: config.rollback?.orphan,
   };
+  const publishAssetsOptions = {
+    all: config.publishAssets?.all,
+    exclusively: config.publishAssets?.exclusively,
+    force: config.publishAssets?.force,
+    concurrency: config.publishAssets?.concurrency,
+  };
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
@@ -485,6 +502,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+    method: config.diff?.method,
     importExistingResources: config.diff?.importExistingResources,
     includeMoves: config.diff?.includeMoves,
   };
@@ -548,6 +566,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     flags: flagsOptions,
     deploy: deployOptions,
     rollback: rollbackOptions,
+    publishAssets: publishAssetsOptions,
     import: importOptions,
     watch: watchOptions,
     destroy: destroyOptions,

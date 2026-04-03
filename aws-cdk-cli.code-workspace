@@ -48,6 +48,8 @@
   "settings": {
     "files.exclude": {
       "packages": true
-    }
+    },
+    "jest.jestCommandLine": "npx jest",
+    "js/ts.tsdk.path": "<root>/node_modules/typescript/lib"
   }
 }

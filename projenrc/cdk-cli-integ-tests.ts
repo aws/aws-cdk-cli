@@ -235,6 +235,7 @@ export interface CdkCliIntegTestsWorkflowProps {
  */
 export class CdkCliIntegTestsWorkflow extends Component {
   private workflow: github.GithubWorkflow;
+  private readonly JOB_DETERMINE_ENV = 'determine_env';
   private readonly JOB_PREPARE = 'prepare';
   private readonly maxWorkersArg: string = '';
 
@@ -330,19 +331,51 @@ export class CdkCliIntegTestsWorkflow extends Component {
       // Never hurts to be able to run this manually
       workflowDispatch: {},
     });
-    // The 'build' part runs on the 'integ-approval' environment, which requires
-    // approval. The actual runs access the real environment, not requiring approval
-    // anymore.
+    // Determine the environment dynamically: PRs from the same repo and merge_group
+    // events skip the approval environment, while external PRs require approval.
+    // This follows the publib pattern.
+    this.workflow.addJob(this.JOB_DETERMINE_ENV, {
+      runsOn: ['ubuntu-latest'],
+      permissions: {
+        contents: github.workflows.JobPermission.READ,
+      },
+      outputs: {
+        env_name: {
+          stepId: 'output',
+          outputName: 'env_name',
+        },
+      },
+      steps: [
+        {
+          name: 'Start requiring approval',
+          run: `echo ${this.props.approvalEnvironment} > .envname`,
+        },
+        {
+          name: 'Skip approval for mergeGroup or PR created from this repo',
+          if: "${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository }}",
+          run: 'echo no-approval > .envname',
+        },
+        {
+          name: 'Output the value',
+          id: 'output',
+          run: 'echo "env_name=$(cat .envname)" >> "$GITHUB_OUTPUT"',
+        },
+      ],
+    });
+
+    // The 'build' part runs on the dynamically determined environment.
+    // External PRs get the approval environment, while same-repo PRs and merge_group
+    // events skip approval. The actual test runs access the real environment.
     //
-    // This is for 2 reasons:
-    // - The build job is the first one that runs. That means you get asked approval
-    //   immediately after push, instead of 5 minutes later after the build completes.
-    // - The build job is only one job, versus the tests which are a matrix build.
-    //   If the matrix test job needs approval, the Pull Request timeline gets spammed
-    //   with an approval request for every individual run.
+    // The build job is the first one that runs. That means you get asked approval
+    // immediately after push, instead of 5 minutes later after the build completes.
+    // The build job is only one job, versus the tests which are a matrix build.
+    // If the matrix test job needs approval, the Pull Request timeline gets spammed
+    // with an approval request for every individual run.
 
     this.workflow.addJob(this.JOB_PREPARE, {
-      environment: this.props.approvalEnvironment,
+      needs: [this.JOB_DETERMINE_ENV],
+      environment: `\${{ needs.${this.JOB_DETERMINE_ENV}.outputs.env_name }}`,
       runsOn: [this.props.buildRunsOn],
       permissions: {
         contents: github.workflows.JobPermission.READ,
@@ -390,7 +423,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
         {
           name: 'Install dependencies',
-          run: 'yarn install --check-files',
+          run: repo.package.installCommand,
         },
         {
           name: 'Bump to realistic versions',

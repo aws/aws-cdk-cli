@@ -1,8 +1,6 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('deploy with method=direct and import-existing-resources fails', withDefaultFixture(async (fixture) => {
   const stackName = 'iam-test';
   await expect(fixture.cdkDeploy(stackName, {

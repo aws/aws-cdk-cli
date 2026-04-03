@@ -21,7 +21,7 @@ export class LoadBalancerContextProviderPlugin implements ContextProviderPlugin 
 
   async getValue(query: LoadBalancerContextQuery): Promise<LoadBalancerContextResponse> {
     if (!query.loadBalancerArn && !query.loadBalancerTags) {
-      throw new ContextProviderError('The load balancer lookup query must specify either `loadBalancerArn` or `loadBalancerTags`');
+      throw new ContextProviderError('MissingLoadBalancerFilter', 'The load balancer lookup query must specify either `loadBalancerArn` or `loadBalancerTags`');
     }
 
     const loadBalancer = await (await LoadBalancerProvider.getClient(this.aws, query)).getLoadBalancer();
@@ -49,7 +49,7 @@ export class LoadBalancerListenerContextProviderPlugin implements ContextProvide
 
   async getValue(query: LoadBalancerListenerContextQuery): Promise<LoadBalancerListenerContextResponse> {
     if (!query.listenerArn && !query.loadBalancerArn && !query.loadBalancerTags) {
-      throw new ContextProviderError(
+      throw new ContextProviderError('MissingListenerFilter',
         'The load balancer listener query must specify at least one of: `listenerArn`, `loadBalancerArn` or `loadBalancerTags`',
       );
     }
@@ -76,7 +76,7 @@ class LoadBalancerProvider {
         listener,
       );
     } catch (err) {
-      throw new ContextProviderError(`No load balancer listeners found matching arn ${query.listenerArn}`);
+      throw new ContextProviderError('ListenerNotFound', `No load balancer listeners found matching arn ${query.listenerArn}`);
     }
   }
 
@@ -91,11 +91,11 @@ class LoadBalancerProvider {
     const loadBalancers = await this.getLoadBalancers();
 
     if (loadBalancers.length === 0) {
-      throw new ContextProviderError(`No load balancers found matching ${JSON.stringify(this.filter)}`);
+      throw new ContextProviderError('LoadBalancerNotFound', `No load balancers found matching ${JSON.stringify(this.filter)}`);
     }
 
     if (loadBalancers.length > 1) {
-      throw new ContextProviderError(
+      throw new ContextProviderError('MultipleLoadBalancersFound',
         `Multiple load balancers found matching ${JSON.stringify(this.filter)} - please provide more specific criteria`,
       );
     }
@@ -113,13 +113,13 @@ class LoadBalancerProvider {
           securityGroupIds: loadBalancer.SecurityGroups || [],
         };
       } catch (err) {
-        throw new ContextProviderError(`No associated load balancer found for listener arn ${this.filter.listenerArn}`);
+        throw new ContextProviderError('LoadBalancerForListenerNotFound', `No associated load balancer found for listener arn ${this.filter.listenerArn}`);
       }
     }
 
     const loadBalancers = await this.getLoadBalancers();
     if (loadBalancers.length === 0) {
-      throw new ContextProviderError(
+      throw new ContextProviderError('NoLoadBalancersForListener',
         `No associated load balancers found for load balancer listener query ${JSON.stringify(this.filter)}`,
       );
     }
@@ -132,11 +132,11 @@ class LoadBalancerProvider {
     });
 
     if (listeners.length === 0) {
-      throw new ContextProviderError(`No load balancer listeners found matching ${JSON.stringify(this.filter)}`);
+      throw new ContextProviderError('ListenerNotFound', `No load balancer listeners found matching ${JSON.stringify(this.filter)}`);
     }
 
     if (listeners.length > 1) {
-      throw new ContextProviderError(
+      throw new ContextProviderError('MultipleListenersFound',
         `Multiple load balancer listeners found matching ${JSON.stringify(this.filter)} - please provide more specific criteria`,
       );
     }

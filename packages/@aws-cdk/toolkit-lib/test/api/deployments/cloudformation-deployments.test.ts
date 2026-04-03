@@ -16,7 +16,6 @@ import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
-import { HotswapMode } from '../../../lib/api/hotswap';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -76,19 +75,19 @@ function mockSuccessfulBootstrapStackLookup(props?: Record<string, any>) {
   mockToolkitInfoLookup.mockResolvedValue(ToolkitInfo.fromStack(fakeStack));
 }
 
-test('passes through hotswap=true to deployStack()', async () => {
+test('passes through deploymentMethod with hotswap to deployStack()', async () => {
   // WHEN
   await deployments.deployStack({
     stack: testStack({
       stackName: 'boop',
     }),
-    hotswap: HotswapMode.FALL_BACK,
+    deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
   });
 
   // THEN
   expect(deployStack).toHaveBeenCalledWith(
     expect.objectContaining({
-      hotswap: HotswapMode.FALL_BACK,
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     }),
     expect.anything(),
   );

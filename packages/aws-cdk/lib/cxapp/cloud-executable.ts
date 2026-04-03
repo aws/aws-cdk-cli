@@ -1,10 +1,9 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
-import type { IMessageSpan, IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly } from '../../lib/api-private';
+import type { IoHelper } from '../../lib/api-private';
+import { BorrowedAssembly, countAssemblyResults } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import { cdkCliErrorName } from '../cli/telemetry/error';
@@ -97,6 +96,7 @@ export class CloudExecutable implements ICloudAssemblySource {
 
           if (!this.canLookup) {
             throw new ToolkitError(
+              'ContextLookupsDisabled',
               'Context lookups have been disabled. '
               + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
               + `Missing context keys: '${Array.from(missingKeys).join(', ')}'`);
@@ -172,22 +172,4 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
     }
   }
   return true;
-}
-
-function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
-  const stacksRecursively = assembly.stacksRecursively;
-
-  span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
-
-  span.incCounter('assemblies', asmCount(assembly));
-
-  function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
-  }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }

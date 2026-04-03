@@ -122,7 +122,7 @@ export class WorkGraphBuilder {
         for (const entry of manifest.entries) {
           const parentStack = parentStacks.get(artifact);
           if (parentStack === undefined) {
-            throw new ToolkitError('Found an asset manifest that is not associated with a stack');
+            throw new ToolkitError('OrphanedAssetManifest', 'Found an asset manifest that is not associated with a stack');
           }
           this.addAsset(parentStack, artifact, manifest, entry);
         }
@@ -153,7 +153,7 @@ export class WorkGraphBuilder {
 
   private stackArtifactId(artifact: cxapi.CloudArtifact): string {
     if (!cxapi.CloudFormationStackArtifact.isCloudFormationStackArtifact(artifact)) {
-      throw new ToolkitError(`Can only call this on CloudFormationStackArtifact, got: ${artifact.constructor.name}`);
+      throw new ToolkitError('InvalidArtifactType', `Can only call this on CloudFormationStackArtifact, got: ${artifact.constructor.name}`);
     }
     return `${this.idPrefix}${artifact.id}`;
   }

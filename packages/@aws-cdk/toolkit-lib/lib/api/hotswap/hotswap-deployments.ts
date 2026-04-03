@@ -562,7 +562,7 @@ async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswa
   } catch (e: any) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       const result: WaiterResult = JSON.parse(formatErrorMessage(e));
-      const error = new ToolkitError(formatWaiterErrorResult(result));
+      const error = new ToolkitError('HotswapWaiterFailed', formatWaiterErrorResult(result));
       error.name = e.name;
       throw error;
     }

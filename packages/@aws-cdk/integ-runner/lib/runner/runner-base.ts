@@ -67,6 +67,20 @@ export interface IntegRunnerOptions {
    * @default false
    */
   readonly showOutput?: boolean;
+
+  /**
+   * Use the indicated proxy
+   *
+   * @default - no proxy
+   */
+  readonly proxy?: string;
+
+  /**
+   * Path to CA certificate to use when validating HTTPS requests
+   *
+   * @default - no additional CA bundle
+   */
+  readonly caBundlePath?: string;
 }
 
 /**

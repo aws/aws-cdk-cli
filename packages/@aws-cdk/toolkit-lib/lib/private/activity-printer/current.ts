@@ -4,7 +4,7 @@ import type { ActivityPrinterProps } from './base';
 import { ActivityPrinterBase } from './base';
 import { RewritableBlock } from './display';
 import type { StackActivity } from '../../payloads';
-import { padLeft, padRight, stackEventHasErrorMessage } from '../../util';
+import { isErrorEvent, padLeft, padRight } from '../../util';
 
 /**
  * Activity Printer which shows the resources currently being updated
@@ -120,7 +120,7 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
   }
 
   private failureReasonOnNextLine(activity: StackActivity) {
-    return stackEventHasErrorMessage(activity.event.ResourceStatus ?? '')
+    return isErrorEvent(activity.event)
       ? `\n${' '.repeat(CurrentActivityPrinter.TIMESTAMP_WIDTH + CurrentActivityPrinter.STATUS_WIDTH + 6)}${chalk.red(this.failureReason(activity) ?? '')}`
       : '';
   }

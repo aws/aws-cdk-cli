@@ -93,7 +93,6 @@ export interface ClientOptions {
   assumeRoleArn?: string;
   assumeRoleExternalId?: string;
   assumeRoleAdditionalOptions?: AssumeRoleAdditionalOptions;
-  quiet?: boolean;
 }
 
 const USER_AGENT = 'cdk-assets';

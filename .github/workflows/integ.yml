@@ -7,11 +7,27 @@ on:
   merge_group: {}
   workflow_dispatch: {}
 jobs:
+  determine_env:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      env_name: ${{ steps.output.outputs.env_name }}
+    steps:
+      - name: Start requiring approval
+        run: echo integ-approval > .envname
+      - name: Skip approval for mergeGroup or PR created from this repo
+        if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: echo no-approval > .envname
+      - name: Output the value
+        id: output
+        run: echo "env_name=$(cat .envname)" >> "$GITHUB_OUTPUT"
   prepare:
+    needs: determine_env
     runs-on: aws-cdk_ubuntu-latest_16-core
     permissions:
       contents: read
-    environment: integ-approval
+    environment: ${{ needs.determine_env.outputs.env_name }}
     env:
       CI: "true"
       DEBUG: "true"
@@ -34,7 +50,7 @@ jobs:
           node-version: lts/*
           cache: npm
       - name: Install dependencies
-        run: yarn install --check-files
+        run: yarn install --check-files --frozen-lockfile
       - name: Bump to realistic versions
         env:
           TESTING_CANDIDATE: "true"

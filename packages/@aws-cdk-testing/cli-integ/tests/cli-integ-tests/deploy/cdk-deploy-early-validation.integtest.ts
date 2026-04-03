@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { integTest, withDefaultFixture } from '../../../lib';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'deploy - early validation error',
   withDefaultFixture(async (fixture) => {

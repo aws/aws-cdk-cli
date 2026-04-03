@@ -112,6 +112,12 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
   Keep generated snapshots when differences exist in snapshot comparisons.
 - `--max-workers` (default=`16`)
   The max number of workerpool workers to use when running integration tests concurrently.
+- `--proxy`
+  Use the indicated proxy for all AWS API calls. If not specified, proxy settings are auto-detected
+  from `HTTPS_PROXY` / `HTTP_PROXY` environment variables.
+- `--ca-bundle-path`
+  Path to a PEM certificate bundle to use when validating HTTPS requests. If not specified,
+  reads from the `AWS_CA_BUNDLE` environment variable.
 
 Example:
 

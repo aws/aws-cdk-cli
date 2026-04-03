@@ -34,7 +34,7 @@ export class FileTelemetrySink implements ITelemetrySink {
     this.logFilePath = props.logFilePath;
 
     if (fs.existsSync(this.logFilePath)) {
-      throw new ToolkitError(`Telemetry file already exists at ${this.logFilePath}`);
+      throw new ToolkitError('TelemetryFileExists', `Telemetry file already exists at ${this.logFilePath}`);
     }
 
     // Create the file

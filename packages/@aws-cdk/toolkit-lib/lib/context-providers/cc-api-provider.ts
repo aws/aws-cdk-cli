@@ -20,13 +20,13 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
   public async getValue(args: CcApiContextQuery) {
     // Validate input
     if (args.exactIdentifier && args.propertyMatch) {
-      throw new ContextProviderError(`Provider protocol error: specify either exactIdentifier or propertyMatch, but not both (got ${JSON.stringify(args)})`);
+      throw new ContextProviderError('ConflictingQueryParams', `Provider protocol error: specify either exactIdentifier or propertyMatch, but not both (got ${JSON.stringify(args)})`);
     }
     if (args.ignoreErrorOnMissingContext && args.dummyValue === undefined) {
-      throw new ContextProviderError(`Provider protocol error: if ignoreErrorOnMissingContext is set, a dummyValue must be supplied (got ${JSON.stringify(args)})`);
+      throw new ContextProviderError('MissingDummyValue', `Provider protocol error: if ignoreErrorOnMissingContext is set, a dummyValue must be supplied (got ${JSON.stringify(args)})`);
     }
     if (args.dummyValue !== undefined && (!Array.isArray(args.dummyValue) || !args.dummyValue.every(isObject))) {
-      throw new ContextProviderError(`Provider protocol error: dummyValue must be an array of objects (got ${JSON.stringify(args.dummyValue)})`);
+      throw new ContextProviderError('InvalidDummyValue', `Provider protocol error: dummyValue must be an array of objects (got ${JSON.stringify(args.dummyValue)})`);
     }
 
     // Do the lookup
@@ -41,7 +41,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         // use listResource
         resources = await this.listResources(cloudControl, args.typeName, args.propertyMatch, args.expectedMatchCount, args.resourceModel);
       } else {
-        throw new ContextProviderError(`Provider protocol error: neither exactIdentifier nor propertyMatch is specified in ${JSON.stringify(args)}.`);
+        throw new ContextProviderError('MissingQueryParams', `Provider protocol error: neither exactIdentifier nor propertyMatch is specified in ${JSON.stringify(args)}.`);
       }
 
       return resources.map((r) => getResultObj(r.properties, r.identifier, args.propertiesToReturn));
@@ -71,7 +71,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         Identifier: exactIdentifier,
       });
       if (!result.ResourceDescription) {
-        throw new ContextProviderError('Unexpected CloudControl API behavior: returned empty response');
+        throw new ContextProviderError('EmptyResponse', 'Unexpected CloudControl API behavior: returned empty response');
       }
 
       return [foundResourceFromCcApi(result.ResourceDescription)];
@@ -80,7 +80,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         throw new NoResultsFoundError(`No resource of type ${typeName} with identifier: ${exactIdentifier}`);
       }
       if (!ContextProviderError.isContextProviderError(err)) {
-        throw ContextProviderError.withCause(`Encountered CC API error while getting ${typeName} resource ${exactIdentifier}`, err);
+        throw ContextProviderError.withCause('CloudControlGetFailed', `Encountered CC API error while getting ${typeName} resource ${exactIdentifier}`, err);
       }
       throw err;
     }
@@ -130,7 +130,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
         // This allows us to error out early, before we have consumed all pages.
         if ((expectedMatchCount === 'at-most-one' || expectedMatchCount === 'exactly-one') && found.length > 1) {
           const atLeast = nextToken ? 'at least ' : '';
-          throw new ContextProviderError(`Found ${atLeast}${found.length} resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}. Please narrow the search criteria`);
+          throw new ContextProviderError('TooManyMatches', `Found ${atLeast}${found.length} resources matching ${JSON.stringify(propertyMatch)}; expected ${expectedMatchCountText(expectedMatchCount)}. Please narrow the search criteria`);
         }
       } while (nextToken);
 
@@ -141,7 +141,7 @@ export class CcApiContextProviderPlugin implements ContextProviderPlugin {
       return found;
     } catch (err: any) {
       if (!ContextProviderError.isContextProviderError(err)) {
-        throw ContextProviderError.withCause(`Encountered CC API error while listing ${typeName} resources matching ${JSON.stringify(propertyMatch)}`, err);
+        throw ContextProviderError.withCause('CloudControlListFailed', `Encountered CC API error while listing ${typeName} resources matching ${JSON.stringify(propertyMatch)}`, err);
       }
       throw err;
     }

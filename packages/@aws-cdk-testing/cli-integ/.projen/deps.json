@@ -191,11 +191,6 @@
       "type": "runtime"
     },
     {
-      "name": "axios",
-      "version": "^1",
-      "type": "runtime"
-    },
-    {
       "name": "chalk",
       "version": "^4",
       "type": "runtime"
@@ -211,7 +206,7 @@
     },
     {
       "name": "jest-junit",
-      "version": "^15",
+      "version": "^16",
       "type": "runtime"
     },
     {

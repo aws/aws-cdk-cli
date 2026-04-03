@@ -3,8 +3,6 @@ import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
 import { awsActionsFromRequests, startProxyServer } from '../../../lib/proxy';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest('requests go through a proxy when configured',
   withDefaultFixture(async (fixture) => {
     const proxyServer = await startProxyServer();

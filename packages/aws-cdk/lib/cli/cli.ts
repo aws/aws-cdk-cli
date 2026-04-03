@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
-import { ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
@@ -216,7 +216,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   await loadPlugins(configuration.settings);
 
   if ((typeof cmd) !== 'string') {
-    throw new ToolkitError(`First argument should be a string. Got: ${cmd} (${typeof cmd})`);
+    throw new ToolkitError('InvalidArgType', `First argument should be a string. Got: ${cmd} (${typeof cmd})`);
   }
 
   try {
@@ -254,7 +254,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     });
 
     if (args.all && args.STACKS) {
-      throw new ToolkitError('You must either specify a list of Stacks or the `--all` argument');
+      throw new ToolkitError('StacksOrAllRequired', 'You must either specify a list of Stacks or the `--all` argument');
     }
 
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
@@ -325,7 +325,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
-          changeSet: args['change-set'],
+          method: determineDiffMethod(args),
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
@@ -340,7 +340,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'refactor':
         if (!configuration.settings.get(['unstable']).includes('refactor')) {
-          throw new ToolkitError('Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
+          throw new ToolkitError('UnstableRefactor', 'Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
         }
 
         ioHost.currentAction = 'refactor';
@@ -399,7 +399,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (args.execute !== undefined && args.method !== undefined) {
-          throw new ToolkitError('Can not supply both --[no-]execute and --method at the same time');
+          throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
 
         return cli.deploy({
@@ -439,6 +439,17 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           force: args.force,
           validateBootstrapStackVersion: args['validate-bootstrap-version'],
           orphanLogicalIds: args.orphan,
+        });
+
+      case 'publish-assets':
+        ioHost.currentAction = 'publish-assets';
+        if (!configuration.settings.get(['unstable']).includes('publish-assets')) {
+          throw new ToolkitError('UnstablePublishAssets', 'Unstable feature use: \'publish-assets\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish-assets --unstable=publish-assets\'');
+        }
+        return cli.publishAssets({
+          stacks: convertStackSelector(selector, args.exclusively),
+          force: args.force,
+          concurrency: args.concurrency,
         });
 
       case 'import':
@@ -489,7 +500,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'gc':
         ioHost.currentAction = 'gc';
         if (!configuration.settings.get(['unstable']).includes('gc')) {
-          throw new ToolkitError('Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
+          throw new ToolkitError('UnstableGc', 'Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
         }
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
@@ -512,7 +523,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'flags';
 
         if (!configuration.settings.get(['unstable']).includes('flags')) {
-          throw new ToolkitError('Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
+          throw new ToolkitError('UnstableFlags', 'Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
         }
         const toolkit = new Toolkit({
           ioHost,
@@ -555,7 +566,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'cli-telemetry':
         ioHost.currentAction = 'cli-telemetry';
         if (args.enable === undefined && args.disable === undefined && args.status === undefined) {
-          throw new ToolkitError('Must specify \'--enable\', \'--disable\', or \'--status\'');
+          throw new ToolkitError('TelemetryArgRequired', 'Must specify \'--enable\', \'--disable\', or \'--status\'');
         }
 
         if (args.status) {
@@ -572,7 +583,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         } else {
           // Gate custom template support with unstable flag
           if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
-            throw new ToolkitError('Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+            throw new ToolkitError('UnstableInit', 'Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
           }
           return cliInit({
             ioHelper,
@@ -606,7 +617,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return ioHost.defaults.result(versionWithBuild());
 
       default:
-        throw new ToolkitError('Unknown command: ' + command);
+        throw new ToolkitError('UnknownCommand', 'Unknown command: ' + command);
     }
   }
 }
@@ -634,6 +645,17 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
 }
 
 /**
+ * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
+ */
+function convertStackSelector(selector: StackSelector, exclusively?: boolean) {
+  return {
+    patterns: selector.patterns,
+    strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+  };
+}
+
+/**
  * Translate a Yargs input array to something that makes more sense in a programming language
  * model (telling the difference between absence and an empty array)
  *
@@ -649,18 +671,40 @@ function arrayFromYargs(xs: string[]): string[] | undefined {
   return xs.filter((x) => x !== '');
 }
 
+/**
+ * Resolve the diff method from CLI args.
+ * --method takes precedence, then deprecated --change-set, then --template implies template.
+ */
+function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
+  if (args.method && args.method !== 'auto') {
+    return args.method;
+  }
+
+  // Deprecated --no-change-set maps to template
+  if (args['change-set'] === false) {
+    return 'template';
+  }
+
+  // --template implies template
+  if (args.template) {
+    return 'template';
+  }
+
+  return 'auto';
+}
+
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
   let deploymentMethod: ChangeSetDeployment | DirectDeployment | undefined;
   switch (args.method) {
     case 'direct':
       if (args.changeSetName) {
-        throw new ToolkitError('--change-set-name cannot be used with method=direct');
+        throw new ToolkitError('ChangeSetNameWithDirect', '--change-set-name cannot be used with method=direct');
       }
       if (args.importExistingResources) {
-        throw new ToolkitError('--import-existing-resources cannot be enabled with method=direct');
+        throw new ToolkitError('ImportWithDirect', '--import-existing-resources cannot be enabled with method=direct');
       }
       if (args.revertDrift) {
-        throw new ToolkitError('--revert-drift cannot be used with method=direct');
+        throw new ToolkitError('RevertDriftWithDirect', '--revert-drift cannot be used with method=direct');
       }
       deploymentMethod = { method: 'direct' };
       break;
@@ -716,7 +760,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
 
 function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watch?: boolean): HotswapMode {
   if (hotswap && hotswapFallback) {
-    throw new ToolkitError('Can not supply both --hotswap and --hotswap-fallback at the same time');
+    throw new ToolkitError('ConflictingHotswapArgs', 'Can not supply both --hotswap and --hotswap-fallback at the same time');
   } else if (!hotswap && !hotswapFallback) {
     if (hotswap === undefined && hotswapFallback === undefined) {
       return watch ? HotswapMode.HOTSWAP_ONLY : HotswapMode.FULL_DEPLOYMENT;

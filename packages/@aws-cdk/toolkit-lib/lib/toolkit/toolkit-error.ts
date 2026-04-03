@@ -2,6 +2,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
+const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError');
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
@@ -25,6 +26,13 @@ export class ToolkitError extends Error {
   }
 
   /**
+   * Determines if a given error is an instance of DeploymentError.
+   */
+  public static isDeploymentError(x: any): x is DeploymentError {
+    return ToolkitError.isToolkitError(x) && DEPLOYMENT_ERROR_SYMBOL in x;
+  }
+
+  /**
    * Determines if a given error is an instance of AssemblyError.
    */
   public static isAssemblyError(x: any): x is AssemblyError {
@@ -41,8 +49,8 @@ export class ToolkitError extends Error {
   /**
    * A ToolkitError with an original error as cause
    */
-  public static withCause(message: string, error: unknown): ToolkitError {
-    return new ToolkitError(message, 'toolkit', error);
+  public static withCause(errorCode: string, message: string, error: unknown): ToolkitError {
+    return new ToolkitError(errorCode, message, 'toolkit', error);
   }
 
   /**
@@ -60,9 +68,9 @@ export class ToolkitError extends Error {
    */
   public readonly cause?: unknown;
 
-  constructor(message: string, type: string = 'toolkit', cause?: unknown) {
+  constructor(errorCode: string, message: string, type: string = 'toolkit', cause?: unknown) {
     super(message);
-    this.name = this.constructor.name;
+    this.name = errorCode;
     Object.setPrototypeOf(this, ToolkitError.prototype);
     Object.defineProperty(this, TOOLKIT_ERROR_SYMBOL, { value: true });
     this.type = type;
@@ -80,8 +88,8 @@ export class AuthenticationError extends ToolkitError {
    */
   public readonly source = 'user';
 
-  constructor(message: string) {
-    super(message, 'authentication');
+  constructor(errorCode: string, message: string) {
+    super(errorCode, message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
     Object.defineProperty(this, AUTHENTICATION_ERROR_SYMBOL, { value: true });
   }
@@ -123,7 +131,7 @@ export class AssemblyError extends ToolkitError {
   private _synthErrorCode: string | undefined;
 
   private constructor(message: string, stacks?: cxapi.CloudFormationStackArtifact[], cause?: unknown) {
-    super(message, 'assembly', cause);
+    super('AssemblyError', message, 'assembly', cause);
     Object.setPrototypeOf(this, AssemblyError.prototype);
     Object.defineProperty(this, ASSEMBLY_ERROR_SYMBOL, { value: true });
     this.stacks = stacks;
@@ -142,6 +150,25 @@ export class AssemblyError extends ToolkitError {
 }
 
 /**
+ * Represents a deployment-related error in the AWS CDK Toolkit.
+ */
+export class DeploymentError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  public readonly deploymentErrorCode: string;
+
+  constructor(message: string, deploymentErrorCode: string) {
+    super('DeploymentError', message, 'deployment');
+    Object.setPrototypeOf(this, DeploymentError.prototype);
+    Object.defineProperty(this, DEPLOYMENT_ERROR_SYMBOL, { value: true });
+    this.deploymentErrorCode = deploymentErrorCode;
+  }
+}
+
+/**
  * Represents an error originating from a Context Provider
  */
 export class ContextProviderError extends ToolkitError {
@@ -155,8 +182,8 @@ export class ContextProviderError extends ToolkitError {
   /**
    * A ContextProviderError with an original error as cause
    */
-  public static withCause(message: string, error: unknown): ContextProviderError {
-    return new ContextProviderError(message, error);
+  public static withCause(errorCode: string, message: string, error: unknown): ContextProviderError {
+    return new ContextProviderError(errorCode, message, error);
   }
 
   /**
@@ -164,8 +191,8 @@ export class ContextProviderError extends ToolkitError {
    */
   public readonly source = 'user';
 
-  constructor(message: string, cause?: unknown) {
-    super(message, 'context-provider', cause);
+  constructor(errorCode: string, message: string, cause?: unknown) {
+    super(errorCode, message, 'context-provider', cause);
     Object.setPrototypeOf(this, ContextProviderError.prototype);
     Object.defineProperty(this, CONTEXT_PROVIDER_ERROR_SYMBOL, { value: true });
   }
@@ -176,8 +203,15 @@ export class ContextProviderError extends ToolkitError {
  */
 export class NoResultsFoundError extends ContextProviderError {
   constructor(message: string) {
-    super(message);
+    super('NoResultsFound', message);
     Object.setPrototypeOf(this, NoResultsFoundError.prototype);
     Object.defineProperty(this, NO_RESULTS_FOUND_ERROR_SYMBOL, { value: true });
   }
 }
+
+export abstract class DeploymentErrorCodes {
+  public static readonly STACK_DISAPPEARED_ERROR_CODE = 'StackDisappeared';
+  public static readonly UNKNOWN_ERROR = 'UnknownError';
+  public static readonly PRIVATE_RESOURCE_ERROR = 'PrivateResourceError';
+}
+

@@ -317,6 +317,11 @@ const repoProject = new yarn.Monorepo({
   },
 });
 
+repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
+);
+
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
@@ -916,7 +921,6 @@ const toolkitLib = configureProject(
       '@types/jest-when',
       'jest-when',
       'nock@13',
-      'xml-js',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
@@ -1069,6 +1073,11 @@ toolkitLib.package.addField('exports', {
   './package.json': './package.json',
 });
 
+toolkitLib.addTask('gen-fixture', {
+  description: 'Generate cdk.out for test fixtures',
+  exec: 'tsx scripts/gen-fixture-cdk-out.ts',
+  receiveArgs: true,
+});
 const registryTask = toolkitLib.addTask('registry', { exec: 'tsx scripts/gen-code-registry.ts' });
 toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
@@ -1105,6 +1114,7 @@ toolkitLib.gitignore.addPatterns(
   'lib/init-templates/**',
   '!test/_fixtures/**/app.js',
   '!test/_fixtures/**/cdk.out',
+  'test/_fixtures/**/cdk.out/*.lock',
 );
 
 // Add commands for the API Extractor docs
@@ -1162,16 +1172,13 @@ const cli = configureProject(
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
-      'axios',
       'constructs',
       'fast-check',
       'jest-environment-node',
       'jest-mock',
-      'madge',
       'nock@13',
       'sinon',
       'ts-mock-imports',
-      'xml-js',
     ],
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -1340,6 +1347,10 @@ cli.package.addField('exports', {
   './package.json': './package.json',
   './build-info.json': './build-info.json',
 
+  // Required for some node setups, though unclear why exactly.
+  // @see https://github.com/aws/aws-cdk-cli/issues/1263
+  './bin/cdk': './bin/cdk',
+
   // We are keeping the historic bootstrap-template.yaml import path.
   // This could probably be handled better, but is good enough and easy to maintain.
   './lib/api/bootstrap/bootstrap-template.yaml': './lib/api/bootstrap/bootstrap-template.yaml',
@@ -1427,6 +1438,7 @@ const integRunner = configureProject(
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
+      'proxy-agent',
       '@aws-cdk/aws-service-spec',
       '@aws-sdk/client-cloudformation',
     ],
@@ -1533,7 +1545,6 @@ const cliInteg = configureProject(
       '@cdklabs/cdk-atmosphere-client',
       '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
       '@smithy/types', // smithy packages don't have the same major version as SDK packages
-      'axios@^1',
       'chalk@^4',
       'fs-extra@^9',
       'fast-glob',
@@ -1548,7 +1559,7 @@ const cliInteg = configureProject(
       'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
-      'jest-junit@^15',
+      'jest-junit@^16',
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',
@@ -1677,10 +1688,12 @@ new CdkCliIntegTestsWorkflow(repo, {
     toolkitLib,
 
     // The `tool-integrations` job installs the amplify-cli package,
-    // which depends on @aws-cdk/cloudformation-diff as a transitive dependency through toolkit-lib
+    // which depends on @aws-cdk/cloudformation-diff and @aws-cdk/cloud-assembly-api
+    // as a transitive dependency through toolkit-lib.
     // Since we are not enforcing the use of the local version of toolkit-lib in this test,
-    // it might attempt to install a version of @aws-cdk/cloudformation-diff that's not locally available.
+    // it might attempt to install a version of these that's not locally available.
     cloudFormationDiff,
+    cloudAssemblyApi,
   ],
   enableAtmosphere: {
     oidcRoleArn: '${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}',

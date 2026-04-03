@@ -144,7 +144,6 @@ export class SdkProvider {
     environment: Environment,
     mode: Mode,
     options?: CredentialsOptions,
-    quiet = false,
   ): Promise<SdkForEnvironment> {
     const env = await this.resolveEnvironment(environment);
 
@@ -152,14 +151,14 @@ export class SdkProvider {
 
     // At this point, we need at least SOME credentials
     if (baseCreds.source === 'none') {
-      throw new AuthenticationError(fmtObtainCredentialsError(env.account, baseCreds));
+      throw new AuthenticationError('NoCredentials', fmtObtainCredentialsError(env.account, baseCreds));
     }
 
     // Simple case is if we don't need to "assumeRole" here. If so, we must now have credentials for the right
     // account.
     if (options?.assumeRoleArn === undefined) {
       if (baseCreds.source === 'incorrectDefault') {
-        throw new AuthenticationError(fmtObtainCredentialsError(env.account, baseCreds));
+        throw new AuthenticationError('IncorrectDefaultCredentials', fmtObtainCredentialsError(env.account, baseCreds));
       }
 
       // Our current credentials must be valid and not expired. Confirm that before we get into doing
@@ -182,7 +181,7 @@ export class SdkProvider {
       return { sdk, didAssumeRole: true };
     } catch (err: any) {
       if (err.name === 'ExpiredToken') {
-        throw AuthenticationError.withCause('Assuming role failed: ExpiredToken', err);
+        throw AuthenticationError.withCause('AssumeRoleExpiredToken', 'Assuming role failed: ExpiredToken', err);
       }
 
       // AssumeRole failed. Proceed and warn *if and only if* the baseCredentials were already for the right account
@@ -192,8 +191,7 @@ export class SdkProvider {
       if (baseCreds.source === 'correctDefault' || baseCreds.source === 'plugin') {
         await this.ioHelper.defaults.debug(err.message);
 
-        const level = quiet ? 'debug' : 'warn';
-        await this.ioHelper.defaults[level](
+        await this.ioHelper.defaults.warn(
           `${fmtObtainedCredentials(baseCreds)} could not be used to assume '${options.assumeRoleArn}', but are for the right account. Proceeding anyway.`,
         );
         return {
@@ -236,6 +234,7 @@ export class SdkProvider {
 
     if (!account) {
       throw new AuthenticationError(
+        'UnresolvedAccount',
         'Unable to resolve AWS account to use. It must be either configured when you define your CDK Stack, or through the environment',
       );
     }
@@ -373,6 +372,7 @@ export class SdkProvider {
 
       await this.ioHelper.defaults.debug(`Assuming role failed: ${err.message}`);
       throw new AuthenticationError(
+        'AssumeRoleFailed',
         [
           'Could not assume role in target account',
           ...(sourceDescription ? [`using ${sourceDescription}`] : []),

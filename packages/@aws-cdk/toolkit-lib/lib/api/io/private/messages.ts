@@ -13,6 +13,7 @@ import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableCh
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
+import type { AssetsPayload } from '../../../payloads/publish-assets';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
@@ -423,7 +424,7 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
-  // 9: Bootstrap  & gc (9xxx)
+  // 9: Bootstrap, gc, flags & publish (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
@@ -453,11 +454,27 @@ export const IO = {
     interface: 'ErrorPayload',
   }),
 
-  // flags (93xxx)
+  // flags (93xx)
   CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
     code: 'CDK_TOOLKIT_I9300',
     description: 'Confirm the feature flag configuration changes',
     interface: 'FeatureFlagChangeRequest',
+  }),
+
+  // publish (94xx)
+  CDK_TOOLKIT_I9400: make.info({
+    code: 'CDK_TOOLKIT_I9400',
+    description: 'All assets are already published',
+  }),
+  CDK_TOOLKIT_I9401: make.info<AssetsPayload>({
+    code: 'CDK_TOOLKIT_I9401',
+    description: 'Publishing assets',
+    interface: 'AssetsPayload',
+  }),
+  CDK_TOOLKIT_I9402: make.result<AssetsPayload>({
+    code: 'CDK_TOOLKIT_I9402',
+    description: 'Publish assets results on success',
+    interface: 'AssetsPayload',
   }),
 
   // Notices

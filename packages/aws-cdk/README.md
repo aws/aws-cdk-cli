@@ -11,28 +11,29 @@
 
 The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
-| Command                                   | Description                                                                       |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| [`cdk docs`](#cdk-docs)                   | Access the online documentation                                                   |
-| [`cdk init`](#cdk-init)                   | Start a new CDK project (app or library)                                          |
-| [`cdk list`](#cdk-list)                   | List stacks and their dependencies in an application                              |
-| [`cdk synth`](#cdk-synth)                 | Synthesize a CDK app to CloudFormation template(s)                                |
-| [`cdk diff`](#cdk-diff)                   | Diff stacks against current state                                                 |
-| [`cdk deploy`](#cdk-deploy)               | Deploy a stack into an AWS account                                                |
-| [`cdk rollback`](#cdk-rollback)           | Roll back a failed deployment                                                     |
-| [`cdk import`](#cdk-import)               | Import existing AWS resources into a CDK stack                                    |
-| [`cdk migrate`](#cdk-migrate)             | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
-| [`cdk watch`](#cdk-watch)                 | Watches a CDK app for deployable and hotswappable changes                         |
-| [`cdk destroy`](#cdk-destroy)             | Deletes a stack from an AWS account                                               |
-| [`cdk bootstrap`](#cdk-bootstrap)         | Deploy a toolkit stack to support deploying large stacks & artifacts              |
-| [`cdk gc`](#cdk-gc)                       | Garbage collect assets associated with the bootstrapped stack                     |
-| [`cdk doctor`](#cdk-doctor)               | Inspect the environment and produce information useful for troubleshooting        |
-| [`cdk acknowledge`](#cdk-acknowledge)     | Acknowledge (and hide) a notice by issue number                                   |
-| [`cdk notices`](#cdk-notices)             | List all relevant notices for the application                                     |
-| [`cdk refactor`](#cdk-refactor)           | Moves resources between stacks or within the same stack                           |
-| [`cdk drift`](#cdk-drift)                 | Detect drifts in the given CloudFormation stack(s)                                |
-| [`cdk cli-telemetry`](#cdk-cli-telemetry) | Enable or disable cli telemetry collection                                        |
-| [`cdk flags`](#cdk-flags)                 | View and modify your feature flag configurations                                  |
+| Command                                     | Description                                                                       |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| [`cdk docs`](#cdk-docs)                     | Access the online documentation                                                   |
+| [`cdk init`](#cdk-init)                     | Start a new CDK project (app or library)                                          |
+| [`cdk list`](#cdk-list)                     | List stacks and their dependencies in an application                              |
+| [`cdk synth`](#cdk-synth)                   | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diff`](#cdk-diff)                     | Diff stacks against current state                                                 |
+| [`cdk deploy`](#cdk-deploy)                 | Deploy a stack into an AWS account                                                |
+| [`cdk publish-assets`](#cdk-publish-assets) | Publish assets for stack(s) without deploying                                     |
+| [`cdk rollback`](#cdk-rollback)             | Roll back a failed deployment                                                     |
+| [`cdk import`](#cdk-import)                 | Import existing AWS resources into a CDK stack                                    |
+| [`cdk migrate`](#cdk-migrate)               | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
+| [`cdk watch`](#cdk-watch)                   | Watches a CDK app for deployable and hotswappable changes                         |
+| [`cdk destroy`](#cdk-destroy)               | Deletes a stack from an AWS account                                               |
+| [`cdk bootstrap`](#cdk-bootstrap)           | Deploy a toolkit stack to support deploying large stacks & artifacts              |
+| [`cdk gc`](#cdk-gc)                         | Garbage collect assets associated with the bootstrapped stack                     |
+| [`cdk doctor`](#cdk-doctor)                 | Inspect the environment and produce information useful for troubleshooting        |
+| [`cdk acknowledge`](#cdk-acknowledge)       | Acknowledge (and hide) a notice by issue number                                   |
+| [`cdk notices`](#cdk-notices)               | List all relevant notices for the application                                     |
+| [`cdk refactor`](#cdk-refactor)             | Moves resources between stacks or within the same stack                           |
+| [`cdk drift`](#cdk-drift)                   | Detect drifts in the given CloudFormation stack(s)                                |
+| [`cdk cli-telemetry`](#cdk-cli-telemetry)   | Enable or disable cli telemetry collection                                        |
+| [`cdk flags`](#cdk-flags)                   | View and modify your feature flag configurations                                  |
 
 ## Common topics
 
@@ -181,9 +182,13 @@ $ cdk diff --quiet --app='node bin/main.js' MyStackName
 
 Note that the CDK::Metadata resource and the `CheckBootstrapVersion` Rule are excluded from `cdk diff` by default. You can force `cdk diff` to display them by passing the `--strict` flag.
 
-The `change-set` flag will make `diff` create a change set and extract resource replacement data from it. This is a bit slower, but will provide no false positives for resource replacement.
-The `--no-change-set` mode will consider any change to a property that requires replacement to be a resource replacement,
-even if the change is purely cosmetic (like replacing a resource reference with a hardcoded arn).
+The `--method` flag controls how the diff is created:
+
+- `--method=auto` (default): Create a change set for accurate resource replacement info if possible, but fall back to a template-only diff if the change set cannot be created (e.g. due to missing permissions).
+- `--method=change-set`: Always uses a change set and fails if it cannot be created. Use this when you need guaranteed accuracy. Uses the deploy role.
+- `--method=template`: Compares templates directly using the lookup role. Faster, but has known inaccuracies. E.g. any change to a property that requires replacement will always be reported as a replacement, even if the change is purely cosmetic and might not actually be replaced.
+
+The deprecated `--change-set` / `--no-change-set` flags map to `--method=auto` and `--method=template` respectively.
 
 The `--import-existing-resources` option will make `diff` create a change set and compare it using
 the CloudFormation resource import mechanism. This allows CDK to detect changes and show report of resources that
@@ -438,10 +443,10 @@ $ cdk deploy --import-existing-resources
 ```
 
 This automatically imports resources in your CDK application that represent
-unmanaged resources in your account. It reduces the manual effort of import operations and 
+unmanaged resources in your account. It reduces the manual effort of import operations and
 avoids deployment failures due to naming conflicts with unmanaged resources in your account.
 
-Use the `--method=prepare-change-set` flag to review which resources are imported or not before deploying a changeset.
+Use the `--method=prepare-change-set` flag to review which resources are imported or not before deploying a change set.
 You can inspect the change set created by CDK from the management console or other external tools.
 
 ```console
@@ -610,6 +615,31 @@ This flowchart provides a high-level overview of the deployment process.
 For technical implementation details (function calls, file locations), see [docs/deploy-architecture.md](./docs/deploy-architecture.md).
 
 ![Deploy flowchart](./images/deploy-flowchart.png)
+
+### `cdk publish-assets`
+
+Publishes assets for the specified stack(s) without performing a deployment.
+
+> [!CAUTION]
+> `cdk publish-assets` is under development and therefore must be opted in via the
+> `--unstable` flag: `cdk publish-assets --unstable=publish-assets`. `--unstable` indicates that the scope and
+> API of feature might still change. Otherwise the feature is generally production
+> ready and fully supported.
+
+Publishes assets (such as Docker images and file assets) for the specified stack(s) to their respective destinations (ECR repositories, S3 buckets) without performing a deployment.
+
+This is useful in CI/CD pipelines where you want to separate the asset build/publish phase from the deployment phase.
+
+```console
+$ # Publish assets for a single stack
+$ cdk publish-assets MyStack --unstable=publish-assets
+
+$ # Publish assets for all stacks
+$ cdk publish-assets --all --unstable=publish-assets
+
+$ # Force re-publish even if assets already exist
+$ cdk publish-assets MyStack --unstable=publish-assets --force
+```
 
 ### `cdk rollback`
 
@@ -901,7 +931,7 @@ In practice this is how CDK Migrate generated applications will operate in the f
 
 | Situation                                                                                         | Result                                                                                                                        |
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a changeset to the existing stack                                                          |
+| Provided template + stack-name is from a deployed stack in the account/region                     | The CDK application will deploy as a change set to the existing stack                                                         |
 | Provided template has no overlap with resources already in the account/region                     | The CDK application will deploy a new stack successfully                                                                      |
 | Provided template has overlap with Cloudformation managed resources already in the account/region | The CDK application will not be deployable unless those resources are removed                                                 |
 | Provided template has overlap with un-managed resources already in the account/region             | The CDK application will not be deployable until those resources are adopted with [`cdk import`](#cdk-import)                 |

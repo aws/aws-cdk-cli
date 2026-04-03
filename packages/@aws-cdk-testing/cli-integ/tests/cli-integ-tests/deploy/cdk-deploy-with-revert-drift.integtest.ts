@@ -3,8 +3,6 @@ import { UpdateFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
 import { integTest, withDefaultFixture } from '../../../lib';
 import { waitForLambdaUpdateComplete } from '../drift/drift_helpers';
 
-jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
-
 integTest(
   'deploy with revert-drift true',
   withDefaultFixture(async (fixture) => {
