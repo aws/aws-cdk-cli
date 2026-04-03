@@ -284,3 +284,36 @@ describe('CLI config file', () => {
     expect(options.maxWorkers).toBe(20);
   });
 });
+
+describe('Proxy options', () => {
+  test('--proxy is parsed', () => {
+    const options = parseCliArgs(['--proxy', 'http://my-proxy:8080']);
+    expect(options.proxy).toBe('http://my-proxy:8080');
+  });
+
+  test('--ca-bundle-path is parsed', () => {
+    const options = parseCliArgs(['--ca-bundle-path', '/path/to/ca.pem']);
+    expect(options.caBundlePath).toBe('/path/to/ca.pem');
+  });
+
+  test('proxy defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.proxy).toBeUndefined();
+  });
+
+  test('caBundlePath defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.caBundlePath).toBeUndefined();
+  });
+
+  test('proxy is read from config file', () => {
+    const configFile = 'integ.config.json';
+    fs.writeFileSync(configFile, JSON.stringify({ proxy: 'http://config-proxy:3128' }));
+    try {
+      const options = parseCliArgs([]);
+      expect(options.proxy).toBe('http://config-proxy:3128');
+    } finally {
+      fs.unlinkSync(configFile);
+    }
+  });
+});

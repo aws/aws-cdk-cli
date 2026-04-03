@@ -6,6 +6,7 @@ import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoH
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
+import { ProxyAgentProvider } from './proxy-agent';
 
 export interface ToolkitLibEngineOptions {
   /**
@@ -40,6 +41,40 @@ export interface ToolkitLibEngineOptions {
    * @default - no profile is passed, the default profile is used
    */
   readonly profile?: string;
+
+  /**
+   * Use the indicated proxy
+   *
+   * @default - no proxy, ProxyAgent auto-detects from environment variables
+   */
+  readonly proxy?: string;
+
+  /**
+   * Path to CA certificate to use when validating HTTPS requests
+   *
+   * @default - no additional CA bundle
+   */
+  readonly caBundlePath?: string;
+}
+
+/**
+ * Per-action options that can override the engine defaults.
+ */
+export interface ActionOptions {
+  /**
+   * The AWS profile to use
+   */
+  readonly profile?: string;
+
+  /**
+   * Use the indicated proxy
+   */
+  readonly proxy?: string;
+
+  /**
+   * Path to CA certificate to use when validating HTTPS requests
+   */
+  readonly caBundlePath?: string;
 }
 
 /**
@@ -50,6 +85,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
   private readonly options: ToolkitLibEngineOptions;
   private readonly showOutput: boolean;
   private readonly ioHost: IntegRunnerIoHost;
+  private readonly toolkitCache = new Map<string, Toolkit>();
 
   public constructor(options: ToolkitLibEngineOptions) {
     this.options = options;
@@ -59,7 +95,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
     // don't pass it to the toolkit.
     this.ioHost = new IntegRunnerIoHost();
 
-    this.toolkit = this.createToolkit(options.profile, options.region);
+    this.toolkit = this.getOrCreateToolkit();
 
     // @TODO - these options are currently available on the action calls
     // but toolkit-lib needs them at the constructor level.
@@ -69,9 +105,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
     //  - assemblyFailureAt: options.strict ?? options.ignoreErrors
     // Logging
     //  - options.color
-    // SDK
-    //  - options.proxy
-    //  - options.caBundlePath
 
     // @TODO - similar to the above, but in toolkit-lib these options would go on the IoHost
     //  - options.trace
@@ -80,18 +113,36 @@ export class ToolkitLibRunnerEngine implements ICdk {
   }
 
   /**
-   * Creates a Toolkit instance with the given profile and region.
+   * Get or create a Toolkit instance for the given action options.
+   * Caches instances by their resolved configuration to avoid creating
+   * duplicate Toolkit instances for identical settings.
    */
-  private createToolkit(profile: string | undefined, region: string): Toolkit {
-    return new Toolkit({
+  private getOrCreateToolkit(actionOptions?: ActionOptions): Toolkit {
+    const profile = actionOptions?.profile ?? this.options.profile;
+    const proxy = actionOptions?.proxy ?? this.options.proxy;
+    const caBundlePath = actionOptions?.caBundlePath ?? this.options.caBundlePath;
+    const key = JSON.stringify([profile, proxy, caBundlePath]);
+
+    const cached = this.toolkitCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const toolkit = new Toolkit({
       ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
       sdkConfig: {
         baseCredentials: BaseCredentials.awsCliCompatible({
           profile,
-          defaultRegion: region,
+          defaultRegion: this.options.region,
         }),
+        httpOptions: {
+          agent: ProxyAgentProvider.getOrCreate({ proxyAddress: proxy, caBundlePath }),
+        },
       },
     });
+
+    this.toolkitCache.set(key, toolkit);
+    return toolkit;
   }
 
   /**
@@ -135,7 +186,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Lists the stacks in the CDK app
    */
   public async list(options: ListOptions): Promise<string[]> {
-    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const toolkit = this.getOrCreateToolkit(options);
     const cx = await this.cx(options);
     const stacks = await toolkit.list(cx, {
       stacks: this.stackSelector(options),
@@ -148,7 +199,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Deploys the CDK app
    */
   public async deploy(options: DeployOptions) {
-    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const toolkit = this.getOrCreateToolkit(options);
     const cx = await this.cx(options);
     await toolkit.deploy(cx, {
       roleArn: options.roleArn,
@@ -165,7 +216,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Watches the CDK app for changes and deploys them automatically
    */
   public async watch(options: WatchOptions, events?: WatchEvents) {
-    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const toolkit = this.getOrCreateToolkit(options);
     const cx = await this.cx(options);
     try {
       const watcher = await toolkit.watch(cx, {
@@ -194,7 +245,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Destroys the CDK app
    */
   public async destroy(options: DestroyOptions) {
-    const toolkit = this.createToolkit(options.profile ?? this.options.profile, this.options.region);
+    const toolkit = this.getOrCreateToolkit(options);
     const cx = await this.cx(options);
 
     await toolkit.destroy(cx, {

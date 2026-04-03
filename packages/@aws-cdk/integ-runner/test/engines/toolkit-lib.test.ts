@@ -1,8 +1,17 @@
 /* eslint-disable @typescript-eslint/unbound-method */
+import * as os from 'os';
+import * as path from 'path';
 import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
+import * as fs from 'fs-extra';
+import { ProxyAgentProvider } from '../../lib/engines/proxy-agent';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
 
 jest.mock('@aws-cdk/toolkit-lib');
+jest.mock('proxy-agent', () => ({
+  ProxyAgent: jest.fn().mockImplementation((opts: any) => ({
+    _proxyAgentOpts: opts,
+  })),
+}));
 
 const MockedToolkit = Toolkit as jest.MockedClass<typeof Toolkit>;
 const MockedBaseCredentials = BaseCredentials as jest.Mocked<typeof BaseCredentials>;
@@ -339,7 +348,7 @@ describe('ToolkitLibRunnerEngine', () => {
       });
     });
 
-    it('should create a new toolkit even when deploy profile matches constructor profile', async () => {
+    it('should reuse cached toolkit when deploy profile matches constructor profile', async () => {
       MockedBaseCredentials.awsCliCompatible = jest.fn();
 
       const sameProfileEngine = new ToolkitLibRunnerEngine({
@@ -359,8 +368,111 @@ describe('ToolkitLibRunnerEngine', () => {
         profile: 'same-profile',
       });
 
-      // A new Toolkit is always created for deploy, even when profile matches
-      expect(MockedToolkit).toHaveBeenCalledTimes(constructorCallCount + 1);
+      // Toolkit is reused from cache when profile matches
+      expect(MockedToolkit).toHaveBeenCalledTimes(constructorCallCount);
+    });
+  });
+
+  describe('proxy configuration', () => {
+    beforeEach(() => {
+      ProxyAgentProvider.clearCache();
+    });
+
+    it('should pass agent to Toolkit sdkConfig', () => {
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+      });
+
+      expect(MockedToolkit).toHaveBeenCalledWith(expect.objectContaining({
+        sdkConfig: expect.objectContaining({
+          httpOptions: expect.objectContaining({
+            agent: expect.any(Object),
+          }),
+        }),
+      }));
+    });
+
+    it('should pass proxy address to ProxyAgentProvider', () => {
+      const spy = jest.spyOn(ProxyAgentProvider, 'getOrCreate');
+
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        proxy: 'http://my-proxy:8080',
+      });
+
+      expect(spy).toHaveBeenCalledWith({
+        proxyAddress: 'http://my-proxy:8080',
+        caBundlePath: undefined,
+      });
+    });
+
+    it('should pass caBundlePath to ProxyAgentProvider', () => {
+      const spy = jest.spyOn(ProxyAgentProvider, 'getOrCreate');
+
+      new ToolkitLibRunnerEngine({
+        workingDirectory: '/test',
+        region: 'us-dummy-1',
+        caBundlePath: '/path/to/ca.pem',
+      });
+
+      expect(spy).toHaveBeenCalledWith({
+        proxyAddress: undefined,
+        caBundlePath: '/path/to/ca.pem',
+      });
+    });
+
+    it('should reuse cached agent for identical options', () => {
+      const agent1 = ProxyAgentProvider.getOrCreate({ proxyAddress: 'http://proxy:8080' });
+      const agent2 = ProxyAgentProvider.getOrCreate({ proxyAddress: 'http://proxy:8080' });
+
+      expect(agent1).toBe(agent2);
+    });
+
+    it('should create different agents for different options', () => {
+      const agent1 = ProxyAgentProvider.getOrCreate({ proxyAddress: 'http://proxy1:8080' });
+      const agent2 = ProxyAgentProvider.getOrCreate({ proxyAddress: 'http://proxy2:8080' });
+
+      expect(agent1).not.toBe(agent2);
+    });
+
+    it('should read CA bundle from file', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integ-test-'));
+      const caPath = path.join(tmpDir, 'ca-bundle.pem');
+      fs.writeFileSync(caPath, 'test-ca-cert');
+
+      try {
+        const agent = ProxyAgentProvider.getOrCreate({ caBundlePath: caPath }) as any;
+        expect(agent._proxyAgentOpts.ca).toBe('test-ca-cert');
+      } finally {
+        fs.removeSync(tmpDir);
+      }
+    });
+
+    it('should read CA bundle from AWS_CA_BUNDLE env var', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integ-test-'));
+      const caPath = path.join(tmpDir, 'env-ca-bundle.pem');
+      fs.writeFileSync(caPath, 'env-ca-cert');
+      const original = process.env.AWS_CA_BUNDLE;
+      process.env.AWS_CA_BUNDLE = caPath;
+
+      try {
+        const agent = ProxyAgentProvider.getOrCreate() as any;
+        expect(agent._proxyAgentOpts.ca).toBe('env-ca-cert');
+      } finally {
+        if (original === undefined) {
+          delete process.env.AWS_CA_BUNDLE;
+        } else {
+          process.env.AWS_CA_BUNDLE = original;
+        }
+        fs.removeSync(tmpDir);
+      }
+    });
+
+    it('should handle non-existent CA bundle path gracefully', () => {
+      const agent = ProxyAgentProvider.getOrCreate({ caBundlePath: '/nonexistent/ca-bundle.pem' }) as any;
+      expect(agent._proxyAgentOpts.ca).toBeUndefined();
     });
   });
 });

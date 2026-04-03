@@ -319,6 +319,7 @@ const repoProject = new yarn.Monorepo({
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
 new AdcPublishing(repoProject);
@@ -1437,6 +1438,7 @@ const integRunner = configureProject(
       'chalk@^4',
       'fs-extra@^9',
       'yargs@^16',
+      'proxy-agent',
       '@aws-cdk/aws-service-spec',
       '@aws-sdk/client-cloudformation',
     ],

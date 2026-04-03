@@ -183,6 +183,10 @@
       "type": "runtime"
     },
     {
+      "name": "proxy-agent",
+      "type": "runtime"
+    },
+    {
       "name": "workerpool",
       "version": "^6",
       "type": "runtime"

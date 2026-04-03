@@ -13,5 +13,7 @@ export function makeEngine(options: IntegRunnerOptions): ToolkitLibRunnerEngine 
     env: options.env,
     region: options.region,
     profile: options.profile,
+    proxy: options.proxy,
+    caBundlePath: options.caBundlePath,
   });
 }

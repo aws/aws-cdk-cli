@@ -52,6 +52,8 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
+    .option('proxy', { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true })
+    .option('ca-bundle-path', { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true })
     .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .strict()
     .parse(args);
@@ -115,6 +117,8 @@ export function parseCliArgs(args: string[] = []) {
     watch: argv.watch as boolean,
     strict: argv.strict as boolean,
     unstable: arrayFromYargs(argv.unstable) ?? [],
+    proxy: argv.proxy as (string | undefined),
+    caBundlePath: argv['ca-bundle-path'] as (string | undefined),
   };
 }
 
@@ -194,6 +198,8 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
         watch: options.watch,
+        proxy: options.proxy,
+        caBundlePath: options.caBundlePath,
       });
       testsSucceeded = success;
 
@@ -215,6 +221,8 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
         region: options.testRegions[0],
+        proxy: options.proxy,
+        caBundlePath: options.caBundlePath,
       });
     }
   } finally {

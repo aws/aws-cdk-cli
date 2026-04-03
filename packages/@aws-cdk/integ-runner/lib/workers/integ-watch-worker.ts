@@ -6,6 +6,8 @@ export interface IntegWatchOptions extends IntegTestInfo {
   readonly region: string;
   readonly profile?: string;
   readonly verbosity?: number;
+  readonly proxy?: string;
+  readonly caBundlePath?: string;
 }
 export async function watchIntegrationTest(pool: workerpool.WorkerPool, options: IntegWatchOptions): Promise<void> {
   await pool.exec('watchTestWorker', [options], {

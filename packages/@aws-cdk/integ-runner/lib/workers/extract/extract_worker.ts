@@ -31,6 +31,8 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
         test,
         profile: request.profile,
         region: request.region,
+        proxy: request.proxy,
+        caBundlePath: request.caBundlePath,
         env: {
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
@@ -98,6 +100,8 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
     test,
     profile: options.profile,
     region: options.region,
+    proxy: options.proxy,
+    caBundlePath: options.caBundlePath,
     env: {
       CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
     },

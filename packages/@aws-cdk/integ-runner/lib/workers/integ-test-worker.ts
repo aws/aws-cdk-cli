@@ -136,6 +136,8 @@ export async function runIntegrationTestsInParallel(
         dryRun: options.dryRun,
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
+        proxy: options.proxy,
+        caBundlePath: options.caBundlePath,
       }], {
         on: printResults,
       });
