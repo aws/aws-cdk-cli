@@ -83,12 +83,18 @@ export async function isHotswappableCloudControlChange(
         currentResource.ResourceDescription?.Properties ?? '{}',
       );
 
-      const patchOps: Array<{ op: string; path: string; value: any }> = [];
+      const patchOps: Array<{ op: string; path: string; value?: any }> = [];
       for (const propName of classifiedChanges.namesOfHotswappableProps) {
         const newValue = evaluatedProps[propName];
         if (JSON.stringify(currentProps[propName]) !== JSON.stringify(newValue)) {
-          const op = propName in currentProps ? 'replace' : 'add';
-          patchOps.push({ op, path: `/${propName}`, value: newValue });
+          if (newValue === undefined) {
+            if (propName in currentProps) {
+              patchOps.push({ op: 'remove', path: `/${propName}` });
+            }
+          } else {
+            const op = propName in currentProps ? 'replace' : 'add';
+            patchOps.push({ op, path: `/${propName}`, value: newValue });
+          }
         }
       }
 
@@ -148,13 +154,15 @@ async function resolveCloudControlIdentifier(
       const propName = propPath.replace('/properties/', '');
       const propValue = change.newValue.Properties?.[propName];
       if (!propValue) {
-        return cfnPhysicalId;
+        // The property is not in the template, use the CloudFormation PhysicalResourceId
+        parts.push(cfnPhysicalId);
+        break;
       }
       try {
-        const resolvedValue = await evaluateCfnTemplate.evaluateCfnExpression(propValue);
-        parts.push(resolvedValue);
+        parts.push(await evaluateCfnTemplate.evaluateCfnExpression(propValue));
       } catch {
-        return cfnPhysicalId;
+        parts.push(cfnPhysicalId);
+        break;
       }
     }
     // compound primary identifiers are joined together with |

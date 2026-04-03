@@ -186,31 +186,31 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // GIVEN
     mockCloudFormationClient.on(DescribeTypeCommand).resolves({
       Schema: JSON.stringify({
-        primaryIdentifier: ['/properties/RestApiId', '/properties/StageName'],
+        primaryIdentifier: ['/properties/ApiId', '/properties/IntegrationId'],
       }),
     });
     mockCloudControlClient.on(GetResourceCommand).resolves({
       ResourceDescription: {
-        Properties: JSON.stringify({ RestApiId: 'api-123', StageName: 'prod', Description: 'old' }),
+        Properties: JSON.stringify({ ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 29000 }),
       },
     });
     setup.setCurrentCfnStackTemplate({
       Resources: {
-        MyStage: {
-          Type: 'AWS::ApiGateway::Stage',
-          Properties: { RestApiId: 'api-123', StageName: 'prod', Description: 'old' },
+        MyIntegration: {
+          Type: 'AWS::ApiGatewayV2::Integration',
+          Properties: { ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 29000 },
         },
       },
     });
     setup.pushStackResourceSummaries(
-      setup.stackSummaryOf('MyStage', 'AWS::ApiGateway::Stage', 'api-123|prod'),
+      setup.stackSummaryOf('MyIntegration', 'AWS::ApiGatewayV2::Integration', 'integ-456'),
     );
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Resources: {
-          MyStage: {
-            Type: 'AWS::ApiGateway::Stage',
-            Properties: { RestApiId: 'api-123', StageName: 'prod', Description: 'new' },
+          MyIntegration: {
+            Type: 'AWS::ApiGatewayV2::Integration',
+            Properties: { ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 15000 },
           },
         },
       },
@@ -222,9 +222,55 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(deployStackResult).not.toBeUndefined();
     expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
-      TypeName: 'AWS::ApiGateway::Stage',
-      Identifier: 'api-123|prod',
-      PatchDocument: JSON.stringify([{ op: 'replace', path: '/Description', value: 'new' }]),
+      TypeName: 'AWS::ApiGatewayV2::Integration',
+      Identifier: 'api-123|integ-456',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/TimeoutInMillis', value: 15000 }]),
+    });
+  });
+
+  test('resolves compound identifier when one property is read-only and absent from template', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({
+        primaryIdentifier: ['/properties/ApiId', '/properties/IntegrationId'],
+      }),
+    });
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      ResourceDescription: {
+        Properties: JSON.stringify({ ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 29000 }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyIntegration: {
+          Type: 'AWS::ApiGatewayV2::Integration',
+          Properties: { ApiId: 'api-123', IntegrationType: 'AWS_PROXY', TimeoutInMillis: 29000 },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyIntegration', 'AWS::ApiGatewayV2::Integration', 'integ-456'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyIntegration: {
+            Type: 'AWS::ApiGatewayV2::Integration',
+            Properties: { ApiId: 'api-123', IntegrationType: 'AWS_PROXY', TimeoutInMillis: 15000 },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::ApiGatewayV2::Integration',
+      Identifier: 'api-123|integ-456',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/TimeoutInMillis', value: 15000 }]),
     });
   });
 
@@ -419,18 +465,14 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 // Sanity check: each CCAPI-registered resource type can be hotswapped
 describe.each([
   'AWS::ApiGateway::RestApi',
-  'AWS::ApiGateway::Stage',
   'AWS::ApiGateway::Deployment',
   'AWS::ApiGateway::Method',
   'AWS::ApiGatewayV2::Api',
   'AWS::ApiGatewayV2::Integration',
-  'AWS::ApiGatewayV2::Route',
   'AWS::Bedrock::Agent',
   'AWS::Events::Rule',
   'AWS::DynamoDB::Table',
   'AWS::DynamoDB::GlobalTable',
-  'AWS::SNS::Subscription',
-  'AWS::SNS::Topic',
   'AWS::SQS::Queue',
   'AWS::CloudWatch::Alarm',
   'AWS::CloudWatch::CompositeAlarm',
@@ -485,6 +527,126 @@ describe.each([
       TypeName: resourceType,
       Identifier: 'res-123',
       PatchDocument: JSON.stringify([{ op: 'replace', path: '/SomeProp', value: 'new' }]),
+    });
+  });
+});
+
+describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property removal and addition in %p mode', (hotswapMode) => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/TableName'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('uses remove op when a property is deleted from the new template', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      ResourceDescription: {
+        Properties: JSON.stringify({
+          TableName: 'my-table',
+          BillingMode: 'PROVISIONED',
+          ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 },
+        }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Table: {
+          Type: 'AWS::DynamoDB::Table',
+          Properties: {
+            TableName: 'my-table',
+            BillingMode: 'PROVISIONED',
+            ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 },
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Table', 'AWS::DynamoDB::Table', 'my-table'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Table: {
+            Type: 'AWS::DynamoDB::Table',
+            Properties: {
+              TableName: 'my-table',
+              BillingMode: 'PAY_PER_REQUEST',
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::DynamoDB::Table',
+      Identifier: 'my-table',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/BillingMode', value: 'PAY_PER_REQUEST' },
+        { op: 'remove', path: '/ProvisionedThroughput' },
+      ]),
+    });
+  });
+
+  test('uses add op when a new property is introduced in the new template', async () => {
+    // GIVEN
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      ResourceDescription: {
+        Properties: JSON.stringify({
+          TableName: 'my-table',
+          BillingMode: 'PAY_PER_REQUEST',
+        }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Table: {
+          Type: 'AWS::DynamoDB::Table',
+          Properties: {
+            TableName: 'my-table',
+            BillingMode: 'PAY_PER_REQUEST',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Table', 'AWS::DynamoDB::Table', 'my-table'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Table: {
+            Type: 'AWS::DynamoDB::Table',
+            Properties: {
+              TableName: 'my-table',
+              BillingMode: 'PROVISIONED',
+              ProvisionedThroughput: { ReadCapacityUnits: 10, WriteCapacityUnits: 10 },
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::DynamoDB::Table',
+      Identifier: 'my-table',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/BillingMode', value: 'PROVISIONED' },
+        { op: 'add', path: '/ProvisionedThroughput', value: { ReadCapacityUnits: 10, WriteCapacityUnits: 10 } },
+      ]),
     });
   });
 });

@@ -80,18 +80,14 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
 
   // Resources that use CCAPIS
   'AWS::ApiGateway::RestApi': isHotswappableCloudControlChange,
-  'AWS::ApiGateway::Stage': isHotswappableCloudControlChange,
   'AWS::ApiGateway::Deployment': isHotswappableCloudControlChange,
   'AWS::ApiGateway::Method': isHotswappableCloudControlChange,
   'AWS::ApiGatewayV2::Api': isHotswappableCloudControlChange,
   'AWS::ApiGatewayV2::Integration': isHotswappableCloudControlChange,
-  'AWS::ApiGatewayV2::Route': isHotswappableCloudControlChange,
   'AWS::Bedrock::Agent': isHotswappableCloudControlChange,
   'AWS::Events::Rule': isHotswappableCloudControlChange,
   'AWS::DynamoDB::Table': isHotswappableCloudControlChange,
   'AWS::DynamoDB::GlobalTable': isHotswappableCloudControlChange,
-  'AWS::SNS::Subscription': isHotswappableCloudControlChange,
-  'AWS::SNS::Topic': isHotswappableCloudControlChange,
   'AWS::SQS::Queue': isHotswappableCloudControlChange,
   'AWS::CloudWatch::Alarm': isHotswappableCloudControlChange,
   'AWS::CloudWatch::CompositeAlarm': isHotswappableCloudControlChange,

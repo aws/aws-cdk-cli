@@ -1,10 +1,11 @@
+import { GetResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { ListExportsCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import type { Template } from '../../../lib/api/cloudformation';
 import {
   CfnEvaluationException,
   EvaluateCloudFormationTemplate,
 } from '../../../lib/api/cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { MockSdk, mockCloudControlClient, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 
 const sdk = new MockSdk();
 
@@ -235,6 +236,116 @@ describe('evaluateCfnExpression', () => {
 
       const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyFunc', 'Arn'] });
       expect(result).toEqual('arn:aws:lambda:ap-south-east-2:0123456789:function:my-func');
+    });
+  });
+
+  describe('Fn::GetAtt with Cloud Control API fallback', () => {
+    const createEvalWithProcessedTemplate = (template: Template, processedTemplate: Template) =>
+      new EvaluateCloudFormationTemplate({
+        template,
+        stackName: 'test-stack',
+        parameters: {},
+        account: '0123456789',
+        region: 'ap-south-east-2',
+        partition: 'aws',
+        sdk,
+        stackArtifact: {} as any,
+        processedTemplate,
+      });
+
+    test('resolves SQS QueueName via Cloud Control when other fallbacks fail', async () => {
+      const template: Template = {
+        Resources: {
+          MyQueue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: {},
+          },
+          MyDashboard: {
+            Type: 'AWS::CloudWatch::Dashboard',
+            Properties: {
+              DashboardBody: { 'Fn::GetAtt': ['MyQueue', 'QueueName'] },
+            },
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, {});
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyQueue',
+          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
+          ResourceType: 'AWS::SQS::Queue',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({
+            QueueName: 'my-queue',
+            QueueUrl: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
+            Arn: 'arn:aws:sqs:ap-south-east-2:0123456789:my-queue',
+          }),
+        },
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'QueueName'] });
+      expect(result).toEqual('my-queue');
+    });
+
+    test('throws CfnEvaluationException when Cloud Control also fails', async () => {
+      const template: Template = {
+        Resources: {
+          MyQueue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, {});
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyQueue',
+          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
+          ResourceType: 'AWS::SQS::Queue',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).rejects(new Error('Resource not found'));
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'QueueName'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
+    });
+
+    test('throws CfnEvaluationException when Cloud Control returns no matching attribute', async () => {
+      const template: Template = {
+        Resources: {
+          MyQueue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvalWithProcessedTemplate(template, {});
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyQueue',
+          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
+          ResourceType: 'AWS::SQS::Queue',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ QueueUrl: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue' }),
+        },
+      });
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'NonExistentAttr'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
     });
   });
 

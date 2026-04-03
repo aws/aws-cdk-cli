@@ -447,7 +447,7 @@ export class EvaluateCloudFormationTemplate {
     return undefined;
   }
 
-  private formatResourceAttribute(resource: StackResourceSummary, attribute: string | undefined): string | undefined {
+  private async formatResourceAttribute(resource: StackResourceSummary, attribute: string | undefined): Promise<string | undefined> {
     const physicalId = resource.PhysicalResourceId;
 
     // no attribute means Ref expression, for which we use the physical ID directly
@@ -478,6 +478,23 @@ export class EvaluateCloudFormationTemplate {
     const resolvedValue = findResolvedGetAtt(this.template, this.processedTemplate, logicalId, attribute);
     if (resolvedValue !== undefined) {
       return resolvedValue;
+    }
+
+    // Last resort: query the live resource via Cloud Control API.
+    // This will fail for resource types with compound primaryIdentifiers because
+    // CloudFormation's PhysicalResourceId only contains a single value.
+    try {
+      const cloudControl = this.sdk.cloudControl();
+      const response = await cloudControl.getResource({
+        TypeName: resource.ResourceType!,
+        Identifier: physicalId!,
+      });
+      const props = JSON.parse(response.ResourceDescription?.Properties ?? '{}');
+      if (attribute in props) {
+        return props[attribute];
+      }
+    } catch {
+      // Cloud Control lookup failed — fall through to the error below
     }
 
     throw new CfnEvaluationException(
