@@ -4,9 +4,9 @@ import { integTest, withDefaultFixture } from '../../../lib';
 integTest(
   'deploy skips unnecessary updates for nested stacks',
   withDefaultFixture(async (fixture) => {
-    // Deploy a stack with nested stacks. With IncludeNestedStacks, CloudFormation
-    // can accurately detect whether nested stacks have actual changes, rather than
-    // always reporting them as needing an update.
+    // we are using a stack with a nested stack because CFN will always attempt to
+    // update a nested stack, which will allow us to verify that updates are actually
+    // skipped unless --force is specified.
     const stackArn = await fixture.cdkDeploy('with-nested-stack', { captureStderr: false });
     const changeSet1 = await getLatestChangeSet();
 
@@ -15,15 +15,10 @@ integTest(
     const changeSet2 = await getLatestChangeSet();
     expect(changeSet2.ChangeSetId).toEqual(changeSet1.ChangeSetId);
 
-    // Deploy the stack again with --force. CloudFormation creates a changeset but
-    // accurately reports no changes (including in nested stacks), so the changeset
-    // is not executed and the stack's ChangeSetId remains the same.
-    const forceOutput = await fixture.cdk(
-      fixture.cdkDeployCommandLine('with-nested-stack', { options: ['--force'] }),
-    );
-    expect(forceOutput).toContain('CloudFormation reported that the deployment would not make any changes');
+    // Deploy the stack again with --force, now we should create a changeset
+    await fixture.cdkDeploy('with-nested-stack', { options: ['--force'] });
     const changeSet3 = await getLatestChangeSet();
-    expect(changeSet3.ChangeSetId).toEqual(changeSet2.ChangeSetId);
+    expect(changeSet3.ChangeSetId).not.toEqual(changeSet2.ChangeSetId);
 
     // Deploy the stack again with tags, expected to create a new changeset
     // even though the resources didn't change.
