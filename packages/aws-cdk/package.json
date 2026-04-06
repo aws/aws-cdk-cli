@@ -115,7 +115,7 @@
     "@smithy/util-retry": "^4.2.12",
     "@smithy/util-waiter": "^4.2.13",
     "archiver": "^7.0.1",
-    "camelcase": "^6",
+    "camelcase": "^8",
     "cdk-from-cfn": "^0.291.0",
     "chalk": "^4",
     "chokidar": "^4",
