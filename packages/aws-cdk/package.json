@@ -107,7 +107,7 @@
     "@aws-sdk/credential-providers": "^3",
     "@aws-sdk/ec2-metadata-service": "^3",
     "@aws-sdk/lib-storage": "^3",
-    "@smithy/middleware-endpoint": "^4.4.27",
+    "@smithy/middleware-endpoint": "^4.4.28",
     "@smithy/property-provider": "^4.2.12",
     "@smithy/shared-ini-file-loader": "^4.4.7",
     "@smithy/smithy-client": "^4.12.7",
