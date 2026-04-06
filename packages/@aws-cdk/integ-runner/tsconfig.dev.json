@@ -25,6 +25,14 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "es2022",
+    "types": [
+      "fs-extra",
+      "jest",
+      "mock-fs",
+      "node",
+      "workerpool",
+      "yargs"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,

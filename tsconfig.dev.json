@@ -23,7 +23,10 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2020"
+    "target": "ES2020",
+    "types": [
+      "node"
+    ]
   },
   "include": [
     ".projenrc.ts",
