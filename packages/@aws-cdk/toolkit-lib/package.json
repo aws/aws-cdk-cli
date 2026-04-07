@@ -42,7 +42,7 @@
     "@jest/globals": "^29.7.0",
     "@jest/types": "^29.6.3",
     "@microsoft/api-extractor": "^7.58.1",
-    "@smithy/util-stream": "^4.5.21",
+    "@smithy/util-stream": "^4.5.22",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.14",
@@ -137,7 +137,7 @@
   "devEngines": {
     "packageManager": {
       "name": "yarn",
-      "version": "<2.0.0",
+      "version": "1.22.22",
       "onFail": "ignore"
     }
   },

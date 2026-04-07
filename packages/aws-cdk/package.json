@@ -71,7 +71,7 @@
     "jest-mock": "^29.7.0",
     "license-checker": "^25.0.1",
     "nock": "13",
-    "node-backpack": "^1.1.27",
+    "node-backpack": "^1.1.28",
     "prettier": "^2.8",
     "sinon": "^19.0.5",
     "ts-jest": "^29.4.9",
@@ -107,13 +107,13 @@
     "@aws-sdk/credential-providers": "^3",
     "@aws-sdk/ec2-metadata-service": "^3",
     "@aws-sdk/lib-storage": "^3",
-    "@smithy/middleware-endpoint": "^4.4.28",
-    "@smithy/property-provider": "^4.2.12",
-    "@smithy/shared-ini-file-loader": "^4.4.7",
-    "@smithy/smithy-client": "^4.12.8",
-    "@smithy/types": "^4.13.1",
-    "@smithy/util-retry": "^4.2.13",
-    "@smithy/util-waiter": "^4.2.14",
+    "@smithy/middleware-endpoint": "^4.4.29",
+    "@smithy/property-provider": "^4.2.13",
+    "@smithy/shared-ini-file-loader": "^4.4.8",
+    "@smithy/smithy-client": "^4.12.9",
+    "@smithy/types": "^4.14.0",
+    "@smithy/util-retry": "^4.3.0",
+    "@smithy/util-waiter": "^4.2.15",
     "archiver": "^7.0.1",
     "camelcase": "^6",
     "cdk-from-cfn": "^0.293.0",
@@ -145,7 +145,7 @@
   "devEngines": {
     "packageManager": {
       "name": "yarn",
-      "version": "<2.0.0",
+      "version": "1.22.22",
       "onFail": "ignore"
     }
   },
