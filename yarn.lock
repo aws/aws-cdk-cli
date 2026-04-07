@@ -3776,16 +3776,6 @@
     "@smithy/types" "^4.13.1"
     tslib "^2.6.2"
 
-"@smithy/node-http-handler@^4.5.1":
-  version "4.5.1"
-  resolved "https://registry.yarnpkg.com/@smithy/node-http-handler/-/node-http-handler-4.5.1.tgz#9f05b4478ccfc6db82af37579a36fa48ee8f6067"
-  integrity sha512-ejjxdAXjkPIs9lyYyVutOGNOraqUE9v/NjGMKwwFrfOM354wfSD8lmlj8hVwUzQmlLLF4+udhfCX9Exnbmvfzw==
-  dependencies:
-    "@smithy/protocol-http" "^5.3.12"
-    "@smithy/querystring-builder" "^4.2.12"
-    "@smithy/types" "^4.13.1"
-    tslib "^2.6.2"
-
 "@smithy/property-provider@^4", "@smithy/property-provider@^4.2.12":
   version "4.2.12"
   resolved "https://registry.yarnpkg.com/@smithy/property-provider/-/property-provider-4.2.12.tgz#e9f8e5ce125413973b16e39c87cf4acd41324e21"
@@ -3977,20 +3967,6 @@
   dependencies:
     "@smithy/service-error-classification" "^4.2.12"
     "@smithy/types" "^4.13.1"
-    tslib "^2.6.2"
-
-"@smithy/util-stream@^4.5.21":
-  version "4.5.21"
-  resolved "https://registry.yarnpkg.com/@smithy/util-stream/-/util-stream-4.5.21.tgz#a9ea13d0299d030c72ab4b4e394db111cd581629"
-  integrity sha512-KzSg+7KKywLnkoKejRtIBXDmwBfjGvg1U1i/etkC7XSWUyFCoLno1IohV2c74IzQqdhX5y3uE44r/8/wuK+A7Q==
-  dependencies:
-    "@smithy/fetch-http-handler" "^5.3.15"
-    "@smithy/node-http-handler" "^4.5.1"
-    "@smithy/types" "^4.13.1"
-    "@smithy/util-base64" "^4.3.2"
-    "@smithy/util-buffer-from" "^4.2.2"
-    "@smithy/util-hex-encoding" "^4.2.2"
-    "@smithy/util-utf8" "^4.2.2"
     tslib "^2.6.2"
 
 "@smithy/util-stream@^4.5.21":
@@ -5091,27 +5067,6 @@ available-typed-arrays@^1.0.7:
   integrity sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==
   dependencies:
     possible-typed-array-names "^1.0.0"
-
-aws-cdk-lib@2.247.0:
-  version "2.247.0"
-  resolved "https://registry.yarnpkg.com/aws-cdk-lib/-/aws-cdk-lib-2.247.0.tgz#070cca4e9af5313837c09874bd917c46ccf38b07"
-  integrity sha512-jwGmLg3qycFx0G+uEhoqk6pzSg6BAiaCQpuUreHUE4BnrhcUEG202BZ+PL8oU943fDjlI/xuwaS+Icru3fecYQ==
-  dependencies:
-    "@aws-cdk/asset-awscli-v1" "2.2.273"
-    "@aws-cdk/asset-node-proxy-agent-v6" "^2.1.1"
-    "@aws-cdk/cloud-assembly-api" "^2.2.0"
-    "@aws-cdk/cloud-assembly-schema" "^53.0.0"
-    "@balena/dockerignore" "^1.0.2"
-    case "1.6.3"
-    fs-extra "^11.3.3"
-    ignore "^5.3.2"
-    jsonschema "^1.5.0"
-    mime-types "^2.1.35"
-    minimatch "^10.2.3"
-    punycode "^2.3.1"
-    semver "^7.7.4"
-    table "^6.9.0"
-    yaml "1.10.3"
 
 aws-cdk-lib@2.248.0:
   version "2.248.0"
