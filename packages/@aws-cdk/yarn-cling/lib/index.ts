@@ -1,4 +1,4 @@
-import { promises as fs, exists } from 'fs';
+import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { parseSyml } from '@yarnpkg/parsers';
@@ -370,7 +370,7 @@ async function findPackageDir(depName: string, rootDir: string) {
   let dir = rootDir;
   while (dir !== prevDir) {
     const candidateDir = path.join(dir, 'node_modules', depName);
-    if (await new Promise(ok => exists(path.join(candidateDir, 'package.json'), ok))) {
+    if (await fileExists(path.join(candidateDir, 'package.json'))) {
       return candidateDir;
     }
 
