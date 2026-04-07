@@ -28,6 +28,7 @@ export function generateSchema(schemaName: string) {
 
   const compilerOptions = {
     strictNullChecks: true,
+    skipLibCheck: true,
   };
 
   const program = tjs.getProgramFromFiles([spec.sourceFile], compilerOptions);

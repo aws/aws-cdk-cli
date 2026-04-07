@@ -186,7 +186,7 @@
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --dep=dev,optional,peer,prod,bundle --upgrade --target=minor"
+          "exec": "npx npm-check-updates@20 --dep=dev,optional,peer,prod,bundle --upgrade --target=minor"
         },
         {
           "exec": "yarn workspaces run check-for-updates"

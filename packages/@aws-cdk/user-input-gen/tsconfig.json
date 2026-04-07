@@ -26,6 +26,14 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "ES2020",
+    "types": [
+      "jest",
+      "lodash.clonedeep",
+      "node",
+      "prettier",
+      "semver",
+      "yarnpkg__lockfile"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,

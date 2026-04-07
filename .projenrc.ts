@@ -922,6 +922,7 @@ const toolkitLib = configureProject(
       '@types/jest-when',
       'jest-when',
       'nock@13',
+      'tsx',
     ],
     // Watch 2 directories at once
     releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),

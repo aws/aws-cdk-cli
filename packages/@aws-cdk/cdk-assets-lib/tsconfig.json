@@ -24,6 +24,14 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "ES2020",
+    "types": [
+      "archiver",
+      "jest",
+      "mime",
+      "mock-fs",
+      "node",
+      "picomatch"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,

@@ -25,6 +25,14 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "es2022",
+    "types": [
+      "fs-extra",
+      "jest",
+      "jest-when",
+      "node",
+      "picomatch",
+      "split2"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,

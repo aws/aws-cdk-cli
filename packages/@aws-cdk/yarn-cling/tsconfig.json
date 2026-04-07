@@ -26,6 +26,12 @@
     "strictPropertyInitialization": true,
     "stripInternal": true,
     "target": "ES2020",
+    "types": [
+      "jest",
+      "node",
+      "semver",
+      "yarnpkg__lockfile"
+    ],
     "incremental": true,
     "skipLibCheck": true,
     "isolatedModules": true,
