@@ -23,10 +23,6 @@
       "type": "build"
     },
     {
-      "name": "@types/yarnpkg__lockfile",
-      "type": "build"
-    },
-    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -96,10 +92,6 @@
       "name": "typescript",
       "version": "5.9",
       "type": "build"
-    },
-    {
-      "name": "@yarnpkg/lockfile",
-      "type": "runtime"
     },
     {
       "name": "@yarnpkg/parsers",
