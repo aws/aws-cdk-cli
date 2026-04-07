@@ -27,8 +27,7 @@
     "types": [
       "jest",
       "node",
-      "semver",
-      "yarnpkg__lockfile"
+      "semver"
     ],
     "incremental": true,
     "skipLibCheck": true,
