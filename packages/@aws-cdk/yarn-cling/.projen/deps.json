@@ -102,6 +102,10 @@
       "type": "runtime"
     },
     {
+      "name": "@yarnpkg/parsers",
+      "type": "runtime"
+    },
+    {
       "name": "semver",
       "type": "runtime"
     }

@@ -2,6 +2,7 @@ import { promises as fs, exists } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as lockfile from '@yarnpkg/lockfile';
+import { parseSyml } from '@yarnpkg/parsers';
 import * as semver from 'semver';
 import { hoistDependencies } from './hoisting';
 import { isPackage, iterDeps, type PackageJson, type PackageLockFile, type PackageLockPackage, type PackageLockTree, type ResolvedYarnPackage, type YarnLock } from './types';
@@ -70,72 +71,29 @@ export function parseYarnLock(content: string): YarnLock {
  * We convert each to the classic format: "pkg@^1.0.0" -> { version, resolved, integrity, dependencies }
  */
 function parseBerryLockfile(content: string): YarnLock {
+  const parsed = parseSyml(content);
   const object: Record<string, ResolvedYarnPackage> = {};
-  let currentKeys: string[] | undefined;
-  let current: Record<string, any> | undefined;
-  let inDeps = false;
-  let deps: Record<string, string> | undefined;
 
-  for (const line of content.split('\n')) {
-    if (line.startsWith('#') || line.trim() === '' || line.startsWith('__metadata:')) continue;
+  for (const [key, entry] of Object.entries(parsed)) {
+    if (key === '__metadata' || !entry?.version) continue;
 
-    // Skip __metadata sub-fields
-    if (/^\s{2}\w/.test(line) && !currentKeys) continue;
+    const resolved: ResolvedYarnPackage = {
+      version: entry.version,
+      ...(entry.resolution && { resolved: entry.resolution }),
+      ...(entry.checksum && { integrity: entry.checksum }),
+      ...(entry.dependencies && {
+        dependencies: Object.fromEntries(
+          Object.entries(entry.dependencies).map(([k, v]: [string, any]) => [k, String(v).replace(/^npm:/, '')]),
+        ),
+      }),
+    };
 
-    // New entry: unindented quoted key line ending with ':'
-    if (!line.startsWith(' ') && line.endsWith(':')) {
-      // Flush previous entry
-      if (currentKeys && current) {
-        if (deps && Object.keys(deps).length > 0) current.dependencies = deps;
-        for (const key of currentKeys) object[key] = current as ResolvedYarnPackage;
-      }
-
-      const rawKey = line.slice(0, -1).trim().replace(/^"(.*)"$/, '$1');
-      currentKeys = rawKey.split(', ').flatMap((descriptor) => {
-        const npmMatch = descriptor.match(/^(.+)@npm:(.+)$/);
-        if (npmMatch) return [`${npmMatch[1]}@${npmMatch[2]}`];
-        return [descriptor];
-      });
-      current = {};
-      inDeps = false;
-      deps = undefined;
-      continue;
+    // Convert berry descriptors ("pkg@npm:^1.0.0") to classic format ("pkg@^1.0.0")
+    for (const descriptor of key.split(', ')) {
+      const npmMatch = descriptor.match(/^(.+)@npm:(.+)$/);
+      const classicKey = npmMatch ? `${npmMatch[1]}@${npmMatch[2]}` : descriptor;
+      object[classicKey] = resolved;
     }
-
-    if (!current) continue;
-
-    const trimmed = line.trimStart();
-    const indent = line.length - trimmed.length;
-
-    if (indent === 2 && trimmed.endsWith(':') && !trimmed.includes(' ')) {
-      inDeps = trimmed === 'dependencies:';
-      if (inDeps) deps = {};
-      continue;
-    }
-
-    if (inDeps && indent === 4) {
-      const depMatch = trimmed.match(/^"?([^"]+)"?:\s+"?([^"]+)"?$/);
-      if (depMatch && deps) deps[depMatch[1]] = depMatch[2].replace(/^npm:/, '');
-      continue;
-    }
-
-    if (indent === 2) {
-      const fieldMatch = trimmed.match(/^(\w+):\s+(.+)$/);
-      if (fieldMatch) {
-        const [, key, rawVal] = fieldMatch;
-        const val = rawVal.replace(/^"(.*)"$/, '$1');
-        if (key === 'version') current.version = val;
-        else if (key === 'resolution') current.resolved = val;
-        else if (key === 'checksum') current.integrity = val;
-      }
-      inDeps = false;
-    }
-  }
-
-  // Flush last entry
-  if (currentKeys && current) {
-    if (deps && Object.keys(deps).length > 0) current.dependencies = deps;
-    for (const key of currentKeys) object[key] = current as ResolvedYarnPackage;
   }
 
   return { type: 'success', object };

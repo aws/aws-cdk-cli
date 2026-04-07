@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@yarnpkg/lockfile": "^1.1.0",
+    "@yarnpkg/parsers": "^3.0.3",
     "semver": "^7.7.4"
   },
   "keywords": [
