@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as lockfile from '@yarnpkg/lockfile';
 import * as semver from 'semver';
 import { hoistDependencies } from './hoisting';
-import { isPackage, iterDeps, type PackageJson, type PackageLockFile, type PackageLockPackage, type PackageLockTree, type YarnLock } from './types';
+import { isPackage, iterDeps, type PackageJson, type PackageLockFile, type PackageLockPackage, type PackageLockTree, type ResolvedYarnPackage, type YarnLock } from './types';
 
 export interface ShrinkwrapOptions {
   /**
@@ -33,7 +33,7 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   const packageJsonDir = path.dirname(packageJsonFile);
 
   const yarnLockLoc = await findYarnLock(packageJsonDir);
-  const yarnLock: YarnLock = lockfile.parse(await fs.readFile(yarnLockLoc, { encoding: 'utf8' }));
+  const yarnLock: YarnLock = parseYarnLock(await fs.readFile(yarnLockLoc, { encoding: 'utf8' }));
   const pkgJson = await loadPackageJson(packageJsonFile);
 
   let lock = await generateLockFile(pkgJson, yarnLock, packageJsonDir);
@@ -50,6 +50,95 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   }
 
   return lock;
+}
+
+/**
+ * Parse a yarn.lock file, supporting both classic (v1) and berry (v2+) formats.
+ */
+export function parseYarnLock(content: string): YarnLock {
+  // Berry lockfiles start with a YAML preamble containing __metadata
+  if (content.includes('__metadata:')) {
+    return parseBerryLockfile(content);
+  }
+  return lockfile.parse(content);
+}
+
+/**
+ * Parse a yarn berry (v2+) YAML lockfile into the classic YarnLock format.
+ *
+ * Berry keys look like: "pkg@npm:^1.0.0" or "pkg@npm:^1.0.0, pkg@npm:^2.0.0"
+ * We convert each to the classic format: "pkg@^1.0.0" -> { version, resolved, integrity, dependencies }
+ */
+function parseBerryLockfile(content: string): YarnLock {
+  const object: Record<string, ResolvedYarnPackage> = {};
+  let currentKeys: string[] | undefined;
+  let current: Record<string, any> | undefined;
+  let inDeps = false;
+  let deps: Record<string, string> | undefined;
+
+  for (const line of content.split('\n')) {
+    if (line.startsWith('#') || line.trim() === '' || line.startsWith('__metadata:')) continue;
+
+    // Skip __metadata sub-fields
+    if (/^\s{2}\w/.test(line) && !currentKeys) continue;
+
+    // New entry: unindented quoted key line ending with ':'
+    if (!line.startsWith(' ') && line.endsWith(':')) {
+      // Flush previous entry
+      if (currentKeys && current) {
+        if (deps && Object.keys(deps).length > 0) current.dependencies = deps;
+        for (const key of currentKeys) object[key] = current as ResolvedYarnPackage;
+      }
+
+      const rawKey = line.slice(0, -1).trim().replace(/^"(.*)"$/, '$1');
+      currentKeys = rawKey.split(', ').flatMap((descriptor) => {
+        const npmMatch = descriptor.match(/^(.+)@npm:(.+)$/);
+        if (npmMatch) return [`${npmMatch[1]}@${npmMatch[2]}`];
+        return [descriptor];
+      });
+      current = {};
+      inDeps = false;
+      deps = undefined;
+      continue;
+    }
+
+    if (!current) continue;
+
+    const trimmed = line.trimStart();
+    const indent = line.length - trimmed.length;
+
+    if (indent === 2 && trimmed.endsWith(':') && !trimmed.includes(' ')) {
+      inDeps = trimmed === 'dependencies:';
+      if (inDeps) deps = {};
+      continue;
+    }
+
+    if (inDeps && indent === 4) {
+      const depMatch = trimmed.match(/^"?([^"]+)"?:\s+"?([^"]+)"?$/);
+      if (depMatch && deps) deps[depMatch[1]] = depMatch[2].replace(/^npm:/, '');
+      continue;
+    }
+
+    if (indent === 2) {
+      const fieldMatch = trimmed.match(/^(\w+):\s+(.+)$/);
+      if (fieldMatch) {
+        const [, key, rawVal] = fieldMatch;
+        const val = rawVal.replace(/^"(.*)"$/, '$1');
+        if (key === 'version') current.version = val;
+        else if (key === 'resolution') current.resolved = val;
+        else if (key === 'checksum') current.integrity = val;
+      }
+      inDeps = false;
+    }
+  }
+
+  // Flush last entry
+  if (currentKeys && current) {
+    if (deps && Object.keys(deps).length > 0) current.dependencies = deps;
+    for (const key of currentKeys) object[key] = current as ResolvedYarnPackage;
+  }
+
+  return { type: 'success', object };
 }
 
 async function generateLockFile(pkgJson: PackageJson, yarnLock: YarnLock, rootDir: string): Promise<PackageLockFile> {
