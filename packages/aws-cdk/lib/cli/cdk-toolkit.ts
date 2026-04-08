@@ -25,6 +25,7 @@ import {
   removeNonImportResources,
   ResourceImporter,
   ResourceMigrator,
+  ResourceOrphaner,
   StackSelectionStrategy,
   WorkGraphBuilder,
 } from '../api';
@@ -967,6 +968,32 @@ export class CdkToolkit {
           );
         }
       });
+  }
+
+  public async orphan(options: OrphanOptions) {
+    const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
+
+    if (stacks.stackCount > 1) {
+      throw new ToolkitError(
+        'AmbiguousStackSelection',
+        `Stack selection is ambiguous, please choose a specific stack for orphan [${stacks.stackArtifacts.map((x) => x.id).join(', ')}]`,
+      );
+    }
+
+    const stack = stacks.stackArtifacts[0];
+    await this.ioHost.asIoHelper().defaults.info(chalk.bold(`Orphaning construct '${options.constructPath}' from ${stack.displayName}`));
+
+    const orphaner = new ResourceOrphaner({
+      deployments: this.props.deployments,
+      ioHelper: asIoHelper(this.ioHost, 'deploy'),
+    });
+
+    await orphaner.orphan({
+      stack,
+      constructPath: options.constructPath,
+      roleArn: options.roleArn,
+      toolkitStackName: this.toolkitStackName,
+    });
   }
 
   public async import(options: ImportOptions) {
@@ -1924,6 +1951,13 @@ export interface RollbackOptions {
    * @default true
    */
   readonly validateBootstrapStackVersion?: boolean;
+}
+
+export interface OrphanOptions {
+  selector: StackSelector;
+  constructPath: string | string[];
+  roleArn?: string;
+  toolkitStackName?: string;
 }
 
 export interface ImportOptions extends CfnDeployOptions {

@@ -669,6 +669,33 @@ export function parseCommandLineArguments(args: Array<string>): any {
           requiresArg: true,
         }),
     )
+    .command('orphan [STACK]', 'Orphan a resource from a stack (detach without deleting)', (yargs: Argv) =>
+      yargs
+        .positional('STACK', {
+          type: 'string',
+          desc: 'The stack to orphan the resource from',
+        })
+        .option('path', {
+          type: 'array',
+          string: true,
+          desc: 'Construct path(s) of the resource to orphan (e.g. MyTable). Can be specified multiple times.',
+          demandOption: true,
+          requiresArg: true,
+        })
+        .option('role-arn', {
+          default: undefined,
+          type: 'string',
+          alias: 'r',
+          desc: 'ARN of Role to use when invoking CloudFormation',
+          requiresArg: true,
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          desc: 'The name of the CDK toolkit stack to create',
+          requiresArg: true,
+        }),
+    )
     .command('import [STACK]', 'Import existing resource(s) into the given STACK', (yargs: Argv) =>
       yargs
         .option('execute', {

@@ -452,6 +452,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           concurrency: args.concurrency,
         });
 
+      case 'orphan':
+        ioHost.currentAction = 'deploy';
+        return cli.orphan({
+          selector,
+          constructPath: args.path,
+          roleArn: args.roleArn,
+          toolkitStackName,
+        });
+
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({

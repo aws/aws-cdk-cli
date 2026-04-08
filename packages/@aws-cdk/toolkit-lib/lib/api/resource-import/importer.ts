@@ -141,8 +141,10 @@ export class ResourceImporter {
   /**
    * Load the resources to import from a file
    */
-  public async loadResourceIdentifiers(available: ImportableResource[], filename: string): Promise<ImportMap> {
-    const contents = await fs.readJson(filename);
+  public async loadResourceIdentifiers(available: ImportableResource[], filenameOrJson: string): Promise<ImportMap> {
+    const contents = filenameOrJson.trimStart().startsWith('{')
+      ? JSON.parse(filenameOrJson)
+      : await fs.readJson(filenameOrJson);
 
     const ret: ImportMap = { importResources: [], resourceMap: {} };
     for (const resource of available) {
