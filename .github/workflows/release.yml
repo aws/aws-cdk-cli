@@ -38,7 +38,7 @@ jobs:
           node-version: lts/*
           package-manager-cache: false
       - name: Install dependencies
-        run: yarn install --check-files --frozen-lockfile
+        run: yarn install --immutable
       - name: release
         run: npx projen release
       - id: check-publish-aws-cdk-cloud-assembly-schema
@@ -281,7 +281,7 @@ jobs:
         with:
           path: .repo
       - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
+        run: cd .repo && yarn install --immutable
       - name: Extract build artifact
         run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
@@ -327,7 +327,7 @@ jobs:
         with:
           path: .repo
       - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
+        run: cd .repo && yarn install --immutable
       - name: Extract build artifact
         run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
@@ -375,7 +375,7 @@ jobs:
         with:
           path: .repo
       - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
+        run: cd .repo && yarn install --immutable
       - name: Extract build artifact
         run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
@@ -417,7 +417,7 @@ jobs:
         with:
           path: .repo
       - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
+        run: cd .repo && yarn install --immutable
       - name: Extract build artifact
         run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
@@ -459,7 +459,7 @@ jobs:
         with:
           path: .repo
       - name: Install Dependencies
-        run: cd .repo && yarn install --check-files --frozen-lockfile
+        run: cd .repo && yarn install --immutable
       - name: Extract build artifact
         run: tar --strip-components=1 -xzvf dist/js/*.tgz -C .repo/packages/@aws-cdk/cloud-assembly-schema
       - name: Move build artifact out of the way
@@ -1046,13 +1046,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Install dependencies
-        run: yarn install --check-files --frozen-lockfile
+        run: yarn install --immutable
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:

@@ -44,13 +44,15 @@ jobs:
         run: |-
           git remote add upstream https://github.com/aws/aws-cdk-cli.git
           git fetch upstream 'refs/tags/*:refs/tags/*'
+      - name: Enable corepack
+        run: corepack enable
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Install dependencies
-        run: yarn install --check-files --frozen-lockfile
+        run: yarn install --immutable
       - name: Bump to realistic versions
         env:
           TESTING_CANDIDATE: "true"

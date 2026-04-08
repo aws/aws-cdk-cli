@@ -3,6 +3,14 @@
 !/.projen/tasks.json
 !/.projen/deps.json
 !/.projen/files.json
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+!/.yarnrc.yml
 !/package.json
 !/LICENSE
 !/.npmignore

@@ -16,13 +16,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Enable corepack
+        run: corepack enable
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Install dependencies
-        run: yarn install --check-files --frozen-lockfile
+        run: yarn install --immutable
       - name: Upgrade dependencies
         run: npx projen upgrade-aws-cdk-lib
         working-directory: ./packages/aws-cdk

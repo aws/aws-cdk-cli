@@ -242,6 +242,7 @@ const repoProject = new yarn.Monorepo({
   },
   nx: true,
   buildWithNx: true,
+  yarnBerry: true,
 
   eslintOptions: {
     dirs: ['lib'],

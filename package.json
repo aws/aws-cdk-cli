@@ -30,7 +30,7 @@
     "@types/node": "ts5.9",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "cdklabs-projen-project-types": "^0.3.20",
+    "cdklabs-projen-project-types": "^0.3.21",
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-import-resolver-typescript": "^3.10.1",
@@ -41,7 +41,7 @@
     "jest-junit": "^16",
     "nx": "^20.8.4",
     "prettier": "^2.8",
-    "projen": "^0.99.36",
+    "projen": "^0.99.38",
     "semver": "^7.7.4",
     "ts-node": "^10.9.2",
     "typescript": "5.9"
@@ -52,7 +52,7 @@
   "devEngines": {
     "packageManager": {
       "name": "yarn",
-      "version": "1.22.22",
+      "version": ">=4.0.1",
       "onFail": "ignore"
     }
   },
@@ -62,6 +62,7 @@
     "access": "public"
   },
   "version": "0.0.0",
+  "packageManager": "yarn@4.13.0",
   "types": "lib/index.d.ts",
   "private": true,
   "workspaces": {
@@ -79,16 +80,6 @@
       "packages/cdk",
       "packages/@aws-cdk/integ-runner",
       "packages/@aws-cdk-testing/cli-integ"
-    ],
-    "nohoist": [
-      "@aws-cdk/cloud-assembly-schema/jsonschema",
-      "@aws-cdk/cloud-assembly-schema/jsonschema/**",
-      "@aws-cdk/cloud-assembly-schema/semver",
-      "@aws-cdk/cloud-assembly-schema/semver/**",
-      "@aws-cdk/cloud-assembly-api/jsonschema",
-      "@aws-cdk/cloud-assembly-api/jsonschema/**",
-      "@aws-cdk/cloud-assembly-api/semver",
-      "@aws-cdk/cloud-assembly-api/semver/**"
     ]
   },
   "jest": {
