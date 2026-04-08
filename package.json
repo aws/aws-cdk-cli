@@ -14,6 +14,7 @@
     "git-secrets-scan": "npx projen git-secrets-scan",
     "package": "npx projen package",
     "post-upgrade": "npx projen post-upgrade",
+    "publish-to-adc": "npx projen publish-to-adc",
     "release": "npx projen release",
     "run": "npx projen run",
     "test": "npx projen test",

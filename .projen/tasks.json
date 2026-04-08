@@ -126,6 +126,14 @@
       "name": "post-upgrade",
       "description": "Runs after upgrading dependencies"
     },
+    "publish-to-adc": {
+      "name": "publish-to-adc",
+      "steps": [
+        {
+          "exec": "tsx projenrc/publish-to-adc.task.ts"
+        }
+      ]
+    },
     "release": {
       "name": "release",
       "description": "Prepare a release from all monorepo packages",

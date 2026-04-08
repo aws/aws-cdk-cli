@@ -45,16 +45,16 @@ jobs:
           git remote add upstream https://github.com/aws/aws-cdk-cli.git
           git fetch upstream 'refs/tags/*:refs/tags/*'
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: npm
+          package-manager-cache: false
       - name: Install dependencies
         run: yarn install --check-files --frozen-lockfile
       - name: Bump to realistic versions
         env:
           TESTING_CANDIDATE: "true"
-        run: yarn workspaces run bump
+        run: npx projen run bump
       - name: build
         env:
           RELEASE: "true"

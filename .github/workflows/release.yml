@@ -1046,9 +1046,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
+          package-manager-cache: false
       - name: Install dependencies
         run: yarn install --check-files --frozen-lockfile
       - name: Download build artifacts
@@ -1069,7 +1071,7 @@ jobs:
         env:
           PUBLISHING_ROLE_ARN: ${{ vars.PUBLISHING_ROLE_ARN }}
           TARGET_BUCKETS: ${{ vars.TARGET_BUCKETS }}
-        run: npx tsx projenrc/publish-to-adc.task.ts
+        run: npx projen publish-to-adc
   record_timestamp:
     name: "aws-cdk: Record publishing timestamp"
     needs: release
