@@ -710,6 +710,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'm',
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts',
+        })
+        .option('resource-mapping-inline', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'Inline JSON resource mapping, e.g. \'{"MyResource":{"TableName":"my-table"}}\'',
         }),
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>

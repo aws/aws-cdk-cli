@@ -179,6 +179,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         force: args.force,
         recordResourceMapping: args.recordResourceMapping,
         resourceMapping: args.resourceMapping,
+        resourceMappingInline: args.resourceMappingInline,
         STACK: args.STACK,
       };
       break;
@@ -476,6 +477,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     force: config.import?.force,
     recordResourceMapping: config.import?.recordResourceMapping,
     resourceMapping: config.import?.resourceMapping,
+    resourceMappingInline: config.import?.resourceMappingInline,
   };
   const watchOptions = {
     buildExclude: config.watch?.buildExclude,

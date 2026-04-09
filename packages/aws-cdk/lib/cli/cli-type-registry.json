@@ -683,6 +683,11 @@
           "alias": "m",
           "requiresArg": true,
           "desc": "If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts"
+        },
+        "resource-mapping-inline": {
+          "type": "string",
+          "requiresArg": true,
+          "desc": "Inline JSON resource mapping, e.g. '{\"MyResource\":{\"TableName\":\"my-table\"}}'"
         }
       }
     },

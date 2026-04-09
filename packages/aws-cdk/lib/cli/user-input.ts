@@ -1115,6 +1115,13 @@ export interface ImportOptions {
   readonly resourceMapping?: string;
 
   /**
+   * Inline JSON resource mapping, e.g. '{"MyResource":{"TableName":"my-table"}}'
+   *
+   * @default - undefined
+   */
+  readonly resourceMappingInline?: string;
+
+  /**
    * Positional argument for import
    */
   readonly STACK?: string;
