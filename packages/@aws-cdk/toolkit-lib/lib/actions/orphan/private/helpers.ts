@@ -138,19 +138,21 @@ export function hasAnyCdkPathMetadata(resources: Record<string, any>): boolean {
 }
 
 import type { DeployStackResult, SuccessfulDeployStackResult } from '../../../api/deployments/deployment-result';
+import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 /**
  * Verify a deploy result is successful and did not trigger resource replacement.
  */
 export function assertSafeDeployResult(result: DeployStackResult, step: string): asserts result is SuccessfulDeployStackResult {
   if (result.type === 'replacement-requires-rollback') {
-    throw new Error(
+    throw new ToolkitError(
+      'OrphanReplacement',
       `${step}: deployment would cause resource replacement. ` +
       'This is unexpected during orphan — aborting to protect your resources. ' +
       'Please report this at https://github.com/aws/aws-cdk-cli/issues',
     );
   }
   if (result.type !== 'did-deploy-stack') {
-    throw new Error(`${step}: unexpected deployment result '${result.type}'`);
+    throw new ToolkitError('OrphanDeployFailed', `${step}: unexpected deployment result '${result.type}'`);
   }
 }

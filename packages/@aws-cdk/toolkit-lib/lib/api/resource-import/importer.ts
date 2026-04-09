@@ -149,7 +149,10 @@ export class ResourceImporter {
   /**
    * Load the resources to import from a pre-parsed mapping
    */
-  public async loadResourceIdentifiers(available: ImportableResource[], identifiers: Record<string, ResourceIdentifierProperties>): Promise<ImportMap> {
+  public async loadResourceIdentifiers(
+    available: ImportableResource[],
+    identifiers: Record<string, ResourceIdentifierProperties>,
+  ): Promise<ImportMap> {
     const remaining = { ...identifiers };
     const ret: ImportMap = { importResources: [], resourceMap: {} };
     for (const resource of available) {

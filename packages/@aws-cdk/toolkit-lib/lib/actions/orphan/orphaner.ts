@@ -1,7 +1,5 @@
 import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { Deployments } from '../../api/deployments';
-import type { IoHelper } from '../../api/io/private';
 import {
   findResourcesByPath,
   hasAnyCdkPathMetadata,
@@ -10,6 +8,9 @@ import {
   walkObject,
   assertSafeDeployResult,
 } from './private';
+import type { Deployments } from '../../api/deployments';
+import type { IoHelper } from '../../api/io/private';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 interface ResolvedValues {
   ref: string;
@@ -90,7 +91,7 @@ export class ResourceOrphaner {
       const hint = !hasAnyCdkPathMetadata(resources)
         ? ' (no resources in this stack have aws:cdk:path metadata — was it disabled?)'
         : '';
-      throw new Error(`No resources found under construct path '${constructPaths.join(', ')}' in stack '${stack.stackName}'${hint}`);
+      throw new ToolkitError('OrphanNoResources', `No resources found under construct path '${constructPaths.join(', ')}' in stack '${stack.stackName}'${hint}`);
     }
 
     const orphanedResources: OrphanedResource[] = logicalIds.map(id => ({
@@ -180,7 +181,8 @@ export class ResourceOrphaner {
     });
     assertSafeDeployResult(step3Result, 'Step 3');
     if (step3Result.noOp) {
-      throw new Error(
+      throw new ToolkitError(
+        'OrphanNoOp',
         'Orphan step 3 was unexpectedly a no-op — the resources were not removed from the stack. ' +
         'If this issue persists, please open an issue at https://github.com/aws/aws-cdk-cli/issues ' +
         'with your stack template attached.',
