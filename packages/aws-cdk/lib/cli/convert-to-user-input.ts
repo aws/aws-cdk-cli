@@ -305,6 +305,13 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {};
       break;
 
+    case 'orphan':
+      commandOptions = {
+        path: args.path,
+        force: args.force,
+      };
+      break;
+
     case 'refactor':
       commandOptions = {
         additionalStackName: args.additionalStackName,
@@ -545,6 +552,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const orphanOptions = {
+    path: config.orphan?.path,
+    force: config.orphan?.force,
+  };
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,
@@ -580,6 +591,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    orphan: orphanOptions,
     refactor: refactorOptions,
     cliTelemetry: cliTelemetryOptions,
   };

@@ -292,6 +292,11 @@ export async function makeConfig(): Promise<CliConfig> {
             desc: 'If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively ' +
               'asking the user. Can be run from scripts',
           },
+          'resource-mapping-inline': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'Inline JSON resource mapping, e.g. \'{"MyResource":{"TableName":"my-table"}}\'',
+          },
         },
       },
       'watch': {
@@ -493,6 +498,21 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'doctor': {
         description: 'Check your set-up for potential problems',
+      },
+      'orphan': {
+        description: 'Detach resources from a CloudFormation stack without deleting them',
+        options: {
+          'path': {
+            type: 'array',
+            requiresArg: true,
+            desc: 'Construct path(s) to orphan, e.g. MyStack/MyTable',
+          },
+          'force': {
+            type: 'boolean',
+            default: false,
+            desc: 'Do not ask for confirmation before orphaning',
+          },
+        },
       },
       'refactor': {
         description: 'Moves resources between stacks or within the same stack',

@@ -25,7 +25,6 @@ import {
   removeNonImportResources,
   ResourceImporter,
   ResourceMigrator,
-  ResourceOrphaner,
   StackSelectionStrategy,
   WorkGraphBuilder,
 } from '../api';
@@ -208,7 +207,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor', 'flags', 'publish-assets'],
+      unstableFeatures: ['refactor', 'orphan', 'flags', 'publish-assets'],
     });
   }
 
@@ -971,29 +970,17 @@ export class CdkToolkit {
   }
 
   public async orphan(options: OrphanOptions) {
-    const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
-
-    if (stacks.stackCount > 1) {
-      throw new ToolkitError(
-        'AmbiguousStackSelection',
-        `Stack selection is ambiguous, please choose a specific stack for orphan [${stacks.stackArtifacts.map((x) => x.id).join(', ')}]`,
-      );
+    try {
+      await this.toolkit.orphan(this.props.cloudExecutable, {
+        constructPaths: Array.isArray(options.constructPath) ? options.constructPath : [options.constructPath],
+        roleArn: options.roleArn,
+        toolkitStackName: options.toolkitStackName,
+        force: options.force,
+      });
+    } catch (e) {
+      await this.ioHost.asIoHelper().defaults.error((e as Error).message);
+      throw e;
     }
-
-    const stack = stacks.stackArtifacts[0];
-    await this.ioHost.asIoHelper().defaults.info(chalk.bold(`Orphaning construct '${options.constructPath}' from ${stack.displayName}`));
-
-    const orphaner = new ResourceOrphaner({
-      deployments: this.props.deployments,
-      ioHelper: asIoHelper(this.ioHost, 'deploy'),
-    });
-
-    await orphaner.orphan({
-      stack,
-      constructPath: options.constructPath,
-      roleArn: options.roleArn,
-      toolkitStackName: this.toolkitStackName,
-    });
   }
 
   public async import(options: ImportOptions) {
@@ -1011,8 +998,8 @@ export class CdkToolkit {
       );
     }
 
-    if (!process.stdout.isTTY && !options.resourceMappingFile) {
-      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping is required when input is not a terminal');
+    if (!process.stdout.isTTY && !options.resourceMappingFile && !options.resourceMappingInline) {
+      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping or --resource-mapping-inline is required when input is not a terminal');
     }
 
     const stack = stacks.stackArtifacts[0];
@@ -1033,9 +1020,14 @@ export class CdkToolkit {
     }
 
     // Prepare a mapping of physical resources to CDK constructs
-    const actualImport = !options.resourceMappingFile
-      ? await resourceImporter.askForResourceIdentifiers(additions)
-      : await resourceImporter.loadResourceIdentifiers(additions, options.resourceMappingFile);
+    let actualImport: Awaited<ReturnType<typeof resourceImporter.askForResourceIdentifiers>>;
+    if (options.resourceMappingInline) {
+      actualImport = await resourceImporter.loadResourceIdentifiers(additions, JSON.parse(options.resourceMappingInline));
+    } else if (options.resourceMappingFile) {
+      actualImport = await resourceImporter.loadResourceIdentifiersFromFile(additions, options.resourceMappingFile);
+    } else {
+      actualImport = await resourceImporter.askForResourceIdentifiers(additions);
+    }
 
     if (actualImport.importResources.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn('No resources selected for import.');
@@ -1954,10 +1946,10 @@ export interface RollbackOptions {
 }
 
 export interface OrphanOptions {
-  selector: StackSelector;
-  constructPath: string | string[];
-  roleArn?: string;
-  toolkitStackName?: string;
+  readonly constructPath: string | string[];
+  readonly roleArn?: string;
+  readonly toolkitStackName?: string;
+  readonly force?: boolean;
 }
 
 export interface ImportOptions extends CfnDeployOptions {
@@ -1975,6 +1967,13 @@ export interface ImportOptions extends CfnDeployOptions {
    * @default - No mapping file
    */
   readonly resourceMappingFile?: string;
+
+  /**
+   * Inline JSON string with the physical resource mapping
+   *
+   * @default - No inline mapping
+   */
+  readonly resourceMappingInline?: string;
 
   /**
    * Allow non-addition changes to the template

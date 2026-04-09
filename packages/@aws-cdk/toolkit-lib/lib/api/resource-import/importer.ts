@@ -141,27 +141,32 @@ export class ResourceImporter {
   /**
    * Load the resources to import from a file
    */
-  public async loadResourceIdentifiers(available: ImportableResource[], filenameOrJson: string): Promise<ImportMap> {
-    const contents = filenameOrJson.trimStart().startsWith('{')
-      ? JSON.parse(filenameOrJson)
-      : await fs.readJson(filenameOrJson);
+  public async loadResourceIdentifiersFromFile(available: ImportableResource[], fileName: string): Promise<ImportMap> {
+    const contents = await fs.readJson(fileName);
+    return this.loadResourceIdentifiers(available, contents);
+  }
 
+  /**
+   * Load the resources to import from a pre-parsed mapping
+   */
+  public async loadResourceIdentifiers(available: ImportableResource[], identifiers: Record<string, ResourceIdentifierProperties>): Promise<ImportMap> {
+    const remaining = { ...identifiers };
     const ret: ImportMap = { importResources: [], resourceMap: {} };
     for (const resource of available) {
       const descr = this.describeResource(resource.logicalId);
-      const idProps = contents[resource.logicalId];
+      const idProps = remaining[resource.logicalId];
       if (idProps) {
         await this.ioHelper.defaults.info(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps))));
 
         ret.importResources.push(resource);
         ret.resourceMap[resource.logicalId] = idProps;
-        delete contents[resource.logicalId];
+        delete remaining[resource.logicalId];
       } else {
         await this.ioHelper.defaults.info(format('%s: skipping', chalk.blue(descr)));
       }
     }
 
-    const unknown = Object.keys(contents);
+    const unknown = Object.keys(remaining);
     if (unknown.length > 0) {
       await this.ioHelper.defaults.warn(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`);
     }

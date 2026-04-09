@@ -688,6 +688,8 @@ Resources:
                   - sts:GetCallerIdentity
                   # `cdk import`
                   - cloudformation:GetTemplateSummary
+                  # `cdk orphan`
+                  - cloudformation:ListStackResources
                   # `cdk deploy` CloudFormation Hook annotation display on hook failure
                   - cloudformation:GetHookResult
                 Resource: "*"

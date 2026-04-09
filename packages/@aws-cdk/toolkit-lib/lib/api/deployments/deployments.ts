@@ -335,15 +335,6 @@ export class Deployments {
     return loadCurrentTemplate(stackArtifact, env.sdk);
   }
 
-  /**
-   * Get the CloudFormation SDK client for a stack's environment.
-   * Used by the orphaner to call DescribeStackResources.
-   */
-  public async stackSdk(stackArtifact: cxapi.CloudFormationStackArtifact) {
-    const env = await this.envs.accessStackForReadOnlyStackOperations(stackArtifact);
-    return env.sdk;
-  }
-
   public async resourceIdentifierSummaries(
     stackArtifact: cxapi.CloudFormationStackArtifact,
   ): Promise<ResourceIdentifierSummaries> {

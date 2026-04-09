@@ -424,6 +424,13 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
+  // Orphan (88xx)
+  CDK_TOOLKIT_I8810: make.confirm<ConfirmationRequest>({
+    code: 'CDK_TOOLKIT_I8810',
+    description: 'Confirm orphan resources',
+    interface: 'ConfirmationRequest',
+  }),
+
   // 9: Bootstrap, gc, flags & publish (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',

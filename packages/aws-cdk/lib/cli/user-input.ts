@@ -135,6 +135,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Detach resources from a CloudFormation stack without deleting them
+   */
+  readonly orphan?: OrphanOptions;
+
+  /**
    * Moves resources between stacks or within the same stack
    */
   readonly refactor?: RefactorOptions;
@@ -1651,6 +1656,27 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Detach resources from a CloudFormation stack without deleting them
+ *
+ * @struct
+ */
+export interface OrphanOptions {
+  /**
+   * Construct path(s) to orphan, e.g. MyStack/MyTable
+   *
+   * @default - undefined
+   */
+  readonly path?: Array<string>;
+
+  /**
+   * Do not ask for confirmation before orphaning
+   *
+   * @default - false
+   */
+  readonly force?: boolean;
 }
 
 /**
