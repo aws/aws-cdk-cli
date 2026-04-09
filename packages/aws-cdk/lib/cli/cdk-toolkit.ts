@@ -972,7 +972,7 @@ export class CdkToolkit {
   public async orphan(options: OrphanOptions) {
     try {
       await this.toolkit.orphan(this.props.cloudExecutable, {
-        constructPaths: Array.isArray(options.constructPath) ? options.constructPath : [options.constructPath],
+        constructPaths: options.constructPath,
         roleArn: options.roleArn,
         toolkitStackName: options.toolkitStackName,
         force: options.force,
@@ -1946,7 +1946,7 @@ export interface RollbackOptions {
 }
 
 export interface OrphanOptions {
-  readonly constructPath: string | string[];
+  readonly constructPath: string[];
   readonly roleArn?: string;
   readonly toolkitStackName?: string;
   readonly force?: boolean;

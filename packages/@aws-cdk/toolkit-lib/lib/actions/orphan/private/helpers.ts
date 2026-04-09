@@ -1,3 +1,5 @@
+import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
+
 /**
  * Walk an object tree depth-first, calling visitor on every node.
  */
@@ -79,7 +81,7 @@ export function findResourcesByPath(resources: Record<string, any>, stackName: s
   const prefix = `${stackName}/${constructPath}/`;
   const ids: string[] = [];
   for (const [id, resource] of Object.entries(resources)) {
-    const cdkPath = resource.Metadata?.['aws:cdk:path'] ?? '';
+    const cdkPath = resource.Metadata?.[PATH_METADATA_KEY] ?? '';
     if (cdkPath.startsWith(prefix)) {
       ids.push(id);
     }
@@ -114,7 +116,7 @@ export function findBlockingResources(remainingTemplate: any, orphanedIds: strin
     if (Array.isArray(deps) && deps.some((d: string) => orphanedIds.includes(d))) references = true;
 
     if (references) {
-      const path = (resource as any).Metadata?.['aws:cdk:path'] ?? id;
+      const path = (resource as any).Metadata?.[PATH_METADATA_KEY] ?? id;
       blockers.push(path);
     }
   }
@@ -128,7 +130,7 @@ export function findBlockingResources(remainingTemplate: any, orphanedIds: strin
  */
 export function hasAnyCdkPathMetadata(resources: Record<string, any>): boolean {
   for (const resource of Object.values(resources)) {
-    if ((resource as any).Metadata?.['aws:cdk:path']) {
+    if ((resource as any).Metadata?.[PATH_METADATA_KEY]) {
       return true;
     }
   }

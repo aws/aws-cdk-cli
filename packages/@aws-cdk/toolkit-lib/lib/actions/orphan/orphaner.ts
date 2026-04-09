@@ -1,3 +1,4 @@
+import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { Deployments } from '../../api/deployments';
 import type { IoHelper } from '../../api/io/private';
@@ -95,7 +96,7 @@ export class ResourceOrphaner {
     const orphanedResources: OrphanedResource[] = logicalIds.map(id => ({
       logicalId: id,
       resourceType: resources[id].Type ?? 'Unknown',
-      cdkPath: resources[id].Metadata?.['aws:cdk:path'] ?? id,
+      cdkPath: resources[id].Metadata?.[PATH_METADATA_KEY] ?? id,
     }));
 
     return {
@@ -312,7 +313,7 @@ export class ResourceOrphaner {
 
         // Only include the primary resource for each construct path
         // e.g. for path "MyTable", match "StackName/MyTable/Resource" exactly
-        const cdkPath = resource.Metadata?.['aws:cdk:path'] ?? '';
+        const cdkPath = resource.Metadata?.[PATH_METADATA_KEY] ?? '';
         const primaryPaths = constructPaths.map(p => `${stack.stackName}/${p}/Resource`);
         if (!primaryPaths.includes(cdkPath)) continue;
 
