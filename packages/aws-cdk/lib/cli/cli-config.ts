@@ -502,12 +502,12 @@ export async function makeConfig(): Promise<CliConfig> {
       'orphan': {
         description: 'Detach resources from a CloudFormation stack without deleting them',
         options: {
-          'path': {
+          path: {
             type: 'array',
             requiresArg: true,
             desc: 'Construct path(s) to orphan, e.g. MyStack/MyTable',
           },
-          'force': {
+          force: {
             type: 'boolean',
             default: false,
             desc: 'Do not ask for confirmation before orphaning',
