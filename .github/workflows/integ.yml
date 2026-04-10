@@ -57,6 +57,8 @@ jobs:
         env:
           TESTING_CANDIDATE: "true"
         run: yarn projen run bump
+      - name: Update lockfile after version bump
+        run: yarn install --immutable-cache
       - name: build
         env:
           RELEASE: "true"

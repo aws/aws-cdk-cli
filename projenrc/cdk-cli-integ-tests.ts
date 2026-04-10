@@ -425,6 +425,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         {
+          name: 'Update lockfile after version bump',
+          run: 'yarn install --immutable-cache',
+        },
+        {
           name: 'build',
           run: this.project.runTaskCommand(this.project.buildTask),
           env: {
