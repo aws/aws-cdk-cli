@@ -39,7 +39,7 @@
     "eslint-plugin-jsdoc": "^62.9.0",
     "fast-glob": "^3.3.3",
     "jest-junit": "^16",
-    "nx": "^20.8.4",
+    "nx": "22",
     "prettier": "^2.8",
     "projen": "^0.99.46",
     "semver": "^7.7.4",
