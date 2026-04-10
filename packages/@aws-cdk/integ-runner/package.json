@@ -75,7 +75,7 @@
     "aws-cdk": "^0.0.0",
     "chalk": "^4",
     "chokidar": "^4",
-    "fs-extra": "^9",
+    "fs-extra": "^11",
     "proxy-agent": "^6.5.0",
     "workerpool": "^6",
     "yargs": "^16"
