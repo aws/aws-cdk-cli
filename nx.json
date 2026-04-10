@@ -1,4 +1,10 @@
 {
+  "analytics": false,
+  "auto_install_console": false,
+  "tui": {
+    "enabled": false,
+    "autoExit": true
+  },
   "targetDefaults": {
     "build": {
       "cache": true,
