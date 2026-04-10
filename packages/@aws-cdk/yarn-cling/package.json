@@ -31,10 +31,10 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^1.5.10",
+    "@cdklabs/eslint-plugin": "^2.0.0",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
-    "@types/node": "^18",
+    "@types/node": "^20",
     "@types/semver": "^7.7.1",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
@@ -45,7 +45,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jest": "^29.15.2",
     "eslint-plugin-jsdoc": "^62.9.0",
-    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-prettier": "^4.2.5",
     "fast-check": "^4.6.0",
     "jest": "^29.7.0",
     "jest-junit": "^16",

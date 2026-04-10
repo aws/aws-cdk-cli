@@ -6,7 +6,7 @@ const { defineConfig } = require(`@yarnpkg/types`);
 module.exports = defineConfig({
   async constraints({ Yarn }) {
     const root = Yarn.workspace({ cwd: '.' });
-    for (const ident of ["typescript","eslint","eslint-import-resolver-typescript","eslint-plugin-import","eslint-plugin-jest","eslint-plugin-jsdoc","@cdklabs/eslint-plugin","@stylistic/eslint-plugin","@typescript-eslint/eslint-plugin","@typescript-eslint/parser","prettier","jest-junit","nx"]) {
+    for (const ident of ["typescript","eslint","eslint-import-resolver-typescript","eslint-plugin-import","eslint-plugin-jest","eslint-plugin-jsdoc","@cdklabs/eslint-plugin","@stylistic/eslint-plugin","@typescript-eslint/eslint-plugin","@typescript-eslint/parser","prettier","eslint-config-prettier","eslint-plugin-prettier","jest","jest-junit","@types/jest","nx"]) {
       const expected = root.manifest.devDependencies?.[ident];
       if (!expected) continue;
       for (const workspace of Yarn.workspaces()) {

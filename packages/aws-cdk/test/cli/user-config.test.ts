@@ -31,9 +31,9 @@ test('correctly parses hotswap overrides', async () => {
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   const config = await Configuration.fromArgsAndFiles(ioHelper, {
     commandLineArguments: {
@@ -64,9 +64,9 @@ test('load settings from both files if available', async () => {
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   const config = await Configuration.fromArgsAndFiles(ioHelper);
 
@@ -97,9 +97,9 @@ test('load context from all 3 files if available', async () => {
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   const config = await Configuration.fromArgsAndFiles(ioHelper);
 
@@ -121,9 +121,9 @@ test('throws an error if the `build` key is specified in the user config', async
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   // THEN
   await expect(Configuration.fromArgsAndFiles(ioHelper)).rejects.toEqual(new Error('The `build` key cannot be specified in the user config (~/.cdk.json), specify it in the project config (cdk.json) instead'));
@@ -141,9 +141,9 @@ test('Can specify the `quiet` key in the user config', async () => {
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   // THEN
   const config = await Configuration.fromArgsAndFiles(ioHelper);
@@ -165,9 +165,9 @@ test('array settings are not overridden by yarg defaults', async () => {
   mockedFs.pathExists.mockImplementation(path => {
     return GIVEN_CONFIG.has(path);
   });
-  mockedFs.readJSON.mockImplementation(path => {
+  mockedFs.readJSON.mockImplementation(((path: string) => {
     return GIVEN_CONFIG.get(path);
-  });
+  }) as any);
 
   const configWithPlugin = await Configuration.fromArgsAndFiles(ioHelper, { commandLineArguments: argsWithPlugin });
   const configWithoutPlugin = await Configuration.fromArgsAndFiles(ioHelper, { commandLineArguments: argsWithoutPlugin });

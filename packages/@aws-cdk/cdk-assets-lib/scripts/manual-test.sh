@@ -19,4 +19,4 @@ cat <<EOF > $scriptdir/manual-test-manifest.json
 }
 EOF
 
-npx ts-node $scriptdir/../bin/cdk-assets.ts -v -p $scriptdir/manual-test-manifest.json publish
+npx tsx $scriptdir/../bin/cdk-assets.ts -v -p $scriptdir/manual-test-manifest.json publish

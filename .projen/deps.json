@@ -22,8 +22,12 @@
       "type": "build"
     },
     {
+      "name": "@types/jest",
+      "type": "build"
+    },
+    {
       "name": "@types/node",
-      "version": "ts5.9",
+      "version": "^20",
       "type": "build"
     },
     {
@@ -50,6 +54,10 @@
       "type": "build"
     },
     {
+      "name": "eslint-config-prettier",
+      "type": "build"
+    },
+    {
       "name": "eslint-import-resolver-typescript",
       "type": "build"
     },
@@ -66,12 +74,20 @@
       "type": "build"
     },
     {
+      "name": "eslint-plugin-prettier",
+      "type": "build"
+    },
+    {
       "name": "eslint",
       "version": "^9",
       "type": "build"
     },
     {
       "name": "fast-glob",
+      "type": "build"
+    },
+    {
+      "name": "jest",
       "type": "build"
     },
     {

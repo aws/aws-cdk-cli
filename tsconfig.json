@@ -27,6 +27,7 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
+      "jest",
       "node"
     ]
   },

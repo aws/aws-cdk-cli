@@ -16,6 +16,7 @@
     },
     {
       "name": "@types/fs-extra",
+      "version": "^11",
       "type": "build"
     },
     {
@@ -29,7 +30,7 @@
     },
     {
       "name": "@types/node",
-      "version": "^16",
+      "version": "^20",
       "type": "build"
     },
     {
@@ -183,7 +184,7 @@
     },
     {
       "name": "fs-extra",
-      "version": "^9",
+      "version": "^11",
       "type": "runtime"
     },
     {

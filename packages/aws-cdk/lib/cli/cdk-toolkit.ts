@@ -267,7 +267,7 @@ export class CdkToolkit {
         );
       }
 
-      const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
+      const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'utf-8' }));
       const formatter = new DiffFormatter({
         templateInfo: {
           oldTemplate: template,

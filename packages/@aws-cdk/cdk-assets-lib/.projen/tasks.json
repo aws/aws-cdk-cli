@@ -55,7 +55,7 @@
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,nx,ts-jest,archiver,fast-glob,picomatch"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,graceful-fs,jest,jszip,license-checker,nx,ts-jest,archiver,fast-glob,picomatch"
         }
       ]
     },
