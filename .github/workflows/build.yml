@@ -4,6 +4,9 @@ name: build
 on:
   pull_request: {}
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
   merge_group: {}
 jobs:
   build:
@@ -14,13 +17,20 @@ jobs:
       self_mutation_happened: ${{ steps.self_mutation.outputs.self_mutation_happened }}
     env:
       CI: "true"
-      NX_SKIP_NX_CACHE: "true"
+      NX_SKIP_NX_CACHE: ${{ github.ref == 'refs/heads/main' || github.event_name == 'merge_group' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - name: Restore NX cache
+        if: ${{ !(github.ref == 'refs/heads/main' || github.event_name == 'merge_group') }}
+        uses: actions/cache/restore@v5
+        with:
+          path: .nx/cache
+          key: nx-${{ github.sha }}
+          restore-keys: nx-
       - name: Enable corepack
         run: corepack enable
       - name: Setup Node.js
@@ -56,3 +66,9 @@ jobs:
           echo "::error::Files were changed during build (see build log). If this was triggered from a fork, you will need to update your branch."
           cat repo.patch
           exit 1
+      - name: Save NX cache
+        if: ${{ !(github.event_name == 'merge_group') && always() }}
+        uses: actions/cache/save@v5
+        with:
+          path: .nx/cache
+          key: nx-${{ github.sha }}

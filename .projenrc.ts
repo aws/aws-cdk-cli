@@ -12,6 +12,7 @@ import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
+import { NX_CACHE_ENV, nxCacheSteps } from './projenrc/nx-cache';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
@@ -336,6 +337,17 @@ const repoProject = new yarn.Monorepo({
     ],
   },
 });
+
+// NX Cache: run the build workflow on main to seed the cache for PR builds.
+repoProject.github?.tryFindWorkflow('build')?.on({ push: { branches: ['main'] } });
+
+// NX Cache: the build workflow's NX_SKIP_NX_CACHE is hardcoded by cdklabs-projen-project-types.
+// Patch it to be conditional and add cache restore/save steps.
+repoProject.github?.tryFindWorkflow('build')?.file?.patch(
+  pj.JsonPatch.replace('/jobs/build/env/NX_SKIP_NX_CACHE', NX_CACHE_ENV.NX_SKIP_NX_CACHE),
+  pj.JsonPatch.add('/jobs/build/steps/1', nxCacheSteps()[0]),
+  pj.JsonPatch.add('/jobs/build/steps/-', nxCacheSteps()[1]),
+);
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),

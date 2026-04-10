@@ -1,6 +1,7 @@
 import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
+import { NX_CACHE_ENV, nxCacheRestoreStep } from './nx-cache';
 
 export interface CodeCovWorkflowProps {
   readonly restrictToRepos: string[];
@@ -27,8 +28,10 @@ export class CodeCovWorkflow extends Component {
       runsOn: ['aws-cdk_ubuntu-latest_4-core'],
       permissions: { idToken: JobPermission.WRITE },
       if: props.restrictToRepos.map(r => `github.repository == '${r}'`).join(' || '),
+      env: NX_CACHE_ENV,
       steps: [
         github.WorkflowSteps.checkout(),
+        nxCacheRestoreStep(),
         ...repo.renderWorkflowSetup(),
         {
           name: 'Reset coverage thresholds',

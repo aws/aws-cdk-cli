@@ -13,10 +13,19 @@ jobs:
     runs-on: aws-cdk_ubuntu-latest_4-core
     permissions:
       id-token: write
+    env:
+      NX_SKIP_NX_CACHE: ${{ github.ref == 'refs/heads/main' || github.event_name == 'merge_group' }}
     if: github.repository == 'aws/aws-cdk-cli'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Restore NX cache
+        if: ${{ !(github.ref == 'refs/heads/main' || github.event_name == 'merge_group') }}
+        uses: actions/cache/restore@v5
+        with:
+          path: .nx/cache
+          key: nx-${{ github.sha }}
+          restore-keys: nx-
       - name: Enable corepack
         run: corepack enable
       - name: Setup Node.js

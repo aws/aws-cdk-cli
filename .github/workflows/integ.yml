@@ -33,6 +33,7 @@ jobs:
       DEBUG: "true"
       TESTING_CDK: "1"
       NO_UNIT_TESTS: "1"
+      NX_SKIP_NX_CACHE: ${{ github.ref == 'refs/heads/main' || github.event_name == 'merge_group' }}
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Checkout
@@ -40,6 +41,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - name: Restore NX cache
+        if: ${{ !(github.ref == 'refs/heads/main' || github.event_name == 'merge_group') }}
+        uses: actions/cache/restore@v5
+        with:
+          path: .nx/cache
+          key: nx-${{ github.sha }}
+          restore-keys: nx-
       - name: Fetch tags from origin repo
         run: |-
           git remote add upstream https://github.com/aws/aws-cdk-cli.git

@@ -1,6 +1,7 @@
 import { yarn } from 'cdklabs-projen-project-types';
 import type { javascript, Project } from 'projen';
 import { Component, github, TextFile } from 'projen';
+import { NX_CACHE_ENV, nxCacheRestoreStep } from './nx-cache';
 
 /**
  * Amends the test task with special provisions for unit testing.
@@ -388,6 +389,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         DEBUG: 'true',
         TESTING_CDK: '1',
         NO_UNIT_TESTS: '1',
+        ...NX_CACHE_ENV,
       },
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
@@ -403,6 +405,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
             repository: '${{ github.event.pull_request.head.repo.full_name }}',
           },
         },
+        nxCacheRestoreStep(),
         // We used to fetch tags from the repo using 'checkout', but if it's a fork
         // the tags won't be there, so we have to fetch them from upstream.
         //
