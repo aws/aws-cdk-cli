@@ -24,11 +24,6 @@ export function isEc2Instance(): boolean {
 }
 
 function detectEc2(): boolean {
-  // If the user has explicitly told us about IMDS, respect that
-  if (process.env.AWS_EC2_METADATA_DISABLED !== undefined) {
-    return process.env.AWS_EC2_METADATA_DISABLED === 'false';
-  }
-
   const os = platform();
   try {
     if (os === 'linux') {

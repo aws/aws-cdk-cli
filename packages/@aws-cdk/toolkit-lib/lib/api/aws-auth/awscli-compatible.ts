@@ -116,12 +116,13 @@ export class AwsCliCompatible {
      */
 
     // Skip the IMDS credential provider if we're not on EC2, to avoid a
-    // 1-2 second timeout on non-EC2 machines. The SDK's remoteProvider
-    // already respects AWS_EC2_METADATA_DISABLED.
-    if (!isEc2Instance() && process.env.AWS_EC2_METADATA_DISABLED === undefined) {
+    // 1-2 second timeout on non-EC2 machines.
+    if (process.env.AWS_EC2_METADATA_DISABLED === undefined && !isEc2Instance()) {
       process.env.AWS_EC2_METADATA_DISABLED = 'true';
     }
 
+    // This chain respects the AWS_EC2_METADATA_DISABLED envvar, which can otherwise
+    // not be easily disabled using a property.
     const nodeProviderChain = fromNodeProviderChain({
       profile: envProfile,
       clientConfig,
