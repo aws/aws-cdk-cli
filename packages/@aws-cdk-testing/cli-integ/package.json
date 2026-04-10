@@ -100,7 +100,7 @@
     "sinon": "^9",
     "ts-jest": "^29",
     "ts-mock-imports": "^1",
-    "yaml": "1",
+    "yaml": "2",
     "yargs": "^16"
   },
   "keywords": [

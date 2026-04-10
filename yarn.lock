@@ -65,7 +65,7 @@ __metadata:
     ts-jest: "npm:^29.2.5"
     ts-mock-imports: "npm:^1"
     typescript: "npm:5.9"
-    yaml: "npm:1"
+    yaml: "npm:2"
     yargs: "npm:^16"
   bin:
     apply-patches: bin/apply-patches
@@ -493,7 +493,7 @@ __metadata:
     typescript: "npm:5.9"
     uuid: "npm:^11.1.0"
     wrap-ansi: "npm:^7"
-    yaml: "npm:^1"
+    yaml: "npm:^2"
   peerDependencies:
     "@aws-cdk/cli-plugin-contract": ^0.0.0
   languageName: unknown
@@ -7102,7 +7102,7 @@ __metadata:
     typescript: "npm:5.9"
     uuid: "npm:^11.1.0"
     wrap-ansi: "npm:^7"
-    yaml: "npm:^1"
+    yaml: "npm:^2"
     yargs: "npm:^15"
   bin:
     cdk: bin/cdk
@@ -18238,14 +18238,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml@npm:1, yaml@npm:1.10.3, yaml@npm:^1":
+"yaml@npm:1.10.3":
   version: 1.10.3
   resolution: "yaml@npm:1.10.3"
   checksum: 10c0/c309ff85a0a569a981d71ab9cf0fef68672a16b9cdf40639d1c3b30034f6cd16ee428602bd6d64ecf006f8c8bee499023cac236538f79898aa99fb5db529a2ed
   languageName: node
   linkType: hard
 
-"yaml@npm:^2.2.2, yaml@npm:^2.6.0, yaml@npm:^2.8.3":
+"yaml@npm:2, yaml@npm:^2, yaml@npm:^2.2.2, yaml@npm:^2.6.0, yaml@npm:^2.8.3":
   version: 2.8.3
   resolution: "yaml@npm:2.8.3"
   bin:
