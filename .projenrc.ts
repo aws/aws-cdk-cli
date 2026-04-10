@@ -235,6 +235,7 @@ const repoProject = new yarn.Monorepo({
     '@aws-sdk/client-s3',
     '@aws-sdk/credential-providers',
     '@aws-sdk/lib-storage',
+    'tsx',
   ],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
@@ -242,6 +243,25 @@ const repoProject = new yarn.Monorepo({
   },
   nx: true,
   buildWithNx: true,
+  yarnBerry: true,
+  consistentVersions: [
+    'typescript',
+    // '@types/node', // @todo
+    'eslint',
+    'eslint-import-resolver-typescript',
+    'eslint-plugin-import',
+    'eslint-plugin-jest',
+    'eslint-plugin-jsdoc',
+    '@cdklabs/eslint-plugin',
+    '@stylistic/eslint-plugin',
+    '@typescript-eslint/eslint-plugin',
+    '@typescript-eslint/parser',
+    'prettier',
+    // 'eslint-config-prettier', // @todo
+    // 'eslint-plugin-prettier', // @todo
+    // 'jest', // @todo
+    'jest-junit',
+  ],
 
   eslintOptions: {
     dirs: ['lib'],
@@ -354,8 +374,6 @@ const gitSecretsScan = repoProject.addTask('git-secrets-scan', {
 });
 
 repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
-
-new AdcPublishing(repoProject);
 
 const repo = configureProject(repoProject);
 
@@ -1181,6 +1199,7 @@ const cli = configureProject(
       'nock@13',
       'sinon',
       'ts-mock-imports',
+      'ts-node',
     ],
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -1363,7 +1382,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('ts-node -P tsconfig.dev.json --prefer-ts-exts scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('ts-node -P tsconfig.dev.json scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
