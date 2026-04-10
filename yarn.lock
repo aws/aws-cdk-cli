@@ -7061,7 +7061,7 @@ __metadata:
     aws-cdk-lib: "npm:2.248.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
-    camelcase: "npm:^6"
+    camelcase: "npm:^8"
     cdk-from-cfn: "npm:^0.295.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
@@ -7706,10 +7706,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"camelcase@npm:^6, camelcase@npm:^6.2.0, camelcase@npm:^6.3.0":
+"camelcase@npm:^6.2.0, camelcase@npm:^6.3.0":
   version: 6.3.0
   resolution: "camelcase@npm:6.3.0"
   checksum: 10c0/0d701658219bd3116d12da3eab31acddb3f9440790c0792e0d398f0a520a6a4058018e546862b6fba89d7ae990efaeb97da71e1913e9ebf5a8b5621a3d55c710
+  languageName: node
+  linkType: hard
+
+"camelcase@npm:^8":
+  version: 8.0.0
+  resolution: "camelcase@npm:8.0.0"
+  checksum: 10c0/56c5fe072f0523c9908cdaac21d4a3b3fb0f608fb2e9ba90a60e792b95dd3bb3d1f3523873ab17d86d146e94171305f73ef619e2f538bd759675bc4a14b4bff3
   languageName: node
   linkType: hard
 
