@@ -91,7 +91,7 @@
     "jest": "^29",
     "jest-junit": "^16",
     "make-runnable": "^1",
-    "mockttp": "^3",
+    "mockttp": "^4",
     "node-pty": "^1.1.0",
     "npm": "^11",
     "p-queue": "^6",
