@@ -121,7 +121,7 @@
     "cdk-from-cfn": "^0.295.0",
     "chalk": "^4",
     "chokidar": "^4",
-    "decamelize": "^5",
+    "decamelize": "^6",
     "enquirer": "^2.4.1",
     "fast-glob": "^3.3.3",
     "fs-extra": "^11",
