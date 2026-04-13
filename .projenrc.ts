@@ -1335,6 +1335,13 @@ new pj.javascript.UpgradeDependencies(cli, {
   },
 });
 
+// The upgrade-aws-cdk-lib workflow runs `yarn projen upgrade-aws-cdk-lib` from
+// the aws-cdk workspace directory. In Yarn 4, workspace packages can only resolve
+// binaries from their own declared dependencies. `configureProject` removes projen
+// from all workspaces (assuming it's hoisted from the root), but that doesn't work
+// for Yarn 4. We need projen as a devDependency here so the workflow can find it.
+cli.addDevDeps('projen');
+
 new TypecheckTests(cli);
 fixupTestTask(cli);
 

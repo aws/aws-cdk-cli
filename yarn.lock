@@ -6925,6 +6925,7 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
+    projen: "npm:^0.99.48"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
     semver: "npm:^7.7.4"
