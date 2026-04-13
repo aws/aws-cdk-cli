@@ -156,11 +156,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cx-api",
-      "version": "^2",
-      "type": "runtime"
-    },
-    {
       "name": "@aws-cdk/toolkit-lib",
       "type": "runtime"
     },

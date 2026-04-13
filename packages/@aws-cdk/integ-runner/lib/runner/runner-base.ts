@@ -2,7 +2,6 @@
 import * as path from 'path';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import type { TestCase, DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema';
-import { TARGET_PARTITIONS } from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
 import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
@@ -414,7 +413,7 @@ export abstract class IntegRunner {
 
       // We originally had PLANNED to set this to ['aws', 'aws-cn'], but due to a programming mistake
       // it was set to everything. In this PR, set it to everything to not mess up all the snapshots.
-      [TARGET_PARTITIONS]: undefined,
+      ['@aws-cdk/core:target-partitions']: undefined,
 
       /* ---------------- THE FUTURE LIVES BELOW----------------------------
       // Restricting to these target partitions makes most service principals synthesize to

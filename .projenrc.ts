@@ -1452,7 +1452,6 @@ const integRunner = configureProject(
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),

@@ -338,7 +338,6 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/cloudformation-diff": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2"
     "@aws-cdk/integ-tests-alpha": "npm:2.184.1-alpha.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-sdk/client-cloudformation": "npm:^3"
