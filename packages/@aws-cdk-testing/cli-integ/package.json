@@ -101,7 +101,7 @@
     "ts-jest": "^29",
     "ts-mock-imports": "^1",
     "yaml": "1",
-    "yargs": "^16"
+    "yargs": "^18"
   },
   "keywords": [
     "aws",
