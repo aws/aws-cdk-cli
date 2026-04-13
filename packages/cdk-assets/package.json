@@ -65,7 +65,7 @@
   },
   "dependencies": {
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
-    "yargs": "^17.7.2"
+    "yargs": "^18.0.0"
   },
   "keywords": [
     "aws",
