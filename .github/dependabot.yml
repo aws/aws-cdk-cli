@@ -5,7 +5,8 @@ updates:
   - package-ecosystem: npm
     schedule:
       interval: weekly
-    cooldown: 7
+    cooldown:
+      default-days: 7
     labels:
       - auto-approve
     allow:
@@ -29,7 +30,8 @@ updates:
     directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
-    cooldown: 7
+    cooldown:
+      default-days: 7
     labels:
       - auto-approve
     open-pull-requests-limit: 5
@@ -37,7 +39,8 @@ updates:
     directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
-    cooldown: 7
+    cooldown:
+      default-days: 7
     labels:
       - auto-approve
     open-pull-requests-limit: 5
@@ -45,7 +48,8 @@ updates:
     directory: /packages/aws-cdk/lib/init-templates
     schedule:
       interval: weekly
-    cooldown: 7
+    cooldown:
+      default-days: 7
     labels:
       - auto-approve
     open-pull-requests-limit: 5

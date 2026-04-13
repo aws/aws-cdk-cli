@@ -1665,7 +1665,9 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
       {
         'package-ecosystem': 'npm',
         'schedule': { interval: 'weekly' },
-        'cooldown': dependabotCooldown,
+        'cooldown': {
+          'default-days': dependabotCooldown,
+        },
         'labels': ['auto-approve'],
         'allow': [{
           'dependency-type': 'production',
@@ -1680,7 +1682,9 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
         'package-ecosystem': pkgEco,
         'directory': '/packages/aws-cdk/lib/init-templates',
         'schedule': { interval: 'weekly' },
-        'cooldown': dependabotCooldown,
+        'cooldown': {
+          'default-days': dependabotCooldown,
+        },
         'labels': ['auto-approve'],
         'open-pull-requests-limit': 5,
       })),
