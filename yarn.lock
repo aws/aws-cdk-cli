@@ -12,7 +12,7 @@ __metadata:
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-cdk/yarn-cling": "npm:^0.0.0"
     "@aws-sdk/client-cloudformation": "npm:^3.1028.0"
-    "@aws-sdk/client-codeartifact": "npm:^3.1028.0"
+    "@aws-sdk/client-codeartifact": "npm:^3.1029.0"
     "@aws-sdk/client-ecr": "npm:^3.1028.0"
     "@aws-sdk/client-ecr-public": "npm:^3.1028.0"
     "@aws-sdk/client-ecs": "npm:^3.1028.0"
@@ -889,9 +889,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-codeartifact@npm:^3.1028.0":
-  version: 3.1028.0
-  resolution: "@aws-sdk/client-codeartifact@npm:3.1028.0"
+"@aws-sdk/client-codeartifact@npm:^3.1029.0":
+  version: 3.1029.0
+  resolution: "@aws-sdk/client-codeartifact@npm:3.1029.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -933,7 +933,7 @@ __metadata:
     "@smithy/util-stream": "npm:^4.5.22"
     "@smithy/util-utf8": "npm:^4.2.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/dadce85554d6d4d3229d5a63c8f8f457ece78809f5b865b62f88f05ddec6d54067ec490368c0f61e15324ddd07ba5f82593a489d81b8d12d25c3c712c86a043a
+  checksum: 10c0/b8746215a536fb717828a1749448c36c13c9946fa84c7e9c080add1f3445b1360127729323b2a1a86b597e8463cb10a1e2a442df5b8861b31c82682b7a71f2c6
   languageName: node
   linkType: hard
 
