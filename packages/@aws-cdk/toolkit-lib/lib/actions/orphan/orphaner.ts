@@ -6,8 +6,10 @@ import {
   replaceReferences,
   removeDependsOn,
   walkObject,
-  assertSafeDeployResult,
+  assertDeploySucceeded,
+  ensureNonEmptyResources,
 } from './private';
+import type { ICloudFormationClient } from '../../api/aws-auth/sdk';
 import type { Deployments } from '../../api/deployments';
 import type { IoHelper } from '../../api/io/private';
 import { ToolkitError } from '../../toolkit/toolkit-error';
@@ -103,7 +105,7 @@ export class ResourceOrphaner {
     return {
       stackName: stack.stackName,
       orphanedResources,
-      execute: () => this.execute(stack, logicalIds, currentTemplate, constructPaths),
+      execute: () => this.execute(stack, logicalIds, currentTemplate),
     };
   }
 
@@ -111,12 +113,11 @@ export class ResourceOrphaner {
     stack: cxapi.CloudFormationStackArtifact,
     logicalIds: string[],
     currentTemplate: any,
-    constructPaths: string[],
   ): Promise<OrphanResult> {
     const env = await this.deployments.envs.accessStackForReadOnlyStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
 
-    // Get physical resource IDs (Ref values) — paginated for stacks with >100 resources
+    // Get physical resource IDs (Ref values)
     const stackResources = await cfn.listStackResources({ StackName: stack.stackName });
     const physicalIds = new Map<string, string>();
     for (const res of stackResources) {
@@ -125,61 +126,31 @@ export class ResourceOrphaner {
       }
     }
 
-    // Build resolved values with Ref values
-    const values = new Map<string, ResolvedValues>();
+    // Step 1/3: Resolve GetAtt attribute values via temporary stack outputs
+    await this.ioHelper.defaults.info('Step 1/3: Resolving attribute values...');
+    const resolvedValues = await this.resolveGetAttValues(stack, cfn, logicalIds, currentTemplate, physicalIds);
+
+    // Step 2/3: Decouple — set RETAIN, replace all Ref/GetAtt with literals, remove DependsOn
+    await this.ioHelper.defaults.info('Step 2/3: Decoupling resources...');
+    const decoupledTemplate = JSON.parse(JSON.stringify(currentTemplate));
     for (const id of logicalIds) {
-      values.set(id, { ref: physicalIds.get(id) ?? id, attrs: {} });
+      replaceReferences(decoupledTemplate, id, resolvedValues.get(id)!);
+      removeDependsOn(decoupledTemplate, id);
+      decoupledTemplate.Resources[id].DeletionPolicy = 'Retain';
+      decoupledTemplate.Resources[id].UpdateReplacePolicy = 'Retain';
     }
+    const step2Result = await this.deployStack(stack, decoupledTemplate, 'cdk-orphan-step2');
+    assertDeploySucceeded(step2Result, 'Step 2');
 
-    // Resolve GetAtt values via temporary stack outputs.
-    // This is decoupled so it can be replaced with Cloud Control API later.
-    const attrValues = await this.resolveGetAttValues(stack, logicalIds, currentTemplate, values);
-
-    // Step 2: Replace all references with literals, remove temp outputs
-    const templateStep2 = JSON.parse(JSON.stringify(currentTemplate));
-    for (const id of logicalIds) {
-      replaceReferences(templateStep2, id, attrValues.get(id)!);
-      templateStep2.Resources[id].DeletionPolicy = 'Retain';
-      templateStep2.Resources[id].UpdateReplacePolicy = 'Retain';
-    }
-
-    await this.ioHelper.defaults.info('Step 2/3: Replacing references with literals...');
-    const step2Result = await this.deployments.deployStack({
-      stack,
-      roleArn: this.roleArn,
-      toolkitStackName: this.toolkitStackName,
-      deploymentMethod: { method: 'change-set', changeSetName: 'cdk-orphan-step2' },
-      overrideTemplate: templateStep2,
-      usePreviousParameters: true,
-      forceDeployment: true,
-    });
-    assertSafeDeployResult(step2Result, 'Step 2');
-
-    // Step 3: Remove orphaned resources
-    const templateStep3 = JSON.parse(JSON.stringify(templateStep2));
-    for (const id of logicalIds) {
-      delete templateStep3.Resources[id];
-      removeDependsOn(templateStep3, id);
-    }
-
-    // CloudFormation requires at least one resource in the template
-    if (Object.keys(templateStep3.Resources).length === 0) {
-      templateStep3.Resources.CDKOrphanPlaceholder = {
-        Type: 'AWS::CloudFormation::WaitConditionHandle',
-      };
-    }
-
+    // Step 3/3: Remove orphaned resources from the template
     await this.ioHelper.defaults.info('Step 3/3: Removing resources from stack...');
-    const step3Result = await this.deployments.deployStack({
-      stack,
-      roleArn: this.roleArn,
-      toolkitStackName: this.toolkitStackName,
-      deploymentMethod: { method: 'change-set', changeSetName: 'cdk-orphan-step3' },
-      overrideTemplate: templateStep3,
-      usePreviousParameters: true,
-      forceDeployment: true,
-    });
-    assertSafeDeployResult(step3Result, 'Step 3');
+    const removalTemplate = JSON.parse(JSON.stringify(decoupledTemplate));
+    for (const id of logicalIds) {
+      delete removalTemplate.Resources[id];
+    }
+    ensureNonEmptyResources(removalTemplate);
+    const step3Result = await this.deployStack(stack, removalTemplate, 'cdk-orphan-step3');
+    assertDeploySucceeded(step3Result, 'Step 3');
     if (step3Result.noOp) {
       throw new ToolkitError(
         'OrphanNoOp',
@@ -189,8 +160,23 @@ export class ResourceOrphaner {
       );
     }
 
-    const resourceMapping = await this.getResourceIdentifiers(stack, logicalIds, physicalIds, currentTemplate, constructPaths);
+    const resourceMapping = await this.getResourceIdentifiers(stack, logicalIds, physicalIds, currentTemplate);
     return { resourceMapping };
+  }
+
+  /**
+   * Deploy a template override to the stack.
+   */
+  private async deployStack(stack: cxapi.CloudFormationStackArtifact, template: any, changeSetName: string) {
+    return this.deployments.deployStack({
+      stack,
+      roleArn: this.roleArn,
+      toolkitStackName: this.toolkitStackName,
+      deploymentMethod: { method: 'change-set', changeSetName },
+      overrideTemplate: template,
+      usePreviousParameters: true,
+      forceDeployment: true,
+    });
   }
 
   /**
@@ -206,80 +192,65 @@ export class ResourceOrphaner {
    */
   private async resolveGetAttValues(
     stack: cxapi.CloudFormationStackArtifact,
+    cfn: ICloudFormationClient,
     logicalIds: string[],
     currentTemplate: any,
-    refValues: Map<string, ResolvedValues>,
+    physicalIds: Map<string, string>,
   ): Promise<Map<string, ResolvedValues>> {
+    // Build Ref values from physical IDs
+    const values = new Map<string, ResolvedValues>();
+    for (const id of logicalIds) {
+      const physicalId = physicalIds.get(id);
+      if (!physicalId) {
+        throw new ToolkitError('OrphanMissingPhysicalId', `Could not resolve physical resource ID for '${id}'`);
+      }
+      values.set(id, { ref: physicalId, attrs: {} });
+    }
+
     const getAttRefs = this.findGetAttReferences(currentTemplate, logicalIds);
 
-    // If there are no GetAtt references, skip the deploy — just return Ref values
-    if (getAttRefs.length === 0) {
-      return refValues;
+    // If there are no GetAtt references, skip the deploy
+    if (getAttRefs.size === 0) {
+      return values;
     }
 
-    // Inject temporary outputs and set RETAIN
-    const templateStep1 = JSON.parse(JSON.stringify(currentTemplate));
-    if (!templateStep1.Outputs) {
-      templateStep1.Outputs = {};
+    // Inject temporary outputs so CloudFormation resolves the GetAtt values
+    const resolveTemplate = JSON.parse(JSON.stringify(currentTemplate));
+    if (!resolveTemplate.Outputs) {
+      resolveTemplate.Outputs = {};
     }
-    for (const ref of getAttRefs) {
-      templateStep1.Outputs[ref.outputKey] = {
+    for (const [outputKey, ref] of getAttRefs) {
+      resolveTemplate.Outputs[outputKey] = {
         Value: { 'Fn::GetAtt': [ref.logicalId, ref.attr] },
       };
     }
-    for (const id of logicalIds) {
-      replaceReferences(templateStep1, id, refValues.get(id)!);
-      templateStep1.Resources[id].DeletionPolicy = 'Retain';
-      templateStep1.Resources[id].UpdateReplacePolicy = 'Retain';
-    }
 
-    await this.ioHelper.defaults.info('Step 1/3: Resolving attribute values...');
-    const step1Result = await this.deployments.deployStack({
-      stack,
-      roleArn: this.roleArn,
-      toolkitStackName: this.toolkitStackName,
-      deploymentMethod: { method: 'change-set', changeSetName: 'cdk-orphan-step1' },
-      overrideTemplate: templateStep1,
-      usePreviousParameters: true,
-      forceDeployment: true,
-    });
-    assertSafeDeployResult(step1Result, 'Step 1');
+    const step1Result = await this.deployStack(stack, resolveTemplate, 'cdk-orphan-step1');
+    assertDeploySucceeded(step1Result, 'Step 1');
 
     // Read resolved values from stack outputs
-    const env = await this.deployments.envs.accessStackForReadOnlyStackOperations(stack);
-    const cfn = env.sdk.cloudFormation();
     const stackDesc = await cfn.describeStacks({ StackName: stack.stackName });
-
-    // Build result with both Ref and resolved GetAtt values
-    const result = new Map<string, ResolvedValues>();
-    for (const [id, rv] of refValues) {
-      result.set(id, { ref: rv.ref, attrs: { ...rv.attrs } });
-    }
-
     for (const output of stackDesc.Stacks?.[0]?.Outputs ?? []) {
       if (!output.OutputKey || !output.OutputValue) continue;
-      const ref = getAttRefs.find(r => r.outputKey === output.OutputKey);
+      const ref = getAttRefs.get(output.OutputKey);
       if (ref) {
-        result.get(ref.logicalId)!.attrs[ref.attr] = output.OutputValue;
+        values.get(ref.logicalId)!.attrs[ref.attr] = output.OutputValue;
       }
     }
 
-    return result;
+    return values;
   }
 
-  private findGetAttReferences(template: any, logicalIds: string[]): { logicalId: string; attr: string; outputKey: string }[] {
-    const refs: { logicalId: string; attr: string; outputKey: string }[] = [];
-    const seen = new Set<string>();
+  private findGetAttReferences(template: any, logicalIds: string[]): Map<string, { logicalId: string; attr: string }> {
+    const refs = new Map<string, { logicalId: string; attr: string }>();
 
     walkObject(template, (value) => {
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         const getAtt = value['Fn::GetAtt'];
         if (Array.isArray(getAtt) && logicalIds.includes(getAtt[0])) {
-          const key = `${getAtt[0]}.${getAtt[1]}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            const outputKey = `CdkOrphan${getAtt[0]}${getAtt[1]}`.replace(/[^a-zA-Z0-9]/g, '');
-            refs.push({ logicalId: getAtt[0], attr: getAtt[1], outputKey });
+          const outputKey = `CdkOrphan${getAtt[0]}${getAtt[1]}`.replace(/[^a-zA-Z0-9]/g, '');
+          if (!refs.has(outputKey)) {
+            refs.set(outputKey, { logicalId: getAtt[0], attr: getAtt[1] });
           }
         }
       }
@@ -293,7 +264,6 @@ export class ResourceOrphaner {
     logicalIds: string[],
     physicalIds: Map<string, string>,
     template: any,
-    constructPaths: string[],
   ): Promise<Record<string, Record<string, string>>> {
     const result: Record<string, Record<string, string>> = {};
 
@@ -313,12 +283,6 @@ export class ResourceOrphaner {
         const resource = resources[id];
         if (!resource) continue;
 
-        // Only include the primary resource for each construct path
-        // e.g. for path "MyTable", match "StackName/MyTable/Resource" exactly
-        const cdkPath = resource.Metadata?.[PATH_METADATA_KEY] ?? '';
-        const primaryPaths = constructPaths.map(p => `${stack.stackName}/${p}/Resource`);
-        if (!primaryPaths.includes(cdkPath)) continue;
-
         const identifierProps = identifiersByType.get(resource.Type);
         if (!identifierProps || identifierProps.length === 0) continue;
 
@@ -337,8 +301,8 @@ export class ResourceOrphaner {
           result[id] = identifier;
         }
       }
-    } catch {
-      await this.ioHelper.defaults.debug('Could not retrieve resource identifier summaries');
+    } catch (e) {
+      await this.ioHelper.defaults.warn(`Could not retrieve resource identifiers for import: ${(e as Error).message}`);
     }
 
     return result;

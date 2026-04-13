@@ -141,18 +141,24 @@ import type { DeployStackResult, SuccessfulDeployStackResult } from '../../../ap
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 
 /**
- * Verify a deploy result is successful and did not trigger resource replacement.
+ * Verify a deploy result completed successfully.
  */
-export function assertSafeDeployResult(result: DeployStackResult, step: string): asserts result is SuccessfulDeployStackResult {
-  if (result.type === 'replacement-requires-rollback') {
-    throw new ToolkitError(
-      'OrphanReplacement',
-      `${step}: deployment would cause resource replacement. ` +
-      'This is unexpected during orphan — aborting to protect your resources. ' +
-      'Please report this at https://github.com/aws/aws-cdk-cli/issues',
-    );
-  }
+export function assertDeploySucceeded(result: DeployStackResult, step: string): asserts result is SuccessfulDeployStackResult {
   if (result.type !== 'did-deploy-stack') {
     throw new ToolkitError('OrphanDeployFailed', `${step}: unexpected deployment result '${result.type}'`);
+  }
+}
+
+/**
+ * CloudFormation requires at least one resource in the template.
+ * Add a placeholder if all resources were removed.
+ */
+export function ensureNonEmptyResources(template: any): void {
+  if (Object.keys(template.Resources ?? {}).length === 0) {
+    template.Resources = {
+      CDKOrphanPlaceholder: {
+        Type: 'AWS::CloudFormation::WaitConditionHandle',
+      },
+    };
   }
 }

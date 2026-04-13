@@ -970,17 +970,12 @@ export class CdkToolkit {
   }
 
   public async orphan(options: OrphanOptions) {
-    try {
-      await this.toolkit.orphan(this.props.cloudExecutable, {
-        constructPaths: options.constructPath,
-        roleArn: options.roleArn,
-        toolkitStackName: options.toolkitStackName,
-        force: options.force,
-      });
-    } catch (e) {
-      await this.ioHost.asIoHelper().defaults.error((e as Error).message);
-      throw e;
-    }
+    await this.toolkit.orphan(this.props.cloudExecutable, {
+      constructPaths: options.constructPath,
+      roleArn: options.roleArn,
+      toolkitStackName: options.toolkitStackName,
+      force: options.force,
+    });
   }
 
   public async import(options: ImportOptions) {

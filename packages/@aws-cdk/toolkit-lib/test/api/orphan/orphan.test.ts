@@ -146,72 +146,58 @@ describe('ResourceOrphaner', () => {
   });
 
   describe('execute', () => {
-    test('finds all resources under construct path and removes them in step 3', async () => {
+    test('step 1 injects temporary outputs for GetAtt resolution', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       await plan.execute();
-      const step3 = deployedTemplates[2];
-      expect(step3.Resources.MyTable).toBeUndefined();
-      expect(step3.Resources.MyTableReplica).toBeUndefined();
-      expect(step3.Resources.MyFunction).toBeDefined();
-    });
-
-    test('sets RETAIN on all matched resources in step 1', async () => {
-      const plan = await orphaner.makePlan(STACK, ['MyTable']);
-      await plan.execute();
-      const step1 = deployedTemplates[0];
-      expect(step1.Resources.MyTable.DeletionPolicy).toBe('Retain');
-      expect(step1.Resources.MyTableReplica.DeletionPolicy).toBe('Retain');
-    });
-
-    test('resolves Ref to physical resource ID', async () => {
-      const plan = await orphaner.makePlan(STACK, ['MyTable']);
-      await plan.execute();
-      const step1 = deployedTemplates[0];
-      expect(step1.Resources.MyFunction.Properties.Environment.Variables.TABLE_NAME).toBe('my-table');
-    });
-
-    test('injects temporary outputs for GetAtt in step 1', async () => {
-      const plan = await orphaner.makePlan(STACK, ['MyTable']);
-      await plan.execute();
-      const step1 = deployedTemplates[0];
-      expect(step1.Outputs.CdkOrphanMyTableArn).toEqual({
+      const resolveTemplate = deployedTemplates[0];
+      expect(resolveTemplate.Outputs.CdkOrphanMyTableArn).toEqual({
         Value: { 'Fn::GetAtt': ['MyTable', 'Arn'] },
       });
-      expect(step1.Outputs.CdkOrphanMyTableStreamArn).toEqual({
+      expect(resolveTemplate.Outputs.CdkOrphanMyTableStreamArn).toEqual({
         Value: { 'Fn::GetAtt': ['MyTable', 'StreamArn'] },
       });
     });
 
-    test('resolves GetAtt to literal from temporary outputs in step 2', async () => {
+    test('step 2 sets RETAIN on matched resources', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       await plan.execute();
-      const step2 = deployedTemplates[1];
-      expect(step2.Resources.MyFunction.Properties.Environment.Variables.TABLE_ARN)
+      const decoupledTemplate = deployedTemplates[1];
+      expect(decoupledTemplate.Resources.MyTable.DeletionPolicy).toBe('Retain');
+      expect(decoupledTemplate.Resources.MyTableReplica.DeletionPolicy).toBe('Retain');
+    });
+
+    test('step 2 replaces Ref with physical resource ID', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const decoupledTemplate = deployedTemplates[1];
+      expect(decoupledTemplate.Resources.MyFunction.Properties.Environment.Variables.TABLE_NAME).toBe('my-table');
+      expect(decoupledTemplate.Outputs.TableName.Value).toBe('my-table');
+    });
+
+    test('step 2 replaces GetAtt with resolved literals', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const decoupledTemplate = deployedTemplates[1];
+      expect(decoupledTemplate.Resources.MyFunction.Properties.Environment.Variables.TABLE_ARN)
         .toBe('arn:aws:dynamodb:us-east-1:123456789012:table/my-table');
-      expect(step2.Resources.MyFunction.Properties.Environment.Variables.STREAM_ARN)
+      expect(decoupledTemplate.Resources.MyFunction.Properties.Environment.Variables.STREAM_ARN)
         .toBe('arn:aws:dynamodb:us-east-1:123456789012:table/my-table/stream/2026-01-01T00:00:00.000');
     });
 
-    test('resolves refs in Outputs', async () => {
+    test('step 2 removes DependsOn references', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       await plan.execute();
-      const step1 = deployedTemplates[0];
-      expect(step1.Outputs.TableName.Value).toBe('my-table');
+      const decoupledTemplate = deployedTemplates[1];
+      expect(decoupledTemplate.Resources.MyTableReplica.DependsOn).toBeUndefined();
     });
 
-    test('removes temporary outputs in step 2', async () => {
+    test('step 3 removes orphaned resources', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       await plan.execute();
-      const step2 = deployedTemplates[1];
-      expect(step2.Outputs.CdkOrphanMyTableArn).toBeUndefined();
-      expect(step2.Outputs.CdkOrphanMyTableStreamArn).toBeUndefined();
-    });
-
-    test('removes DependsOn in step 3', async () => {
-      const plan = await orphaner.makePlan(STACK, ['MyTable']);
-      await plan.execute();
-      const step3 = deployedTemplates[2];
-      expect(step3.Resources.MyFunction.DependsOn).toBeUndefined();
+      const removalTemplate = deployedTemplates[2];
+      expect(removalTemplate.Resources.MyTable).toBeUndefined();
+      expect(removalTemplate.Resources.MyTableReplica).toBeUndefined();
+      expect(removalTemplate.Resources.MyFunction).toBeDefined();
     });
 
     test('calls deployStack three times', async () => {
@@ -232,13 +218,41 @@ describe('ResourceOrphaner', () => {
       await expect(plan.execute()).rejects.toThrow(/unexpectedly a no-op/);
     });
 
-    test('returns resource mapping only for primary resources (path ends with /Resource)', async () => {
+    test('returns resource mapping for all identifiable orphaned resources', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       const result = await plan.execute();
-      // MyTableReplica (path ends with /Default) should NOT be included
       expect(result.resourceMapping).toEqual({
         MyTable: { TableName: 'my-table' },
       });
+    });
+
+    test('includes all orphaned resources that have import identifiers', async () => {
+      mockCloudFormationClient.on(GetTemplateSummaryCommand).resolves({
+        ResourceIdentifierSummaries: [
+          { ResourceType: 'AWS::DynamoDB::Table', ResourceIdentifiers: ['TableName'] },
+          { ResourceType: 'Custom::DynamoDBReplica', ResourceIdentifiers: ['Region'] },
+        ],
+      });
+
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      const result = await plan.execute();
+      expect(result.resourceMapping).toEqual({
+        MyTable: { TableName: 'my-table' },
+        MyTableReplica: { Region: 'eu-north-1' },
+      });
+    });
+
+    test('warns but does not fail if resource identifier lookup throws', async () => {
+      jest.spyOn(deployments, 'resourceIdentifierSummaries').mockRejectedValue(new Error('GetTemplateSummary failed'));
+
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      const result = await plan.execute();
+
+      expect(result.resourceMapping).toEqual({});
+      const messages = ioHost.messages.map((m: any) => m.message ?? m);
+      expect(messages).toEqual(expect.arrayContaining([
+        expect.stringContaining('Could not retrieve resource identifiers'),
+      ]));
     });
   });
 });

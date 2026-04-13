@@ -1158,26 +1158,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'orphan');
 
-    // Parse construct paths to derive stack selection.
-    // Paths are in the format `StackName/ConstructPath`, e.g. `MyStack/MyTable`.
+    // Parse construct paths into stack construct ID + construct-level paths.
     const parsed = parseConstructPaths(options.constructPaths);
 
-    const stackSelector: StackSelector = {
-      patterns: [parsed.stackName],
-      strategy: StackSelectionStrategy.PATTERN_MATCH,
-    };
+    // Synth all stacks, then find the one whose hierarchicalId matches the stack construct ID.
+    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
+    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+    const stack = allStacks.stackArtifacts.find(s => s.hierarchicalId === parsed.stackId);
 
-    await using assembly = await synthAndMeasure(ioHelper, cx, stackSelector);
-    const selectedStacks = await assembly.selectStacksV2(stackSelector);
-
-    if (selectedStacks.stackCount !== 1) {
+    if (!stack) {
       throw new ToolkitError(
-        'AmbiguousStackSelection',
-        `Stack selection is ambiguous, please choose a specific stack for orphan [${selectedStacks.stackArtifacts.map((x) => x.id).join(', ')}]`,
+        'StackNotFound',
+        `No stack found with construct ID '${parsed.stackId}'. Available stacks: ${allStacks.stackArtifacts.map(s => s.hierarchicalId).join(', ')}`,
       );
     }
-
-    const stack = selectedStacks.stackArtifacts[0];
     const deployments = await this.deploymentsForAction('orphan');
 
     const orphaner = new ResourceOrphaner({
@@ -1657,35 +1651,35 @@ function zeroTime(): ElapsedTime {
 
 /**
  * Parse construct paths like `/MyStack/MyTable` or `MyStack/MyTable` into
- * a stack name and construct-level paths.
+ * a stack construct ID and construct-level paths.
  *
  * All paths must reference the same stack.
  */
-function parseConstructPaths(paths: string[]): { stackName: string; constructPaths: string[] } {
+function parseConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
   if (paths.length === 0) {
     throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. --path MyStack/MyTable)');
   }
 
   const constructPaths: string[] = [];
-  let stackName: string | undefined;
+  let stackId: string | undefined;
 
   for (const raw of paths) {
     const p = raw.replace(/^\//, ''); // strip leading slash
     const slashIdx = p.indexOf('/');
     if (slashIdx < 0) {
-      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must be in the format StackName/ConstructPath (e.g. MyStack/MyTable)`);
+      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must be in the format StackId/ConstructPath (e.g. MyStack/MyTable)`);
     }
 
     const thisStack = p.substring(0, slashIdx);
     const constructPath = p.substring(slashIdx + 1);
 
-    if (stackName && thisStack !== stackName) {
-      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackName}' and '${thisStack}'`);
+    if (stackId && thisStack !== stackId) {
+      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${thisStack}'`);
     }
 
-    stackName = thisStack;
+    stackId = thisStack;
     constructPaths.push(constructPath);
   }
 
-  return { stackName: stackName!, constructPaths };
+  return { stackId: stackId!, constructPaths };
 }
