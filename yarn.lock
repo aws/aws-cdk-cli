@@ -696,8 +696,8 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/client-bedrock-agentcore-control@npm:^3":
-  version: 3.1028.0
-  resolution: "@aws-sdk/client-bedrock-agentcore-control@npm:3.1028.0"
+  version: 3.1029.0
+  resolution: "@aws-sdk/client-bedrock-agentcore-control@npm:3.1029.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -739,7 +739,7 @@ __metadata:
     "@smithy/util-utf8": "npm:^4.2.2"
     "@smithy/util-waiter": "npm:^4.2.15"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/e0ab7e7f84163f0bb6647e2dad1be654467e56d7592100e370e5777dbec1e16b88def4b249c24f42fb8f858641e2d501ded68ac3db0a8f7a916afe2794d68c8b
+  checksum: 10c0/9368f6f419394bdfd89ac4ff99e1e67a4d4859cab250fcbae91fbbedcc9a93653fc7ccddeab710bade5c03d2d0d2fc7b93976208155a9f72f6158562a837b2c1
   languageName: node
   linkType: hard
 
