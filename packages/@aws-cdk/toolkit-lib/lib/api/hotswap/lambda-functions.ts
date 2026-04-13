@@ -318,7 +318,7 @@ async function waitForLambdasPropertiesUpdateToFinish(
   // set for exponential backoff while waiting
   let minDelaySeconds: number;
   let maxDelaySeconds: number;
-  if(functionIsInVpcOrUsesDockerForCode) {
+  if (functionIsInVpcOrUsesDockerForCode) {
     minDelaySeconds = 2;
     maxDelaySeconds = 5;
   } else {

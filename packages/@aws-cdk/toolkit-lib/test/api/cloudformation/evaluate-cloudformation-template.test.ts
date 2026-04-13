@@ -65,21 +65,8 @@ describe('evaluateCfnExpression', () => {
     });
   });
 
-  describe('Fn::GetAtt with processedTemplate fallback', () => {
-    const createEvalWithProcessedTemplate = (template: Template, processedTemplate: Template) =>
-      new EvaluateCloudFormationTemplate({
-        template,
-        stackName: 'test-stack',
-        parameters: {},
-        account: '0123456789',
-        region: 'ap-south-east-2',
-        partition: 'aws',
-        sdk,
-        stackArtifact: {} as any,
-        processedTemplate,
-      });
-
-    test('falls back to processedTemplate for unsupported resource type', async () => {
+  describe('Fn::GetAtt with Cloud Control API fallback', () => {
+    test('falls back to CCAPI for unsupported resource type', async () => {
       const template: Template = {
         Resources: {
           MyCustom: {
@@ -90,18 +77,7 @@ describe('evaluateCfnExpression', () => {
           },
         },
       };
-      const processedTemplate: Template = {
-        Resources: {
-          MyCustom: {
-            Type: 'AWS::Custom::Thing',
-            Properties: {
-              Foo: 'resolved-bar-value',
-            },
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
-      // Push a stack resource so findPhysicalNameFor works
+      const evaluator = createEvaluateCloudFormationTemplate(template);
       mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
         StackResourceSummaries: [{
           LogicalResourceId: 'MyCustom',
@@ -111,12 +87,17 @@ describe('evaluateCfnExpression', () => {
           LastUpdatedTimestamp: new Date(),
         }],
       });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ Bar: 'resolved-bar-value' }),
+        },
+      });
 
       const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Bar'] });
       expect(result).toEqual('resolved-bar-value');
     });
 
-    test('falls back to processedTemplate for unsupported attribute on known resource type', async () => {
+    test('falls back to CCAPI for unsupported attribute on known resource type', async () => {
       const template: Template = {
         Resources: {
           MyBucket: {
@@ -127,17 +108,7 @@ describe('evaluateCfnExpression', () => {
           },
         },
       };
-      const processedTemplate: Template = {
-        Resources: {
-          MyBucket: {
-            Type: 'AWS::S3::Bucket',
-            Properties: {
-              Tag: 'http://my-bucket.s3-website.ap-south-east-2.amazonaws.com',
-            },
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
+      const evaluator = createEvaluateCloudFormationTemplate(template);
       mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
         StackResourceSummaries: [{
           LogicalResourceId: 'MyBucket',
@@ -147,12 +118,17 @@ describe('evaluateCfnExpression', () => {
           LastUpdatedTimestamp: new Date(),
         }],
       });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ WebsiteURL: 'http://my-bucket.s3-website.ap-south-east-2.amazonaws.com' }),
+        },
+      });
 
       const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyBucket', 'WebsiteURL'] });
       expect(result).toEqual('http://my-bucket.s3-website.ap-south-east-2.amazonaws.com');
     });
 
-    test('throws CfnEvaluationException when processedTemplate also has no value', async () => {
+    test('throws CfnEvaluationException when CCAPI returns no matching attribute', async () => {
       const template: Template = {
         Resources: {
           MyCustom: {
@@ -161,7 +137,7 @@ describe('evaluateCfnExpression', () => {
           },
         },
       };
-      const evaluator = createEvalWithProcessedTemplate(template, {});
+      const evaluator = createEvaluateCloudFormationTemplate(template);
       mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
         StackResourceSummaries: [{
           LogicalResourceId: 'MyCustom',
@@ -171,13 +147,44 @@ describe('evaluateCfnExpression', () => {
           LastUpdatedTimestamp: new Date(),
         }],
       });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ SomethingElse: 'value' }),
+        },
+      });
 
       await expect(
         evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Missing'] }),
       ).rejects.toBeInstanceOf(CfnEvaluationException);
     });
 
-    test('resolves Fn::GetAtt nested inside Fn::Join via processedTemplate fallback', async () => {
+    test('throws CfnEvaluationException when CCAPI call fails', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).rejects(new Error('Resource not found'));
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Bar'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
+    });
+
+    test('resolves Fn::GetAtt via CCAPI for attribute on unsupported resource', async () => {
       const template: Template = {
         Resources: {
           MyCustom: {
@@ -188,17 +195,7 @@ describe('evaluateCfnExpression', () => {
           },
         },
       };
-      const processedTemplate: Template = {
-        Resources: {
-          MyCustom: {
-            Type: 'AWS::Custom::Thing',
-            Properties: {
-              Output: 'the-output',
-            },
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, processedTemplate);
+      const evaluator = createEvaluateCloudFormationTemplate(template);
       mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
         StackResourceSummaries: [{
           LogicalResourceId: 'MyCustom',
@@ -208,13 +205,18 @@ describe('evaluateCfnExpression', () => {
           LastUpdatedTimestamp: new Date(),
         }],
       });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ Output: 'the-output' }),
+        },
+      });
 
       const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Output'] });
       expect(result).toEqual('the-output');
     });
 
     test('still uses hardcoded format when resource type is supported', async () => {
-      // Lambda Arn is in the hardcoded map — should NOT fall back to processedTemplate
+      // Lambda Arn is in the hardcoded map — should NOT fall back to CCAPI
       const template: Template = {
         Resources: {
           MyFunc: {
@@ -223,7 +225,7 @@ describe('evaluateCfnExpression', () => {
           },
         },
       };
-      const evaluator = createEvalWithProcessedTemplate(template, {});
+      const evaluator = createEvaluateCloudFormationTemplate(template);
       mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
         StackResourceSummaries: [{
           LogicalResourceId: 'MyFunc',
@@ -236,116 +238,6 @@ describe('evaluateCfnExpression', () => {
 
       const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyFunc', 'Arn'] });
       expect(result).toEqual('arn:aws:lambda:ap-south-east-2:0123456789:function:my-func');
-    });
-  });
-
-  describe('Fn::GetAtt with Cloud Control API fallback', () => {
-    const createEvalWithProcessedTemplate = (template: Template, processedTemplate: Template) =>
-      new EvaluateCloudFormationTemplate({
-        template,
-        stackName: 'test-stack',
-        parameters: {},
-        account: '0123456789',
-        region: 'ap-south-east-2',
-        partition: 'aws',
-        sdk,
-        stackArtifact: {} as any,
-        processedTemplate,
-      });
-
-    test('resolves SQS QueueName via Cloud Control when other fallbacks fail', async () => {
-      const template: Template = {
-        Resources: {
-          MyQueue: {
-            Type: 'AWS::SQS::Queue',
-            Properties: {},
-          },
-          MyDashboard: {
-            Type: 'AWS::CloudWatch::Dashboard',
-            Properties: {
-              DashboardBody: { 'Fn::GetAtt': ['MyQueue', 'QueueName'] },
-            },
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, {});
-      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
-        StackResourceSummaries: [{
-          LogicalResourceId: 'MyQueue',
-          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
-          ResourceType: 'AWS::SQS::Queue',
-          ResourceStatus: 'CREATE_COMPLETE',
-          LastUpdatedTimestamp: new Date(),
-        }],
-      });
-      mockCloudControlClient.on(GetResourceCommand).resolves({
-        ResourceDescription: {
-          Properties: JSON.stringify({
-            QueueName: 'my-queue',
-            QueueUrl: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
-            Arn: 'arn:aws:sqs:ap-south-east-2:0123456789:my-queue',
-          }),
-        },
-      });
-
-      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'QueueName'] });
-      expect(result).toEqual('my-queue');
-    });
-
-    test('throws CfnEvaluationException when Cloud Control also fails', async () => {
-      const template: Template = {
-        Resources: {
-          MyQueue: {
-            Type: 'AWS::SQS::Queue',
-            Properties: {},
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, {});
-      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
-        StackResourceSummaries: [{
-          LogicalResourceId: 'MyQueue',
-          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
-          ResourceType: 'AWS::SQS::Queue',
-          ResourceStatus: 'CREATE_COMPLETE',
-          LastUpdatedTimestamp: new Date(),
-        }],
-      });
-      mockCloudControlClient.on(GetResourceCommand).rejects(new Error('Resource not found'));
-
-      await expect(
-        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'QueueName'] }),
-      ).rejects.toBeInstanceOf(CfnEvaluationException);
-    });
-
-    test('throws CfnEvaluationException when Cloud Control returns no matching attribute', async () => {
-      const template: Template = {
-        Resources: {
-          MyQueue: {
-            Type: 'AWS::SQS::Queue',
-            Properties: {},
-          },
-        },
-      };
-      const evaluator = createEvalWithProcessedTemplate(template, {});
-      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
-        StackResourceSummaries: [{
-          LogicalResourceId: 'MyQueue',
-          PhysicalResourceId: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue',
-          ResourceType: 'AWS::SQS::Queue',
-          ResourceStatus: 'CREATE_COMPLETE',
-          LastUpdatedTimestamp: new Date(),
-        }],
-      });
-      mockCloudControlClient.on(GetResourceCommand).resolves({
-        ResourceDescription: {
-          Properties: JSON.stringify({ QueueUrl: 'https://sqs.ap-south-east-2.amazonaws.com/0123456789/my-queue' }),
-        },
-      });
-
-      await expect(
-        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyQueue', 'NonExistentAttr'] }),
-      ).rejects.toBeInstanceOf(CfnEvaluationException);
     });
   });
 
