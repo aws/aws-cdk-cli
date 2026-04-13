@@ -107,7 +107,6 @@ __metadata:
   dependencies:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2"
     "@aws-sdk/client-ecr": "npm:^3"
     "@aws-sdk/client-s3": "npm:^3"
     "@aws-sdk/client-secrets-manager": "npm:^3"

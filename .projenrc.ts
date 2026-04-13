@@ -698,7 +698,6 @@ const cdkAssetsLib = configureProject(
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       'archiver',
       'fast-glob',

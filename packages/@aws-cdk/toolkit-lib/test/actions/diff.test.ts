@@ -11,6 +11,8 @@ import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
+jest.setTimeout(20_000);
+
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 

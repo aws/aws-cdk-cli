@@ -151,11 +151,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cx-api",
-      "version": "^2",
-      "type": "runtime"
-    },
-    {
       "name": "@aws-sdk/client-ecr",
       "version": "^3",
       "type": "runtime"
