@@ -3,7 +3,7 @@ import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aw
 import type { NestedStackTemplates } from './nested-stack-helpers';
 import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { SDK } from '../aws-auth/private';
+import type { ICloudControlClient, SDK } from '../aws-auth/private';
 import type { ResourceMetadata } from '../resource-metadata';
 import { resourceMetadata } from '../resource-metadata';
 
@@ -100,12 +100,6 @@ export interface EvaluateCloudFormationTemplateProps {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
-  /**
-   * The processed template from CloudFormation with all intrinsic functions
-   * resolved to their concrete values from the last successful deployment.
-   * Used as a fallback when local intrinsic evaluation fails.
-   */
-  readonly processedTemplate?: Template;
 }
 
 export class EvaluateCloudFormationTemplate {
@@ -122,9 +116,9 @@ export class EvaluateCloudFormationTemplate {
   };
   private readonly stackResources: ListStackResources;
   private readonly lookupExport: LookupExport;
-  private readonly processedTemplate: Template;
 
   private cachedUrlSuffix: string | undefined;
+  private _cloudControl: ICloudControlClient | undefined;
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -151,10 +145,13 @@ export class EvaluateCloudFormationTemplate {
 
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
+  }
 
-    // The processed template has all intrinsics resolved by CloudFormation from the last deployment.
-    // Used as a fallback when local evaluation of Fn::GetAtt fails for unsupported resource types.
-    this.processedTemplate = props.processedTemplate ?? {};
+  private get cloudControl(): ICloudControlClient {
+    if (!this._cloudControl) {
+      this._cloudControl = this.sdk.cloudControl();
+    }
+    return this._cloudControl;
   }
 
   // clones current EvaluateCloudFormationTemplate object, but updates the stack name
@@ -174,7 +171,6 @@ export class EvaluateCloudFormationTemplate {
       partition: this.partition,
       sdk: this.sdk,
       nestedStacks: this.nestedStacks,
-      processedTemplate: this.processedTemplate,
     });
   }
 
@@ -472,20 +468,10 @@ export class EvaluateCloudFormationTemplate {
       }
     }
 
-    // Fall back to the processed template: find where this Fn::GetAtt is used in the
-    // original template, then read the resolved value at the same path in the processed template.
-    const logicalId = resource.LogicalResourceId!;
-    const resolvedValue = findResolvedGetAtt(this.template, this.processedTemplate, logicalId, attribute);
-    if (resolvedValue !== undefined) {
-      return resolvedValue;
-    }
-
-    // Last resort: query the live resource via Cloud Control API.
     // This will fail for resource types with compound primaryIdentifiers because
     // CloudFormation's PhysicalResourceId only contains a single value.
     try {
-      const cloudControl = this.sdk.cloudControl();
-      const response = await cloudControl.getResource({
+      const response = await this.cloudControl.getResource({
         TypeName: resource.ResourceType!,
         Identifier: physicalId!,
       });
@@ -493,8 +479,10 @@ export class EvaluateCloudFormationTemplate {
       if (attribute in props) {
         return props[attribute];
       }
-    } catch {
+    } catch (error: any) {
       // Cloud Control lookup failed — fall through to the error below
+      throw new CfnEvaluationException(`Could not find '${attribute}' attribute of the '${resource.ResourceType}' resource because` +
+        `an error occured while attempting to retrieve the information: '${error.name}:${error.message}'`);
     }
 
     throw new CfnEvaluationException(
@@ -596,70 +584,6 @@ function appsyncGraphQlFunctionIDFmt(parts: ArnParts): string {
 function appsyncGraphQlDataSourceNameFmt(parts: ArnParts): string {
   // arn:aws:appsync:us-east-1:111111111111:apis/<apiId>/datasources/<name>
   return parts.resourceName.split('/')[3];
-}
-
-/**
- * Finds the resolved value of a Fn::GetAtt by comparing the original template
- * (with intrinsics) against the processed template (fully resolved by CloudFormation).
- *
- * Walks the original template looking for {"Fn::GetAtt": [logicalId, attribute]},
- * then reads the same path in the processed template to get the resolved value.
- */
-function findResolvedGetAtt(
-  original: Template,
-  processed: Template,
-  logicalId: string,
-  attribute: string,
-): string | undefined {
-  return findValueAtMatchingPath(
-    original,
-    processed,
-    (node) => {
-      if (typeof node !== 'object' || node === null) return false;
-      const getAtt = node['Fn::GetAtt'];
-      if (!getAtt) return false;
-      if (Array.isArray(getAtt)) {
-        return getAtt[0] === logicalId && getAtt[1] === attribute;
-      }
-      if (typeof getAtt === 'string') {
-        return getAtt === `${logicalId}.${attribute}`;
-      }
-      return false;
-    },
-  );
-}
-
-/**
- * Walks `original` looking for nodes where `predicate` returns true.
- * When found, returns the value at the same path in `resolved`.
- */
-function findValueAtMatchingPath(
-  original: any,
-  resolved: any,
-  predicate: (node: any) => boolean,
-): string | undefined {
-  if (predicate(original)) {
-    return typeof resolved === 'string' ? resolved : undefined;
-  }
-
-  if (original === null || original === undefined || typeof original !== 'object') {
-    return undefined;
-  }
-
-  if (Array.isArray(original)) {
-    for (let i = 0; i < original.length; i++) {
-      const result = findValueAtMatchingPath(original[i], resolved?.[i], predicate);
-      if (result !== undefined) return result;
-    }
-    return undefined;
-  }
-
-  for (const key of Object.keys(original)) {
-    const result = findValueAtMatchingPath(original[key], resolved?.[key], predicate);
-    if (result !== undefined) return result;
-  }
-
-  return undefined;
 }
 
 interface Intrinsic {

@@ -316,7 +316,16 @@ async function waitForLambdasPropertiesUpdateToFinish(
   // then the update will take much longer and we can wait longer between checks
   // otherwise, the update will be quick. This is reflected in the delay times we
   // set for exponential backoff while waiting
-  const minDelaySeconds = functionIsInVpcOrUsesDockerForCode ? 3 : 1, maxDelaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 3;
+  let minDelaySeconds: number;
+  let maxDelaySeconds: number;
+  if(functionIsInVpcOrUsesDockerForCode) {
+    minDelaySeconds = 2;
+    maxDelaySeconds = 5;
+  } else {
+    // does not use exponential backoff, we should get results very fast
+    minDelaySeconds = 1;
+    maxDelaySeconds = 1;
+  }
 
   await lambda.waitUntilFunctionUpdated(minDelaySeconds, maxDelaySeconds, {
     FunctionName: functionName,

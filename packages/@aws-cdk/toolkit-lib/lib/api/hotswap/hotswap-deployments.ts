@@ -8,7 +8,7 @@ import { NonHotswappableReason } from '../../payloads';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
-import { loadCurrentTemplateWithNestedStacks, loadCurrentTemplate, EvaluateCloudFormationTemplate } from '../cloudformation';
+import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from './appsync-mapping-templates';
 import { isHotswappableCodeBuildProjectChange } from './code-build-projects';
 import type {
@@ -164,7 +164,6 @@ async function hotswapDeployment(
   const sdk = (await sdkProvider.forEnvironment(resolvedEnv, Mode.ForWriting)).sdk;
 
   const currentTemplate = await loadCurrentTemplateWithNestedStacks(stack, sdk);
-  const processedTemplate = await loadCurrentTemplate(stack, sdk, true);
 
   const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
     stackArtifact: stack,
@@ -174,7 +173,6 @@ async function hotswapDeployment(
     partition: (await sdk.currentAccount()).partition,
     sdk,
     nestedStacks: currentTemplate.nestedStacks,
-    processedTemplate,
   });
 
   const stackChanges = cfn_diff.fullDiff(currentTemplate.deployedRootTemplate, stack.template);
