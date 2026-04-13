@@ -76,7 +76,7 @@
     "chalk": "^4",
     "chokidar": "^4",
     "fs-extra": "^9",
-    "proxy-agent": "^6.5.0",
+    "proxy-agent": "^8.0.1",
     "workerpool": "^6",
     "yargs": "^16"
   },
