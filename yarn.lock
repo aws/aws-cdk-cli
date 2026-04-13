@@ -840,8 +840,8 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/client-cloudwatch-logs@npm:^3":
-  version: 3.1028.0
-  resolution: "@aws-sdk/client-cloudwatch-logs@npm:3.1028.0"
+  version: 3.1029.0
+  resolution: "@aws-sdk/client-cloudwatch-logs@npm:3.1029.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
@@ -885,7 +885,7 @@ __metadata:
     "@smithy/util-retry": "npm:^4.3.0"
     "@smithy/util-utf8": "npm:^4.2.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/42c7caf97f1562cc19d9e23cde6673563cdb1fa8c3de96401c5107113abffd091a121be9dcafc0bdf84c7ef135de88f8c6325a8b9f7d94f83691119922b6961e
+  checksum: 10c0/84aead9b31f9664f2f1820a695a7b14619a7cdedaaf9fac0f72a66bbb00814038681e0053c48b3451809f4f9e0fa5a8bf5d49520e1146947cfbce349777f36b6
   languageName: node
   linkType: hard
 
