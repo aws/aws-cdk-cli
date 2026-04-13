@@ -1198,6 +1198,130 @@ describe('import-existing-resources', () => {
       ImportExistingResources: true,
     } as CreateChangeSetCommandInput);
   });
+
+  test('enhances error message with construct paths when changeset fails', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-stack',
+      template: {
+        Resources: {
+          DashboardsMyRoleABC123: {
+            Type: 'AWS::IAM::Role',
+            Metadata: { 'aws:cdk:path': 'import-error-stack/Dashboards/MyRole/Resource' },
+          },
+          AnotherResourceABC123: {
+            Type: 'AWS::S3::Bucket',
+            Metadata: { 'aws:cdk:path': 'import-error-stack/MyService/AnotherResource/Resource' },
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}), AnotherResourceABC123 ({BucketName=my-bucket})',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      stack,
+      deploymentMethod: {
+        method: 'change-set',
+        importExistingResources: true,
+      },
+    })).rejects.toThrow(
+      [
+        "Import of existing resources failed for stack 'import-error-stack' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
+        '  - import-error-stack/Dashboards/MyRole/Resource (DashboardsMyRoleABC123)',
+        '  - import-error-stack/MyService/AnotherResource/Resource (AnotherResourceABC123)',
+        '',
+        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
+        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
+      ].join('\n'),
+    );
+  });
+
+  test('does not enhance error message when importExistingResources is false', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-stack-no-enhance',
+      template: {
+        Resources: {
+          MyRoleF4B2B07F: {
+            Type: 'AWS::IAM::Role',
+            Metadata: { 'aws:cdk:path': 'MyStack/MyConstruct/MyRole/Resource' },
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
+    });
+
+    // THEN - original error without enhancement, because importExistingResources is false
+    let error: Error | undefined;
+    try {
+      await testDeployStack({
+        ...standardDeployStackArguments(),
+        stack,
+        deploymentMethod: {
+          method: 'change-set',
+        },
+      });
+    } catch (e: any) {
+      error = e;
+    }
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('Failed to create ChangeSet cdk-deploy-change-set on import-error-stack-no-enhance: FAILED');
+    expect(error!.message).not.toContain('Import of existing resources failed');
+    expect(error!.message).not.toContain('RemovalPolicy');
+  });
+
+  test('falls back to logical ID when no construct path metadata exists', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-no-metadata',
+      template: {
+        Resources: {
+          MyRoleF4B2B07F: {
+            Type: 'AWS::IAM::Role',
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
+    });
+
+    // THEN - enhanced message with logical ID fallback (no construct path)
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      stack,
+      deploymentMethod: {
+        method: 'change-set',
+        importExistingResources: true,
+      },
+    })).rejects.toThrow(
+      [
+        "Import of existing resources failed for stack 'import-error-no-metadata' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
+        '  - MyRoleF4B2B07F',
+        '',
+        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
+        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
+      ].join('\n'),
+    );
+  });
 });
 
 describe('revert-drift', () => {

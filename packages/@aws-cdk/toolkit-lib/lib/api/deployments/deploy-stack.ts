@@ -479,10 +479,53 @@ class FullCloudFormationDeployment {
     const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
     const envResources = environmentResourcesRegistry.for(this.options.resolvedEnvironment, this.options.sdk, this.ioHelper);
     const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources);
-    return waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
-      fetchAll: willExecute,
-      validationReporter,
-    });
+    try {
+      return await waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
+        fetchAll: willExecute,
+        validationReporter,
+      });
+    } catch (e: any) {
+      if (importExistingResources && ToolkitError.isDeploymentError(e) && e.deploymentErrorCode === 'ChangeSetCreationFailed') {
+        throw new DeploymentError(this.enhanceImportErrorMessage(e.message), 'ChangeSetCreationFailed');
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Enhance an import-related changeset error message by mapping CFN logical IDs to CDK construct paths.
+   */
+  private enhanceImportErrorMessage(message: string): string {
+    // Only enhance the specific CFN error about importing existing resources
+    if (!message.includes('CloudFormation is attempting to import some resources because they already exist in your account')) {
+      return message;
+    }
+
+    const marker = 'The affected resources are ';
+    const markerIndex = message.indexOf(marker);
+    if (markerIndex === -1) {
+      return message;
+    }
+
+    // Only extract logical IDs from the "The affected resources are ..." suffix
+    const resourceList = message.substring(markerIndex + marker.length);
+    const logicalIdPattern = /\b([A-Za-z][A-Za-z0-9]+)\s+\(\{/g;
+    const resources = this.stackArtifact.template?.Resources ?? {};
+
+    const affected: string[] = [];
+    for (const match of resourceList.matchAll(logicalIdPattern)) {
+      const logicalId = match[1];
+      const path = resources[logicalId]?.Metadata?.['aws:cdk:path'];
+      affected.push(path ? `  - ${path} (${logicalId})` : `  - ${logicalId}`);
+    }
+
+    return [
+      `Import of existing resources failed for stack '${this.stackName}' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':`,
+      ...affected,
+      '',
+      "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
+      'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
+    ].join('\n');
   }
 
   private async executeChangeSet(changeSet: DescribeChangeSetCommandOutput): Promise<SuccessfulDeployStackResult> {
