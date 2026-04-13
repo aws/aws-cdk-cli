@@ -31,7 +31,7 @@
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "@yarnpkg/types": "^4.0.1",
-    "cdklabs-projen-project-types": "^0.3.25",
+    "cdklabs-projen-project-types": "^0.3.26",
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-import-resolver-typescript": "^4.4.4",

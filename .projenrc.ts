@@ -284,6 +284,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   depsUpgradeOptions: {
+    cooldown: 3,
     workflowOptions: {
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
@@ -1646,7 +1647,13 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // #region shared setup
 
 // The pj.github.Dependabot component is only for a single Node project,
-// but we need multiple non-Node projects
+// but we need multiple non-Node projects.
+
+// We prefer the projen updates, but Dependabot acts as a fallback in case
+// they get blocked. Dependabot also handles emergent security updates.
+// Because of that, we configure Dependabot cooldowns to a week.
+const dependabotCooldown = 7;
+
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
     version: 2,
@@ -1654,6 +1661,7 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
       {
         'package-ecosystem': 'npm',
         'schedule': { interval: 'weekly' },
+        'cooldown': dependabotCooldown,
         'labels': ['auto-approve'],
         'allow': [{
           'dependency-type': 'production',
@@ -1668,6 +1676,7 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
         'package-ecosystem': pkgEco,
         'directory': '/packages/aws-cdk/lib/init-templates',
         'schedule': { interval: 'weekly' },
+        'cooldown': dependabotCooldown,
         'labels': ['auto-approve'],
         'open-pull-requests-limit': 5,
       })),

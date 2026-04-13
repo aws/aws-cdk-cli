@@ -50,11 +50,12 @@
       "name": "check-for-updates",
       "env": {
         "CI": "0",
-        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false"
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
+        "YARN_NPM_MINIMAL_AGE_GATE": "4320"
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,nx,ts-jest,@aws-sdk/client-cloudformation,@aws-sdk/client-codeartifact,@aws-sdk/client-ecr,@aws-sdk/client-ecr-public,@aws-sdk/client-ecs,@aws-sdk/client-iam,@aws-sdk/client-lambda,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sns,@aws-sdk/client-sso,@aws-sdk/client-sts,@aws-sdk/credential-providers,@cdklabs/cdk-atmosphere-client,@smithy/types,@smithy/util-retry,fast-glob,node-pty,proxy-agent"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,nx,ts-jest,@aws-sdk/client-cloudformation,@aws-sdk/client-codeartifact,@aws-sdk/client-ecr,@aws-sdk/client-ecr-public,@aws-sdk/client-ecs,@aws-sdk/client-iam,@aws-sdk/client-lambda,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sns,@aws-sdk/client-sso,@aws-sdk/client-sts,@aws-sdk/credential-providers,@cdklabs/cdk-atmosphere-client,@smithy/types,@smithy/util-retry,fast-glob,node-pty,proxy-agent"
         }
       ]
     },
