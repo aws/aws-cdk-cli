@@ -103,11 +103,6 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
     'build-tools',
   );
 
-  if (x instanceof TypeScriptWorkspace) {
-    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
-    x.deps.removeDependency('projen');
-  }
-
   return x;
 }
 
@@ -265,6 +260,7 @@ const repoProject = new yarn.Monorepo({
     'jest',
     'jest-junit',
     '@types/jest',
+    'projen',
   ],
 
   eslintOptions: {
@@ -1334,13 +1330,6 @@ new pj.javascript.UpgradeDependencies(cli, {
     labels: ['auto-approve'],
   },
 });
-
-// The upgrade-aws-cdk-lib workflow runs `yarn projen upgrade-aws-cdk-lib` from
-// the aws-cdk workspace directory. In Yarn 4, workspace packages can only resolve
-// binaries from their own declared dependencies. `configureProject` removes projen
-// from all workspaces (assuming it's hoisted from the root), but that doesn't work
-// for Yarn 4. We need projen as a devDependency here so the workflow can find it.
-cli.addDevDeps('projen');
 
 new TypecheckTests(cli);
 fixupTestTask(cli);
