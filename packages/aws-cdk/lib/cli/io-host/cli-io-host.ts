@@ -645,6 +645,18 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
 }
 
 function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
+  const nonHotswappableResources: Record<string, number> = {};
+  for (const nonHotswappableChange of result.nonHotswappableChanges) {
+    if("resourceType" in nonHotswappableChange.subject ) {
+      const resourceType = nonHotswappableChange.subject.resourceType;
+      if(resourceType in nonHotswappableResources) {
+        nonHotswappableResources[resourceType] += 1;
+      } else {
+        nonHotswappableResources[resourceType] = 1;
+      }
+    }
+  }
+
   return {
     eventType: 'HOTSWAP' as const,
     duration: result.duration,
@@ -657,6 +669,7 @@ function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
       hotswapped: result.hotswapped ? 1 : 0,
       hotswappableChanges: result.hotswappableChanges.length,
       nonHotswappableChanges: result.nonHotswappableChanges.length,
+      ...nonHotswappableResources,
     },
   };
 }
