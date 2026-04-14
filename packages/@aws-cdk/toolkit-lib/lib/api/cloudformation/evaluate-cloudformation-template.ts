@@ -324,6 +324,24 @@ export class EvaluateCloudFormationTemplate {
     return cfnExpression;
   }
 
+  public async evaluateCloudControlIdentifier(logicalId: string, resourceType: string, physicalId: string): Promise<string> {
+    if (resourceType in RESOURCE_TYPE_PRIMARY_IDENTIFIERS) {
+      const primaryProps = RESOURCE_TYPE_PRIMARY_IDENTIFIERS[resourceType];
+      const parts: string[] = [];
+
+      for (const propName of primaryProps) {
+        const templateVal = this.getResourceProperty(logicalId, propName);
+        if (templateVal) {
+          parts.push(await this.evaluateCfnExpression(templateVal));
+        } else {
+          parts.push(physicalId);
+        }
+      }
+      return parts.join('|');
+    }
+    return physicalId;
+  }
+
   public getResourceProperty(logicalId: string, propertyName: string): any {
     return this.template.Resources?.[logicalId]?.Properties?.[propertyName];
   }
@@ -468,12 +486,12 @@ export class EvaluateCloudFormationTemplate {
       }
     }
 
-    // This will fail for resource types with compound primaryIdentifiers because
-    // CloudFormation's PhysicalResourceId only contains a single value.
     try {
+      const identifier = await this.evaluateCloudControlIdentifier(resource.LogicalResourceId!, resource.ResourceType!, physicalId!);
+
       const response = await this.cloudControl.getResource({
         TypeName: resource.ResourceType!,
-        Identifier: physicalId!,
+        Identifier: identifier,
       });
       const props = JSON.parse(response.ResourceDescription?.Properties ?? '{}');
       if (attribute in props) {
@@ -513,6 +531,84 @@ interface ArnParts {
   readonly resourceType: string;
   readonly resourceName: string;
 }
+
+/**
+ * Resources where the CloudFormation physical resource ID ({ Ref }) disagrees
+ * with the Cloud Control API primary identifier.
+ *
+ * Maps resource type to the CC primary identifier property names.
+ * For resources NOT in this map, the physical resource ID can be used
+ * directly as the CC primary identifier.
+ */
+export const RESOURCE_TYPE_PRIMARY_IDENTIFIERS: { [type: string]: string[] } = {
+  'AWS::ApiGateway::Authorizer': ['RestApiId', 'AuthorizerId'],
+  'AWS::ApiGateway::Deployment': ['DeploymentId', 'RestApiId'],
+  'AWS::ApiGateway::Model': ['RestApiId', 'Name'],
+  'AWS::ApiGateway::RequestValidator': ['RestApiId', 'RequestValidatorId'],
+  'AWS::ApiGateway::DocumentationPart': ['DocumentationPartId', 'RestApiId'],
+  'AWS::ApiGateway::Resource': ['RestApiId', 'ResourceId'],
+  'AWS::ApiGateway::Stage': ['RestApiId', 'StageName'],
+  'AWS::ApiGatewayV2::ApiMapping': ['ApiMappingId', 'DomainName'],
+  'AWS::ApiGatewayV2::Authorizer': ['AuthorizerId', 'ApiId'],
+  'AWS::ApiGatewayV2::Deployment': ['ApiId', 'DeploymentId'],
+  'AWS::ApiGatewayV2::Integration': ['ApiId', 'IntegrationId'],
+  'AWS::ApiGatewayV2::IntegrationResponse': ['ApiId', 'IntegrationId', 'IntegrationResponseId'],
+  'AWS::ApiGatewayV2::Model': ['ApiId', 'ModelId'],
+  'AWS::ApiGatewayV2::Route': ['ApiId', 'RouteId'],
+  'AWS::ApiGatewayV2::RouteResponse': ['ApiId', 'RouteId', 'RouteResponseId'],
+  'AWS::ApiGatewayV2::Stage': ['Id'],
+  'AWS::AppConfig::ConfigurationProfile': ['ApplicationId', 'ConfigurationProfileId'],
+  'AWS::AppConfig::Environment': ['ApplicationId', 'EnvironmentId'],
+  'AWS::AppConfig::HostedConfigurationVersion': ['ApplicationId', 'ConfigurationProfileId', 'VersionNumber'],
+  'AWS::AppMesh::GatewayRoute': ['Id'],
+  'AWS::AppMesh::Mesh': ['Id'],
+  'AWS::AppMesh::Route': ['Id'],
+  'AWS::AppMesh::VirtualGateway': ['Id'],
+  'AWS::AppMesh::VirtualNode': ['Id'],
+  'AWS::AppMesh::VirtualRouter': ['Id'],
+  'AWS::AppMesh::VirtualService': ['Id'],
+  'AWS::AppSync::ApiKey': ['ApiKeyId'],
+  'AWS::AppSync::GraphQLApi': ['ApiId'],
+  'AWS::Batch::JobDefinition': ['JobDefinitionName'],
+  'AWS::CloudWatch::InsightRule': ['Id'],
+  'AWS::CodeBuild::Project': ['Id'],
+  'AWS::CodeBuild::ReportGroup': ['Id'],
+  'AWS::CodeDeploy::DeploymentGroup': ['ApplicationName', 'DeploymentGroupName'],
+  'AWS::CodePipeline::Webhook': ['Id'],
+  'AWS::Cognito::UserPoolClient': ['UserPoolId', 'ClientId'],
+  'AWS::Cognito::UserPoolDomain': ['UserPoolId', 'Domain'],
+  'AWS::Cognito::UserPoolGroup': ['UserPoolId', 'GroupName'],
+  'AWS::Cognito::UserPoolIdentityProvider': ['UserPoolId', 'ProviderName'],
+  'AWS::Cognito::UserPoolResourceServer': ['UserPoolId', 'Identifier'],
+  'AWS::Cognito::UserPoolUser': ['UserPoolId', 'Username'],
+  'AWS::DAX::Cluster': ['Id'],
+  'AWS::DAX::ParameterGroup': ['Id'],
+  'AWS::DAX::SubnetGroup': ['Id'],
+  'AWS::DMS::EventSubscription': ['Id'],
+  'AWS::EC2::EIP': ['PublicIp', 'AllocationId'],
+  'AWS::ECS::Service': ['ServiceArn', 'Cluster'],
+  'AWS::ElastiCache::CacheCluster': ['Id'],
+  'AWS::ElasticLoadBalancing::LoadBalancer': ['Id'],
+  'AWS::ElastiCache::User': ['UserId'],
+  'AWS::Elasticsearch::Domain': ['Id'],
+  'AWS::Events::Rule': ['Arn'],
+  'AWS::EventSchemas::RegistryPolicy': ['Id'],
+  'AWS::Glue::DevEndpoint': ['Id'],
+  'AWS::Glue::Workflow': ['Id'],
+  'AWS::IoT::Policy': ['Id'],
+  'AWS::Logs::LogStream': ['LogGroupName', 'LogStreamName'],
+  'AWS::Logs::SubscriptionFilter': ['FilterName', 'LogGroupName'],
+  'AWS::MediaConvert::JobTemplate': ['Id'],
+  'AWS::MediaConvert::Preset': ['Id'],
+  'AWS::MediaConvert::Queue': ['Id'],
+  'AWS::Route53::RecordSet': ['Id'],
+  'AWS::SageMaker::Device': ['Device/DeviceName'],
+  'AWS::SecretsManager::ResourcePolicy': ['Id'],
+  'AWS::SecretsManager::SecretTargetAttachment': ['Id'],
+  'AWS::SES::ReceiptRuleSet': ['Id'],
+  'AWS::SSM::MaintenanceWindowTarget': ['WindowId', 'WindowTargetId'],
+  'AWS::SSM::MaintenanceWindowTask': ['WindowId', 'WindowTaskId'],
+};
 
 /**
  * Usually, we deduce the names of the service and the resource type used to format the ARN from the CloudFormation resource type.

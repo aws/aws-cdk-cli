@@ -420,10 +420,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 // Sanity check: each CCAPI-registered resource type can be hotswapped
 describe.each([
   'AWS::ApiGateway::RestApi',
-  'AWS::ApiGateway::Deployment',
   'AWS::ApiGateway::Method',
   'AWS::ApiGatewayV2::Api',
-  'AWS::ApiGatewayV2::Integration',
   'AWS::Bedrock::Agent',
   'AWS::Events::Rule',
   'AWS::DynamoDB::Table',
@@ -434,7 +432,7 @@ describe.each([
   'AWS::CloudWatch::Dashboard',
   'AWS::StepFunctions::StateMachine',
   'AWS::BedrockAgentCore::Runtime',
-])('CCAPI sanity check for %s', (resourceType) => {
+])('CCAPI sanity check for resources where Primary Identifier matches Physical ID %s', (resourceType) => {
   beforeEach(() => {
     hotswapMockSdkProvider = setup.setupHotswapTests();
 
@@ -476,6 +474,57 @@ describe.each([
     expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
       TypeName: resourceType,
       Identifier: 'res-123',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/SomeProp', value: 'new' }]),
+    });
+  });
+});
+
+// Sanity check: each CCAPI-registered resource type can be hotswapped
+describe.each([
+  'AWS::ApiGateway::Deployment',
+  'AWS::ApiGatewayV2::Integration',
+])('CCAPI sanity check for resources where Primary Identifier does not match Physical ID %s', (resourceType) => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('hotswaps a property change via Cloud Control API', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyResource: {
+          Type: resourceType,
+          Properties: { Id: 'res-123', SomeProp: 'old' },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyResource', resourceType, 'res-123'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyResource: {
+            Type: resourceType,
+            Properties: { Id: 'res-123', SomeProp: 'new' },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: resourceType,
+      Identifier: 'res-123|res-123',
       PatchDocument: JSON.stringify([{ op: 'replace', path: '/SomeProp', value: 'new' }]),
     });
   });

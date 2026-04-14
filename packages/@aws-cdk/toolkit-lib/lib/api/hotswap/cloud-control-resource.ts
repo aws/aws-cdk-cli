@@ -10,7 +10,6 @@ export async function isHotswappableCloudControlChange(
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   _hotswapPropertyOverrides: unknown,
-  sdk: SDK,
 ): Promise<HotswapChange[]> {
   const ret: HotswapChange[] = [];
 
@@ -27,7 +26,7 @@ export async function isHotswappableCloudControlChange(
 
   const resourceType = change.newValue.Type;
 
-  const identifier = await resolveCloudControlIdentifier(logicalId, resourceType, change, evaluateCfnTemplate, sdk);
+  const identifier = await resolveCloudControlIdentifier(logicalId, resourceType, evaluateCfnTemplate);
   if (!identifier) {
     ret.push(nonHotswappableChange(
       change,
@@ -72,7 +71,7 @@ export async function isHotswappableCloudControlChange(
     },
     hotswappable: true,
     service: 'cloudcontrol',
-    apply: async () => {
+    apply: async (sdk: SDK) => {
       const cloudControl = sdk.cloudControl();
 
       const patchOps: Array<{ op: string; path: string; value?: any }> = [];
@@ -116,47 +115,12 @@ export async function isHotswappableCloudControlChange(
 async function resolveCloudControlIdentifier(
   logicalId: string,
   resourceType: string,
-  change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
-  sdk: SDK,
 ): Promise<string | undefined> {
   const cfnPhysicalId = await evaluateCfnTemplate.findPhysicalNameFor(logicalId);
   if (!cfnPhysicalId) {
     return undefined;
   }
 
-  // Try to get the resource type schema to check for compound identifiers
-  let primaryIdentifier: string[];
-  const typeInfo = await sdk.cloudFormation().describeType({
-    Type: 'RESOURCE',
-    TypeName: resourceType,
-  });
-  const schema = JSON.parse(typeInfo.Schema ?? '{}');
-  if (!schema || !schema.primaryIdentifier) {
-    return cfnPhysicalId;
-  }
-  primaryIdentifier = schema.primaryIdentifier;
-
-  // if there is a primary identifier in the array, we resolve it
-  if (primaryIdentifier.length > 0) {
-    const parts: string[] = [];
-    for (const propPath of primaryIdentifier) {
-      const propName = propPath.replace('/properties/', '');
-      const propValue = change.newValue.Properties?.[propName];
-      if (!propValue) {
-        // The property is not in the template, use the CloudFormation PhysicalResourceId
-        parts.push(cfnPhysicalId);
-        break;
-      }
-      try {
-        parts.push(await evaluateCfnTemplate.evaluateCfnExpression(propValue));
-      } catch {
-        parts.push(cfnPhysicalId);
-        break;
-      }
-    }
-    // compound primary identifiers are joined together with |
-    return parts.join('|');
-  }
-  return cfnPhysicalId;
+  return evaluateCfnTemplate.evaluateCloudControlIdentifier(logicalId, resourceType, cfnPhysicalId);
 }

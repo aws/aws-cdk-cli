@@ -43,7 +43,6 @@ type HotswapDetector = (
   change: ResourceChange,
   evaluateCfnTemplate: EvaluateCloudFormationTemplate,
   hotswapPropertyOverrides: HotswapPropertyOverrides,
-  sdk: SDK,
 ) => Promise<HotswapChange[]>;
 
 type HotswapMode = 'hotswap-only' | 'fall-back';
@@ -292,7 +291,7 @@ async function classifyResourceChanges(
     if (resourceType in RESOURCE_DETECTORS) {
       // run detector functions lazily to prevent unhandled promise rejections
       promises.push(() =>
-        RESOURCE_DETECTORS[resourceType](logicalId, hotswappableChangeCandidate, evaluateCfnTemplate, hotswapPropertyOverrides, sdk),
+        RESOURCE_DETECTORS[resourceType](logicalId, hotswappableChangeCandidate, evaluateCfnTemplate, hotswapPropertyOverrides),
       );
     } else {
       nonHotswappableResources.push(nonHotswappableResource(hotswappableChangeCandidate));
