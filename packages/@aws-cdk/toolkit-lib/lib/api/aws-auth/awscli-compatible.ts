@@ -5,6 +5,7 @@ import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import type { RequestHandlerSettings } from './base-credentials';
+import { isEc2Instance } from './ec2-detection';
 import { makeCachingProvider } from './provider-caching';
 import type { ISdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
@@ -113,6 +114,15 @@ export class AwsCliCompatible {
      *
      * The NodeProviderChain is already cached.
      */
+
+    // Skip the IMDS credential provider if we're not on EC2, to avoid a
+    // 1-2 second timeout on non-EC2 machines.
+    if (process.env.AWS_EC2_METADATA_DISABLED === undefined && !isEc2Instance()) {
+      process.env.AWS_EC2_METADATA_DISABLED = 'true';
+    }
+
+    // This chain respects the AWS_EC2_METADATA_DISABLED envvar, which can otherwise
+    // not be easily disabled using a property.
     const nodeProviderChain = fromNodeProviderChain({
       profile: envProfile,
       clientConfig,
@@ -172,6 +182,10 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
+    if (!isEc2Instance()) {
+      return undefined;
+    }
+
     await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
     try {
       const metadataService = new MetadataService({

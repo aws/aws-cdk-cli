@@ -12,6 +12,10 @@ export class AdcPublishing extends Component {
       this.project.tasks.tryFind(taskName)?.exec('tsx projenrc/build-standalone-zip.task.ts');
     }
 
+    const publishToAdcTask = this.project_.tasks.tryFind('publish-to-adc') ?? this.project_.addTask('publish-to-adc', {
+      exec: 'tsx projenrc/publish-to-adc.task.ts',
+    });
+
     const releaseWf = this.project_.github?.tryFindWorkflow('release');
     if (!releaseWf) {
       throw new Error('Could not find release workflow');
@@ -40,16 +44,7 @@ export class AdcPublishing extends Component {
       if: '${{ needs.release.outputs.latest_commit == github.sha }}',
       steps: [
         github.WorkflowSteps.checkout(),
-        {
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-          },
-        },
-        {
-          name: 'Install dependencies',
-          run: 'yarn install --check-files --frozen-lockfile',
-        },
+        ...this.project_.renderWorkflowSetup(),
         {
           name: 'Download build artifacts',
           uses: 'actions/download-artifact@v4',
@@ -76,7 +71,7 @@ export class AdcPublishing extends Component {
             PUBLISHING_ROLE_ARN: '${{ vars.PUBLISHING_ROLE_ARN }}',
             TARGET_BUCKETS: '${{ vars.TARGET_BUCKETS }}',
           },
-          run: 'npx tsx projenrc/publish-to-adc.task.ts',
+          run: this.project_.runTaskCommand(publishToAdcTask),
         },
       ],
     });

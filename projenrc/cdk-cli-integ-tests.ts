@@ -239,8 +239,11 @@ export class CdkCliIntegTestsWorkflow extends Component {
   private readonly JOB_PREPARE = 'prepare';
   private readonly maxWorkersArg: string = '';
 
+  public readonly project: javascript.NodeProject;
+
   constructor(repo: javascript.NodeProject, private readonly props: CdkCliIntegTestsWorkflowProps) {
     super(repo);
+    this.project = repo;
 
     const buildWorkflow = repo.buildWorkflow;
     this.workflow = repo.github?.addWorkflow('integ')!;
@@ -413,28 +416,17 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'git fetch upstream \'refs/tags/*:refs/tags/*\'',
           ].join('\n'),
         },
-        {
-          name: 'Setup Node.js',
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-            'cache': 'npm',
-          },
-        },
-        {
-          name: 'Install dependencies',
-          run: repo.package.installCommand,
-        },
+        ...this.project.renderWorkflowSetup(),
         {
           name: 'Bump to realistic versions',
-          run: 'yarn workspaces run bump',
+          run: `${this.project.runTaskCommand(this.project.tasks.tryFind('run')!)} bump`,
           env: {
             TESTING_CANDIDATE: 'true',
           },
         },
         {
           name: 'build',
-          run: 'npx projen build',
+          run: this.project.runTaskCommand(this.project.buildTask),
           env: {
             // This is necessary to prevent projen from resetting the version numbers to
             // 0.0.0 during its synthesis.

@@ -32,10 +32,12 @@ import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { isChangeSetDeployment, isExecutingChangeSetDeployment, isNonExecutingChangeSetDeployment, toExecuteChangeSetDeployment } from '../api/deploy-private';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
+import { FlagOperations } from '../commands/flags/operations';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -69,7 +71,6 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
-import { FlagOperations } from '../commands/flags/operations';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -267,7 +268,7 @@ export class CdkToolkit {
         );
       }
 
-      const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'UTF-8' }));
+      const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'utf-8' }));
       const formatter = new DiffFormatter({
         templateInfo: {
           oldTemplate: template,
@@ -371,7 +372,9 @@ export class CdkToolkit {
     quiet: boolean,
   ) {
     try {
-      await this.props.deployments.stackExists({
+      // we don't actually need to know if the stack exists here
+      // we just use this to flush our any permissions issues and drop the result
+      void await this.props.deployments.stackExists({
         stack,
         deployName: stack.stackName,
         tryLookupRole: true,
@@ -509,35 +512,6 @@ export class CdkToolkit {
         return;
       }
 
-      if (requireApproval !== RequireApproval.NEVER) {
-        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const formatter = new DiffFormatter({
-          templateInfo: {
-            oldTemplate: currentTemplate,
-            newTemplate: stack,
-          },
-        });
-        const securityDiff = formatter.formatSecurityDiff();
-        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
-          const motivation = hasSecurityChanges
-            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
-          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
-          await this.ioHost.asIoHelper().defaults.info(diffOutput);
-
-          await askUserConfirmation(
-            this.ioHost,
-            IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
-              motivation,
-              concurrency,
-              permissionChangeType: securityDiff.permissionChangeType,
-              templateDiffs: formatter.diffs,
-            }),
-          );
-        }
-      }
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -553,13 +527,80 @@ export class CdkToolkit {
         }
       }
 
+      // Deploy options that are shared between change set creation and execution
+      const sharedDeployOptions = {
+        stack,
+        deployName: stack.stackName,
+        roleArn: options.roleArn,
+        toolkitStackName: options.toolkitStackName,
+        reuseAssets: options.reuseAssets,
+        tags: (options.tags?.length ? options.tags : tagsForStack(stack)),
+        forceDeployment: options.force,
+        parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+        usePreviousParameters: options.usePreviousParameters,
+        rollback: options.rollback,
+        notificationArns,
+        extraUserAgent: options.extraUserAgent,
+        assetParallelism: options.assetParallelism,
+      };
+
+      // When using change-set method, always create the change set upfront.
+      // This gives us an accurate diff for approval and avoids creating it twice.
+      // For non-executing deployments (prepare-change-set), this is the final result.
+      const prepareResult = isChangeSetDeployment(options.deploymentMethod)
+        ? await this.props.deployments.prepareStack({
+          ...sharedDeployOptions,
+          deploymentMethod: options.deploymentMethod,
+          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+        })
+        : undefined;
+
+      // Empty change set — no changes to deploy
+      if (prepareResult?.noOp === true) {
+        await this.ioHost.asIoHelper().defaults.info(' ✅  %s (no changes)', chalk.bold(stack.displayName));
+        return;
+      }
+
+      if (requireApproval !== RequireApproval.NEVER) {
+        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
+        const formatter = new DiffFormatter({
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            changeSet: prepareResult?.changeSet,
+          },
+        });
+        const securityDiff = formatter.formatSecurityDiff();
+        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
+          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+          const motivation = hasSecurityChanges
+            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
+            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+          await this.ioHost.asIoHelper().defaults.info(diffOutput);
+
+          try {
+            await askUserConfirmation(
+              this.ioHost,
+              IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
+                motivation,
+                concurrency,
+                permissionChangeType: securityDiff.permissionChangeType,
+                templateDiffs: formatter.diffs,
+              }),
+            );
+          } catch (e) {
+            if (prepareResult?.changeSet?.ChangeSetName) {
+              await this.props.deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+            }
+            throw e;
+          }
+        }
+      }
+
       const stackIndex = stacks.indexOf(stack) + 1;
       await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
       const startDeployTime = new Date().getTime();
-      let tags = options.tags;
-      if (!tags || tags.length === 0) {
-        tags = tagsForStack(stack);
-      }
 
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
@@ -568,9 +609,17 @@ export class CdkToolkit {
       let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
-        let deployResult: SuccessfulDeployStackResult | undefined;
+        // The prepare result is final if the change set was empty (noOp) or
+        // the deployment method is non-executing (prepare-change-set).
+        const prepareIsFinal = prepareResult && isNonExecutingChangeSetDeployment(options.deploymentMethod);
+        let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
+        // Start with user config for rollback,
+        // but it might change if we encounter a failed state.
         let rollback = options.rollback;
+
+        // We limit the loop to 2 iterations max as defensive programming.
+        // Should not be possible to happen.
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
@@ -578,20 +627,13 @@ export class CdkToolkit {
           }
 
           const r = await this.props.deployments.deployStack({
-            stack,
-            deployName: stack.stackName,
-            roleArn: options.roleArn,
-            toolkitStackName: options.toolkitStackName,
-            reuseAssets: options.reuseAssets,
-            notificationArns,
-            tags,
-            deploymentMethod: options.deploymentMethod,
-            forceDeployment: options.force,
-            parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-            usePreviousParameters: options.usePreviousParameters,
+            ...sharedDeployOptions,
+            // On the first iteration, execute the prepared change set.
+            // On retries (after rollback), create a new change set since the old one is gone.
+            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
+              ? toExecuteChangeSetDeployment(options.deploymentMethod)
+              : options.deploymentMethod,
             rollback,
-            extraUserAgent: options.extraUserAgent,
-            assetParallelism: options.assetParallelism,
           });
 
           switch (r.type) {

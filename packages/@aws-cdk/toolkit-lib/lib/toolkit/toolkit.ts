@@ -38,8 +38,12 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
+  isChangeSetDeployment,
+  isExecutingChangeSetDeployment,
+  isNonExecutingChangeSetDeployment,
   type PrivateDeployOptions,
   removePublishedAssetsFromWorkGraph,
+  toExecuteChangeSetDeployment,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
@@ -667,10 +671,60 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       const currentTemplate = await deployments.readCurrentTemplate(stack);
 
+      // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
+      //
+      //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+      //  - []:        =>  cdk manages it, and the user wants to wipe it out.
+      //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+      const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
+        ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
+        : undefined;
+
+      for (const notificationArn of notificationArns ?? []) {
+        if (!validateSnsTopicArn(notificationArn)) {
+          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+        }
+      }
+
+      // Deploy options that are shared between change set creation and execution
+      const sharedDeployOptions = {
+        stack,
+        deployName: stack.stackName,
+        roleArn: options.roleArn,
+        toolkitStackName: this.toolkitStackName,
+        reuseAssets: options.reuseAssets,
+        tags: options.tags?.length ? options.tags : tagsForStack(stack),
+        forceDeployment: options.forceDeployment,
+        parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+        usePreviousParameters: options.parameters?.keepExistingParameters,
+        rollback: options.rollback,
+        notificationArns,
+        extraUserAgent: options.extraUserAgent,
+        assetParallelism: options.assetParallelism,
+      };
+
+      // When using change-set method, always create the change set upfront.
+      // This gives us an accurate diff for approval and avoids creating it twice.
+      // For non-executing deployments (prepare-change-set), this is the final result.
+      const prepareResult = isChangeSetDeployment(options.deploymentMethod)
+        ? await deployments.prepareStack({
+          ...sharedDeployOptions,
+          deploymentMethod: options.deploymentMethod,
+          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+        })
+        : undefined;
+
+      // Empty change set — no changes to deploy
+      if (prepareResult?.noOp === true) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green(`\n ✅  ${stack.displayName} (no changes)`), prepareResult));
+        return;
+      }
+
       const formatter = new DiffFormatter({
         templateInfo: {
           oldTemplate: currentTemplate,
           newTemplate: stack,
+          changeSet: prepareResult?.changeSet,
         },
       });
 
@@ -693,22 +747,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         templateDiffs: formatter.diffs,
       }));
       if (!deployConfirmed) {
-        throw new ToolkitError('DeployAborted', 'Aborted by user');
-      }
-
-      // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
-      //
-      //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
-      //  - []:        =>  cdk manages it, and the user wants to wipe it out.
-      //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
-      const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
-        ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
-        : undefined;
-
-      for (const notificationArn of notificationArns ?? []) {
-        if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+        if (prepareResult?.changeSet?.ChangeSetName) {
+          await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
         }
+        throw new ToolkitError('DeployAborted', 'Aborted by user');
       }
 
       const stackIndex = stacks.indexOf(stack) + 1;
@@ -720,14 +762,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       deploySpan.incCounter('resources', resourceCount);
 
-      let tags = options.tags;
-      if (!tags || tags.length === 0) {
-        tags = tagsForStack(stack);
-      }
-
       let deployDuration;
       try {
-        let deployResult: SuccessfulDeployStackResult | undefined;
+        const prepareIsFinal = isNonExecutingChangeSetDeployment(options.deploymentMethod);
+        let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
         let rollback = options.rollback;
         let iteration = 0;
@@ -737,20 +775,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
 
           const r = await deployments.deployStack({
-            stack,
-            deployName: stack.stackName,
-            roleArn: options.roleArn,
-            toolkitStackName: this.toolkitStackName,
-            reuseAssets: options.reuseAssets,
-            notificationArns,
-            tags,
-            deploymentMethod: options.deploymentMethod,
-            forceDeployment: options.forceDeployment,
-            parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-            usePreviousParameters: options.parameters?.keepExistingParameters,
+            ...sharedDeployOptions,
+            // On the first iteration, execute the prepared change set.
+            // On retries (after rollback), create a new change set since the old one is gone.
+            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
+              ? toExecuteChangeSetDeployment(options.deploymentMethod)
+              : options.deploymentMethod,
             rollback,
-            extraUserAgent: options.extraUserAgent,
-            assetParallelism: options.assetParallelism,
           });
 
           switch (r.type) {

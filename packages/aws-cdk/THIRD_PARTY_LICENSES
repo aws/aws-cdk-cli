@@ -618,7 +618,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-appsync@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-appsync/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-appsync@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-appsync/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -824,7 +824,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-bedrock-agentcore-control@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-bedrock-agentcore-control/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-bedrock-agentcore-control@3.1029.0 - https://www.npmjs.com/package/@aws-sdk/client-bedrock-agentcore-control/v/3.1029.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1030,7 +1030,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudcontrol@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudcontrol/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-cloudcontrol@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudcontrol/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1236,7 +1236,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudformation@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudformation/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-cloudformation@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudformation/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1442,7 +1442,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudwatch-logs@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudwatch-logs/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-cloudwatch-logs@3.1029.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudwatch-logs/v/3.1029.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1648,7 +1648,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-codebuild@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-codebuild@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1854,7 +1854,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ec2@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-ec2@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2060,7 +2060,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecr@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-ecr@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2266,7 +2266,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecs@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-ecs@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2472,7 +2472,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-elastic-load-balancing-v2@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-elastic-load-balancing-v2/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-elastic-load-balancing-v2@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-elastic-load-balancing-v2/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2678,7 +2678,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-iam@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-iam/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-iam@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-iam/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2884,7 +2884,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-kms@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-kms/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-kms@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-kms/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3090,7 +3090,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-lambda@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-lambda/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-lambda@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-lambda/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3296,7 +3296,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-route-53@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-route-53/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-route-53@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-route-53/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3502,7 +3502,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-s3@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-s3@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3708,7 +3708,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-secrets-manager@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-secrets-manager/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-secrets-manager@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-secrets-manager/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3914,7 +3914,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-sfn@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-sfn/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-sfn@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-sfn/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4120,7 +4120,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ssm@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-ssm/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-ssm@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-ssm/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4326,7 +4326,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-sts@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/client-sts/v/3.1019.0 | Apache-2.0
+** @aws-sdk/client-sts@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/client-sts/v/3.1028.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4532,7 +4532,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/core@3.973.25 - https://www.npmjs.com/package/@aws-sdk/core/v/3.973.25 | Apache-2.0
+** @aws-sdk/core@3.973.27 - https://www.npmjs.com/package/@aws-sdk/core/v/3.973.27 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4737,7 +4737,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/crc64-nvme@3.972.5 - https://www.npmjs.com/package/@aws-sdk/crc64-nvme/v/3.972.5 | Apache-2.0
+** @aws-sdk/crc64-nvme@3.972.6 - https://www.npmjs.com/package/@aws-sdk/crc64-nvme/v/3.972.6 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4942,7 +4942,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-cognito-identity@3.972.19 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.19 | Apache-2.0
+** @aws-sdk/credential-provider-cognito-identity@3.972.22 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.22 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5148,7 +5148,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-env@3.972.23 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.23 | Apache-2.0
+** @aws-sdk/credential-provider-env@3.972.25 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.25 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5353,11 +5353,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-http@3.972.25 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.25 | Apache-2.0
+** @aws-sdk/credential-provider-http@3.972.27 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.27 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-ini@3.972.26 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.972.26 | Apache-2.0
+** @aws-sdk/credential-provider-ini@3.972.29 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.972.29 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5562,11 +5562,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-login@3.972.26 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.26 | Apache-2.0
+** @aws-sdk/credential-provider-login@3.972.29 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.29 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-node@3.972.27 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.27 | Apache-2.0
+** @aws-sdk/credential-provider-node@3.972.30 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.30 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5771,7 +5771,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-process@3.972.23 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.23 | Apache-2.0
+** @aws-sdk/credential-provider-process@3.972.25 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.25 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5976,7 +5976,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-sso@3.972.26 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.972.26 | Apache-2.0
+** @aws-sdk/credential-provider-sso@3.972.29 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.972.29 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6181,7 +6181,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-web-identity@3.972.26 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.26 | Apache-2.0
+** @aws-sdk/credential-provider-web-identity@3.972.29 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.29 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6386,7 +6386,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-providers@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1019.0 | Apache-2.0
+** @aws-sdk/credential-providers@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1028.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6591,7 +6591,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/ec2-metadata-service@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/ec2-metadata-service/v/3.1019.0 | Apache-2.0
+** @aws-sdk/ec2-metadata-service@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/ec2-metadata-service/v/3.1028.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6796,7 +6796,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/lib-storage@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.1019.0 | Apache-2.0
+** @aws-sdk/lib-storage@3.1028.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.1028.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7001,7 +7001,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-bucket-endpoint@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-bucket-endpoint/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-bucket-endpoint@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-bucket-endpoint/v/3.972.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7207,7 +7207,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-expect-continue@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-expect-continue/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-expect-continue@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-expect-continue/v/3.972.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7413,7 +7413,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-flexible-checksums@3.974.5 - https://www.npmjs.com/package/@aws-sdk/middleware-flexible-checksums/v/3.974.5 | Apache-2.0
+** @aws-sdk/middleware-flexible-checksums@3.974.7 - https://www.npmjs.com/package/@aws-sdk/middleware-flexible-checksums/v/3.974.7 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7619,7 +7619,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-host-header@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-host-header/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-host-header@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-host-header/v/3.972.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7825,7 +7825,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-location-constraint@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-location-constraint/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-location-constraint@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-location-constraint/v/3.972.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8031,7 +8031,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-logger@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-logger/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-logger@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-logger/v/3.972.9 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8236,7 +8236,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-recursion-detection@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-recursion-detection/v/3.972.9 | Apache-2.0
+** @aws-sdk/middleware-recursion-detection@3.972.10 - https://www.npmjs.com/package/@aws-sdk/middleware-recursion-detection/v/3.972.10 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8442,7 +8442,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-ec2@3.972.17 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-ec2/v/3.972.17 | Apache-2.0
+** @aws-sdk/middleware-sdk-ec2@3.972.19 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-ec2/v/3.972.19 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8647,7 +8647,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-route53@3.972.10 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-route53/v/3.972.10 | Apache-2.0
+** @aws-sdk/middleware-sdk-route53@3.972.11 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-route53/v/3.972.11 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8853,7 +8853,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-s3@3.972.26 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-s3/v/3.972.26 | Apache-2.0
+** @aws-sdk/middleware-sdk-s3@3.972.28 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-s3/v/3.972.28 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -9059,7 +9059,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-ssec@3.972.8 - https://www.npmjs.com/package/@aws-sdk/middleware-ssec/v/3.972.8 | Apache-2.0
+** @aws-sdk/middleware-ssec@3.972.9 - https://www.npmjs.com/package/@aws-sdk/middleware-ssec/v/3.972.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -9265,7 +9265,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-user-agent@3.972.26 - https://www.npmjs.com/package/@aws-sdk/middleware-user-agent/v/3.972.26 | Apache-2.0
+** @aws-sdk/middleware-user-agent@3.972.29 - https://www.npmjs.com/package/@aws-sdk/middleware-user-agent/v/3.972.29 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -9471,11 +9471,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/nested-clients@3.996.16 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.996.16 | Apache-2.0
+** @aws-sdk/nested-clients@3.996.19 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.996.19 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/region-config-resolver@3.972.10 - https://www.npmjs.com/package/@aws-sdk/region-config-resolver/v/3.972.10 | Apache-2.0
+** @aws-sdk/region-config-resolver@3.972.11 - https://www.npmjs.com/package/@aws-sdk/region-config-resolver/v/3.972.11 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -9680,7 +9680,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/signature-v4-multi-region@3.996.14 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.14 | Apache-2.0
+** @aws-sdk/signature-v4-multi-region@3.996.16 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.16 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -9886,7 +9886,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/token-providers@3.1019.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1019.0 | Apache-2.0
+** @aws-sdk/token-providers@3.1026.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1026.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10296,7 +10296,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/util-endpoints@3.996.5 - https://www.npmjs.com/package/@aws-sdk/util-endpoints/v/3.996.5 | Apache-2.0
+** @aws-sdk/util-endpoints@3.996.6 - https://www.npmjs.com/package/@aws-sdk/util-endpoints/v/3.996.6 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10501,7 +10501,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/util-format-url@3.972.8 - https://www.npmjs.com/package/@aws-sdk/util-format-url/v/3.972.8 | Apache-2.0
+** @aws-sdk/util-format-url@3.972.9 - https://www.npmjs.com/package/@aws-sdk/util-format-url/v/3.972.9 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10706,7 +10706,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/util-user-agent-node@3.973.12 - https://www.npmjs.com/package/@aws-sdk/util-user-agent-node/v/3.973.12 | Apache-2.0
+** @aws-sdk/util-user-agent-node@3.973.15 - https://www.npmjs.com/package/@aws-sdk/util-user-agent-node/v/3.973.15 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10912,7 +10912,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/xml-builder@3.972.16 - https://www.npmjs.com/package/@aws-sdk/xml-builder/v/3.972.16 | Apache-2.0
+** @aws-sdk/xml-builder@3.972.17 - https://www.npmjs.com/package/@aws-sdk/xml-builder/v/3.972.17 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11375,7 +11375,7 @@ SOFTWARE.
 
 ----------------
 
-** @smithy/config-resolver@4.4.13 - https://www.npmjs.com/package/@smithy/config-resolver/v/4.4.13 | Apache-2.0
+** @smithy/config-resolver@4.4.14 - https://www.npmjs.com/package/@smithy/config-resolver/v/4.4.14 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11580,7 +11580,7 @@ Apache License
 
 ----------------
 
-** @smithy/core@3.23.12 - https://www.npmjs.com/package/@smithy/core/v/3.23.12 | Apache-2.0
+** @smithy/core@3.23.14 - https://www.npmjs.com/package/@smithy/core/v/3.23.14 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11786,7 +11786,7 @@ Apache License
 
 ----------------
 
-** @smithy/credential-provider-imds@4.2.12 - https://www.npmjs.com/package/@smithy/credential-provider-imds/v/4.2.12 | Apache-2.0
+** @smithy/credential-provider-imds@4.2.13 - https://www.npmjs.com/package/@smithy/credential-provider-imds/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -11991,7 +11991,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-codec@4.2.12 - https://www.npmjs.com/package/@smithy/eventstream-codec/v/4.2.12 | Apache-2.0
+** @smithy/eventstream-codec@4.2.13 - https://www.npmjs.com/package/@smithy/eventstream-codec/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12197,7 +12197,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-config-resolver@4.3.12 - https://www.npmjs.com/package/@smithy/eventstream-serde-config-resolver/v/4.3.12 | Apache-2.0
+** @smithy/eventstream-serde-config-resolver@4.3.13 - https://www.npmjs.com/package/@smithy/eventstream-serde-config-resolver/v/4.3.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12403,7 +12403,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-node@4.2.12 - https://www.npmjs.com/package/@smithy/eventstream-serde-node/v/4.2.12 | Apache-2.0
+** @smithy/eventstream-serde-node@4.2.13 - https://www.npmjs.com/package/@smithy/eventstream-serde-node/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12609,7 +12609,7 @@ Apache License
 
 ----------------
 
-** @smithy/eventstream-serde-universal@4.2.12 - https://www.npmjs.com/package/@smithy/eventstream-serde-universal/v/4.2.12 | Apache-2.0
+** @smithy/eventstream-serde-universal@4.2.13 - https://www.npmjs.com/package/@smithy/eventstream-serde-universal/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12815,7 +12815,7 @@ Apache License
 
 ----------------
 
-** @smithy/fetch-http-handler@5.3.15 - https://www.npmjs.com/package/@smithy/fetch-http-handler/v/5.3.15 | Apache-2.0
+** @smithy/fetch-http-handler@5.3.16 - https://www.npmjs.com/package/@smithy/fetch-http-handler/v/5.3.16 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13020,7 +13020,7 @@ Apache License
 
 ----------------
 
-** @smithy/hash-node@4.2.12 - https://www.npmjs.com/package/@smithy/hash-node/v/4.2.12 | Apache-2.0
+** @smithy/hash-node@4.2.13 - https://www.npmjs.com/package/@smithy/hash-node/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13225,7 +13225,7 @@ Apache License
 
 ----------------
 
-** @smithy/hash-stream-node@4.2.12 - https://www.npmjs.com/package/@smithy/hash-stream-node/v/4.2.12 | Apache-2.0
+** @smithy/hash-stream-node@4.2.13 - https://www.npmjs.com/package/@smithy/hash-stream-node/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -13840,7 +13840,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-content-length@4.2.12 - https://www.npmjs.com/package/@smithy/middleware-content-length/v/4.2.12 | Apache-2.0
+** @smithy/middleware-content-length@4.2.13 - https://www.npmjs.com/package/@smithy/middleware-content-length/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14045,7 +14045,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-endpoint@4.4.27 - https://www.npmjs.com/package/@smithy/middleware-endpoint/v/4.4.27 | Apache-2.0
+** @smithy/middleware-endpoint@4.4.29 - https://www.npmjs.com/package/@smithy/middleware-endpoint/v/4.4.29 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14250,7 +14250,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-retry@4.4.44 - https://www.npmjs.com/package/@smithy/middleware-retry/v/4.4.44 | Apache-2.0
+** @smithy/middleware-retry@4.5.1 - https://www.npmjs.com/package/@smithy/middleware-retry/v/4.5.1 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14456,7 +14456,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-serde@4.2.15 - https://www.npmjs.com/package/@smithy/middleware-serde/v/4.2.15 | Apache-2.0
+** @smithy/middleware-serde@4.2.17 - https://www.npmjs.com/package/@smithy/middleware-serde/v/4.2.17 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14662,7 +14662,7 @@ Apache License
 
 ----------------
 
-** @smithy/middleware-stack@4.2.12 - https://www.npmjs.com/package/@smithy/middleware-stack/v/4.2.12 | Apache-2.0
+** @smithy/middleware-stack@4.2.13 - https://www.npmjs.com/package/@smithy/middleware-stack/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -14867,7 +14867,7 @@ Apache License
 
 ----------------
 
-** @smithy/node-config-provider@4.3.12 - https://www.npmjs.com/package/@smithy/node-config-provider/v/4.3.12 | Apache-2.0
+** @smithy/node-config-provider@4.3.13 - https://www.npmjs.com/package/@smithy/node-config-provider/v/4.3.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15072,7 +15072,7 @@ Apache License
 
 ----------------
 
-** @smithy/node-http-handler@4.5.0 - https://www.npmjs.com/package/@smithy/node-http-handler/v/4.5.0 | Apache-2.0
+** @smithy/node-http-handler@4.5.2 - https://www.npmjs.com/package/@smithy/node-http-handler/v/4.5.2 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15277,7 +15277,7 @@ Apache License
 
 ----------------
 
-** @smithy/property-provider@4.2.12 - https://www.npmjs.com/package/@smithy/property-provider/v/4.2.12 | Apache-2.0
+** @smithy/property-provider@4.2.13 - https://www.npmjs.com/package/@smithy/property-provider/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15482,7 +15482,7 @@ Apache License
 
 ----------------
 
-** @smithy/protocol-http@5.3.12 - https://www.npmjs.com/package/@smithy/protocol-http/v/5.3.12 | Apache-2.0
+** @smithy/protocol-http@5.3.13 - https://www.npmjs.com/package/@smithy/protocol-http/v/5.3.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15688,7 +15688,7 @@ Apache License
 
 ----------------
 
-** @smithy/querystring-builder@4.2.12 - https://www.npmjs.com/package/@smithy/querystring-builder/v/4.2.12 | Apache-2.0
+** @smithy/querystring-builder@4.2.13 - https://www.npmjs.com/package/@smithy/querystring-builder/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -15894,7 +15894,7 @@ Apache License
 
 ----------------
 
-** @smithy/querystring-parser@4.2.12 - https://www.npmjs.com/package/@smithy/querystring-parser/v/4.2.12 | Apache-2.0
+** @smithy/querystring-parser@4.2.13 - https://www.npmjs.com/package/@smithy/querystring-parser/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16100,7 +16100,7 @@ Apache License
 
 ----------------
 
-** @smithy/service-error-classification@4.2.12 - https://www.npmjs.com/package/@smithy/service-error-classification/v/4.2.12 | Apache-2.0
+** @smithy/service-error-classification@4.2.13 - https://www.npmjs.com/package/@smithy/service-error-classification/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16306,7 +16306,7 @@ Apache License
 
 ----------------
 
-** @smithy/shared-ini-file-loader@4.4.7 - https://www.npmjs.com/package/@smithy/shared-ini-file-loader/v/4.4.7 | Apache-2.0
+** @smithy/shared-ini-file-loader@4.4.8 - https://www.npmjs.com/package/@smithy/shared-ini-file-loader/v/4.4.8 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16511,7 +16511,7 @@ Apache License
 
 ----------------
 
-** @smithy/signature-v4@5.3.12 - https://www.npmjs.com/package/@smithy/signature-v4/v/5.3.12 | Apache-2.0
+** @smithy/signature-v4@5.3.13 - https://www.npmjs.com/package/@smithy/signature-v4/v/5.3.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16716,7 +16716,7 @@ Apache License
 
 ----------------
 
-** @smithy/smithy-client@4.12.7 - https://www.npmjs.com/package/@smithy/smithy-client/v/4.12.7 | Apache-2.0
+** @smithy/smithy-client@4.12.9 - https://www.npmjs.com/package/@smithy/smithy-client/v/4.12.9 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -16922,7 +16922,7 @@ Apache License
 
 ----------------
 
-** @smithy/types@4.13.1 - https://www.npmjs.com/package/@smithy/types/v/4.13.1 | Apache-2.0
+** @smithy/types@4.14.0 - https://www.npmjs.com/package/@smithy/types/v/4.14.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -17128,7 +17128,7 @@ Apache License
 
 ----------------
 
-** @smithy/url-parser@4.2.12 - https://www.npmjs.com/package/@smithy/url-parser/v/4.2.12 | Apache-2.0
+** @smithy/url-parser@4.2.13 - https://www.npmjs.com/package/@smithy/url-parser/v/4.2.13 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -18564,7 +18564,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-defaults-mode-node@4.2.47 - https://www.npmjs.com/package/@smithy/util-defaults-mode-node/v/4.2.47 | Apache-2.0
+** @smithy/util-defaults-mode-node@4.2.49 - https://www.npmjs.com/package/@smithy/util-defaults-mode-node/v/4.2.49 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -18770,7 +18770,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-endpoints@3.3.3 - https://www.npmjs.com/package/@smithy/util-endpoints/v/3.3.3 | Apache-2.0
+** @smithy/util-endpoints@3.3.4 - https://www.npmjs.com/package/@smithy/util-endpoints/v/3.3.4 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -19180,7 +19180,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-middleware@4.2.12 - https://www.npmjs.com/package/@smithy/util-middleware/v/4.2.12 | Apache-2.0
+** @smithy/util-middleware@4.2.13 - https://www.npmjs.com/package/@smithy/util-middleware/v/4.2.13 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -19385,7 +19385,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-retry@4.2.12 - https://www.npmjs.com/package/@smithy/util-retry/v/4.2.12 | Apache-2.0
+** @smithy/util-retry@4.3.1 - https://www.npmjs.com/package/@smithy/util-retry/v/4.3.1 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -19590,7 +19590,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-stream@4.5.20 - https://www.npmjs.com/package/@smithy/util-stream/v/4.5.20 | Apache-2.0
+** @smithy/util-stream@4.5.22 - https://www.npmjs.com/package/@smithy/util-stream/v/4.5.22 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -20410,7 +20410,7 @@ Apache License
 
 ----------------
 
-** @smithy/util-waiter@4.2.13 - https://www.npmjs.com/package/@smithy/util-waiter/v/4.2.13 | Apache-2.0
+** @smithy/util-waiter@4.2.15 - https://www.npmjs.com/package/@smithy/util-waiter/v/4.2.15 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -21094,17 +21094,6 @@ THE SOFTWARE.
 
 ----------------
 
-** at-least-node@1.0.0 - https://www.npmjs.com/package/at-least-node/v/1.0.0 | ISC
-The ISC License
-Copyright (c) 2020 Ryan Zimmerman <opensrc@ryanzim.com>
-
-Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
-
-----------------
-
 ** b4a@1.8.0 - https://www.npmjs.com/package/b4a/v/1.8.0 | Apache-2.0
                                  Apache License
                            Version 2.0, January 2004
@@ -21315,7 +21304,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 ----------------
 
-** basic-ftp@5.2.0 - https://www.npmjs.com/package/basic-ftp/v/5.2.0 | MIT
+** basic-ftp@5.2.2 - https://www.npmjs.com/package/basic-ftp/v/5.2.2 | MIT
 Copyright (c) 2019 Patrick Juchli
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21442,7 +21431,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** cdk-from-cfn@0.291.0 - https://www.npmjs.com/package/cdk-from-cfn/v/0.291.0 | MIT OR Apache-2.0
+** cdk-from-cfn@0.295.0 - https://www.npmjs.com/package/cdk-from-cfn/v/0.295.0 | MIT OR Apache-2.0
 
 ----------------
 
@@ -22466,10 +22455,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** fs-extra@9.1.0 - https://www.npmjs.com/package/fs-extra/v/9.1.0 | MIT
+** fs-extra@11.3.4 - https://www.npmjs.com/package/fs-extra/v/11.3.4 | MIT
 (The MIT License)
 
-Copyright (c) 2011-2017 JP Richardson
+Copyright (c) 2011-2024 JP Richardson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
@@ -22918,7 +22907,7 @@ terms above.
 
 ----------------
 
-** lodash@4.17.23 - https://www.npmjs.com/package/lodash/v/4.17.23 | MIT
+** lodash@4.18.1 - https://www.npmjs.com/package/lodash/v/4.18.1 | MIT
 Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
 
 Based on Underscore.js, copyright Jeremy Ashkenas,
@@ -23112,7 +23101,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ----------------
 
-** netmask@2.0.2 - https://www.npmjs.com/package/netmask/v/2.0.2 | MIT
+** netmask@2.1.1 - https://www.npmjs.com/package/netmask/v/2.1.1 | MIT
 
 ----------------
 

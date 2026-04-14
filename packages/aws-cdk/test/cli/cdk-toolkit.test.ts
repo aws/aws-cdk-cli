@@ -61,7 +61,7 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
 import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
@@ -223,6 +223,286 @@ describe('deploy', () => {
         permissionChangeType: 'none',
       }),
     }));
+  });
+
+  describe('two-phase deploy with change-set approval', () => {
+    test('calls prepareStack then execute-change-set when approval is required', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('always creates change set upfront with method=change-set even when requireApproval is never', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — prepare + execute
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('does not create change set for approval with method=direct', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN — only one call with direct method
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'direct' },
+        }),
+      );
+    });
+
+    test('skips deploy when prepare returns noOp', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'stackArn',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — only the prepare call, no execute
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+    });
+
+    test('cleans up change set when approval is rejected', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
+      });
+
+      // Reject approval
+      requestSpy.mockRejectedValue(new Error('Aborted by user'));
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await expect(cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      })).rejects.toThrow(/Aborted/);
+
+      // THEN
+      expect(mockCfnDeployments.cleanupChangeSet).toHaveBeenCalledWith(
+        expect.anything(),
+        'my-change-set',
+      );
+    });
+
+    test('prepare-change-set skips deploy loop and returns prepare result', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set', execute: false },
+      });
+
+      // THEN — prepare only, no deployStack call
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).not.toHaveBeenCalled();
+    });
+
+    test('falls back to original method on retry after rollback', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      // First deploy: needs rollback. Second deploy: succeeds.
+      mockCfnDeployments.deployStack
+        .mockResolvedValueOnce({ type: 'failpaused-need-rollback-first', status: 'UPDATE_ROLLBACK_FAILED', reason: 'not-norollback' })
+        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn' });
+      mockCfnDeployments.rollbackStack.mockResolvedValue({ success: true, stackArn: 'stackArn' });
+
+      // Auto-confirm rollback prompt
+      requestSpy.mockResolvedValue(true);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — first call uses execute-change-set, second uses original change-set method
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(2);
+      expect(mockCfnDeployments.deployStack).toHaveBeenNthCalledWith(1,
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenNthCalledWith(2,
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+    });
   });
 
   test('fails when no valid stack names are given', async () => {
@@ -876,6 +1156,14 @@ describe('deploy', () => {
               CreationTime: new Date(),
             },
           ],
+        })
+        .on(CreateChangeSetCommand)
+        .resolves({ Id: 'changeset-id', StackId: 'stack-id' })
+        .on(DescribeChangeSetCommand)
+        .resolves({
+          Status: 'CREATE_COMPLETE',
+          ChangeSetName: 'cdk-deploy-change-set',
+          Changes: [{ Type: 'Resource' }],
         });
     });
 
@@ -906,7 +1194,7 @@ describe('deploy', () => {
       });
       expect(mockForEnvironment).toHaveBeenCalledTimes(2);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -954,7 +1242,7 @@ describe('deploy', () => {
       });
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -967,7 +1255,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1012,7 +1300,7 @@ describe('deploy', () => {
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1025,7 +1313,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1041,10 +1329,12 @@ describe('deploy', () => {
 
     test('fallback to deploy role if forEnvironment throws', async () => {
       // GIVEN
-      // throw error first for the 'prepareSdkWithLookupRoleFor' call and succeed for the rest
-      mockForEnvironment = jest.spyOn(sdkProvider, 'forEnvironment').mockImplementationOnce(() => {
-        throw new Error('TheErrorThatGetsThrown');
-      });
+      // throw error for the 'prepareSdkWithLookupRoleFor' call (second call, after the prepare phase) and succeed for the rest
+      mockForEnvironment = jest.spyOn(sdkProvider, 'forEnvironment')
+        .mockResolvedValueOnce({ sdk: mockSdk, didAssumeRole: true })
+        .mockImplementationOnce(() => {
+          throw new Error('TheErrorThatGetsThrown');
+        });
 
       const cdkToolkit = new CdkToolkit({
         ioHost,
@@ -1070,7 +1360,7 @@ describe('deploy', () => {
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1083,7 +1373,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1134,11 +1424,10 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        Mode.ForReading,
-        {
-          assumeRoleArn: 'bloop-lookup:here:123456789012',
-          assumeRoleExternalId: undefined,
-        },
+        Mode.ForWriting,
+        expect.objectContaining({
+          assumeRoleArn: 'bloop:here:123456789012',
+        }),
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
         2,
@@ -1147,9 +1436,9 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        Mode.ForWriting,
+        Mode.ForReading,
         {
-          assumeRoleArn: 'bloop:here:123456789012',
+          assumeRoleArn: 'bloop-lookup:here:123456789012',
           assumeRoleExternalId: undefined,
         },
       );
@@ -1190,11 +1479,10 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        0,
-        {
-          assumeRoleArn: undefined,
-          assumeRoleExternalId: undefined,
-        },
+        Mode.ForWriting,
+        expect.objectContaining({
+          assumeRoleArn: 'bloop:here:123456789012',
+        }),
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
         2,
@@ -1203,9 +1491,9 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        1,
+        Mode.ForReading,
         {
-          assumeRoleArn: 'bloop:here:123456789012',
+          assumeRoleArn: undefined,
           assumeRoleExternalId: undefined,
         },
       );
@@ -1938,7 +2226,17 @@ describe('rollback', () => {
 
     const mockedDeployStack = jest
       .spyOn(deployments, 'deployStack')
+      // First call: prepare phase (execute: false)
+      .mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stack:arn',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      })
+      // Second call: execute-change-set returns the test's expected result
       .mockResolvedValueOnce(firstResult)
+      // Third call: retry after rollback
       .mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: false,
@@ -1978,8 +2276,9 @@ describe('rollback', () => {
       }
     }
 
-    expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ rollback: false }));
-    expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: true }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ deploymentMethod: expect.objectContaining({ execute: false }) }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: false, deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }) }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(3, expect.objectContaining({ rollback: true }));
   });
 });
 

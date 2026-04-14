@@ -29,17 +29,7 @@ export class CodeCovWorkflow extends Component {
       if: props.restrictToRepos.map(r => `github.repository == '${r}'`).join(' || '),
       steps: [
         github.WorkflowSteps.checkout(),
-        {
-          name: 'Set up Node',
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-          },
-        },
-        {
-          name: 'Install dependencies',
-          run: repo.package.installCommand,
-        },
+        ...repo.renderWorkflowSetup(),
         {
           name: 'Reset coverage thresholds',
           run: 'find . -name "jest.config.json" -type f -exec chmod +w {} \\; -exec node -e "const fs=require(\'fs\'); const file=process.argv[1]; const data=JSON.parse(fs.readFileSync(file)); data.coverageThreshold={ }; fs.writeFileSync(file, JSON.stringify(data, null, 2));" {} \\;',

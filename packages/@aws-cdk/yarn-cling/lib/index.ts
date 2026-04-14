@@ -1,10 +1,10 @@
-import { promises as fs, exists } from 'fs';
+import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as lockfile from '@yarnpkg/lockfile';
+import { parseSyml } from '@yarnpkg/parsers';
 import * as semver from 'semver';
 import { hoistDependencies } from './hoisting';
-import { isPackage, iterDeps, type PackageJson, type PackageLockFile, type PackageLockPackage, type PackageLockTree, type YarnLock } from './types';
+import { isPackage, iterDeps, type PackageJson, type PackageLockFile, type PackageLockPackage, type PackageLockTree, type ResolvedYarnPackage, type YarnLock } from './types';
 
 export interface ShrinkwrapOptions {
   /**
@@ -33,7 +33,7 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   const packageJsonDir = path.dirname(packageJsonFile);
 
   const yarnLockLoc = await findYarnLock(packageJsonDir);
-  const yarnLock: YarnLock = lockfile.parse(await fs.readFile(yarnLockLoc, { encoding: 'utf8' }));
+  const yarnLock: YarnLock = parseYarnLock(await fs.readFile(yarnLockLoc, { encoding: 'utf8' }));
   const pkgJson = await loadPackageJson(packageJsonFile);
 
   let lock = await generateLockFile(pkgJson, yarnLock, packageJsonDir);
@@ -50,6 +50,55 @@ export async function generateShrinkwrap(options: ShrinkwrapOptions): Promise<Pa
   }
 
   return lock;
+}
+
+/**
+ * Parse a yarn.lock file, supporting both classic (v1) and berry (v2+) formats.
+ */
+export function parseYarnLock(content: string): YarnLock {
+  const parsed = parseSyml(content);
+
+  // Berry lockfiles have __metadata and use different field names
+  if (parsed.__metadata) {
+    return convertBerryToClassicLock(parsed);
+  }
+
+  // Classic v1 lockfiles are already in the right shape
+  return { type: 'success', object: parsed };
+}
+
+/**
+ * Convert a parsed berry (v2+) lockfile into the classic YarnLock format.
+ *
+ * Berry keys look like: "pkg@npm:^1.0.0" or "pkg@npm:^1.0.0, pkg@npm:^2.0.0"
+ * We convert each to the classic format: "pkg@^1.0.0" -> { version, resolved, integrity, dependencies }
+ */
+function convertBerryToClassicLock(parsed: Record<string, any>): YarnLock {
+  const object: Record<string, ResolvedYarnPackage> = Object.create(null);
+
+  for (const [key, entry] of Object.entries(parsed)) {
+    if (key === '__metadata' || !entry?.version) continue;
+
+    const resolved: ResolvedYarnPackage = {
+      version: entry.version,
+      ...(entry.resolution && { resolved: entry.resolution }),
+      ...(entry.checksum && { integrity: entry.checksum }),
+      ...(entry.dependencies && {
+        dependencies: Object.fromEntries(
+          Object.entries(entry.dependencies).map(([k, v]: [string, any]) => [k, String(v).replace(/^npm:/, '')]),
+        ),
+      }),
+    };
+
+    // Convert berry descriptors ("pkg@npm:^1.0.0") to classic format ("pkg@^1.0.0")
+    for (const descriptor of key.split(', ')) {
+      const npmMatch = descriptor.match(/^(.+)@npm:(.+)$/);
+      const classicKey = npmMatch ? `${npmMatch[1]}@${npmMatch[2]}` : descriptor;
+      object[classicKey] = resolved;
+    }
+  }
+
+  return { type: 'success', object };
 }
 
 async function generateLockFile(pkgJson: PackageJson, yarnLock: YarnLock, rootDir: string): Promise<PackageLockFile> {
@@ -321,7 +370,7 @@ async function findPackageDir(depName: string, rootDir: string) {
   let dir = rootDir;
   while (dir !== prevDir) {
     const candidateDir = path.join(dir, 'node_modules', depName);
-    if (await new Promise(ok => exists(path.join(candidateDir, 'package.json'), ok))) {
+    if (await fileExists(path.join(candidateDir, 'package.json'))) {
       return candidateDir;
     }
 

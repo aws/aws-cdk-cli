@@ -49,11 +49,13 @@
     "check-for-updates": {
       "name": "check-for-updates",
       "env": {
-        "CI": "0"
+        "CI": "0",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
+        "YARN_NPM_MINIMAL_AGE_GATE": "4320"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,node-backpack,sinon,ts-jest,ts-mock-imports,@aws-sdk/client-appsync,@aws-sdk/client-bedrock-agentcore-control,@aws-sdk/client-cloudcontrol,@aws-sdk/client-cloudformation,@aws-sdk/client-cloudwatch-logs,@aws-sdk/client-codebuild,@aws-sdk/client-ec2,@aws-sdk/client-ecr,@aws-sdk/client-ecs,@aws-sdk/client-elastic-load-balancing-v2,@aws-sdk/client-iam,@aws-sdk/client-kms,@aws-sdk/client-lambda,@aws-sdk/client-route-53,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sfn,@aws-sdk/client-ssm,@aws-sdk/client-sts,@aws-sdk/credential-providers,@aws-sdk/ec2-metadata-service,@aws-sdk/lib-storage,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/smithy-client,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,uuid"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,node-backpack,nx,sinon,ts-jest,ts-mock-imports,tsx,@aws-sdk/client-appsync,@aws-sdk/client-bedrock-agentcore-control,@aws-sdk/client-cloudcontrol,@aws-sdk/client-cloudformation,@aws-sdk/client-cloudwatch-logs,@aws-sdk/client-codebuild,@aws-sdk/client-ec2,@aws-sdk/client-ecr,@aws-sdk/client-ecs,@aws-sdk/client-elastic-load-balancing-v2,@aws-sdk/client-iam,@aws-sdk/client-kms,@aws-sdk/client-lambda,@aws-sdk/client-route-53,@aws-sdk/client-s3,@aws-sdk/client-secrets-manager,@aws-sdk/client-sfn,@aws-sdk/client-ssm,@aws-sdk/client-sts,@aws-sdk/credential-providers,@aws-sdk/ec2-metadata-service,@aws-sdk/lib-storage,@smithy/middleware-endpoint,@smithy/property-provider,@smithy/shared-ini-file-loader,@smithy/smithy-client,@smithy/types,@smithy/util-retry,@smithy/util-waiter,archiver,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,uuid"
         }
       ]
     },
@@ -84,7 +86,8 @@
       "description": "Synthesize project files",
       "steps": [
         {
-          "exec": "cd ../.. && npx projen default"
+          "exec": "projen default",
+          "cwd": "../.."
         }
       ]
     },
@@ -116,7 +119,7 @@
       "description": "Install project dependencies and update lockfile (non-frozen)",
       "steps": [
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install --no-immutable"
         }
       ]
     },
@@ -125,7 +128,7 @@
       "description": "Install project dependencies using frozen lockfile",
       "steps": [
         {
-          "exec": "yarn install --check-files --frozen-lockfile"
+          "exec": "yarn install --immutable"
         }
       ]
     },
@@ -174,7 +177,7 @@
       "description": "Prepare the project for compilation",
       "steps": [
         {
-          "exec": "ts-node -P tsconfig.dev.json --prefer-ts-exts scripts/user-input-gen.ts"
+          "exec": "tsx --tsconfig tsconfig.dev.json scripts/user-input-gen.ts"
         },
         {
           "exec": "./generate.sh"
@@ -240,20 +243,21 @@
       "name": "upgrade-aws-cdk-lib",
       "description": "upgrade aws-cdk-lib",
       "env": {
-        "CI": "0"
+        "CI": "0",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=aws-cdk-lib"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=aws-cdk-lib"
         },
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install --no-immutable"
         },
         {
-          "exec": "yarn upgrade aws-cdk-lib"
+          "exec": "yarn up aws-cdk-lib"
         },
         {
-          "exec": "npx projen"
+          "exec": "yarn projen"
         },
         {
           "spawn": "post-upgrade"
@@ -271,7 +275,7 @@
     }
   },
   "env": {
-    "PATH": "$(npx -c \"node --print process.env.PATH\")"
+    "PATH": "$(yarn exec node --print process.env.PATH)"
   },
-  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"yarn projen\"."
 }

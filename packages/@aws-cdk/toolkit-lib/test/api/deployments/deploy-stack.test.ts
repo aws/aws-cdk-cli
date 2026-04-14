@@ -1198,6 +1198,130 @@ describe('import-existing-resources', () => {
       ImportExistingResources: true,
     } as CreateChangeSetCommandInput);
   });
+
+  test('enhances error message with construct paths when changeset fails', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-stack',
+      template: {
+        Resources: {
+          DashboardsMyRoleABC123: {
+            Type: 'AWS::IAM::Role',
+            Metadata: { 'aws:cdk:path': 'import-error-stack/Dashboards/MyRole/Resource' },
+          },
+          AnotherResourceABC123: {
+            Type: 'AWS::S3::Bucket',
+            Metadata: { 'aws:cdk:path': 'import-error-stack/MyService/AnotherResource/Resource' },
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}), AnotherResourceABC123 ({BucketName=my-bucket})',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      stack,
+      deploymentMethod: {
+        method: 'change-set',
+        importExistingResources: true,
+      },
+    })).rejects.toThrow(
+      [
+        "Import of existing resources failed for stack 'import-error-stack' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
+        '  - import-error-stack/Dashboards/MyRole/Resource (DashboardsMyRoleABC123)',
+        '  - import-error-stack/MyService/AnotherResource/Resource (AnotherResourceABC123)',
+        '',
+        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
+        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
+      ].join('\n'),
+    );
+  });
+
+  test('does not enhance error message when importExistingResources is false', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-stack-no-enhance',
+      template: {
+        Resources: {
+          MyRoleF4B2B07F: {
+            Type: 'AWS::IAM::Role',
+            Metadata: { 'aws:cdk:path': 'MyStack/MyConstruct/MyRole/Resource' },
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
+    });
+
+    // THEN - original error without enhancement, because importExistingResources is false
+    let error: Error | undefined;
+    try {
+      await testDeployStack({
+        ...standardDeployStackArguments(),
+        stack,
+        deploymentMethod: {
+          method: 'change-set',
+        },
+      });
+    } catch (e: any) {
+      error = e;
+    }
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('Failed to create ChangeSet cdk-deploy-change-set on import-error-stack-no-enhance: FAILED');
+    expect(error!.message).not.toContain('Import of existing resources failed');
+    expect(error!.message).not.toContain('RemovalPolicy');
+  });
+
+  test('falls back to logical ID when no construct path metadata exists', async () => {
+    // GIVEN
+    const stack = testStack({
+      stackName: 'import-error-no-metadata',
+      template: {
+        Resources: {
+          MyRoleF4B2B07F: {
+            Type: 'AWS::IAM::Role',
+          },
+        },
+      },
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: ChangeSetStatus.FAILED,
+      StatusReason:
+        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
+        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
+        'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
+    });
+
+    // THEN - enhanced message with logical ID fallback (no construct path)
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      stack,
+      deploymentMethod: {
+        method: 'change-set',
+        importExistingResources: true,
+      },
+    })).rejects.toThrow(
+      [
+        "Import of existing resources failed for stack 'import-error-no-metadata' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
+        '  - MyRoleF4B2B07F',
+        '',
+        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
+        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
+      ].join('\n'),
+    );
+  });
 });
 
 describe('revert-drift', () => {
@@ -1271,6 +1395,159 @@ test.each([
 
 test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();
+});
+
+describe('execute-change-set deployment method', () => {
+  test('executes an existing change set without creating a new one', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('throws when change set is not in CREATE_COMPLETE status', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'FAILED',
+      StatusReason: 'Something went wrong',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
+  });
+
+  test('throws when change set is in CREATE_PENDING status', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_PENDING',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
+  });
+
+  test('throws without reason when status reason is absent', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'DELETE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
+  });
+
+  test('returns replacement-requires-rollback when change set has replacement and rollback is disabled', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetContainsReplacement(true);
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      rollback: false,
+    });
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('is never skipped by canSkipDeploy', async () => {
+    // GIVEN - stack exists with identical template (would normally skip)
+    givenStackExists();
+    givenTemplateIs(DEFAULT_FAKE_TEMPLATE);
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN - still executes despite identical template
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+});
+
+describe('change set returned with execute:false', () => {
+  test('returns changeSet description when execute is false', async () => {
+    // GIVEN
+    const changeSetResponse = {
+      Status: ChangeSetStatus.CREATE_COMPLETE,
+      ChangeSetName: 'cdk-deploy-change-set',
+      ChangeSetId: 'arn:aws:cloudformation:change-set/123',
+      StackId: 'arn:aws:cloudformation:stack/123',
+      Changes: [{ Type: 'Resource' as const }],
+    };
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves(changeSetResponse);
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(false);
+    expect(result.changeSet).toBeDefined();
+    expect(result.changeSet?.Status).toEqual('CREATE_COMPLETE');
+  });
+
+  test('does not return changeSet when change set is empty', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'FAILED',
+      StatusReason: "The submitted information didn't contain changes.",
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    });
+
+    // THEN
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(true);
+    expect(result.changeSet).toBeUndefined();
+  });
 });
 /**
  * Set up the mocks so that it looks like the stack exists to start with

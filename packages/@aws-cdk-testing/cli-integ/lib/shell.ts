@@ -68,9 +68,22 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
 
           // now write the input with a slight delay to ensure
           // the child process has already started reading.
-          setTimeout(() => {
+          const sendInput = () => {
             child.writeStdin(interaction.input + (interaction.end ?? os.EOL));
-          }, 500);
+          };
+
+          if (interaction.beforeInput) {
+            void interaction.beforeInput()
+              .catch((err) => {
+                writeToOutputs(`\n[Prompt: ${interaction.prompt.toString()}] beforeInput hook failed!\n`);
+                writeToOutputs(`${err}\n\n`);
+              })
+              .finally(() => {
+                setTimeout(sendInput, 500);
+              });
+          } else {
+            setTimeout(sendInput, 500);
+          }
         }
       }
     });
@@ -100,7 +113,7 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
       const stdoutOutput = Buffer.concat(stdout).toString('utf-8');
       const out = (options.onlyStderr ? stderrOutput : stdoutOutput + stderrOutput).trim();
 
-      const logAndreject = (error: Error) => {
+      const logAndReject = (error: Error) => {
         if (show === 'error') {
           writeToOutputs(`${out}\n`);
         }
@@ -109,15 +122,15 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
 
       if (remainingInteractions.length !== 0) {
         // regardless of the exit code, if we didn't consume all expected interactions we probably
-        // did somethiing wrong.
-        logAndreject(new Error(`Expected more user interactions but subprocess exited with ${code}`));
+        // did something wrong.
+        logAndReject(new Error(`Expected more user interactions but subprocess exited with ${code}`));
         return;
       }
 
       if (code === 0 || options.allowErrExit) {
         resolve(out);
       } else {
-        logAndreject(new Error(`'${command.join(' ')}' exited with error code ${code}.`));
+        logAndReject(new Error(`'${command.join(' ')}' exited with error code ${code}.`));
       }
     });
   });
@@ -168,6 +181,12 @@ export interface UserInteraction {
    * @default os.EOL
    */
   readonly end?: string;
+
+  /**
+   * An async callback to run after the prompt is matched but before the input is sent.
+   * Useful for verifying external state while the process is paused at a prompt.
+   */
+  readonly beforeInput?: () => Promise<void>;
 }
 
 export interface ShellOptions extends child_process.SpawnOptions {
