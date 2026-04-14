@@ -74,27 +74,17 @@ export async function isHotswappableCloudControlChange(
     service: 'cloudcontrol',
     apply: async () => {
       const cloudControl = sdk.cloudControl();
-      const currentResource = await cloudControl.getResource({
-        TypeName: resourceType,
-        Identifier: identifier,
-      });
-
-      const currentProps: Record<string, any> = JSON.parse(
-        currentResource.ResourceDescription?.Properties ?? '{}',
-      );
 
       const patchOps: Array<{ op: string; path: string; value?: any }> = [];
       for (const propName of classifiedChanges.namesOfHotswappableProps) {
+        const diff = change.propertyUpdates[propName];
         const newValue = evaluatedProps[propName];
-        if (JSON.stringify(currentProps[propName]) !== JSON.stringify(newValue)) {
-          if (newValue === undefined) {
-            if (propName in currentProps) {
-              patchOps.push({ op: 'remove', path: `/${propName}` });
-            }
-          } else {
-            const op = propName in currentProps ? 'replace' : 'add';
-            patchOps.push({ op, path: `/${propName}`, value: newValue });
-          }
+        if (diff.isRemoval) {
+          patchOps.push({ op: 'remove', path: `/${propName}` });
+        } else if (diff.isAddition) {
+          patchOps.push({ op: 'add', path: `/${propName}`, value: newValue });
+        } else {
+          patchOps.push({ op: 'replace', path: `/${propName}`, value: newValue });
         }
       }
 

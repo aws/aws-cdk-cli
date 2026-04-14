@@ -1,4 +1,4 @@
-import { GetResourceCommand, UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { DescribeTypeCommand } from '@aws-sdk/client-cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockCloudControlClient, mockCloudFormationClient } from '../../_helpers/mock-sdk';
@@ -13,15 +13,6 @@ beforeEach(() => {
     Schema: JSON.stringify({
       primaryIdentifier: ['/properties/Id'],
     }),
-  });
-
-  mockCloudControlClient.on(GetResourceCommand).resolves({
-    ResourceDescription: {
-      Properties: JSON.stringify({
-        Id: 'res-123',
-        SomeProp: 'old',
-      }),
-    },
   });
 
   mockCloudControlClient.on(UpdateResourceCommand).resolves({});
@@ -68,11 +59,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     setup.pushStackResourceSummaries(
       setup.stackSummaryOf('MyApi', 'AWS::ApiGateway::RestApi', 'res-123'),
     );
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Id: 'res-123', Description: 'old description' }),
-      },
-    });
     const cdkStackArtifact = setup.cdkStackArtifactOf({
       template: {
         Resources: {
@@ -103,11 +89,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
   test('uses "add" op for properties not present in the current resource', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Id: 'res-123', Name: 'my-api' }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         MyApi: {
@@ -146,11 +127,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
   test('skips updateResource when property values are already the same', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Id: 'res-123', Description: 'same' }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         MyApi: {
@@ -167,7 +143,7 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         Resources: {
           MyApi: {
             Type: 'AWS::ApiGateway::RestApi',
-            Properties: { Id: 'res-123', Description: 'same' },
+            Properties: { Id: 'res-123', Description: 'old' },
           },
         },
       },
@@ -178,7 +154,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
     // THEN
     expect(deployStackResult).not.toBeUndefined();
-    expect(mockCloudControlClient).toHaveReceivedCommand(GetResourceCommand);
     expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
   });
 
@@ -188,11 +163,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       Schema: JSON.stringify({
         primaryIdentifier: ['/properties/ApiId', '/properties/IntegrationId'],
       }),
-    });
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 29000 }),
-      },
     });
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -235,11 +205,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
         primaryIdentifier: ['/properties/ApiId', '/properties/IntegrationId'],
       }),
     });
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ ApiId: 'api-123', IntegrationId: 'integ-456', TimeoutInMillis: 29000 }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         MyIntegration: {
@@ -278,11 +243,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // GIVEN
     mockCloudFormationClient.on(DescribeTypeCommand).resolves({
       Schema: JSON.stringify({}),
-    });
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Description: 'old' }),
-      },
     });
     setup.setCurrentCfnStackTemplate({
       Resources: {
@@ -386,11 +346,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
 
   test('evaluates Ref expressions in property values', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Id: 'res-123', Description: 'old' }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         Bucket: { Type: 'AWS::S3::Bucket' },
@@ -486,11 +441,6 @@ describe.each([
     mockCloudFormationClient.on(DescribeTypeCommand).resolves({
       Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
     });
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({ Id: 'res-123', SomeProp: 'old' }),
-      },
-    });
     mockCloudControlClient.on(UpdateResourceCommand).resolves({});
   });
 
@@ -543,15 +493,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property remov
 
   test('uses remove op when a property is deleted from the new template', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({
-          TableName: 'my-table',
-          BillingMode: 'PROVISIONED',
-          ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 },
-        }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         Table: {
@@ -598,14 +539,6 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property remov
 
   test('uses add op when a new property is introduced in the new template', async () => {
     // GIVEN
-    mockCloudControlClient.on(GetResourceCommand).resolves({
-      ResourceDescription: {
-        Properties: JSON.stringify({
-          TableName: 'my-table',
-          BillingMode: 'PAY_PER_REQUEST',
-        }),
-      },
-    });
     setup.setCurrentCfnStackTemplate({
       Resources: {
         Table: {
