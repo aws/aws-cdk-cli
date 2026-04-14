@@ -1774,6 +1774,17 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
   ].filter(s => s && !disallowed.has(s)).sort().join('\n')),
 );
 
+// Fix: `yarn projen upgrade-aws-cdk-lib` fails in sub-packages because the
+// `projen` binary is hoisted to the root node_modules/.bin and not available
+// on PATH when running from a workspace sub-directory. Use `yarn run` instead,
+// which properly resolves package scripts through Yarn's workspace resolution.
+repoProject.github?.tryFindWorkflow('upgrade-aws-cdk-lib_aws-cdk')?.file?.patch(
+  pj.JsonPatch.replace(
+    '/jobs/upgrade/steps/4/run',
+    'yarn run upgrade-aws-cdk-lib',
+  ),
+);
+
 // enforce same node types everywhere
 [repo, ...repo.subprojects].forEach(p => p.addDevDeps('@types/node@^20'));
 

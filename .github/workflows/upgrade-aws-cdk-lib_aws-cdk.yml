@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
       - name: Upgrade dependencies
-        run: yarn projen upgrade-aws-cdk-lib
+        run: yarn run upgrade-aws-cdk-lib
         working-directory: ./packages/aws-cdk
       - name: Find mutations
         id: create_patch
