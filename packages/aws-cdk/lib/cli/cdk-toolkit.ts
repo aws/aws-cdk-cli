@@ -1015,7 +1015,9 @@ export class CdkToolkit {
       );
       const stream = new (await import('stream')).PassThrough();
       let diffOutput = '';
-      stream.on('data', (chunk: Buffer) => { diffOutput += chunk.toString(); });
+      stream.on('data', (chunk: Buffer) => {
+        diffOutput += chunk.toString();
+      });
       formatDifferences(stream, diff);
       stream.end();
       await ioHelper.defaults.info(diffOutput);
