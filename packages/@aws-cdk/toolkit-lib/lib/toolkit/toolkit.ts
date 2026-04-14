@@ -1214,7 +1214,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     } else {
       await ioHelper.defaults.info('  2. cdk import');
     }
-    await ioHelper.defaults.info('  3. cdk deploy');
   }
 
   /**
