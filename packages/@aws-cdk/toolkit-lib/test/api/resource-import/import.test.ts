@@ -94,7 +94,7 @@ test('discovers importable resources', async () => {
   ]);
 });
 
-test('by default, its an error if there are non-addition changes in the template', async () => {
+test('non-addition changes are reported but do not throw', async () => {
   givenCurrentStack(STACK_WITH_QUEUE.stackName, {
     Resources: {
       SomethingThatDisappeared: {
@@ -104,10 +104,12 @@ test('by default, its an error if there are non-addition changes in the template
   });
 
   const importer = new ResourceImporter(STACK_WITH_QUEUE, props);
-  await expect(importer.discoverImportableResources()).rejects.toThrow(/No resource updates or deletes/);
-
-  // But the error can be silenced
-  await expect(importer.discoverImportableResources(true)).resolves.toBeTruthy();
+  const result = await importer.discoverImportableResources();
+  expect(result.hasNonAdditions).toBe(true);
+  expect(result.nonAdditionNames).toContain('SomethingThatDisappeared');
+  expect(result.additions).toEqual([
+    expect.objectContaining({ logicalId: 'MyQueue' }),
+  ]);
 });
 
 test('asks human for resource identifiers', async () => {

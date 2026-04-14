@@ -2,6 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { formatDifferences } from '@aws-cdk/cloudformation-diff';
 import type { ConfirmationRequest, DeploymentMethod, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -1003,7 +1004,28 @@ export class CdkToolkit {
       deployments: this.props.deployments,
       ioHelper: asIoHelper(this.ioHost, 'import'),
     });
-    const { additions, hasNonAdditions } = await resourceImporter.discoverImportableResources(options.force);
+    const { additions, hasNonAdditions, diff } = await resourceImporter.discoverImportableResources(options.force);
+
+    // If there are non-addition changes (e.g. after orphan, hardcoded refs differ from Fn::GetAtt),
+    // warn the user and ask for confirmation unless --force was given.
+    if (hasNonAdditions && !options.force) {
+      const ioHelper = this.ioHost.asIoHelper();
+      await ioHelper.defaults.info(
+        `The following resources have pending updates that will be reconciled with a ${chalk.blueBright('cdk deploy')} after import:`,
+      );
+      const stream = new (await import('stream')).PassThrough();
+      let diffOutput = '';
+      stream.on('data', (chunk: Buffer) => { diffOutput += chunk.toString(); });
+      formatDifferences(stream, diff);
+      stream.end();
+      await ioHelper.defaults.info(diffOutput);
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Import will proceed with drift remaining' }));
+      if (!confirmed) {
+        await ioHelper.defaults.info('Import cancelled.');
+        return;
+      }
+    }
+
     if (additions.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(
         '%s: no new resources compared to the currently deployed stack, skipping import.',
@@ -1046,22 +1068,41 @@ export class CdkToolkit {
     });
 
     // Notify user of next steps
-    await this.ioHost.asIoHelper().defaults.info(
-      `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
-      'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
-      chalk.underline.blueBright(
-        'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
-      ),
-    );
     if (actualImport.importResources.length < additions.length) {
-      await this.ioHost.asIoHelper().defaults.info('');
       await this.ioHost.asIoHelper().defaults.warn(
         `Some resources were skipped. Run another ${chalk.blueBright('cdk import')} or a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
       );
     } else if (hasNonAdditions) {
-      await this.ioHost.asIoHelper().defaults.info('');
-      await this.ioHost.asIoHelper().defaults.warn(
-        `Your app has pending updates or deletes excluded from this import operation. Run a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
+      // After orphan→import, the deployed template still has hardcoded values that differ from
+      // the synth'd template's Fn::GetAtt/Ref intrinsics. A deploy reconciles this drift.
+      if (options.force) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `Import complete. Run a ${chalk.blueBright('cdk deploy')} to reconcile any remaining drift.`,
+        );
+      } else {
+        const deployNow = await this.ioHost.asIoHelper().requestResponse(
+          IO.CDK_TOOLKIT_I7010.req(`Finish with a ${chalk.blueBright('cdk deploy')} now?`, { motivation: 'Reconcile remaining drift after import' }),
+        );
+        if (deployNow) {
+          await this.deploy({
+            selector: options.selector,
+            toolkitStackName: options.toolkitStackName,
+            roleArn: options.roleArn,
+            deploymentMethod: options.deploymentMethod,
+          });
+        } else {
+          await this.ioHost.asIoHelper().defaults.info(
+            `Import complete. Remember to run ${chalk.blueBright('cdk deploy')} to reconcile remaining drift.`,
+          );
+        }
+      }
+    } else {
+      await this.ioHost.asIoHelper().defaults.info(
+        `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
+        'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
+        chalk.underline.blueBright(
+          'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
+        ),
       );
     }
   }
