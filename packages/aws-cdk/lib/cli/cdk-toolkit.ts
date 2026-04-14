@@ -582,7 +582,7 @@ export class CdkToolkit {
           try {
             await askUserConfirmation(
               this.ioHost,
-              IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
+              IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
                 motivation,
                 concurrency,
                 permissionChangeType: securityDiff.permissionChangeType,
