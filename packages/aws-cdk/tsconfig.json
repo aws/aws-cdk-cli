@@ -34,7 +34,6 @@
       "mockery",
       "node",
       "picomatch",
-      "promptly",
       "semver",
       "sinon",
       "yargs"

@@ -4,8 +4,8 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
+import { confirm as clackConfirm, text as clackText, isCancel } from '@clack/prompts';
 import * as chalk from 'chalk';
-import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import { StackActivityProgress } from '../../commands/deploy';
@@ -493,8 +493,8 @@ export class CliIoHost implements IIoHost {
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
-        if (!confirmed) {
+        const confirmed = await clackConfirm({ message: chalk.cyan(msg.message) });
+        if (isCancel(confirmed) || !confirmed) {
           throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
         return confirmed;
@@ -503,11 +503,14 @@ export class CliIoHost implements IIoHost {
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
       const desc = responseDescription ?? prompt.default;
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
-        default: prompt.default,
-        trim: true,
+      const answer = await clackText({
+        message: `${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`,
+        defaultValue: prompt.default,
       });
-      return prompt.convertAnswer(answer);
+      if (isCancel(answer)) {
+        throw new ToolkitError('AbortedByUser', 'Aborted by user');
+      }
+      return prompt.convertAnswer(String(answer).trim());
     });
 
     // We need to cast this because it is impossible to narrow the generic type
@@ -576,7 +579,7 @@ function isConfirmationPrompt(msg: IoRequest<any, any>): msg is IoRequest<any, b
 }
 
 /**
- * Helper to extract information for promptly from the request
+ * Helper to extract information for the prompt from the request
  */
 function extractPromptInfo(msg: IoRequest<any, any>): {
   default: string;

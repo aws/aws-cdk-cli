@@ -2,14 +2,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { confirm as clackConfirm, text as clackText, isCancel } from '@clack/prompts';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
-
-let passThrough: PassThrough;
 
 // Store original process.on
 const originalProcessOn = process.on;
@@ -40,7 +39,7 @@ describe('CliIoHost', () => {
     ioHost.isCI = false;
     ioHost.currentAction = 'synth';
     ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
-    (process as any).stdin = passThrough = new PassThrough();
+    (process as any).stdin = new PassThrough();
 
     defaultMessage = {
       time: new Date('2024-01-01T12:00:00'),
@@ -526,7 +525,9 @@ describe('CliIoHost', () => {
 
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
-        const response = await requestResponse('y', plainMessage({
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -535,12 +536,14 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('Continue?') });
         expect(response).toBe(true);
       });
 
       test('respond "no" to a confirmation prompt', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(false);
+
+        await expect(() => ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -548,8 +551,21 @@ describe('CliIoHost', () => {
           message: 'Continue?',
           defaultResponse: true,
         }))).rejects.toThrow('Aborted by user');
+      });
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
+      test('cancel a confirmation prompt', async () => {
+        const cancelSymbol = Symbol('cancel');
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(cancelSymbol);
+        (isCancel as unknown as jest.Mock).mockReturnValueOnce(true);
+
+        await expect(() => ioHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'Continue?',
+          defaultResponse: true,
+        }))).rejects.toThrow('Aborted by user');
       });
     });
 
@@ -557,10 +573,12 @@ describe('CliIoHost', () => {
       test.each([
         ['bear', 'bear'],
         ['giraffe', 'giraffe'],
-        // simulate the enter key
-        ['\x0A', 'cat'],
+        // empty input returns default
+        ['', 'cat'],
       ])('receives %p and returns %p', async (input, expectedResponse) => {
-        const response = await requestResponse(input, plainMessage({
+        (clackText as jest.Mock).mockResolvedValueOnce(input || 'cat');
+
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -569,7 +587,10 @@ describe('CliIoHost', () => {
           defaultResponse: 'cat',
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Favorite animal') + ' (cat) ');
+        expect(clackText).toHaveBeenCalledWith({
+          message: chalk.cyan('Favorite animal') + ' (cat)',
+          defaultValue: 'cat',
+        });
         expect(response).toBe(expectedResponse);
       });
     });
@@ -577,10 +598,12 @@ describe('CliIoHost', () => {
     describe('number', () => {
       test.each([
         ['3', 3],
-        // simulate the enter key
-        ['\x0A', 1],
+        // empty input returns default
+        ['1', 1],
       ])('receives %p and return %p', async (input, expectedResponse) => {
-        const response = await requestResponse(input, plainMessage({
+        (clackText as jest.Mock).mockResolvedValueOnce(input);
+
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -589,7 +612,10 @@ describe('CliIoHost', () => {
           defaultResponse: 1,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('How many would you like?') + ' (1) ');
+        expect(clackText).toHaveBeenCalledWith({
+          message: chalk.cyan('How many would you like?') + ' (1)',
+          defaultValue: '1',
+        });
         expect(response).toBe(expectedResponse);
       });
     });
@@ -709,7 +735,9 @@ describe('CliIoHost', () => {
 
     describe('requireApproval', () => {
       test('require approval by default - respond yes', async () => {
-        const response = await requestResponse('y', plainMessage({
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+
+        const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -718,12 +746,14 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message') });
         expect(response).toEqual(true);
       });
 
       test('require approval by default - respond no', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(false);
+
+        await expect(() => ioHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -749,8 +779,10 @@ describe('CliIoHost', () => {
       });
 
       test('broadening - require approval on broadening changes', async () => {
+        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+
         ioHost.requireDeployApproval = RequireApproval.BROADENING;
-        const response = await requestResponse('y', {
+        const response = await ioHost.requestResponse({
           time: new Date(),
           level: 'info',
           action: 'synth',
@@ -762,7 +794,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message') });
         expect(response).toEqual(true);
       });
 
@@ -786,15 +818,6 @@ describe('CliIoHost', () => {
     });
   });
 });
-
-/**
- * Do a requestResponse cycle with the global ioHost, while sending input on the global fake input stream
- */
-async function requestResponse<DataType, ResponseType>(input: string, msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-  const promise = ioHost.requestResponse(msg);
-  passThrough.write(input + '\n');
-  return promise;
-}
 
 function plainMessage<A extends Omit<IoMessage<unknown> | IoRequest<unknown, unknown>, 'data'>>(m: A): A & { data: void } {
   return {

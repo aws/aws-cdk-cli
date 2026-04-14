@@ -1,6 +1,5 @@
 import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
-// @ts-ignore
-import { Select } from 'enquirer';
+import { select, isCancel } from '@clack/prompts';
 import type { FlagOperations } from './operations';
 import { FlagsMenuOptions, type FlagOperationsParams } from './types';
 
@@ -30,13 +29,12 @@ export class InteractiveHandler {
   async handleInteractiveMode(): Promise<FlagOperationsParams | null> {
     await this.displayFlagsWithDifferences();
 
-    const prompt = new Select({
-      name: 'option',
+    const answer = await select({
       message: 'Menu',
-      choices: Object.values(FlagsMenuOptions),
+      options: Object.values(FlagsMenuOptions).map(o => ({ value: o, label: o })),
     });
 
-    const answer = await prompt.run();
+    if (isCancel(answer)) return null;
 
     switch (answer) {
       case FlagsMenuOptions.ALL_TO_RECOMMENDED:
@@ -58,22 +56,23 @@ export class InteractiveHandler {
   private async handleSpecificFlagSelection(): Promise<FlagOperationsParams> {
     const booleanFlags = this.flags.filter(flag => this.flagOperations.isBooleanFlag(flag));
 
-    const flagPrompt = new Select({
-      name: 'flag',
+    const selectedFlagName = await select({
       message: 'Select which flag you would like to modify:',
-      limit: 100,
-      choices: booleanFlags.map(flag => flag.name),
+      options: booleanFlags.map(flag => ({ value: flag.name, label: flag.name })),
     });
 
-    const selectedFlagName = await flagPrompt.run();
+    if (isCancel(selectedFlagName)) {
+      return { set: false };
+    }
 
-    const valuePrompt = new Select({
-      name: 'value',
+    const value = await select({
       message: 'Select a value:',
-      choices: ['true', 'false'],
+      options: [{ value: 'true', label: 'true' }, { value: 'false', label: 'false' }],
     });
 
-    const value = await valuePrompt.run();
+    if (isCancel(value)) {
+      return { set: false };
+    }
 
     return {
       FLAGNAME: [selectedFlagName],

@@ -1185,7 +1185,6 @@ const cli = configureProject(
       '@types/fs-extra@^11',
       '@types/mockery',
       '@types/picomatch',
-      '@types/promptly',
       '@types/semver',
       '@types/sinon',
       '@types/yargs@^15',
@@ -1243,13 +1242,12 @@ const cli = configureProject(
       'chalk@^4',
       'chokidar@^4',
       'decamelize@^5', // Non-ESM
-      'enquirer',
+      '@clack/prompts',
       'fs-extra@^11',
       'fast-glob',
       'picomatch',
       'p-limit@^3',
       'p-queue@^6',
-      'promptly',
       'proxy-agent',
       'semver',
       'strip-ansi@^6',
@@ -1286,6 +1284,11 @@ const cli = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
+        // @clack/prompts is ESM-only and cannot be loaded by Jest in CJS mode.
+        // Map it to a manual mock that provides safe defaults for all tests.
+        moduleNameMapper: {
+          '^@clack/prompts$': '<rootDir>/test/_helpers/mock-clack-prompts.js',
+        },
         coverageThreshold: {
           // We want to improve our test coverage
           // DO NOT LOWER THESE VALUES!

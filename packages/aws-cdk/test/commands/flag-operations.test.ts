@@ -2,8 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
-// @ts-ignore
-import { Select } from 'enquirer';
+import { select } from '@clack/prompts';
 import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -11,8 +10,9 @@ import type { FlagsOptions } from '../../lib/cli/user-input';
 import { FlagCommandHandler } from '../../lib/commands/flags/flags';
 import { FlagOperations } from '../../lib/commands/flags/operations';
 
-jest.mock('enquirer', () => ({
-  Select: jest.fn(),
+jest.mock('@clack/prompts', () => ({
+  select: jest.fn(),
+  isCancel: jest.fn().mockReturnValue(false),
 }));
 
 let oldDir: string;
@@ -1000,8 +1000,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:matchingFlag': true,
     });
 
-    const mockRun = jest.fn().mockResolvedValue('Set all flags to recommended values');
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect.mockResolvedValue('Set all flags to recommended values');
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1034,8 +1034,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockRun = jest.fn().mockResolvedValue('Set unconfigured flags to recommended values');
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect.mockResolvedValue('Set unconfigured flags to recommended values');
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1066,8 +1066,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockRun = jest.fn().mockResolvedValue('Set unconfigured flags to their implied configuration (record current behavior)');
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect.mockResolvedValue('Set unconfigured flags to their implied configuration (record current behavior)');
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1111,16 +1111,12 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    let promptNumber = 0;
-    const mockRun = jest.fn().mockImplementation(() => {
-      promptNumber++;
-      if (promptNumber === 1) return Promise.resolve('Modify a specific flag');
-      if (promptNumber === 2) return Promise.resolve('@aws-cdk/core:testFlag');
-      if (promptNumber === 3) return Promise.resolve('true');
-      return Promise.resolve('Exit');
-    });
-
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect
+      .mockResolvedValueOnce('Modify a specific flag')
+      .mockResolvedValueOnce('@aws-cdk/core:testFlag')
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('Exit');
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1150,8 +1146,8 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockRun = jest.fn().mockResolvedValue('Exit');
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect.mockResolvedValue('Exit');
 
     const options: FlagsOptions = {
       interactive: true,
@@ -1172,11 +1168,11 @@ describe('interactive prompts lead to the correct function calls', () => {
     await cleanupCdkJsonFile(cdkJsonPath);
   });
 
-  test('enquirer prompts are called with correct options for main menu', async () => {
+  test('select prompts are called with correct options for main menu', async () => {
     const cdkJsonPath = await createCdkJsonFile();
 
-    const mockRun = jest.fn().mockResolvedValue('Exit');
-    Select.mockImplementation(() => ({ run: mockRun }));
+    const mockSelect = select as jest.Mock;
+    mockSelect.mockResolvedValue('Exit');
 
     const options: FlagsOptions = {
       interactive: true,
@@ -1185,15 +1181,14 @@ describe('interactive prompts lead to the correct function calls', () => {
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
     await flagOperations.processFlagsCommand();
 
-    expect(Select).toHaveBeenCalledWith({
-      name: 'option',
+    expect(select).toHaveBeenCalledWith({
       message: 'Menu',
-      choices: [
-        'Set all flags to recommended values',
-        'Set unconfigured flags to recommended values',
-        'Set unconfigured flags to their implied configuration (record current behavior)',
-        'Modify a specific flag',
-        'Exit',
+      options: [
+        { value: 'Set all flags to recommended values', label: 'Set all flags to recommended values' },
+        { value: 'Set unconfigured flags to recommended values', label: 'Set unconfigured flags to recommended values' },
+        { value: 'Set unconfigured flags to their implied configuration (record current behavior)', label: 'Set unconfigured flags to their implied configuration (record current behavior)' },
+        { value: 'Modify a specific flag', label: 'Modify a specific flag' },
+        { value: 'Exit', label: 'Exit' },
       ],
     });
 
