@@ -530,7 +530,7 @@ describe('CliIoHost', () => {
           hotswappableChanges: 2,
           nonHotswappableChanges: 3,
           someResource: 1,
-          someOtherResource: 1
+          someOtherResource: 1,
         },
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
