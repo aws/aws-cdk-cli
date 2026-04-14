@@ -165,6 +165,10 @@
       "type": "build"
     },
     {
+      "name": "projen",
+      "type": "build"
+    },
+    {
       "name": "sinon",
       "type": "build"
     },
