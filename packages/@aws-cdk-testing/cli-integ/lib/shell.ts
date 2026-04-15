@@ -1,6 +1,5 @@
 import type * as child_process from 'child_process';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import type { TestContext } from './integ-test';
 import { Process } from './process';
