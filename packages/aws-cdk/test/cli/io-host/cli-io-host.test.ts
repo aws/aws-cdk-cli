@@ -2,7 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { confirm as clackConfirm, text as clackText, isCancel } from '@clack/prompts';
+import { confirm as clackConfirm, text as clackText, isCancel, log as clackLog } from '@clack/prompts';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
@@ -536,7 +536,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('Continue?') });
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('Continue?'), output: expect.anything() });
         expect(response).toBe(true);
       });
 
@@ -590,6 +590,7 @@ describe('CliIoHost', () => {
         expect(clackText).toHaveBeenCalledWith({
           message: chalk.cyan('Favorite animal') + ' (cat)',
           defaultValue: 'cat',
+          output: expect.anything(),
         });
         expect(response).toBe(expectedResponse);
       });
@@ -615,6 +616,7 @@ describe('CliIoHost', () => {
         expect(clackText).toHaveBeenCalledWith({
           message: chalk.cyan('How many would you like?') + ' (1)',
           defaultValue: '1',
+          output: expect.anything(),
         });
         expect(response).toBe(expectedResponse);
       });
@@ -629,8 +631,6 @@ describe('CliIoHost', () => {
       }, true);
 
       test('it does not prompt the user and return true', async () => {
-        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
-
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -641,17 +641,16 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        // THEN
-        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          message: chalk.cyan('test message') + ' (auto-confirmed)',
-        }));
+        // THEN - uses clackLog.step instead of prompting
+        expect(clackConfirm).not.toHaveBeenCalled();
+        expect(clackLog.step).toHaveBeenCalledWith(
+          expect.stringContaining('test message'),
+          expect.objectContaining({ output: expect.anything() }),
+        );
         expect(response).toBe(true);
       });
 
       test('messages with default are skipped', async () => {
-        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
-
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -662,11 +661,12 @@ describe('CliIoHost', () => {
           defaultResponse: 'foobar',
         }));
 
-        // THEN
-        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          message: chalk.cyan('test message') + ' (auto-responded with default: foobar)',
-        }));
+        // THEN - uses clackLog.step instead of prompting
+        expect(clackText).not.toHaveBeenCalled();
+        expect(clackLog.step).toHaveBeenCalledWith(
+          expect.stringContaining('foobar'),
+          expect.objectContaining({ output: expect.anything() }),
+        );
         expect(response).toBe('foobar');
       });
     });
@@ -746,7 +746,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message') });
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message'), output: expect.anything() });
         expect(response).toEqual(true);
       });
 
@@ -794,7 +794,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message') });
+        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message'), output: expect.anything() });
         expect(response).toEqual(true);
       });
 

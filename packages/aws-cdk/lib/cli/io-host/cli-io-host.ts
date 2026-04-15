@@ -4,7 +4,7 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
-import { confirm as clackConfirm, text as clackText, isCancel } from '@clack/prompts';
+import { confirm as clackConfirm, text as clackText, isCancel, log as clackLog } from '@clack/prompts';
 import * as chalk from 'chalk';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
@@ -451,6 +451,9 @@ export class CliIoHost implements IIoHost {
       const concurrency = data.concurrency ?? 0;
       const responseDescription = data.responseDescription;
 
+      // Output stream for all clack prompts and log messages
+      const output = this.selectStreamFromLevel(msg.level);
+
       // Special approval prompt
       // Determine if the message needs approval. If it does, continue (it is a basic confirmation prompt)
       // If it does not, return success (true). We only check messages with codes that we are aware
@@ -463,19 +466,13 @@ export class CliIoHost implements IIoHost {
       if (this.autoRespond) {
         // respond with yes to all confirmations
         if (isConfirmationPrompt(msg)) {
-          await this.notify({
-            ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
-          });
+          clackLog.step(`${chalk.cyan(msg.message)}\n${chalk.dim('Yes (auto-confirmed)')}`, { output });
           return true;
         }
 
         // respond with the default for all other messages
         if (msg.defaultResponse) {
-          await this.notify({
-            ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
-          });
+          clackLog.step(`${chalk.cyan(msg.message)}\n${chalk.dim(util.format(msg.defaultResponse) + ' (auto-responded)')}`, { output });
           return msg.defaultResponse;
         }
       }
@@ -493,7 +490,7 @@ export class CliIoHost implements IIoHost {
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await clackConfirm({ message: chalk.cyan(msg.message) });
+        const confirmed = await clackConfirm({ message: chalk.cyan(msg.message), output });
         if (isCancel(confirmed) || !confirmed) {
           throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
@@ -506,6 +503,7 @@ export class CliIoHost implements IIoHost {
       const answer = await clackText({
         message: `${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`,
         defaultValue: prompt.default,
+        output,
       });
       if (isCancel(answer)) {
         throw new ToolkitError('AbortedByUser', 'Aborted by user');

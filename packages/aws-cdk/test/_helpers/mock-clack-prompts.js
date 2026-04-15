@@ -10,4 +10,13 @@ module.exports = {
   text: jest.fn().mockResolvedValue(''),
   select: jest.fn().mockResolvedValue(undefined),
   isCancel: jest.fn().mockReturnValue(false),
+  log: {
+    message: jest.fn(),
+    info: jest.fn(),
+    success: jest.fn(),
+    step: jest.fn(),
+    warn: jest.fn(),
+    warning: jest.fn(),
+    error: jest.fn(),
+  },
 };
