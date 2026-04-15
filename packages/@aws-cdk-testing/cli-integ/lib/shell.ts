@@ -69,7 +69,10 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
           // now write the input with a slight delay to ensure
           // the child process has already started reading.
           const sendInput = () => {
-            child.writeStdin(interaction.input + (interaction.end ?? os.EOL));
+            // Use \r (carriage return) as default line ending — this is what real terminals
+            // send when Enter is pressed. Some prompt libraries (e.g. @clack/core) only
+            // recognize \r as the submit key, not \n.
+            child.writeStdin(interaction.input + (interaction.end ?? '\r'));
           };
 
           if (interaction.beforeInput) {
