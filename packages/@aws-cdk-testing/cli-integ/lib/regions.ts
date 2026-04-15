@@ -33,7 +33,7 @@ const ALL_REGIONS = [
   'ca-west-1',
   'mx-central-1',
 
-  // currently experiencing service distruptions.
+  // currently experiencing service disruptions.
   // 'me-central-1',
   // 'me-south-1',
 ];
@@ -41,3 +41,12 @@ const ALL_REGIONS = [
 export function allBut(exclude: string[]): string[] {
   return Array.from(new Set(ALL_REGIONS.filter((r) => !exclude.includes(r))));
 }
+
+/**
+ * Regions that support CloudFormation Stack Refactoring
+ */
+export const STACK_REFACTORING_REGIONS = allBut([
+  'ap-southeast-5',
+  'ap-southeast-7',
+  'mx-central-1',
+]);
