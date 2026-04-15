@@ -2,7 +2,6 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { formatDifferences } from '@aws-cdk/cloudformation-diff';
 import type { ConfirmationRequest, DeploymentMethod, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -1004,24 +1003,15 @@ export class CdkToolkit {
       deployments: this.props.deployments,
       ioHelper: asIoHelper(this.ioHost, 'import'),
     });
-    const { additions, hasNonAdditions, diff } = await resourceImporter.discoverImportableResources(options.force);
+    const { additions, hasNonAdditions, diffFormatter } = await resourceImporter.discoverImportableResources(options.force);
 
     // If there are non-addition changes (e.g. after orphan, hardcoded refs differ from Fn::GetAtt),
     // warn the user and ask for confirmation unless --force was given.
     if (hasNonAdditions && !options.force) {
       const ioHelper = this.ioHost.asIoHelper();
-      await ioHelper.defaults.info(
-        `The following resources have pending updates that will be reconciled with a ${chalk.blueBright('cdk deploy')} after import:`,
-      );
-      const stream = new (await import('stream')).PassThrough();
-      let diffOutput = '';
-      stream.on('data', (chunk: Buffer) => {
-        diffOutput += chunk.toString();
-      });
-      formatDifferences(stream, diff);
-      stream.end();
-      await ioHelper.defaults.info(diffOutput);
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Import will proceed with drift remaining' }));
+      const { formattedDiff } = diffFormatter.formatStackDiff();
+      await ioHelper.defaults.info(formattedDiff);
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
       if (!confirmed) {
         await ioHelper.defaults.info('Import cancelled.');
         return;
@@ -1076,14 +1066,14 @@ export class CdkToolkit {
       );
     } else if (hasNonAdditions) {
       // After orphan→import, the deployed template still has hardcoded values that differ from
-      // the synth'd template's Fn::GetAtt/Ref intrinsics. A deploy reconciles this drift.
+      // the synth'd template's Fn::GetAtt/Ref intrinsics. A deploy updates the template to match the CDK app.
       if (options.force) {
         await this.ioHost.asIoHelper().defaults.info(
-          `Import complete. Run a ${chalk.blueBright('cdk deploy')} to reconcile any remaining drift.`,
+          `Import complete. Run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
         );
       } else {
         const deployNow = await this.ioHost.asIoHelper().requestResponse(
-          IO.CDK_TOOLKIT_I7010.req(`Finish with a ${chalk.blueBright('cdk deploy')} now?`, { motivation: 'Reconcile remaining drift after import' }),
+          IO.CDK_TOOLKIT_I7010.req(`Finish with a ${chalk.blueBright('cdk deploy')} now?`, { motivation: 'Update stack to match CDK app after import' }),
         );
         if (deployNow) {
           await this.deploy({
@@ -1094,7 +1084,7 @@ export class CdkToolkit {
           });
         } else {
           await this.ioHost.asIoHelper().defaults.info(
-            `Import complete. Remember to run ${chalk.blueBright('cdk deploy')} to reconcile remaining drift.`,
+            `Import complete. Remember to run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
           );
         }
       }

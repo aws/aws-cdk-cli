@@ -110,6 +110,7 @@ test('non-addition changes are reported but do not throw', async () => {
   expect(result.additions).toEqual([
     expect.objectContaining({ logicalId: 'MyQueue' }),
   ]);
+  expect(result.diffFormatter).toBeDefined();
 });
 
 test('asks human for resource identifiers', async () => {

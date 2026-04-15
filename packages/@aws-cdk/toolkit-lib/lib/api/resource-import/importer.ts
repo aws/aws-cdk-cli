@@ -6,6 +6,7 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
+import { DiffFormatter } from '../diff';
 import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { IO, type IoHelper } from '../io/private';
@@ -251,7 +252,12 @@ export class ResourceImporter {
       })),
       hasNonAdditions: nonAdditions.length > 0,
       nonAdditionNames: nonAdditions.map(([logId, _]) => this.describeResource(logId)),
-      diff,
+      diffFormatter: new DiffFormatter({
+        templateInfo: {
+          oldTemplate: currentTemplate,
+          newTemplate: this.stack,
+        },
+      }),
     };
   }
 
@@ -501,7 +507,7 @@ export interface DiscoverImportableResourcesResult {
   readonly additions: ImportableResource[];
   readonly hasNonAdditions: boolean;
   readonly nonAdditionNames: string[];
-  readonly diff: cfnDiff.TemplateDiff;
+  readonly diffFormatter: DiffFormatter;
 }
 
 export function removeNonImportResources(stack:cxapi.CloudFormationStackArtifact) {
