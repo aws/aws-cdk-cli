@@ -647,8 +647,8 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
 function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
   const nonHotswappableResources: Record<string, number> = {};
   for (const { subject } of result.nonHotswappableChanges) {
-    if ("resourceType" in subject) {
-      const keys = "rejectedProperties" in subject && subject.rejectedProperties
+    if ('resourceType' in subject) {
+      const keys = 'rejectedProperties' in subject && subject.rejectedProperties
         ? subject.rejectedProperties.map(p => `hotswapFallback:${subject.resourceType}:${p}`)
         : [`hotswapFallback:${subject.resourceType}`];
       for (const key of keys) {
