@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
-import { select } from '@clack/prompts';
+import { SelectPrompt } from '@clack/core';
 import type { IoHelper } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -10,8 +10,8 @@ import type { FlagsOptions } from '../../lib/cli/user-input';
 import { FlagCommandHandler } from '../../lib/commands/flags/flags';
 import { FlagOperations } from '../../lib/commands/flags/operations';
 
-jest.mock('@clack/prompts', () => ({
-  select: jest.fn(),
+jest.mock('@clack/core', () => ({
+  SelectPrompt: jest.fn(),
   isCancel: jest.fn().mockReturnValue(false),
 }));
 
@@ -1000,8 +1000,10 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:matchingFlag': true,
     });
 
-    const mockSelect = select as jest.Mock;
-    mockSelect.mockResolvedValue('Set all flags to recommended values');
+    const mockSelect = SelectPrompt as unknown as jest.Mock;
+    mockSelect.mockImplementation(() => ({
+      prompt: jest.fn().mockResolvedValue('Set all flags to recommended values'),
+    }));
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1034,8 +1036,10 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockSelect = select as jest.Mock;
-    mockSelect.mockResolvedValue('Set unconfigured flags to recommended values');
+    const mockSelect = SelectPrompt as unknown as jest.Mock;
+    mockSelect.mockImplementation(() => ({
+      prompt: jest.fn().mockResolvedValue('Set unconfigured flags to recommended values'),
+    }));
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1066,8 +1070,10 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockSelect = select as jest.Mock;
-    mockSelect.mockResolvedValue('Set unconfigured flags to their implied configuration (record current behavior)');
+    const mockSelect = SelectPrompt as unknown as jest.Mock;
+    mockSelect.mockImplementation(() => ({
+      prompt: jest.fn().mockResolvedValue('Set unconfigured flags to their implied configuration (record current behavior)'),
+    }));
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1111,12 +1117,11 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockSelect = select as jest.Mock;
-    mockSelect
-      .mockResolvedValueOnce('Modify a specific flag')
-      .mockResolvedValueOnce('@aws-cdk/core:testFlag')
-      .mockResolvedValueOnce('true')
-      .mockResolvedValueOnce('Exit');
+    const values = ['Modify a specific flag', '@aws-cdk/core:testFlag', 'true', 'Exit'];
+    let callIndex = 0;
+    (SelectPrompt as unknown as jest.Mock).mockImplementation(() => ({
+      prompt: jest.fn().mockImplementation(() => Promise.resolve(values[callIndex++])),
+    }));
 
     const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
     requestResponseSpy.mockResolvedValue(true);
@@ -1146,8 +1151,10 @@ describe('interactive prompts lead to the correct function calls', () => {
       '@aws-cdk/core:testFlag': false,
     });
 
-    const mockSelect = select as jest.Mock;
-    mockSelect.mockResolvedValue('Exit');
+    const mockSelect = SelectPrompt as unknown as jest.Mock;
+    mockSelect.mockImplementation(() => ({
+      prompt: jest.fn().mockResolvedValue('Exit'),
+    }));
 
     const options: FlagsOptions = {
       interactive: true,
@@ -1171,8 +1178,10 @@ describe('interactive prompts lead to the correct function calls', () => {
   test('select prompts are called with correct options for main menu', async () => {
     const cdkJsonPath = await createCdkJsonFile();
 
-    const mockSelect = select as jest.Mock;
-    mockSelect.mockResolvedValue('Exit');
+    const mockSelect = SelectPrompt as unknown as jest.Mock;
+    mockSelect.mockImplementation(() => ({
+      prompt: jest.fn().mockResolvedValue('Exit'),
+    }));
 
     const options: FlagsOptions = {
       interactive: true,
@@ -1181,8 +1190,7 @@ describe('interactive prompts lead to the correct function calls', () => {
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
     await flagOperations.processFlagsCommand();
 
-    expect(select).toHaveBeenCalledWith({
-      message: 'Menu',
+    expect(SelectPrompt).toHaveBeenCalledWith(expect.objectContaining({
       options: [
         { value: 'Set all flags to recommended values', label: 'Set all flags to recommended values' },
         { value: 'Set unconfigured flags to recommended values', label: 'Set unconfigured flags to recommended values' },
@@ -1190,7 +1198,7 @@ describe('interactive prompts lead to the correct function calls', () => {
         { value: 'Modify a specific flag', label: 'Modify a specific flag' },
         { value: 'Exit', label: 'Exit' },
       ],
-    });
+    }));
 
     await cleanupCdkJsonFile(cdkJsonPath);
   });

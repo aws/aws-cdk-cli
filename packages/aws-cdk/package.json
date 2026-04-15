@@ -109,7 +109,7 @@
     "@aws-sdk/credential-providers": "^3",
     "@aws-sdk/ec2-metadata-service": "^3",
     "@aws-sdk/lib-storage": "^3",
-    "@clack/prompts": "^1.2.0",
+    "@clack/core": "^1.2.0",
     "@smithy/middleware-endpoint": "^4.4.29",
     "@smithy/property-provider": "^4.2.13",
     "@smithy/shared-ini-file-loader": "^4.4.8",

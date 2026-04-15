@@ -53,7 +53,7 @@
   ],
   "randomize": true,
   "moduleNameMapper": {
-    "^@clack/prompts$": "<rootDir>/test/_helpers/mock-clack-prompts.js"
+    "^@clack/core$": "<rootDir>/test/_helpers/mock-clack-core.js"
   },
   "testTimeout": 60000,
   "setupFilesAfterEnv": [

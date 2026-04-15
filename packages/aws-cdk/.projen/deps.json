@@ -299,7 +299,7 @@
       "type": "runtime"
     },
     {
-      "name": "@clack/prompts",
+      "name": "@clack/core",
       "type": "runtime"
     },
     {

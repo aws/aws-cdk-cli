@@ -2916,25 +2916,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@clack/core@npm:1.2.0":
+"@clack/core@npm:^1.2.0":
   version: 1.2.0
   resolution: "@clack/core@npm:1.2.0"
   dependencies:
     fast-wrap-ansi: "npm:^0.1.3"
     sisteransi: "npm:^1.0.5"
   checksum: 10c0/9ffd2d00a514b966ef28d91ef0b5ecd400e0378f78df352a5a98df2a773a91afa02b181322cb5cbd79d8d42e5c14c00874fe5f4e97d93f5f0d97bbddeb1c805a
-  languageName: node
-  linkType: hard
-
-"@clack/prompts@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "@clack/prompts@npm:1.2.0"
-  dependencies:
-    "@clack/core": "npm:1.2.0"
-    fast-string-width: "npm:^1.1.0"
-    fast-wrap-ansi: "npm:^0.1.3"
-    sisteransi: "npm:^1.0.5"
-  checksum: 10c0/ad88eb1f4d48671f903a9a7aa2072a82bd8c23d7f2e282e69dd178b4e91497ec864af945c3fa26a2884d468ea494397a131a2d1a9ac4aa8d2be24909e0e9423a
   languageName: node
   linkType: hard
 
@@ -6894,7 +6882,7 @@ __metadata:
     "@aws-sdk/ec2-metadata-service": "npm:^3"
     "@aws-sdk/lib-storage": "npm:^3"
     "@cdklabs/eslint-plugin": "npm:^2.0.0"
-    "@clack/prompts": "npm:^1.2.0"
+    "@clack/core": "npm:^1.2.0"
     "@smithy/middleware-endpoint": "npm:^4.4.29"
     "@smithy/property-provider": "npm:^4.2.13"
     "@smithy/shared-ini-file-loader": "npm:^4.4.8"

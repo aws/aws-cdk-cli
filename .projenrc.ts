@@ -1242,7 +1242,7 @@ const cli = configureProject(
       'chalk@^4',
       'chokidar@^4',
       'decamelize@^5', // Non-ESM
-      '@clack/prompts',
+      '@clack/core',
       'fs-extra@^11',
       'fast-glob',
       'picomatch',
@@ -1284,10 +1284,10 @@ const cli = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
-        // @clack/prompts is ESM-only and cannot be loaded by Jest in CJS mode.
+        // @clack/core is ESM-only and cannot be loaded by Jest in CJS mode.
         // Map it to a manual mock that provides safe defaults for all tests.
         moduleNameMapper: {
-          '^@clack/prompts$': '<rootDir>/test/_helpers/mock-clack-prompts.js',
+          '^@clack/core$': '<rootDir>/test/_helpers/mock-clack-core.js',
         },
         coverageThreshold: {
           // We want to improve our test coverage

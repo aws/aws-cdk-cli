@@ -1,7 +1,20 @@
 import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
-import { select, isCancel } from '@clack/prompts';
+import { SelectPrompt, isCancel } from '@clack/core';
 import type { FlagOperations } from './operations';
 import { FlagsMenuOptions, type FlagOperationsParams } from './types';
+
+async function promptSelect<T extends string>(message: string, choices: { value: T; label: string }[]): Promise<T | symbol> {
+  const p = new SelectPrompt({
+    options: choices,
+    render() {
+      const lines = choices.map((c, i) =>
+        i === this.cursor ? `> ${c.label}` : `  ${c.label}`,
+      );
+      return `${message}\n${lines.join('\n')}`;
+    },
+  });
+  return p.prompt() as Promise<T | symbol>;
+}
 
 export class InteractiveHandler {
   constructor(
@@ -29,10 +42,8 @@ export class InteractiveHandler {
   async handleInteractiveMode(): Promise<FlagOperationsParams | null> {
     await this.displayFlagsWithDifferences();
 
-    const answer = await select({
-      message: 'Menu',
-      options: Object.values(FlagsMenuOptions).map(o => ({ value: o, label: o })),
-    });
+    const choices = Object.values(FlagsMenuOptions).map(o => ({ value: o, label: o }));
+    const answer = await promptSelect('Menu', choices);
 
     if (isCancel(answer)) return null;
 
@@ -56,19 +67,19 @@ export class InteractiveHandler {
   private async handleSpecificFlagSelection(): Promise<FlagOperationsParams> {
     const booleanFlags = this.flags.filter(flag => this.flagOperations.isBooleanFlag(flag));
 
-    const selectedFlagName = await select({
-      message: 'Select which flag you would like to modify:',
-      options: booleanFlags.map(flag => ({ value: flag.name, label: flag.name })),
-    });
+    const selectedFlagName = await promptSelect(
+      'Select which flag you would like to modify:',
+      booleanFlags.map(flag => ({ value: flag.name, label: flag.name })),
+    );
 
     if (isCancel(selectedFlagName)) {
       return { set: false };
     }
 
-    const value = await select({
-      message: 'Select a value:',
-      options: [{ value: 'true', label: 'true' }, { value: 'false', label: 'false' }],
-    });
+    const value = await promptSelect(
+      'Select a value:',
+      [{ value: 'true', label: 'true' }, { value: 'false', label: 'false' }],
+    );
 
     if (isCancel(value)) {
       return { set: false };

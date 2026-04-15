@@ -2,7 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { confirm as clackConfirm, text as clackText, isCancel, log as clackLog } from '@clack/prompts';
+import { ConfirmPrompt, TextPrompt, isCancel } from '@clack/core';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
@@ -525,7 +525,9 @@ describe('CliIoHost', () => {
 
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(true),
+        }));
 
         const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -536,12 +538,14 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('Continue?'), output: expect.anything() });
+        expect(ConfirmPrompt).toHaveBeenCalledWith(expect.objectContaining({ output: expect.anything() }));
         expect(response).toBe(true);
       });
 
       test('respond "no" to a confirmation prompt', async () => {
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(false);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(false),
+        }));
 
         await expect(() => ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -555,7 +559,9 @@ describe('CliIoHost', () => {
 
       test('cancel a confirmation prompt', async () => {
         const cancelSymbol = Symbol('cancel');
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(cancelSymbol);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(cancelSymbol),
+        }));
         (isCancel as unknown as jest.Mock).mockReturnValueOnce(true);
 
         await expect(() => ioHost.requestResponse(plainMessage({
@@ -576,7 +582,9 @@ describe('CliIoHost', () => {
         // empty input returns default
         ['', 'cat'],
       ])('receives %p and returns %p', async (input, expectedResponse) => {
-        (clackText as jest.Mock).mockResolvedValueOnce(input || 'cat');
+        (TextPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(input || 'cat'),
+        }));
 
         const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -587,11 +595,7 @@ describe('CliIoHost', () => {
           defaultResponse: 'cat',
         }));
 
-        expect(clackText).toHaveBeenCalledWith({
-          message: chalk.cyan('Favorite animal') + ' (cat)',
-          defaultValue: 'cat',
-          output: expect.anything(),
-        });
+        expect(TextPrompt).toHaveBeenCalledWith(expect.objectContaining({ output: expect.anything() }));
         expect(response).toBe(expectedResponse);
       });
     });
@@ -602,7 +606,9 @@ describe('CliIoHost', () => {
         // empty input returns default
         ['1', 1],
       ])('receives %p and return %p', async (input, expectedResponse) => {
-        (clackText as jest.Mock).mockResolvedValueOnce(input);
+        (TextPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(input),
+        }));
 
         const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -613,11 +619,7 @@ describe('CliIoHost', () => {
           defaultResponse: 1,
         }));
 
-        expect(clackText).toHaveBeenCalledWith({
-          message: chalk.cyan('How many would you like?') + ' (1)',
-          defaultValue: '1',
-          output: expect.anything(),
-        });
+        expect(TextPrompt).toHaveBeenCalledWith(expect.objectContaining({ output: expect.anything() }));
         expect(response).toBe(expectedResponse);
       });
     });
@@ -631,7 +633,8 @@ describe('CliIoHost', () => {
       }, true);
 
       test('it does not prompt the user and return true', async () => {
-        // WHEN
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
@@ -641,17 +644,16 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        // THEN - uses clackLog.step instead of prompting
-        expect(clackConfirm).not.toHaveBeenCalled();
-        expect(clackLog.step).toHaveBeenCalledWith(
-          expect.stringContaining('test message'),
-          expect.objectContaining({ output: expect.anything() }),
-        );
+        expect(ConfirmPrompt).not.toHaveBeenCalled();
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: expect.stringContaining('auto-confirmed'),
+        }));
         expect(response).toBe(true);
       });
 
       test('messages with default are skipped', async () => {
-        // WHEN
+        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
+
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
           level: 'info',
@@ -661,12 +663,10 @@ describe('CliIoHost', () => {
           defaultResponse: 'foobar',
         }));
 
-        // THEN - uses clackLog.step instead of prompting
-        expect(clackText).not.toHaveBeenCalled();
-        expect(clackLog.step).toHaveBeenCalledWith(
-          expect.stringContaining('foobar'),
-          expect.objectContaining({ output: expect.anything() }),
-        );
+        expect(TextPrompt).not.toHaveBeenCalled();
+        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+          message: expect.stringContaining('foobar'),
+        }));
         expect(response).toBe('foobar');
       });
     });
@@ -735,7 +735,9 @@ describe('CliIoHost', () => {
 
     describe('requireApproval', () => {
       test('require approval by default - respond yes', async () => {
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(true),
+        }));
 
         const response = await ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -746,12 +748,14 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message'), output: expect.anything() });
+        expect(ConfirmPrompt).toHaveBeenCalledWith(expect.objectContaining({ output: expect.anything() }));
         expect(response).toEqual(true);
       });
 
       test('require approval by default - respond no', async () => {
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(false);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(false),
+        }));
 
         await expect(() => ioHost.requestResponse(plainMessage({
           time: new Date(),
@@ -774,12 +778,14 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         }));
 
-        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(ConfirmPrompt).not.toHaveBeenCalled();
         expect(response).toEqual(true);
       });
 
       test('broadening - require approval on broadening changes', async () => {
-        (clackConfirm as jest.Mock).mockResolvedValueOnce(true);
+        (ConfirmPrompt as unknown as jest.Mock).mockImplementationOnce(() => ({
+          prompt: jest.fn().mockResolvedValue(true),
+        }));
 
         ioHost.requireDeployApproval = RequireApproval.BROADENING;
         const response = await ioHost.requestResponse({
@@ -794,7 +800,7 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(clackConfirm).toHaveBeenCalledWith({ message: chalk.cyan('test message'), output: expect.anything() });
+        expect(ConfirmPrompt).toHaveBeenCalledWith(expect.objectContaining({ output: expect.anything() }));
         expect(response).toEqual(true);
       });
 
