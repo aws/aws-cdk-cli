@@ -340,7 +340,11 @@ class LastLine {
   private lastLine: string = '';
 
   public append(chunk: string): void {
-    const lines = chunk.split(os.EOL);
+    // Strip ANSI escape codes so prompt matching works regardless of terminal styling
+    const clean = chunk.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
+    // Split on \r, \n, or \r\n — interactive prompt libraries like @clack/prompts
+    // use \r and cursor movement instead of plain \n for re-rendering
+    const lines = clean.split(/\r?\n|\r/);
     if (lines.length === 1) {
       // chunk doesn't contain a new line so just append
       this.lastLine += lines[0];
