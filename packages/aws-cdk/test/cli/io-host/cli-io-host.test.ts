@@ -514,7 +514,7 @@ describe('CliIoHost', () => {
           duration: 456,
           hotswapped: true,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
-          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', rejectedProperties:['Name', 'Id'], logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
           stack: {},
           mode: 'hotswap-only',
         },
@@ -529,8 +529,9 @@ describe('CliIoHost', () => {
           hotswapped: 1,
           hotswappableChanges: 2,
           nonHotswappableChanges: 3,
-          someResource: 1,
-          someOtherResource: 1
+          'hotswapFallback:someResource': 1,
+          'hotswapFallback:someOtherResource:Name': 1,
+          'hotswapFallback:someOtherResource:Id': 1,
         },
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
