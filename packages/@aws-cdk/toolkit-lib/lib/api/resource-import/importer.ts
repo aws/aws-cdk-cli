@@ -6,9 +6,9 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
-import { DiffFormatter } from '../diff';
 import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
+import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
 
