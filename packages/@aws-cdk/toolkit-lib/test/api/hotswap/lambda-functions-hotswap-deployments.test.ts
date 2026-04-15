@@ -618,8 +618,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
         minDelay: 1,
-        maxDelay: 1,
-        maxWaitTime: 1 * 60,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );
@@ -676,8 +676,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
         minDelay: 1,
-        maxDelay: 1,
-        maxWaitTime: 1 * 60,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );
@@ -733,9 +733,9 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
-        minDelay: 2,
-        maxDelay: 5,
-        maxWaitTime: 5 * 60,
+        minDelay: 1,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );

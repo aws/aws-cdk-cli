@@ -79,6 +79,15 @@ export async function isHotswappableLambdaFunctionChange(
 
         if (lambdaCodeChange.code !== undefined || lambdaCodeChange.configurations !== undefined) {
           if (lambdaCodeChange.code !== undefined) {
+            await lambda.updateFunctionCode({
+              FunctionName: functionName,
+              S3Bucket: lambdaCodeChange.code.s3Bucket,
+              S3Key: lambdaCodeChange.code.s3Key,
+              ImageUri: lambdaCodeChange.code.imageUri,
+              ZipFile: lambdaCodeChange.code.functionCodeZip,
+              S3ObjectVersion: lambdaCodeChange.code.s3ObjectVersion,
+            });
+
             await waitForLambdasPropertiesUpdateToFinish(lambda, functionName);
           }
 
@@ -92,6 +101,7 @@ export async function isHotswappableLambdaFunctionChange(
             if (lambdaCodeChange.configurations.environment !== undefined) {
               updateRequest.Environment = lambdaCodeChange.configurations.environment;
             }
+            await lambda.updateFunctionConfiguration(updateRequest);
             await waitForLambdasPropertiesUpdateToFinish(lambda, functionName);
           }
 

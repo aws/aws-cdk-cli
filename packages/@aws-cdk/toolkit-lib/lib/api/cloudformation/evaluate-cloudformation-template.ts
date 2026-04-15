@@ -337,7 +337,7 @@ export class EvaluateCloudFormationTemplate {
    * For properties present in the template, we resolve them directly. For properties NOT in the
    * template (e.g. service-generated read-only values), we fall back to `physicalId`. This is
    * only correct when:
-   * 
+   *
    * - Exactly one property in the identifier is missing from the template, AND
    * - That property happens to be the one that `Ref` returns for this resource type.
    *
