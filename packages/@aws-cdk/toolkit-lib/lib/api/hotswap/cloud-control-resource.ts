@@ -31,7 +31,7 @@ export async function isHotswappableCloudControlChange(
     ret.push(nonHotswappableChange(
       change,
       NonHotswappableReason.RESOURCE_UNSUPPORTED,
-      'Could not determine the physical name or primary id of the resource, so Cloud Control API cannot hotswap it',
+      'Could not determine the physical name or primary identifier of the resource, so Cloud Control API cannot hotswap it.',
     ));
     return ret;
   }

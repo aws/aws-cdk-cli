@@ -324,6 +324,25 @@ export class EvaluateCloudFormationTemplate {
     return cfnExpression;
   }
 
+  /**
+   * Best-effort attempt to construct the Cloud Control API primary identifier for a resource.
+   *
+   * Cloud Control compound identifiers are pipe-delimited, ordered by the `primaryIdentifier`
+   * array in the resource type schema (e.g. `DatabaseName|TableName` for `AWS::Glue::Table`).
+   *
+   * CloudFormation's `PhysicalResourceId` (the `physicalId` parameter here) is the `Ref` return
+   * value for the resource, which is resource-type-specific and may not correspond to the Cloud
+   * Control Primary Identifier.
+   *
+   * For properties present in the template, we resolve them directly. For properties NOT in the
+   * template (e.g. service-generated read-only values), we fall back to `physicalId`. This is
+   * only correct when:
+   * 
+   * - Exactly one property in the identifier is missing from the template, AND
+   * - That property happens to be the one that `Ref` returns for this resource type.
+   *
+   * If multiple properties are missing, `physicalId` is reused for all of them.
+   */
   public async evaluateCloudControlIdentifier(logicalId: string, resourceType: string, physicalId: string): Promise<string> {
     if (resourceType in RESOURCE_TYPE_PRIMARY_IDENTIFIERS) {
       const primaryProps = RESOURCE_TYPE_PRIMARY_IDENTIFIERS[resourceType];
@@ -334,6 +353,7 @@ export class EvaluateCloudFormationTemplate {
         if (templateVal) {
           parts.push(await this.evaluateCfnExpression(templateVal));
         } else {
+          // Not in template — assume this is the Ref return value. See doc comment for caveats.
           parts.push(physicalId);
         }
       }
