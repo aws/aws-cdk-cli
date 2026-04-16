@@ -1,5 +1,6 @@
 import { DescribeStackResourcesCommand, type StackResource } from '@aws-sdk/client-cloudformation';
 import { integTest, withSpecificFixture } from '../../../lib';
+import { STACK_REFACTORING_REGIONS } from '../../../lib/regions';
 
 integTest(
   'cdk refactor - detects refactoring changes and executes the refactor',
@@ -42,7 +43,7 @@ integTest(
     // CloudFormation may complete the refactoring, while the stack is still in the "UPDATE_IN_PROGRESS" state.
     // Give it a couple of seconds to finish the update.
     await new Promise((resolve) => setTimeout(resolve, 2000));
-  }),
+  }, { aws: { regions: STACK_REFACTORING_REGIONS } }),
 );
 
 export function getStackNameFromArn(stackArn: string): string {
