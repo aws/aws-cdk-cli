@@ -84,6 +84,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
   // Debug should always imply tracing
+  // (That's not what --debug means, --debug is intended for the CDK app -- huijbers@)
   setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
@@ -428,6 +429,22 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+        });
+
+      case 'diagnose':
+        ioHost.currentAction = 'diagnose';
+
+        // Implicitly switch 'debug' mode to true, that is going to be most useful.
+        configuration.settings.set(['debug'], true);
+
+        return await cli.diagnose({
+          // Implicitly do all stacks if no pattern given
+          stacks: {
+            strategy: args.STACKS.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+            patterns: args.STACKS,
+          },
+          concurrency: args.concurrency,
+          toolkitStackName: args.toolkitStackName,
         });
 
       case 'rollback':

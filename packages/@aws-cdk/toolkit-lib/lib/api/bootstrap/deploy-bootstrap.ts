@@ -19,6 +19,8 @@ import { NoBootstrapStackEnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
+import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { NO_SOURCE_TRACE } from '../source-tracing/private/source-tracing';
 
 /**
  * A class to hold state around stack bootstrapping
@@ -145,6 +147,10 @@ export class BootstrapStack {
         usePreviousParameters: options.usePreviousParameters ?? true,
         // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
         envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
+        diagnoser: new CloudFormationStackDiagnoser({
+          sdk: this.sdk,
+          sourceTracer: NO_SOURCE_TRACE,
+        }),
       }, this.ioHelper);
 
       assertIsSuccessfulDeployStackResult(ret);

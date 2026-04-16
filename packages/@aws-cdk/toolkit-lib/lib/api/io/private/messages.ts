@@ -30,6 +30,7 @@ import type {
   StackAndAssemblyData,
 } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
+import { DiagnosedStack } from '../../diagnose';
 
 /**
  * We have a rough system by which we assign message codes:
@@ -475,6 +476,25 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9402',
     description: 'Publish assets results on success',
     interface: 'AssetsPayload',
+  }),
+
+  // diagnose (95xx)
+  CDK_TOOLKIT_I9500: make.info<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_I9500',
+    description: 'Stack diagnosis (no problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_E9500: make.error<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_E9500',
+    description: 'Stack diagnosis (problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_W9501: make.warn<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_W9501',
+    description: 'Stack diagnosis (diagnosis could not be performed)',
+    interface: 'DiagnosedStack',
   }),
 
   // Notices

@@ -99,6 +99,12 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 import { countAssemblyResults } from './private/count-assembly-results';
+import { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../api/diagnose/types';
+import { CloudFormationStackDiagnoser } from '../api/diagnose/private/stack-diagnoser';
+import { hostMessageFromDiagnosis } from '../api/diagnose/private/diagnosis-formatting';
+import { EnvironmentAccess } from '../api';
+import { constructDiagnosisFromCloudFormationDiagnosis } from '../api/diagnose/private/annotate-errors';
+import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 
 export interface ToolkitOptions {
   /**
@@ -265,6 +271,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const parameters = options.parameters;
     const bootstrapper = new Bootstrapper(source, ioHelper);
     const sdkProvider = await this.sdkProvider('bootstrap');
+
     const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
@@ -583,6 +590,52 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await ioHelper.notify(IO.CDK_TOOLKIT_I2901.msg(message, { stacks }));
     return stacks;
+  }
+
+  /**
+   * Try to find the root causes for deployment failures of the given stacks.
+   *
+   * Both emits the diagnosis results over the IO host as they are coming in, as well
+   * as returns all of them as the result of the function.
+   *
+   * NOTE: The Cloud Assembly Source **should** be configured with `debug: true` to add
+   * the maximum number of diagnostics.
+   */
+  public async diagnose(cx: ICloudAssemblySource, options: DiagnoseOptions = {}): Promise<DiagnoseResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'diagnose');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
+
+    // Do all stacks in parallel, for speed.
+    const limit = pLimit(options.concurrency ?? 10);
+
+    const stacks = await Promise.all(stackCollection.stackArtifacts.map((stack) => limit(async () => {
+      const stackEnv = await envs.accessStackForReadOnlyStackOperations(stack);
+
+      const diagnoser = new CloudFormationStackDiagnoser({
+        sdk: stackEnv.sdk,
+        envResources: stackEnv.resources,
+        sourceTracer: new StackArtifactSourceTracer(stack),
+      });
+      const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
+
+      const ret: DiagnosedStack = {
+        stackName: stack.stackName,
+        hierarchicalId: stack.hierarchicalId,
+        result: constructDiagnosisFromCloudFormationDiagnosis(diagnosis),
+      };
+
+      await this.ioHost.notify({
+        action: 'diagnose',
+        ...hostMessageFromDiagnosis(ret),
+      });
+
+      return ret;
+    })));
+
+    return { stacks };
   }
 
   /**

@@ -20,10 +20,10 @@ import type { Template, TemplateBodyParameter, TemplateParameter } from '../clou
 import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
-
-export interface ValidationReporter {
-  fetchDetails(changeSetName: string, stackName: string): Promise<string>;
-}
+import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
+import { TargetEnvironment } from '../environment';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnose/private/diagnosis-formatting';
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
@@ -107,7 +107,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll, validationReporter }: { fetchAll: boolean; validationReporter?: ValidationReporter },
+  { fetchAll, diagnoser }: { fetchAll: boolean, diagnoser: CloudFormationStackDiagnoser },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -121,26 +121,12 @@ export async function waitForChangeSet(
       return undefined;
     }
 
-    if (description.Status === ChangeSetStatus.CREATE_COMPLETE || changeSetHasNoChanges(description)) {
+    const diag = await diagnoser.diagnoseChangeSet(description);
+    if (diag.type === 'no-problem') {
       return description;
     }
 
-    const isEarlyValidationError = description.Status === ChangeSetStatus.FAILED &&
-      description.StatusReason?.includes('AWS::EarlyValidation');
-
-    if (isEarlyValidationError) {
-      const details = await validationReporter?.fetchDetails(changeSetName, stackName);
-      if (details) {
-        throw new DeploymentError(details, 'EarlyValidationFailure');
-      }
-    }
-    // eslint-disable-next-line @stylistic/max-len
-    throw new DeploymentError(
-      `Failed to create ChangeSet ${changeSetName} on ${stackName}: ${description.Status || 'NO_STATUS'}, ${
-        description.StatusReason || 'no reason provided'
-      }`,
-      'ChangeSetCreationFailed',
-    );
+    throwDeploymentErrorFromDiagnosis(diag);
   });
 
   if (!ret) {
@@ -148,6 +134,34 @@ export async function waitForChangeSet(
   }
 
   return ret;
+}
+
+export async function waitForChangeSetGone(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  stackName: string,
+  changeSetName: string,
+): Promise<void> {
+  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', changeSetName, stackName));
+  await waitFor(async () => {
+    try {
+      const description = await cfn.describeChangeSet({
+        StackName: stackName,
+        ChangeSetName: changeSetName,
+      });
+
+      if (description.Status === ChangeSetStatus.DELETE_COMPLETE || description.Status === ChangeSetStatus.DELETE_FAILED) {
+        return true;
+      }
+
+      return undefined;
+    } catch (e: any) {
+      if (e.name === 'ChangeSetNotFoundException') {
+        return true;
+      }
+      throw e;
+    }
+  });
 }
 
 export type PrepareChangeSetOptions = {
@@ -169,7 +183,7 @@ export type PrepareChangeSetOptions = {
   failOnError?: boolean;
 };
 
-export type CreateChangeSetOptions = {
+export interface CreateChangeSetOptions {
   cfn: ICloudFormationClient;
   changeSetName: string;
   willExecute: boolean;
@@ -182,6 +196,7 @@ export type CreateChangeSetOptions = {
   importExistingResources?: boolean;
   includeNestedStacks?: boolean;
   role?: string;
+  diagnoser: CloudFormationStackDiagnoser,
 };
 
 /**
@@ -189,9 +204,10 @@ export type CreateChangeSetOptions = {
  */
 export async function createDiffChangeSet(
   ioHelper: IoHelper,
-  options: PrepareChangeSetOptions,
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
-  return uploadBodyParameterAndCreateChangeSet(ioHelper, {
+  const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
+  return uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
     ...options,
     includeNestedStacks: templateContainsNestedStacks(options.stack.template),
   });
@@ -223,14 +239,16 @@ function templatesFromAssetManifestArtifact(
   return [assetManifest, assets];
 }
 
+/**
+ * Only ever called for 'cdk diff'
+ */
 async function uploadBodyParameterAndCreateChangeSet(
   ioHelper: IoHelper,
+  env: TargetEnvironment,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
   try {
     await uploadStackTemplateAssets(options.stack, options.deployments);
-    const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
-
     const bodyParameter = await makeBodyParameter(
       ioHelper,
       options.stack,
@@ -262,6 +280,11 @@ async function uploadBodyParameterAndCreateChangeSet(
       importExistingResources: options.importExistingResources,
       includeNestedStacks: options.includeNestedStacks,
       role: executionRoleArn,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(options.stack),
+      }),
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
@@ -339,6 +362,7 @@ export async function createChangeSet(
   // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
   const createdChangeSet = await waitForChangeSet(options.cfn, ioHelper, options.stack.stackName, options.changeSetName, {
     fetchAll: options.willExecute,
+    diagnoser: options.diagnoser,
   });
   await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
 
@@ -365,26 +389,6 @@ async function cleanupOldChangeset(
     StackName: stackName,
     ChangeSetName: changeSetName,
   });
-}
-
-/**
- * Return true if the given change set has no changes
- *
- * This must be determined from the status, not the 'Changes' array on the
- * object; the latter can be empty because no resources were changed, but if
- * there are changes to Outputs, the change set can still be executed.
- */
-export function changeSetHasNoChanges(description: DescribeChangeSetCommandOutput) {
-  const noChangeErrorPrefixes = [
-    // Error message for a regular template
-    "The submitted information didn't contain changes.",
-    // Error message when a Transform is involved (see #10650)
-    'No updates are to be performed.',
-  ];
-
-  return (
-    description.Status === 'FAILED' && noChangeErrorPrefixes.some((p) => (description.StatusReason ?? '').startsWith(p))
-  );
 }
 
 /**

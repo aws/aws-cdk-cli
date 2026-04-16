@@ -30,6 +30,10 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   };
   await debugFn(format('context:', context));
 
+  if (context.env.CDK_DEBUG === 'true') {
+    await ioHelper.defaults.info('Synthesizing with debug information. This may take a bit longer. (--debug)');
+  }
+
   const env: Record<string, string> = noUndefined({
     // Versioning, outdir, default account and region
     ...await prepareDefaultEnvironment(aws, debugFn),

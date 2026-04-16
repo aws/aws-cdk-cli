@@ -17,6 +17,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk init`](#cdk-init)                     | Start a new CDK project (app or library)                                          |
 | [`cdk list`](#cdk-list)                     | List stacks and their dependencies in an application                              |
 | [`cdk synth`](#cdk-synth)                   | Synthesize a CDK app to CloudFormation template(s)                                |
+| [`cdk diagnose`](#cdk-diagnose)             | Diagnose a failed stack's root cause                                              |
 | [`cdk diff`](#cdk-diff)                     | Diff stacks against current state                                                 |
 | [`cdk deploy`](#cdk-deploy)                 | Deploy a stack into an AWS account                                                |
 | [`cdk publish-assets`](#cdk-publish-assets) | Publish assets for stack(s) without deploying                                     |
@@ -158,6 +159,24 @@ The `quiet` option can be set in the `cdk.json` file.
 See the [AWS Documentation](https://docs.aws.amazon.com/cdk/latest/guide/apps.html#apps_cloud_assembly) to learn more about cloud assemblies.
 See the [CDK reference documentation](https://docs.aws.amazon.com/cdk/api/latest/docs/cloud-assembly-schema-readme.html) for details on the cloud assembly specification
 
+### `cdk diagnose`
+
+Looks at a failed stack deployment in CloudFormation, and prints the root cause
+reason with pointers to the CDK source code that caused the problem.
+
+This peforms the same diagnosis that `cdk deploy` does, but does it
+after-the-fact.  This can be useful to refresh your memory, ask a colleague to
+help diagnose a deployment problem, or try to diagnose a deployment problem if
+your way of working dictates that you perform stack deployment via a CI/CD
+system (instead of directly using the CLI).
+
+```console
+# Diagnose all stacks found inside the application
+$ cdk diagnose
+
+# Diagnose the failed deployment of a specific stack
+$ cdk diagnose <MyStackName>
+```
 
 ### `cdk diff`
 
@@ -166,10 +185,10 @@ deployed application (or a user-specified CloudFormation template). If you need 
 found you need to use the `--fail` command line option.
 
 ```console
-$ # Diff against the currently deployed stack
+# Diff against the currently deployed stack
 $ cdk diff --app='node bin/main.js' MyStackName
 
-$ # Diff against a specific template document
+# Diff against a specific template document
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
@@ -460,9 +479,9 @@ $ cdk deploy --import-existing-resources --exclusively StackName
 ```
 
 Only resources that have custom names can be imported using `--import-existing-resources`.
-For more information, see [name type](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-name.html). 
+For more information, see [name type](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-name.html).
 To import resources that do not accept custom names, such as EC2 instances,
-use the `cdk import` instead. 
+use the `cdk import` instead.
 Visit [Bringing existing resources into CloudFormation management](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import.html)
 for more details.
 
@@ -1056,9 +1075,9 @@ cdk bootstrap --no-previous-parameters
 CDK Garbage Collection.
 
 > [!CAUTION]
-> CDK Garbage Collection is under development and therefore must be opted in via the 
->`--unstable` flag: `cdk gc --unstable=gc`. `--unstable` indicates that the scope and 
-> API of feature might still change. Otherwise the feature is generally production 
+> CDK Garbage Collection is under development and therefore must be opted in via the
+>`--unstable` flag: `cdk gc --unstable=gc`. `--unstable` indicates that the scope and
+> API of feature might still change. Otherwise the feature is generally production
 > ready and fully supported.
 
 `cdk gc` garbage collects unused assets from your bootstrap bucket via the following mechanism:
@@ -1171,12 +1190,12 @@ $ cdk doctor
 
 ### `cdk refactor`
 
-⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have 
-breaking changes in the future. Make sure to use the `--unstable=refactor` flag 
+⚠️**CAUTION**⚠️: CDK Refactor is currently experimental and may have
+breaking changes in the future. Make sure to use the `--unstable=refactor` flag
 when using this command.
 
-Compares the infrastructure specified in the current state of the CDK app with 
-the currently deployed application, to determine if any resource was moved 
+Compares the infrastructure specified in the current state of the CDK app with
+the currently deployed application, to determine if any resource was moved
 (to a different stack or to a different logical ID, or both). In keeping with
 the CloudFormation API, you are not allowed to modify the set of resources
 as part of a refactor. In other words, adding, deleting or updating resources
@@ -1200,9 +1219,9 @@ The following resources were moved or renamed:
 └───────────────────────────────┴───────────────────────────────┴───────────────────────────────────┘
 ```
 
-Note the use of the `--dry-run` flag. When this flag is used, the CLI will 
-show this table and exit. Eventually, the CLI will also be able to automatically  
-apply the refactor on your CloudFormation stacks. But for now, only the dry-run 
+Note the use of the `--dry-run` flag. When this flag is used, the CLI will
+show this table and exit. Eventually, the CLI will also be able to automatically
+apply the refactor on your CloudFormation stacks. But for now, only the dry-run
 mode is supported.
 
 If your application has more than one stack, and you want the `refactor`
@@ -1210,7 +1229,7 @@ command to consider only a subset of them, you can specify the stacks you
 want, both local and deployed:
 
 ```shell
-$ cdk refactor Test* ProdStack --unstable=refactor --dry-run 
+$ cdk refactor Test* ProdStack --unstable=refactor --dry-run
 ```
 
 This is useful if, for example, you have more than one CDK application deployed
@@ -1246,8 +1265,8 @@ Detected ambiguities:
 ```
 
 You can resolve this ambiguity manually, by passing an override file via the
-`--override-file=<path>` CLI option. This file should contain a JSON object 
-with the following structure: 
+`--override-file=<path>` CLI option. This file should contain a JSON object
+with the following structure:
 
 ```json
 {
@@ -1273,7 +1292,7 @@ that is not already occupied by any resource.
 
 To determine if a resource was moved or renamed, the CLI computes a digest
 for each resource, both in the deployed stacks and in the local stacks, and
-then compares the digests. 
+then compares the digests.
 
 Conceptually, the digest is computed as:
 
@@ -1281,19 +1300,19 @@ Conceptually, the digest is computed as:
 digest(resource) = hash(type + properties + dependencies.map(d))
 ```
 
-where hash is a cryptographic hash function. In other words, the digest of a 
-resource is computed from its type, its own properties (that is, excluding 
-properties that refer to other resources), and the digests of each of its 
-dependencies. The digest of a resource, defined recursively this way, remains 
-stable even if one or more of its dependencies gets renamed. Since the 
-resources in a CloudFormation template form a directed acyclic graph, this 
+where hash is a cryptographic hash function. In other words, the digest of a
+resource is computed from its type, its own properties (that is, excluding
+properties that refer to other resources), and the digests of each of its
+dependencies. The digest of a resource, defined recursively this way, remains
+stable even if one or more of its dependencies gets renamed. Since the
+resources in a CloudFormation template form a directed acyclic graph, this
 function is well-defined.
 
 Resources that have the same digest, but different locations, are considered to be
 the same resource, and therefore to have been moved or renamed.
 
 #### Limitations
-- A refactor cannot leave a stack empty. This is a CloudFormation API limitation, 
+- A refactor cannot leave a stack empty. This is a CloudFormation API limitation,
   that also applies to deployments.
 - Creation of new stacks during a refactor is not supported. If you need to
   create a new stack, do it in a separate deployment, previous to refactoring.
@@ -1318,7 +1337,7 @@ option.
 
 ```console
 $ # Detect drift against the currently-deployed stack with the verbose flag enabled
-$ cdk drift --verbose 
+$ cdk drift --verbose
 ```
 
 ### `cdk cli-telemetry`
@@ -1345,7 +1364,7 @@ that can be set in many different ways (such as `~/.cdk.json`).
 $ # Check the current status of telemetry
 $ cdk cli-telemetry --status
 ```
-### `cdk flags` 
+### `cdk flags`
 
 View and modify your feature flag configurations.
 
@@ -1369,7 +1388,7 @@ Alternatively, you can also run `cdk flags --all` to see a report of all feature
 3. flags that are not configured at all
 
 ```shell
-$ cdk flags --unstable=flags --all 
+$ cdk flags --unstable=flags --all
     Feature Flag                              Recommended                  User
     @aws-cdk/...                              true                         true
   * @aws-cdk/...                              true                         false
@@ -1394,7 +1413,7 @@ $ cdk flags --unstable=flags --set --recommended --all
     [~] AWS::S3::Bucket MyBucket
     └─ [~] Properties
         └─ [~] Encryption
-                ... 
+                ...
     Number of stacks with differences: 2
   Do you want to accept these changes? (y/n) y
   Resynthesizing...
@@ -1429,7 +1448,7 @@ $ cdk flags --unstable=flags --set --default --unconfigured
   * @aws-cdk/...                              true                         <unset>
   * @aws-cdk/...                              true                         <unset>
   Synthesizing...
-  
+
   Do you want to accept these changes? (y/n) y
   Resynthesizing...
 ```
@@ -1438,7 +1457,7 @@ $ cdk flags --unstable=flags --set --default --unconfigured
 
 #### View more information about a flag
 
-Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application. 
+Besides running `cdk flags` and `cdk flags --all` to view your feature flag configuration, you can also utilize `cdk flags "#FLAGNAME#"` to inspect a specific feature flag and find out what a specific flag does. This can be helpful in cases where you want to understand a particular flag and its impact on your application.
 
 ```shell
 $ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021"
@@ -1449,7 +1468,7 @@ $ cdk flags --unstable=flags "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1
 
 #### Filter flags by substring
 
-You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed. 
+You can also run `cdk flags #substring#` to view all matching feature flags. If there is only one feature flag that matches that substring, specific details will be displayed.
 
 ```shell
 $ cdk flags --unstable=flags ebs
@@ -1486,7 +1505,7 @@ $ cdk flags --unstable=flags--set "@aws-cdk/aws-cloudfront:defaultSecurityPolicy
                     - ...
     Number of stacks with differences: 2
   Do you want to accept these changes? (y/n) y
-  Resynthesizing...   
+  Resynthesizing...
 ```
 
 ## Global Options

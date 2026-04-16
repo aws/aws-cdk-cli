@@ -120,7 +120,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.allErrorMessages).toStrictEqual(['Test Error']);
+    expect(monitor.errors.allErrorMessages).toStrictEqual(['Test Error']);
   });
 
   test('find error code in the root stack', async () => {
@@ -132,7 +132,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:OhNo');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('ResourceType:OhNo');
   });
 
   test('errors without a clear regex match are reported as unknown', async () => {
@@ -142,7 +142,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:UnknownError');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('ResourceType:UnknownError');
   });
 
   test('error code does not include resource type for non-AWS resources', async () => {
@@ -154,7 +154,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('PrivateResourceError');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('PrivateResourceError');
   });
 
   describe('return errors from the nested stack', () => {
@@ -210,12 +210,12 @@ describe('stack monitor, collecting errors from events', () => {
 
     test('error message', async () => {
       await monitorSettled();
-      expect(monitor.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
+      expect(monitor.errors.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
     });
 
     test('error code', async () => {
       await monitorSettled();
-      expect(monitor.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
+      expect(monitor.errors.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
     });
   });
 
@@ -246,7 +246,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.allErrorMessages).toStrictEqual(['some failure']);
+    expect(monitor.errors.allErrorMessages).toStrictEqual(['some failure']);
     expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(1, DescribeStackEventsCommand, {
       StackName: 'StackName',
     });
@@ -272,7 +272,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.allErrorMessages).toStrictEqual([]);
+    expect(monitor.errors.allErrorMessages).toStrictEqual([]);
   });
 });
 

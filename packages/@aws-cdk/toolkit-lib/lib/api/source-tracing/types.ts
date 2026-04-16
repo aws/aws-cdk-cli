@@ -1,0 +1,16 @@
+
+/**
+ * Enough information to locate a certain CloudFormation resource in a CDK app
+ */
+export interface SourceTrace {
+  readonly constructPath: string;
+  readonly creationStackTrace?: string[];
+  readonly mutationStackTraces?: string[][];
+}
+
+export type SourceTraced<A> = A & {
+  /**
+   * Optionally a source trace
+   */
+  readonly sourceTrace?: SourceTrace;
+}

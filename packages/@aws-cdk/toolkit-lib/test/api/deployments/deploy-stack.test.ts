@@ -31,6 +31,7 @@ import {
   restoreSdkMocksToDefault,
 } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnose/private/stack-diagnoser';
 
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
@@ -135,6 +136,13 @@ function standardDeployStackArguments(): DeployStackApiOptions {
     sdkProvider,
     resolvedEnvironment,
     envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+    diagnoser: new CloudFormationStackDiagnoser({
+      sdk,
+      sourceTracer: {
+        traceResource: () => Promise.resolve(undefined),
+        traceStack: () => Promise.resolve(undefined),
+      },
+    }),
   };
 }
 
@@ -745,6 +753,13 @@ test('deploy not skipped if template did not change but tags changed', async () 
       },
     ],
     envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+    diagnoser: new CloudFormationStackDiagnoser({
+      sdk,
+      sourceTracer: {
+        traceResource: () => Promise.resolve(undefined),
+        traceStack: () => Promise.resolve(undefined),
+      },
+    }),
   });
 
   // THEN

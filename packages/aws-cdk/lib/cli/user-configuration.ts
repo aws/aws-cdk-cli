@@ -41,6 +41,7 @@ export enum Command {
   REFACTOR = 'refactor',
   DRIFT = 'drift',
   CLI_TELEMETRY = 'cli-telemetry',
+  DIAGNOSE = 'diagnose',
 }
 
 const BUNDLING_COMMANDS = [

@@ -18,11 +18,11 @@ import type {
   ParameterChanges,
 } from './cfn-api';
 import {
-  changeSetHasNoChanges,
   TemplateParameters,
   waitForChangeSet,
   waitForStackDeploy,
   waitForStackDelete,
+  waitForChangeSetGone,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
@@ -33,13 +33,13 @@ import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/privat
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
-import { EnvironmentResourcesRegistry } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import { EarlyValidationReporter } from './early-validation';
+import { changeSetHasNoChanges, CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnose/private/diagnosis-formatting';
 
 export interface DeployStackOptions {
   /**
@@ -186,6 +186,11 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * The class that diagnoses CloudFormation errors
+   */
+  readonly diagnoser: CloudFormationStackDiagnoser;
 }
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
@@ -335,6 +340,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     stackParams,
     bodyParameter,
     ioHelper,
+    options.diagnoser,
   );
   return fullDeployment.performDeployment();
 }
@@ -364,6 +370,7 @@ class FullCloudFormationDeployment {
     private readonly stackParams: ParameterValues,
     private readonly bodyParameter: TemplateBodyParameter,
     private readonly ioHelper: IoHelper,
+    private readonly diagnoser: CloudFormationStackDiagnoser,
   ) {
     this.cfn = options.sdk.cloudFormation();
     this.stackName = options.deployName ?? stackArtifact.stackName;
@@ -471,61 +478,17 @@ class FullCloudFormationDeployment {
       ClientToken: `create${this.uuid}`,
       ImportExistingResources: importExistingResources,
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
+
+      // This is necessary to trigger early validation on nested stacks as well
+      IncludeNestedStacks: true,
       ...this.commonPrepareOptions(),
     });
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-    // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
-    const envResources = environmentResourcesRegistry.for(this.options.resolvedEnvironment, this.options.sdk, this.ioHelper);
-    const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources);
-    try {
-      return await waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
-        fetchAll: willExecute,
-        validationReporter,
-      });
-    } catch (e: any) {
-      if (importExistingResources && ToolkitError.isDeploymentError(e) && e.deploymentErrorCode === 'ChangeSetCreationFailed') {
-        throw new DeploymentError(this.enhanceImportErrorMessage(e.message), 'ChangeSetCreationFailed');
-      }
-      throw e;
-    }
-  }
-
-  /**
-   * Enhance an import-related changeset error message by mapping CFN logical IDs to CDK construct paths.
-   */
-  private enhanceImportErrorMessage(message: string): string {
-    // Only enhance the specific CFN error about importing existing resources
-    if (!message.includes('CloudFormation is attempting to import some resources because they already exist in your account')) {
-      return message;
-    }
-
-    const marker = 'The affected resources are ';
-    const markerIndex = message.indexOf(marker);
-    if (markerIndex === -1) {
-      return message;
-    }
-
-    // Only extract logical IDs from the "The affected resources are ..." suffix
-    const resourceList = message.substring(markerIndex + marker.length);
-    const logicalIdPattern = /\b([A-Za-z][A-Za-z0-9]+)\s+\(\{/g;
-    const resources = this.stackArtifact.template?.Resources ?? {};
-
-    const affected: string[] = [];
-    for (const match of resourceList.matchAll(logicalIdPattern)) {
-      const logicalId = match[1];
-      const path = resources[logicalId]?.Metadata?.['aws:cdk:path'];
-      affected.push(path ? `  - ${path} (${logicalId})` : `  - ${logicalId}`);
-    }
-
-    return [
-      `Import of existing resources failed for stack '${this.stackName}' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':`,
-      ...affected,
-      '',
-      "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
-      'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
-    ].join('\n');
+    return await waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
+      fetchAll: willExecute,
+      diagnoser: this.diagnoser,
+    });
   }
 
   private async executeChangeSet(changeSet: DescribeChangeSetCommandOutput): Promise<SuccessfulDeployStackResult> {
@@ -560,6 +523,9 @@ class FullCloudFormationDeployment {
         StackName: this.stackName,
         ChangeSetName: changeSetName,
       });
+
+      // Deleting may take a bit, especially if it involves nested stack change sets. Wait until it is gone.
+      await waitForChangeSetGone(this.cfn, this.ioHelper, this.stackName, changeSetName);
     }
   }
 
@@ -650,7 +616,16 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
-      throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDeployFailed');
+      // If this is a deployment error, route the diagnosis and error reporting through the central code for that
+      if (ToolkitError.isDeploymentError(e)) {
+        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors);
+        if (diagnosis.type !== 'no-problem') {
+          throwDeploymentErrorFromDiagnosis(diagnosis);
+        }
+      }
+
+      // Otherwise rethrow the current error and hope it has enough information.
+      throw e;
     } finally {
       await monitor.stop();
     }
@@ -740,7 +715,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
 
     return { stackArn: currentStack.stackId };
   } catch (e: any) {
-    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages), monitor.rootCauseErrorCode ?? 'StackDestroyFailed');
+    throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages), monitor.errors.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {
     if (monitor) {
       await monitor.stop();

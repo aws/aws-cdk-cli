@@ -1,6 +1,7 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import { formatErrorMessage, isRootStackEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import { ResourceError, ResourceErrors } from './resource-errors';
 
 export interface StackEventPollerProps {
   /**
@@ -14,21 +15,80 @@ export interface StackEventPollerProps {
   readonly parentStackLogicalIds?: string[];
 
   /**
-   * Timestamp for the oldest event we're interested in
+   * A configurable algorithm to indicate when we should stop consuming the event stream.
    *
-   * @default - Read all events
+   * The "oldest event" algorithm will be called on the first occurence of
+   * polling. It will be shown all events in a chunk in turn, newest-to-oldest,
+   * and should decide the oldest event we're still interested in.
+   *
+   * On subsequent polls, we will use the events we've already seen to decide when to stop
+   * polling.
    */
-  readonly startTime?: number;
+  readonly oldestEvent: IOldestEvent;
+}
+
+export interface IOldestEvent {
+  /**
+   * Whether polling should stop on seeing this event
+   */
+  shouldStop(event: ResourceEvent): 'stop-include' | 'stop-exclude' | 'continue';
+}
+
+export abstract class OldestEvent {
+  /**
+   * Stop when events are older than a given time
+   */
+  public static timestamp(startTime: number): IOldestEvent {
+    return {
+      shouldStop(event) {
+          return event.event.Timestamp!.valueOf() < startTime ?  'stop-exclude' : 'continue';
+      }
+    };
+  }
 
   /**
-   * Stop reading when we see the stack entering this status
+   * Stop when we see the root stack entering this status
    *
    * Should be something like `CREATE_IN_PROGRESS`, `UPDATE_IN_PROGRESS`,
    * `DELETE_IN_PROGRESS, `ROLLBACK_IN_PROGRESS`.
-   *
-   * @default - Read all events
    */
-  readonly stackStatuses?: string[];
+  public static stackStatus(statuses: string[]): IOldestEvent {
+    return {
+      shouldStop(event) {
+          return event.isRootStackEvent && statuses.includes(event.event.ResourceStatus ?? '') ? 'stop-include' : 'continue';
+      }
+    };
+  }
+
+  /**
+   * Stop when we see events that belong to a different operation
+   *
+   * Records the first OperationId, and stops as soon as we see events that don't have it anymore.
+   */
+  public static mostRecentOperation(): IOldestEvent {
+    let operationId: string | undefined;
+    return {
+      shouldStop(event) {
+        if (operationId === undefined) {
+          operationId = event.event.OperationId;
+          return 'continue';
+        }
+
+        return event.event.OperationId === operationId ? 'continue' : 'stop-exclude';
+      }
+    };
+  }
+
+  /**
+   * An "oldest event" decider that always returns 'continue'
+   */
+  public static consumeAll(): IOldestEvent {
+    return {
+      shouldStop() {
+        return 'continue';
+      }
+    }
+  }
 }
 
 export interface ResourceEvent {
@@ -47,12 +107,49 @@ export interface ResourceEvent {
    *
    * @default false
    */
-  readonly isStackEvent?: boolean;
+  readonly isRootStackEvent?: boolean;
 }
 
+
+/**
+ * Poll for stack events, potentially multiple times as new events come in over time
+ *
+ * Includes events from nested stacks.
+ *
+ * Polling may happen in multiple bursts, and every burst consumes events from newest-to-oldest
+ * from the stack events API, so events are consumed in the following order:
+ *
+ * ```
+ * CONSUMING
+ *
+ * stack events   (new) z y x w v u t s r q p o n m l k j i h g f e d c b a (old)
+ * bursts                                          [   poll() #1    ]
+ *                                   [  poll() #2   ]               ^
+ *                     [  poll() #3   ]                        oldestEvent
+ *                                                          decides to stop here
+ * ```
+ *
+ * Events are sorted old-to-new before being returned, so the events returned by each
+ * poll are:
+ *
+ * ```
+ * poll() #1 => [e f g h i j k l]
+ * poll() #2 => [m n o p q r s]
+ * poll() #3 => [t u v w x y z]
+ * ```
+ *
+ */
 export class StackEventPoller {
+  /**
+   * All events we've seen so far
+   */
   public readonly events: ResourceEvent[] = [];
   public complete: boolean = false;
+
+  /**
+   * A record of the errors we've seen
+   */
+  public readonly errors = new ResourceErrors();
 
   private readonly eventIds = new Set<string>();
   private readonly nestedStackPollers: Record<string, StackEventPoller> = {};
@@ -66,8 +163,8 @@ export class StackEventPoller {
   /**
    * From all accumulated events, return only the errors
    */
-  public get resourceErrors(): ResourceEvent[] {
-    return this.events.filter((e) => e.event.ResourceStatus?.endsWith('_FAILED') && !e.isStackEvent);
+  public get resourceErrors(): ReadonlyArray<ResourceError> {
+    return this.errors.all;
   }
 
   /**
@@ -94,10 +191,17 @@ export class StackEventPoller {
     // Return what we have so far
     events.sort((a, b) => a.event.Timestamp!.valueOf() - b.event.Timestamp!.valueOf());
     this.events.push(...events);
+
+    this.errors.update(...events);
+
     return events;
   }
 
   private async doPoll(): Promise<ResourceEvent[]> {
+    // If we already have events and we poll again, we can only get newer events up to
+    // events we've already seen. No need to invoke the "oldestEvent" decider again.
+    const stopDecider = this.eventIds.size > 0 ? OldestEvent.consumeAll() : this.props.oldestEvent;
+
     const events: ResourceEvent[] = [];
     try {
       let nextToken: string | undefined;
@@ -106,29 +210,32 @@ export class StackEventPoller {
       while (!finished) {
         const page = await this.cfn.describeStackEvents({ StackName: this.props.stackName, NextToken: nextToken });
         for (const event of page?.StackEvents ?? []) {
-          // Event from before we were interested in 'em
-          if (this.props.startTime !== undefined && event.Timestamp!.valueOf() < this.props.startTime) {
-            return events;
-          }
-
           // Already seen this one
           if (this.eventIds.has(event.EventId!)) {
             return events;
           }
-          this.eventIds.add(event.EventId!);
 
           const isParentStackEvent = isRootStackEvent(event);
-          if (isParentStackEvent && this.props.stackStatuses?.includes(event.ResourceStatus ?? '')) {
-            return events;
-          }
-
           // Fresh event
           const resEvent: ResourceEvent = {
             event: event,
             parentStackLogicalIds: this.props.parentStackLogicalIds ?? [],
-            isStackEvent: isParentStackEvent,
+            isRootStackEvent: isParentStackEvent,
           };
+
+          // Make a stop decision
+          const stopDecision = stopDecider.shouldStop(resEvent);
+          if (stopDecision === 'stop-exclude') {
+            return events;
+          }
+
+          this.eventIds.add(event.EventId!);
+
           events.push(resEvent);
+
+          if (stopDecision === 'stop-include') {
+            return events;
+          }
 
           if (
             !isParentStackEvent &&
@@ -177,7 +284,7 @@ export class StackEventPoller {
       this.nestedStackPollers[logicalId] = new StackEventPoller(this.cfn, {
         stackName: physicalResourceId,
         parentStackLogicalIds: parentStackLogicalIds,
-        startTime: event.Timestamp!.valueOf(),
+        oldestEvent: OldestEvent.timestamp(event.Timestamp!.valueOf())
       });
     }
   }

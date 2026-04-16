@@ -70,6 +70,7 @@ import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
 import { FlagOperations } from '../commands/flags/operations';
+import { DiagnoseOptions } from '../../../@aws-cdk/toolkit-lib/lib/api';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -315,9 +316,10 @@ export class CdkToolkit {
           removeNonImportResources(stack);
         }
 
-        const changeSet = (options.method !== 'template')
-          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
-          : undefined;
+        let changeSet;
+        if (options.method !== 'template') {
+          changeSet = await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet);
+        }
 
         const mappings = allMappings.find(m =>
           m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
@@ -766,6 +768,18 @@ export class CdkToolkit {
 
     const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     return totalDrifts > 0 && options.fail ? 1 : 0;
+  }
+
+  /**
+   * Diagnose errors
+   */
+  public async diagnose(options: DiagnoseOptions): Promise<number> {
+    const results = await this.toolkit.diagnose(this.props.cloudExecutable, options);
+
+    if (results.stacks.some(s => s.result.type !== 'no-problem')) {
+      return 1;
+    }
+    return 0;
   }
 
   /**

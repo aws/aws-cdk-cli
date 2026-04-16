@@ -29,6 +29,7 @@ import {
 } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnose/private/stack-diagnoser';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');
@@ -1158,17 +1159,26 @@ test('tags are passed along to create change set', async () => {
     stack[methodName] = jest.fn();
   }
 
+  const sdk = new MockSdk();
+
   await cfnApi.createChangeSet(
     ioHelper,
     {
       stack: stack,
-      cfn: new MockSdk().cloudFormation(),
+      cfn: sdk.cloudFormation(),
       changeSetName: 'foo',
       willExecute: false,
       exists: true,
       uuid: '142DF82A-8ED8-4944-8EEB-A5BAE141F13F',
       bodyParameter: {},
       parameters: {},
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk,
+        sourceTracer: {
+          traceResource: () => Promise.resolve(undefined),
+          traceStack: () => Promise.resolve(undefined),
+        },
+      }),
     },
   );
 

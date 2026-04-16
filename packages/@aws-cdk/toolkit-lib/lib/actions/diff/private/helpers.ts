@@ -11,7 +11,6 @@ import type { Deployments } from '../../../api/deployments';
 import * as cfnApi from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
 import type { IoHelper } from '../../../api/io/private';
-import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { deserializeStructure, formatErrorMessage } from '../../../util';
@@ -90,16 +89,17 @@ async function cfnDiff(
       removeNonImportResources(stack);
     }
 
-    const changeSet = includeChangeSet ? await changeSetDiff(
-      ioHelper,
+    const changeSet = includeChangeSet ? await cfnApi.createDiffChangeSet(ioHelper, {
       deployments,
       stack,
       sdkProvider,
       resourcesToImport,
-      methodOptions.parameters,
-      methodOptions.fallbackToTemplate,
-      methodOptions.importExistingResources,
-    ) : undefined;
+      parameters: methodOptions.parameters ?? {},
+      failOnError: !methodOptions.fallbackToTemplate,
+      importExistingResources: methodOptions.importExistingResources,
+      uuid: uuid.v4(),
+      willExecute: false,
+     }) : undefined;
 
     // If the changeset includes nested stacks, describe each nested changeset
     // and attach it to the corresponding entry in nestedStacks.
@@ -122,29 +122,6 @@ async function cfnDiff(
   }
 
   return templateInfos;
-}
-
-async function changeSetDiff(
-  ioHelper: IoHelper,
-  deployments: Deployments,
-  stack: cxapi.CloudFormationStackArtifact,
-  sdkProvider: SdkProvider,
-  resourcesToImport?: ResourcesToImport,
-  parameters: { [name: string]: string | undefined } = {},
-  fallBackToTemplate: boolean = true,
-  importExistingResources: boolean = false,
-): Promise<any | undefined> {
-  return cfnApi.createDiffChangeSet(ioHelper, {
-    stack,
-    uuid: uuid.v4(),
-    deployments,
-    willExecute: false,
-    sdkProvider,
-    parameters: parameters,
-    resourcesToImport,
-    failOnError: !fallBackToTemplate,
-    importExistingResources,
-  });
 }
 
 /**

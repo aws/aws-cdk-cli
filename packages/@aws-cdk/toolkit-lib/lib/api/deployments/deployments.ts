@@ -32,9 +32,11 @@ import {
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
+import { StackActivityMonitor, StackEventPoller, RollbackChoice, OldestEvent } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
+import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;
 
@@ -386,6 +388,11 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(options.stack),
+      }),
     }, this.ioHelper);
   }
 
@@ -440,12 +447,13 @@ export class Deployments {
             // `DescribeStackResources` permissions).
             const poller = new StackEventPoller(cfn, {
               stackName: deployName,
-              stackStatuses: ['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS'],
+              oldestEvent: OldestEvent.stackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
             });
             await poller.poll();
             resourcesToSkip = poller.resourceErrors
-              .filter((r) => !r.isStackEvent && r.parentStackLogicalIds.length === 0)
-              .map((r) => r.event.LogicalResourceId ?? '');
+              .filter((r) => r.parentStackLogicalIds.length === 0)
+              .map((r) => r.logicalId)
+              .filter((id) => typeof id === 'string');
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
@@ -487,12 +495,12 @@ export class Deployments {
         }
         finalStackState = successStack;
 
-        const errors = monitor.allErrorMessages.join(', ');
+        const errors = monitor.errors.allErrorMessages.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages);
       } finally {
         await monitor.stop();
       }
@@ -509,7 +517,7 @@ export class Deployments {
 
       throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
-        monitor.rootCauseErrorCode ?? 'RollbackFailed',
+        monitor.errors.rootCauseErrorCode ?? 'RollbackFailed',
       );
     }
     throw new ToolkitError(
