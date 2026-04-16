@@ -107,12 +107,10 @@ test('generate lock for berry fixture directory', async () => {
         requires: {
           'aws-cdk-lib': '^2.3.4',
         },
-        resolved: 'aws-cdk@npm:1.2.999',
         version: '1.2.999',
       },
       'aws-cdk-lib': {
         integrity: '10-pineapple',
-        resolved: 'aws-cdk-lib@npm:2.3.999',
         version: '2.3.999',
       },
     },
@@ -137,7 +135,6 @@ test('parseBerryLockfile converts berry format to classic YarnLock', () => {
   expect(result.type).toBe('success');
   expect(result.object['foo@^1.0.0']).toEqual({
     version: '1.2.3',
-    resolved: 'foo@npm:1.2.3',
     integrity: '10-abc123',
   });
 });
