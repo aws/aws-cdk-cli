@@ -447,7 +447,7 @@ describe('CliIoHost', () => {
           duration: 456,
           hotswapped: true,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
-          nonHotswappableChanges: [{ c: 3 }],
+          nonHotswappableChanges: [{ subject: { logicalId: 'C' } }],
           stack: {},
           mode: 'hotswap-only',
         },
@@ -500,6 +500,42 @@ describe('CliIoHost', () => {
           hotswappableChanges: 1,
           nonHotswappableChanges: 0,
         },
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with nonHotswappable resources', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', rejectedProperties: ['Name', 'Id'], logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
+          stack: {},
+          mode: 'hotswap-only',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          'hotswapped': 1,
+          'hotswappableChanges': 2,
+          'nonHotswappableChanges': 3,
+          'hotswapFallback:someResource': 1,
+          'hotswapFallback:someOtherResource#Name': 1,
+          'hotswapFallback:someOtherResource#Id': 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
       }));
     });
   });

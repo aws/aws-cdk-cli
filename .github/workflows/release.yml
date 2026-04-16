@@ -271,6 +271,8 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -317,6 +319,8 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -365,6 +369,8 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -407,6 +413,8 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -449,6 +457,8 @@ jobs:
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
+      - name: Enable corepack
+        run: corepack enable
       - name: Checkout
         uses: actions/checkout@v6
         with:
