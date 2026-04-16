@@ -720,10 +720,9 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        const wrappedError = new ToolkitError(
-          'DeployFailed',
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
-        );
+        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
+        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+        const wrappedError = new ToolkitError(code, newMessage);
 
         error = {
           name: cdkCliErrorName(wrappedError),
