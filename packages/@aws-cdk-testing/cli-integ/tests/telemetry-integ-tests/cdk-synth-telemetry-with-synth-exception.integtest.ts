@@ -15,8 +15,17 @@ integTest(
     expect(json).toEqual([
       expect.objectContaining({
         event: expect.objectContaining({
-          state: 'FAILED',
           eventType: 'SYNTH',
+          state: 'FAILED',
+        }),
+        error: {
+          name: 'synth:InvalidBucketNameValue',
+        },
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          eventType: 'INVOKE',
+          state: 'FAILED',
         }),
         error: {
           name: 'synth:InvalidBucketNameValue',
