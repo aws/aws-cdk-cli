@@ -649,7 +649,7 @@ function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
   for (const { subject } of result.nonHotswappableChanges) {
     if ('resourceType' in subject) {
       const keys = 'rejectedProperties' in subject && subject.rejectedProperties
-        ? subject.rejectedProperties.map(p => `hotswapFallback:${subject.resourceType}:${p}`)
+        ? subject.rejectedProperties.map(p => `hotswapFallback:${subject.resourceType}#${p}`)
         : [`hotswapFallback:${subject.resourceType}`];
       for (const key of keys) {
         nonHotswappableResources[key] = (nonHotswappableResources[key] ?? 0) + 1;

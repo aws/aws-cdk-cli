@@ -530,8 +530,8 @@ describe('CliIoHost', () => {
           'hotswappableChanges': 2,
           'nonHotswappableChanges': 3,
           'hotswapFallback:someResource': 1,
-          'hotswapFallback:someOtherResource:Name': 1,
-          'hotswapFallback:someOtherResource:Id': 1,
+          'hotswapFallback:someOtherResource#Name': 1,
+          'hotswapFallback:someOtherResource#Id': 1,
         },
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
