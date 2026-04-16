@@ -81,7 +81,9 @@ function convertBerryToClassicLock(parsed: Record<string, any>): YarnLock {
 
     const resolved: ResolvedYarnPackage = {
       version: entry.version,
-      ...(entry.resolution && { resolved: entry.resolution }),
+      // NOTE: Do NOT include entry.resolution here. Berry resolutions look like
+      // "p-try@npm:2.2.0" which npm misparses as a package name, causing 404s.
+      // npm works fine with just version + integrity.
       ...(entry.checksum && { integrity: entry.checksum }),
       ...(entry.dependencies && {
         dependencies: Object.fromEntries(
