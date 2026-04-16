@@ -29,6 +29,6 @@ integTest(
       }),
     ]);
     fs.unlinkSync(telemetryFile);
-  }),
+  }, { aws: { disableBootstrap: true } }),
 );
 
