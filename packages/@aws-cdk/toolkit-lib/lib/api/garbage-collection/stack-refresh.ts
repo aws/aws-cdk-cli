@@ -147,6 +147,7 @@ export class BackgroundStackRefresh {
   private timeout?: NodeJS.Timeout;
   private lastRefreshTime: number;
   private queuedPromises: Array<(value: unknown) => void> = [];
+  private stopped = false;
 
   constructor(private readonly props: BackgroundStackRefreshProps) {
     this.lastRefreshTime = Date.now();
@@ -168,6 +169,13 @@ export class BackgroundStackRefresh {
       qualifier: this.props.qualifier,
     });
     this.justRefreshedStacks();
+
+    // If stop() was called while the awaited refreshStacks() above was in flight, do not
+    // reinstall a timer — clearTimeout() in stop() could not cancel the already-executing
+    // refresh() call, and scheduling a new one here would pin the event loop forever.
+    if (this.stopped) {
+      return;
+    }
 
     // If the last invocation of refreshStacks takes <5 minutes, the next invocation starts 5 minutes after the last one started.
     // If the last invocation of refreshStacks takes >5 minutes, the next invocation starts immediately.
@@ -203,6 +211,7 @@ export class BackgroundStackRefresh {
   }
 
   public stop() {
+    this.stopped = true;
     clearTimeout(this.timeout);
   }
 }
