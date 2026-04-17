@@ -387,6 +387,44 @@ describe('deploy', () => {
       expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
     });
 
+    test('noOp deploy still prints outputs, deployment time, and stack ARN', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no execute call since noOp
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(0);
+
+      // AND — outputs, stack ARN, deployment time, and success message are printed
+      const messages = notifySpy.mock.calls.map((c: any) => c[0]?.message).filter(Boolean);
+      expect(messages.some((m: string) => m.includes('(no changes)'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('Deployment time'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('BucketName'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('arn:aws:cloudformation:region:account:stack/test-stack'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('Total time'))).toBe(true);
+    });
+
     test('cleans up change set when approval is rejected', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);
