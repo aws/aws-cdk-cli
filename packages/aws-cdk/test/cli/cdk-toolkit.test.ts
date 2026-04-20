@@ -425,6 +425,45 @@ describe('deploy', () => {
       expect(messages.some((m: string) => m.includes('Total time'))).toBe(true);
     });
 
+    test('noOp deploy still writes outputs-file', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+
+      const outputsFile = path.join(os.tmpdir(), `cdk-outputs-${Date.now()}.json`);
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      try {
+        // WHEN
+        await cdkToolkit.deploy({
+          selector: { patterns: ['Test-Stack-A-Display-Name'] },
+          requireApproval: RequireApproval.NEVER,
+          deploymentMethod: { method: 'change-set' },
+          outputsFile,
+        });
+
+        // THEN — outputs file was written with the stack outputs
+        const contents = JSON.parse(fs.readFileSync(outputsFile, 'utf-8'));
+        expect(contents).toEqual({
+          'Test-Stack-A': { BucketName: 'my-bucket' },
+        });
+      } finally {
+        fs.removeSync(outputsFile);
+      }
+    });
+
     test('cleans up change set when approval is rejected', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);
