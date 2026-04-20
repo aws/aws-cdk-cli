@@ -22,6 +22,7 @@ import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/a
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
+import { existingHotswapCache, invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
@@ -40,6 +41,7 @@ function testDeployStack(options: DeployStackApiOptions) {
 }
 
 jest.mock('../../../lib/api/hotswap/hotswap-deployments');
+jest.mock('../../../lib/api/hotswap/hotswap-template-cache');
 jest.mock('../../../lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
@@ -243,6 +245,56 @@ test('correctly passes SSM parameters when hotswapping', async () => {
     'fall-back',
     expect.anything(),
   );
+});
+
+describe('hotswap template cache', () => {
+  test('writeHotswapTemplateCache is called on a successful hotswap deployment', async () => {
+    // GIVEN
+    (tryHotswapDeployment as jest.Mock).mockImplementation(async () => {
+      await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {});
+      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {} };
+    });
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    });
+
+    // THEN
+    expect(writeHotswapTemplateCache).toHaveBeenCalled();
+    expect(invalidateHotswapTemplateCache).not.toHaveBeenCalled();
+  });
+
+  test('invalidateHotswapTemplateCache is called on a non-hotswap deployment', async () => {
+    // GIVEN
+    (existingHotswapCache as jest.Mock).mockResolvedValue(true);
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    expect(invalidateHotswapTemplateCache).toHaveBeenCalled();
+  });
+
+  test('invalidateHotswapTemplateCache is called on a hotswap fallback deployment', async () => {
+    // GIVEN - hotswap fails (returns undefined), falls back to full CFN
+    (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
+    (existingHotswapCache as jest.Mock).mockResolvedValue(true);
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    });
+
+    // THEN
+    expect(tryHotswapDeployment).toHaveBeenCalled();
+    expect(invalidateHotswapTemplateCache).toHaveBeenCalled();
+  });
 });
 
 test('call CreateStack when method=direct and the stack doesnt exist yet', async () => {
