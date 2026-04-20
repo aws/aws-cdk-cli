@@ -40,6 +40,10 @@ const DEPLOYED_TEMPLATE = {
             TABLE_NAME: { Ref: 'MyTable' },
             TABLE_ARN: { 'Fn::GetAtt': ['MyTable', 'Arn'] },
             STREAM_ARN: { 'Fn::GetAtt': ['MyTable', 'StreamArn'] },
+            // Fn::Sub with direct string (implicit Ref and GetAtt)
+            ENDPOINT: { 'Fn::Sub': 'https://${MyTable}.dynamodb.amazonaws.com/${MyTable.Arn}' },
+            // Fn::Sub with array form
+            CONNECTION: { 'Fn::Sub': ['arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MyTable}/${MyTable.StreamArn}', {}] },
           },
         },
       },
@@ -184,6 +188,66 @@ describe('ResourceOrphaner', () => {
         .toBe('arn:aws:dynamodb:us-east-1:123456789012:table/my-table/stream/2026-01-01T00:00:00.000');
     });
 
+    test('step 2 replaces implicit Ref and GetAtt in Fn::Sub string form', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const decoupledTemplate = deployedTemplates[1];
+      expect(decoupledTemplate.Resources.MyFunction.Properties.Environment.Variables.ENDPOINT)
+        .toEqual({ 'Fn::Sub': 'https://my-table.dynamodb.amazonaws.com/arn:aws:dynamodb:us-east-1:123456789012:table/my-table' });
+    });
+
+    test('step 2 replaces implicit Ref and GetAtt in Fn::Sub array form', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const decoupledTemplate = deployedTemplates[1];
+      const connection = decoupledTemplate.Resources.MyFunction.Properties.Environment.Variables.CONNECTION;
+      expect(connection['Fn::Sub'][0])
+        .toBe('arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/my-table/arn:aws:dynamodb:us-east-1:123456789012:table/my-table/stream/2026-01-01T00:00:00.000');
+    });
+
+    test('step 1 discovers GetAtt refs inside Fn::Sub for resolution', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const resolveTemplate = deployedTemplates[0];
+      // The Fn::Sub contains ${MyTable.Arn} and ${MyTable.StreamArn} which need temp outputs
+      expect(resolveTemplate.Outputs.CdkOrphanMyTableArn).toBeDefined();
+      expect(resolveTemplate.Outputs.CdkOrphanMyTableStreamArn).toBeDefined();
+    });
+
+    test('step 1 discovers GetAtt refs that only appear in Fn::Sub (not in explicit Fn::GetAtt)', async () => {
+      // Template where an attribute is ONLY referenced via Fn::Sub, not via Fn::GetAtt
+      mockCloudFormationClient.on(GetTemplateCommand).resolves({
+        TemplateBody: JSON.stringify({
+          Resources: {
+            MyTable: {
+              Type: 'AWS::DynamoDB::Table',
+              Metadata: { 'aws:cdk:path': 'TestStack/MyTable/Resource' },
+              Properties: { TableName: 'my-table' },
+            },
+            MyFunction: {
+              Type: 'AWS::Lambda::Function',
+              Metadata: { 'aws:cdk:path': 'TestStack/MyFunction/Resource' },
+              Properties: {
+                Environment: {
+                  Variables: {
+                    // Only Fn::Sub references the Arn — no explicit Fn::GetAtt anywhere
+                    ENDPOINT: { 'Fn::Sub': 'https://${MyTable.Arn}/stream' },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      });
+
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+      const resolveTemplate = deployedTemplates[0];
+      expect(resolveTemplate.Outputs.CdkOrphanMyTableArn).toEqual({
+        Value: { 'Fn::GetAtt': ['MyTable', 'Arn'] },
+      });
+    });
+
     test('step 2 removes DependsOn references', async () => {
       const plan = await orphaner.makePlan(STACK, ['MyTable']);
       await plan.execute();
@@ -254,5 +318,71 @@ describe('ResourceOrphaner', () => {
         expect.stringContaining('Could not retrieve resource identifiers'),
       ]));
     });
+  });
+});
+
+describe('replaceInObject - Fn::Sub handling', () => {
+  const { replaceInObject } = require('../../../lib/actions/orphan/private/helpers');
+  const values = { ref: 'my-table-physical', attrs: { Arn: 'arn:aws:dynamodb:us-east-1:123:table/t', StreamArn: 'arn:stream' } };
+
+  test('replaces implicit Ref ${LogicalId} in Fn::Sub string', () => {
+    const obj = { 'Fn::Sub': 'prefix-${MyTable}-suffix' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': 'prefix-my-table-physical-suffix' });
+  });
+
+  test('replaces implicit GetAtt ${LogicalId.Attr} in Fn::Sub string', () => {
+    const obj = { 'Fn::Sub': 'arn=${MyTable.Arn}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': 'arn=arn:aws:dynamodb:us-east-1:123:table/t' });
+  });
+
+  test('replaces both Ref and GetAtt in same Fn::Sub string', () => {
+    const obj = { 'Fn::Sub': '${MyTable}/${MyTable.Arn}/${MyTable.StreamArn}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': 'my-table-physical/arn:aws:dynamodb:us-east-1:123:table/t/arn:stream' });
+  });
+
+  test('replaces in Fn::Sub array form', () => {
+    const obj = { 'Fn::Sub': ['table=${MyTable}', {}] };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': ['table=my-table-physical', {}] });
+  });
+
+  test('replaces explicit Fn::GetAtt in Fn::Sub array variables', () => {
+    const obj = { 'Fn::Sub': ['${Var}', { Var: { 'Fn::GetAtt': ['MyTable', 'Arn'] } }] };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': ['${Var}', { Var: 'arn:aws:dynamodb:us-east-1:123:table/t' }] });
+  });
+
+  test('does not replace pseudo-references like ${AWS::StackName}', () => {
+    const obj = { 'Fn::Sub': '${AWS::StackName}-${MyTable}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': '${AWS::StackName}-my-table-physical' });
+  });
+
+  test('does not replace references to other logical IDs', () => {
+    const obj = { 'Fn::Sub': '${OtherResource}-${MyTable}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': '${OtherResource}-my-table-physical' });
+  });
+
+  test('leaves Fn::Sub unchanged when no references match', () => {
+    const obj = { 'Fn::Sub': '${OtherResource.Arn}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': '${OtherResource.Arn}' });
+  });
+
+  test('handles unresolved attr gracefully (leaves interpolation in place)', () => {
+    const obj = { 'Fn::Sub': '${MyTable.UnknownAttr}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    // UnknownAttr is not in values.attrs, so it stays as-is
+    expect(result).toEqual({ 'Fn::Sub': '${MyTable.UnknownAttr}' });
+  });
+
+  test('handles multiple occurrences of same reference', () => {
+    const obj = { 'Fn::Sub': '${MyTable}-${MyTable}-${MyTable.Arn}' };
+    const result = replaceInObject(obj, 'MyTable', values);
+    expect(result).toEqual({ 'Fn::Sub': 'my-table-physical-my-table-physical-arn:aws:dynamodb:us-east-1:123:table/t' });
   });
 });

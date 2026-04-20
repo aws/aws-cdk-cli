@@ -14,7 +14,7 @@ export function walkObject(obj: any, visitor: (value: any) => void): void {
 }
 
 /**
- * Replace all {Ref} and {Fn::GetAtt} references to a logical ID with literal values.
+ * Replace all {Ref}, {Fn::GetAtt}, and {Fn::Sub} references to a logical ID with literal values.
  */
 export function replaceInObject(obj: any, logicalId: string, values: { ref: string; attrs: Record<string, string> }): any {
   if (obj === null || obj === undefined) return obj;
@@ -32,6 +32,32 @@ export function replaceInObject(obj: any, logicalId: string, values: { ref: stri
     const attr = obj['Fn::GetAtt'][1];
     if (values.attrs[attr]) {
       return values.attrs[attr];
+    }
+  }
+
+  // Handle Fn::Sub implicit references: ${LogicalId} and ${LogicalId.Attr}
+  if (obj['Fn::Sub'] !== undefined) {
+    const sub = obj['Fn::Sub'];
+    const replaceSubString = (str: string): string => {
+      // Replace ${LogicalId.Attr} with the resolved attribute value
+      for (const [attr, val] of Object.entries(values.attrs)) {
+        str = str.replace(new RegExp(`\\$\\{${logicalId}\\.${attr}\\}`, 'g'), val);
+      }
+      // Replace ${LogicalId} with the resolved Ref value
+      str = str.replace(new RegExp(`\\$\\{${logicalId}\\}`, 'g'), values.ref);
+      return str;
+    };
+
+    if (typeof sub === 'string') {
+      return { 'Fn::Sub': replaceSubString(sub) };
+    }
+    if (Array.isArray(sub) && typeof sub[0] === 'string') {
+      return {
+        'Fn::Sub': [
+          replaceSubString(sub[0]),
+          sub[1] ? replaceInObject(sub[1], logicalId, values) : sub[1],
+        ],
+      };
     }
   }
 

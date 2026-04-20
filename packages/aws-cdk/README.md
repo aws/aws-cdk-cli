@@ -795,9 +795,9 @@ This feature currently has the following limitations:
 
 ### `cdk orphan`
 
-⚠️**CAUTION**⚠️: CDK Orphan is currently experimental and may have 
-breaking changes in the future. Make sure to use the `--unstable=orphan` flag 
-when using this command.
+`cdk orphan` is currently experimental, meaning we reserve the right to change 
+options and flag names in the future. Pass the `--unstable=orphan` flag when using
+this command and be aware of this when using it in scripts.
 
 Detaches one or more resources from a CloudFormation stack without deleting them.
 This is useful when you need to migrate a resource from one construct type to another

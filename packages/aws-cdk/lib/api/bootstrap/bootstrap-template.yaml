@@ -681,15 +681,14 @@ Resources:
                   # Our CI/CD does not need DeleteStack,
                   # but we also want to use this role from the CLI,
                   # and there you can call `cdk destroy`
-                  - cloudformation:DescribeStackEvents
+                  - cloudformation:List*
+                  - cloudformation:Describe*
                   - cloudformation:GetTemplate
                   - cloudformation:DeleteStack
                   - cloudformation:UpdateTerminationProtection
                   - sts:GetCallerIdentity
                   # `cdk import`
                   - cloudformation:GetTemplateSummary
-                  # `cdk orphan`
-                  - cloudformation:ListStackResources
                   # `cdk deploy` CloudFormation Hook annotation display on hook failure
                   - cloudformation:GetHookResult
                 Resource: "*"

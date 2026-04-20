@@ -244,14 +244,39 @@ export class ResourceOrphaner {
   private findGetAttReferences(template: any, logicalIds: string[]): Map<string, { logicalId: string; attr: string }> {
     const refs = new Map<string, { logicalId: string; attr: string }>();
 
+    const addRef = (id: string, attr: string) => {
+      const outputKey = `CdkOrphan${id}${attr}`.replace(/[^a-zA-Z0-9]/g, '');
+      if (!refs.has(outputKey)) {
+        refs.set(outputKey, { logicalId: id, attr });
+      }
+    };
+
+    const scanSubString = (str: string) => {
+      // Match ${LogicalId.Attr} patterns in Fn::Sub format strings
+      const pattern = /\$\{([^}.]+)\.([^}]+)\}/g;
+      let match;
+      while ((match = pattern.exec(str)) !== null) {
+        const [, id, attr] = match;
+        if (logicalIds.includes(id)) {
+          addRef(id, attr);
+        }
+      }
+    };
+
     walkObject(template, (value) => {
       if (value && typeof value === 'object' && !Array.isArray(value)) {
+        // Explicit Fn::GetAtt
         const getAtt = value['Fn::GetAtt'];
         if (Array.isArray(getAtt) && logicalIds.includes(getAtt[0])) {
-          const outputKey = `CdkOrphan${getAtt[0]}${getAtt[1]}`.replace(/[^a-zA-Z0-9]/g, '');
-          if (!refs.has(outputKey)) {
-            refs.set(outputKey, { logicalId: getAtt[0], attr: getAtt[1] });
-          }
+          addRef(getAtt[0], getAtt[1]);
+        }
+
+        // Implicit GetAtt inside Fn::Sub
+        const sub = value['Fn::Sub'];
+        if (typeof sub === 'string') {
+          scanSubString(sub);
+        } else if (Array.isArray(sub) && typeof sub[0] === 'string') {
+          scanSubString(sub[0]);
         }
       }
     });
