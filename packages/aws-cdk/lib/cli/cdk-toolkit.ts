@@ -555,12 +555,6 @@ export class CdkToolkit {
         })
         : undefined;
 
-      // Empty change set — no changes to deploy
-      if (prepareResult?.noOp === true) {
-        await this.ioHost.asIoHelper().defaults.info(' ✅  %s (no changes)', chalk.bold(stack.displayName));
-        return;
-      }
-
       if (requireApproval !== RequireApproval.NEVER) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
@@ -611,7 +605,7 @@ export class CdkToolkit {
       try {
         // The prepare result is final if the change set was empty (noOp) or
         // the deployment method is non-executing (prepare-change-set).
-        const prepareIsFinal = prepareResult && isNonExecutingChangeSetDeployment(options.deploymentMethod);
+        const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(options.deploymentMethod));
         let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
         // Start with user config for rollback,
@@ -720,10 +714,9 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        const wrappedError = new ToolkitError(
-          'DeployFailed',
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
-        );
+        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
+        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+        const wrappedError = new ToolkitError(code, newMessage);
 
         error = {
           name: cdkCliErrorName(wrappedError),

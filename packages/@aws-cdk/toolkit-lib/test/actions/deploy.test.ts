@@ -194,6 +194,29 @@ IAM Statement Changes
       expect(mockDeployStack).toHaveBeenCalledTimes(0);
     });
 
+    test('noOp deploy still prints outputs, deployment time, and stack ARN', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — outputs, stack ARN, and success message are printed
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+      ioHost.expectMessage({ containing: '(no changes)' });
+      ioHost.expectMessage({ containing: 'BucketName' });
+      ioHost.expectMessage({ containing: 'arn:aws:cloudformation:region:account:stack/test-stack' });
+    });
+
     test('non-executing change-set skips deploy loop', async () => {
       // GIVEN
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({

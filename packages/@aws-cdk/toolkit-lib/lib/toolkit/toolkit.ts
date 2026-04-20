@@ -714,12 +714,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         })
         : undefined;
 
-      // Empty change set — no changes to deploy
-      if (prepareResult?.noOp === true) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green(`\n ✅  ${stack.displayName} (no changes)`), prepareResult));
-        return;
-      }
-
       const formatter = new DiffFormatter({
         templateInfo: {
           oldTemplate: currentTemplate,
@@ -764,7 +758,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       let deployDuration;
       try {
-        const prepareIsFinal = isNonExecutingChangeSetDeployment(options.deploymentMethod);
+        const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(options.deploymentMethod));
         let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
         let rollback = options.rollback;
@@ -871,10 +865,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
-          'DeployStackFailed',
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' '),
-        );
+        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed';
+        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+        throw new ToolkitError(code, newMessage);
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor
