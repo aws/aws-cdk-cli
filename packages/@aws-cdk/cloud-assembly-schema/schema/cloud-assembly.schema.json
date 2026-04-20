@@ -133,14 +133,14 @@
                         {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/Tag"
-                            }
-                        },
-                        {
-                            "description": "Type of creation stack data",
-                            "type": "array",
-                            "items": {
-                                "type": "string"
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/definitions/Tag"
+                                    },
+                                    {
+                                        "type": "string"
+                                    }
+                                ]
                             }
                         },
                         {
