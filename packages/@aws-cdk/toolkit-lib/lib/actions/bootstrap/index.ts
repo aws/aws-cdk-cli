@@ -184,6 +184,14 @@ export interface BootstrapParameters {
    * @default - No value, optional argument
    */
   readonly customPermissionsBoundary?: string;
+
+  /**
+   * Whether to apply the permissions boundary to all bootstrap roles
+   * (not just the CloudFormation execution role)
+   *
+   * @default false
+   */
+  readonly permissionsBoundaryAllRoles?: boolean;
 }
 
 export interface EnvironmentBootstrapResult {
