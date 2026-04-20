@@ -98,7 +98,7 @@
     "p-queue": "^6",
     "proxy-agent": "^7.0.0",
     "semver": "^7",
-    "sinon": "^9",
+    "sinon": "^21",
     "ts-jest": "^29",
     "ts-mock-imports": "^1",
     "yaml": "1",
