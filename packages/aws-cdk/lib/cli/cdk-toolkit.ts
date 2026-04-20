@@ -1009,6 +1009,9 @@ export class CdkToolkit {
     // warn the user and ask for confirmation unless --force was given.
     if (hasNonAdditions && !options.force) {
       const ioHelper = this.ioHost.asIoHelper();
+      await ioHelper.defaults.info(
+        `The following resources have pending updates that will be reconciled with a ${chalk.blueBright('cdk deploy')} after import:`,
+      );
       const { formattedDiff } = diffFormatter.formatStackDiff();
       await ioHelper.defaults.info(formattedDiff);
       const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
