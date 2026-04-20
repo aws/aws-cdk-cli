@@ -120,7 +120,7 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/archiver": "npm:^6.0.4"
     "@types/jest": "npm:^29.5.14"
-    "@types/mime": "npm:^2"
+    "@types/mime": "npm:^4"
     "@types/mock-fs": "npm:^4"
     "@types/node": "npm:^20"
     "@types/picomatch": "npm:^4.0.3"
@@ -145,7 +145,7 @@ __metadata:
     jest-junit: "npm:^16"
     jszip: "npm:^3.10.1"
     license-checker: "npm:^25.0.1"
-    mime: "npm:^2"
+    mime: "npm:^4"
     mock-fs: "npm:^5"
     nx: "npm:^22.6.4"
     picomatch: "npm:^4.0.4"
@@ -5681,10 +5681,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/mime@npm:^2":
-  version: 2.0.3
-  resolution: "@types/mime@npm:2.0.3"
-  checksum: 10c0/ca10b1ae5d2fa34d95ffe412f0bd5983896a9a7ccd34cce5cb3318aa64be1793b0de64733cf0355cb136ff3d064101b6219988bf3a86fc244278b20fcd1fd9d4
+"@types/mime@npm:^4":
+  version: 4.0.0
+  resolution: "@types/mime@npm:4.0.0"
+  dependencies:
+    mime: "npm:*"
+  checksum: 10c0/c544ca670c2cb53b96c7e4a1b4ecfdf3777dad4b74f7bb305680eed82c753a7ccfdf03c8b06c9fba48bb10d2a96ae95c9a4007b6c83bc5fdc9cfa7250c07b85b
   languageName: node
   linkType: hard
 
@@ -13019,21 +13021,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mime@npm:*, mime@npm:^4":
+  version: 4.1.0
+  resolution: "mime@npm:4.1.0"
+  bin:
+    mime: bin/cli.js
+  checksum: 10c0/3b8602e50dff1049aea8bb2d4c65afc55bf7f3eb5c17fd2bcb315b8c8ae225a7553297d424d3621757c24cdba99e930ecdc4108467009cdc7ed55614cd55031d
+  languageName: node
+  linkType: hard
+
 "mime@npm:1.6.0":
   version: 1.6.0
   resolution: "mime@npm:1.6.0"
   bin:
     mime: cli.js
   checksum: 10c0/b92cd0adc44888c7135a185bfd0dddc42c32606401c72896a842ae15da71eb88858f17669af41e498b463cd7eb998f7b48939a25b08374c7924a9c8a6f8a81b0
-  languageName: node
-  linkType: hard
-
-"mime@npm:^2":
-  version: 2.6.0
-  resolution: "mime@npm:2.6.0"
-  bin:
-    mime: cli.js
-  checksum: 10c0/a7f2589900d9c16e3bdf7672d16a6274df903da958c1643c9c45771f0478f3846dcb1097f31eb9178452570271361e2149310931ec705c037210fc69639c8e6c
   languageName: node
   linkType: hard
 
