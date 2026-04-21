@@ -37,7 +37,7 @@ import type { EnvironmentResources, StringWithoutPlaceholders } from '../environ
 import { EnvironmentResourcesRegistry } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
-import { existingHotswapCache, invalidateHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
+import { invalidateHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
@@ -380,9 +380,7 @@ class FullCloudFormationDeployment {
     const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     // if there is a hotswap cache, clear it when a full Cloudformation of any kind happens
-    if (existingHotswapCache(this.stackArtifact.assembly.directory, this.stackArtifact.stackName)) {
-      await invalidateHotswapTemplateCache(this.stackArtifact.assembly.directory, this.stackArtifact.stackName);
-    }
+    await invalidateHotswapTemplateCache(this.stackArtifact.assembly.directory, this.stackArtifact.stackName);
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
       throw new ToolkitError('ImportRequiresChangeSet', 'Importing resources requires a changeset deployment');

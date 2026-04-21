@@ -25,16 +25,6 @@ function cachePath(assemblyDir: string, stackName: string): string {
 }
 
 /**
- * Check if a hotswap cache exists for the given stack.
- */
-export function existingHotswapCache(
-  assemblyDir: string,
-  stackName: string,
-): boolean {
-  return fs.pathExistsSync(cachePath(assemblyDir, stackName));
-}
-
-/**
  * Read the cached hotswap state and hydrate it into a full
  * RootTemplateWithNestedStacks by reading fresh generatedTemplates from disk.
  * Returns undefined if no cache exists.
@@ -45,14 +35,14 @@ export async function readHotswapTemplateCache(
   newRootTemplate: Template,
 ): Promise<RootTemplateWithNestedStacks | undefined> {
   const cachedPath = cachePath(assemblyDir, stackName);
-  if (existingHotswapCache(assemblyDir, stackName)) {
+  try {
     const cached = await fs.readJson(cachedPath);
 
     return {
       deployedRootTemplate: cached.deployedRootTemplate,
       nestedStacks: hydrateNestedStacks(assemblyDir, newRootTemplate, cached.nestedStacks),
     };
-  } else {
+  } catch {
     return undefined;
   }
 }
@@ -80,7 +70,7 @@ export async function writeHotswapTemplateCache(
  * Invalidate the hotswap cache for a stack (e.g. after a full CloudFormation deploy).
  */
 export async function invalidateHotswapTemplateCache(assemblyDir: string, stackName: string): Promise<void> {
-  await fs.remove(cachePath(assemblyDir, stackName));
+  await fs.rm(cachePath(assemblyDir, stackName), { force: true });
 }
 
 /**

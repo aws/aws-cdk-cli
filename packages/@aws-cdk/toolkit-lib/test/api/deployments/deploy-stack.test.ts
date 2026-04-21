@@ -22,7 +22,7 @@ import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/a
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
-import { existingHotswapCache, invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
+import { invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
 import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
@@ -267,9 +267,6 @@ describe('hotswap template cache', () => {
   });
 
   test('invalidateHotswapTemplateCache is called on a non-hotswap deployment', async () => {
-    // GIVEN
-    (existingHotswapCache as jest.Mock).mockResolvedValue(true);
-
     // WHEN
     await testDeployStack({
       ...standardDeployStackArguments(),
@@ -283,7 +280,6 @@ describe('hotswap template cache', () => {
   test('invalidateHotswapTemplateCache is called on a hotswap fallback deployment', async () => {
     // GIVEN - hotswap fails (returns undefined), falls back to full CFN
     (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
-    (existingHotswapCache as jest.Mock).mockResolvedValue(true);
 
     // WHEN
     await testDeployStack({

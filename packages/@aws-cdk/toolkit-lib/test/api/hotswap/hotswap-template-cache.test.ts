@@ -2,7 +2,6 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import type { NestedStackTemplates, Template } from '../../../lib/api/cloudformation';
 import {
-  existingHotswapCache,
   readHotswapTemplateCache,
   writeHotswapTemplateCache,
   invalidateHotswapTemplateCache,
@@ -168,19 +167,12 @@ describe('hotswap-template-cache', () => {
     expect(level2.physicalName).toBe('phys-l2');
   });
 
-  test('existingHotswapCache returns true when cache file exists', async () => {
-    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, { Resources: { SomeFunc: { Type: 'AWS::Lambda::Function' } } }, {});
-    expect(await existingHotswapCache(assemblyDir, STACK_NAME)).toBe(true);
-  });
-
-  test('existingHotswapCache returns false when no cache file exists', async () => {
-    expect(await existingHotswapCache(assemblyDir, STACK_NAME)).toBe(false);
-  });
-
   test('invalidateHotswapTemplateCache removes the cache file', async () => {
     await writeHotswapTemplateCache(assemblyDir, STACK_NAME, { Resources: { SomeFunc: { Type: 'AWS::Lambda::Function' } } }, {});
+    const cacheFile = path.join(assemblyDir, '.hotswap-cache', `${STACK_NAME}.json`);
+    expect(await fs.pathExists(cacheFile)).toBe(true);
     await invalidateHotswapTemplateCache(assemblyDir, STACK_NAME);
-    expect(await existingHotswapCache(assemblyDir, STACK_NAME)).toBe(false);
+    expect(await fs.pathExists(cacheFile)).toBe(false);
   });
 
   test('invalidateHotswapTemplateCache is a no-op when cache does not exist', async () => {
