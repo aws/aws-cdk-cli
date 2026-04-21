@@ -1,13 +1,13 @@
 import { ChangeSetStatus, ChangeSetSummary, ChangeType } from "@aws-sdk/client-cloudformation";
-import { ICloudFormationClient, SDK } from "../../aws-auth/sdk";
-import { EnvironmentResources } from "../../environment";
-import { OldestEvent, StackEventPoller } from "../../stack-events";
-import { ResourceError, ResourceErrors } from "../../stack-events/resource-errors";
-import { StackStatus } from "../../stack-events/stack-status";
+import { ICloudFormationClient, SDK } from "../aws-auth/sdk";
+import { EnvironmentResources } from "../environment";
+import { OldestEvent, StackEventPoller } from "../stack-events";
+import { ResourceError, ResourceErrors } from "../stack-events/resource-errors";
+import { StackStatus } from "../stack-events/stack-status";
 import { EarlyValidationError, EarlyValidationReporter } from "./early-validation";
-import { ISourceTracer } from "../../source-tracing/private/source-tracing";
-import { createBranded } from "../../../util/type-brands";
-import { StackDiagnosis, TracedResourceError } from "../types";
+import { ISourceTracer } from "../source-tracing/private/source-tracing";
+import { createBranded } from "../../util/type-brands";
+import { StackDiagnosis, TracedResourceError } from "../../actions/diagnose";
 
 export interface CloudFormationStackDiagnoserProps {
   readonly sdk: SDK;

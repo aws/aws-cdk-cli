@@ -99,9 +99,9 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 import { countAssemblyResults } from './private/count-assembly-results';
-import { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../api/diagnose/types';
-import { CloudFormationStackDiagnoser } from '../api/diagnose/private/stack-diagnoser';
-import { hostMessageFromDiagnosis } from '../api/diagnose/private/diagnosis-formatting';
+import { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
+import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
+import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { EnvironmentAccess } from '../api';
 import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 

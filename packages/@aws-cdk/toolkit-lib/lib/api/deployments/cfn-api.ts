@@ -17,10 +17,10 @@ import type { Template, TemplateBodyParameter, TemplateParameter } from '../clou
 import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
-import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 import { TargetEnvironment } from '../environment';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnose/private/diagnosis-formatting';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.

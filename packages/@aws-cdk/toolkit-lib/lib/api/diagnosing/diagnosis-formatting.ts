@@ -1,6 +1,6 @@
-import { DiagnosedStack, StackDiagnosis, TracedResourceError } from "../types";
-import { ActionLessMessage, IO } from "../../io/private";
-import { DeploymentError, ToolkitError } from "../../../toolkit/toolkit-error";
+import { DiagnosedStack, StackDiagnosis, TracedResourceError } from "../../actions/diagnose";
+import { ActionLessMessage, IO } from "../io/private";
+import { DeploymentError, ToolkitError } from "../../toolkit/toolkit-error";
 
 /**
  * Turn the given stack diagnosis result into an IO message, with default message formatting

@@ -19,7 +19,7 @@ import { NoBootstrapStackEnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
-import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { NO_SOURCE_TRACE } from '../source-tracing/private/source-tracing';
 
 /**

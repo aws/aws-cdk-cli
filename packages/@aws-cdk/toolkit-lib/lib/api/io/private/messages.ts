@@ -30,7 +30,7 @@ import type {
   StackAndAssemblyData,
 } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
-import { DiagnosedStack } from '../../diagnose';
+import { DiagnosedStack } from '../../../actions/diagnose';
 
 /**
  * We have a rough system by which we assign message codes:

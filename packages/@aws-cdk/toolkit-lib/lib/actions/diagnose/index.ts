@@ -1,7 +1,7 @@
 import { Branded } from "../../util/type-brands";
-import { StackSelector } from "../cloud-assembly/stack-selector";
-import { SourceTraced } from "../source-tracing";
-import { ResourceError } from "../stack-events/resource-errors";
+import { StackSelector } from "../../api/cloud-assembly/stack-selector";
+import { SourceTraced } from "../../api/source-tracing";
+import { ResourceError } from "../../api/stack-events/resource-errors";
 
 export interface DiagnoseOptions {
   readonly stacks?: StackSelector;

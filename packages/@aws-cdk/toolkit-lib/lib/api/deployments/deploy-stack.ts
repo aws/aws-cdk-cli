@@ -37,8 +37,8 @@ import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import { changeSetHasNoChanges, CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnose/private/diagnosis-formatting';
+import { changeSetHasNoChanges, CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 
 export interface DeployStackOptions {
   /**

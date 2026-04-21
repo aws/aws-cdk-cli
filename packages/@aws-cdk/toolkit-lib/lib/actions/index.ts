@@ -9,3 +9,4 @@ export * from './refactor';
 export * from './rollback';
 export * from './synth';
 export * from './watch';
+export * from './diagnose';

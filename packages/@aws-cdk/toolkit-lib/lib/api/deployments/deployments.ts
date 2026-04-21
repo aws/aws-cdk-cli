@@ -35,7 +35,7 @@ import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource
 import { StackActivityMonitor, StackEventPoller, RollbackChoice, OldestEvent } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
-import { CloudFormationStackDiagnoser } from '../diagnose/private/stack-diagnoser';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;

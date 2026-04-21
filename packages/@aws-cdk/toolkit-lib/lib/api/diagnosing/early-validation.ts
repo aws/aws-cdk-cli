@@ -1,6 +1,6 @@
 import type { OperationEvent } from '@aws-sdk/client-cloudformation';
-import type { SDK } from '../../aws-auth/sdk';
-import type { EnvironmentResources } from '../../environment';
+import type { SDK } from '../aws-auth/sdk';
+import type { EnvironmentResources } from '../environment';
 
 /**
  * A ValidationReporter that checks for early validation errors right after
