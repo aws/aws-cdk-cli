@@ -103,7 +103,6 @@ import { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../api/diagnose
 import { CloudFormationStackDiagnoser } from '../api/diagnose/private/stack-diagnoser';
 import { hostMessageFromDiagnosis } from '../api/diagnose/private/diagnosis-formatting';
 import { EnvironmentAccess } from '../api';
-import { constructDiagnosisFromCloudFormationDiagnosis } from '../api/diagnose/private/annotate-errors';
 import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 
 export interface ToolkitOptions {
@@ -624,7 +623,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const ret: DiagnosedStack = {
         stackName: stack.stackName,
         hierarchicalId: stack.hierarchicalId,
-        result: constructDiagnosisFromCloudFormationDiagnosis(diagnosis),
+        result: diagnosis,
       };
 
       await this.ioHost.notify({
