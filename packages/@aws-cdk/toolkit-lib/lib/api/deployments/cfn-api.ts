@@ -150,6 +150,34 @@ export async function waitForChangeSet(
   return ret;
 }
 
+export async function waitForChangeSetGone(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  stackName: string,
+  changeSetName: string,
+): Promise<void> {
+  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', changeSetName, stackName));
+  await waitFor(async () => {
+    try {
+      const description = await cfn.describeChangeSet({
+        StackName: stackName,
+        ChangeSetName: changeSetName,
+      });
+
+      if (description.Status === ChangeSetStatus.DELETE_COMPLETE || description.Status === ChangeSetStatus.DELETE_FAILED) {
+        return true;
+      }
+
+      return undefined;
+    } catch (e: any) {
+      if (e.name === 'ChangeSetNotFoundException') {
+        return true;
+      }
+      throw e;
+    }
+  });
+}
+
 export type PrepareChangeSetOptions = {
   stack: cxapi.CloudFormationStackArtifact;
   deployments: Deployments;
