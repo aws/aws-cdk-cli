@@ -121,6 +121,8 @@ interface InMemoryStack {
   status: string;
   statusReason?: string;
   template: Record<string, any>;
+  /** The template from the most recently created change set on this stack */
+  lastChangeSetTemplate?: Record<string, any>;
   parameters: Parameter[];
   tags: Tag[];
   capabilities: string[];
@@ -458,13 +460,11 @@ export class FakeCloudFormation {
       cfnError('InvalidChangeSetStatus', `ChangeSet [${cs.name}] is in ${cs.executionStatus} state and cannot be executed`);
     }
 
-    // Delete all OTHER change sets on this stack (per API docs)
-    for (const other of stack.changeSets) {
-      if (other.id !== cs.id) {
-        this.changeSetToStack.delete(other.id);
-      }
-    }
-    stack.changeSets = stack.changeSets.filter((c) => c.id === cs.id);
+    // Remove the executed change set from the stack's list. Real CloudFormation
+    // also deletes all other change sets, but we skip that to avoid interfering
+    // with concurrent operations on the same stack in tests.
+    stack.changeSets = stack.changeSets.filter((c) => c.id !== cs.id);
+    this.changeSetToStack.delete(cs.id);
     cs.executionStatus = 'EXECUTE_IN_PROGRESS';
 
     const isCreate = cs.changeSetType === 'CREATE';
@@ -746,6 +746,7 @@ export class FakeCloudFormation {
       creationTime: new Date(),
     };
     stack.changeSets.push(cs);
+    stack.lastChangeSetTemplate = template;
     this.changeSetToStack.set(csId, stack.name);
     return { csId, stack, cs, template };
   }
@@ -764,8 +765,10 @@ export class FakeCloudFormation {
 
     // Allow tests to override the computed changes
     let changes: Change[];
-    if (this.overrideChangeSetChanges) {
+    let changesOverridden = false;
+    if (this.overrideChangeSetChanges !== undefined) {
       changes = this.overrideChangeSetChanges;
+      changesOverridden = true;
       this.overrideChangeSetChanges = undefined;
     } else if (cs.templateUrl) {
       // When TemplateURL is used, we can't compute changes — assume there are changes
@@ -779,9 +782,10 @@ export class FakeCloudFormation {
     cs.changes = changes;
 
     // A change set has changes if resources differ, OR if the template/tags/parameters differ,
-    // OR if the stack is in a failed state (retrying a failed deployment is always a change)
+    // OR if the stack is in a failed state (retrying a failed deployment is always a change).
+    // When changes are explicitly overridden by tests, trust the override.
     const stackInFailedState = stack.status.includes('FAILED') || stack.status.includes('ROLLBACK');
-    const hasNonResourceChanges = changes.length === 0 && (
+    const hasNonResourceChanges = !changesOverridden && changes.length === 0 && (
       stackInFailedState ||
       JSON.stringify(stack.template) !== JSON.stringify(template) ||
       JSON.stringify(stack.tags) !== JSON.stringify(cs.tags) ||

@@ -135,11 +135,11 @@ and `GetTemplate` (when the `ChangeSetName` parameter is used).
 1. The change set must have `ExecutionStatus: AVAILABLE`.
 2. If not, throws `InvalidChangeSetStatus`.
 3. Applies the template from the change set to the stack.
-4. **Deletes all other change sets** on the stack (per API docs: "CloudFormation
-   deletes all other change sets associated with the stack because they aren't
-   valid for the updated stack").
-5. The executed change set's status becomes `EXECUTE_COMPLETE`.
-6. Stack transitions:
+4. The executed change set is **removed** from the stack's change set list
+   immediately. Other change sets on the stack are left intact (unlike real
+   CloudFormation which deletes them — this simplification avoids interference
+   with concurrent operations in tests).
+5. Stack transitions:
    - For `ChangeSetType: CREATE`: `CREATE_IN_PROGRESS` → `CREATE_COMPLETE`
      (or failure path).
    - For `ChangeSetType: UPDATE`: `UPDATE_IN_PROGRESS` → `UPDATE_COMPLETE`

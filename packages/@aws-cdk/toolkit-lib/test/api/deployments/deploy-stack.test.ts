@@ -1340,5 +1340,15 @@ function givenChangeSetContainsReplacement(replacement: boolean) {
         ],
       },
     },
-  ] : [];
+  ] : [
+    {
+      Type: 'Resource',
+      ResourceChange: {
+        Action: 'Modify',
+        LogicalResourceId: 'Queue4A7E3555',
+        ResourceType: 'AWS::SQS::Queue',
+        Replacement: 'False',
+      },
+    },
+  ];
 }
