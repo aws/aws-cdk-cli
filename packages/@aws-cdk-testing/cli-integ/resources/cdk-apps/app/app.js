@@ -748,8 +748,8 @@ class CloudControlHotswapStack extends cdk.Stack {
       agentName: `${cdk.Stack.of(this).stackName}-agent`.substring(0, 40),
       agentResourceRoleArn: agentRole.roleArn,
       instruction: process.env.DYNAMIC_CC_PROPERTY_VALUE
-        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}`
-        : `You help query the table ${table.tableName}. original`,
+        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
+        : `You help query the table ${table.tableName}. original. original`,
       foundationModel: 'anthropic.claude-instant-v1',
     });
 
