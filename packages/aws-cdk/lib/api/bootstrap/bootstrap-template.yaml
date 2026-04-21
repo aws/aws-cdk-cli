@@ -624,14 +624,18 @@ Resources:
       Policies:
         - PolicyDocument:
             Statement:
-              - Sid: CloudFormationPermissions
+              - Sid: ReadonlyCloudFormationPermissions
+                Effect: Allow
+                Action:
+                  - cloudformation:List*
+                  - cloudformation:Describe*
+                  - cloudformation:Get*
+                Resource: "*"
+              - Sid: DeployPermissions
                 Effect: Allow
                 Action:
                   - cloudformation:CreateChangeSet
                   - cloudformation:DeleteChangeSet
-                  - cloudformation:DescribeChangeSet
-                  - cloudformation:DescribeStacks
-                  - cloudformation:DescribeEvents
                   - cloudformation:ExecuteChangeSet
                   - cloudformation:CreateStack
                   - cloudformation:UpdateStack
@@ -681,15 +685,9 @@ Resources:
                   # Our CI/CD does not need DeleteStack,
                   # but we also want to use this role from the CLI,
                   # and there you can call `cdk destroy`
-                  - cloudformation:DescribeStackEvents
-                  - cloudformation:GetTemplate
                   - cloudformation:DeleteStack
                   - cloudformation:UpdateTerminationProtection
                   - sts:GetCallerIdentity
-                  # `cdk import`
-                  - cloudformation:GetTemplateSummary
-                  # `cdk deploy` CloudFormation Hook annotation display on hook failure
-                  - cloudformation:GetHookResult
                 Resource: "*"
                 Effect: Allow
               - Sid: CliStagingBucket
@@ -713,11 +711,7 @@ Resources:
                 Action:
                   # Permissions needed to use the CDK CLI with stack refactor
                   - cloudformation:CreateStackRefactor
-                  - cloudformation:DescribeStackRefactor
                   - cloudformation:ExecuteStackRefactor
-                  - cloudformation:ListStackRefactorActions
-                  - cloudformation:ListStackRefactors
-                  - cloudformation:ListStacks
                 Resource: "*"
             Version: '2012-10-17'
           PolicyName: default
@@ -817,7 +811,7 @@ Resources:
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
       # Also update this value below (see comment there)
-      Value: '31'
+      Value: '32'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
@@ -852,4 +846,4 @@ Outputs:
     # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
     # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
     # duplicate the value here and use a build-time test to ensure the two values are the same.
-    Value: '31'
+    Value: '32'
