@@ -6,12 +6,12 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
-import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
