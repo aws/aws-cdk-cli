@@ -34,11 +34,13 @@ import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 
+jest.setTimeout(1_000);
+
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
 
 function testDeployStack(options: DeployStackApiOptions) {
-  return deployStack(options, ioHelper);
+  return advanceTime(deployStack(options, ioHelper));
 }
 
 jest.mock('../../../lib/api/hotswap/hotswap-deployments');
@@ -103,6 +105,12 @@ beforeEach(() => {
 
   restoreSdkMocksToDefault();
   fakeCfn.installUsingAwsMock(mockCloudFormationClient);
+
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 function standardDeployStackArguments(): DeployStackApiOptions {
@@ -183,6 +191,7 @@ test('correctly passes CFN parameters when hotswapping', async () => {
 test('correctly passes SSM parameters when hotswapping', async () => {
   // GIVEN
   givenStackExists({
+    StackName: 'stack',
     Parameters: [{ ParameterKey: 'SomeParameter', ParameterValue: 'ParameterName', ResolvedValue: 'SomeValue' }],
   });
 
@@ -336,11 +345,13 @@ test('correctly passes CFN parameters, ignoring ones with empty values', async (
 test('reuse previous parameters if requested', async () => {
   // GIVEN
   givenStackExists({
+    StackName: 'withparameters',
     Parameters: [
       { ParameterKey: 'HasValue', ParameterValue: 'TheValue' },
       { ParameterKey: 'HasDefault', ParameterValue: 'TheOldValue' },
     ],
   });
+  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
 
   // WHEN
   await testDeployStack({
@@ -366,11 +377,13 @@ test('reuse previous parameters if requested', async () => {
 test('do not reuse previous parameters if not requested', async () => {
   // GIVEN
   givenStackExists({
+    StackName: 'withparameters',
     Parameters: [
       { ParameterKey: 'HasValue', ParameterValue: 'TheValue' },
       { ParameterKey: 'HasDefault', ParameterValue: 'TheOldValue' },
     ],
   });
+  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
 
   // WHEN
   await testDeployStack({
@@ -396,11 +409,13 @@ test('do not reuse previous parameters if not requested', async () => {
 test('throw exception if not enough parameters supplied', async () => {
   // GIVEN
   givenStackExists({
+    StackName: 'withparameters',
     Parameters: [
       { ParameterKey: 'HasValue', ParameterValue: 'TheValue' },
       { ParameterKey: 'HasDefault', ParameterValue: 'TheOldValue' },
     ],
   });
+  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
 
   // WHEN
   await expect(
@@ -429,14 +444,15 @@ test('deploy is skipped if template did not change', async () => {
 
 test('deploy is skipped if parameters are the same', async () => {
   // GIVEN
-  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
   givenStackExists({
+    StackName: 'withparameters',
     Parameters: [
       { ParameterKey: 'HasValue', ParameterValue: 'TheValue' },
       { ParameterKey: 'HasDefault', ParameterValue: 'TheOldValue' },
       { ParameterKey: 'OtherParameter', ParameterValue: 'OtherParameter' },
     ],
   });
+  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
 
   // WHEN
   await testDeployStack({
@@ -452,14 +468,15 @@ test('deploy is skipped if parameters are the same', async () => {
 
 test('deploy is not skipped if parameters are different', async () => {
   // GIVEN
-  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
   givenStackExists({
+    StackName: 'withparameters',
     Parameters: [
       { ParameterKey: 'HasValue', ParameterValue: 'TheValue' },
       { ParameterKey: 'HasDefault', ParameterValue: 'TheOldValue' },
       { ParameterKey: 'OtherParameter', ParameterValue: 'OtherParameter' },
     ],
   });
+  givenTemplateIs(FAKE_STACK_WITH_PARAMETERS.template);
 
   // WHEN
   await testDeployStack({
@@ -485,10 +502,10 @@ test('deploy is not skipped if parameters are different', async () => {
 
 test('deploy is skipped if notificationArns are the same', async () => {
   // GIVEN
-  givenTemplateIs(FAKE_STACK.template);
   givenStackExists({
     NotificationARNs: ['arn:aws:sns:bermuda-triangle-1337:123456789012:TestTopic'],
   });
+  givenTemplateIs(FAKE_STACK.template);
 
   // WHEN
   await testDeployStack({
@@ -503,10 +520,10 @@ test('deploy is skipped if notificationArns are the same', async () => {
 
 test('deploy is not skipped if notificationArns are different', async () => {
   // GIVEN
-  givenTemplateIs(FAKE_STACK.template);
   givenStackExists({
     NotificationARNs: ['arn:aws:sns:bermuda-triangle-1337:123456789012:TestTopic'],
   });
+  givenTemplateIs(FAKE_STACK.template);
 
   // WHEN
   await testDeployStack({
@@ -521,12 +538,8 @@ test('deploy is not skipped if notificationArns are different', async () => {
 
 test('if existing stack failed to create, it is deleted and recreated', async () => {
   // GIVEN
-  givenStackExists();
-  fakeCfn.reset({
-    failFirstDeploy: true,
-  });
-  givenTemplateIs({
-    DifferentThan: 'TheDefault',
+  givenStackExists({
+    StackStatus: StackStatus.ROLLBACK_COMPLETE,
   });
 
   // WHEN
@@ -587,6 +600,7 @@ test('if existing stack failed to create, it is deleted and recreated even if th
 test('deploy not skipped if template did not change and --force is applied', async () => {
   // GIVEN
   givenStackExists();
+  givenTemplateIs({ DifferentThan: 'TheDefault' });
 
   // WHEN
   await testDeployStack({
@@ -664,6 +678,10 @@ test('deploy not skipped if template did not change but tags changed', async () 
 });
 
 test('deployStack reports no change if describeChangeSet returns an error that indicates no change', async () => {
+  // GIVEN — force the change set to report no changes
+  givenStackExists();
+  fakeCfn.overrideChangeSetChanges = [];
+
   // WHEN
   const deployResult = await testDeployStack({
     ...standardDeployStackArguments(),
@@ -714,7 +732,7 @@ test('deployStack warns when it cannot get the events in case of early validatio
   ).rejects.toThrow(`The template cannot be deployed because of early validation errors, but retrieving more details about those
 errors failed (Error: AccessDenied). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
 your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-Bootstrap toolkit stack version 30 or later is needed; current version: 0.`);
+Bootstrap toolkit stack version 30 or later is needed; current version: unknown.`);
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {
@@ -1042,7 +1060,7 @@ describe('import-existing-resources', () => {
   });
 
   test('enhances error message with construct paths when changeset fails', async () => {
-    // GIVEN
+    // GIVE
     const stack = testStack({
       stackName: 'import-error-stack',
       template: {
@@ -1060,13 +1078,14 @@ describe('import-existing-resources', () => {
     });
 
     givenStackExists();
-    givenChangeSetExists({
-      Status: ChangeSetStatus.FAILED,
-      StatusReason:
+    fakeCfn.overrideChangeSetStatus = {
+      status: 'FAILED',
+      statusReason:
         'CloudFormation is attempting to import some resources because they already exist in your account. ' +
         "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
         'The affected resources are DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}), AnotherResourceABC123 ({BucketName=my-bucket})',
-    });
+      executionStatus: 'UNAVAILABLE',
+    };
 
     // THEN
     await expect(testDeployStack({
@@ -1101,13 +1120,15 @@ describe('import-existing-resources', () => {
         },
       },
     });
-    givenChangeSetExists({
-      Status: ChangeSetStatus.FAILED,
-      StatusReason:
+    givenStackExists({ StackName: 'import-error-stack-no-enhance' });
+    fakeCfn.overrideChangeSetStatus = {
+      status: 'FAILED',
+      statusReason:
         'CloudFormation is attempting to import some resources because they already exist in your account. ' +
         "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
         'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
-    });
+      executionStatus: 'UNAVAILABLE',
+    };
 
     // THEN - original error without enhancement, because importExistingResources is false
     let error: Error | undefined;
@@ -1140,13 +1161,15 @@ describe('import-existing-resources', () => {
         },
       },
     });
-    givenChangeSetExists({
-      Status: ChangeSetStatus.FAILED,
-      StatusReason:
+    givenStackExists({ StackName: 'import-error-no-metadata' });
+    fakeCfn.overrideChangeSetStatus = {
+      status: 'FAILED',
+      statusReason:
         'CloudFormation is attempting to import some resources because they already exist in your account. ' +
         "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
         'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
-    });
+      executionStatus: 'UNAVAILABLE',
+    };
 
     // THEN - enhanced message with logical ID fallback (no construct path)
     await expect(testDeployStack({
@@ -1215,11 +1238,11 @@ test.each([
 ] satisfies Array<[StackStatus, 'rollback' | 'no-rollback', 'replacement' | 'no-replacement', string]>)
 ('no-rollback and replacement is disadvised: %s %s %s -> %s', async (stackStatus, rollback, replacement, expectedType) => {
   // GIVEN
-  givenTemplateIs(FAKE_STACK.template);
   givenStackExists({
     // First call
     StackStatus: stackStatus,
   });
+  givenTemplateIs(FAKE_STACK.template);
   givenChangeSetContainsReplacement(replacement === 'replacement');
 
   // WHEN
@@ -1257,11 +1280,16 @@ test('does not pass IncludeNestedStacks even for stacks with nested stacks', asy
  *
  * The last element of this array will be continuously repeated.
  */
-function givenStackExists(overrides: Partial<Stack> = {}) {
+function givenStackExists(overrides: Partial<Stack> & { StackName?: string } = {}) {
+  const stackName = overrides.StackName ?? 'withouterrors';
   fakeCfn.createStackSync({
     ...baseResponse,
+    StackName: stackName,
     ...overrides,
   });
+  // Set the template to match the default FAKE_STACK template unless the test
+  // explicitly sets it via givenTemplateIs
+  fakeCfn.firstStack().template = DEFAULT_FAKE_TEMPLATE;
 }
 
 function givenChangeSetExists(options: Partial<DescribeChangeSetOutput> = {}) {
@@ -1287,32 +1315,38 @@ function givenTemplateIs(template: any) {
 }
 
 function givenChangeSetContainsReplacement(replacement: boolean) {
-  givenChangeSetExists({
-    Status: 'CREATE_COMPLETE',
-    Changes: replacement ? [
-      {
-        Type: 'Resource',
-        ResourceChange: {
-          PolicyAction: 'ReplaceAndDelete',
-          Action: 'Modify',
-          LogicalResourceId: 'Queue4A7E3555',
-          PhysicalResourceId: 'https://sqs.eu-west-1.amazonaws.com/111111111111/Queue4A7E3555-P9C8nK3uv8v6.fifo',
-          ResourceType: 'AWS::SQS::Queue',
-          Replacement: 'True',
-          Scope: ['Properties'],
-          Details: [
-            {
-              Target: {
-                Attribute: 'Properties',
-                Name: 'FifoQueue',
-                RequiresRecreation: 'Always',
-              },
-              Evaluation: 'Static',
-              ChangeSource: 'DirectModification',
+  fakeCfn.overrideChangeSetChanges = replacement ? [
+    {
+      Type: 'Resource',
+      ResourceChange: {
+        PolicyAction: 'ReplaceAndDelete',
+        Action: 'Modify',
+        LogicalResourceId: 'Queue4A7E3555',
+        PhysicalResourceId: 'https://sqs.eu-west-1.amazonaws.com/111111111111/Queue4A7E3555-P9C8nK3uv8v6.fifo',
+        ResourceType: 'AWS::SQS::Queue',
+        Replacement: 'True',
+        Scope: ['Properties'],
+        Details: [
+          {
+            Target: {
+              Attribute: 'Properties',
+              Name: 'FifoQueue',
+              RequiresRecreation: 'Always',
             },
-          ],
-        },
+            Evaluation: 'Static',
+            ChangeSource: 'DirectModification',
+          },
+        ],
       },
-    ] : [],
-  });
+    },
+  ] : [];
+}
+
+async function advanceTime<A>(x: Promise<A>): Promise<A> {
+  let resolved = false;
+  const result = x.finally(() => { resolved = true; });
+  while (!resolved) {
+    await jest.advanceTimersByTimeAsync(100);
+  }
+  return result;
 }

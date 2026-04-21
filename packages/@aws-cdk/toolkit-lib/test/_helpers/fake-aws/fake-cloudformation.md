@@ -41,6 +41,7 @@ The fake supports one resource type: `Test::Fake::Resource`.
 
 Stack operations are **asynchronous**. The API call returns immediately, and the
 stack transitions through statuses on a timer (configurable, default 20ms).
+Tests that use the fake should use fake timers to advance time.
 
 ### CreateStack
 
@@ -110,7 +111,8 @@ and `GetTemplate` (when the `ChangeSetName` parameter is used).
    existing change set must be deleted first before a new one with the same
    name can be created.
 4. The change set is created with status `CREATE_PENDING`.
-5. After delay: the change set transitions to `CREATE_COMPLETE` with
+5. After delay: the change set transitions to `CREATE_IN_PROGRESS`, then
+   to `CREATE_COMPLETE` with
    `ExecutionStatus: AVAILABLE`.
    - The `Changes` list is computed by diffing the new template against the
      current stack template. Each added/removed/modified resource logical ID
@@ -145,7 +147,9 @@ and `GetTemplate` (when the `ChangeSetName` parameter is used).
 
 ### DeleteChangeSet
 
-1. If the change set is in `CREATE_IN_PROGRESS` or `DELETE_IN_PROGRESS`,
+1. If the change set doesn't exist but the stack does, the call is a
+   **no-op** (no error).
+2. If the change set is in `CREATE_IN_PROGRESS` or `DELETE_IN_PROGRESS`,
    throws `InvalidChangeSetStatus`.
 2. Otherwise, removes the change set from the stack.
 3. If the stack is in `REVIEW_IN_PROGRESS` and this was the only change set,
@@ -227,3 +231,7 @@ The fake exposes:
   failure paths)
 - `failFirstDeploy`: when true, the first deploy fails all resources, then
   auto-clears so subsequent deploys succeed
+- `overrideChangeSetChanges`: if set, the next `createChangeSet` call uses
+  these changes instead of computing them. Auto-clears after use.
+- `overrideChangeSetStatus`: if set, the next `createChangeSet` call uses
+  this status/reason/executionStatus. Auto-clears after use.

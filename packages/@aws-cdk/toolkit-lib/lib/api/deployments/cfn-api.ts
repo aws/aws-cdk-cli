@@ -114,6 +114,7 @@ export async function waitForChangeSet(
     const description = await describeChangeSet(cfn, stackName, changeSetName, {
       fetchAll,
     });
+
     // The following doesn't use a switch because tsc will not allow fall-through, UNLESS it is allows
     // EVERYWHERE that uses this library directly or indirectly, which is undesirable.
     if (description.Status === 'CREATE_PENDING' || description.Status === 'CREATE_IN_PROGRESS') {

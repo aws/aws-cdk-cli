@@ -52,6 +52,7 @@ import {
   UpdateTerminationProtectionCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { AwsStub } from 'aws-sdk-client-mock';
+import * as yaml from 'yaml';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,17 +77,15 @@ function cfnError(code: string, message: string): never {
   throw e;
 }
 
-/** Parse a template body string or return the object as-is */
+/** Parse a template body string (JSON or YAML) or return the object as-is */
 function parseTemplate(body?: string): Record<string, any> {
   if (!body) return {};
-  if (typeof body === 'string') {
-    try {
-      return JSON.parse(body);
-    } catch (e) {
-      throw new Error(`Error parsing CFN template: ${body}`);
-    }
+  if (typeof body !== 'string') return body as any;
+  try {
+    return yaml.parse(body);
+  } catch (e) {
+    throw new Error(`Error pasing template: ${body}`);
   }
-  return body as any;
 }
 
 /** Extract logical resource IDs from a CFN template */
@@ -107,6 +106,7 @@ interface InMemoryChangeSet {
   executionStatus: string;
   changeSetType: string;
   template: Record<string, any>;
+  templateUrl?: string;
   parameters: Parameter[];
   tags: Tag[];
   capabilities: string[];
@@ -124,6 +124,7 @@ interface InMemoryStack {
   parameters: Parameter[];
   tags: Tag[];
   capabilities: string[];
+  notificationArns: string[];
   outputs: { OutputKey: string; OutputValue: string }[];
   enableTerminationProtection: boolean;
   roleArn?: string;
@@ -168,6 +169,18 @@ export class FakeCloudFormation {
   private alwaysFailResources = false;
   private failFirstDeploy = false;
 
+  /**
+   * If set, the next createChangeSet call will use these changes instead of
+   * computing them from the template diff. Auto-clears after use.
+   */
+  public overrideChangeSetChanges?: Change[];
+
+  /**
+   * If set, the next createChangeSet call will use this status/reason instead
+   * of computing it. Auto-clears after use.
+   */
+  public overrideChangeSetStatus?: { status: string; statusReason?: string; executionStatus: string };
+
   constructor() {
     this.reset();
   }
@@ -179,6 +192,8 @@ export class FakeCloudFormation {
     this.asyncDelay = behavior?.asyncDelay ?? 20;
     this.alwaysFailResources = behavior?.alwaysFailResources ?? false;
     this.failFirstDeploy = behavior?.failFirstDeploy ?? false;
+    this.overrideChangeSetChanges = undefined;
+    this.overrideChangeSetStatus = undefined;
   }
 
   public firstStack(): InMemoryStack {
@@ -213,9 +228,36 @@ export class FakeCloudFormation {
   // Stack operations
   // -----------------------------------------------------------------------
 
-  public createStackSync(input: CreateStackCommandInput): CreateStackCommandOutput {
-    const { id, stack, template } = this.initCreateStack(input);
-    this.finalizeCreateStack(stack, template, input.DisableRollback);
+  /**
+   * Synchronously create a stack for test setup.
+   * Accepts Stack description fields (StackName, StackStatus, etc.) to directly
+   * set the final state, bypassing async processing.
+   */
+  public createStackSync(input: Partial<Stack> & { StackName: string; TemplateBody?: string }): CreateStackCommandOutput {
+    const name = input.StackName;
+    const id = input.StackId ?? stackArn(name);
+    const template = input.TemplateBody ? parseTemplate(input.TemplateBody) : {};
+
+    const stack: InMemoryStack = {
+      name,
+      id,
+      status: (input.StackStatus as string) ?? 'CREATE_COMPLETE',
+      statusReason: input.StackStatusReason,
+      template,
+      parameters: input.Parameters ?? [],
+      tags: input.Tags ?? [],
+      capabilities: (input.Capabilities as string[]) ?? [],
+      outputs: [],
+      notificationArns: input.NotificationARNs ?? [],
+      enableTerminationProtection: input.EnableTerminationProtection ?? false,
+      roleArn: input.RoleARN,
+      creationTime: input.CreationTime ?? new Date(),
+      lastUpdatedTime: input.LastUpdatedTime,
+      deletionTime: input.DeletionTime,
+      changeSets: [],
+      events: [],
+    };
+    this.stacks.set(name, stack);
     return { StackId: id, $metadata: {} };
   }
 
@@ -313,9 +355,63 @@ export class FakeCloudFormation {
   // Change set operations
   // -----------------------------------------------------------------------
 
-  public createChangeSetSync(input: CreateChangeSetCommandInput): CreateChangeSetCommandOutput {
-    const { csId, stack, cs, template } = this.initCreateChangeSet(input);
-    this.finalizeCreateChangeSet(stack, cs, template);
+  /**
+   * Synchronously create a change set for test setup.
+   * Accepts DescribeChangeSet output fields (Status, Changes, etc.) to directly
+   * set the final state, bypassing async processing.
+   */
+  public createChangeSetSync(input: {
+    StackName: string;
+    ChangeSetName?: string;
+    ChangeSetType?: string;
+    TemplateBody?: string;
+    Status?: string;
+    StatusReason?: string;
+    ExecutionStatus?: string;
+    Changes?: Change[];
+    Parameters?: Parameter[];
+    Tags?: Tag[];
+    Capabilities?: string[];
+    Description?: string;
+  }): CreateChangeSetCommandOutput {
+    const stackName = input.StackName;
+    const stack = this.requireStack(stackName);
+    const csName = input.ChangeSetName ?? `cs-${uid()}`;
+    const csId = changeSetArn(stackName, csName);
+    const template = input.TemplateBody ? parseTemplate(input.TemplateBody) : stack.template;
+
+    // Determine final status: if explicitly provided use that, otherwise compute
+    let status = input.Status ?? 'CREATE_COMPLETE';
+    let executionStatus = input.ExecutionStatus ?? (status === 'CREATE_COMPLETE' ? 'AVAILABLE' : 'UNAVAILABLE');
+    let changes = input.Changes;
+
+    // If no explicit changes or status, compute changes from template diff
+    if (!changes && !input.Status) {
+      changes = this.computeChanges(stack.template, template);
+      if (changes.length === 0) {
+        status = 'FAILED';
+        executionStatus = 'UNAVAILABLE';
+      }
+    }
+
+    const cs: InMemoryChangeSet = {
+      name: csName,
+      id: csId,
+      stackId: stack.id,
+      status,
+      statusReason: input.StatusReason,
+      executionStatus,
+      changeSetType: input.ChangeSetType ?? 'UPDATE',
+      template,
+      parameters: input.Parameters ?? [],
+      tags: input.Tags ?? [],
+      capabilities: input.Capabilities ?? [],
+      description: input.Description,
+      changes: changes ?? [],
+      creationTime: new Date(),
+    };
+    stack.changeSets.push(cs);
+    this.changeSetToStack.set(csId, stack.name);
     return { Id: csId, StackId: stack.id, $metadata: {} };
   }
 
@@ -410,13 +506,30 @@ export class FakeCloudFormation {
   }
 
   public async deleteChangeSet(input: DeleteChangeSetCommandInput): Promise<DeleteChangeSetCommandOutput> {
-    const { stack, changeSet: cs } = this.resolveChangeSet(input.ChangeSetName!, input.StackName);
+    // Per AWS docs: "The delete request is successful as long as the stack exists
+    // (even if the change set does not exist)."
+    let stack: InMemoryStack;
+    let cs: InMemoryChangeSet | undefined;
+    try {
+      const result = this.resolveChangeSet(input.ChangeSetName!, input.StackName);
+      stack = result.stack;
+      cs = result.changeSet;
+    } catch (e: any) {
+      if (e.name === 'ChangeSetNotFoundException') {
+        // Verify the stack exists (will throw ValidationError if not)
+        if (input.StackName) {
+          this.requireStack(input.StackName);
+        }
+        return { $metadata: {} };
+      }
+      throw e;
+    }
 
     if (cs.status === 'CREATE_IN_PROGRESS' || cs.status === 'DELETE_IN_PROGRESS') {
       cfnError('InvalidChangeSetStatus', `ChangeSet [${cs.name}] is in ${cs.status} state and cannot be deleted`);
     }
 
-    stack.changeSets = stack.changeSets.filter((c) => c.id !== cs.id);
+    stack.changeSets = stack.changeSets.filter((c) => c.id !== cs!.id);
     this.changeSetToStack.delete(cs.id);
     return { $metadata: {} };
   }
@@ -546,6 +659,7 @@ export class FakeCloudFormation {
       tags: input.Tags ?? [],
       capabilities: (input.Capabilities as string[]) ?? [],
       outputs: [],
+      notificationArns: [],
       enableTerminationProtection: input.EnableTerminationProtection ?? false,
       roleArn: input.RoleARN,
       creationTime: new Date(),
@@ -581,26 +695,31 @@ export class FakeCloudFormation {
     let stack: InMemoryStack;
     if (csType === 'CREATE') {
       const existing = this.stacks.get(stackName);
-      if (existing && existing.status !== 'DELETE_COMPLETE') {
+      if (existing && existing.status === 'REVIEW_IN_PROGRESS') {
+        // Stack already in REVIEW_IN_PROGRESS — reuse it for additional CREATE change sets
+        stack = existing;
+      } else if (existing && existing.status !== 'DELETE_COMPLETE') {
         cfnError('AlreadyExistsException', `Stack [${stackName}] already exists`);
+      } else {
+        const id = stackArn(stackName);
+        stack = {
+          name: stackName,
+          id,
+          status: 'REVIEW_IN_PROGRESS',
+          template: {},
+          parameters: input.Parameters ?? [],
+          tags: input.Tags ?? [],
+          capabilities: (input.Capabilities as string[]) ?? [],
+          outputs: [],
+          notificationArns: [],
+          enableTerminationProtection: false,
+          roleArn: input.RoleARN,
+          creationTime: new Date(),
+          changeSets: [],
+          events: [],
+        };
+        this.stacks.set(stackName, stack);
       }
-      const id = stackArn(stackName);
-      stack = {
-        name: stackName,
-        id,
-        status: 'REVIEW_IN_PROGRESS',
-        template: {},
-        parameters: input.Parameters ?? [],
-        tags: input.Tags ?? [],
-        capabilities: (input.Capabilities as string[]) ?? [],
-        outputs: [],
-        enableTerminationProtection: false,
-        roleArn: input.RoleARN,
-        creationTime: new Date(),
-        changeSets: [],
-        events: [],
-      };
-      this.stacks.set(stackName, stack);
     } else {
       stack = this.requireStack(stackName);
     }
@@ -618,6 +737,7 @@ export class FakeCloudFormation {
       executionStatus: 'UNAVAILABLE',
       changeSetType: csType,
       template,
+      templateUrl: input.TemplateURL,
       parameters: input.Parameters ?? [],
       tags: input.Tags ?? [],
       capabilities: (input.Capabilities as string[]) ?? [],
@@ -631,9 +751,44 @@ export class FakeCloudFormation {
   }
 
   private finalizeCreateChangeSet(stack: InMemoryStack, cs: InMemoryChangeSet, template: Record<string, any>) {
-    const changes = this.computeChanges(stack.template, template);
+    cs.status = 'CREATE_IN_PROGRESS';
+
+    // Allow tests to override the entire change set status
+    if (this.overrideChangeSetStatus) {
+      cs.status = this.overrideChangeSetStatus.status;
+      cs.statusReason = this.overrideChangeSetStatus.statusReason;
+      cs.executionStatus = this.overrideChangeSetStatus.executionStatus;
+      this.overrideChangeSetStatus = undefined;
+      return;
+    }
+
+    // Allow tests to override the computed changes
+    let changes: Change[];
+    if (this.overrideChangeSetChanges) {
+      changes = this.overrideChangeSetChanges;
+      this.overrideChangeSetChanges = undefined;
+    } else if (cs.templateUrl) {
+      // When TemplateURL is used, we can't compute changes — assume there are changes
+      changes = [{
+        Type: 'Resource',
+        ResourceChange: { Action: 'Modify', LogicalResourceId: 'TemplateURLChange', ResourceType: 'AWS::CloudFormation::Stack' },
+      }];
+    } else {
+      changes = this.computeChanges(stack.template, template);
+    }
     cs.changes = changes;
-    if (changes.length === 0) {
+
+    // A change set has changes if resources differ, OR if the template/tags/parameters differ,
+    // OR if the stack is in a failed state (retrying a failed deployment is always a change)
+    const stackInFailedState = stack.status.includes('FAILED') || stack.status.includes('ROLLBACK');
+    const hasNonResourceChanges = changes.length === 0 && (
+      stackInFailedState ||
+      JSON.stringify(stack.template) !== JSON.stringify(template) ||
+      JSON.stringify(stack.tags) !== JSON.stringify(cs.tags) ||
+      JSON.stringify(stack.parameters) !== JSON.stringify(cs.parameters)
+    );
+
+    if (changes.length === 0 && !hasNonResourceChanges) {
       cs.status = 'FAILED';
       cs.statusReason = "The submitted information didn't contain changes.";
       cs.executionStatus = 'UNAVAILABLE';
@@ -810,6 +965,20 @@ export class FakeCloudFormation {
       }
     }
 
+    // If no resource changes were found but the templates differ in other
+    // sections (Outputs, Parameters, Conditions, etc.), CloudFormation still
+    // considers this a change. We represent it as a synthetic change entry.
+    if (changes.length === 0 && JSON.stringify(oldTemplate) !== JSON.stringify(newTemplate)) {
+      changes.push({
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: 'TemplateChange',
+          ResourceType: 'AWS::CloudFormation::Stack',
+        },
+      });
+    }
+
     return changes;
   }
 
@@ -860,6 +1029,7 @@ export class FakeCloudFormation {
       Tags: stack.tags,
       Capabilities: stack.capabilities as any,
       Outputs: stack.outputs.map((o) => ({ OutputKey: o.OutputKey, OutputValue: o.OutputValue })),
+      NotificationARNs: stack.notificationArns,
       EnableTerminationProtection: stack.enableTerminationProtection,
       RoleARN: stack.roleArn,
     };
