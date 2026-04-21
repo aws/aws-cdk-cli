@@ -6,6 +6,7 @@ import {
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
 import { ResourceOrphaner } from '../../../lib/actions/orphan/orphaner';
+import { replaceInObject } from '../../../lib/actions/orphan/private/helpers';
 import { Deployments } from '../../../lib/api/deployments';
 import { testStack } from '../../_helpers/assembly';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
@@ -322,7 +323,6 @@ describe('ResourceOrphaner', () => {
 });
 
 describe('replaceInObject - Fn::Sub handling', () => {
-  const { replaceInObject } = require('../../../lib/actions/orphan/private/helpers');
   const values = { ref: 'my-table-physical', attrs: { Arn: 'arn:aws:dynamodb:us-east-1:123:table/t', StreamArn: 'arn:stream' } };
 
   test('replaces implicit Ref ${LogicalId} in Fn::Sub string', () => {
