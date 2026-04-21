@@ -6,9 +6,9 @@ import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/clien
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
-import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
+import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
 
@@ -248,15 +248,9 @@ export class ResourceImporter {
     const nonAdditions = resourceChanges.filter(([_, dif]) => !dif.isAddition);
     const additions = resourceChanges.filter(([_, dif]) => dif.isAddition);
 
-    if (nonAdditions.length) {
+    if (nonAdditions.length && allowNonAdditions) {
       const offendingResources = nonAdditions.map(([logId, _]) => this.describeResource(logId));
-
-      if (allowNonAdditions) {
-        await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
-      } else {
-        throw new ToolkitError('ImportNonAdditionChanges', 'No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
-          `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
-      }
+      await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
     }
 
     // Resources in the new template, that are not present in the current template, are a potential import candidates
@@ -267,6 +261,13 @@ export class ResourceImporter {
         resourceDefinition: addDefaultDeletionPolicy(this.stack.template?.Resources?.[logicalId] ?? {}),
       })),
       hasNonAdditions: nonAdditions.length > 0,
+      nonAdditionNames: nonAdditions.map(([logId, _]) => this.describeResource(logId)),
+      diffFormatter: new DiffFormatter({
+        templateInfo: {
+          oldTemplate: currentTemplate,
+          newTemplate: this.stack,
+        },
+      }),
     };
   }
 
@@ -515,6 +516,8 @@ function addDefaultDeletionPolicy(resource: any): any {
 export interface DiscoverImportableResourcesResult {
   readonly additions: ImportableResource[];
   readonly hasNonAdditions: boolean;
+  readonly nonAdditionNames: string[];
+  readonly diffFormatter: DiffFormatter;
 }
 
 export function removeNonImportResources(stack:cxapi.CloudFormationStackArtifact) {

@@ -425,6 +425,41 @@ describe('deploy', () => {
       expect(messages.some((m: string) => m.includes('Total time'))).toBe(true);
     });
 
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      requestSpy = jest.spyOn(ioHost, 'requestResponse');
+
+      // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
+      // set means there is nothing for the user to approve.
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
     test('noOp deploy still writes outputs-file', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);
