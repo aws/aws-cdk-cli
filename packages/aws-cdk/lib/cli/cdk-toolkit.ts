@@ -977,7 +977,6 @@ export class CdkToolkit {
       constructPaths: options.constructPath,
       roleArn: options.roleArn,
       toolkitStackName: options.toolkitStackName,
-      force: options.force,
     });
   }
 
@@ -1037,7 +1036,7 @@ export class CdkToolkit {
     // Prepare a mapping of physical resources to CDK constructs
     let actualImport: Awaited<ReturnType<typeof resourceImporter.askForResourceIdentifiers>>;
     if (options.resourceMappingInline) {
-      actualImport = await resourceImporter.loadResourceIdentifiers(additions, JSON.parse(options.resourceMappingInline));
+      actualImport = await resourceImporter.loadResourceIdentifiers(additions, options.resourceMappingInline);
     } else if (options.resourceMappingFile) {
       actualImport = await resourceImporter.loadResourceIdentifiersFromFile(additions, options.resourceMappingFile);
     } else {
@@ -1983,7 +1982,6 @@ export interface OrphanOptions {
   readonly constructPath: string[];
   readonly roleArn?: string;
   readonly toolkitStackName?: string;
-  readonly force?: boolean;
 }
 
 export interface ImportOptions extends CfnDeployOptions {

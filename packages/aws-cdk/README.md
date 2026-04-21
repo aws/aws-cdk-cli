@@ -799,24 +799,26 @@ This feature currently has the following limitations:
 > options and flag names in the future. Pass the `--unstable=orphan` flag when using
 > this command and be aware of this when using it in scripts.
 
-Detaches one or more resources from a CloudFormation stack without deleting them.
+Safely detaches one or more resources from a CloudFormation stack without deleting them.
 This is useful when you need to migrate a resource from one construct type to another
 (for example, migrating a DynamoDB `Table` to `TableV2`) without any downtime or data loss.
 
 The orphan command works by:
 
-1. Resolving any cross-resource references (`Ref`, `Fn::GetAtt`) to the orphaned resources and replacing them with their current physical values
-2. Setting the `DeletionPolicy` to `Retain` and decoupling the resources from the stack
+1. Resolving cross-resource references (`Ref`, `Fn::GetAtt`, `Fn::Sub`) to the orphaned resources, so that other resources in the stack that depend on them continue to work after the orphaned resources are removed
+2. Setting the `DeletionPolicy` to `Retain`, replacing all cross-resource references with literal values, and removing `DependsOn` entries to isolate the resources from the rest of the stack
 3. Removing the resources from the CloudFormation template (they continue to exist in your AWS account)
 
 After orphaning, you can update your CDK code and use `cdk import` to bring the resource back under management with the new construct type.
 
+All construct paths must reference the same stack.
+
 ```console
 $ # Orphan a single resource
-$ cdk orphan --unstable=orphan --path MyStack/MyTable
+$ cdk orphan --unstable=orphan MyStack/MyTable
 
 $ # Orphan multiple resources
-$ cdk orphan --unstable=orphan --path MyStack/MyTable --path MyStack/MyBucket
+$ cdk orphan --unstable=orphan MyStack/MyTable MyStack/MyBucket
 ```
 
 #### Example: Migrating DynamoDB Table to TableV2
@@ -833,7 +835,7 @@ $ cdk orphan --unstable=orphan --path MyStack/MyTable --path MyStack/MyBucket
 2. Orphan the table from the stack:
 
     ```console
-    $ cdk orphan --unstable=orphan --path MyStack/MyTable
+    $ cdk orphan --unstable=orphan MyStack/MyTable
     ```
 
     The command outputs next steps including a `cdk import` command with the resource mapping.

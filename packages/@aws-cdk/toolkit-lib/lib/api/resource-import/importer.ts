@@ -11,6 +11,7 @@ import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
@@ -147,13 +148,23 @@ export class ResourceImporter {
   }
 
   /**
-   * Load the resources to import from a pre-parsed mapping
+   * Load the resources to import from a mapping (JSON string or pre-parsed object)
    */
   public async loadResourceIdentifiers(
     available: ImportableResource[],
-    identifiers: Record<string, ResourceIdentifierProperties>,
+    identifiers: string | Record<string, ResourceIdentifierProperties>,
   ): Promise<ImportMap> {
-    const remaining = { ...identifiers };
+    let parsed: Record<string, ResourceIdentifierProperties>;
+    if (typeof identifiers === 'string') {
+      try {
+        parsed = JSON.parse(identifiers);
+      } catch {
+        throw new ToolkitError('InvalidResourceMapping', `Could not parse resource mapping as JSON: ${identifiers}`);
+      }
+    } else {
+      parsed = identifiers;
+    }
+    const remaining = { ...parsed };
     const ret: ImportMap = { importResources: [], resourceMap: {} };
     for (const resource of available) {
       const descr = this.describeResource(resource.logicalId);

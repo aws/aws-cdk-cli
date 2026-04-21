@@ -1,8 +1,5 @@
-import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
-  findResourcesByPath,
-  hasAnyCdkPathMetadata,
   replaceReferences,
   removeDependsOn,
   walkObject,
@@ -84,22 +81,32 @@ export class ResourceOrphaner {
     const currentTemplate = await this.deployments.readCurrentTemplate(stack);
     const resources = currentTemplate.Resources ?? {};
 
-    const logicalIds: string[] = [];
-    for (const p of constructPaths) {
-      logicalIds.push(...findResourcesByPath(resources, stack.stackName, p));
+    // Build a map of construct path -> logical ID from the local assembly
+    const pathToLogicalId = new Map<string, string>();
+    for (const md of stack.findMetadataByType('aws:cdk:logicalId' as any)) {
+      pathToLogicalId.set(md.path, md.data as string);
     }
 
-    if (logicalIds.length === 0) {
-      const hint = !hasAnyCdkPathMetadata(resources)
-        ? ' (no resources in this stack have aws:cdk:path metadata — was it disabled?)'
-        : '';
-      throw new ToolkitError('OrphanNoResources', `No resources found under construct path '${constructPaths.join(', ')}' in stack '${stack.stackName}'${hint}`);
+    // Find logical IDs matching the given construct paths (prefix match)
+    const matched: { logicalId: string; path: string }[] = [];
+    for (const constructPath of constructPaths) {
+      const prefix = `/${stack.hierarchicalId}/${constructPath}/`;
+      for (const [path, logicalId] of pathToLogicalId) {
+        if (path.startsWith(prefix) && resources[logicalId]) {
+          matched.push({ logicalId, path });
+        }
+      }
     }
 
-    const orphanedResources: OrphanedResource[] = logicalIds.map(id => ({
-      logicalId: id,
-      resourceType: resources[id].Type ?? 'Unknown',
-      cdkPath: resources[id].Metadata?.[PATH_METADATA_KEY] ?? id,
+    if (matched.length === 0) {
+      throw new ToolkitError('OrphanNoResources', `No resources found under construct path '${constructPaths.join(', ')}' in stack '${stack.stackName}'`);
+    }
+
+    const logicalIds = matched.map(m => m.logicalId);
+    const orphanedResources: OrphanedResource[] = matched.map(m => ({
+      logicalId: m.logicalId,
+      resourceType: resources[m.logicalId].Type ?? 'Unknown',
+      cdkPath: m.path,
     }));
 
     return {

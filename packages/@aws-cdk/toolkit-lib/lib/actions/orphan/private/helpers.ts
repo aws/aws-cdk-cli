@@ -188,3 +188,37 @@ export function ensureNonEmptyResources(template: any): void {
     };
   }
 }
+
+/**
+ * Parse construct paths like `/MyStack/MyTable` or `MyStack/MyTable` into
+ * a stack construct ID and construct-level paths.
+ *
+ * All paths must reference the same stack.
+ */
+export function parseConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
+  if (paths.length === 0) {
+    throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. --path MyStack/MyTable)');
+  }
+
+  const constructPaths: string[] = [];
+  let stackId: string | undefined;
+
+  for (const raw of paths) {
+    const p = raw.replace(/^\//, ''); // strip leading slash
+    const slashIdx = p.indexOf('/');
+    if (slashIdx < 0) {
+      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must include both a stack name and a construct path separated by '/' (e.g. MyStack/MyTable)`);
+    }
+
+    const thisStack = p.substring(0, slashIdx);
+    const constructPath = p.substring(slashIdx + 1);
+
+    if (stackId && thisStack !== stackId) {
+      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${thisStack}'`);
+    }
+    stackId = thisStack;
+    constructPaths.push(constructPath);
+  }
+
+  return { stackId: stackId!, constructPaths };
+}

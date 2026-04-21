@@ -459,10 +459,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
         ioHost.currentAction = 'orphan';
         return cli.orphan({
-          constructPath: args.path ?? [],
+          constructPath: args.PATHS ?? [],
           roleArn: args.roleArn,
           toolkitStackName,
-          force: args.force,
         });
 
       case 'import':

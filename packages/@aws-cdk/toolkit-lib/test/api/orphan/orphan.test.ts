@@ -59,6 +59,11 @@ const DEPLOYED_TEMPLATE = {
 const STACK = testStack({
   stackName: 'TestStack',
   template: DEPLOYED_TEMPLATE,
+  metadata: {
+    '/TestStack/MyTable/Resource': [{ type: 'aws:cdk:logicalId', data: 'MyTable' }],
+    '/TestStack/MyTable/Replicaeu-north-1/Default': [{ type: 'aws:cdk:logicalId', data: 'MyTableReplica' }],
+    '/TestStack/MyFunction/Resource': [{ type: 'aws:cdk:logicalId', data: 'MyFunction' }],
+  },
 });
 
 let deployments: Deployments;
@@ -131,17 +136,18 @@ describe('ResourceOrphaner', () => {
         .rejects.toThrow(/No resources found/);
     });
 
-    test('hints about disabled metadata when no metadata exists', async () => {
-      mockCloudFormationClient.on(GetTemplateCommand).resolves({
-        TemplateBody: JSON.stringify({
+    test('throws if construct path does not match any assembly metadata', async () => {
+      const stackWithNoMetadata = testStack({
+        stackName: 'EmptyStack',
+        template: {
           Resources: {
             SomeResource: { Type: 'AWS::SNS::Topic', Properties: {} },
           },
-        }),
+        },
       });
 
-      await expect(orphaner.makePlan(STACK, ['MyTable']))
-        .rejects.toThrow(/metadata.*disabled/);
+      await expect(orphaner.makePlan(stackWithNoMetadata, ['MyTable']))
+        .rejects.toThrow(/No resources found/);
     });
 
     test('does not deploy anything', async () => {

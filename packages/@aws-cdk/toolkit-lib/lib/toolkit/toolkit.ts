@@ -52,6 +52,7 @@ import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { OrphanOptions } from '../actions/orphan';
 import { ResourceOrphaner } from '../actions/orphan/orphaner';
+import { parseConstructPaths } from '../actions/orphan/private/helpers';
 import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -1189,36 +1190,36 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const plan = await orphaner.makePlan(stack, parsed.constructPaths);
 
     // Show the plan
-    await ioHelper.defaults.info(`Stack: ${plan.stackName}`);
-    await ioHelper.defaults.info(`Resources to orphan (${plan.orphanedResources.length}):`);
-    for (const r of plan.orphanedResources) {
-      await ioHelper.defaults.info(`  ${r.logicalId} (${r.resourceType}) — ${r.cdkPath}`);
-    }
+    const resourceLines = plan.orphanedResources
+      .map((r) => `  ${r.logicalId} (${r.resourceType}) - ${r.cdkPath}`)
+      .join('\n');
+    await ioHelper.defaults.info(
+      `Stack: ${plan.stackName}\n` +
+      `Resources to orphan (${plan.orphanedResources.length}):\n` +
+      resourceLines,
+    );
 
-    // Confirm unless --force
-    if (!options.force) {
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8810.req(
-        'Do you wish to orphan these resources? This will perform 3 CloudFormation deployments.', {
-          motivation: 'User confirmation is needed before orphaning resources',
-        }));
-      if (!confirmed) {
-        throw new ToolkitError('OrphanAborted', 'Aborted by user');
-      }
+    // Confirm before orphaning
+    const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8810.req(
+      'Do you wish to orphan these resources? This will perform 3 CloudFormation deployments.', {
+        motivation: 'User confirmation is needed before orphaning resources',
+      }));
+    if (!confirmed) {
+      throw new ToolkitError('OrphanAborted', 'Aborted by user');
     }
 
     const result = await plan.execute();
 
     // Output next steps
-    await ioHelper.defaults.info(`✅ Resources orphaned from ${plan.stackName}`);
-    await ioHelper.defaults.info('');
-    await ioHelper.defaults.info('Next steps:');
-    await ioHelper.defaults.info('  1. Update your CDK code to use the new resource type');
-    if (Object.keys(result.resourceMapping).length > 0) {
-      const mappingJson = JSON.stringify(result.resourceMapping);
-      await ioHelper.defaults.info(`  2. cdk import --resource-mapping-inline '${mappingJson}'`);
-    } else {
-      await ioHelper.defaults.info('  2. cdk import');
-    }
+    const mappingJson = Object.keys(result.resourceMapping).length > 0
+      ? ` --resource-mapping-inline '${JSON.stringify(result.resourceMapping)}'`
+      : '';
+    await ioHelper.defaults.info(
+      `✅ Resources orphaned from ${plan.stackName}\n\n` +
+      'Next steps:\n' +
+      '  1. Update your CDK code to use the new resource type\n' +
+      `  2. cdk import${mappingJson}`,
+    );
   }
 
   /**
@@ -1651,39 +1652,4 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
-}
-
-/**
- * Parse construct paths like `/MyStack/MyTable` or `MyStack/MyTable` into
- * a stack construct ID and construct-level paths.
- *
- * All paths must reference the same stack.
- */
-function parseConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
-  if (paths.length === 0) {
-    throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. --path MyStack/MyTable)');
-  }
-
-  const constructPaths: string[] = [];
-  let stackId: string | undefined;
-
-  for (const raw of paths) {
-    const p = raw.replace(/^\//, ''); // strip leading slash
-    const slashIdx = p.indexOf('/');
-    if (slashIdx < 0) {
-      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must be in the format StackId/ConstructPath (e.g. MyStack/MyTable)`);
-    }
-
-    const thisStack = p.substring(0, slashIdx);
-    const constructPath = p.substring(slashIdx + 1);
-
-    if (stackId && thisStack !== stackId) {
-      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${thisStack}'`);
-    }
-
-    stackId = thisStack;
-    constructPaths.push(constructPath);
-  }
-
-  return { stackId: stackId!, constructPaths };
 }

@@ -308,8 +308,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'orphan':
       commandOptions = {
-        path: args.path,
-        force: args.force,
+        PATHS: args.PATHS,
       };
       break;
 
@@ -554,10 +553,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
-  const orphanOptions = {
-    path: config.orphan?.path,
-    force: config.orphan?.force,
-  };
+  const orphanOptions = {};
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,

@@ -16,11 +16,4 @@ export interface OrphanOptions {
    * Toolkit stack name for bootstrap resources.
    */
   readonly toolkitStackName?: string;
-
-  /**
-   * Whether to execute without prompting for confirmation.
-   *
-   * @default false
-   */
-  readonly force?: boolean;
 }

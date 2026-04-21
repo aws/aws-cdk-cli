@@ -1059,20 +1059,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('orphan', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) =>
-      yargs
-        .option('path', {
-          type: 'array',
-          requiresArg: true,
-          desc: 'Construct path(s) to orphan, e.g. MyStack/MyTable',
-          nargs: 1,
-        })
-        .option('force', {
-          default: false,
-          type: 'boolean',
-          desc: 'Do not ask for confirmation before orphaning',
-        }),
-    )
+    .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {

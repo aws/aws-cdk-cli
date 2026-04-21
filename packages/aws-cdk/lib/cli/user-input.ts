@@ -1672,18 +1672,9 @@ export interface DocsOptions {
  */
 export interface OrphanOptions {
   /**
-   * Construct path(s) to orphan, e.g. MyStack/MyTable
-   *
-   * @default - undefined
+   * Positional argument for orphan
    */
-  readonly path?: Array<string>;
-
-  /**
-   * Do not ask for confirmation before orphaning
-   *
-   * @default - false
-   */
-  readonly force?: boolean;
+  readonly PATHS?: Array<string>;
 }
 
 /**
