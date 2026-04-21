@@ -33,6 +33,7 @@ import {
 import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
+import { advanceTime } from '../../_helpers/fake-time';
 
 jest.setTimeout(1_000);
 
@@ -1340,13 +1341,4 @@ function givenChangeSetContainsReplacement(replacement: boolean) {
       },
     },
   ] : [];
-}
-
-async function advanceTime<A>(x: Promise<A>): Promise<A> {
-  let resolved = false;
-  const result = x.finally(() => { resolved = true; });
-  while (!resolved) {
-    await jest.advanceTimersByTimeAsync(100);
-  }
-  return result;
 }
