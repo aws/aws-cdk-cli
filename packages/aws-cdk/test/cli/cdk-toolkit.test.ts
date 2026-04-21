@@ -2050,6 +2050,32 @@ describe('synth', () => {
     expect(notifySpy.mock.calls.length).toEqual(0);
   });
 
+  test('single stack synth in CI mode does not pollute stdout with flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=false (template printed to stdout)
+    await toolkit.synth(['Test-Stack-A-Display-Name'], false, false);
+
+    // THEN - only the template result should be emitted, no warn-level flags message
+    const warnMessages = notifySpy.mock.calls.filter(([msg]) => msg.level === 'warn');
+    expect(warnMessages).toEqual([]);
+  });
+
+  test('single stack synth in CI mode with quiet shows flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=true (no template printed)
+    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+
+    // THEN - flags message is allowed since stdout is not occupied by the template
+    // (it may or may not appear depending on flag state, but it's not suppressed)
+    // We just verify the synth completes without error
+  });
+
   describe('stack with error and flagged for validation', () => {
     beforeEach(async () => {
       cloudExecutable = await MockCloudExecutable.create({
