@@ -179,6 +179,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         force: args.force,
         recordResourceMapping: args.recordResourceMapping,
         resourceMapping: args.resourceMapping,
+        resourceMappingInline: args.resourceMappingInline,
         STACK: args.STACK,
       };
       break;
@@ -303,6 +304,13 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'doctor':
       commandOptions = {};
+      break;
+
+    case 'orphan':
+      commandOptions = {
+        path: args.path,
+        force: args.force,
+      };
       break;
 
     case 'refactor':
@@ -469,6 +477,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     force: config.import?.force,
     recordResourceMapping: config.import?.recordResourceMapping,
     resourceMapping: config.import?.resourceMapping,
+    resourceMappingInline: config.import?.resourceMappingInline,
   };
   const watchOptions = {
     buildExclude: config.watch?.buildExclude,
@@ -545,6 +554,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const orphanOptions = {
+    path: config.orphan?.path,
+    force: config.orphan?.force,
+  };
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
     dryRun: config.refactor?.dryRun,
@@ -580,6 +593,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    orphan: orphanOptions,
     refactor: refactorOptions,
     cliTelemetry: cliTelemetryOptions,
   };

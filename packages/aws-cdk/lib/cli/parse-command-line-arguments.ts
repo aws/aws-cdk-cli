@@ -710,6 +710,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'm',
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts',
+        })
+        .option('resource-mapping-inline', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'Inline JSON resource mapping, e.g. \'{"MyResource":{"TableName":"my-table"}}\'',
         }),
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
@@ -1053,6 +1059,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('orphan', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) =>
+      yargs
+        .option('path', {
+          type: 'array',
+          requiresArg: true,
+          desc: 'Construct path(s) to orphan, e.g. MyStack/MyTable',
+          nargs: 1,
+        })
+        .option('force', {
+          default: false,
+          type: 'boolean',
+          desc: 'Do not ask for confirmation before orphaning',
+        }),
+    )
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {

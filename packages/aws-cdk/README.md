@@ -22,6 +22,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk publish-assets`](#cdk-publish-assets) | Publish assets for stack(s) without deploying                                     |
 | [`cdk rollback`](#cdk-rollback)             | Roll back a failed deployment                                                     |
 | [`cdk import`](#cdk-import)                 | Import existing AWS resources into a CDK stack                                    |
+| [`cdk orphan`](#cdk-orphan)                 | Detach resources from a stack without deleting them                               |
 | [`cdk migrate`](#cdk-migrate)               | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
 | [`cdk watch`](#cdk-watch)                   | Watches a CDK app for deployable and hotswappable changes                         |
 | [`cdk destroy`](#cdk-destroy)               | Deletes a stack from an AWS account                                               |
@@ -790,6 +791,71 @@ This feature currently has the following limitations:
 - Uses the deploy role credentials (necessary to read the encrypted staging
   bucket). Requires version 12 of the bootstrap stack, for the added
   IAM permissions to the `deploy-role`.
+
+
+### `cdk orphan`
+
+> `cdk orphan` is currently experimental, meaning we reserve the right to change 
+> options and flag names in the future. Pass the `--unstable=orphan` flag when using
+> this command and be aware of this when using it in scripts.
+
+Detaches one or more resources from a CloudFormation stack without deleting them.
+This is useful when you need to migrate a resource from one construct type to another
+(for example, migrating a DynamoDB `Table` to `TableV2`) without any downtime or data loss.
+
+The orphan command works by:
+
+1. Resolving any cross-resource references (`Ref`, `Fn::GetAtt`) to the orphaned resources and replacing them with their current physical values
+2. Setting the `DeletionPolicy` to `Retain` and decoupling the resources from the stack
+3. Removing the resources from the CloudFormation template (they continue to exist in your AWS account)
+
+After orphaning, you can update your CDK code and use `cdk import` to bring the resource back under management with the new construct type.
+
+```console
+$ # Orphan a single resource
+$ cdk orphan --unstable=orphan --path MyStack/MyTable
+
+$ # Orphan multiple resources
+$ cdk orphan --unstable=orphan --path MyStack/MyTable --path MyStack/MyBucket
+```
+
+#### Example: Migrating DynamoDB Table to TableV2
+
+1. Deploy your stack with the original `Table` construct:
+
+    ```ts
+    const table = new dynamodb.Table(this, 'MyTable', {
+      tableName: 'my-table',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+    });
+    ```
+
+2. Orphan the table from the stack:
+
+    ```console
+    $ cdk orphan --unstable=orphan --path MyStack/MyTable
+    ```
+
+    The command outputs next steps including a `cdk import` command with the resource mapping.
+
+3. Update your CDK code to use `TableV2`:
+
+    ```ts
+    const table = new dynamodb.TableV2(this, 'MyTable', {
+      tableName: 'my-table',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+    });
+    ```
+
+4. Import the existing table into the new construct:
+
+    ```console
+    $ cdk import --resource-mapping-inline '{"MyTable794EDED1":{"TableName":"my-table"}}'
+    ```
+
+    The import command will show any pending drift and offer to run `cdk deploy` afterwards to reconcile it.
+
+The table remains available throughout the entire process with zero downtime.
 
 
 ### `cdk migrate`

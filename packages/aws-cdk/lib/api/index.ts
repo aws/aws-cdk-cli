@@ -11,6 +11,7 @@ export * from '../../../@aws-cdk/toolkit-lib/lib/api/diff';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/io';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/logs-monitor';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/resource-import';
+export * from '../../../@aws-cdk/toolkit-lib/lib/actions/orphan/orphaner';
 export { RWLock, type IReadLock } from '../../../@aws-cdk/toolkit-lib/lib/api/rwlock';
 export * from '../../../@aws-cdk/toolkit-lib/lib/api/toolkit-info';
 export { loadTree, some } from '../../../@aws-cdk/toolkit-lib/lib/api/tree';

@@ -452,6 +452,19 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           concurrency: args.concurrency,
         });
 
+      case 'orphan':
+        if (!configuration.settings.get(['unstable']).includes('orphan')) {
+          throw new ToolkitError('UnstableOrphan', 'Unstable feature use: \'orphan\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk orphan --unstable=orphan\'');
+        }
+
+        ioHost.currentAction = 'orphan';
+        return cli.orphan({
+          constructPath: args.path ?? [],
+          roleArn: args.roleArn,
+          toolkitStackName,
+          force: args.force,
+        });
+
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({
@@ -467,6 +480,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           rollback: configuration.settings.get(['rollback']),
           recordResourceMapping: args['record-resource-mapping'],
           resourceMappingFile: args['resource-mapping'],
+          resourceMappingInline: args['resource-mapping-inline'],
           force: args.force,
         });
 

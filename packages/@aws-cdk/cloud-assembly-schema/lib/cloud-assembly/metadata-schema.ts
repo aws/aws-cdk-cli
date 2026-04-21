@@ -277,11 +277,6 @@ export type StackTagsMetadataEntry = Tag[];
 export type PrimitiveType = boolean | number | string;
 
 /**
- * Type of creation stack data
- */
-export type CreationStackMetadataEntry = string[];
-
-/**
  * Metadata type of a PropertyMutation
  */
 export interface PropertyMutationMetadataEntry {
@@ -303,10 +298,9 @@ export type MetadataEntryData =
   | AssetMetadataEntry
   | LogMessageMetadataEntry
   | LogicalIdMetadataEntry
-  | StackTagsMetadataEntry
   | PrimitiveType
-  | CreationStackMetadataEntry
   | PropertyMutationMetadataEntry
+  | (Tag | string)[]
   ;
 
 /**
