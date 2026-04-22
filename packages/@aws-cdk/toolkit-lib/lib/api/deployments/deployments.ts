@@ -413,6 +413,7 @@ export class Deployments {
         sdk: env.sdk,
         envResources: env.resources,
         sourceTracer: new StackArtifactSourceTracer(options.stack),
+        ioHelper: this.ioHelper,
       }),
     }, this.ioHelper);
   }

@@ -150,6 +150,10 @@ export class CloudFormationStackDiagnoser {
    * and then potentially going to fetch additional information using additional API calls.
    */
   private async _diagnoseChangeSetFailure(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+    if (changeSet.Status !== ChangeSetStatus.FAILED) {
+      return { type: 'no-problem' }
+    }
+
     if (changeSetHasNoChanges(changeSet)) {
       // This will lead to a change set that is FAILED but it's not actually a problem
       return { type: 'no-problem' }

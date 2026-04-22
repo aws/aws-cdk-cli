@@ -15,7 +15,7 @@ it('returns details when there are failed validation events', async () => {
   const reporter = new EarlyValidationReporter(sdkMock as any, envResourcesMock as any);
 
   await expect(reporter.fetchDetailsString('test-change-set', 'test-stack', ioHelperMock())).resolves.toEqual(
-    "Early validation failed for stack 'test-stack' (ChangeSet 'test-change-set'):\n  - Resource already exists (at Resources/MyResource)\n",
+    "Early validation failed for stack 'test-stack' (ChangeSet 'test-change-set'):\n  - Resource already exists (at Resources/MyResource)",
   );
 });
 

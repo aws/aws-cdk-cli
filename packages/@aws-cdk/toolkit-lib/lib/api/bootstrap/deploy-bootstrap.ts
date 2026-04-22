@@ -150,6 +150,7 @@ export class BootstrapStack {
         diagnoser: new CloudFormationStackDiagnoser({
           sdk: this.sdk,
           sourceTracer: NO_SOURCE_TRACE,
+          ioHelper: this.ioHelper,
         }),
       }, this.ioHelper);
 

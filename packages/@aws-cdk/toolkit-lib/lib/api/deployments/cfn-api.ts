@@ -3,11 +3,12 @@ import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cloud-assembly-api';
-import type {
-  DescribeChangeSetCommandOutput,
-  Parameter,
-  ResourceToImport,
-  Tag,
+import {
+  ChangeSetStatus,
+  type DescribeChangeSetCommandOutput,
+  type Parameter,
+  type ResourceToImport,
+  type Tag,
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';

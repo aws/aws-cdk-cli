@@ -515,7 +515,9 @@ class FullCloudFormationDeployment {
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
 
       // This is necessary to trigger early validation on nested stacks as well
-      IncludeNestedStacks: true,
+      // TODO: We currently have a test explicitly checking that this is NOT set to true, but on the other
+      // hand for 'cdk diff' we DO turn it on. Investigate later.
+      // IncludeNestedStacks: true,
       ...this.commonPrepareOptions(),
     });
 

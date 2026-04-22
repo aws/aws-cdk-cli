@@ -621,6 +621,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         sdk: stackEnv.sdk,
         envResources: stackEnv.resources,
         sourceTracer: new StackArtifactSourceTracer(stack),
+        ioHelper,
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 
