@@ -197,6 +197,15 @@ export class FakeCloudFormation {
     this.overrideChangeSetStatus = undefined;
   }
 
+  public accessStack(name: string): InMemoryStack {
+    const ret = this.stacks.get(name);
+    if (!ret) {
+      throw new Error(`No such stack: ${name}`);
+    }
+    return ret;
+
+  }
+
   public firstStack(): InMemoryStack {
     const ret = Array.from(this.stacks.values())[0];
     if (!ret) {

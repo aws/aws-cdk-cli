@@ -1,4 +1,5 @@
 import {
+  Change,
   ChangeSetStatus,
   ChangeSetType,
   CreateChangeSetCommand,
@@ -22,7 +23,7 @@ import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/a
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
-import { DEFAULT_FAKE_TEMPLATE, testStack } from '../../_helpers/assembly';
+import { testStack } from '../../_helpers/assembly';
 import {
   mockCloudFormationClient,
   mockResolvedEnvironment,
@@ -34,8 +35,6 @@ import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import { advanceTime } from '../../_helpers/fake-time';
-
-jest.setTimeout(1_000);
 
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
@@ -51,6 +50,7 @@ jest.mock('../../../lib/api/deployments/checks', () => ({
 
 const FAKE_STACK = testStack({
   stackName: 'withouterrors',
+  template: defaultTargetTemplate(),
 });
 
 const FAKE_STACK_WITH_NESTED_STACK = testStack({
@@ -80,7 +80,7 @@ const FAKE_STACK_WITH_PARAMETERS = testStack({
 
 const FAKE_STACK_TERMINATION_PROTECTION = testStack({
   stackName: 'termination-protection',
-  template: DEFAULT_FAKE_TEMPLATE,
+  template: defaultStartTemplate(),
   terminationProtection: true,
 });
 
@@ -253,7 +253,7 @@ test('call UpdateStack when method=direct and the stack exists already', async (
 
 test('method=direct and no updates to be performed', async () => {
   // WHEN
-  givenStackExists();
+  givenNoUpdatesAreToBePerformed();
 
   const ret = await testDeployStack({
     ...standardDeployStackArguments(),
@@ -432,7 +432,7 @@ test('throw exception if not enough parameters supplied', async () => {
 
 test('deploy is skipped if template did not change', async () => {
   // GIVEN
-  givenStackExists();
+  givenNoUpdatesAreToBePerformed();
 
   // WHEN
   await testDeployStack({
@@ -621,6 +621,7 @@ test('deploy is skipped if template and tags did not change', async () => {
       { Key: 'Key2', Value: 'Value2' },
     ],
   });
+  givenTemplateIs(defaultTargetTemplate());
 
   // WHEN
   await testDeployStack({
@@ -829,8 +830,7 @@ test('not executed and no error if --no-execute is given', async () => {
 });
 
 test('empty change set is deleted if --execute is given', async () => {
-  givenStackExists();
-  givenCurrentChangeSetIsEmpty();
+  givenNoUpdatesAreToBePerformed();
 
   // WHEN
   await testDeployStack({
@@ -1262,6 +1262,154 @@ test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();
 });
 
+describe('execute-change-set deployment method', () => {
+  test('executes an existing change set without creating a new one', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('throws when change set is not in CREATE_COMPLETE status', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'FAILED',
+      StatusReason: 'Something went wrong',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
+  });
+
+  test('throws when change set is in CREATE_PENDING status', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'CREATE_PENDING',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
+  });
+
+  test('throws without reason when status reason is absent', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'DELETE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
+  });
+
+  test('returns replacement-requires-rollback when change set has replacement and rollback is disabled', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [
+        replacementChange(),
+      ],
+    });
+
+    // WHEN
+    const result = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      rollback: false,
+    }));
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('is never skipped by canSkipDeploy', async () => {
+    // GIVEN - stack exists with identical template (would normally skip)
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN - still executes despite identical template
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+});
+
+describe('change set returned with execute:false', () => {
+  test('returns changeSet description when execute is false', async () => {
+    // GIVEN
+    givenStackExists();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(false);
+    expect(result.changeSet).toBeDefined();
+    expect(result.changeSet?.Status).toEqual('CREATE_COMPLETE');
+  });
+
+  test('does not return changeSet when change set is empty', async () => {
+    // GIVEN
+    givenNoUpdatesAreToBePerformed();
+
+    // WHEN
+    const result = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    }));
+
+    // THEN
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(true);
+    expect(result.changeSet).toBeUndefined();
+  });
+});
+
 test('does not pass IncludeNestedStacks even for stacks with nested stacks', async () => {
   // Regression test: IncludeNestedStacks causes CloudFormation to report false
   // "duplicate Export names" errors when nested stacks use intrinsic functions
@@ -1290,7 +1438,7 @@ function givenStackExists(overrides: Partial<Stack> & { StackName?: string } = {
   });
   // Set the template to match the default FAKE_STACK template unless the test
   // explicitly sets it via givenTemplateIs
-  fakeCfn.firstStack().template = DEFAULT_FAKE_TEMPLATE;
+  fakeCfn.accessStack(stackName).template = defaultStartTemplate();
 }
 
 function givenChangeSetExists(options: Partial<DescribeChangeSetOutput> = {}) {
@@ -1315,40 +1463,80 @@ function givenTemplateIs(template: any) {
   stack.template = template;
 }
 
-function givenChangeSetContainsReplacement(replacement: boolean) {
-  fakeCfn.overrideChangeSetChanges = replacement ? [
-    {
-      Type: 'Resource',
-      ResourceChange: {
-        PolicyAction: 'ReplaceAndDelete',
-        Action: 'Modify',
-        LogicalResourceId: 'Queue4A7E3555',
-        PhysicalResourceId: 'https://sqs.eu-west-1.amazonaws.com/111111111111/Queue4A7E3555-P9C8nK3uv8v6.fifo',
-        ResourceType: 'AWS::SQS::Queue',
-        Replacement: 'True',
-        Scope: ['Properties'],
-        Details: [
-          {
-            Target: {
-              Attribute: 'Properties',
-              Name: 'FifoQueue',
-              RequiresRecreation: 'Always',
-            },
-            Evaluation: 'Static',
-            ChangeSource: 'DirectModification',
+function givenNoUpdatesAreToBePerformed() {
+  givenStackExists();
+  givenTemplateIs(defaultTargetTemplate());
+}
+
+function replacementChange(): Change {
+  return {
+    Type: 'Resource',
+    ResourceChange: {
+      PolicyAction: 'ReplaceAndDelete',
+      Action: 'Modify',
+      LogicalResourceId: 'Queue4A7E3555',
+      PhysicalResourceId: 'https://sqs.eu-west-1.amazonaws.com/111111111111/Queue4A7E3555-P9C8nK3uv8v6.fifo',
+      ResourceType: 'AWS::SQS::Queue',
+      Replacement: 'True',
+      Scope: ['Properties'],
+      Details: [
+        {
+          Target: {
+            Attribute: 'Properties',
+            Name: 'FifoQueue',
+            RequiresRecreation: 'Always',
           },
-        ],
-      },
+          Evaluation: 'Static',
+          ChangeSource: 'DirectModification',
+        },
+      ],
     },
-  ] : [
-    {
-      Type: 'Resource',
-      ResourceChange: {
-        Action: 'Modify',
-        LogicalResourceId: 'Queue4A7E3555',
-        ResourceType: 'AWS::SQS::Queue',
-        Replacement: 'False',
-      },
+  };
+}
+
+function updateChange(): Change {
+  return {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'Queue4A7E3555',
+      ResourceType: 'AWS::SQS::Queue',
+      Replacement: 'False',
     },
-  ];
+  };
+}
+
+function givenChangeSetContainsReplacement(replacement: boolean) {
+  fakeCfn.overrideChangeSetChanges = replacement ? [replacementChange()] : [updateChange()];
+}
+
+function defaultStartTemplate() {
+  return  {
+    Description: 'Default start template in deploy-stack.test.ts',
+    Resources: {
+      MyResource: {
+        Type: 'Test::Resource::Type',
+        Properties: {
+          Foo: 'Foo',
+        },
+      }
+    },
+  };
+};
+
+/**
+ * The default template that most stacks will update to
+ */
+function defaultTargetTemplate() {
+  return {
+    Description: 'Default start template in deploy-stack.test.ts',
+    Resources: {
+      MyResource: {
+        Type: 'Test::Resource::Type',
+        Properties: {
+          Bar: 'Bar',
+        },
+      }
+    },
+  };
 }

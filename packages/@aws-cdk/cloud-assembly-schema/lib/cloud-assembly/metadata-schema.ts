@@ -277,14 +277,31 @@ export type StackTagsMetadataEntry = Tag[];
 export type PrimitiveType = boolean | number | string;
 
 /**
+ * Metadata type of a PropertyMutation
+ */
+export interface PropertyMutationMetadataEntry {
+  /**
+   * Name of the property
+   */
+  readonly propertyName: string;
+
+  /**
+   * Stack trace of the mutation
+   */
+  readonly stackTrace: string[];
+}
+
+/**
  * Union type for all metadata entries that might exist in the manifest.
  */
 export type MetadataEntryData =
   | AssetMetadataEntry
   | LogMessageMetadataEntry
   | LogicalIdMetadataEntry
-  | StackTagsMetadataEntry
-  | PrimitiveType;
+  | PrimitiveType
+  | PropertyMutationMetadataEntry
+  | (Tag | string)[]
+  ;
 
 /**
  * Type of artifact metadata entry.
@@ -324,6 +341,16 @@ export enum ArtifactMetadataEntryType {
    * Whether the resource should be excluded during refactoring.
    */
   DO_NOT_REFACTOR = 'aws:cdk:do-not-refactor',
+
+  /**
+   * Creation stack of a construct
+   */
+  CREATION_STACK = 'aws:cdk:creationStack',
+
+  /**
+   * A property mutation trace
+   */
+  PROPERTY_ASSIGNMENT = 'aws:cdk:propertyAssignment',
 }
 
 /**

@@ -427,6 +427,27 @@ describe(NoticesFilter, () => {
       expect((await filtered).map((f) => f.format()).join('\n')).toContain('env1,env2');
     });
 
+    test('honors dynamicValues.separator override', async () => {
+      const outDir = path.join(fixtures, 'built-with-2_12_0');
+      const cliVersion = '1.0.0';
+
+      const notice: Notice = {
+        ...BASIC_BOOTSTRAP_NOTICE,
+        dynamicValues: { ENVIRONMENTS: { separator: ' ' } },
+      };
+
+      const filtered = await noticesFilter.filter({
+        data: [notice],
+        cliVersion,
+        outDir,
+        bootstrappedEnvironments: [
+          { bootstrapStackVersion: 22, environment: { account: 'account', region: 'region1', name: 'env1' } },
+          { bootstrapStackVersion: 22, environment: { account: 'account', region: 'region2', name: 'env2' } },
+        ],
+      });
+      expect(filtered.map((f) => f.format()).join('\n')).toContain('env1 env2');
+    });
+
     test('ignores invalid bootstrap versions', async () => {
       // doesn't matter for this test because our data only has bootstrap notices
       const outDir = path.join(fixtures, 'built-with-2_12_0');

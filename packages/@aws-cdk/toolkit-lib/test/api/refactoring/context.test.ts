@@ -513,6 +513,80 @@ describe('typed mappings', () => {
     ]);
   });
 
+  test('resource update error message lists updated resources separately', () => {
+    const stack1 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'old value' },
+          },
+        },
+      },
+    };
+
+    const stack2 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'new value' },
+          },
+        },
+      },
+    };
+
+    expect(() => new RefactoringContext({
+      environment,
+      deployedStacks: [stack1],
+      localStacks: [stack2],
+    })).toThrow(/The following resources are different in your CDK application and the AWS environment:\n {2}\[~] Foo\.Bucket1/);
+  });
+
+  test('resource update error message does not list updated resources as only-deployed or only-local', () => {
+    const stack1 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'old value' },
+          },
+        },
+      },
+    };
+
+    const stack2 = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+            Properties: { Prop: 'new value' },
+          },
+        },
+      },
+    };
+
+    expect(() => new RefactoringContext({
+      environment,
+      deployedStacks: [stack1],
+      localStacks: [stack2],
+    })).not.toThrow(/present only in the AWS environment/);
+
+    expect(() => new RefactoringContext({
+      environment,
+      deployedStacks: [stack1],
+      localStacks: [stack2],
+    })).not.toThrow(/present only in your CDK application/);
+  });
+
   test('combines addition, deletion, update, and rename', () => {
     const stack1 = {
       environment,
@@ -561,6 +635,43 @@ describe('typed mappings', () => {
       deployedStacks: [stack1],
       localStacks: [stack2],
     })).toThrow(/A refactor operation cannot add, remove or update resources/);
+  });
+
+  test('error message separates updated, only-deployed, and only-local resources', () => {
+    // Bucket1: updated (same path, different content)
+    // Bucket2: only deployed (removed locally)
+    // Bucket3: only local (added locally)
+    const deployed = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: { Type: 'AWS::S3::Bucket', Properties: { Prop: 'old' } },
+          Bucket2: { Type: 'AWS::S3::Bucket', Properties: { Prop: 'deployed-only' } },
+        },
+      },
+    };
+
+    const local = {
+      environment,
+      stackName: 'Foo',
+      template: {
+        Resources: {
+          Bucket1: { Type: 'AWS::S3::Bucket', Properties: { Prop: 'new' } },
+          Bucket3: { Type: 'AWS::S3::Bucket', Properties: { Prop: 'local-only' } },
+        },
+      },
+    };
+
+    const thrower = () => new RefactoringContext({
+      environment,
+      deployedStacks: [deployed],
+      localStacks: [local],
+    });
+
+    expect(thrower).toThrow(/present only in the AWS environment:\n {2}\[-] Foo\.Bucket2/);
+    expect(thrower).toThrow(/present only in your CDK application:\n {2}\[\+] Foo\.Bucket3/);
+    expect(thrower).toThrow(/different in your CDK application and the AWS environment:\n {2}\[~] Foo\.Bucket1/);
   });
 });
 

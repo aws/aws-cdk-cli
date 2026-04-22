@@ -1,6 +1,6 @@
 import { Writable } from 'stream';
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
-import type { FunctionConfiguration, UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
+import type { UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { AffectedResource, ResourceChange } from '../../payloads/hotswap';
@@ -79,7 +79,7 @@ export async function isHotswappableLambdaFunctionChange(
 
         if (lambdaCodeChange.code !== undefined || lambdaCodeChange.configurations !== undefined) {
           if (lambdaCodeChange.code !== undefined) {
-            const updateFunctionCodeResponse = await lambda.updateFunctionCode({
+            await lambda.updateFunctionCode({
               FunctionName: functionName,
               S3Bucket: lambdaCodeChange.code.s3Bucket,
               S3Key: lambdaCodeChange.code.s3Key,
@@ -88,7 +88,7 @@ export async function isHotswappableLambdaFunctionChange(
               S3ObjectVersion: lambdaCodeChange.code.s3ObjectVersion,
             });
 
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
+            await waitForLambdasPropertiesUpdateToFinish(lambda, functionName);
           }
 
           if (lambdaCodeChange.configurations !== undefined) {
@@ -101,8 +101,8 @@ export async function isHotswappableLambdaFunctionChange(
             if (lambdaCodeChange.configurations.environment !== undefined) {
               updateRequest.Environment = lambdaCodeChange.configurations.environment;
             }
-            const updateFunctionCodeResponse = await lambda.updateFunctionConfiguration(updateRequest);
-            await waitForLambdasPropertiesUpdateToFinish(updateFunctionCodeResponse, lambda, functionName);
+            await lambda.updateFunctionConfiguration(updateRequest);
+            await waitForLambdasPropertiesUpdateToFinish(lambda, functionName);
           }
 
           // only if the code changed is there any point in publishing a new Version
@@ -305,19 +305,13 @@ function zipString(fileName: string, rawString: string): Promise<Buffer> {
  * or Container functions can take ~25 seconds (and 'idle' VPC functions can take minutes).
  */
 async function waitForLambdasPropertiesUpdateToFinish(
-  currentFunctionConfiguration: FunctionConfiguration,
   lambda: ILambdaClient,
   functionName: string,
 ): Promise<void> {
-  const functionIsInVpcOrUsesDockerForCode =
-    currentFunctionConfiguration.VpcConfig?.VpcId || currentFunctionConfiguration.PackageType === 'Image';
+  const minDelaySeconds = 1;
+  const maxDelaySeconds = 10;
 
-  // if the function is deployed in a VPC or if it is a container image function
-  // then the update will take much longer and we can wait longer between checks
-  // otherwise, the update will be quick, so a 1-second delay is fine
-  const delaySeconds = functionIsInVpcOrUsesDockerForCode ? 5 : 1;
-
-  await lambda.waitUntilFunctionUpdated(delaySeconds, {
+  await lambda.waitUntilFunctionUpdated(minDelaySeconds, maxDelaySeconds, {
     FunctionName: functionName,
   });
 }

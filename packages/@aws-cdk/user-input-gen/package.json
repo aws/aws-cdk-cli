@@ -52,6 +52,7 @@
     "jest-junit": "^16",
     "nx": "^22.6.4",
     "prettier": "^2.8",
+    "projen": "^0.99.48",
     "ts-jest": "^29.4.9",
     "typescript": "5.9"
   },

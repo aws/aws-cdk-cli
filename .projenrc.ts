@@ -103,11 +103,6 @@ function configureProject<A extends pj.typescript.TypeScriptProject>(x: A): A {
     'build-tools',
   );
 
-  if (x instanceof TypeScriptWorkspace) {
-    // Individual workspace packages shouldn't depend on "projen", it gets brought in at the monorepo root
-    x.deps.removeDependency('projen');
-  }
-
   return x;
 }
 
@@ -265,6 +260,7 @@ const repoProject = new yarn.Monorepo({
     'jest',
     'jest-junit',
     '@types/jest',
+    'projen',
   ],
 
   eslintOptions: {

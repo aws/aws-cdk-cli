@@ -10,12 +10,15 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
+  waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 
 import { deployStack, destroyStack } from './deploy-stack';
-import type { DeployStackResult } from './deployment-result';
-import type { DeploymentMethod } from '../../actions/deploy';
+import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
+import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy';
+import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
+import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
@@ -89,7 +92,7 @@ export interface DeployStackOptions {
    *
    * @default - Change set with default options
    */
-  readonly deploymentMethod?: DeploymentMethod;
+  readonly deploymentMethod?: DeploymentMethod | ExecuteChangeSetDeployment;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -144,6 +147,24 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+}
+
+export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
+  /**
+   * The change-set deployment method to use.
+   */
+  readonly deploymentMethod: ChangeSetDeployment;
+
+  /**
+   * Whether to clean up the change set if it has no changes.
+   *
+   * Set to true when the caller forced execute: false internally
+   * (two-phase deploy). Set to false when the user explicitly
+   * asked for --no-execute (prepare-change-set).
+   *
+   * @default false
+   */
+  readonly cleanupOnNoOp?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -387,6 +408,61 @@ export class Deployments {
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
     }, this.ioHelper);
+  }
+
+  /**
+   * Create a change set for a stack without executing it.
+   *
+   * Returns the result if the change set was successfully created, or undefined
+   * if the prepare returned a non-success result (e.g. rollback needed).
+   */
+  public async prepareStack(
+    options: PrepareStackOptions,
+  ): Promise<SuccessfulDeployStackResult | undefined> {
+    const result = await this.deployStack({
+      ...options,
+      deploymentMethod: { ...options.deploymentMethod, execute: false },
+    });
+
+    // With execute: false, the only possible result type is did-deploy-stack
+    // (either noOp for empty change sets, or with a changeSet description).
+    // Rollback/replacement checks are only reached when executing.
+    if (result.type !== 'did-deploy-stack') {
+      return undefined;
+    }
+
+    // Clean up empty change sets if requested (i.e. when the caller forced
+    // execute: false internally, not when the user explicitly asked for --no-execute).
+    if (result.noOp && options.cleanupOnNoOp) {
+      const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
+      await this.cleanupChangeSet(options.stack, changeSetName);
+    }
+
+    return result;
+  }
+
+  /**
+   * Clean up a change set that was created by prepareStack but never executed.
+   * If the stack was created in REVIEW_IN_PROGRESS state (new stack), delete the stack too.
+   */
+  public async cleanupChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<void> {
+    const env = await this.envs.accessStackForMutableStackOperations(stack);
+    const cfn = env.sdk.cloudFormation();
+    const deployName = stack.stackName;
+
+    const cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
+    if (!cloudFormationStack.exists) {
+      return;
+    }
+
+    await cfn.deleteChangeSet({ StackName: deployName, ChangeSetName: changeSetName });
+
+    // If the stack was newly created for this change set, it will be in REVIEW_IN_PROGRESS.
+    // Delete it and wait for the deletion to complete so we don't leave an empty stack behind.
+    if (cloudFormationStack.stackStatus.name === 'REVIEW_IN_PROGRESS') {
+      await cfn.deleteStack({ StackName: deployName });
+      await waitForStackDelete(cfn, this.ioHelper, deployName);
+    }
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {

@@ -10,7 +10,6 @@ import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
 import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
 import { isHotswappableAppSyncChange } from './appsync-mapping-templates';
-import { isHotswappableBedrockAgentCoreRuntimeChange } from './bedrock-agentcore-runtimes';
 import { isHotswappableCodeBuildProjectChange } from './code-build-projects';
 import type {
   HotswapChange,
@@ -28,12 +27,12 @@ import {
   skipChangeForS3DeployCustomResourcePolicy,
   isHotswappableS3BucketDeploymentChange,
 } from './s3-bucket-deployments';
-import { isHotswappableStateMachineChange } from './stepfunctions-state-machines';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { IO, SPAN } from '../io/private';
 import type { IMessageSpan, IoHelper } from '../io/private';
 import { Mode } from '../plugin';
+import { isHotswappableCloudControlChange } from './cloud-control-resource';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -60,10 +59,8 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'AWS::AppSync::GraphQLSchema': isHotswappableAppSyncChange,
   'AWS::AppSync::ApiKey': isHotswappableAppSyncChange,
 
-  'AWS::BedrockAgentCore::Runtime': isHotswappableBedrockAgentCoreRuntimeChange,
   'AWS::ECS::TaskDefinition': isHotswappableEcsServiceChange,
   'AWS::CodeBuild::Project': isHotswappableCodeBuildProjectChange,
-  'AWS::StepFunctions::StateMachine': isHotswappableStateMachineChange,
   'Custom::CDKBucketDeployment': isHotswappableS3BucketDeploymentChange,
   'AWS::IAM::Policy': async (
     logicalId: string,
@@ -79,6 +76,23 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   },
 
   'AWS::CDK::Metadata': async () => [],
+
+  // Resources that use CCAPIS
+  'AWS::ApiGateway::RestApi': isHotswappableCloudControlChange,
+  'AWS::ApiGateway::Deployment': isHotswappableCloudControlChange,
+  'AWS::ApiGateway::Method': isHotswappableCloudControlChange,
+  'AWS::ApiGatewayV2::Api': isHotswappableCloudControlChange,
+  'AWS::ApiGatewayV2::Integration': isHotswappableCloudControlChange,
+  'AWS::Bedrock::Agent': isHotswappableCloudControlChange,
+  'AWS::Events::Rule': isHotswappableCloudControlChange,
+  'AWS::DynamoDB::Table': isHotswappableCloudControlChange,
+  'AWS::DynamoDB::GlobalTable': isHotswappableCloudControlChange,
+  'AWS::SQS::Queue': isHotswappableCloudControlChange,
+  'AWS::CloudWatch::Alarm': isHotswappableCloudControlChange,
+  'AWS::CloudWatch::CompositeAlarm': isHotswappableCloudControlChange,
+  'AWS::CloudWatch::Dashboard': isHotswappableCloudControlChange,
+  'AWS::StepFunctions::StateMachine': isHotswappableCloudControlChange,
+  'AWS::BedrockAgentCore::Runtime': isHotswappableCloudControlChange,
 };
 
 /**
@@ -232,6 +246,9 @@ async function classifyResourceChanges(
   const promises: Array<() => Promise<HotswapChange[]>> = [];
   const hotswappableResources = new Array<HotswapOperation>();
   const nonHotswappableResources = new Array<RejectedChange>();
+  const nestedStackTasks: Array<Promise<ClassifiedChanges>> = [];
+  const limit = pLimit(10);
+
   for (const logicalId of Object.keys(stackChanges.outputs.changes)) {
     nonHotswappableResources.push({
       hotswappable: false,
@@ -249,17 +266,14 @@ async function classifyResourceChanges(
   // gather the results of the detector functions
   for (const [logicalId, change] of Object.entries(resourceDifferences)) {
     if (change.newValue?.Type === 'AWS::CloudFormation::Stack' && change.oldValue?.Type === 'AWS::CloudFormation::Stack') {
-      const nestedHotswappableResources = await findNestedHotswappableChanges(
+      nestedStackTasks.push(limit(() => findNestedHotswappableChanges(
         logicalId,
         change,
         nestedStackNames,
         evaluateCfnTemplate,
         sdk,
         hotswapPropertyOverrides,
-      );
-      hotswappableResources.push(...nestedHotswappableResources.hotswappable);
-      nonHotswappableResources.push(...nestedHotswappableResources.nonHotswappable);
-
+      )));
       continue;
     }
 
@@ -284,12 +298,18 @@ async function classifyResourceChanges(
     }
   }
 
-  // resolve all detector results
+  // resolve all nested stack and detector results in parallel
+  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+  const nestedResults = await Promise.all(nestedStackTasks);
+  for (const nested of nestedResults) {
+    hotswappableResources.push(...nested.hotswappable);
+    nonHotswappableResources.push(...nested.nonHotswappable);
+  }
+
   const changesDetectionResults: Array<HotswapChange[]> = [];
-  for (const detectorResultPromises of promises) {
-    // Constant set of promises per resource
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const hotswapDetectionResults = await Promise.all(await detectorResultPromises());
+  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+  const detectorResults = await Promise.all(promises.map((fn) => limit(fn)));
+  for (const hotswapDetectionResults of detectorResults) {
     changesDetectionResults.push(hotswapDetectionResults);
   }
 

@@ -1,10 +1,11 @@
-import { ListExportsCommand } from '@aws-sdk/client-cloudformation';
+import { GetResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { ListExportsCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import type { Template } from '../../../lib/api/cloudformation';
 import {
   CfnEvaluationException,
   EvaluateCloudFormationTemplate,
 } from '../../../lib/api/cloudformation';
-import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { MockSdk, mockCloudControlClient, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 
 const sdk = new MockSdk();
 
@@ -61,6 +62,182 @@ describe('evaluateCfnExpression', () => {
 
       // THEN
       expect(result).toEqual('Testing Fn::Sub Foo=testing Bar=1');
+    });
+  });
+
+  describe('Fn::GetAtt with Cloud Control API fallback', () => {
+    test('falls back to CCAPI for unsupported resource type', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Foo: { 'Fn::GetAtt': ['MyCustom', 'Bar'] },
+            },
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ Bar: 'resolved-bar-value' }),
+        },
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Bar'] });
+      expect(result).toEqual('resolved-bar-value');
+    });
+
+    test('falls back to CCAPI for unsupported attribute on known resource type', async () => {
+      const template: Template = {
+        Resources: {
+          MyBucket: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {
+              Tag: { 'Fn::GetAtt': ['MyBucket', 'WebsiteURL'] },
+            },
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyBucket',
+          PhysicalResourceId: 'my-bucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ WebsiteURL: 'http://my-bucket.s3-website.ap-south-east-2.amazonaws.com' }),
+        },
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyBucket', 'WebsiteURL'] });
+      expect(result).toEqual('http://my-bucket.s3-website.ap-south-east-2.amazonaws.com');
+    });
+
+    test('throws CfnEvaluationException when CCAPI returns no matching attribute', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ SomethingElse: 'value' }),
+        },
+      });
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Missing'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
+    });
+
+    test('throws CfnEvaluationException when CCAPI call fails', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).rejects(new Error('Resource not found'));
+
+      await expect(
+        evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Bar'] }),
+      ).rejects.toBeInstanceOf(CfnEvaluationException);
+    });
+
+    test('resolves Fn::GetAtt via CCAPI for attribute on unsupported resource', async () => {
+      const template: Template = {
+        Resources: {
+          MyCustom: {
+            Type: 'AWS::Custom::Thing',
+            Properties: {
+              Output: { 'Fn::GetAtt': ['MyCustom', 'Output'] },
+            },
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyCustom',
+          PhysicalResourceId: 'phys-id',
+          ResourceType: 'AWS::Custom::Thing',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudControlClient.on(GetResourceCommand).resolves({
+        ResourceDescription: {
+          Properties: JSON.stringify({ Output: 'the-output' }),
+        },
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyCustom', 'Output'] });
+      expect(result).toEqual('the-output');
+    });
+
+    test('still uses hardcoded format when resource type is supported', async () => {
+      // Lambda Arn is in the hardcoded map — should NOT fall back to CCAPI
+      const template: Template = {
+        Resources: {
+          MyFunc: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {},
+          },
+        },
+      };
+      const evaluator = createEvaluateCloudFormationTemplate(template);
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'MyFunc',
+          PhysicalResourceId: 'my-func',
+          ResourceType: 'AWS::Lambda::Function',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({ 'Fn::GetAtt': ['MyFunc', 'Arn'] });
+      expect(result).toEqual('arn:aws:lambda:ap-south-east-2:0123456789:function:my-func');
     });
   });
 

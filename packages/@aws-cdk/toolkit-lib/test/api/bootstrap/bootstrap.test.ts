@@ -53,7 +53,7 @@ function bootstrap(options?: Parameters<typeof bootstrapper.bootstrapEnvironment
 }
 
 /** The template submitted to the most recent CreateChangeSet call */
-function lastChangeSetTemplate(stackName = 'mockStack') {
+function lastChangeSetTemplate() {
   return fakeCfn.firstStack().lastChangeSetTemplate;
 }
 

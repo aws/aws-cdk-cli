@@ -32,10 +32,12 @@ import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { isChangeSetDeployment, isExecutingChangeSetDeployment, isNonExecutingChangeSetDeployment, toExecuteChangeSetDeployment } from '../api/deploy-private';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
+import { FlagOperations } from '../commands/flags/operations';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -69,7 +71,6 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
-import { FlagOperations } from '../commands/flags/operations';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -371,7 +372,9 @@ export class CdkToolkit {
     quiet: boolean,
   ) {
     try {
-      await this.props.deployments.stackExists({
+      // we don't actually need to know if the stack exists here
+      // we just use this to flush our any permissions issues and drop the result
+      void await this.props.deployments.stackExists({
         stack,
         deployName: stack.stackName,
         tryLookupRole: true,
@@ -509,35 +512,6 @@ export class CdkToolkit {
         return;
       }
 
-      if (requireApproval !== RequireApproval.NEVER) {
-        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const formatter = new DiffFormatter({
-          templateInfo: {
-            oldTemplate: currentTemplate,
-            newTemplate: stack,
-          },
-        });
-        const securityDiff = formatter.formatSecurityDiff();
-        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
-          const motivation = hasSecurityChanges
-            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
-          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
-          await this.ioHost.asIoHelper().defaults.info(diffOutput);
-
-          await askUserConfirmation(
-            this.ioHost,
-            IO.CDK_TOOLKIT_I5060.req(`${motivation}: 'Do you wish to deploy these changes'`, {
-              motivation,
-              concurrency,
-              permissionChangeType: securityDiff.permissionChangeType,
-              templateDiffs: formatter.diffs,
-            }),
-          );
-        }
-      }
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -553,13 +527,77 @@ export class CdkToolkit {
         }
       }
 
+      // Deploy options that are shared between change set creation and execution
+      const sharedDeployOptions = {
+        stack,
+        deployName: stack.stackName,
+        roleArn: options.roleArn,
+        toolkitStackName: options.toolkitStackName,
+        reuseAssets: options.reuseAssets,
+        tags: (options.tags?.length ? options.tags : tagsForStack(stack)),
+        forceDeployment: options.force,
+        parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+        usePreviousParameters: options.usePreviousParameters,
+        rollback: options.rollback,
+        notificationArns,
+        extraUserAgent: options.extraUserAgent,
+        assetParallelism: options.assetParallelism,
+      };
+
+      // When using change-set method, always create the change set upfront.
+      // This gives us an accurate diff for approval and avoids creating it twice.
+      // For non-executing deployments (prepare-change-set), this is the final result.
+      const prepareResult = isChangeSetDeployment(options.deploymentMethod)
+        ? await this.props.deployments.prepareStack({
+          ...sharedDeployOptions,
+          deploymentMethod: options.deploymentMethod,
+          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+        })
+        : undefined;
+
+      // Also skip the approval flow when the prepared change set is a no-op —
+      // there is nothing for the user to approve. Outputs, stack ARN, and
+      // timings are still emitted via the normal no-op deploy path below.
+      if (requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
+        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
+        const formatter = new DiffFormatter({
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            changeSet: prepareResult?.changeSet,
+          },
+        });
+        const securityDiff = formatter.formatSecurityDiff();
+        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
+          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+          const motivation = hasSecurityChanges
+            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
+            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+          await this.ioHost.asIoHelper().defaults.info(diffOutput);
+
+          try {
+            await askUserConfirmation(
+              this.ioHost,
+              IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
+                motivation,
+                concurrency,
+                permissionChangeType: securityDiff.permissionChangeType,
+                templateDiffs: formatter.diffs,
+              }),
+            );
+          } catch (e) {
+            if (prepareResult?.changeSet?.ChangeSetName) {
+              await this.props.deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+            }
+            throw e;
+          }
+        }
+      }
+
       const stackIndex = stacks.indexOf(stack) + 1;
       await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
       const startDeployTime = new Date().getTime();
-      let tags = options.tags;
-      if (!tags || tags.length === 0) {
-        tags = tagsForStack(stack);
-      }
 
       // There is already a startDeployTime constant, but that does not work with telemetry.
       // We should integrate the two in the future
@@ -568,9 +606,17 @@ export class CdkToolkit {
       let error: ErrorDetails | undefined;
       let elapsedDeployTime = 0;
       try {
-        let deployResult: SuccessfulDeployStackResult | undefined;
+        // The prepare result is final if the change set was empty (noOp) or
+        // the deployment method is non-executing (prepare-change-set).
+        const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(options.deploymentMethod));
+        let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
+        // Start with user config for rollback,
+        // but it might change if we encounter a failed state.
         let rollback = options.rollback;
+
+        // We limit the loop to 2 iterations max as defensive programming.
+        // Should not be possible to happen.
         let iteration = 0;
         while (!deployResult) {
           if (++iteration > 2) {
@@ -578,20 +624,13 @@ export class CdkToolkit {
           }
 
           const r = await this.props.deployments.deployStack({
-            stack,
-            deployName: stack.stackName,
-            roleArn: options.roleArn,
-            toolkitStackName: options.toolkitStackName,
-            reuseAssets: options.reuseAssets,
-            notificationArns,
-            tags,
-            deploymentMethod: options.deploymentMethod,
-            forceDeployment: options.force,
-            parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-            usePreviousParameters: options.usePreviousParameters,
+            ...sharedDeployOptions,
+            // On the first iteration, execute the prepared change set.
+            // On retries (after rollback), create a new change set since the old one is gone.
+            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
+              ? toExecuteChangeSetDeployment(options.deploymentMethod)
+              : options.deploymentMethod,
             rollback,
-            extraUserAgent: options.extraUserAgent,
-            assetParallelism: options.assetParallelism,
           });
 
           switch (r.type) {
@@ -678,10 +717,9 @@ export class CdkToolkit {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        const wrappedError = new ToolkitError(
-          'DeployFailed',
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), formatErrorMessage(e)].join(' '),
-        );
+        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
+        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+        const wrappedError = new ToolkitError(code, newMessage);
 
         error = {
           name: cdkCliErrorName(wrappedError),
@@ -961,7 +999,24 @@ export class CdkToolkit {
       deployments: this.props.deployments,
       ioHelper: asIoHelper(this.ioHost, 'import'),
     });
-    const { additions, hasNonAdditions } = await resourceImporter.discoverImportableResources(options.force);
+    const { additions, hasNonAdditions, diffFormatter } = await resourceImporter.discoverImportableResources(options.force);
+
+    // If there are non-addition changes (e.g. after orphan, hardcoded refs differ from Fn::GetAtt),
+    // warn the user and ask for confirmation unless --force was given.
+    if (hasNonAdditions && !options.force) {
+      const ioHelper = this.ioHost.asIoHelper();
+      await ioHelper.defaults.info(
+        `The following resources have pending updates that will be reconciled with a ${chalk.blueBright('cdk deploy')} after import:`,
+      );
+      const { formattedDiff } = diffFormatter.formatStackDiff();
+      await ioHelper.defaults.info(formattedDiff);
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
+      if (!confirmed) {
+        await ioHelper.defaults.info('Import cancelled.');
+        return;
+      }
+    }
+
     if (additions.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(
         '%s: no new resources compared to the currently deployed stack, skipping import.',
@@ -1004,22 +1059,41 @@ export class CdkToolkit {
     });
 
     // Notify user of next steps
-    await this.ioHost.asIoHelper().defaults.info(
-      `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
-      'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
-      chalk.underline.blueBright(
-        'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
-      ),
-    );
     if (actualImport.importResources.length < additions.length) {
-      await this.ioHost.asIoHelper().defaults.info('');
       await this.ioHost.asIoHelper().defaults.warn(
         `Some resources were skipped. Run another ${chalk.blueBright('cdk import')} or a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
       );
     } else if (hasNonAdditions) {
-      await this.ioHost.asIoHelper().defaults.info('');
-      await this.ioHost.asIoHelper().defaults.warn(
-        `Your app has pending updates or deletes excluded from this import operation. Run a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
+      // After orphan→import, the deployed template still has hardcoded values that differ from
+      // the synth'd template's Fn::GetAtt/Ref intrinsics. A deploy updates the template to match the CDK app.
+      if (options.force) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `Import complete. Run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
+        );
+      } else {
+        const deployNow = await this.ioHost.asIoHelper().requestResponse(
+          IO.CDK_TOOLKIT_I7010.req(`Finish with a ${chalk.blueBright('cdk deploy')} now?`, { motivation: 'Update stack to match CDK app after import' }),
+        );
+        if (deployNow) {
+          await this.deploy({
+            selector: options.selector,
+            toolkitStackName: options.toolkitStackName,
+            roleArn: options.roleArn,
+            deploymentMethod: options.deploymentMethod,
+          });
+        } else {
+          await this.ioHost.asIoHelper().defaults.info(
+            `Import complete. Remember to run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
+          );
+        }
+      }
+    } else {
+      await this.ioHost.asIoHelper().defaults.info(
+        `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
+        'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
+        chalk.underline.blueBright(
+          'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
+        ),
       );
     }
   }
@@ -1135,7 +1209,13 @@ export class CdkToolkit {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
 
-      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      // In CI mode, non-error messages go to stdout. When we just printed the
+      // template to stdout, skip the flags message to preserve the contract that
+      // `cdk synth` output is valid YAML. When quiet (no template printed) or
+      // non-CI (flags go to stderr), it's safe to show.
+      if (quiet || !this.ioHost.isCI) {
+        await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      }
       return undefined;
     }
 

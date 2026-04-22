@@ -1008,6 +1008,37 @@ describe('BackgroundStackRefresh', () => {
 
     await expect(waitPromise).rejects.toThrow('refreshStacks took too long; the background thread likely threw an error');
   });
+
+  test('stop() prevents rescheduling even if called during an in-flight refresh', async () => {
+    // Make listStacks return a promise we control, so refresh() stays in flight
+    // while stop() is called.
+    let resolveListStacks: (value: any) => void = () => {
+    };
+    cfnClient.on(ListStacksCommand).callsFake(() => new Promise((resolve) => {
+      resolveListStacks = resolve;
+    }));
+
+    void backgroundRefresh.start();
+
+    // Fire the initial 5-minute timer; refresh() begins and suspends awaiting listStacks.
+    await jest.runOnlyPendingTimersAsync();
+
+    // Caller decides to stop while refresh() is mid-await.
+    setTimeoutSpy.mockClear();
+    backgroundRefresh.stop();
+
+    // Complete the in-flight refresh(). Without the stopped-flag guard, refresh()
+    // would reinstall a setTimeout here and pin the event loop indefinitely.
+    resolveListStacks({ StackSummaries: [] });
+    // Drain microtasks thoroughly so the in-flight refresh() fully unwinds.
+    for (let i = 0; i < 50; i++) {
+      await Promise.resolve();
+    }
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
 });
 
 describe('ProgressPrinter', () => {
