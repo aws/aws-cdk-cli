@@ -350,7 +350,7 @@ describe('DescribeChangeSet', () => {
 
 describe('ExecuteChangeSet', () => {
   test('applies template and transitions to CREATE_COMPLETE for CREATE type', async () => {
-    const { Id } = await fake.createChangeSet({
+    await fake.createChangeSet({
       StackName: 'S', ChangeSetName: 'CS', ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
