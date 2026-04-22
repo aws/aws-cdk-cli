@@ -52,7 +52,6 @@ const fakeChokidarWatch = {
 
 jest.setTimeout(30_000);
 
-import 'aws-sdk-client-mock';
 import * as os from 'os';
 import * as path from 'path';
 import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
@@ -61,8 +60,10 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { CloudFormationClientResolvedConfig, CreateChangeSetCommand, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetCommand, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetCommand, DescribeChangeSetInput, DescribeChangeSetOutput, DescribeStacksCommand, GetTemplateCommand, ServiceInputTypes, ServiceOutputTypes, StackStatus } from '@aws-sdk/client-cloudformation';
+import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
 import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
@@ -97,7 +98,6 @@ import {
   restoreSdkMocksToDefault,
 } from '../_helpers/mock-sdk';
 import { promiseWithResolvers } from '../_helpers/promises';
-import { AwsStub } from 'aws-sdk-client-mock';
 
 const defaultBootstrapSource: BootstrapSource = { source: 'default' };
 const bootstrapEnvironmentMock = jest.spyOn(Bootstrapper.prototype, 'bootstrapEnvironment');
