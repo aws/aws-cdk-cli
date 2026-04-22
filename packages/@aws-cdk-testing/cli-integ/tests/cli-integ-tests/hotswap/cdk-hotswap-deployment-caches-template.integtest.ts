@@ -134,7 +134,8 @@ integTest(
       });
 
       // Wait for initial watch deploy to complete
-      await waitForOutput(() => output, 'deployment time');
+      // Use 'Total time', which appears exactly once per watch cycle
+      await waitForOutput(() => output, 'Total time');
       fixture.log('✓ Initial watch deployment completed');
 
       // Cache should exist after first hotswap
@@ -146,7 +147,7 @@ integTest(
       fs.appendFileSync(lambdaFile, '\n// trigger hotswap');
 
       // Wait for watch to detect change and complete second deployment
-      await waitForCondition(() => (output.match(/deployment time/g) || []).length >= 2);
+      await waitForCondition(() => (output.match(/Total time/g) || []).length >= 2);
       fixture.log('✓ Second watch deployment completed');
 
       // Cache should still exist and be updated
