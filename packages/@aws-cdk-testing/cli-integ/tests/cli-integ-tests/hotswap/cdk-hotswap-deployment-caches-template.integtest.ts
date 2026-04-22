@@ -2,6 +2,7 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
+import { BEDROCK_AGENT_REGIONS } from '../../../lib/regions';
 import { waitForOutput, waitForCondition, safeKillProcess } from '../watch/watch-helpers';
 
 jest.setTimeout(5 * 60 * 1000);
@@ -49,7 +50,7 @@ integTest(
     // should only see one hotswapped message in output
     const hotswapCount = (deployOutput.match(/hotswapped!/g) || []).length;
     expect(hotswapCount).toBe(1);
-  }),
+  }, { aws: { regions: BEDROCK_AGENT_REGIONS } }),
 );
 
 integTest(
@@ -135,7 +136,7 @@ integTest(
 
       // Wait for initial watch deploy to complete
       // Use 'Total time', which appears exactly once per watch cycle
-      await waitForOutput(() => output, 'Total time');
+      await waitForOutput(() => output, 'Total time', 240_000);
       fixture.log('✓ Initial watch deployment completed');
 
       // Cache should exist after first hotswap

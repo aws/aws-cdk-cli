@@ -20,16 +20,16 @@ async function poll(condition: () => boolean, timeoutMs = DEFAULT_POLL_TIMEOUT):
 /**
  * Wait for a specific string to appear in the output.
  */
-export async function waitForOutput(getOutput: () => string, searchString: string): Promise<void> {
-  await poll(() => getOutput().includes(searchString));
+export async function waitForOutput(getOutput: () => string, searchString: string, timeout?: number): Promise<void> {
+  await poll(() => getOutput().includes(searchString), timeout);
   expect(getOutput()).toContain(searchString);
 }
 
 /**
  * Wait for a condition to become true.
  */
-export async function waitForCondition(condition: () => boolean): Promise<void> {
-  await poll(condition);
+export async function waitForCondition(condition: () => boolean, timeout?: number): Promise<void> {
+  await poll(condition, timeout);
   expect(condition()).toBe(true);
 }
 

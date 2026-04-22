@@ -1,5 +1,6 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
+import { BEDROCK_AGENT_REGIONS } from '../../../lib/regions';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -46,5 +47,5 @@ integTest(
     expect(queueUrl).toBeDefined();
     expect(agentName).toBeDefined();
     expect(ruleName).toBeDefined();
-  }),
+  }, { aws: { regions: BEDROCK_AGENT_REGIONS } }),
 );
