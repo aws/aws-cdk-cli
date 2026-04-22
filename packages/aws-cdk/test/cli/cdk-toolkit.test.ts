@@ -61,7 +61,7 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CloudFormationClientResolvedConfig, CreateChangeSetCommand, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetCommand, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetCommand, DescribeChangeSetInput, DescribeChangeSetOutput, DescribeStacksCommand, GetTemplateCommand, ServiceInputTypes, ServiceOutputTypes, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as fs from 'fs-extra';
 import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
@@ -97,6 +97,7 @@ import {
   restoreSdkMocksToDefault,
 } from '../_helpers/mock-sdk';
 import { promiseWithResolvers } from '../_helpers/promises';
+import { AwsStub } from 'aws-sdk-client-mock';
 
 const defaultBootstrapSource: BootstrapSource = { source: 'default' };
 const bootstrapEnvironmentMock = jest.spyOn(Bootstrapper.prototype, 'bootstrapEnvironment');
@@ -109,6 +110,8 @@ let requestSpy = jest.spyOn(ioHost, 'requestResponse');
 beforeEach(async () => {
   jest.resetAllMocks();
   restoreSdkMocksToDefault();
+
+  new ChangeSetState().installUsingAwsMock(mockCloudFormationClient);
 
   mockChokidarWatch.mockReturnValue(fakeChokidarWatcher);
   // on() in chokidar's Watcher returns 'this'
@@ -1268,14 +1271,6 @@ describe('deploy', () => {
               CreationTime: new Date(),
             },
           ],
-        })
-        .on(CreateChangeSetCommand)
-        .resolves({ Id: 'changeset-id', StackId: 'stack-id' })
-        .on(DescribeChangeSetCommand)
-        .resolves({
-          Status: 'CREATE_COMPLETE',
-          ChangeSetName: 'cdk-deploy-change-set',
-          Changes: [{ Type: 'Resource' }],
         });
     });
 
@@ -2608,5 +2603,46 @@ async function withTempDir(cb: (dir: string) => void | Promise<any>) {
     await cb(tmpDir);
   } finally {
     await fs.remove(tmpDir);
+  }
+}
+
+/**
+ * Manage the state of a single change set on a single stack, on the CloudFormation mocks
+ */
+class ChangeSetState {
+  private changeSet?: DescribeChangeSetOutput;
+
+  /**
+   * Installs this fake implementation using 'aws-sdk-client-mock'
+   */
+  public installUsingAwsMock(mock: AwsStub<ServiceInputTypes, ServiceOutputTypes, CloudFormationClientResolvedConfig>) {
+    mock.on(CreateChangeSetCommand).callsFake(this.createChangeSet.bind(this));
+    mock.on(DeleteChangeSetCommand).callsFake(this.deleteChangeSet.bind(this));
+    mock.on(DescribeChangeSetCommand).callsFake(this.describeChangeSet.bind(this));
+  }
+
+  public createChangeSet(input: CreateChangeSetInput): CreateChangeSetOutput {
+    this.changeSet = input;
+    return {
+      Id: input.ChangeSetName,
+      StackId: input.StackName,
+    };
+  }
+
+  public deleteChangeSet(_input: DeleteChangeSetInput): DeleteChangeSetOutput {
+    this.changeSet = undefined;
+    return { };
+  }
+
+  public describeChangeSet(input: DescribeChangeSetInput): DescribeChangeSetOutput {
+    if (input.StackName === this.changeSet?.StackName && input.ChangeSetName === this.changeSet?.ChangeSetName) {
+      return {
+        ...this.changeSet,
+        Status: 'CREATE_COMPLETE',
+        Changes: [{ Type: 'Resource' }],
+      };
+    }
+
+    throw Object.assign(new Error(`No such changeset: ${JSON.stringify(input)}`), { name: 'ChangeSetNotFoundException' });
   }
 }
