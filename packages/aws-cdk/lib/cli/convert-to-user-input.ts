@@ -152,6 +152,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'diagnose':
       commandOptions = {
         toolkitStackName: args.toolkitStackName,
+        concurrency: args.concurrency,
         STACKS: args.STACKS,
       };
       break;
@@ -457,6 +458,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
+    concurrency: config.diagnose?.concurrency,
   };
   const rollbackOptions = {
     all: config.rollback?.all,

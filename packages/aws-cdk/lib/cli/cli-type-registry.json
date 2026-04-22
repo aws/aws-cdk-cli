@@ -586,6 +586,11 @@
           "type": "string",
           "desc": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)",
           "requiresArg": true
+        },
+        "concurrency": {
+          "type": "number",
+          "desc": "How many stacks to diagnose in parallel",
+          "requiresArg": true
         }
       },
       "arg": {

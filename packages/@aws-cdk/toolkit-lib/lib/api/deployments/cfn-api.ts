@@ -205,11 +205,25 @@ export async function createDiffChangeSet(
   ioHelper: IoHelper,
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
-  const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
-  return uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
-    ...options,
-    includeNestedStacks: templateContainsNestedStacks(options.stack.template),
-  });
+  try {
+    const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
+    return await uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
+      ...options,
+      includeNestedStacks: templateContainsNestedStacks(options.stack.template),
+    });
+  } catch (e: any) {
+    // This function is currently only used by diff so these messages are diff-specific
+    if (options.failOnError) {
+      throw ToolkitError.withCause('ChangeSetCreationFailed', 'Could not create a change set, and \'--method=change-set\' was specified. Please check your permissions or use \'--method=auto\' to allow falling back to a template diff.', e);
+    }
+
+    await ioHelper.defaults.debug(String(e));
+    await ioHelper.defaults.info(
+      'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
+    );
+
+    return undefined;
+  }
 }
 
 /**
@@ -246,59 +260,45 @@ async function uploadBodyParameterAndCreateChangeSet(
   env: TargetEnvironment,
   options: PrepareChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
-  try {
-    await uploadStackTemplateAssets(options.stack, options.deployments);
-    const bodyParameter = await makeBodyParameter(
+  await uploadStackTemplateAssets(options.stack, options.deployments);
+  const bodyParameter = await makeBodyParameter(
+    ioHelper,
+    options.stack,
+    env.resolvedEnvironment,
+    new AssetManifestBuilder(),
+    env.resources,
+  );
+  const cfn = env.sdk.cloudFormation();
+  const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
+  // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
+  // that was never executed. Treat it as non-existent for changeset purposes.
+  const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
+
+  const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
+  await ioHelper.defaults.info(
+    'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
+  );
+
+  return createChangeSet(ioHelper, {
+    cfn,
+    changeSetName: 'cdk-diff-change-set',
+    stack: options.stack,
+    exists,
+    uuid: options.uuid,
+    willExecute: options.willExecute,
+    bodyParameter,
+    parameters: options.parameters,
+    resourcesToImport: options.resourcesToImport,
+    importExistingResources: options.importExistingResources,
+    includeNestedStacks: options.includeNestedStacks,
+    role: executionRoleArn,
+    diagnoser: new CloudFormationStackDiagnoser({
+      sdk: env.sdk,
+      envResources: env.resources,
+      sourceTracer: new StackArtifactSourceTracer(options.stack),
       ioHelper,
-      options.stack,
-      env.resolvedEnvironment,
-      new AssetManifestBuilder(),
-      env.resources,
-    );
-    const cfn = env.sdk.cloudFormation();
-    const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
-    // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
-    // that was never executed. Treat it as non-existent for changeset purposes.
-    const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
-
-    const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
-    await ioHelper.defaults.info(
-      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
-    );
-
-    return await createChangeSet(ioHelper, {
-      cfn,
-      changeSetName: 'cdk-diff-change-set',
-      stack: options.stack,
-      exists,
-      uuid: options.uuid,
-      willExecute: options.willExecute,
-      bodyParameter,
-      parameters: options.parameters,
-      resourcesToImport: options.resourcesToImport,
-      importExistingResources: options.importExistingResources,
-      includeNestedStacks: options.includeNestedStacks,
-      role: executionRoleArn,
-      diagnoser: new CloudFormationStackDiagnoser({
-        sdk: env.sdk,
-        envResources: env.resources,
-        sourceTracer: new StackArtifactSourceTracer(options.stack),
-        ioHelper,
-      }),
-    });
-  } catch (e: any) {
-    // This function is currently only used by diff so these messages are diff-specific
-    if (options.failOnError) {
-      throw ToolkitError.withCause('ChangeSetCreationFailed', 'Could not create a change set, and \'--method=change-set\' was specified. Please check your permissions or use \'--method=auto\' to allow falling back to a template diff.', e);
-    }
-
-    await ioHelper.defaults.debug(String(e));
-    await ioHelper.defaults.info(
-      'Could not create a change set, will base the diff on template differences (run again with -v to see the reason)\n',
-    );
-
-    return undefined;
-  }
+    }),
+  });
 }
 
 /**

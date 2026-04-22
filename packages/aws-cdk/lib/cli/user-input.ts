@@ -976,6 +976,13 @@ export interface DiagnoseOptions {
   readonly toolkitStackName?: string;
 
   /**
+   * How many stacks to diagnose in parallel
+   *
+   * @default - undefined
+   */
+  readonly concurrency?: number;
+
+  /**
    * Positional argument for diagnose
    */
   readonly STACKS?: Array<string>;

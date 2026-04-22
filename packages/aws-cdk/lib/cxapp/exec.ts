@@ -30,7 +30,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   };
   await debugFn(format('context:', context));
 
-  if (context.env.CDK_DEBUG === 'true') {
+  if (params.env.CDK_DEBUG === 'true') {
     await ioHelper.defaults.info('Synthesizing with debug information. This may take a bit longer. (--debug)');
   }
 
