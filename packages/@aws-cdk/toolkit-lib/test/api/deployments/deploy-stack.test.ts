@@ -31,7 +31,7 @@ import {
   restoreSdkMocksToDefault,
 } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
-import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnose/private/stack-diagnoser';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');

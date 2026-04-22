@@ -1,4 +1,4 @@
-import { EarlyValidationReporter } from '../../../lib/api/diagnose/private/early-validation';
+import { EarlyValidationReporter } from '../../../lib/api/diagnosing/early-validation';
 
 it('returns details when there are failed validation events', async () => {
   const sdkMock = {
