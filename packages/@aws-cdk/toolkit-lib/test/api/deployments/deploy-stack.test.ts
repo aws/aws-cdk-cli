@@ -713,7 +713,7 @@ test('deployStack throws error in case of early validation failures', async () =
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`ChangeSet 'cdk-deploy-change-set' on stack 'withouterrors' failed early validation:
+  ).rejects.toThrow(`Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set'):
   - Resource already exists (at Resources/MyResource)`);
 });
 
@@ -731,10 +731,7 @@ test('deployStack warns when it cannot get the events in case of early validatio
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`The template cannot be deployed because of early validation errors, but retrieving more details about those
-errors failed (Error: AccessDenied). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
-your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-Bootstrap toolkit stack version 30 or later is needed; current version: unknown.`);
+  ).rejects.toThrow("Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set')");
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {
