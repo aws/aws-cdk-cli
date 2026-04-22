@@ -1,7 +1,5 @@
 import type { StackSelector } from '../../api/cloud-assembly/stack-selector';
-import type { SourceTraced } from '../../api/source-tracing';
-import type { ResourceError } from '../../api/stack-events/resource-errors';
-import type { Branded } from '../../util/type-brands';
+import type { SourceTrace } from '../../api/source-tracing/types';
 
 export interface DiagnoseOptions {
   readonly stacks?: StackSelector;
@@ -39,10 +37,49 @@ export interface DiagnosedStack {
   readonly result: StackDiagnosis;
 }
 
-/**
- * A special type for traced resource errors
- *
- * Branded because the sourceTrace field is optional and we don't want to be
- * able to accidentally forget the conversion.
- */
-export type TracedResourceError = Branded<SourceTraced<ResourceError>, 'traced-resource-error'>;
+export interface TracedResourceError {
+  /**
+   * The stack this resource error occurred in
+   *
+   * NOTE: This will be a stack ID (which is a full ARN including the unique identifier),
+   * not just a name.
+   */
+  readonly stackId: string;
+
+  /**
+   * IDs of parent stacks of the resource, in case of resources in nested stacks
+   */
+  readonly parentStackLogicalIds: string[];
+
+  /**
+   * Logical ID of the resource
+   *
+   * (May be absent in case this message is about the stack itself)
+   */
+  readonly logicalId?: string;
+
+  /**
+   * Resource type
+   */
+  readonly resourceType?: string;
+
+  /**
+   * Physical ID of the resource
+   */
+  readonly physicalId?: string;
+
+  /**
+   * Error message of the resource
+   */
+  readonly message: string;
+
+  /**
+   * Error code of the resource
+   */
+  readonly errorCode?: string;
+
+  /**
+   * Optionally a source trace
+   */
+  readonly sourceTrace?: SourceTrace;
+}

@@ -7,10 +7,3 @@ export interface SourceTrace {
   readonly creationStackTrace?: string[];
   readonly mutationStackTraces?: string[][];
 }
-
-export type SourceTraced<A> = A & {
-  /**
-   * Optionally a source trace
-   */
-  readonly sourceTrace?: SourceTrace;
-};
