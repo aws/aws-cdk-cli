@@ -7,10 +7,10 @@ import { Deployments } from '../../../lib/api/deployments';
 import type { ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
 import { ResourceImporter } from '../../../lib/api/resource-import';
 import { testStack } from '../../_helpers/assembly';
-import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
-import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { advanceTime } from '../../_helpers/fake-time';
+import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
 
 function stackWithQueue(props: Record<string, unknown>) {
   return testStack({

@@ -1,3 +1,4 @@
+import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import {
   Change,
   ChangeSetStatus,
@@ -24,6 +25,8 @@ import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
 import { testStack } from '../../_helpers/assembly';
+import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
+import { advanceTime } from '../../_helpers/fake-time';
 import {
   mockCloudFormationClient,
   mockResolvedEnvironment,
@@ -32,9 +35,6 @@ import {
   restoreSdkMocksToDefault,
 } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
-import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
-import { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
-import { advanceTime } from '../../_helpers/fake-time';
 
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
@@ -1511,7 +1511,7 @@ function givenChangeSetContainsReplacement(replacement: boolean) {
 }
 
 function defaultStartTemplate() {
-  return  {
+  return {
     Description: 'Default start template in deploy-stack.test.ts',
     Resources: {
       MyResource: {
@@ -1519,10 +1519,10 @@ function defaultStartTemplate() {
         Properties: {
           Foo: 'Foo',
         },
-      }
+      },
     },
   };
-};
+}
 
 /**
  * The default template that most stacks will update to
@@ -1536,7 +1536,7 @@ function defaultTargetTemplate() {
         Properties: {
           Bar: 'Bar',
         },
-      }
+      },
     },
   };
 }

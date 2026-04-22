@@ -203,7 +203,6 @@ export class FakeCloudFormation {
       throw new Error(`No such stack: ${name}`);
     }
     return ret;
-
   }
 
   public firstStack(): InMemoryStack {
@@ -695,7 +694,12 @@ export class FakeCloudFormation {
     }
   }
 
-  private initCreateChangeSet(input: CreateChangeSetCommandInput): { csId: string; stack: InMemoryStack; cs: InMemoryChangeSet; template: Record<string, any> } {
+  private initCreateChangeSet(input: CreateChangeSetCommandInput): {
+    csId: string;
+    stack: InMemoryStack;
+    cs: InMemoryChangeSet;
+    template: Record<string, any>;
+  } {
     const stackName = input.StackName!;
     const csName = input.ChangeSetName!;
     const csType = input.ChangeSetType ?? 'UPDATE';

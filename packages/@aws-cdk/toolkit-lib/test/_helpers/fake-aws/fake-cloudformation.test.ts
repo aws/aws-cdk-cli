@@ -229,7 +229,9 @@ describe('ContinueUpdateRollback', () => {
 describe('CreateChangeSet', () => {
   test('CREATE type creates stack in REVIEW_IN_PROGRESS', async () => {
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS', ChangeSetType: 'CREATE',
+      StackName: 'S',
+      ChangeSetName: 'CS',
+      ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
     const desc = await fake.describeStacks({ StackName: 'S' });
@@ -238,7 +240,9 @@ describe('CreateChangeSet', () => {
 
   test('UPDATE type requires existing stack', async () => {
     await expect(fake.createChangeSet({
-      StackName: 'Nope', ChangeSetName: 'CS', ChangeSetType: 'UPDATE',
+      StackName: 'Nope',
+      ChangeSetName: 'CS',
+      ChangeSetType: 'UPDATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     })).rejects.toThrow(/does not exist/);
   });
@@ -246,7 +250,8 @@ describe('CreateChangeSet', () => {
   test('starts in CREATE_PENDING, transitions through CREATE_IN_PROGRESS to CREATE_COMPLETE', async () => {
     fake.createStackSync({ StackName: 'S' });
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS',
+      StackName: 'S',
+      ChangeSetName: 'CS',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
 
@@ -269,7 +274,8 @@ describe('CreateChangeSet', () => {
       },
     };
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS',
+      StackName: 'S',
+      ChangeSetName: 'CS',
       TemplateBody: JSON.stringify({
         Resources: {
           Keep: { Type: 'Test::Fake::Resource', Properties: { Id: 'new' } },
@@ -288,7 +294,8 @@ describe('CreateChangeSet', () => {
     fake.createStackSync({ StackName: 'S' });
     fake.firstStack().template = { Resources: { R: { Type: 'T' } } };
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS',
+      StackName: 'S',
+      ChangeSetName: 'CS',
       TemplateBody: JSON.stringify({ Resources: { R: { Type: 'T' } } }),
     });
     await flush();
@@ -308,12 +315,16 @@ describe('CreateChangeSet', () => {
 
   test('CREATE type on REVIEW_IN_PROGRESS stack reuses the stack', async () => {
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS1', ChangeSetType: 'CREATE',
+      StackName: 'S',
+      ChangeSetName: 'CS1',
+      ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
     // Second CREATE change set on same REVIEW_IN_PROGRESS stack should work
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS2', ChangeSetType: 'CREATE',
+      StackName: 'S',
+      ChangeSetName: 'CS2',
+      ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_TWO_RESOURCES,
     });
     const desc = await fake.describeStacks({ StackName: 'S' });
@@ -351,7 +362,9 @@ describe('DescribeChangeSet', () => {
 describe('ExecuteChangeSet', () => {
   test('applies template and transitions to CREATE_COMPLETE for CREATE type', async () => {
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS', ChangeSetType: 'CREATE',
+      StackName: 'S',
+      ChangeSetName: 'CS',
+      ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
     await flush();
@@ -367,7 +380,8 @@ describe('ExecuteChangeSet', () => {
   test('transitions to UPDATE_COMPLETE for UPDATE type', async () => {
     await createStack('S');
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS',
+      StackName: 'S',
+      ChangeSetName: 'CS',
       TemplateBody: TEMPLATE_WITH_TWO_RESOURCES,
     });
     await flush();
@@ -436,7 +450,9 @@ describe('DeleteChangeSet', () => {
 
   test('REVIEW_IN_PROGRESS stack remains after deleting its only change set', async () => {
     await fake.createChangeSet({
-      StackName: 'S', ChangeSetName: 'CS', ChangeSetType: 'CREATE',
+      StackName: 'S',
+      ChangeSetName: 'CS',
+      ChangeSetType: 'CREATE',
       TemplateBody: TEMPLATE_WITH_RESOURCE,
     });
     await flush();
@@ -677,32 +693,17 @@ describe('Pagination', () => {
 
 describe('Error behavior', () => {
   test('errors have .name matching AWS error code', async () => {
-    try {
-      await fake.describeStacks({ StackName: 'Nope' });
-      fail('should have thrown');
-    } catch (e: any) {
-      expect(e.name).toBe('ValidationError');
-    }
+    await expect(fake.describeStacks({ StackName: 'Nope' })).rejects.toMatchObject({ name: 'ValidationError' });
   });
 
   test('ChangeSetNotFoundException has correct name', async () => {
     fake.createStackSync({ StackName: 'S' });
-    try {
-      await fake.describeChangeSet({ ChangeSetName: 'Nope', StackName: 'S' });
-      fail('should have thrown');
-    } catch (e: any) {
-      expect(e.name).toBe('ChangeSetNotFoundException');
-    }
+    await expect(fake.describeChangeSet({ ChangeSetName: 'Nope', StackName: 'S' })).rejects.toMatchObject({ name: 'ChangeSetNotFoundException' });
   });
 
   test('AlreadyExistsException has correct name', async () => {
     await createStack('S');
-    try {
-      await fake.createStack({ StackName: 'S', TemplateBody: TEMPLATE_WITH_RESOURCE });
-      fail('should have thrown');
-    } catch (e: any) {
-      expect(e.name).toBe('AlreadyExistsException');
-    }
+    await expect(fake.createStack({ StackName: 'S', TemplateBody: TEMPLATE_WITH_RESOURCE })).rejects.toMatchObject({ name: 'AlreadyExistsException' });
   });
 });
 
