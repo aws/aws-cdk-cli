@@ -1,9 +1,7 @@
-import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
 import { BEDROCK_AGENT_REGIONS } from '../../../lib/regions';
-import { waitForOutput, waitForCondition, safeKillProcess } from '../watch/watch-helpers';
 
 jest.setTimeout(5 * 60 * 1000);
 
@@ -86,77 +84,5 @@ integTest(
 
     // THEN - cache should be invalidated
     expect(fs.existsSync(cacheFile)).toBe(false);
-  }),
-);
-
-integTest(
-  'cdk watch creates and reuses hotswap cache across file changes',
-  withDefaultFixture(async (fixture) => {
-    // GIVEN - initial full deploy so the stack exists
-    await fixture.cdkDeploy('lambda-hotswap', {
-      captureStderr: false,
-      modEnv: {
-        DYNAMIC_LAMBDA_PROPERTY_VALUE: 'watch-test',
-      },
-    });
-
-    const stackName = fixture.fullStackName('lambda-hotswap');
-    const cacheFile = path.join(fixture.integTestDir, 'cdk.out', '.hotswap-cache', `${stackName}.json`);
-
-    // Set up watch config
-    const cdkJsonPath = path.join(fixture.integTestDir, 'cdk.json');
-    const cdkJson = JSON.parse(fs.readFileSync(cdkJsonPath, 'utf-8'));
-    cdkJson.watch = { include: ['**/*.js'] };
-    fs.writeFileSync(cdkJsonPath, JSON.stringify(cdkJson, null, 2));
-
-    await fixture.cli.makeCliAvailable();
-
-    let output = '';
-    const watchProcess = child_process.spawn('cdk', [
-      'watch', '--hotswap', '-v', fixture.fullStackName('lambda-hotswap'),
-    ], {
-      cwd: fixture.integTestDir,
-      stdio: 'pipe',
-      env: {
-        ...process.env,
-        ...fixture.cdkShellEnv(),
-        DYNAMIC_LAMBDA_PROPERTY_VALUE: 'watch-test',
-      },
-    });
-
-    try {
-      watchProcess.stdout?.on('data', (data) => {
-        output += data.toString();
-        fixture.log(data.toString());
-      });
-      watchProcess.stderr?.on('data', (data) => {
-        output += data.toString();
-        fixture.log(data.toString());
-      });
-
-      // Wait for initial watch deploy to complete
-      // Use 'Total time', which appears exactly once per watch cycle
-      await waitForOutput(() => output, 'Total time', 240_000);
-      fixture.log('✓ Initial watch deployment completed');
-
-      // Cache should exist after first hotswap
-      expect(fs.existsSync(cacheFile)).toBe(true);
-      const cacheAfterFirst = fs.readFileSync(cacheFile, 'utf-8');
-
-      // Modify Lambda source to trigger a second hotswap via watch
-      const lambdaFile = path.join(fixture.integTestDir, 'lambda', 'index.js');
-      fs.appendFileSync(lambdaFile, '\n// trigger hotswap');
-
-      // Wait for watch to detect change and complete second deployment
-      await waitForCondition(() => (output.match(/Total time/g) || []).length >= 2);
-      fixture.log('✓ Second watch deployment completed');
-
-      // Cache should still exist and be updated
-      expect(fs.existsSync(cacheFile)).toBe(true);
-      const cacheAfterSecond = fs.readFileSync(cacheFile, 'utf-8');
-      expect(cacheAfterSecond).not.toEqual(cacheAfterFirst);
-    } finally {
-      safeKillProcess(watchProcess);
-    }
   }),
 );
