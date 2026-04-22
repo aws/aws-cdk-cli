@@ -1,10 +1,12 @@
 import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
-import {
+import type {
+  CreateChangeSetCommandInput, ExecuteChangeSetCommandInput, Stack,
   Change,
+} from '@aws-sdk/client-cloudformation';
+import {
   ChangeSetStatus,
   ChangeSetType,
   CreateChangeSetCommand,
-  type CreateChangeSetCommandInput,
   CreateStackCommand,
   DeleteChangeSetCommand,
   DeleteStackCommand,
@@ -12,9 +14,7 @@ import {
   DescribeEventsCommand,
   DescribeStacksCommand,
   ExecuteChangeSetCommand,
-  type ExecuteChangeSetCommandInput,
   GetTemplateCommand,
-  type Stack,
   StackStatus,
   UpdateStackCommand,
   UpdateTerminationProtectionCommand,
