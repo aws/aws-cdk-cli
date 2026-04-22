@@ -142,6 +142,7 @@ function standardDeployStackArguments(): DeployStackApiOptions {
         traceResource: () => Promise.resolve(undefined),
         traceStack: () => Promise.resolve(undefined),
       },
+      ioHelper,
     }),
   };
 }
@@ -759,6 +760,7 @@ test('deploy not skipped if template did not change but tags changed', async () 
         traceResource: () => Promise.resolve(undefined),
         traceStack: () => Promise.resolve(undefined),
       },
+      ioHelper,
     }),
   });
 

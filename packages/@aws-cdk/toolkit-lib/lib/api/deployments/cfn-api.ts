@@ -253,6 +253,7 @@ async function uploadBodyParameterAndCreateChangeSet(
         sdk: env.sdk,
         envResources: env.resources,
         sourceTracer: new StackArtifactSourceTracer(options.stack),
+        ioHelper,
       }),
     });
   } catch (e: any) {

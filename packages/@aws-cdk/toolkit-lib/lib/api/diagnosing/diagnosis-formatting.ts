@@ -1,4 +1,4 @@
-import { DiagnosedStack, StackDiagnosis, TracedResourceError } from "../../actions/diagnose";
+import { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from "../../actions/diagnose";
 import { ActionLessMessage, IO } from "../io/private";
 import { DeploymentError, ToolkitError } from "../../toolkit/toolkit-error";
 
@@ -36,14 +36,44 @@ export function throwDeploymentErrorFromDiagnosis(diag: StackDiagnosis): never {
   // Guaranteed 'type=problem' here
 
   const errorCode = diag.problems[0]?.errorCode;
-  switch (diag.detectedBy) {
+  switch (diag.detectedBy.type) {
     case 'change-set':
-      // TODO: format the problems in here
-      throw new DeploymentError(`Failed to create ChangeSet:\n${formatResourceErrors(diag.problems)}`, errorCode ?? 'ChangeSetCreationFailed');
+      throw new DeploymentError(formatChangeSetProblems(diag.problems, diag.detectedBy), errorCode ?? 'ChangeSetCreationFailed');
+
+    case 'early-validation':
+      throw new DeploymentError(formatEarlyValidationProblems(diag.problems, diag.detectedBy), 'EarlyValidationFailure');
 
     case 'deployment':
-      // TODO: format the problems in here
-      throw new DeploymentError(`Errors encountered during deployment:\n${formatResourceErrors(diag.problems)}`, errorCode ?? 'StackDeployFailed');
+      throw new DeploymentError(formatDeploymentProblems(diag.problems, diag.detectedBy), errorCode ?? 'StackDeployFailed');
+  }
+}
+
+function formatChangeSetProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'change-set' }>): string {
+  const caption = `Failed to create ChangeSet ${detectedBy.changeSetName}`;
+
+  if (problems.length > 0) {
+    return `${caption}:\n${formatResourceErrors(problems)}`;
+  } else {
+    return `${caption}: ${detectedBy.statusReason}`;
+  }
+}
+
+function formatEarlyValidationProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'early-validation' }>): string {
+  const caption = `Early validation failed for Changeset ${detectedBy.changeSetName}`;
+  if (problems.length > 0) {
+    return `${caption}:\n${formatResourceErrors(problems)}`;
+  } else {
+    return caption;
+  }
+}
+
+function formatDeploymentProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'deployment' }>): string {
+  const caption = `Errors encountered during deployment`;
+
+  if (problems.length > 0) {
+    return `${caption}:\n${formatResourceErrors(problems)}`;
+  } else {
+    return `${caption} (${detectedBy.stackStatus}): ${detectedBy.statusReason}`;
   }
 }
 

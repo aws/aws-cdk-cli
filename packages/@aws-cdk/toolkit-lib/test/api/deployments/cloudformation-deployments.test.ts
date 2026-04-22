@@ -1224,6 +1224,7 @@ test('tags are passed along to create change set', async () => {
           traceResource: () => Promise.resolve(undefined),
           traceStack: () => Promise.resolve(undefined),
         },
+        ioHelper,
       }),
     },
   );

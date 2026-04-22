@@ -25,8 +25,13 @@ export interface DiagnoseResult {
 
 export type StackDiagnosis =
   | { type: 'no-problem' }
-  | { type: 'problem'; detectedBy: 'change-set' | 'deployment'; problems: TracedResourceError[] }
+  | { type: 'problem'; detectedBy: StackProblemSource; problems: TracedResourceError[] }
   | { type: 'error-diagnosing'; message: string };
+
+export type StackProblemSource =
+  | { type: 'deployment'; stackStatus: string; statusReason: string }
+  | { type: 'change-set'; changeSetName: string; changeSetStatus: string; statusReason: string }
+  | { type: 'early-validation'; changeSetName: string}
 
 export interface DiagnosedStack {
   readonly stackName: string;

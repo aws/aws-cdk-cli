@@ -1,4 +1,4 @@
-import { ChangeSetStatus, ChangeSetSummary, ChangeType } from "@aws-sdk/client-cloudformation";
+import { ChangeSetStatus, ChangeSetSummary, ChangeType, Stack } from "@aws-sdk/client-cloudformation";
 import { ICloudFormationClient, SDK } from "../aws-auth/sdk";
 import { EnvironmentResources } from "../environment";
 import { OldestEvent, StackEventPoller } from "../stack-events";
@@ -8,11 +8,13 @@ import { EarlyValidationError, EarlyValidationReporter } from "./early-validatio
 import { ISourceTracer } from "../source-tracing/private/source-tracing";
 import { createBranded } from "../../util/type-brands";
 import { StackDiagnosis, TracedResourceError } from "../../actions/diagnose";
+import { IoHelper } from "../io/private/io-helper";
 
 export interface CloudFormationStackDiagnoserProps {
   readonly sdk: SDK;
   readonly envResources?: EnvironmentResources;
   readonly sourceTracer: ISourceTracer;
+  readonly ioHelper: IoHelper;
 }
 
 /**
@@ -60,7 +62,7 @@ export class CloudFormationStackDiagnoser {
       }
 
       if (status.isFailure) {
-        return await this._diagnoseViaStackEvents(stackName);
+        return await this._diagnoseViaStackEvents(stackName, stack);
       }
 
       return await this._diagnoseChangeSetFailureFromStackName(stackName);
@@ -84,14 +86,18 @@ export class CloudFormationStackDiagnoser {
   /**
    * Diagnose potential problems with the change set
    */
-  public async diagnoseFromErrorCollection(errors: ResourceErrors): Promise<StackDiagnosis> {
+  public async diagnoseFromErrorCollection(errors: ResourceErrors, stack: Stack): Promise<StackDiagnosis> {
     if (errors.isEmpty()) {
       return { type: 'no-problem' };
     }
 
     return {
       type: 'problem',
-      detectedBy: 'deployment',
+      detectedBy: {
+        type: 'deployment',
+        stackStatus: stack.StackStatus ?? '',
+        statusReason: stack.StackStatusReason ?? '',
+      },
       problems: await this.addErrorTraces(errors.all),
     };
   }
@@ -101,7 +107,7 @@ export class CloudFormationStackDiagnoser {
    *
    * This is the same logic that the deployment monitor uses.
    */
-  private async _diagnoseViaStackEvents(stackName: string): Promise<StackDiagnosis> {
+  private async _diagnoseViaStackEvents(stackName: string, stack: Stack): Promise<StackDiagnosis> {
     const poller = new StackEventPoller(this.cfn, {
       stackName,
       oldestEvent: OldestEvent.mostRecentOperation(),
@@ -111,7 +117,7 @@ export class CloudFormationStackDiagnoser {
     // which is the thing we care about.
     await poller.poll();
 
-    return this.diagnoseFromErrorCollection(poller.errors);
+    return this.diagnoseFromErrorCollection(poller.errors, stack);
   }
 
   private async _diagnoseChangeSetFailureFromStackName(stackName: string): Promise<StackDiagnosis> {
@@ -154,14 +160,23 @@ export class CloudFormationStackDiagnoser {
       const ev = await new EarlyValidationReporter(this.props.sdk, this.props.envResources).fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
       switch (ev.type) {
         case 'could-not-check':
+          // Emit the warning here and otherwise just return an empty error block
+          this.props.ioHelper.defaults.warn(ev.message);
           return {
-            type: 'error-diagnosing',
-            message: ev.message,
+            type: 'problem',
+            detectedBy: {
+              type: 'early-validation',
+              changeSetName: changeSet.ChangeSetName ?? '',
+            },
+            problems: [],
           };
         case 'resource-errors':
           return {
             type: 'problem',
-            detectedBy: 'change-set',
+            detectedBy: {
+              type: 'early-validation',
+              changeSetName: changeSet.ChangeSetName ?? '',
+            },
             problems: await this.addErrorTraces(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
           };
       }
@@ -175,7 +190,12 @@ export class CloudFormationStackDiagnoser {
     if (failedAutoErrors) {
       return {
         type: 'problem',
-        detectedBy: 'change-set',
+        detectedBy: {
+          type: 'change-set',
+          changeSetStatus: changeSet.Status ?? '',
+          changeSetName: changeSet.ChangeSetName ?? '',
+          statusReason: changeSet.StatusReason ?? '',
+        },
         problems: await this.addErrorTraces(failedAutoErrors),
       };
     }
@@ -206,7 +226,12 @@ export class CloudFormationStackDiagnoser {
   private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
     return {
       type: 'problem',
-      detectedBy: 'change-set',
+      detectedBy: {
+        type: 'change-set',
+        changeSetName: changeSet.ChangeSetName ?? '',
+        changeSetStatus: changeSet.Status ?? '',
+        statusReason: changeSet.StatusReason ?? '',
+      },
       problems: [
         await this.addErrorTrace({
           // It's about a stack
