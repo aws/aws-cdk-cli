@@ -2,6 +2,7 @@ import type { OperationEvent } from '@aws-sdk/client-cloudformation';
 import type { ValidationReporter } from './cfn-api';
 import type { SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
+import type { IoHelper } from '../io/private';
 
 /**
  * A ValidationReporter that checks for early validation errors right after
@@ -10,10 +11,15 @@ import type { EnvironmentResources } from '../environment';
  * it logs a warning instead.
  */
 export class EarlyValidationReporter implements ValidationReporter {
-  constructor(private readonly sdk: SDK, private readonly envResources: EnvironmentResources) {
+  constructor(
+    private readonly sdk: SDK,
+    private readonly envResources: EnvironmentResources,
+    private readonly ioHelper: IoHelper,
+  ) {
   }
 
   public async fetchDetails(changeSetName: string, stackName: string): Promise<string> {
+    const summary = `Early validation failed for stack '${stackName}' (ChangeSet '${changeSetName}')`;
     let operationEvents: OperationEvent[] = [];
     try {
       operationEvents = await this.getFailedEvents(stackName, changeSetName);
@@ -24,13 +30,15 @@ export class EarlyValidationReporter implements ValidationReporter {
       } catch (e) {
       }
 
-      return `The template cannot be deployed because of early validation errors, but retrieving more details about those
-errors failed (${error}). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
-your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}.`;
+      await this.ioHelper.defaults.warn(
+        `Could not retrieve additional details about early validation errors (${error}). ` +
+        'Make sure you have permissions to call the DescribeEvents API, or re-bootstrap your environment by running \'cdk bootstrap\' to update the Bootstrap CDK Toolkit stack. ' +
+        `Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
+      );
+      return summary;
     }
 
-    let message = `ChangeSet '${changeSetName}' on stack '${stackName}' failed early validation`;
+    let message = summary;
     if (operationEvents.length > 0) {
       const failures = operationEvents
         .map((event) => `  - ${event.ValidationStatusReason} (at ${event.ValidationPath})`)
