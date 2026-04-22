@@ -26,6 +26,7 @@ import {
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
+import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
@@ -39,6 +40,7 @@ import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
 import { changeSetHasNoChanges, CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
+import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 
 export interface DeployStackOptions {
   /**
@@ -124,7 +126,7 @@ export interface DeployStackOptions {
    *
    * @default - Change set with defaults
    */
-  readonly deploymentMethod?: DeploymentMethod;
+  readonly deploymentMethod?: DeploymentMethod | ExecuteChangeSetDeployment;
 
   /**
    * The collection of extra parameters
@@ -362,7 +364,7 @@ class FullCloudFormationDeployment {
   private readonly uuid: string;
 
   constructor(
-    private readonly deploymentMethod: DirectDeployment | ChangeSetDeployment,
+    private readonly deploymentMethod: DirectDeployment | ChangeSetDeployment | ExecuteChangeSetDeployment,
     private readonly options: DeployStackOptions,
     private readonly cloudFormationStack: CloudFormationStack,
     private readonly stackArtifact: cxapi.CloudFormationStackArtifact,
@@ -390,13 +392,16 @@ class FullCloudFormationDeployment {
       case 'change-set':
         return this.changeSetDeployment(deploymentMethod);
 
+      case 'execute-change-set':
+        return this.executeExistingChangeSet(deploymentMethod);
+
       case 'direct':
         return this.directDeployment();
     }
   }
 
   private async changeSetDeployment(deploymentMethod: ChangeSetDeployment): Promise<DeployStackResult> {
-    const changeSetName = deploymentMethod.changeSetName ?? 'cdk-deploy-change-set';
+    const changeSetName = deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
     const execute = deploymentMethod.execute ?? true;
     const importExistingResources = deploymentMethod.importExistingResources ?? false;
     const revertDrift = deploymentMethod.revertDrift ?? false;
@@ -443,10 +448,40 @@ class FullCloudFormationDeployment {
         noOp: false,
         outputs: this.cloudFormationStack.outputs,
         stackArn: changeSetDescription.StackId!,
+        changeSet: changeSetDescription,
       };
     }
 
     // If there are replacements in the changeset, check the rollback flag and stack status
+    return this.checkAndExecuteChangeSet(changeSetDescription);
+  }
+
+  private async executeExistingChangeSet(deploymentMethod: ExecuteChangeSetDeployment): Promise<DeployStackResult> {
+    await this.updateTerminationProtection();
+
+    // The change set was already created and validated during the prepare phase,
+    // just describe it to get the info needed for execution.
+    const changeSetDescription = await this.cfn.describeChangeSet({
+      StackName: this.stackName,
+      ChangeSetName: deploymentMethod.changeSetName,
+    });
+
+    return this.checkAndExecuteChangeSet(changeSetDescription);
+  }
+
+  /**
+   * Check rollback/replacement constraints and execute the change set if all checks pass.
+   */
+  private async checkAndExecuteChangeSet(changeSetDescription: DescribeChangeSetCommandOutput): Promise<DeployStackResult> {
+    if (changeSetDescription.Status !== 'CREATE_COMPLETE') {
+      const status = changeSetDescription.Status ?? 'UNKNOWN';
+      const reason = changeSetDescription.StatusReason ? `: ${changeSetDescription.StatusReason}` : '';
+      throw new ToolkitError(
+        'ChangeSetNotReady',
+        `Change set '${changeSetDescription.ChangeSetName}' on stack '${this.stackName}' is not ready for execution (status: ${status}${reason})`,
+      );
+    }
+
     const replacement = hasReplacement(changeSetDescription);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
@@ -749,6 +784,12 @@ async function canSkipDeploy(
     deployStackOptions.deploymentMethod.execute === false
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
+    return false;
+  }
+
+  // Executing an existing change set, never skip
+  if (deployStackOptions.deploymentMethod?.method === 'execute-change-set') {
+    await ioHelper.defaults.debug(`${deployName}: executing existing change set, never skip`);
     return false;
   }
 

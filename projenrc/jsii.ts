@@ -487,7 +487,13 @@ export class JsiiBuild extends pj.Component {
 
     // Generic bootstrapping for all target languages
     bootstrapSteps.push(...(this.tsProject as any).workflowBootstrapSteps);
-    if (this.tsProject.package.packageManager === NodePackageManager.PNPM) {
+    if (this.tsProject.package.packageManager === NodePackageManager.YARN_BERRY
+      || this.tsProject.package.packageManager === NodePackageManager.YARN2) {
+      bootstrapSteps.push({
+        name: 'Enable corepack',
+        run: 'corepack enable',
+      });
+    } else if (this.tsProject.package.packageManager === NodePackageManager.PNPM) {
       bootstrapSteps.push({
         name: 'Setup pnpm',
         uses: 'pnpm/action-setup@v3',

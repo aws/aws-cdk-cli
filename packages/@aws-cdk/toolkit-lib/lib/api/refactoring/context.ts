@@ -200,12 +200,12 @@ function resourceMoves(
   if (!(ignoreModifications || isomorphic(digestsBefore, digestsAfter))) {
     const message = ['A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed.'];
 
-    const difference = (a: Record<string, ResourceLocation[]>, b: Record<string, ResourceLocation[]>) => {
-      return Array.from(setDiff(new Set(Object.keys(a)), new Set(Object.keys(b)))).flatMap(k => a[k]!)
-        .map(x => `  - ${x.toPath()}`)
-        .sort()
-        .join('\n');
+    const locationsForDigests = (a: Record<string, ResourceLocation[]>, b: Record<string, ResourceLocation[]>) => {
+      return Array.from(setDiff(new Set(Object.keys(a)), new Set(Object.keys(b)))).flatMap(k => a[k]!);
     };
+
+    const formatList = (locs: ResourceLocation[], icon: string) =>
+      locs.map(x => `  [${icon}] ${x.toPath()}`).sort().join('\n');
 
     const stackNames = (stacks: CloudFormationStack[]) =>
       stacks.length === 0
@@ -215,8 +215,16 @@ function resourceMoves(
           .sort()
           .join(', ');
 
-    const onlyDeployed = difference(digestsBefore, digestsAfter);
-    const onlyLocal = difference(digestsAfter, digestsBefore);
+    const onlyDeployedLocs = locationsForDigests(digestsBefore, digestsAfter);
+    const onlyLocalLocs = locationsForDigests(digestsAfter, digestsBefore);
+
+    const onlyDeployedPaths = new Set(onlyDeployedLocs.map(l => l.toPath()));
+    const onlyLocalPaths = new Set(onlyLocalLocs.map(l => l.toPath()));
+    const differentPaths = new Set(Array.from(onlyDeployedPaths).filter(p => onlyLocalPaths.has(p)));
+
+    const onlyDeployed = formatList(onlyDeployedLocs.filter(l => !differentPaths.has(l.toPath())), '-');
+    const onlyLocal = formatList(onlyLocalLocs.filter(l => !differentPaths.has(l.toPath())), '+');
+    const different = formatList([...onlyDeployedLocs, ...onlyLocalLocs].filter(l => differentPaths.has(l.toPath())), '~');
 
     if (onlyDeployed.length > 0) {
       message.push(`The following resources are present only in the AWS environment:\n${onlyDeployed}`);
@@ -224,6 +232,10 @@ function resourceMoves(
 
     if (onlyLocal.length > 0) {
       message.push(`\nThe following resources are present only in your CDK application:\n${onlyLocal}`);
+    }
+
+    if (different.length > 0) {
+      message.push(`\nThe following resources are different in your CDK application and the AWS environment:\n${different}`);
     }
 
     message.push('');

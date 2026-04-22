@@ -4,33 +4,40 @@ import type { EnvironmentResources } from '../environment';
 
 /**
  * A ValidationReporter that checks for early validation errors right after
- * creating the change set. If any are found, it throws an error listing all validation failures.
- * If the DescribeEvents API call fails (for example, due to insufficient permissions),
- * it logs a warning instead.
+ * creating the change set.
  */
 export class EarlyValidationReporter {
   constructor(private readonly sdk: SDK, private readonly envResources?: EnvironmentResources) {
   }
 
-  public async fetchDetailsString(changeSetName: string, stackName: string): Promise<string> {
+  /**
+   * Fetch the details and return them as a string.
+   *
+   * If the details could not be fetched, log that as a warning using the IoHelper.
+   */
+  public async fetchDetailsString(changeSetName: string, stackName: string, ioHelper: IoHelper): Promise<string> {
+    const summary = `Early validation failed for stack '${stackName}' (ChangeSet '${changeSetName}')`;
     const result = await this.fetchDetailsStructured(changeSetName, stackName);
 
     switch (result.type) {
       case 'could-not-check':
-        return result.message;
+        await ioHelper.defaults.warn(result.message);
+        return summary;
 
       case 'resource-errors':
-        const header = `ChangeSet '${changeSetName}' on stack '${stackName}' failed early validation:`;
         if (result.errors.length === 0) {
-          return header;
+          return summary;
         }
         return [
-          `${header}:`,
+          `${summary}:`,
           ...result.errors.map(e => `  - ${e.message} (at ${e.documentPath})`),
         ].join('\n');
     }
   }
 
+  /**
+   * Fetch the details and return them in structured form.
+   */
   public async fetchDetailsStructured(changeSetName: string, stackName: string): Promise<EarlyValidationCheckResult> {
     let operationEvents: OperationEvent[] = [];
     try {

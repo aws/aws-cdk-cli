@@ -810,7 +810,7 @@ test('deployStack throws error in case of early validation failures', async () =
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`ChangeSet 'cdk-deploy-change-set' on stack 'withouterrors' failed early validation:
+  ).rejects.toThrow(`Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set'):
   - Resource already exists (at Resources/MyResource)`);
 });
 
@@ -828,10 +828,7 @@ test('deployStack warns when it cannot get the events in case of early validatio
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`The template cannot be deployed because of early validation errors, but retrieving more details about those
-errors failed (Error: AccessDenied). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap
-your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-Bootstrap toolkit stack version 30 or later is needed; current version: 0.`);
+  ).rejects.toThrow("Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set')");
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {
@@ -1410,6 +1407,159 @@ test.each([
 
 test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();
+});
+
+describe('execute-change-set deployment method', () => {
+  test('executes an existing change set without creating a new one', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('throws when change set is not in CREATE_COMPLETE status', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'FAILED',
+      StatusReason: 'Something went wrong',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
+  });
+
+  test('throws when change set is in CREATE_PENDING status', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_PENDING',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
+  });
+
+  test('throws without reason when status reason is absent', async () => {
+    // GIVEN
+    givenStackExists();
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'DELETE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+    });
+
+    // THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    })).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
+  });
+
+  test('returns replacement-requires-rollback when change set has replacement and rollback is disabled', async () => {
+    // GIVEN
+    givenStackExists();
+    givenChangeSetContainsReplacement(true);
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      rollback: false,
+    });
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('is never skipped by canSkipDeploy', async () => {
+    // GIVEN - stack exists with identical template (would normally skip)
+    givenStackExists();
+    givenTemplateIs(DEFAULT_FAKE_TEMPLATE);
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [{ Type: 'Resource' as const }],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+    });
+
+    // THEN - still executes despite identical template
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+});
+
+describe('change set returned with execute:false', () => {
+  test('returns changeSet description when execute is false', async () => {
+    // GIVEN
+    const changeSetResponse = {
+      Status: ChangeSetStatus.CREATE_COMPLETE,
+      ChangeSetName: 'cdk-deploy-change-set',
+      ChangeSetId: 'arn:aws:cloudformation:change-set/123',
+      StackId: 'arn:aws:cloudformation:stack/123',
+      Changes: [{ Type: 'Resource' as const }],
+    };
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves(changeSetResponse);
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(false);
+    expect(result.changeSet).toBeDefined();
+    expect(result.changeSet?.Status).toEqual('CREATE_COMPLETE');
+  });
+
+  test('does not return changeSet when change set is empty', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+      Status: 'FAILED',
+      StatusReason: "The submitted information didn't contain changes.",
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', execute: false },
+    });
+
+    // THEN
+    assertIsSuccessfulDeployStackResult(result);
+    expect(result.noOp).toBe(true);
+    expect(result.changeSet).toBeUndefined();
+  });
 });
 /**
  * Set up the mocks so that it looks like the stack exists to start with

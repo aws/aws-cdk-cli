@@ -3,7 +3,7 @@ import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aw
 import type { NestedStackTemplates } from './nested-stack-helpers';
 import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { SDK } from '../aws-auth/private';
+import type { ICloudControlClient, SDK } from '../aws-auth/private';
 import type { ResourceMetadata } from '../resource-metadata';
 import { resourceMetadata } from '../resource-metadata';
 
@@ -118,6 +118,7 @@ export class EvaluateCloudFormationTemplate {
   private readonly lookupExport: LookupExport;
 
   private cachedUrlSuffix: string | undefined;
+  private _cloudControl: ICloudControlClient | undefined;
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -144,6 +145,13 @@ export class EvaluateCloudFormationTemplate {
 
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
+  }
+
+  private get cloudControl(): ICloudControlClient {
+    if (!this._cloudControl) {
+      this._cloudControl = this.sdk.cloudControl();
+    }
+    return this._cloudControl;
   }
 
   // clones current EvaluateCloudFormationTemplate object, but updates the stack name
@@ -316,6 +324,44 @@ export class EvaluateCloudFormationTemplate {
     return cfnExpression;
   }
 
+  /**
+   * Best-effort attempt to construct the Cloud Control API primary identifier for a resource.
+   *
+   * Cloud Control compound identifiers are pipe-delimited, ordered by the `primaryIdentifier`
+   * array in the resource type schema (e.g. `DatabaseName|TableName` for `AWS::Glue::Table`).
+   *
+   * CloudFormation's `PhysicalResourceId` (the `physicalId` parameter here) is the `Ref` return
+   * value for the resource, which is resource-type-specific and may not correspond to the Cloud
+   * Control Primary Identifier.
+   *
+   * For properties present in the template, we resolve them directly. For properties NOT in the
+   * template (e.g. service-generated read-only values), we fall back to `physicalId`. This is
+   * only correct when:
+   *
+   * - Exactly one property in the identifier is missing from the template, AND
+   * - That property happens to be the one that `Ref` returns for this resource type.
+   *
+   * If multiple properties are missing, `physicalId` is reused for all of them.
+   */
+  public async evaluateCloudControlIdentifier(logicalId: string, resourceType: string, physicalId: string): Promise<string> {
+    if (resourceType in RESOURCE_TYPE_PRIMARY_IDENTIFIERS) {
+      const primaryProps = RESOURCE_TYPE_PRIMARY_IDENTIFIERS[resourceType];
+      const parts: string[] = [];
+
+      for (const propName of primaryProps) {
+        const templateVal = this.getResourceProperty(logicalId, propName);
+        if (templateVal) {
+          parts.push(await this.evaluateCfnExpression(templateVal));
+        } else {
+          // Not in template — assume this is the Ref return value. See doc comment for caveats.
+          parts.push(physicalId);
+        }
+      }
+      return parts.join('|');
+    }
+    return physicalId;
+  }
+
   public getResourceProperty(logicalId: string, propertyName: string): any {
     return this.template.Resources?.[logicalId]?.Properties?.[propertyName];
   }
@@ -435,7 +481,7 @@ export class EvaluateCloudFormationTemplate {
     return undefined;
   }
 
-  private formatResourceAttribute(resource: StackResourceSummary, attribute: string | undefined): string | undefined {
+  private async formatResourceAttribute(resource: StackResourceSummary, attribute: string | undefined): Promise<string | undefined> {
     const physicalId = resource.PhysicalResourceId;
 
     // no attribute means Ref expression, for which we use the physical ID directly
@@ -444,29 +490,43 @@ export class EvaluateCloudFormationTemplate {
     }
 
     const resourceTypeFormats = RESOURCE_TYPE_ATTRIBUTES_FORMATS[resource.ResourceType!];
-    if (!resourceTypeFormats) {
-      throw new CfnEvaluationException(
-        `We don't support attributes of the '${resource.ResourceType}' resource. This is a CDK limitation. ` +
-          'Please report it at https://github.com/aws/aws-cdk/issues/new/choose',
-      );
+    if (resourceTypeFormats) {
+      const attributeFormatFunc = resourceTypeFormats[attribute];
+      if (attributeFormatFunc) {
+        const service = this.getServiceOfResource(resource);
+        const resourceTypeArnPart = this.getResourceTypeArnPartOfResource(resource);
+        return attributeFormatFunc({
+          partition: this.partition,
+          service,
+          region: this.region,
+          account: this.account,
+          resourceType: resourceTypeArnPart,
+          resourceName: physicalId!,
+        });
+      }
     }
-    const attributeFmtFunc = resourceTypeFormats[attribute];
-    if (!attributeFmtFunc) {
-      throw new CfnEvaluationException(
-        `We don't support the '${attribute}' attribute of the '${resource.ResourceType}' resource. This is a CDK limitation. ` +
-          'Please report it at https://github.com/aws/aws-cdk/issues/new/choose',
-      );
+
+    try {
+      const identifier = await this.evaluateCloudControlIdentifier(resource.LogicalResourceId!, resource.ResourceType!, physicalId!);
+
+      const response = await this.cloudControl.getResource({
+        TypeName: resource.ResourceType!,
+        Identifier: identifier,
+      });
+      const props = JSON.parse(response.ResourceDescription?.Properties ?? '{}');
+      if (attribute in props) {
+        return props[attribute];
+      }
+    } catch (error: any) {
+      // Cloud Control lookup failed — fall through to the error below
+      throw new CfnEvaluationException(`Could not find '${attribute}' attribute of the '${resource.ResourceType}' resource because` +
+        `an error occured while attempting to retrieve the information: '${error.name}:${error.message}'`);
     }
-    const service = this.getServiceOfResource(resource);
-    const resourceTypeArnPart = this.getResourceTypeArnPartOfResource(resource);
-    return attributeFmtFunc({
-      partition: this.partition,
-      service,
-      region: this.region,
-      account: this.account,
-      resourceType: resourceTypeArnPart,
-      resourceName: physicalId!,
-    });
+
+    throw new CfnEvaluationException(
+      `We don't support the '${attribute}' attribute of the '${resource.ResourceType}' resource. This is a CDK limitation. ` +
+        'Please report it at https://github.com/aws/aws-cdk/issues/new/choose',
+    );
   }
 
   private getServiceOfResource(resource: StackResourceSummary): string {
@@ -491,6 +551,84 @@ interface ArnParts {
   readonly resourceType: string;
   readonly resourceName: string;
 }
+
+/**
+ * Resources where the CloudFormation physical resource ID ({ Ref }) disagrees
+ * with the Cloud Control API primary identifier.
+ *
+ * Maps resource type to the CC primary identifier property names.
+ * For resources NOT in this map, the physical resource ID can be used
+ * directly as the CC primary identifier.
+ */
+export const RESOURCE_TYPE_PRIMARY_IDENTIFIERS: { [type: string]: string[] } = {
+  'AWS::ApiGateway::Authorizer': ['RestApiId', 'AuthorizerId'],
+  'AWS::ApiGateway::Deployment': ['DeploymentId', 'RestApiId'],
+  'AWS::ApiGateway::Model': ['RestApiId', 'Name'],
+  'AWS::ApiGateway::RequestValidator': ['RestApiId', 'RequestValidatorId'],
+  'AWS::ApiGateway::DocumentationPart': ['DocumentationPartId', 'RestApiId'],
+  'AWS::ApiGateway::Resource': ['RestApiId', 'ResourceId'],
+  'AWS::ApiGateway::Stage': ['RestApiId', 'StageName'],
+  'AWS::ApiGatewayV2::ApiMapping': ['ApiMappingId', 'DomainName'],
+  'AWS::ApiGatewayV2::Authorizer': ['AuthorizerId', 'ApiId'],
+  'AWS::ApiGatewayV2::Deployment': ['ApiId', 'DeploymentId'],
+  'AWS::ApiGatewayV2::Integration': ['ApiId', 'IntegrationId'],
+  'AWS::ApiGatewayV2::IntegrationResponse': ['ApiId', 'IntegrationId', 'IntegrationResponseId'],
+  'AWS::ApiGatewayV2::Model': ['ApiId', 'ModelId'],
+  'AWS::ApiGatewayV2::Route': ['ApiId', 'RouteId'],
+  'AWS::ApiGatewayV2::RouteResponse': ['ApiId', 'RouteId', 'RouteResponseId'],
+  'AWS::ApiGatewayV2::Stage': ['Id'],
+  'AWS::AppConfig::ConfigurationProfile': ['ApplicationId', 'ConfigurationProfileId'],
+  'AWS::AppConfig::Environment': ['ApplicationId', 'EnvironmentId'],
+  'AWS::AppConfig::HostedConfigurationVersion': ['ApplicationId', 'ConfigurationProfileId', 'VersionNumber'],
+  'AWS::AppMesh::GatewayRoute': ['Id'],
+  'AWS::AppMesh::Mesh': ['Id'],
+  'AWS::AppMesh::Route': ['Id'],
+  'AWS::AppMesh::VirtualGateway': ['Id'],
+  'AWS::AppMesh::VirtualNode': ['Id'],
+  'AWS::AppMesh::VirtualRouter': ['Id'],
+  'AWS::AppMesh::VirtualService': ['Id'],
+  'AWS::AppSync::ApiKey': ['ApiKeyId'],
+  'AWS::AppSync::GraphQLApi': ['ApiId'],
+  'AWS::Batch::JobDefinition': ['JobDefinitionName'],
+  'AWS::CloudWatch::InsightRule': ['Id'],
+  'AWS::CodeBuild::Project': ['Id'],
+  'AWS::CodeBuild::ReportGroup': ['Id'],
+  'AWS::CodeDeploy::DeploymentGroup': ['ApplicationName', 'DeploymentGroupName'],
+  'AWS::CodePipeline::Webhook': ['Id'],
+  'AWS::Cognito::UserPoolClient': ['UserPoolId', 'ClientId'],
+  'AWS::Cognito::UserPoolDomain': ['UserPoolId', 'Domain'],
+  'AWS::Cognito::UserPoolGroup': ['UserPoolId', 'GroupName'],
+  'AWS::Cognito::UserPoolIdentityProvider': ['UserPoolId', 'ProviderName'],
+  'AWS::Cognito::UserPoolResourceServer': ['UserPoolId', 'Identifier'],
+  'AWS::Cognito::UserPoolUser': ['UserPoolId', 'Username'],
+  'AWS::DAX::Cluster': ['Id'],
+  'AWS::DAX::ParameterGroup': ['Id'],
+  'AWS::DAX::SubnetGroup': ['Id'],
+  'AWS::DMS::EventSubscription': ['Id'],
+  'AWS::EC2::EIP': ['PublicIp', 'AllocationId'],
+  'AWS::ECS::Service': ['ServiceArn', 'Cluster'],
+  'AWS::ElastiCache::CacheCluster': ['Id'],
+  'AWS::ElasticLoadBalancing::LoadBalancer': ['Id'],
+  'AWS::ElastiCache::User': ['UserId'],
+  'AWS::Elasticsearch::Domain': ['Id'],
+  'AWS::Events::Rule': ['Arn'],
+  'AWS::EventSchemas::RegistryPolicy': ['Id'],
+  'AWS::Glue::DevEndpoint': ['Id'],
+  'AWS::Glue::Workflow': ['Id'],
+  'AWS::IoT::Policy': ['Id'],
+  'AWS::Logs::LogStream': ['LogGroupName', 'LogStreamName'],
+  'AWS::Logs::SubscriptionFilter': ['FilterName', 'LogGroupName'],
+  'AWS::MediaConvert::JobTemplate': ['Id'],
+  'AWS::MediaConvert::Preset': ['Id'],
+  'AWS::MediaConvert::Queue': ['Id'],
+  'AWS::Route53::RecordSet': ['Id'],
+  'AWS::SageMaker::Device': ['Device/DeviceName'],
+  'AWS::SecretsManager::ResourcePolicy': ['Id'],
+  'AWS::SecretsManager::SecretTargetAttachment': ['Id'],
+  'AWS::SES::ReceiptRuleSet': ['Id'],
+  'AWS::SSM::MaintenanceWindowTarget': ['WindowId', 'WindowTargetId'],
+  'AWS::SSM::MaintenanceWindowTask': ['WindowId', 'WindowTaskId'],
+};
 
 /**
  * Usually, we deduce the names of the service and the resource type used to format the ARN from the CloudFormation resource type.

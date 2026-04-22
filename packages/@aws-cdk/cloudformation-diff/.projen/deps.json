@@ -94,6 +94,10 @@
       "type": "build"
     },
     {
+      "name": "projen",
+      "type": "build"
+    },
+    {
       "name": "ts-jest",
       "type": "build"
     },

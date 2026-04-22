@@ -38,8 +38,12 @@ import { BootstrapSource } from '../actions/bootstrap';
 import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
+  isChangeSetDeployment,
+  isExecutingChangeSetDeployment,
+  isNonExecutingChangeSetDeployment,
   type PrivateDeployOptions,
   removePublishedAssetsFromWorkGraph,
+  toExecuteChangeSetDeployment,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
 import type { DiffOptions } from '../actions/diff';
@@ -719,35 +723,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
       const currentTemplate = await deployments.readCurrentTemplate(stack);
 
-      const formatter = new DiffFormatter({
-        templateInfo: {
-          oldTemplate: currentTemplate,
-          newTemplate: stack,
-        },
-      });
-
-      const securityDiff = formatter.formatSecurityDiff();
-      const stackDiff = formatter.formatStackDiff();
-
-      // Send a request response with the diff as part of the message,
-      // and the template diff as data
-      // (IoHost decides whether to print depending on permissionChangeType)
-      const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
-      const deployMotivation = hasSecurityChanges
-        ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
-        : '"--require-approval" is enabled and stack includes updates.';
-      const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
-      const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
-      const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
-        motivation: deployMotivation,
-        concurrency,
-        permissionChangeType: securityDiff.permissionChangeType,
-        templateDiffs: formatter.diffs,
-      }));
-      if (!deployConfirmed) {
-        throw new ToolkitError('DeployAborted', 'Aborted by user');
-      }
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -763,6 +738,72 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      // Deploy options that are shared between change set creation and execution
+      const sharedDeployOptions = {
+        stack,
+        deployName: stack.stackName,
+        roleArn: options.roleArn,
+        toolkitStackName: this.toolkitStackName,
+        reuseAssets: options.reuseAssets,
+        tags: options.tags?.length ? options.tags : tagsForStack(stack),
+        forceDeployment: options.forceDeployment,
+        parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+        usePreviousParameters: options.parameters?.keepExistingParameters,
+        rollback: options.rollback,
+        notificationArns,
+        extraUserAgent: options.extraUserAgent,
+        assetParallelism: options.assetParallelism,
+      };
+
+      // When using change-set method, always create the change set upfront.
+      // This gives us an accurate diff for approval and avoids creating it twice.
+      // For non-executing deployments (prepare-change-set), this is the final result.
+      const prepareResult = isChangeSetDeployment(options.deploymentMethod)
+        ? await deployments.prepareStack({
+          ...sharedDeployOptions,
+          deploymentMethod: options.deploymentMethod,
+          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+        })
+        : undefined;
+
+      // Skip the approval prompt entirely when the prepared change set has no
+      // changes — there is nothing for the user to approve. Outputs, stack ARN,
+      // and timings are still emitted via the normal no-op deploy path below.
+      if (!prepareResult?.noOp) {
+        const formatter = new DiffFormatter({
+          templateInfo: {
+            oldTemplate: currentTemplate,
+            newTemplate: stack,
+            changeSet: prepareResult?.changeSet,
+          },
+        });
+
+        const securityDiff = formatter.formatSecurityDiff();
+        const stackDiff = formatter.formatStackDiff();
+
+        // Send a request response with the diff as part of the message,
+        // and the template diff as data
+        // (IoHost decides whether to print depending on permissionChangeType)
+        const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+        const deployMotivation = hasSecurityChanges
+          ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
+          : '"--require-approval" is enabled and stack includes updates.';
+        const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
+        const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
+        const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
+          motivation: deployMotivation,
+          concurrency,
+          permissionChangeType: securityDiff.permissionChangeType,
+          templateDiffs: formatter.diffs,
+        }));
+        if (!deployConfirmed) {
+          if (prepareResult?.changeSet?.ChangeSetName) {
+            await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+          }
+          throw new ToolkitError('DeployAborted', 'Aborted by user');
+        }
+      }
+
       const stackIndex = stacks.indexOf(stack) + 1;
       const deploySpan = await ioHelper.span(SPAN.DEPLOY_STACK)
         .begin(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`, {
@@ -772,14 +813,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         });
       deploySpan.incCounter('resources', resourceCount);
 
-      let tags = options.tags;
-      if (!tags || tags.length === 0) {
-        tags = tagsForStack(stack);
-      }
-
       let deployDuration;
       try {
-        let deployResult: SuccessfulDeployStackResult | undefined;
+        const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(options.deploymentMethod));
+        let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
 
         let rollback = options.rollback;
         let iteration = 0;
@@ -789,20 +826,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
 
           const r = await deployments.deployStack({
-            stack,
-            deployName: stack.stackName,
-            roleArn: options.roleArn,
-            toolkitStackName: this.toolkitStackName,
-            reuseAssets: options.reuseAssets,
-            notificationArns,
-            tags,
-            deploymentMethod: options.deploymentMethod,
-            forceDeployment: options.forceDeployment,
-            parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-            usePreviousParameters: options.parameters?.keepExistingParameters,
+            ...sharedDeployOptions,
+            // On the first iteration, execute the prepared change set.
+            // On retries (after rollback), create a new change set since the old one is gone.
+            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
+              ? toExecuteChangeSetDeployment(options.deploymentMethod)
+              : options.deploymentMethod,
             rollback,
-            extraUserAgent: options.extraUserAgent,
-            assetParallelism: options.assetParallelism,
           });
 
           switch (r.type) {
@@ -892,10 +922,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
         // "bold(stackname) failed: ResourceNotReady: <error>"
-        throw new ToolkitError(
-          'DeployStackFailed',
-          [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' '),
-        );
+        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed';
+        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+        throw new ToolkitError(code, newMessage);
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor

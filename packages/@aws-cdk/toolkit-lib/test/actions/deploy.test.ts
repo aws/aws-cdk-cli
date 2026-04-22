@@ -1,4 +1,5 @@
 import { StackParameters } from '../../lib/actions/deploy';
+import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../lib/actions/deploy/private';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deployments';
 import * as deployments from '../../lib/api/deployments';
 import { WorkGraphBuilder } from '../../lib/api/work-graph';
@@ -121,6 +122,144 @@ IAM Statement Changes
         permissionChangeType: 'none',
       }),
     }));
+  });
+
+  describe('two-phase deploy with change-set approval', () => {
+    test('calls deployStack with execute:false then execute-change-set', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: DEFAULT_DEPLOY_CHANGE_SET_NAME, $metadata: {} } as any,
+      });
+      mockDeployStack
+        .mockReset()
+        .mockResolvedValueOnce({
+          type: 'did-deploy-stack',
+          noOp: false,
+          outputs: {},
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('uses template-only diff with method=direct', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN — only one deployStack call with direct method
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'direct' },
+        }),
+      );
+    });
+
+    test('skips execute when prepare returns noOp', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no deployStack call, prepare was final
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+    });
+
+    test('noOp deploy still prints outputs, deployment time, and stack ARN', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — outputs, stack ARN, and success message are printed
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+      ioHost.expectMessage({ containing: '(no changes)' });
+      ioHost.expectMessage({ containing: 'BucketName' });
+      ioHost.expectMessage({ containing: 'arn:aws:cloudformation:region:account:stack/test-stack' });
+    });
+
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN — stack-with-role would normally trigger the security-sensitive
+      // approval prompt, but a no-op change set means there is nothing for the
+      // user to approve.
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
+    test('non-executing change-set skips deploy loop', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} } as any,
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set', execute: false },
+      });
+
+      // THEN — no deployStack call, prepare was final
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+    });
   });
 
   describe('deployment options', () => {

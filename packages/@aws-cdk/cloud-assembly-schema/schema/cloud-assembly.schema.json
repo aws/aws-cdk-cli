@@ -128,9 +128,19 @@
                             "$ref": "#/definitions/ContainerImageAssetMetadataEntry"
                         },
                         {
+                            "$ref": "#/definitions/PropertyMutationMetadataEntry"
+                        },
+                        {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/Tag"
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/definitions/Tag"
+                                    },
+                                    {
+                                        "type": "string"
+                                    }
+                                ]
                             }
                         },
                         {
@@ -326,6 +336,27 @@
             },
             "required": [
                 "type"
+            ]
+        },
+        "PropertyMutationMetadataEntry": {
+            "description": "Metadata type of a PropertyMutation",
+            "type": "object",
+            "properties": {
+                "propertyName": {
+                    "description": "Name of the property",
+                    "type": "string"
+                },
+                "stackTrace": {
+                    "description": "Stack trace of the mutation",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "propertyName",
+                "stackTrace"
             ]
         },
         "Tag": {

@@ -1,4 +1,5 @@
 import { integTest, withSpecificFixture } from '../../../lib';
+import { STACK_REFACTORING_REGIONS } from '../../../lib/regions';
 
 integTest(
   'cdk refactor - dry run - filters stacks by pattern',
@@ -29,5 +30,5 @@ integTest(
 
     const numberOfEnvironments = (stdErr.match(/Resource Type/g) || []).length;
     expect(numberOfEnvironments).toEqual(1);
-  }),
+  }, { aws: { regions: STACK_REFACTORING_REGIONS } }),
 );
