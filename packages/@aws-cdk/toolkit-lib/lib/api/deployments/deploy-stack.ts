@@ -513,7 +513,7 @@ class FullCloudFormationDeployment {
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
     const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
     const envResources = environmentResourcesRegistry.for(this.options.resolvedEnvironment, this.options.sdk, this.ioHelper);
-    const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources);
+    const validationReporter = new EarlyValidationReporter(this.options.sdk, envResources, this.ioHelper);
     try {
       return await waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
         fetchAll: willExecute,
