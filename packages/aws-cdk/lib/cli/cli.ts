@@ -437,7 +437,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         // Implicitly switch 'debug' mode to true, that is going to be most useful.
         configuration.settings.set(['debug'], true);
 
-        return await cli.diagnose({
+        return cli.diagnose({
           // Implicitly do all stacks if no pattern given
           stacks: {
             strategy: args.STACKS.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
