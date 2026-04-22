@@ -2,8 +2,6 @@ import {
   CreateChangeSetCommand,
   CreateStackCommand,
   DeleteStackCommand,
-  DescribeChangeSetCommand,
-  DescribeStacksCommand,
   ExecuteChangeSetCommand,
   GetTemplateCommand,
   StackStatus,
@@ -12,6 +10,8 @@ import {
 import { parse } from 'yaml';
 import { Bootstrapper, legacyBootstrapTemplate } from '../../../lib/api/bootstrap';
 import { deserializeStructure, serializeStructure, toYAML } from '../../../lib/util';
+import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
+import { advanceTime } from '../../_helpers/fake-time';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -27,61 +27,47 @@ const changeSetName = 'cdk-deploy-change-set';
 jest.mock('../../../lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
+
 let sdk: MockSdkProvider;
-let changeSetTemplate: any | undefined;
 let bootstrapper: Bootstrapper;
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('bootstrap');
+const fakeCfn = new FakeCloudFormation();
 
 beforeEach(() => {
+  jest.useFakeTimers();
   sdk = new MockSdkProvider();
   bootstrapper = new Bootstrapper({ source: 'legacy' }, ioHelper);
-  mockCloudFormationClient.reset();
+  fakeCfn.reset();
   restoreSdkMocksToDefault();
-  // First two calls, no stacks exist (first is for version checking, second is in deploy-stack.ts)
-  mockCloudFormationClient.on(CreateChangeSetCommand).callsFake((input) => {
-    changeSetTemplate = deserializeStructure(input.TemplateBody);
-    return {};
-  });
-  mockCloudFormationClient.on(DescribeChangeSetCommand).callsFake((input) => {
-    return {
-      ChangeSetName: input.ChangeSetName,
-      StackName: input.StackName,
-      Status: StackStatus.CREATE_COMPLETE,
-    };
-  });
-  mockCloudFormationClient
-    .on(DescribeStacksCommand)
-    .resolvesOnce({
-      Stacks: [],
-    })
-    .resolvesOnce({
-      Stacks: [],
-    })
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.CREATE_COMPLETE,
-          StackStatusReason: 'It is magic',
-          EnableTerminationProtection: false,
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    });
+  fakeCfn.installUsingAwsMock(mockCloudFormationClient);
 });
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+/** Helper to bootstrap and advance fake timers */
+function bootstrap(options?: Parameters<typeof bootstrapper.bootstrapEnvironment>[2]) {
+  return advanceTime(bootstrapper.bootstrapEnvironment(env, sdk, options));
+}
+
+/** The template submitted to the most recent CreateChangeSet call */
+function lastChangeSetTemplate() {
+  return fakeCfn.firstStack().lastChangeSetTemplate;
+}
 
 test('do bootstrap', async () => {
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, { toolkitStackName: 'mockStack' });
+  const ret = await bootstrap({ toolkitStackName: 'mockStack' });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
   ).toBeUndefined();
-  expect(changeSetTemplate.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
+  expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: changeSetName,
@@ -90,20 +76,18 @@ test('do bootstrap', async () => {
 
 test('do bootstrap using custom bucket name', async () => {
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, {
+  const ret = await bootstrap({
     toolkitStackName: 'mockStack',
-    parameters: {
-      bucketName: 'foobar',
-    },
+    parameters: { bucketName: 'foobar' },
   });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBe('foobar');
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
   ).toBeUndefined();
-  expect(changeSetTemplate.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
+  expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: changeSetName,
@@ -112,20 +96,18 @@ test('do bootstrap using custom bucket name', async () => {
 
 test('do bootstrap using KMS CMK', async () => {
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, {
+  const ret = await bootstrap({
     toolkitStackName: 'mockStack',
-    parameters: {
-      kmsKeyId: 'myKmsKey',
-    },
+    parameters: { kmsKeyId: 'myKmsKey' },
   });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
   ).toBe('myKmsKey');
-  expect(changeSetTemplate.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
+  expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: changeSetName,
@@ -134,20 +116,18 @@ test('do bootstrap using KMS CMK', async () => {
 
 test('bootstrap disable bucket Public Access Block Configuration', async () => {
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, {
+  const ret = await bootstrap({
     toolkitStackName: 'mockStack',
-    parameters: {
-      publicAccessBlockConfiguration: false,
-    },
+    parameters: { publicAccessBlockConfiguration: false },
   });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
   ).toBeUndefined();
-  expect(changeSetTemplate.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('false');
+  expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('false');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: changeSetName,
@@ -156,18 +136,18 @@ test('bootstrap disable bucket Public Access Block Configuration', async () => {
 
 test('do bootstrap with custom tags for toolkit stack', async () => {
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, {
+  const ret = await bootstrap({
     toolkitStackName: 'mockStack',
     tags: [{ Key: 'Foo', Value: 'Bar' }],
   });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
   ).toBeUndefined();
-  expect(changeSetTemplate.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
+  expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: changeSetName,
@@ -176,74 +156,37 @@ test('do bootstrap with custom tags for toolkit stack', async () => {
 
 test('passing trusted accounts to the old bootstrapping results in an error', async () => {
   await expect(
-    bootstrapper.bootstrapEnvironment(env, sdk, {
+    bootstrap({
       toolkitStackName: 'mockStack',
-      parameters: {
-        trustedAccounts: ['0123456789012'],
-      },
+      parameters: { trustedAccounts: ['0123456789012'] },
     }),
   ).rejects.toThrow('--trust can only be passed for the modern bootstrap experience.');
 });
 
 test('passing CFN execution policies to the old bootstrapping results in an error', async () => {
   await expect(
-    bootstrapper.bootstrapEnvironment(env, sdk, {
+    bootstrap({
       toolkitStackName: 'mockStack',
-      parameters: {
-        cloudFormationExecutionPolicies: ['arn:aws:iam::aws:policy/AdministratorAccess'],
-      },
+      parameters: { cloudFormationExecutionPolicies: ['arn:aws:iam::aws:policy/AdministratorAccess'] },
     }),
   ).rejects.toThrow('--cloudformation-execution-policies can only be passed for the modern bootstrap experience.');
 });
 
 test('even if the bootstrap stack is in a rollback state, can still retry bootstrapping it', async () => {
-  mockCloudFormationClient
-    .on(DescribeStacksCommand)
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.UPDATE_ROLLBACK_COMPLETE,
-          StackStatusReason: 'It is magic',
-          Outputs: [
-            { OutputKey: 'BucketName', OutputValue: 'bucket' },
-            { OutputKey: 'BucketDomainName', OutputValue: 'aws.com' },
-          ],
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    })
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.UPDATE_ROLLBACK_COMPLETE,
-          StackStatusReason: 'It is magic',
-          Outputs: [
-            { OutputKey: 'BucketName', OutputValue: 'bucket' },
-            { OutputKey: 'BucketDomainName', OutputValue: 'aws.com' },
-          ],
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    })
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.CREATE_COMPLETE,
-          StackStatusReason: 'It is magic',
-          EnableTerminationProtection: false,
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    });
+  fakeCfn.createStackSync({
+    StackName: 'MagicalStack',
+    StackStatus: StackStatus.UPDATE_ROLLBACK_COMPLETE,
+    Outputs: [
+      { OutputKey: 'BucketName', OutputValue: 'bucket' },
+      { OutputKey: 'BucketDomainName', OutputValue: 'aws.com' },
+    ],
+  });
 
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, { toolkitStackName: 'MagicalStack' });
+  const ret = await bootstrap({ toolkitStackName: 'MagicalStack' });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
@@ -258,50 +201,17 @@ test('even if the bootstrap stack is in a rollback state, can still retry bootst
 });
 
 test('even if the bootstrap stack failed to create, can still retry bootstrapping it', async () => {
-  mockCloudFormationClient
-    .on(DescribeStacksCommand)
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.ROLLBACK_COMPLETE,
-          StackStatusReason: 'It is magic',
-          Outputs: [{ OutputKey: 'BucketName', OutputValue: 'bucket' }],
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    })
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.ROLLBACK_COMPLETE,
-          StackStatusReason: 'It is magic',
-          Outputs: [{ OutputKey: 'BucketName', OutputValue: 'bucket' }],
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    })
-    .resolvesOnce({
-      Stacks: [],
-    })
-    .resolvesOnce({
-      Stacks: [
-        {
-          StackStatus: StackStatus.CREATE_COMPLETE,
-          StackStatusReason: 'It is magic',
-          EnableTerminationProtection: false,
-          StackName: 'MagicalStack',
-          CreationTime: new Date(),
-        },
-      ],
-    });
+  fakeCfn.createStackSync({
+    StackName: 'MagicalStack',
+    StackStatus: StackStatus.ROLLBACK_COMPLETE,
+    Outputs: [{ OutputKey: 'BucketName', OutputValue: 'bucket' }],
+  });
 
   // WHEN
-  const ret = await bootstrapper.bootstrapEnvironment(env, sdk, { toolkitStackName: 'MagicalStack' });
+  const ret = await bootstrap({ toolkitStackName: 'MagicalStack' });
 
   // THEN
-  const bucketProperties = changeSetTemplate.Resources.StagingBucket.Properties;
+  const bucketProperties = lastChangeSetTemplate()!.Resources.StagingBucket.Properties;
   expect(bucketProperties.BucketName).toBeUndefined();
   expect(
     bucketProperties.BucketEncryption.ServerSideEncryptionConfiguration[0].ServerSideEncryptionByDefault.KMSMasterKeyID,
@@ -317,8 +227,7 @@ test('even if the bootstrap stack failed to create, can still retry bootstrappin
 
 test('stack is not termination protected by default', async () => {
   // WHEN
-  // Seems silly, but we process the template multiple times to get the templateBody that goes into the call
-  await bootstrapper.bootstrapEnvironment(env, sdk);
+  await bootstrap();
 
   // THEN
   // There are only two ways that termination can be set: either through calling CreateStackCommand
@@ -345,9 +254,7 @@ test('stack is not termination protected by default', async () => {
 
 test('stack is termination protected when set', async () => {
   // WHEN
-  await bootstrapper.bootstrapEnvironment(env, sdk, {
-    terminationProtection: true,
-  });
+  await bootstrap({ terminationProtection: true });
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
@@ -390,7 +297,7 @@ test('cleans up temporary directory after bootstrap', async () => {
   const mkdtempSpy = jest.spyOn(fse, 'mkdtemp');
 
   // WHEN
-  await bootstrapper.bootstrapEnvironment(env, sdk, { toolkitStackName: 'mockStack' });
+  await bootstrap({ toolkitStackName: 'mockStack' });
 
   // THEN
   const tempDir = await mkdtempSpy.mock.results[0].value;

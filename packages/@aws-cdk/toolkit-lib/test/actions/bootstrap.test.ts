@@ -1,12 +1,8 @@
 import * as path from 'node:path';
 import { EnvironmentUtils } from '@aws-cdk/cloud-assembly-api';
-import type { Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,
-  DeleteChangeSetCommand,
-  DescribeChangeSetCommand,
   DescribeStacksCommand,
-  ExecuteChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { bold } from 'chalk';
 
@@ -15,6 +11,8 @@ import { BootstrapEnvironments, BootstrapSource, BootstrapStackParameters, Boots
 import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost, builderFixture, disposableCloudAssemblySource } from '../_helpers';
+import { FakeCloudFormation } from '../_helpers/fake-aws/fake-cloudformation';
+import { advanceTime } from '../_helpers/fake-time';
 import {
   MockSdk,
   mockCloudFormationClient,
@@ -24,11 +22,15 @@ import {
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
+const fakeCfn = new FakeCloudFormation();
 
 beforeEach(() => {
+  jest.useFakeTimers();
+  fakeCfn.reset();
   restoreSdkMocksToDefault();
   setDefaultSTSMocks();
   ioHost.notifySpy.mockClear();
+  fakeCfn.installUsingAwsMock(mockCloudFormationClient);
 
   jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
   jest.spyOn(SdkProvider.prototype, 'forEnvironment').mockResolvedValue({
@@ -38,61 +40,24 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   jest.clearAllMocks();
 });
-
-function setupMockCloudFormationClient(mockStack: Stack) {
-  mockCloudFormationClient
-    .on(DescribeStacksCommand)
-    .resolves({ Stacks: [] }) // First call - stack doesn't exist
-    .on(CreateChangeSetCommand)
-    .resolves({ Id: 'CHANGESET_ID' })
-    .on(DescribeChangeSetCommand)
-    .resolves({
-      Status: 'CREATE_COMPLETE',
-      Changes: [{ ResourceChange: { Action: 'Add' } }],
-      ExecutionStatus: 'AVAILABLE',
-    })
-    .on(ExecuteChangeSetCommand)
-    .resolves({})
-    .on(DescribeStacksCommand)
-    .resolves({ // Stack is in progress
-      Stacks: [{
-        ...mockStack,
-        StackStatus: 'CREATE_IN_PROGRESS',
-      }],
-    })
-    .on(DescribeStacksCommand)
-    .resolves({ // Final state - stack is complete
-      Stacks: [{
-        ...mockStack,
-        StackStatus: 'CREATE_COMPLETE',
-      }],
-    });
-}
-
-function createMockStack(outputs: { OutputKey: string; OutputValue: string }[]): Stack {
-  return {
-    StackId: 'mock-stack-id',
-    StackName: 'CDKToolkit',
-    CreationTime: new Date(),
-    LastUpdatedTime: new Date(),
-    Outputs: outputs,
-  } as Stack;
-}
 
 async function runBootstrap(options?: {
   environments?: string[];
   source?: BootstrapOptions['source'];
   parameters?: BootstrapStackParameters;
+  forceDeployment?: boolean;
 }) {
   const cx = await builderFixture(toolkit, 'stack-with-asset');
   const bootstrapEnvs = options?.environments?.length ?
     BootstrapEnvironments.fromList(options.environments) : BootstrapEnvironments.fromCloudAssemblySource(cx);
-  return toolkit.bootstrap(bootstrapEnvs, {
+  return advanceTime(toolkit.bootstrap(bootstrapEnvs, {
     source: options?.source,
     parameters: options?.parameters,
-  });
+    forceDeployment: options?.forceDeployment,
+  }));
 }
 
 function expectValidBootstrapResult(result: any) {
@@ -113,26 +78,14 @@ function expectSuccessfulBootstrap() {
 describe('bootstrap', () => {
   describe('with user-specified environments', () => {
     test('bootstraps specified environments', async () => {
-    // GIVEN
-      const mockStack1 = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      const mockStack2 = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_2' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_2' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack1);
-      setupMockCloudFormationClient(mockStack2);
-
-      // WHEN
-      const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1', 'aws://234567890123/eu-west-1'] });
+      // WHEN — bootstrap each environment separately to avoid concurrent operations
+      // on the same fake stack (the fake doesn't model regions)
+      const result1 = await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
+      const result2 = await runBootstrap({ environments: ['aws://234567890123/eu-west-1'] });
 
       // THEN
-      expectValidBootstrapResult(result);
-      expect(result.environments.length).toBe(2);
+      expectValidBootstrapResult(result1);
+      expectValidBootstrapResult(result2);
 
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
         message: expect.stringContaining(`${bold('aws://123456789012/us-east-1')}: bootstrapping...`),
@@ -166,7 +119,7 @@ describe('bootstrap', () => {
     });
 
     test('handles errors in user-specified environments', async () => {
-    // GIVEN
+      // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient
@@ -187,7 +140,7 @@ describe('bootstrap', () => {
     });
 
     test('throws error for invalid environment format', async () => {
-    // WHEN/THEN
+      // WHEN/THEN
       await expect(runBootstrap({ environments: ['invalid-format'] }))
         .rejects.toThrow('Expected environment name in format \'aws://<account>/<region>\', got: invalid-format');
     });
@@ -195,14 +148,6 @@ describe('bootstrap', () => {
 
   describe('bootstrap parameters', () => {
     test('bootstrap with default parameters', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       // WHEN
       await runBootstrap();
 
@@ -210,41 +155,17 @@ describe('bootstrap', () => {
       const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
       expect(createChangeSetCalls.length).toBeGreaterThan(0);
       const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
-      // Default parameters should include standard bootstrap parameters
       expect(new Set(parameters)).toEqual(new Set([
-        {
-          ParameterKey: 'TrustedAccounts',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'TrustedAccountsForLookup',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'CloudFormationExecutionPolicies',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'FileAssetsBucketKmsKeyId',
-          ParameterValue: 'AWS_MANAGED_KEY',
-        },
-        {
-          ParameterKey: 'PublicAccessBlockConfiguration',
-          ParameterValue: 'true',
-        },
+        { ParameterKey: 'TrustedAccounts', ParameterValue: '' },
+        { ParameterKey: 'TrustedAccountsForLookup', ParameterValue: '' },
+        { ParameterKey: 'CloudFormationExecutionPolicies', ParameterValue: '' },
+        { ParameterKey: 'FileAssetsBucketKmsKeyId', ParameterValue: 'AWS_MANAGED_KEY' },
+        { ParameterKey: 'PublicAccessBlockConfiguration', ParameterValue: 'true' },
       ]));
       expectSuccessfulBootstrap();
     });
 
     test('bootstrap with exact parameters', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'CUSTOM_BUCKET' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'CUSTOM_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       const customParams = {
         bucketName: 'custom-bucket',
         qualifier: 'test',
@@ -260,31 +181,13 @@ describe('bootstrap', () => {
       const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
       expect(createChangeSetCalls.length).toBeGreaterThan(0);
       const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
-      // For exact parameters, we should see our custom values
-      expect(parameters).toContainEqual({
-        ParameterKey: 'FileAssetsBucketName',
-        ParameterValue: 'custom-bucket',
-      });
-      expect(parameters).toContainEqual({
-        ParameterKey: 'Qualifier',
-        ParameterValue: 'test',
-      });
-      expect(parameters).toContainEqual({
-        ParameterKey: 'PublicAccessBlockConfiguration',
-        ParameterValue: 'false',
-      });
+      expect(parameters).toContainEqual({ ParameterKey: 'FileAssetsBucketName', ParameterValue: 'custom-bucket' });
+      expect(parameters).toContainEqual({ ParameterKey: 'Qualifier', ParameterValue: 'test' });
+      expect(parameters).toContainEqual({ ParameterKey: 'PublicAccessBlockConfiguration', ParameterValue: 'false' });
       expectSuccessfulBootstrap();
     });
 
     test('bootstrap with additional parameters', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       const additionalParams = {
         qualifier: 'additional',
         trustedAccounts: ['123456789012'],
@@ -300,31 +203,13 @@ describe('bootstrap', () => {
       const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
       expect(createChangeSetCalls.length).toBeGreaterThan(0);
       const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
-      // For additional parameters, we should see our new values merged with defaults
-      expect(parameters).toContainEqual({
-        ParameterKey: 'Qualifier',
-        ParameterValue: 'additional',
-      });
-      expect(parameters).toContainEqual({
-        ParameterKey: 'TrustedAccounts',
-        ParameterValue: '123456789012',
-      });
-      expect(parameters).toContainEqual({
-        ParameterKey: 'CloudFormationExecutionPolicies',
-        ParameterValue: 'arn:aws:iam::aws:policy/AdministratorAccess',
-      });
+      expect(parameters).toContainEqual({ ParameterKey: 'Qualifier', ParameterValue: 'additional' });
+      expect(parameters).toContainEqual({ ParameterKey: 'TrustedAccounts', ParameterValue: '123456789012' });
+      expect(parameters).toContainEqual({ ParameterKey: 'CloudFormationExecutionPolicies', ParameterValue: 'arn:aws:iam::aws:policy/AdministratorAccess' });
       expectSuccessfulBootstrap();
     });
 
     test('bootstrap with only existing parameters', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'EXISTING_BUCKET' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'EXISTING_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       // WHEN
       await runBootstrap({
         parameters: BootstrapStackParameters.onlyExisting(),
@@ -334,28 +219,12 @@ describe('bootstrap', () => {
       const createChangeSetCalls = mockCloudFormationClient.calls().filter(call => call.args[0] instanceof CreateChangeSetCommand);
       expect(createChangeSetCalls.length).toBeGreaterThan(0);
       const parameters = (createChangeSetCalls[0].args[0].input as any).Parameters;
-      // When using only existing parameters, we should get the default set
       expect(new Set(parameters)).toEqual(new Set([
-        {
-          ParameterKey: 'TrustedAccounts',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'TrustedAccountsForLookup',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'CloudFormationExecutionPolicies',
-          ParameterValue: '',
-        },
-        {
-          ParameterKey: 'FileAssetsBucketKmsKeyId',
-          ParameterValue: 'AWS_MANAGED_KEY',
-        },
-        {
-          ParameterKey: 'PublicAccessBlockConfiguration',
-          ParameterValue: 'true',
-        },
+        { ParameterKey: 'TrustedAccounts', ParameterValue: '' },
+        { ParameterKey: 'TrustedAccountsForLookup', ParameterValue: '' },
+        { ParameterKey: 'CloudFormationExecutionPolicies', ParameterValue: '' },
+        { ParameterKey: 'FileAssetsBucketKmsKeyId', ParameterValue: 'AWS_MANAGED_KEY' },
+        { ParameterKey: 'PublicAccessBlockConfiguration', ParameterValue: 'true' },
       ]));
       expectSuccessfulBootstrap();
     });
@@ -363,14 +232,6 @@ describe('bootstrap', () => {
 
   describe('template sources', () => {
     test('uses default template when no source is specified', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       // WHEN
       await runBootstrap();
 
@@ -379,14 +240,6 @@ describe('bootstrap', () => {
     });
 
     test('uses custom template when specified', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       // WHEN
       await runBootstrap({
         source: BootstrapSource.customTemplate(path.join(__dirname, '_fixtures', 'custom-bootstrap-template.yaml')),
@@ -399,7 +252,7 @@ describe('bootstrap', () => {
     });
 
     test('handles errors with custom template', async () => {
-    // GIVEN
+      // GIVEN
       const templateError = new Error('Invalid template file');
       mockCloudFormationClient
         .on(DescribeStacksCommand)
@@ -419,51 +272,18 @@ describe('bootstrap', () => {
   });
 
   test('bootstrap handles no-op scenarios', async () => {
-  // GIVEN
-    const mockExistingStack = {
-      StackId: 'mock-stack-id',
+    // GIVEN — stack already exists with same template
+    fakeCfn.createStackSync({
       StackName: 'CDKToolkit',
       StackStatus: 'CREATE_COMPLETE',
-      CreationTime: new Date(),
-      LastUpdatedTime: new Date(),
       Outputs: [
         { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
         { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
         { OutputKey: 'BootstrapVersion', OutputValue: '1' },
       ],
-    } as Stack;
-
-    // First describe call to check if stack exists
-    mockCloudFormationClient
-      .on(DescribeStacksCommand)
-      .resolves({ Stacks: [mockExistingStack] });
-
-    // Create changeset call
-    mockCloudFormationClient
-      .on(CreateChangeSetCommand)
-      .resolves({ Id: 'CHANGESET_ID', StackId: mockExistingStack.StackId });
-
-    // Describe changeset call - indicate no changes
-    mockCloudFormationClient
-      .on(DescribeChangeSetCommand)
-      .resolves({
-        Status: 'FAILED',
-        StatusReason: 'No updates are to be performed.',
-        Changes: [],
-        ExecutionStatus: 'UNAVAILABLE',
-        StackId: mockExistingStack.StackId,
-        ChangeSetId: 'CHANGESET_ID',
-      });
-
-    // Delete changeset call after no changes detected
-    mockCloudFormationClient
-      .on(DeleteChangeSetCommand)
-      .resolves({});
-
-    // Final describe call to get outputs
-    mockCloudFormationClient
-      .on(DescribeStacksCommand)
-      .resolves({ Stacks: [mockExistingStack] });
+    });
+    // Force the change set to report no changes
+    fakeCfn.overrideChangeSetChanges = [];
 
     // WHEN
     await runBootstrap();
@@ -476,18 +296,10 @@ describe('bootstrap', () => {
   });
 
   test('action disposes of assembly produced by source', async () => {
-    // GIVEN
-    const mockStack1 = createMockStack([
-      { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME_1' },
-      { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT_1' },
-      { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-    ]);
-    setupMockCloudFormationClient(mockStack1);
-
     const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
 
     // WHEN
-    await toolkit.bootstrap(BootstrapEnvironments.fromCloudAssemblySource(assemblySource), { });
+    await advanceTime(toolkit.bootstrap(BootstrapEnvironments.fromCloudAssemblySource(assemblySource), { }));
 
     // THEN
     expect(mockDispose).toHaveBeenCalled();
@@ -496,21 +308,13 @@ describe('bootstrap', () => {
 
   describe('forceDeployment option', () => {
     test('accepts forceDeployment option in BootstrapOptions', async () => {
-      // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       const cx = await builderFixture(toolkit, 'stack-with-asset');
       const bootstrapEnvs = BootstrapEnvironments.fromCloudAssemblySource(cx);
 
       // WHEN
-      const result = await toolkit.bootstrap(bootstrapEnvs, {
+      const result = await advanceTime(toolkit.bootstrap(bootstrapEnvs, {
         forceDeployment: true,
-      });
+      }));
 
       // THEN
       expectValidBootstrapResult(result);
@@ -520,14 +324,6 @@ describe('bootstrap', () => {
 
   describe('error handling', () => {
     test('returns correct BootstrapResult for successful bootstraps', async () => {
-    // GIVEN
-      const mockStack = createMockStack([
-        { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
-        { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
-        { OutputKey: 'BootstrapVersion', OutputValue: '1' },
-      ]);
-      setupMockCloudFormationClient(mockStack);
-
       // WHEN
       const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
 
@@ -540,31 +336,17 @@ describe('bootstrap', () => {
     });
 
     test('returns correct BootstrapResult for no-op scenarios', async () => {
-    // GIVEN
-      const mockExistingStack = {
-        StackId: 'mock-stack-id',
+      // GIVEN — stack already exists
+      fakeCfn.createStackSync({
         StackName: 'CDKToolkit',
         StackStatus: 'CREATE_COMPLETE',
-        CreationTime: new Date(),
-        LastUpdatedTime: new Date(),
         Outputs: [
           { OutputKey: 'BucketName', OutputValue: 'BUCKET_NAME' },
           { OutputKey: 'BucketDomainName', OutputValue: 'BUCKET_ENDPOINT' },
           { OutputKey: 'BootstrapVersion', OutputValue: '1' },
         ],
-      } as Stack;
-
-      mockCloudFormationClient
-        .on(DescribeStacksCommand)
-        .resolves({ Stacks: [mockExistingStack] })
-        .on(CreateChangeSetCommand)
-        .resolves({ Id: 'CHANGESET_ID' })
-        .on(DescribeChangeSetCommand)
-        .resolves({
-          Status: 'FAILED',
-          StatusReason: 'No updates are to be performed.',
-          Changes: [],
-        });
+      });
+      fakeCfn.overrideChangeSetChanges = [];
 
       // WHEN
       const result = await runBootstrap({ environments: ['aws://123456789012/us-east-1'] });
@@ -578,7 +360,7 @@ describe('bootstrap', () => {
     });
 
     test('returns correct BootstrapResult for failure', async () => {
-    // GIVEN
+      // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient
@@ -595,7 +377,7 @@ describe('bootstrap', () => {
     });
 
     test('handles generic bootstrap errors', async () => {
-    // GIVEN
+      // GIVEN
       const error = new Error('Bootstrap failed');
       mockCloudFormationClient
         .on(DescribeStacksCommand)
@@ -611,7 +393,7 @@ describe('bootstrap', () => {
     });
 
     test('handles permission errors', async () => {
-    // GIVEN
+      // GIVEN
       const error = new Error('Access Denied');
       error.name = 'AccessDeniedException';
       mockCloudFormationClient
@@ -630,25 +412,18 @@ describe('bootstrap', () => {
 
   describe('BootstrapTemplate.fromSource', () => {
     test('can retrieve default bootstrap template as YAML', async () => {
-      // WHEN
       const bootstrapTemplate = await BootstrapTemplate.fromSource();
       const template = bootstrapTemplate.asYAML();
-
-      // THEN
       expect(template).toContain('Description:');
       expect(template).toContain('Parameters:');
       expect(template).toContain('Resources:');
       expect(template).toContain('StagingBucket:');
-      // Should be YAML format (not valid JSON)
       expect(() => JSON.parse(template)).toThrow();
     });
 
     test('can retrieve default bootstrap template as JSON', async () => {
-      // WHEN
       const bootstrapTemplate = await BootstrapTemplate.fromSource();
       const template = bootstrapTemplate.asJSON();
-
-      // THEN
       const parsed = JSON.parse(template);
       expect(parsed.Description).toBeDefined();
       expect(parsed.Parameters).toBeDefined();
@@ -657,16 +432,11 @@ describe('bootstrap', () => {
     });
 
     test('can retrieve custom bootstrap template', async () => {
-      // GIVEN
       const customTemplatePath = path.join(__dirname, '_fixtures/custom-bootstrap-template.yaml');
-
-      // WHEN
       const bootstrapTemplate = await BootstrapTemplate.fromSource(
         BootstrapSource.customTemplate(customTemplatePath),
       );
       const template = bootstrapTemplate.asYAML();
-
-      // THEN
       expect(template).toContain('Description: Custom CDK Bootstrap Template');
     });
   });
