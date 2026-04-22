@@ -67,7 +67,7 @@ function stackArn(name: string) {
   return `arn:aws:cloudformation:us-east-1:123456789012:stack/${name}/${uid()}`;
 }
 
-function changeSetArn(_stackName: string, csName: string) {
+function changeSetArn(csName: string) {
   return `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${csName}/${uid()}`;
 }
 
@@ -80,11 +80,10 @@ function cfnError(code: string, message: string): never {
 /** Parse a template body string (JSON or YAML) or return the object as-is */
 function parseTemplate(body?: string): Record<string, any> {
   if (!body) return {};
-  if (typeof body !== 'string') return body as any;
   try {
     return yaml.parse(body);
   } catch (e) {
-    throw new Error(`Error pasing template: ${body}`);
+    throw new Error(`Error parsing template: ${body}`);
   }
 }
 
@@ -379,7 +378,7 @@ export class FakeCloudFormation {
     const stackName = input.StackName;
     const stack = this.requireStack(stackName);
     const csName = input.ChangeSetName ?? `cs-${uid()}`;
-    const csId = changeSetArn(stackName, csName);
+    const csId = changeSetArn(csName);
     const template = input.TemplateBody ? parseTemplate(input.TemplateBody) : stack.template;
 
     // Determine final status: if explicitly provided use that, otherwise compute
@@ -413,6 +412,7 @@ export class FakeCloudFormation {
       creationTime: new Date(),
     };
     stack.changeSets.push(cs);
+    stack.lastChangeSetTemplate = template;
     this.changeSetToStack.set(csId, stack.name);
     return { Id: csId, StackId: stack.id, $metadata: {} };
   }
@@ -728,7 +728,7 @@ export class FakeCloudFormation {
       cfnError('AlreadyExistsException', `ChangeSet [${csName}] already exists`);
     }
 
-    const csId = changeSetArn(stackName, csName);
+    const csId = changeSetArn(csName);
     const cs: InMemoryChangeSet = {
       name: csName,
       id: csId,
@@ -875,13 +875,17 @@ export class FakeCloudFormation {
 
   /** Check if any resource in the template has Fail: true, or alwaysFailResources is set */
   private shouldFail(template: Record<string, any>): boolean {
-    if (this.alwaysFailResources || this.consumeFailFirstDeploy()) return true;
+    if (this.shouldForceFailAll()) return true;
     const resources = templateResources(template);
     return Object.values(resources).some((r: any) => r.Properties?.Fail === true);
   }
 
-  /** Returns true once if failFirstDeploy is set, then clears it */
-  private consumeFailFirstDeploy(): boolean {
+  /**
+   * Returns true if all resources should be forced to fail.
+   * Consumes the failFirstDeploy flag if set.
+   */
+  private shouldForceFailAll(): boolean {
+    if (this.alwaysFailResources) return true;
     if (this.failFirstDeploy) {
       this.failFirstDeploy = false;
       return true;
@@ -892,7 +896,7 @@ export class FakeCloudFormation {
   /** "Create" resources — just generate events for each resource */
   private createResources(stack: InMemoryStack, template: Record<string, any>): { failed: boolean; created: string[] } {
     const created: string[] = [];
-    const forceFailAll = this.alwaysFailResources || this.consumeFailFirstDeploy();
+    const forceFailAll = this.shouldForceFailAll();
     for (const [logicalId, res] of Object.entries(templateResources(template))) {
       const r = res as any;
       if (forceFailAll || r.Properties?.Fail === true) {
