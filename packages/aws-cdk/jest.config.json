@@ -52,6 +52,9 @@
     ]
   ],
   "randomize": true,
+  "moduleNameMapper": {
+    "^@clack/core$": "<rootDir>/test/_helpers/mock-clack-core.js"
+  },
   "testTimeout": 60000,
   "setupFilesAfterEnv": [
     "<rootDir>/test/_helpers/jest-setup-after-env.ts"

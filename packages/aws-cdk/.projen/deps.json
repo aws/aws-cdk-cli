@@ -44,10 +44,6 @@
       "type": "build"
     },
     {
-      "name": "@types/promptly",
-      "type": "build"
-    },
-    {
       "name": "@types/semver",
       "type": "build"
     },
@@ -303,6 +299,10 @@
       "type": "runtime"
     },
     {
+      "name": "@clack/core",
+      "type": "runtime"
+    },
+    {
       "name": "@smithy/middleware-endpoint",
       "type": "runtime"
     },
@@ -359,10 +359,6 @@
       "type": "runtime"
     },
     {
-      "name": "enquirer",
-      "type": "runtime"
-    },
-    {
       "name": "fast-glob",
       "type": "runtime"
     },
@@ -383,10 +379,6 @@
     },
     {
       "name": "picomatch",
-      "type": "runtime"
-    },
-    {
-      "name": "promptly",
       "type": "runtime"
     },
     {

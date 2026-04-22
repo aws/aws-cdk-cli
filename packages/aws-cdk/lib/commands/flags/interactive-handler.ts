@@ -1,8 +1,20 @@
 import type { FeatureFlag } from '@aws-cdk/toolkit-lib';
-// @ts-ignore
-import { Select } from 'enquirer';
+import { SelectPrompt, isCancel } from '@clack/core';
 import type { FlagOperations } from './operations';
 import { FlagsMenuOptions, type FlagOperationsParams } from './types';
+
+async function promptSelect<T extends string>(message: string, choices: { value: T; label: string }[]): Promise<T | symbol> {
+  const p = new SelectPrompt({
+    options: choices,
+    render() {
+      const lines = choices.map((c, i) =>
+        i === this.cursor ? `> ${c.label}` : `  ${c.label}`,
+      );
+      return `${message}\n${lines.join('\n')}`;
+    },
+  });
+  return p.prompt() as Promise<T | symbol>;
+}
 
 export class InteractiveHandler {
   constructor(
@@ -30,13 +42,10 @@ export class InteractiveHandler {
   async handleInteractiveMode(): Promise<FlagOperationsParams | null> {
     await this.displayFlagsWithDifferences();
 
-    const prompt = new Select({
-      name: 'option',
-      message: 'Menu',
-      choices: Object.values(FlagsMenuOptions),
-    });
+    const choices = Object.values(FlagsMenuOptions).map(o => ({ value: o, label: o }));
+    const answer = await promptSelect('Menu', choices);
 
-    const answer = await prompt.run();
+    if (isCancel(answer)) return null;
 
     switch (answer) {
       case FlagsMenuOptions.ALL_TO_RECOMMENDED:
@@ -58,22 +67,23 @@ export class InteractiveHandler {
   private async handleSpecificFlagSelection(): Promise<FlagOperationsParams> {
     const booleanFlags = this.flags.filter(flag => this.flagOperations.isBooleanFlag(flag));
 
-    const flagPrompt = new Select({
-      name: 'flag',
-      message: 'Select which flag you would like to modify:',
-      limit: 100,
-      choices: booleanFlags.map(flag => flag.name),
-    });
+    const selectedFlagName = await promptSelect(
+      'Select which flag you would like to modify:',
+      booleanFlags.map(flag => ({ value: flag.name, label: flag.name })),
+    );
 
-    const selectedFlagName = await flagPrompt.run();
+    if (isCancel(selectedFlagName)) {
+      return { set: false };
+    }
 
-    const valuePrompt = new Select({
-      name: 'value',
-      message: 'Select a value:',
-      choices: ['true', 'false'],
-    });
+    const value = await promptSelect(
+      'Select a value:',
+      [{ value: 'true', label: 'true' }, { value: 'false', label: 'false' }],
+    );
 
-    const value = await valuePrompt.run();
+    if (isCancel(value)) {
+      return { set: false };
+    }
 
     return {
       FLAGNAME: [selectedFlagName],
