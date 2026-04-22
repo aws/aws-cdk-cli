@@ -95,7 +95,7 @@ async function cfnDiff(
       sdkProvider,
       resourcesToImport,
       parameters: methodOptions.parameters ?? {},
-      failOnError: !methodOptions.fallbackToTemplate,
+      failOnError: !(methodOptions.fallbackToTemplate ?? true),
       importExistingResources: methodOptions.importExistingResources,
       uuid: uuid.v4(),
       willExecute: false,
