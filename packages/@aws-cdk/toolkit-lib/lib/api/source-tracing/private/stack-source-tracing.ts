@@ -1,9 +1,9 @@
-import { SourceTrace } from "../types";
-import { ISourceTracer } from "./source-tracing";
+import * as fs from 'fs';
+import * as path from 'path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import * as path from 'path';
-import * as fs from 'fs';
+import type { SourceTrace } from '../types';
+import type { ISourceTracer } from './source-tracing';
 
 /**
  * Use a stack artifact as the root for tracing problems with this deployment
@@ -31,7 +31,12 @@ export class StackArtifactSourceTracer implements ISourceTracer {
   constructor(private readonly stack: cxapi.CloudFormationStackArtifact) {
   }
 
-  public async traceResource(_stackName: string, nestedStackLogicalIds: string[], logicalId: string, propertyName?: string): Promise<SourceTrace | undefined> {
+  public async traceResource(
+    _stackName: string,
+    nestedStackLogicalIds: string[],
+    logicalId: string,
+    propertyName?: string,
+  ): Promise<SourceTrace | undefined> {
     const containingTemplate = getStackTemplate(this.stack, nestedStackLogicalIds);
 
     const constructPath = containingTemplate?.Resources?.[logicalId]?.Metadata?.[cxapi.PATH_METADATA_KEY];
@@ -120,7 +125,6 @@ function resourceMetadata(stack: cxapi.CloudFormationStackArtifact, constructPat
 
   return (stack.metadata[constructPath] ?? []).filter((m) => m.type === metadataType);
 }
-
 
 /**
  * Find the stack template given a root stack and a logical ID path into nested stacks

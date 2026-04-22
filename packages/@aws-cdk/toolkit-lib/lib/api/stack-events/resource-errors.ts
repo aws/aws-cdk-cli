@@ -1,7 +1,7 @@
-import { StackEvent } from "@aws-sdk/client-cloudformation";
-import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from "../../util/cloudformation";
-import { DeploymentErrorCodes } from "../../toolkit/toolkit-error";
-import { ResourceEvent } from "./stack-event-poller";
+import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { ResourceEvent } from './stack-event-poller';
+import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
+import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util/cloudformation';
 
 export interface ResourceError {
   /**
@@ -44,7 +44,6 @@ export interface ResourceError {
    */
   readonly errorCode?: string;
 }
-
 
 /**
  * Class used to send stack event errors into, to come up with root causes.
@@ -92,7 +91,6 @@ export class ResourceErrors {
   public get rootCauseErrorCode(): string | undefined {
     return this.allErrorCodes[0];
   }
-
 
   /**
    * Return error messages of all encountered errors (that aren't cancellations)

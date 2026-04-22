@@ -1,14 +1,16 @@
-import { ChangeSetStatus, ChangeSetSummary, ChangeType, Stack } from "@aws-sdk/client-cloudformation";
-import { ICloudFormationClient, SDK } from "../aws-auth/sdk";
-import { EnvironmentResources } from "../environment";
-import { OldestEvent, StackEventPoller } from "../stack-events";
-import { ResourceError, ResourceErrors } from "../stack-events/resource-errors";
-import { StackStatus } from "../stack-events/stack-status";
-import { EarlyValidationError, EarlyValidationReporter } from "./early-validation";
-import { ISourceTracer } from "../source-tracing/private/source-tracing";
-import { createBranded } from "../../util/type-brands";
-import { StackDiagnosis, TracedResourceError } from "../../actions/diagnose";
-import { IoHelper } from "../io/private/io-helper";
+import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
+import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
+import type { EarlyValidationError } from './early-validation';
+import { EarlyValidationReporter } from './early-validation';
+import type { StackDiagnosis, TracedResourceError } from '../../actions/diagnose';
+import { createBranded } from '../../util/type-brands';
+import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
+import type { EnvironmentResources } from '../environment';
+import type { IoHelper } from '../io/private/io-helper';
+import type { ISourceTracer } from '../source-tracing/private/source-tracing';
+import { OldestEvent, StackEventPoller } from '../stack-events';
+import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
+import { StackStatus } from '../stack-events/stack-status';
 
 export interface CloudFormationStackDiagnoserProps {
   readonly sdk: SDK;
@@ -66,7 +68,6 @@ export class CloudFormationStackDiagnoser {
       }
 
       return await this._diagnoseChangeSetFailureFromStackName(stackName);
-
     } catch (e: any) {
       return { type: 'error-diagnosing', message: e.message };
     }
@@ -135,7 +136,7 @@ export class CloudFormationStackDiagnoser {
 
     const failed = cs.filter(x => x.Status === ChangeSetStatus.FAILED);
     if (failed.length === 0) {
-      return { type: 'no-problem' }
+      return { type: 'no-problem' };
     }
 
     return this._diagnoseChangeSetFailure(failed[0]);
@@ -151,21 +152,22 @@ export class CloudFormationStackDiagnoser {
    */
   private async _diagnoseChangeSetFailure(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
     if (changeSet.Status !== ChangeSetStatus.FAILED) {
-      return { type: 'no-problem' }
+      return { type: 'no-problem' };
     }
 
     if (changeSetHasNoChanges(changeSet)) {
       // This will lead to a change set that is FAILED but it's not actually a problem
-      return { type: 'no-problem' }
+      return { type: 'no-problem' };
     }
 
     const isEarlyValidationError = changeSet.StatusReason?.includes('AWS::EarlyValidation');
     if (isEarlyValidationError) {
-      const ev = await new EarlyValidationReporter(this.props.sdk, this.props.envResources).fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
+      const ev = await new EarlyValidationReporter(this.props.sdk, this.props.envResources)
+        .fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
       switch (ev.type) {
         case 'could-not-check':
           // Emit the warning here and otherwise just return an empty error block
-          this.props.ioHelper.defaults.warn(ev.message);
+          await this.props.ioHelper.defaults.warn(ev.message);
           return {
             type: 'problem',
             detectedBy: {
@@ -208,6 +210,7 @@ export class CloudFormationStackDiagnoser {
   }
 
   private async addErrorTraces(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     return Promise.all(errs.map((e) => this.addErrorTrace(e)));
   }
 
@@ -270,7 +273,11 @@ export class CloudFormationStackDiagnoser {
     return nestedDiag._diagnoseChangeSetFailure(nestedCs);
   }
 
-  private async _findFailedNestedStack(changeSet: ChangeSetSummary): Promise<{ stackName: string, changeSetName: string; logicalId: string } | undefined> {
+  private async _findFailedNestedStack(changeSet: ChangeSetSummary): Promise<{
+    stackName: string;
+    changeSetName: string;
+    logicalId: string;
+  } | undefined> {
     // The status reason only includes the change set ID, but we also need the stack name. The way to get this is
     // describe the current change set, then from the Changes find the stack whose ChangeSetId is mentioned in the
     // status reason, then look up that change set and recurse into a regular change set diagnosis.
@@ -326,7 +333,6 @@ export class CloudFormationStackDiagnoser {
     if (markerIndex === -1) {
       return undefined;
     }
-
 
     const ret: ResourceError[] = [];
     let remaining = message.slice(markerIndex + marker.length);

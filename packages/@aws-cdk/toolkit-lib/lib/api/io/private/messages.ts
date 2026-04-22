@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiagnosedStack } from '../../../actions/diagnose';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
@@ -30,7 +31,6 @@ import type {
   StackAndAssemblyData,
 } from '../../../payloads/types';
 import type { FileWatchEvent, WatchSettings } from '../../../payloads/watch';
-import { DiagnosedStack } from '../../../actions/diagnose';
 
 /**
  * We have a rough system by which we assign message codes:

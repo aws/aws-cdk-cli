@@ -16,12 +16,12 @@ import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
+import type { TargetEnvironment } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
-import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
-import { TargetEnvironment } from '../environment';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 
 /**
  * Describe a changeset in CloudFormation, regardless of its current state.
@@ -105,7 +105,7 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
-  { fetchAll, diagnoser }: { fetchAll: boolean, diagnoser: CloudFormationStackDiagnoser },
+  { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
 ): Promise<DescribeChangeSetCommandOutput> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
@@ -195,8 +195,8 @@ export interface CreateChangeSetOptions {
   importExistingResources?: boolean;
   includeNestedStacks?: boolean;
   role?: string;
-  diagnoser: CloudFormationStackDiagnoser,
-};
+  diagnoser: CloudFormationStackDiagnoser;
+}
 
 /**
  * Create a changeset for a diff operation

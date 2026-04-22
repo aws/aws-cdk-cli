@@ -1,4 +1,4 @@
-import { SourceTrace } from "../types";
+import type { SourceTrace } from '../types';
 
 /**
  * Interface for classes that can trace CloudFormation elements to CDK source

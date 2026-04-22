@@ -67,7 +67,7 @@ export class CloudFormationStack {
 
   public get underlyingStackObject(): Stack {
     if (!this.stack) {
-      throw new ToolkitError('NoStack', `CloudFormationStack object does not hold a stack`);
+      throw new ToolkitError('NoStack', 'CloudFormationStack object does not hold a stack');
     }
     return this.stack;
   }

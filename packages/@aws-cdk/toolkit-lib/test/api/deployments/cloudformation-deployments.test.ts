@@ -16,6 +16,7 @@ import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -29,7 +30,6 @@ import {
 } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
-import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');
@@ -1204,8 +1204,6 @@ test('tags are passed along to create change set', async () => {
   for (const methodName of Object.getOwnPropertyNames(cxapi.CloudFormationStackArtifact.prototype)) {
     stack[methodName] = jest.fn();
   }
-
-  const sdk = new MockSdk();
 
   await cfnApi.createChangeSet(
     ioHelper,

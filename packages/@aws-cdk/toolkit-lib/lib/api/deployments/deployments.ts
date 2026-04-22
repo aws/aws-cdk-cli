@@ -32,14 +32,14 @@ import {
   loadCurrentTemplateWithNestedStacks,
   makeBodyParameter,
 } from '../cloudformation';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
+import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 import { StackActivityMonitor, StackEventPoller, RollbackChoice, OldestEvent } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
-import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
-import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
 const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;
 

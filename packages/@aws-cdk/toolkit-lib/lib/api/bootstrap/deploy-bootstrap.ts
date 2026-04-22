@@ -15,12 +15,12 @@ import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { deployStack } from '../deployments/deploy-stack';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { NoBootstrapStackEnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
-import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
-import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { NO_SOURCE_TRACE } from '../source-tracing/private/source-tracing';
+import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 
 /**
  * A class to hold state around stack bootstrapping

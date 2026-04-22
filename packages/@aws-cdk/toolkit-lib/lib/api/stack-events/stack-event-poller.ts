@@ -1,7 +1,8 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { ResourceError } from './resource-errors';
+import { ResourceErrors } from './resource-errors';
 import { formatErrorMessage, isRootStackEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
-import { ResourceError, ResourceErrors } from './resource-errors';
 
 export interface StackEventPollerProps {
   /**
@@ -41,8 +42,8 @@ export abstract class OldestEvent {
   public static timestamp(startTime: number): IOldestEvent {
     return {
       shouldStop(event) {
-          return event.event.Timestamp!.valueOf() < startTime ?  'stop-exclude' : 'continue';
-      }
+        return event.event.Timestamp!.valueOf() < startTime ? 'stop-exclude' : 'continue';
+      },
     };
   }
 
@@ -55,8 +56,8 @@ export abstract class OldestEvent {
   public static stackStatus(statuses: string[]): IOldestEvent {
     return {
       shouldStop(event) {
-          return event.isRootStackEvent && statuses.includes(event.event.ResourceStatus ?? '') ? 'stop-include' : 'continue';
-      }
+        return event.isRootStackEvent && statuses.includes(event.event.ResourceStatus ?? '') ? 'stop-include' : 'continue';
+      },
     };
   }
 
@@ -75,7 +76,7 @@ export abstract class OldestEvent {
         }
 
         return event.event.OperationId === operationId ? 'continue' : 'stop-exclude';
-      }
+      },
     };
   }
 
@@ -86,8 +87,8 @@ export abstract class OldestEvent {
     return {
       shouldStop() {
         return 'continue';
-      }
-    }
+      },
+    };
   }
 }
 
@@ -109,7 +110,6 @@ export interface ResourceEvent {
    */
   readonly isRootStackEvent?: boolean;
 }
-
 
 /**
  * Poll for stack events, potentially multiple times as new events come in over time
@@ -284,7 +284,7 @@ export class StackEventPoller {
       this.nestedStackPollers[logicalId] = new StackEventPoller(this.cfn, {
         stackName: physicalResourceId,
         parentStackLogicalIds: parentStackLogicalIds,
-        oldestEvent: OldestEvent.timestamp(event.Timestamp!.valueOf())
+        oldestEvent: OldestEvent.timestamp(event.Timestamp!.valueOf()),
       });
     }
   }

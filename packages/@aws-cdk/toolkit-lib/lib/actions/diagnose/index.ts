@@ -1,7 +1,7 @@
-import { Branded } from "../../util/type-brands";
-import { StackSelector } from "../../api/cloud-assembly/stack-selector";
-import { SourceTraced } from "../../api/source-tracing";
-import { ResourceError } from "../../api/stack-events/resource-errors";
+import type { StackSelector } from '../../api/cloud-assembly/stack-selector';
+import type { SourceTraced } from '../../api/source-tracing';
+import type { ResourceError } from '../../api/stack-events/resource-errors';
+import type { Branded } from '../../util/type-brands';
 
 export interface DiagnoseOptions {
   readonly stacks?: StackSelector;
@@ -31,7 +31,7 @@ export type StackDiagnosis =
 export type StackProblemSource =
   | { type: 'deployment'; stackStatus: string; statusReason: string }
   | { type: 'change-set'; changeSetName: string; changeSetStatus: string; statusReason: string }
-  | { type: 'early-validation'; changeSetName: string}
+  | { type: 'early-validation'; changeSetName: string };
 
 export interface DiagnosedStack {
   readonly stackName: string;

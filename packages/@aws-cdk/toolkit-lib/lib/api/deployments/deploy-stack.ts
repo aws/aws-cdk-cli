@@ -28,20 +28,21 @@ import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
+import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
+import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
+import type { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
+import { changeSetHasNoChanges } from '../diagnosing/stack-diagnoser';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import { changeSetHasNoChanges, CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
-import type { ExecuteChangeSetDeployment } from '../../actions/deploy/private/deployment-method';
 
 export interface DeployStackOptions {
   /**
@@ -522,7 +523,7 @@ class FullCloudFormationDeployment {
     });
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-    return await waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
+    return waitForChangeSet(this.cfn, this.ioHelper, this.stackName, changeSetName, {
       fetchAll: willExecute,
       diagnoser: this.diagnoser,
     });

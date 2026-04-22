@@ -56,6 +56,7 @@ import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
+import { EnvironmentAccess } from '../api';
 import {
   BaseCredentials,
   type IBaseCredentialsProvider,
@@ -73,6 +74,7 @@ import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
+import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
@@ -103,10 +105,8 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 import { countAssemblyResults } from './private/count-assembly-results';
-import { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
+import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
-import { EnvironmentAccess } from '../api';
 import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 
 export interface ToolkitOptions {
@@ -614,6 +614,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // Do all stacks in parallel, for speed.
     const limit = pLimit(options.concurrency ?? 10);
 
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const stacks = await Promise.all(stackCollection.stackArtifacts.map((stack) => limit(async () => {
       const stackEnv = await envs.accessStackForReadOnlyStackOperations(stack);
 

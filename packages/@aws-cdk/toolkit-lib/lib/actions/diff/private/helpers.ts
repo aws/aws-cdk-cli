@@ -99,7 +99,7 @@ async function cfnDiff(
       importExistingResources: methodOptions.importExistingResources,
       uuid: uuid.v4(),
       willExecute: false,
-     }) : undefined;
+    }) : undefined;
 
     // If the changeset includes nested stacks, describe each nested changeset
     // and attach it to the corresponding entry in nestedStacks.

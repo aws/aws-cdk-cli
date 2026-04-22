@@ -1,7 +1,7 @@
 import type { OperationEvent } from '@aws-sdk/client-cloudformation';
 import type { SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
-import { IoHelper } from '../io/private/io-helper';
+import type { IoHelper } from '../io/private/io-helper';
 
 /**
  * A ValidationReporter that checks for early validation errors right after
@@ -56,7 +56,7 @@ export class EarlyValidationReporter {
       };
     }
 
-    return  {
+    return {
       type: 'resource-errors',
       errors: operationEvents.map((ev) => ({
         eventType: ev.EventType ?? '',
@@ -82,8 +82,8 @@ export class EarlyValidationReporter {
 }
 
 export type EarlyValidationCheckResult =
-  | { type: 'could-not-check', message: string }
-  | { type: 'resource-errors', errors: EarlyValidationError[] };
+  | { type: 'could-not-check'; message: string }
+  | { type: 'resource-errors'; errors: EarlyValidationError[] };
 
 export interface EarlyValidationError {
   readonly logicalId: string;

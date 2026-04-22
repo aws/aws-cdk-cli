@@ -1,5 +1,5 @@
 import { EarlyValidationReporter } from '../../../lib/api/diagnosing/early-validation';
-import { IoHelper } from '../../../lib/api/io/private/io-helper';
+import type { IoHelper } from '../../../lib/api/io/private/io-helper';
 
 const ioHelperMock = () => ({ defaults: { warn: jest.fn() } }) as any as IoHelper;
 

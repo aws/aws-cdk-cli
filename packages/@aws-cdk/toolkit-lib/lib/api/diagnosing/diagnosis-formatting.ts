@@ -1,6 +1,7 @@
-import { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from "../../actions/diagnose";
-import { ActionLessMessage, IO } from "../io/private";
-import { DeploymentError, ToolkitError } from "../../toolkit/toolkit-error";
+import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
+import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
+import type { ActionLessMessage } from '../io/private';
+import { IO } from '../io/private';
 
 /**
  * Turn the given stack diagnosis result into an IO message, with default message formatting
@@ -49,7 +50,7 @@ export function throwDeploymentErrorFromDiagnosis(diag: StackDiagnosis): never {
 }
 
 function formatChangeSetProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'change-set' }>): string {
-  const caption = `Failed to create ChangeSet ${detectedBy.changeSetName}`;
+  const caption = `Failed to create change set ${detectedBy.changeSetName}`;
 
   if (problems.length > 0) {
     return `${caption}:\n${formatResourceErrors(problems)}`;
@@ -59,7 +60,7 @@ function formatChangeSetProblems(problems: TracedResourceError[], detectedBy: Ex
 }
 
 function formatEarlyValidationProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'early-validation' }>): string {
-  const caption = `Early validation failed for Changeset ${detectedBy.changeSetName}`;
+  const caption = `Early validation failed for change set ${detectedBy.changeSetName}`;
   if (problems.length > 0) {
     return `${caption}:\n${formatResourceErrors(problems)}`;
   } else {
@@ -68,7 +69,7 @@ function formatEarlyValidationProblems(problems: TracedResourceError[], detected
 }
 
 function formatDeploymentProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'deployment' }>): string {
-  const caption = `Errors encountered during deployment`;
+  const caption = 'Errors encountered during deployment';
 
   if (problems.length > 0) {
     return `${caption}:\n${formatResourceErrors(problems)}`;
@@ -93,5 +94,5 @@ function formatDiagnosisErrorStack(stack: DiagnosedStack, m: Extract<StackDiagno
 }
 
 function formatResourceErrors(es: TracedResourceError[]) {
-  return es.map((x) => JSON.stringify(x, undefined, 2)).map((x) => `-  ${x}`).join('\n')
+  return es.map((x) => JSON.stringify(x, undefined, 2)).map((x) => `-  ${x}`).join('\n');
 }

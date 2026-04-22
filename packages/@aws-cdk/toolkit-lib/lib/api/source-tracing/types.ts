@@ -13,4 +13,4 @@ export type SourceTraced<A> = A & {
    * Optionally a source trace
    */
   readonly sourceTrace?: SourceTrace;
-}
+};
