@@ -6,9 +6,9 @@ import {
   assertDeploySucceeded,
   ensureNonEmptyResources,
 } from './private';
-import type { ICloudFormationClient } from '../../api/aws-auth/sdk';
-import type { Deployments } from '../../api/deployments';
-import type { IoHelper } from '../../api/io/private';
+import type { ICloudFormationClient } from '../aws-auth/sdk';
+import type { Deployments } from '../deployments';
+import type { IoHelper } from '../io/private';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 interface ResolvedValues {

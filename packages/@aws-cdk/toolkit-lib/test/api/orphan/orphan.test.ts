@@ -5,8 +5,8 @@ import {
   ListStackResourcesCommand,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
-import { ResourceOrphaner } from '../../../lib/actions/orphan/orphaner';
-import { replaceInObject } from '../../../lib/actions/orphan/private/helpers';
+import { ResourceOrphaner } from '../../../lib/api/orphan/orphaner';
+import { replaceInObject } from '../../../lib/api/orphan/private/helpers';
 import { Deployments } from '../../../lib/api/deployments';
 import { testStack } from '../../_helpers/assembly';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
