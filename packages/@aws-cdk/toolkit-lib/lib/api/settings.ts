@@ -23,10 +23,17 @@ export class Settings {
     return ret;
   }
 
+  private _readOnly = false;
+
   constructor(
     private settings: SettingsMap = {},
-    public readonly readOnly = false,
+    readOnly = false,
   ) {
+    this._readOnly = readOnly;
+  }
+
+  public get readOnly() {
+    return this._readOnly;
   }
 
   public async save(fileName: string): Promise<this> {
@@ -51,6 +58,16 @@ export class Settings {
 
   public makeReadOnly(): Settings {
     return new Settings(this.settings, true);
+  }
+
+  public temporarilyMutable(block: (x: Settings) => void) {
+    const old = this.readOnly;
+    this._readOnly = false;
+    try {
+      block(this);
+    } finally {
+      this._readOnly = old;
+    }
   }
 
   public clear() {

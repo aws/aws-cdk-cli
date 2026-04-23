@@ -1,4 +1,4 @@
-import { sideBySide, TreeBuilder } from './tree-builder';
+import { sideBySide, TreeBuilder, wrapText } from './tree-builder';
 import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { sortByKey } from '../../util';
@@ -123,7 +123,7 @@ function formatResourceErrors(es: TracedResourceError[]) {
     const lastPart = p.split('/').slice(-1)[0];
     b.setNodeText(p, [
       `${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim(),
-      `🛑 ${e.message}`,
+      ...sideBySide(['🛑'], ' ', wrapText(120, e.message)),
       ...e.sourceTrace?.creationStackTrace ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace) : [],
     ].join('\n'));
   }

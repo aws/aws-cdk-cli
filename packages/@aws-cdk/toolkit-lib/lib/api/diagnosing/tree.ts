@@ -40,11 +40,11 @@ export class Tree {
       let bullet;
       let hanger;
       if (isLastChild) {
-        bullet = '  └── ';
-        hanger = '      ';
+        bullet = ' └─ ';
+        hanger = '    ';
       } else {
-        bullet = '  ├── ';
-        hanger = '  │   ';
+        bullet = ' ├─ ';
+        hanger = ' │  ';
       }
 
       const childRender = this.children[i]._render();

@@ -67,3 +67,27 @@ export function sideBySide(left: string[], sep: string, right: string[]) {
   }
   return ret;
 }
+
+export function wrapText(n: number, text: string): string[] {
+  const breakers = [' ', '\n'];
+
+  const ret: string[] = [];
+  let lineStart = 0;
+  while (lineStart < text.length) {
+    let lineEnd = lineStart + n;
+    while (lineEnd > lineStart && lineEnd < text.length && !breakers.includes(text[lineEnd])) {
+      lineEnd -= 1;
+    }
+    if (lineEnd === lineStart) {
+      // Could not find a space in this line. Seek forward to the first space to get the smallest line overflow
+      lineEnd = lineStart + n;
+      while (lineEnd < text.length && !breakers.includes(text[lineEnd])) {
+        lineEnd += 1;
+      }
+    }
+
+    ret.push(text.slice(lineStart, lineEnd));
+    lineStart = lineEnd + 1;
+  }
+  return ret;
+}

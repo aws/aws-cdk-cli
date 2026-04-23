@@ -435,7 +435,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'diagnose';
 
         // Implicitly switch 'debug' mode to true, that is going to be most useful.
-        configuration.settings.set(['debug'], true);
+        configuration.settings.temporarilyMutable((settings) => {
+          settings.set(['debug'], true);
+        });
 
         return cli.diagnose({
           // Implicitly do all stacks if no pattern given
