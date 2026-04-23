@@ -195,7 +195,7 @@ export function ensureNonEmptyResources(template: any): void {
  *
  * All paths must reference the same stack.
  */
-export function parseConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
+export function parseAndValidateConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
   if (paths.length === 0) {
     throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. --path MyStack/MyTable)');
   }

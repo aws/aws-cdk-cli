@@ -811,7 +811,7 @@ The orphan command works by:
 
 After orphaning, you can update your CDK code and use `cdk import` to bring the resource back under management with the new construct type.
 
-All construct paths must reference the same stack.
+All construct paths must reference the same stack. Wildcard patterns are not supported; paths are matched as exact prefixes.
 
 ```console
 $ # Orphan a single resource

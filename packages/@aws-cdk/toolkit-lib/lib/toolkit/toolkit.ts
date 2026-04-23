@@ -52,7 +52,7 @@ import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { OrphanOptions } from '../actions/orphan';
 import { ResourceOrphaner } from '../actions/orphan/orphaner';
-import { parseConstructPaths } from '../actions/orphan/private/helpers';
+import { parseAndValidateConstructPaths } from '../actions/orphan/private/helpers';
 import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
@@ -1165,7 +1165,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'orphan');
 
     // Parse construct paths into stack construct ID + construct-level paths.
-    const parsed = parseConstructPaths(options.constructPaths);
+    const parsed = parseAndValidateConstructPaths(options.constructPaths);
 
     // Synth all stacks, then find the one whose hierarchicalId matches the stack construct ID.
     await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
