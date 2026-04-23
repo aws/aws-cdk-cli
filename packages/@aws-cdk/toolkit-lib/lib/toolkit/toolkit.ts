@@ -51,13 +51,12 @@ import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { OrphanOptions } from '../actions/orphan';
-import { ResourceOrphaner } from '../api/orphan/orphaner';
-import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
 import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
+import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import {
   BaseCredentials,
@@ -83,6 +82,8 @@ import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { ResourceOrphaner } from '../api/orphan/orphaner';
+import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
 import { Mode, PluginHost } from '../api/plugin';
 import {
   formatAmbiguousMappings,
@@ -105,7 +106,6 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { countAssemblyResults } from './private/count-assembly-results';
 
 export interface ToolkitOptions {
   /**

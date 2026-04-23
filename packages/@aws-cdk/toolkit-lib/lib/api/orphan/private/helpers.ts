@@ -163,8 +163,8 @@ export function hasAnyCdkPathMetadata(resources: Record<string, any>): boolean {
   return false;
 }
 
-import type { DeployStackResult, SuccessfulDeployStackResult } from '../../deployments/deployment-result';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
+import type { DeployStackResult, SuccessfulDeployStackResult } from '../../deployments/deployment-result';
 
 /**
  * Verify a deploy result completed successfully.

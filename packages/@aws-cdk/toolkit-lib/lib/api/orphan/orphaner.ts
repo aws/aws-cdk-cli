@@ -6,10 +6,10 @@ import {
   assertDeploySucceeded,
   ensureNonEmptyResources,
 } from './private';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/sdk';
 import type { Deployments } from '../deployments';
 import type { IoHelper } from '../io/private';
-import { ToolkitError } from '../../toolkit/toolkit-error';
 
 interface ResolvedValues {
   ref: string;
