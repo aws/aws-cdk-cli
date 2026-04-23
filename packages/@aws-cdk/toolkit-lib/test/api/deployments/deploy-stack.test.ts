@@ -131,6 +131,7 @@ function standardDeployStackArguments(stack: CloudFormationStackArtifact = FAKE_
       sdk,
       sourceTracer: new StackArtifactSourceTracer(stack),
       ioHelper,
+      topLevelStackHierarchicalId: stack.hierarchicalId,
     }),
   };
 }
@@ -208,17 +209,19 @@ test('correctly passes SSM parameters when hotswapping', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(testStack({
-      stackName: 'stack',
-      template: {
-        Parameters: {
-          SomeParameter: {
-            Type: 'AWS::SSM::Parameter::Value<String>',
-            Default: 'ParameterName',
+    ...standardDeployStackArguments(
+      testStack({
+        stackName: 'stack',
+        template: {
+          Parameters: {
+            SomeParameter: {
+              Type: 'AWS::SSM::Parameter::Value<String>',
+              Default: 'ParameterName',
+            },
           },
         },
-      },
-    })),
+      }),
+    ),
     deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     usePreviousParameters: true,
   });
@@ -673,6 +676,7 @@ test('deploy not skipped if template did not change but tags changed', async () 
         traceStack: () => Promise.resolve(undefined),
       },
       ioHelper,
+      topLevelStackHierarchicalId: FAKE_STACK.hierarchicalId,
     }),
   });
 
@@ -896,12 +900,14 @@ test('use S3 url for stack deployment if present in Stack Artifact', async () =>
 test('use REST API S3 url with substituted placeholders if manifest url starts with s3://', async () => {
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(testStack({
-      stackName: 'withouterrors',
-      properties: {
-        stackTemplateAssetObjectUrl: 's3://use-me-use-me-${AWS::AccountId}/object',
-      },
-    })),
+    ...standardDeployStackArguments(
+      testStack({
+        stackName: 'withouterrors',
+        properties: {
+          stackTemplateAssetObjectUrl: 's3://use-me-use-me-${AWS::AccountId}/object',
+        },
+      }),
+    ),
   });
 
   // THEN
@@ -1103,7 +1109,24 @@ describe('import-existing-resources', () => {
           importExistingResources: true,
         },
       }),
-    ).rejects.toThrow(/import-error-stack\/MyService\/AnotherResource\/Resource/);
+    ).rejects.toMatchInlineSnapshot(`
+      [DeploymentError: Failed to create change set cdk-deploy-change-set:
+       └─ import-error-stack
+           ├─ Dashboards
+           │   └─ MyRole
+           │       └─ Resource  (DashboardsMyRoleABC123)
+           │          🛑 Automatic import of existing resource DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}) needs a DeletionPolicy of
+           │             'Retain' or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+           │             'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+           │             https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)
+           └─ MyService
+               └─ AnotherResource
+                   └─ Resource  (AnotherResourceABC123)
+                      🛑 Automatic import of existing resource AnotherResourceABC123 ({BucketName=my-bucket}) needs a DeletionPolicy of 'Retain'
+                         or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+                         'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+                         https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)]
+    `);
   });
 
   test('falls back to logical ID when no construct path metadata exists', async () => {

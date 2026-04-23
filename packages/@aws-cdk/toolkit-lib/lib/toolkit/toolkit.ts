@@ -616,7 +616,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const stacks = await Promise.all(stackCollection.stackArtifacts.map((stack) => limit(async () => {
-      const stackEnv = await envs.accessStackForReadOnlyStackOperations(stack);
+      const stackEnv = await envs.accessStackForLookupBestEffort(stack);
 
       const diagnoser = new CloudFormationStackDiagnoser({
         sdk: stackEnv.sdk,

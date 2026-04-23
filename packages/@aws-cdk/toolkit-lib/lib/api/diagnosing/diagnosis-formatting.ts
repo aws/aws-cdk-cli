@@ -90,7 +90,7 @@ function formatEarlyValidationProblems(problems: TracedResourceError[], detected
 }
 
 function formatDeploymentProblems(problems: TracedResourceError[], detectedBy: Extract<StackProblemSource, { type: 'deployment' }>): string {
-  const caption = 'Errors encountered during deployment';
+  const caption = 'Resource updates failed';
 
   if (problems.length > 0) {
     return `${caption}:\n${formatResourceErrors(problems)}`;

@@ -1223,6 +1223,7 @@ test('tags are passed along to create change set', async () => {
           traceStack: () => Promise.resolve(undefined),
         },
         ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
       }),
     },
   );
