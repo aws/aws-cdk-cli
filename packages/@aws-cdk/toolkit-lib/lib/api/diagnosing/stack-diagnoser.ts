@@ -3,7 +3,6 @@ import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { EarlyValidationError } from './early-validation';
 import { EarlyValidationReporter } from './early-validation';
 import type { StackDiagnosis, TracedResourceError } from '../../actions/diagnose';
-import { createBranded } from '../../util/type-brands';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
@@ -17,6 +16,7 @@ export interface CloudFormationStackDiagnoserProps {
   readonly envResources?: EnvironmentResources;
   readonly sourceTracer: ISourceTracer;
   readonly ioHelper: IoHelper;
+  readonly topLevelStackHierarchicalId: string;
 }
 
 /**
@@ -222,7 +222,7 @@ export class CloudFormationStackDiagnoser {
       sourceTrace = await this.props.sourceTracer.traceStack(err.stackId, err.parentStackLogicalIds);
     }
 
-    return createBranded({ ...err, sourceTrace });
+    return { ...err, sourceTrace, topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId };
   }
 
   /**
@@ -346,7 +346,7 @@ export class CloudFormationStackDiagnoser {
       const logicalId = openParen > -1 ? thisResource.slice(0, openParen).trim() : undefined;
 
       ret.push({
-        message: `Automatic import of existing resource ${thisResource} needs a DeletionPolicy of \'Retain\' or \'RetainExceptOnCreate\'. Set the removal policy to \'RemovalPolicy.RETAIN\' or \'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE\' (see See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)`,
+        message: `Automatic import of existing resource ${thisResource} needs a DeletionPolicy of \'Retain\' or \'RetainExceptOnCreate\'. Set the removal policy to \'RemovalPolicy.RETAIN\' or \'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE\' (See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)`,
         parentStackLogicalIds: this.parentStackLogicalIds,
         stackId: changeSet.StackId ?? '',
         errorCode: 'AutomaticImportNeedsRetain',

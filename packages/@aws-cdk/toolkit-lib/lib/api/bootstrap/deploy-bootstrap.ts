@@ -151,6 +151,7 @@ export class BootstrapStack {
           sdk: this.sdk,
           sourceTracer: NO_SOURCE_TRACE,
           ioHelper: this.ioHelper,
+          topLevelStackHierarchicalId: this.toolkitStackName,
         }),
       }, this.ioHelper);
 

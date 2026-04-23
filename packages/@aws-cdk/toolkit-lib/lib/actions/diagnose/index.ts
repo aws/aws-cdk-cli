@@ -47,6 +47,11 @@ export interface TracedResourceError {
   readonly stackId: string;
 
   /**
+   * Top-level stack name or stack construct path we found the error in
+   */
+  readonly topLevelStackHierarchicalId: string;
+
+  /**
    * IDs of parent stacks of the resource, in case of resources in nested stacks
    */
   readonly parentStackLogicalIds: string[];
@@ -80,6 +85,8 @@ export interface TracedResourceError {
 
   /**
    * Optionally a source trace
+   *
+   * (Not optional on purpose so we are not allowed to forget to call the code that should fill it)
    */
-  readonly sourceTrace?: SourceTrace;
+  readonly sourceTrace: SourceTrace | undefined;
 }

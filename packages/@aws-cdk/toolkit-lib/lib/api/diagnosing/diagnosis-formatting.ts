@@ -1,5 +1,7 @@
+import { sideBySide, TreeBuilder } from './tree-builder';
 import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
+import { sortByKey } from '../../util';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
 
@@ -32,20 +34,39 @@ export function throwDeploymentErrorFromDiagnosis(diag: StackDiagnosis): never {
       throw new ToolkitError('DeploymentErrorNotError', 'Diagnosis should represent an error, but does not');
 
     case 'error-diagnosing':
-      throw new DeploymentError('ErrorDiagnosisFailed', diag.message);
+      throw new DeploymentError(diag.message, 'ErrorDiagnosisFailed');
   }
   // Guaranteed 'type=problem' here
 
   const errorCode = diag.problems[0]?.errorCode;
+  let defaultErrorCode;
   switch (diag.detectedBy.type) {
     case 'change-set':
-      throw new DeploymentError(formatChangeSetProblems(diag.problems, diag.detectedBy), errorCode ?? 'ChangeSetCreationFailed');
+      defaultErrorCode = 'ChangeSetCreationFailed';
+      break;
 
     case 'early-validation':
-      throw new DeploymentError(formatEarlyValidationProblems(diag.problems, diag.detectedBy), 'EarlyValidationFailure');
+      defaultErrorCode = 'EarlyValidationFailure';
+      break;
 
     case 'deployment':
-      throw new DeploymentError(formatDeploymentProblems(diag.problems, diag.detectedBy), errorCode ?? 'StackDeployFailed');
+      defaultErrorCode = 'StackDeployFailed';
+      break;
+  }
+
+  throw new DeploymentError(formatProblemDiagnosis(diag), errorCode ?? defaultErrorCode);
+}
+
+function formatProblemDiagnosis(diag: Extract<StackDiagnosis, { type: 'problem' }>): string {
+  switch (diag.detectedBy.type) {
+    case 'change-set':
+      return formatChangeSetProblems(diag.problems, diag.detectedBy);
+
+    case 'early-validation':
+      return formatEarlyValidationProblems(diag.problems, diag.detectedBy);
+
+    case 'deployment':
+      return formatDeploymentProblems(diag.problems, diag.detectedBy);
   }
 }
 
@@ -85,7 +106,7 @@ function formatNoProblemStack(stack: DiagnosedStack, _m: Extract<StackDiagnosis,
 
 function formatProblemStack(stack: DiagnosedStack, m: Extract<StackDiagnosis, { type: 'problem' }>) {
   // TODO: print stack by construct path, not name
-  return `❌ Stack ${stack.stackName}:\n${formatResourceErrors(m.problems)}`;
+  return `❌ Stack ${stack.stackName}:\n${formatProblemDiagnosis(m)}`;
 }
 
 function formatDiagnosisErrorStack(stack: DiagnosedStack, m: Extract<StackDiagnosis, { type: 'error-diagnosing' }>) {
@@ -94,5 +115,44 @@ function formatDiagnosisErrorStack(stack: DiagnosedStack, m: Extract<StackDiagno
 }
 
 function formatResourceErrors(es: TracedResourceError[]) {
-  return es.map((x) => JSON.stringify(x, undefined, 2)).map((x) => `-  ${x}`).join('\n');
+  sortByKey(es, (e) => [locateResourceError(e)]);
+
+  const b = new TreeBuilder('');
+  for (const e of es) {
+    const p = locateResourceError(e);
+    const lastPart = p.split('/').slice(-1)[0];
+    b.setNodeText(p, [
+      `${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim(),
+      `🛑 ${e.message}`,
+      ...e.sourceTrace?.creationStackTrace ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace) : [],
+    ].join('\n'));
+  }
+  return b.render();
+}
+
+/**
+ * Return a /-separated construct path for the given error, or try to build as close a represention as possible if we don't have a construct path
+ *
+ * The root will be the "app"
+ */
+function locateResourceError(e: TracedResourceError): string {
+  if (e.sourceTrace?.constructPath) {
+    return e.sourceTrace?.constructPath;
+  }
+
+  const nestedStackParts = e.parentStackLogicalIds.map((l) => `Nested stack ${l}`);
+  if (e.logicalId) {
+    return [e.topLevelStackHierarchicalId, ...nestedStackParts, e.logicalId].join('/');
+  }
+  // No logical ID means we are targeting the stack itself
+  return [e.topLevelStackHierarchicalId, nestedStackParts].join('/');
+}
+
+function addendum(sep: string, ...xs: Array<string | undefined>): string {
+  xs = xs.filter(x => x && typeof x === 'string');
+  if (xs.length > 0) {
+    return `(${xs.join(sep)})`;
+  } else {
+    return '';
+  }
 }

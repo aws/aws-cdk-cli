@@ -623,6 +623,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         envResources: stackEnv.resources,
         sourceTracer: new StackArtifactSourceTracer(stack),
         ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 

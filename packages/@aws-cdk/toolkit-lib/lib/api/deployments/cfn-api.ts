@@ -297,6 +297,7 @@ async function uploadBodyParameterAndCreateChangeSet(
       envResources: env.resources,
       sourceTracer: new StackArtifactSourceTracer(options.stack),
       ioHelper,
+      topLevelStackHierarchicalId: options.stack.hierarchicalId,
     }),
   });
 }

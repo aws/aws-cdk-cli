@@ -414,6 +414,7 @@ export class Deployments {
         envResources: env.resources,
         sourceTracer: new StackArtifactSourceTracer(options.stack),
         ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: options.stack.hierarchicalId,
       }),
     }, this.ioHelper);
   }
