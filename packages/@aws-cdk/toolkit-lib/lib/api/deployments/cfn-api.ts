@@ -450,9 +450,9 @@ export async function waitForStackDeploy(
   const status = stack.stackStatus;
 
   if (status.isCreationFailure) {
-    throw new ToolkitError(
-      'StackCreationFailed',
+    throw new DeploymentError(
       `The stack named ${stackName} failed creation, it may need to be manually deleted from the AWS console: ${status}`,
+      'StackCreationFailed',
     );
   } else if (!status.isDeploySuccess) {
     throw new DeploymentError(`The stack named ${stackName} failed to deploy: ${status}`, 'StackDeployFailed');

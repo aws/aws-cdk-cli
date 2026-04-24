@@ -8,8 +8,10 @@ integTest(
       allowErrExit: true,
     });
 
-    // The deploy should have failed
-    expect(deployOutput).toContain('Required property [PolicyName] not found');
+    // The deploy should have failed.
+    // Missing property failure counts as "early validation failure".
+    expect(deployOutput).toContain('Early validation failed for change set');
+    expect(deployOutput).toContain('Required property [PolicyDocument] not found');
 
     // Run cdk diagnose on the failed stack
     const diagnoseOutput = await fixture.cdk(
@@ -19,6 +21,7 @@ integTest(
 
     // The diagnose output should mention the stack and contain error information
     expect(diagnoseOutput).toContain('diagnose-deploy-fail');
-    expect(diagnoseOutput).toContain('Required property [PolicyName] not found');
+    expect(diagnoseOutput).toContain('Early validation failed for change set');
+    expect(diagnoseOutput).toContain('Required property [PolicyDocument] not found');
   }),
 );
