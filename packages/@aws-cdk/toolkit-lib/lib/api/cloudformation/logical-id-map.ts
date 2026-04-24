@@ -19,9 +19,9 @@ export interface LogicalIdMap {
  * Build a bidirectional map of logical ID <-> construct path for a stack artifact.
  *
  * For resources, the path is read from the template's own `aws:cdk:path` metadata,
- * which is authoritative and unambiguous. For non-resource entries (Parameters,
- * Conditions, etc.), the cloud assembly metadata is used, filtered to only include
- * logical IDs present in this stack's template.
+ * which is authoritative and unambiguous. For remaining entries (resources without
+ * template-level metadata, Parameters, Conditions, etc.), the cloud assembly metadata
+ * is used, filtered to only include logical IDs present in this stack's template.
  */
 export function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact): LogicalIdMap {
   const toPath: Record<string, string> = {};
@@ -37,11 +37,11 @@ export function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact):
     }
   }
 
-  // Non-resource entries: use cloud assembly metadata, filtered to this stack's template.
-  const ownNonResourceIds = new Set<string>();
-  for (const section of ['Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
+  // Remaining entries: use cloud assembly metadata, filtered to this stack's template.
+  const ownLogicalIds = new Set<string>();
+  for (const section of ['Resources', 'Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
     for (const id of Object.keys(template[section] ?? {})) {
-      ownNonResourceIds.add(id);
+      ownLogicalIds.add(id);
     }
   }
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
@@ -49,7 +49,7 @@ export function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact):
     if (logicalId in toPath) {
       continue;
     }
-    if (!ownNonResourceIds.has(logicalId)) {
+    if (!ownLogicalIds.has(logicalId)) {
       continue;
     }
     toPath[logicalId] = md.path;

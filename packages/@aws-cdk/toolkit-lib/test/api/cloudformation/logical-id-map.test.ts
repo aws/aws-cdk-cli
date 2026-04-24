@@ -143,6 +143,27 @@ describe('buildLogicalToPathMap', () => {
     expect(map.toPath.MyBucket).toBeUndefined();
   });
 
+  test('falls back to cloud assembly metadata for resources without aws:cdk:path', () => {
+    const stack = mockArtifact(
+      {
+        Resources: {
+          MyBucket: {
+            Type: 'AWS::S3::Bucket',
+            Properties: {},
+          },
+        },
+      },
+      [
+        { path: '/Stack/MyConstruct/Resource', type: 'aws:cdk:logicalId', data: 'MyBucket' },
+      ],
+    );
+
+    const map = buildLogicalToPathMap(stack);
+
+    expect(map.toPath.MyBucket).toBe('/Stack/MyConstruct/Resource');
+    expect(map.toLogicalId['/Stack/MyConstruct/Resource']).toBe('MyBucket');
+  });
+
   test('handles all non-resource template sections', () => {
     const stack = mockArtifact(
       {
