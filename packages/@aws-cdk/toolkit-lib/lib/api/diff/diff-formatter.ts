@@ -404,7 +404,14 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
 function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
   const map: { [id: string]: string } = {};
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-    map[md.data as string] = md.path;
+    const logicalId = md.data as string;
+    // Only keep the first occurrence of each logical ID. The cloud assembly metadata
+    // lists parent stack constructs before nested stack constructs. Without this guard,
+    // a nested stack resource with the same logical ID would overwrite the parent's path,
+    // causing the diff to show incorrect resource paths for the parent stack.
+    if (!(logicalId in map)) {
+      map[logicalId] = md.path;
+    }
   }
   return map;
 }

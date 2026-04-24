@@ -133,7 +133,10 @@ export class DriftFormatter {
   private buildLogicalToPathMap() {
     const map: { [id: string]: string } = {};
     for (const md of this.stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-      map[md.data as string] = md.path;
+      const logicalId = md.data as string;
+      if (!(logicalId in map)) {
+        map[logicalId] = md.path;
+      }
     }
     return map;
   }

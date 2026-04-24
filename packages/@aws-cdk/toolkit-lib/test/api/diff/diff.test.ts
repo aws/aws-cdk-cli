@@ -654,6 +654,51 @@ describe('mangled character filtering', () => {
   });
 });
 
+describe('duplicate logical ids in nested stacks', () => {
+  test('shows correct path for parent resource', () => {
+    // Both parent and nested stack have a resource with the same logical ID
+    const sharedLogicalId = 'TestBucket560B80BC';
+
+    const rootTemplate = {
+      Resources: {
+        [sharedLogicalId]: { Type: 'AWS::S3::Bucket' },
+        NestedStackResource: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'TestStack',
+      findMetadataByType: () => [
+        // Parent stack resource
+        { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+        // Nested stack resource with same logical ID
+        { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+      ],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockArtifact,
+      },
+    });
+    const result = formatter.formatStackDiff();
+    const sanitized = stripAnsi(result.formattedDiff!);
+
+    // The parent stack diff should show the parent resource's path, not the nested stack's path
+    expect(sanitized).toContain(`AWS::S3::Bucket TestBucket ${sharedLogicalId}`);
+    expect(sanitized).not.toContain('TestNestedStack/TestBucket');
+  });
+});
+
 describe('templateContainsNestedStacks', () => {
   test('returns true when template has AWS::CloudFormation::Stack resources', () => {
     expect(templateContainsNestedStacks({
