@@ -5,6 +5,7 @@ import {
   UpdateTerminationProtectionCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -18,7 +19,6 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { SNSClient } from '@aws-sdk/client-sns';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
