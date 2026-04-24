@@ -303,7 +303,6 @@ jobs:
           - toolkit-lib-integ-tests
         node:
           - lts/*
-          - 18.17.0
           - "20"
           - "22"
           - "24"
@@ -520,8 +519,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: init-typescript-app
-            node: 18.17.0
           - suite: init-typescript-app
             node: "20"
           - suite: init-typescript-app
