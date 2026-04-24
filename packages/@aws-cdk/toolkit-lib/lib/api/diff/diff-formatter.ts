@@ -1,6 +1,5 @@
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   formatDifferences,
   formatSecurityChanges,
@@ -12,6 +11,7 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
+import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 import type { NestedStackTemplates, Template } from '../cloudformation';
 import { StringWriteStream } from '../streams';
 
@@ -231,7 +231,7 @@ export class DiffFormatter {
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
       mappings: this.mappings,
-      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate),
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
     }, options);
   }
 
@@ -328,7 +328,7 @@ export class DiffFormatter {
       stackName: this.stackName,
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
-      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate),
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
     }, options);
 
     return { formattedDiff, permissionChangeType, numStacksWithChanges };
@@ -399,41 +399,6 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
     return PermissionChangeType.NON_BROADENING;
   }
   return PermissionChangeType.NONE;
-}
-
-function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
-  const map: { [id: string]: string } = {};
-  const template = stack.template ?? {};
-
-  // For resources, use the template's own aws:cdk:path metadata as the
-  // authoritative source. This is unambiguous because it comes directly from
-  // the stack's template, not from the cloud assembly which includes nested stacks.
-  for (const [logicalId, resource] of Object.entries((template.Resources ?? {}) as Record<string, any>)) {
-    const path = resource?.Metadata?.['aws:cdk:path'];
-    if (path) {
-      map[logicalId] = path;
-    }
-  }
-
-  // For non-resource entries (Parameters, Conditions, etc.), use cloud assembly
-  // metadata filtered to only include IDs that belong to this stack's template.
-  const ownNonResourceIds = new Set<string>();
-  for (const section of ['Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
-    for (const id of Object.keys(template[section] ?? {})) {
-      ownNonResourceIds.add(id);
-    }
-  }
-  for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-    const logicalId = md.data as string;
-    if (logicalId in map) {
-      continue; // Already resolved from template metadata
-    }
-    if (!ownNonResourceIds.has(logicalId)) {
-      continue;
-    }
-    map[logicalId] = md.path;
-  }
-  return map;
 }
 
 function logicalIdMapFromTemplate(template: Template) {

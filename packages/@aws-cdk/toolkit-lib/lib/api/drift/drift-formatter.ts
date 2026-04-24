@@ -1,11 +1,11 @@
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Difference } from '@aws-cdk/cloudformation-diff';
 import type { StackResourceDrift } from '@aws-sdk/client-cloudformation';
 import { StackResourceDriftStatus } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
 import type { FormattedDrift } from '../../actions/drift';
+import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 
 /**
  * Props for the Drift Formatter
@@ -96,7 +96,7 @@ export class DriftFormatter {
    * Format the stack drift detection results
    */
   public formatStackDrift(): DriftFormatterOutput {
-    const formatterOutput = this.formatStackDriftChanges(this.buildLogicalToPathMap());
+    const formatterOutput = this.formatStackDriftChanges(buildLogicalToPathMap(this.stack).toPath);
 
     // we are only interested in actual drifts (and ignore the metadata resource)
     const actualDrifts = this.resourceDriftResults.filter(d =>
@@ -128,41 +128,6 @@ export class DriftFormatter {
       deleted: formatterOutput.deleted,
       summary: finalResult,
     };
-  }
-
-  private buildLogicalToPathMap() {
-    const map: { [id: string]: string } = {};
-    const template = this.stack.template ?? {};
-
-    // For resources, use the template's own aws:cdk:path metadata as the
-    // authoritative source. This is unambiguous because it comes directly from
-    // the stack's template, not from the cloud assembly which includes nested stacks.
-    for (const [logicalId, resource] of Object.entries((template.Resources ?? {}) as Record<string, any>)) {
-      const path = resource?.Metadata?.['aws:cdk:path'];
-      if (path) {
-        map[logicalId] = path;
-      }
-    }
-
-    // For non-resource entries (Parameters, Conditions, etc.), use cloud assembly
-    // metadata filtered to only include IDs that belong to this stack's template.
-    const ownNonResourceIds = new Set<string>();
-    for (const section of ['Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
-      for (const id of Object.keys(template[section] ?? {})) {
-        ownNonResourceIds.add(id);
-      }
-    }
-    for (const md of this.stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-      const logicalId = md.data as string;
-      if (logicalId in map) {
-        continue; // Already resolved from template metadata
-      }
-      if (!ownNonResourceIds.has(logicalId)) {
-        continue;
-      }
-      map[logicalId] = md.path;
-    }
-    return map;
   }
 
   /**
