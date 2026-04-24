@@ -1318,6 +1318,8 @@ const cli = configureProject(
   }),
 );
 
+// Necessary to add 'ts-node' to be able to run the upgrades 'yarn projen upgrade-aws-cdk-lib' since we have a .projenrc.ts
+cli.addDevDeps('ts-node');
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
   semanticCommit: 'feat',
