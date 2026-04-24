@@ -217,6 +217,30 @@ IAM Statement Changes
       ioHost.expectMessage({ containing: 'arn:aws:cloudformation:region:account:stack/test-stack' });
     });
 
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN — stack-with-role would normally trigger the security-sensitive
+      // approval prompt, but a no-op change set means there is nothing for the
+      // user to approve.
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
     test('non-executing change-set skips deploy loop', async () => {
       // GIVEN
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({

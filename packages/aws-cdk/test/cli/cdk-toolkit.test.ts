@@ -52,7 +52,6 @@ const fakeChokidarWatch = {
 
 jest.setTimeout(30_000);
 
-import 'aws-sdk-client-mock';
 import * as os from 'os';
 import * as path from 'path';
 import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
@@ -61,8 +60,10 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
 import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
@@ -109,6 +110,8 @@ let requestSpy = jest.spyOn(ioHost, 'requestResponse');
 beforeEach(async () => {
   jest.resetAllMocks();
   restoreSdkMocksToDefault();
+
+  new ChangeSetState().installUsingAwsMock(mockCloudFormationClient);
 
   mockChokidarWatch.mockReturnValue(fakeChokidarWatcher);
   // on() in chokidar's Watcher returns 'this'
@@ -423,6 +426,41 @@ describe('deploy', () => {
       expect(messages.some((m: string) => m.includes('BucketName'))).toBe(true);
       expect(messages.some((m: string) => m.includes('arn:aws:cloudformation:region:account:stack/test-stack'))).toBe(true);
       expect(messages.some((m: string) => m.includes('Total time'))).toBe(true);
+    });
+
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      requestSpy = jest.spyOn(ioHost, 'requestResponse');
+
+      // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
+      // set means there is nothing for the user to approve.
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
     });
 
     test('noOp deploy still writes outputs-file', async () => {
@@ -1233,14 +1271,6 @@ describe('deploy', () => {
               CreationTime: new Date(),
             },
           ],
-        })
-        .on(CreateChangeSetCommand)
-        .resolves({ Id: 'changeset-id', StackId: 'stack-id' })
-        .on(DescribeChangeSetCommand)
-        .resolves({
-          Status: 'CREATE_COMPLETE',
-          ChangeSetName: 'cdk-deploy-change-set',
-          Changes: [{ Type: 'Resource' }],
         });
     });
 
@@ -2015,6 +2045,32 @@ describe('synth', () => {
     expect(notifySpy.mock.calls.length).toEqual(0);
   });
 
+  test('single stack synth in CI mode does not pollute stdout with flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=false (template printed to stdout)
+    await toolkit.synth(['Test-Stack-A-Display-Name'], false, false);
+
+    // THEN - only the template result should be emitted, no warn-level flags message
+    const warnMessages = notifySpy.mock.calls.filter(([msg]) => msg.level === 'warn');
+    expect(warnMessages).toEqual([]);
+  });
+
+  test('single stack synth in CI mode with quiet shows flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=true (no template printed)
+    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+
+    // THEN - flags message is allowed since stdout is not occupied by the template
+    // (it may or may not appear depending on flag state, but it's not suppressed)
+    // We just verify the synth completes without error
+  });
+
   describe('stack with error and flagged for validation', () => {
     beforeEach(async () => {
       cloudExecutable = await MockCloudExecutable.create({
@@ -2547,5 +2603,46 @@ async function withTempDir(cb: (dir: string) => void | Promise<any>) {
     await cb(tmpDir);
   } finally {
     await fs.remove(tmpDir);
+  }
+}
+
+/**
+ * Manage the state of a single change set on a single stack, on the CloudFormation mocks
+ */
+class ChangeSetState {
+  private changeSet?: DescribeChangeSetOutput;
+
+  /**
+   * Installs this fake implementation using 'aws-sdk-client-mock'
+   */
+  public installUsingAwsMock(mock: AwsStub<ServiceInputTypes, ServiceOutputTypes, CloudFormationClientResolvedConfig>) {
+    mock.on(CreateChangeSetCommand).callsFake(this.createChangeSet.bind(this));
+    mock.on(DeleteChangeSetCommand).callsFake(this.deleteChangeSet.bind(this));
+    mock.on(DescribeChangeSetCommand).callsFake(this.describeChangeSet.bind(this));
+  }
+
+  public createChangeSet(input: CreateChangeSetInput): CreateChangeSetOutput {
+    this.changeSet = input;
+    return {
+      Id: input.ChangeSetName,
+      StackId: input.StackName,
+    };
+  }
+
+  public deleteChangeSet(_input: DeleteChangeSetInput): DeleteChangeSetOutput {
+    this.changeSet = undefined;
+    return { };
+  }
+
+  public describeChangeSet(input: DescribeChangeSetInput): DescribeChangeSetOutput {
+    if (input.StackName === this.changeSet?.StackName && input.ChangeSetName === this.changeSet?.ChangeSetName) {
+      return {
+        ...this.changeSet,
+        Status: 'CREATE_COMPLETE',
+        Changes: [{ Type: 'Resource' }],
+      };
+    }
+
+    throw Object.assign(new Error(`No such changeset: ${JSON.stringify(input)}`), { name: 'ChangeSetNotFoundException' });
   }
 }

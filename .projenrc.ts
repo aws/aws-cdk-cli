@@ -405,7 +405,7 @@ function genericCdkProps(props: GenericProps = {}) {
       jestConfig: sharedJestConfig(),
       preserveDefaultReporters: false,
     },
-    minNodeVersion: '16.0.0',
+    minNodeVersion: '20',
     prettierOptions: {
       settings: {
         printWidth: 120,
@@ -613,7 +613,7 @@ const yarnCling = configureProject(
     srcdir: 'lib',
     deps: ['@yarnpkg/parsers', 'semver'],
     devDeps: ['@types/semver', 'fast-check'],
-    minNodeVersion: '18',
+    minNodeVersion: '20',
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -646,7 +646,7 @@ const yargsGen = configureProject(
     srcdir: 'lib',
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
     devDeps: ['@types/semver', '@types/yarnpkg__lockfile', '@types/lodash.clonedeep', '@types/prettier@^2'],
-    minNodeVersion: '17.0.0', // Necessary for 'structuredClone'
+    minNodeVersion: '20', // Necessary for 'structuredClone'
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -1318,6 +1318,8 @@ const cli = configureProject(
   }),
 );
 
+// Necessary to add 'ts-node' to be able to run the upgrades 'yarn projen upgrade-aws-cdk-lib' since we have a .projenrc.ts
+cli.addDevDeps('ts-node');
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
   semanticCommit: 'feat',
@@ -1733,8 +1735,6 @@ new CdkCliIntegTestsWorkflow(repo, {
     pool: '${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}',
   },
   additionalNodeVersionsToTest: [
-    // 18.18 introduces `Symbol.dispose`, and we need to make sure that we work on older versions as well
-    '18.17.0',
     '20', '22', '24',
   ],
 });

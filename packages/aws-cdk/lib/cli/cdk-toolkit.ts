@@ -555,7 +555,10 @@ export class CdkToolkit {
         })
         : undefined;
 
-      if (requireApproval !== RequireApproval.NEVER) {
+      // Also skip the approval flow when the prepared change set is a no-op —
+      // there is nothing for the user to approve. Outputs, stack ARN, and
+      // timings are still emitted via the normal no-op deploy path below.
+      if (requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
         const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
         const formatter = new DiffFormatter({
           templateInfo: {
@@ -996,7 +999,24 @@ export class CdkToolkit {
       deployments: this.props.deployments,
       ioHelper: asIoHelper(this.ioHost, 'import'),
     });
-    const { additions, hasNonAdditions } = await resourceImporter.discoverImportableResources(options.force);
+    const { additions, hasNonAdditions, diffFormatter } = await resourceImporter.discoverImportableResources(options.force);
+
+    // If there are non-addition changes (e.g. after orphan, hardcoded refs differ from Fn::GetAtt),
+    // warn the user and ask for confirmation unless --force was given.
+    if (hasNonAdditions && !options.force) {
+      const ioHelper = this.ioHost.asIoHelper();
+      await ioHelper.defaults.info(
+        `The following resources have pending updates that will be reconciled with a ${chalk.blueBright('cdk deploy')} after import:`,
+      );
+      const { formattedDiff } = diffFormatter.formatStackDiff();
+      await ioHelper.defaults.info(formattedDiff);
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
+      if (!confirmed) {
+        await ioHelper.defaults.info('Import cancelled.');
+        return;
+      }
+    }
+
     if (additions.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn(
         '%s: no new resources compared to the currently deployed stack, skipping import.',
@@ -1039,22 +1059,41 @@ export class CdkToolkit {
     });
 
     // Notify user of next steps
-    await this.ioHost.asIoHelper().defaults.info(
-      `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
-      'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
-      chalk.underline.blueBright(
-        'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
-      ),
-    );
     if (actualImport.importResources.length < additions.length) {
-      await this.ioHost.asIoHelper().defaults.info('');
       await this.ioHost.asIoHelper().defaults.warn(
         `Some resources were skipped. Run another ${chalk.blueBright('cdk import')} or a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
       );
     } else if (hasNonAdditions) {
-      await this.ioHost.asIoHelper().defaults.info('');
-      await this.ioHost.asIoHelper().defaults.warn(
-        `Your app has pending updates or deletes excluded from this import operation. Run a ${chalk.blueBright('cdk deploy')} to bring the stack up-to-date with your CDK app definition.`,
+      // After orphan→import, the deployed template still has hardcoded values that differ from
+      // the synth'd template's Fn::GetAtt/Ref intrinsics. A deploy updates the template to match the CDK app.
+      if (options.force) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `Import complete. Run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
+        );
+      } else {
+        const deployNow = await this.ioHost.asIoHelper().requestResponse(
+          IO.CDK_TOOLKIT_I7010.req(`Finish with a ${chalk.blueBright('cdk deploy')} now?`, { motivation: 'Update stack to match CDK app after import' }),
+        );
+        if (deployNow) {
+          await this.deploy({
+            selector: options.selector,
+            toolkitStackName: options.toolkitStackName,
+            roleArn: options.roleArn,
+            deploymentMethod: options.deploymentMethod,
+          });
+        } else {
+          await this.ioHost.asIoHelper().defaults.info(
+            `Import complete. Remember to run ${chalk.blueBright('cdk deploy')} to update the stack to match your CDK app.`,
+          );
+        }
+      }
+    } else {
+      await this.ioHost.asIoHelper().defaults.info(
+        `Import operation complete. We recommend you run a ${chalk.blueBright('drift detection')} operation ` +
+        'to confirm your CDK app resource definitions are up-to-date. Read more here: ' +
+        chalk.underline.blueBright(
+          'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/detect-drift-stack.html',
+        ),
       );
     }
   }
@@ -1170,7 +1209,13 @@ export class CdkToolkit {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
 
-      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      // In CI mode, non-error messages go to stdout. When we just printed the
+      // template to stdout, skip the flags message to preserve the contract that
+      // `cdk synth` output is valid YAML. When quiet (no template printed) or
+      // non-CI (flags go to stderr), it's safe to show.
+      if (quiet || !this.ioHost.isCI) {
+        await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      }
       return undefined;
     }
 

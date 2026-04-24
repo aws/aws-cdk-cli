@@ -1,8 +1,5 @@
 import {
   CreateChangeSetCommand,
-  DescribeChangeSetCommand,
-  DescribeStacksCommand,
-  GetTemplateCommand,
   GetTemplateSummaryCommand,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
@@ -10,6 +7,8 @@ import { Deployments } from '../../../lib/api/deployments';
 import type { ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
 import { ResourceImporter } from '../../../lib/api/resource-import';
 import { testStack } from '../../_helpers/assembly';
+import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
+import { advanceTime } from '../../_helpers/fake-time';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -66,9 +65,34 @@ let deployments: Deployments;
 let ioHost = new TestIoHost();
 let ioHelper = ioHost.asHelper('deploy');
 let props: ResourceImporterProps;
+const fakeCfn = new FakeCloudFormation();
+
 beforeEach(() => {
+  jest.useFakeTimers();
+  fakeCfn.reset();
   restoreSdkMocksToDefault();
   jest.resetAllMocks();
+  fakeCfn.installUsingAwsMock(mockCloudFormationClient);
+
+  // GetTemplateSummary returns ResourceIdentifierSummaries which the fake doesn't model.
+  // Keep this as a hard mock on top of the fake.
+  mockCloudFormationClient.on(GetTemplateSummaryCommand).resolves({
+    ResourceIdentifierSummaries: [
+      {
+        ResourceType: 'AWS::SQS::Queue',
+        ResourceIdentifiers: ['QueueName'],
+      },
+      {
+        ResourceType: 'AWS::DynamoDB::GlobalTable',
+        ResourceIdentifiers: ['TableName', 'TableArn', 'TableStreamArn'],
+      },
+      {
+        ResourceType: 'AWS::Route53::KeySigningKey',
+        ResourceIdentifiers: ['HostedZoneId,Name'],
+      },
+    ],
+  });
+
   sdkProvider = new MockSdkProvider();
   deployments = new Deployments({
     sdkProvider,
@@ -79,6 +103,18 @@ beforeEach(() => {
     ioHelper,
   };
 });
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+function givenCurrentStack(stackName: string, template: any) {
+  fakeCfn.createStackSync({
+    StackName: stackName,
+    StackStatus: StackStatus.UPDATE_COMPLETE,
+  });
+  fakeCfn.firstStack().template = template;
+}
 
 test('discovers importable resources', async () => {
   givenCurrentStack(STACK_WITH_QUEUE.stackName, {
@@ -94,7 +130,7 @@ test('discovers importable resources', async () => {
   ]);
 });
 
-test('by default, its an error if there are non-addition changes in the template', async () => {
+test('non-addition changes are reported but do not throw', async () => {
   givenCurrentStack(STACK_WITH_QUEUE.stackName, {
     Resources: {
       SomethingThatDisappeared: {
@@ -104,10 +140,13 @@ test('by default, its an error if there are non-addition changes in the template
   });
 
   const importer = new ResourceImporter(STACK_WITH_QUEUE, props);
-  await expect(importer.discoverImportableResources()).rejects.toThrow(/No resource updates or deletes/);
-
-  // But the error can be silenced
-  await expect(importer.discoverImportableResources(true)).resolves.toBeTruthy();
+  const result = await importer.discoverImportableResources();
+  expect(result.hasNonAdditions).toBe(true);
+  expect(result.nonAdditionNames).toContain('SomethingThatDisappeared');
+  expect(result.additions).toEqual([
+    expect.objectContaining({ logicalId: 'MyQueue' }),
+  ]);
+  expect(result.diffFormatter).toBeDefined();
 });
 
 test('asks human for resource identifiers', async () => {
@@ -169,7 +208,7 @@ test('asks human to confirm automatic import if identifier is in template', asyn
   };
 
   // WHEN
-  await importer.importResourcesFromMap(importMap);
+  await advanceTime(importer.importResourcesFromMap(importMap));
 
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
     ChangeSetName: expect.any(String),
@@ -225,7 +264,7 @@ test('importing resources from migrate strips cdk metadata and outputs', async (
   ];
 
   // WHEN
-  await importer.importResourcesFromMigrate(migrateMap, STACK_WITH_QUEUE.template);
+  await advanceTime(importer.importResourcesFromMigrate(migrateMap, STACK_WITH_QUEUE.template));
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
@@ -253,7 +292,7 @@ test('only use one identifier if multiple are in template', async () => {
 
   // WHEN
   ioHost.mockResponseOnce('CDK_TOOLKIT_I3100', 'yes');
-  await importTemplateFromClean(stack);
+  await advanceTime(importTemplateFromClean(stack));
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
@@ -277,7 +316,7 @@ test('only ask user for one identifier if multiple possible ones are possible', 
 
   // WHEN
   ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', 'Banana');
-  const importable = await importTemplateFromClean(stack);
+  const importable = await advanceTime(importTemplateFromClean(stack));
 
   // THEN -- only asked once
   expect(ioHost.requestSpy).toHaveBeenCalledTimes(1);
@@ -294,7 +333,7 @@ test('ask identifier if the value in the template is a CFN intrinsic', async () 
 
   // WHEN
   ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', 'Banana');
-  const importable = await importTemplateFromClean(stack);
+  const importable = await advanceTime(importTemplateFromClean(stack));
 
   // THEN
   expect(importable.resourceMap).toEqual({
@@ -311,7 +350,7 @@ test('take compound identifiers from the template if found', async () => {
 
   // WHEN
   ioHost.mockResponseOnce('CDK_TOOLKIT_I3100', 'yes');
-  await importTemplateFromClean(stack);
+  await advanceTime(importTemplateFromClean(stack));
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
@@ -335,7 +374,7 @@ test('ask user for compound identifiers if not found', async () => {
 
   // WHEN
   ioHost.mockResponse('CDK_TOOLKIT_I3110', 'Banana');
-  await importTemplateFromClean(stack);
+  await advanceTime(importTemplateFromClean(stack));
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
@@ -359,7 +398,7 @@ test('do not ask for second part of compound identifier if the user skips the fi
 
   // WHEN
   ioHost.mockResponseOnce('CDK_TOOLKIT_I3110', '');
-  const importMap = await importTemplateFromClean(stack);
+  const importMap = await advanceTime(importTemplateFromClean(stack));
 
   // THEN
   expect(importMap.resourceMap).toEqual({});
@@ -375,42 +414,4 @@ async function importTemplateFromClean(stack: ReturnType<typeof testStack>) {
   const importable = await importer.askForResourceIdentifiers(additions);
   await importer.importResourcesFromMap(importable);
   return importable;
-}
-
-function givenCurrentStack(stackName: string, template: any) {
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [
-      {
-        StackName: stackName,
-        CreationTime: new Date(),
-        StackStatus: StackStatus.UPDATE_COMPLETE,
-        StackStatusReason: 'It is magic',
-        Outputs: [],
-      },
-    ],
-  });
-  mockCloudFormationClient.on(GetTemplateCommand).resolves({
-    TemplateBody: JSON.stringify(template),
-  });
-  mockCloudFormationClient.on(GetTemplateSummaryCommand).resolves({
-    ResourceIdentifierSummaries: [
-      {
-        ResourceType: 'AWS::SQS::Queue',
-        ResourceIdentifiers: ['QueueName'],
-      },
-      {
-        ResourceType: 'AWS::DynamoDB::GlobalTable',
-        ResourceIdentifiers: ['TableName', 'TableArn', 'TableStreamArn'],
-      },
-      {
-        ResourceType: 'AWS::Route53::KeySigningKey',
-        ResourceIdentifiers: ['HostedZoneId,Name'],
-      },
-    ],
-  });
-
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
-    Status: StackStatus.CREATE_COMPLETE,
-    Changes: [],
-  });
 }
