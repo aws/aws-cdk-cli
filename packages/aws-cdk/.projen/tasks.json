@@ -254,7 +254,7 @@
           "exec": "yarn install --no-immutable"
         },
         {
-          "exec": "yarn up -R aws-cdk-lib"
+          "exec": "yarn up aws-cdk-lib"
         },
         {
           "exec": "yarn projen"
