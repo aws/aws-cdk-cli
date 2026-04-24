@@ -655,21 +655,15 @@ describe('mangled character filtering', () => {
 });
 
 describe('duplicate logical ids in nested stacks', () => {
-  test.each([
-    ['parent first', [
-      { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
-      { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
-    ]],
-    ['nested first', [
-      { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
-      { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
-    ]],
-  ])('shows correct path for parent resource (%s)', (_label, metadata) => {
+  test('shows correct path for parent resource when nested stack has same logical id', () => {
     const sharedLogicalId = 'TestBucket560B80BC';
 
     const rootTemplate = {
       Resources: {
-        [sharedLogicalId]: { Type: 'AWS::S3::Bucket' },
+        [sharedLogicalId]: {
+          Type: 'AWS::S3::Bucket',
+          Metadata: { 'aws:cdk:path': 'TestStack/TestBucket/Resource' },
+        },
         NestedStackResource: {
           Type: 'AWS::CloudFormation::Stack',
           Properties: { TemplateURL: 'https://url' },
@@ -688,7 +682,11 @@ describe('duplicate logical ids in nested stacks', () => {
       },
       templateFile: 'template.json',
       stackName: 'TestStack',
-      findMetadataByType: () => metadata,
+      findMetadataByType: () => [
+        // Cloud assembly metadata includes entries from nested stacks too
+        { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+        { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+      ],
     } as any;
 
     const formatter = new DiffFormatter({

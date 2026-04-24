@@ -402,41 +402,33 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
 }
 
 function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
-  // Collect construct path prefixes for nested stacks so we can filter out
-  // metadata entries that belong to nested stacks rather than this stack.
-  const nestedStackPathPrefixes = new Set<string>();
-  const resources = (stack.template.Resources ?? {}) as Record<string, any>;
-  for (const resource of Object.values(resources)) {
-    if (resource?.Type === 'AWS::CloudFormation::Stack') {
-      const cdkPath: string | undefined = resource?.Metadata?.['aws:cdk:path'];
-      if (cdkPath) {
-        // cdkPath looks like "Stack/NestedConstruct/Resource", strip "/Resource" to get the prefix
-        const prefix = cdkPath.substring(0, cdkPath.lastIndexOf('/'));
-        if (prefix) {
-          nestedStackPathPrefixes.add('/' + prefix + '/');
-        }
-      }
+  const map: { [id: string]: string } = {};
+  const template = stack.template ?? {};
+
+  // For resources, use the template's own aws:cdk:path metadata as the
+  // authoritative source. This is unambiguous because it comes directly from
+  // the stack's template, not from the cloud assembly which includes nested stacks.
+  for (const [logicalId, resource] of Object.entries((template.Resources ?? {}) as Record<string, any>)) {
+    const path = resource?.Metadata?.['aws:cdk:path'];
+    if (path) {
+      map[logicalId] = path;
     }
   }
 
-  const map: { [id: string]: string } = {};
-  // The stack metadata includes entries from nested stacks too. Cross-reference
-  // against the stack's own template to only include IDs that belong to this stack.
-  const template = stack.template ?? {};
-  const ownLogicalIds = new Set<string>();
-  for (const section of ['Resources', 'Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
+  // For non-resource entries (Parameters, Conditions, etc.), use cloud assembly
+  // metadata filtered to only include IDs that belong to this stack's template.
+  const ownNonResourceIds = new Set<string>();
+  for (const section of ['Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
     for (const id of Object.keys(template[section] ?? {})) {
-      ownLogicalIds.add(id);
+      ownNonResourceIds.add(id);
     }
   }
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
     const logicalId = md.data as string;
-    if (!ownLogicalIds.has(logicalId)) {
-      continue;
+    if (logicalId in map) {
+      continue; // Already resolved from template metadata
     }
-    // Skip metadata entries that belong to nested stacks.
-    // Their paths will start with the nested stack's construct path prefix.
-    if ([...nestedStackPathPrefixes].some((prefix) => md.path.startsWith(prefix))) {
+    if (!ownNonResourceIds.has(logicalId)) {
       continue;
     }
     map[logicalId] = md.path;
