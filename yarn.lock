@@ -59,7 +59,7 @@ __metadata:
     nx: "npm:^22.6.4"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -150,7 +150,7 @@ __metadata:
     nx: "npm:^22.6.4"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -180,7 +180,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -212,7 +212,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     semver: "npm:^7.7.4"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
@@ -264,7 +264,7 @@ __metadata:
     mock-fs: "npm:^5.5.0"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     semver: "npm:^7.7.4"
     ts-jest: "npm:^29.4.9"
     tsx: "npm:^4.21.0"
@@ -313,7 +313,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.9"
@@ -378,7 +378,7 @@ __metadata:
     node-backpack: "npm:^1.1.28"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
@@ -491,7 +491,7 @@ __metadata:
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     semver: "npm:^7.7.4"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.9"
@@ -533,7 +533,7 @@ __metadata:
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -564,7 +564,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     semver: "npm:^7.7.4"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
@@ -7600,7 +7600,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     semver: "npm:^7.7.4"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.21.0"
@@ -7630,6 +7630,31 @@ __metadata:
   peerDependencies:
     constructs: ^10.5.0
   checksum: 10c0/3954c3ffbe3625cefcc04b1bd0d77d6926af6eaed6eeefb167cf66c5142c0ccc045874ed67ffaa7951cfb3d04ad02df6b9f6fc0240b31cf65fa860df47bf6bad
+  languageName: node
+  linkType: hard
+
+"aws-cdk-lib@npm:2.250.0":
+  version: 2.250.0
+  resolution: "aws-cdk-lib@npm:2.250.0"
+  dependencies:
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.273"
+    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.1"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.0"
+    "@aws-cdk/cloud-assembly-schema": "npm:^53.0.0"
+    "@balena/dockerignore": "npm:^1.0.2"
+    case: "npm:1.6.3"
+    fs-extra: "npm:^11.3.3"
+    ignore: "npm:^5.3.2"
+    jsonschema: "npm:^1.5.0"
+    mime-types: "npm:^2.1.35"
+    minimatch: "npm:^10.2.3"
+    punycode: "npm:^2.3.1"
+    semver: "npm:^7.7.4"
+    table: "npm:^6.9.0"
+    yaml: "npm:1.10.3"
+  peerDependencies:
+    constructs: ^10.5.0
+  checksum: 10c0/8146354f3f69554bcd041bd45c03b495aa23b7ccea3ea01cafbfcd4e7acdc0afa7e770deffa25113cdb423c60c861f394dec18c509ea5d1495094aed2abae367
   languageName: node
   linkType: hard
 
@@ -7689,7 +7714,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     archiver: "npm:^7.0.1"
-    aws-cdk-lib: "npm:2.248.0"
+    aws-cdk-lib: "npm:2.250.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
@@ -7722,7 +7747,7 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
     semver: "npm:^7.7.4"
@@ -7730,6 +7755,7 @@ __metadata:
     strip-ansi: "npm:^6"
     ts-jest: "npm:^29.4.9"
     ts-mock-imports: "npm:^1.3.19"
+    ts-node: "npm:^10.9.2"
     tsx: "npm:^4.21.0"
     typescript: "npm:5.9"
     uuid: "npm:^11.1.0"
@@ -8338,7 +8364,7 @@ __metadata:
     node-backpack: "npm:^1.1.28"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.2"
@@ -8380,7 +8406,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.6.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.48"
+    projen: "npm:^0.99.52"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   bin:
@@ -15557,9 +15583,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.99.48":
-  version: 0.99.48
-  resolution: "projen@npm:0.99.48"
+"projen@npm:^0.99.52":
+  version: 0.99.52
+  resolution: "projen@npm:0.99.52"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
@@ -15580,7 +15606,7 @@ __metadata:
     constructs: ^10.0.0
   bin:
     projen: bin/projen
-  checksum: 10c0/a2c5ce743f4395cf5b92b12ca43294acd362fc079ee17d59fcda4670c7bcc5d4b7bc2f75ab1625d344ca9f2f718be9661f5655173f781a585e4a3cd82ae8cd9a
+  checksum: 10c0/94c00547009be2fe85d18ef712381168167ab4a65c78bd6c7c68b662874c8357652ebddeb7e401b16cdf21124fe0731b3c0a820e9b3051a144f2f81925a4d73a
   languageName: node
   linkType: hard
 
