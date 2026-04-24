@@ -1,0 +1,284 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`hostMessageFromDiagnosis change set failure with resource errors 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "changeSetName": "cdk-deploy-cs",
+        "changeSetStatus": "FAILED",
+        "statusReason": "Template error",
+        "type": "change-set",
+      },
+      "problems": [
+        {
+          "logicalId": "MyBucket",
+          "message": "Invalid property",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::S3::Bucket",
+          "sourceTrace": undefined,
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Failed to create change set cdk-deploy-cs:
+ └─ MyStack
+     └─ MyBucket  (AWS::S3::Bucket MyBucket)
+        🛑 Invalid property",
+  "time": 2026-04-24T09:41:57.745Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis change set failure without resource errors 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "changeSetName": "cdk-deploy-cs",
+        "changeSetStatus": "FAILED",
+        "statusReason": "Template format error",
+        "type": "change-set",
+      },
+      "problems": [],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Failed to create change set cdk-deploy-cs: Template format error",
+  "time": 2026-04-24T09:41:57.747Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis deployment failure with resource errors 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "stackStatus": "UPDATE_FAILED",
+        "statusReason": "Resource update failed",
+        "type": "deployment",
+      },
+      "problems": [
+        {
+          "logicalId": "MyBucket",
+          "message": "Access Denied",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::S3::Bucket",
+          "sourceTrace": undefined,
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+        {
+          "logicalId": "MyFunc",
+          "message": "Handler error: timeout",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::Lambda::Function",
+          "sourceTrace": undefined,
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Resource updates failed:
+ └─ MyStack
+     ├─ MyBucket  (AWS::S3::Bucket MyBucket)
+     │  🛑 Access Denied
+     └─ MyFunc  (AWS::Lambda::Function MyFunc)
+        🛑 Handler error: timeout",
+  "time": 2026-04-24T09:41:57.746Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis deployment failure without resource errors 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "stackStatus": "UPDATE_FAILED",
+        "statusReason": "Resource update failed",
+        "type": "deployment",
+      },
+      "problems": [],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Resource updates failed (UPDATE_FAILED): Resource update failed",
+  "time": 2026-04-24T09:41:57.748Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis early validation failure with resource errors 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "changeSetName": "cdk-deploy-cs",
+        "type": "early-validation",
+      },
+      "problems": [
+        {
+          "logicalId": "MyBucket",
+          "message": "Resource already exists (at /Resources/MyBucket)",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::S3::Bucket",
+          "sourceTrace": undefined,
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Early validation failed for change set cdk-deploy-cs:
+ └─ MyStack
+     └─ MyBucket  (AWS::S3::Bucket MyBucket)
+        🛑 Resource already exists (at /Resources/MyBucket)",
+  "time": 2026-04-24T09:41:57.745Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis error-diagnosing 1`] = `
+{
+  "code": "CDK_TOOLKIT_W9501",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "message": "Something went wrong",
+      "type": "error-diagnosing",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "warn",
+  "message": "⚠️ Could not diagnose stack MyStack: Something went wrong",
+  "time": 2026-04-24T09:41:57.743Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis no-problem 1`] = `
+{
+  "code": "CDK_TOOLKIT_I9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "type": "no-problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "info",
+  "message": "✅ Stack MyStack: no issues found.",
+  "time": 2026-04-24T09:41:57.745Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis resource error in nested stack without source trace 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "stackStatus": "UPDATE_FAILED",
+        "statusReason": "failed",
+        "type": "deployment",
+      },
+      "problems": [
+        {
+          "logicalId": "MyBucket",
+          "message": "Access Denied",
+          "parentStackLogicalIds": [
+            "NestedStackA",
+          ],
+          "resourceType": "AWS::S3::Bucket",
+          "sourceTrace": undefined,
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Resource updates failed:
+ └─ MyStack
+     └─ Nested stack NestedStackA
+         └─ MyBucket  (AWS::S3::Bucket MyBucket)
+            🛑 Access Denied",
+  "time": 2026-04-24T09:41:57.746Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis resource error with source trace 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "stackStatus": "UPDATE_FAILED",
+        "statusReason": "failed",
+        "type": "deployment",
+      },
+      "problems": [
+        {
+          "logicalId": "MyBucket",
+          "message": "Access Denied",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::S3::Bucket",
+          "sourceTrace": {
+            "constructPath": "MyStack/MyBucket/Resource",
+            "creationStackTrace": [
+              "at new Bucket (lib/bucket.ts:42)",
+              "at new MyStack (lib/stack.ts:10)",
+            ],
+          },
+          "stackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Resource updates failed:
+ └─ MyStack
+     └─ MyBucket
+         └─ Resource  (AWS::S3::Bucket MyBucket)
+            🛑 Access Denied
+            Source Location: at new Bucket (lib/bucket.ts:42)
+                             at new MyStack (lib/stack.ts:10)",
+  "time": 2026-04-24T09:41:57.746Z,
+}
+`;

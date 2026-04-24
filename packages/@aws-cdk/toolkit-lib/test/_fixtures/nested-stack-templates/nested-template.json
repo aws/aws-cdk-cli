@@ -1,0 +1,10 @@
+{
+  "Resources": {
+    "InnerBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Metadata": {
+        "aws:cdk:path": "MyStack/NestedStack/InnerBucket/Resource"
+      }
+    }
+  }
+}
