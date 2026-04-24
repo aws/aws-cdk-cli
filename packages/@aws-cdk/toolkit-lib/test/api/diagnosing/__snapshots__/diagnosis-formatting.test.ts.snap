@@ -33,7 +33,7 @@ Failed to create change set cdk-deploy-cs:
  └─ MyStack
      └─ MyBucket  (AWS::S3::Bucket MyBucket)
         🛑 Invalid property",
-  "time": 2026-04-24T09:41:57.745Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -57,7 +57,7 @@ exports[`hostMessageFromDiagnosis change set failure without resource errors 1`]
   "level": "error",
   "message": "❌ Stack MyStack:
 Failed to create change set cdk-deploy-cs: Template format error",
-  "time": 2026-04-24T09:41:57.747Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -104,7 +104,7 @@ Resource updates failed:
      │  🛑 Access Denied
      └─ MyFunc  (AWS::Lambda::Function MyFunc)
         🛑 Handler error: timeout",
-  "time": 2026-04-24T09:41:57.746Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -127,7 +127,7 @@ exports[`hostMessageFromDiagnosis deployment failure without resource errors 1`]
   "level": "error",
   "message": "❌ Stack MyStack:
 Resource updates failed (UPDATE_FAILED): Resource update failed",
-  "time": 2026-04-24T09:41:57.748Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -162,7 +162,7 @@ Early validation failed for change set cdk-deploy-cs:
  └─ MyStack
      └─ MyBucket  (AWS::S3::Bucket MyBucket)
         🛑 Resource already exists (at /Resources/MyBucket)",
-  "time": 2026-04-24T09:41:57.745Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -179,7 +179,7 @@ exports[`hostMessageFromDiagnosis error-diagnosing 1`] = `
   },
   "level": "warn",
   "message": "⚠️ Could not diagnose stack MyStack: Something went wrong",
-  "time": 2026-04-24T09:41:57.743Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -195,7 +195,7 @@ exports[`hostMessageFromDiagnosis no-problem 1`] = `
   },
   "level": "info",
   "message": "✅ Stack MyStack: no issues found.",
-  "time": 2026-04-24T09:41:57.745Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -234,7 +234,7 @@ Resource updates failed:
      └─ Nested stack NestedStackA
          └─ MyBucket  (AWS::S3::Bucket MyBucket)
             🛑 Access Denied",
-  "time": 2026-04-24T09:41:57.746Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
 
@@ -279,6 +279,6 @@ Resource updates failed:
             🛑 Access Denied
             Source Location: at new Bucket (lib/bucket.ts:42)
                              at new MyStack (lib/stack.ts:10)",
-  "time": 2026-04-24T09:41:57.746Z,
+  "time": 1970-01-01T00:00:00.000Z,
 }
 `;
