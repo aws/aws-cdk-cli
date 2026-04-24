@@ -18,6 +18,7 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { SNSClient } from '@aws-sdk/client-sns';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
@@ -55,6 +56,7 @@ export class AwsClients {
   public readonly lambda: LambdaClient;
   public readonly sts: STSClient;
   public readonly secretsManager: SecretsManagerClient;
+  public readonly dynamoDb: DynamoDB;
 
   private constructor(
     /** A random string to use for temporary resources, like roles (should preferably match unique test-specific randomString) */
@@ -79,6 +81,7 @@ export class AwsClients {
     this.lambda = new LambdaClient(this.config);
     this.sts = new STSClient(this.config);
     this.secretsManager = new SecretsManagerClient(this.config);
+    this.dynamoDb = new DynamoDB(this.config);
   }
 
   public addCleanup(cleanup: () => Promise<any>) {

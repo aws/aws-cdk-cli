@@ -1,5 +1,4 @@
 import { DescribeStacksCommand, GetTemplateCommand } from '@aws-sdk/client-cloudformation';
-import { DynamoDBClient, PutItemCommand, GetItemCommand, DeleteTableCommand } from '@aws-sdk/client-dynamodb';
 import * as yaml from 'yaml';
 import { integTest, withDefaultFixture } from '../../../lib';
 
@@ -19,8 +18,6 @@ integTest(
     const tableName = outputs.find((o) => o.OutputKey === 'TableName')?.OutputValue;
     expect(tableName).toBeDefined();
 
-    const dynamodb = new DynamoDBClient({ region: fixture.aws.region });
-
     try {
       // Verify the table resource exists in the template before orphaning
       const templateBefore = await fixture.aws.cloudFormation.send(
@@ -30,10 +27,10 @@ integTest(
       expect(templateBodyBefore.Resources).toHaveProperty('MyTable794EDED1');
 
       // Put an item in the table before orphan
-      await dynamodb.send(new PutItemCommand({
+      await fixture.aws.dynamoDb.putItem({
         TableName: tableName!,
         Item: { PK: { S: 'before-orphan' } },
-      }));
+      });
 
       // Orphan the table
       const orphanOutput = await fixture.cdk([
@@ -71,16 +68,19 @@ integTest(
       });
 
       // Verify the table still exists and data is intact (strongly consistent read)
-      const getItemResult = await dynamodb.send(new GetItemCommand({
+      const getItemResult = await fixture.aws.dynamoDb.getItem({
         TableName: tableName!,
         Key: { PK: { S: 'before-orphan' } },
         ConsistentRead: true,
-      }));
+      });
       expect(getItemResult.Item?.PK?.S).toBe('before-orphan');
     } finally {
       // Clean up the retained table to avoid leaking resources
-      await dynamodb.send(new DeleteTableCommand({ TableName: tableName! })).catch(() => {
-      });
+      try {
+        await fixture.aws.dynamoDb.deleteTable({ TableName: tableName! });
+      } catch (e) {
+        // Ignore
+      }
     }
   }),
 );
