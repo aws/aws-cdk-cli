@@ -655,8 +655,16 @@ describe('mangled character filtering', () => {
 });
 
 describe('duplicate logical ids in nested stacks', () => {
-  test('shows correct path for parent resource', () => {
-    // Both parent and nested stack have a resource with the same logical ID
+  test.each([
+    ['parent first', [
+      { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
+      { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
+    ]],
+    ['nested first', [
+      { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
+      { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: 'TestBucket560B80BC' },
+    ]],
+  ])('shows correct path for parent resource (%s)', (_label, metadata) => {
     const sharedLogicalId = 'TestBucket560B80BC';
 
     const rootTemplate = {
@@ -676,12 +684,7 @@ describe('duplicate logical ids in nested stacks', () => {
       },
       templateFile: 'template.json',
       stackName: 'TestStack',
-      findMetadataByType: () => [
-        // Parent stack resource
-        { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
-        // Nested stack resource with same logical ID
-        { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
-      ],
+      findMetadataByType: () => metadata,
     } as any;
 
     const formatter = new DiffFormatter({

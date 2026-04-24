@@ -405,11 +405,12 @@ function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
   const map: { [id: string]: string } = {};
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
     const logicalId = md.data as string;
-    // Only keep the first occurrence of each logical ID. The cloud assembly metadata
-    // lists parent stack constructs before nested stack constructs. Without this guard,
-    // a nested stack resource with the same logical ID would overwrite the parent's path,
-    // causing the diff to show incorrect resource paths for the parent stack.
-    if (!(logicalId in map)) {
+    // When a parent stack and a nested stack have resources with the same logical ID,
+    // the metadata will contain entries for both. We pick the shortest path, which
+    // corresponds to the resource directly in this stack rather than in a nested stack.
+    // This works because nested stack resources always have longer paths due to the
+    // additional nested stack construct name segment in the construct tree.
+    if (!(logicalId in map) || md.path.length < map[logicalId].length) {
       map[logicalId] = md.path;
     }
   }
