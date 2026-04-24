@@ -670,7 +670,11 @@ describe('duplicate logical ids in nested stacks', () => {
     const rootTemplate = {
       Resources: {
         [sharedLogicalId]: { Type: 'AWS::S3::Bucket' },
-        NestedStackResource: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+        NestedStackResource: {
+          Type: 'AWS::CloudFormation::Stack',
+          Properties: { TemplateURL: 'https://url' },
+          Metadata: { 'aws:cdk:path': 'TestStack/TestNestedStack/Resource' },
+        },
       },
     };
 

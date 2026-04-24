@@ -131,6 +131,22 @@ export class DriftFormatter {
   }
 
   private buildLogicalToPathMap() {
+    // Collect construct path prefixes for nested stacks so we can filter out
+    // metadata entries that belong to nested stacks rather than this stack.
+    const nestedStackPathPrefixes = new Set<string>();
+    const resources = (this.stack.template.Resources ?? {}) as Record<string, any>;
+    for (const resource of Object.values(resources)) {
+      if (resource?.Type === 'AWS::CloudFormation::Stack') {
+        const cdkPath: string | undefined = resource?.Metadata?.['aws:cdk:path'];
+        if (cdkPath) {
+          const prefix = cdkPath.substring(0, cdkPath.lastIndexOf('/'));
+          if (prefix) {
+            nestedStackPathPrefixes.add('/' + prefix + '/');
+          }
+        }
+      }
+    }
+
     const map: { [id: string]: string } = {};
     const template = this.stack.template ?? {};
     const ownLogicalIds = new Set<string>();
@@ -144,9 +160,10 @@ export class DriftFormatter {
       if (!ownLogicalIds.has(logicalId)) {
         continue;
       }
-      if (!(logicalId in map) || md.path.length < map[logicalId].length) {
-        map[logicalId] = md.path;
+      if ([...nestedStackPathPrefixes].some((prefix) => md.path.startsWith(prefix))) {
+        continue;
       }
+      map[logicalId] = md.path;
     }
     return map;
   }

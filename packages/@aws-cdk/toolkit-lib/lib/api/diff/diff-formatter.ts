@@ -402,6 +402,23 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
 }
 
 function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
+  // Collect construct path prefixes for nested stacks so we can filter out
+  // metadata entries that belong to nested stacks rather than this stack.
+  const nestedStackPathPrefixes = new Set<string>();
+  const resources = (stack.template.Resources ?? {}) as Record<string, any>;
+  for (const resource of Object.values(resources)) {
+    if (resource?.Type === 'AWS::CloudFormation::Stack') {
+      const cdkPath: string | undefined = resource?.Metadata?.['aws:cdk:path'];
+      if (cdkPath) {
+        // cdkPath looks like "Stack/NestedConstruct/Resource", strip "/Resource" to get the prefix
+        const prefix = cdkPath.substring(0, cdkPath.lastIndexOf('/'));
+        if (prefix) {
+          nestedStackPathPrefixes.add('/' + prefix + '/');
+        }
+      }
+    }
+  }
+
   const map: { [id: string]: string } = {};
   // The stack metadata includes entries from nested stacks too. Cross-reference
   // against the stack's own template to only include IDs that belong to this stack.
@@ -417,12 +434,12 @@ function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
     if (!ownLogicalIds.has(logicalId)) {
       continue;
     }
-    // For duplicate logical IDs (parent and nested stack sharing the same ID),
-    // prefer the shortest path — the parent stack resource always has a shorter
-    // construct tree path than the nested stack resource.
-    if (!(logicalId in map) || md.path.length < map[logicalId].length) {
-      map[logicalId] = md.path;
+    // Skip metadata entries that belong to nested stacks.
+    // Their paths will start with the nested stack's construct path prefix.
+    if ([...nestedStackPathPrefixes].some((prefix) => md.path.startsWith(prefix))) {
+      continue;
     }
+    map[logicalId] = md.path;
   }
   return map;
 }
