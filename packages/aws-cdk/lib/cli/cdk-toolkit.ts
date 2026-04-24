@@ -1222,7 +1222,13 @@ export class CdkToolkit {
         await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
       }
 
-      await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      // In CI mode, non-error messages go to stdout. When we just printed the
+      // template to stdout, skip the flags message to preserve the contract that
+      // `cdk synth` output is valid YAML. When quiet (no template printed) or
+      // non-CI (flags go to stderr), it's safe to show.
+      if (quiet || !this.ioHost.isCI) {
+        await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+      }
       return undefined;
     }
 
