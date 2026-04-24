@@ -1,5 +1,6 @@
 import type { DiagnosedStack, StackDiagnosis, TracedResourceError } from '../../../lib/actions/diagnose';
 import { hostMessageFromDiagnosis, throwDeploymentErrorFromDiagnosis } from '../../../lib/api/diagnosing/diagnosis-formatting';
+import type { ActionLessMessage } from '../../../lib/api/io/private';
 import { DeploymentError, ToolkitError } from '../../../lib/toolkit/toolkit-error';
 
 function diagnosedStack(stackName: string, result: StackDiagnosis): DiagnosedStack {
@@ -22,7 +23,7 @@ function tracedError(overrides: Partial<TracedResourceError> = {}): TracedResour
 describe('hostMessageFromDiagnosis', () => {
   test('no-problem', () => {
     const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', { type: 'no-problem' }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
     expect(msg.code).toBe('CDK_TOOLKIT_I9500');
   });
 
@@ -31,7 +32,7 @@ describe('hostMessageFromDiagnosis', () => {
       type: 'error-diagnosing',
       message: 'Something went wrong',
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
     expect(msg.code).toBe('CDK_TOOLKIT_W9501');
   });
 
@@ -44,7 +45,7 @@ describe('hostMessageFromDiagnosis', () => {
         tracedError({ logicalId: 'MyFunc', message: 'Handler error: timeout', resourceType: 'AWS::Lambda::Function' }),
       ],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
     expect(msg.code).toBe('CDK_TOOLKIT_E9500');
   });
 
@@ -54,7 +55,7 @@ describe('hostMessageFromDiagnosis', () => {
       detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'Resource update failed' },
       problems: [],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 
   test('change set failure with resource errors', () => {
@@ -65,7 +66,7 @@ describe('hostMessageFromDiagnosis', () => {
         tracedError({ logicalId: 'MyBucket', message: 'Invalid property', resourceType: 'AWS::S3::Bucket' }),
       ],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 
   test('change set failure without resource errors', () => {
@@ -74,7 +75,7 @@ describe('hostMessageFromDiagnosis', () => {
       detectedBy: { type: 'change-set', changeSetName: 'cdk-deploy-cs', changeSetStatus: 'FAILED', statusReason: 'Template format error' },
       problems: [],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 
   test('early validation failure with resource errors', () => {
@@ -85,7 +86,7 @@ describe('hostMessageFromDiagnosis', () => {
         tracedError({ logicalId: 'MyBucket', message: 'Resource already exists (at /Resources/MyBucket)', resourceType: 'AWS::S3::Bucket' }),
       ],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 
   test('resource error with source trace', () => {
@@ -103,7 +104,7 @@ describe('hostMessageFromDiagnosis', () => {
         }),
       ],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 
   test('resource error in nested stack without source trace', () => {
@@ -119,7 +120,7 @@ describe('hostMessageFromDiagnosis', () => {
         }),
       ],
     }));
-    expect(msg).toMatchSnapshot();
+    expect(redactTime(msg)).toMatchSnapshot();
   });
 });
 
@@ -165,3 +166,8 @@ describe('throwDeploymentErrorFromDiagnosis', () => {
     }));
   });
 });
+
+function redactTime<A extends ActionLessMessage<any>>(msg: A): A {
+  (msg as any).time = new Date(0);
+  return msg;
+}
