@@ -3,7 +3,6 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type { WaiterResult } from '@smithy/util-waiter';
 import * as chalk from 'chalk';
-import type { AffectedResource, HotswapResult, ResourceSubject, ResourceChange, NonHotswappableChange } from '../../payloads';
 import { NonHotswappableReason } from '../../payloads';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
@@ -22,11 +21,13 @@ import {
   nonHotswappableResource,
 } from './common';
 import { isHotswappableEcsServiceChange } from './ecs-services';
+import { readHotswapTemplateCache, writeHotswapTemplateCache } from './hotswap-template-cache';
 import { isHotswappableLambdaFunctionChange } from './lambda-functions';
 import {
   skipChangeForS3DeployCustomResourcePolicy,
   isHotswappableS3BucketDeploymentChange,
 } from './s3-bucket-deployments';
+import type { AffectedResource, HotswapResult, ResourceSubject, ResourceChange, NonHotswappableChange } from '../../payloads';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SuccessfulDeployStackResult } from '../deployments';
 import { IO, SPAN } from '../io/private';
@@ -162,7 +163,10 @@ async function hotswapDeployment(
   // it assumes the bootstrap deploy Role, which doesn't have permissions to update Lambda functions
   const sdk = (await sdkProvider.forEnvironment(resolvedEnv, Mode.ForWriting)).sdk;
 
-  const currentTemplate = await loadCurrentTemplateWithNestedStacks(stack, sdk);
+  // Check for a cached template from a previous hotswap deployment.
+  // Use if available, represents the current state of the resources involved in hotswap.
+  const hotswapCache = await readHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template);
+  const currentTemplate = hotswapCache ?? await loadCurrentTemplateWithNestedStacks(stack, sdk);
 
   const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
     stackArtifact: stack,
@@ -211,6 +215,8 @@ async function hotswapDeployment(
   let error: Error | undefined;
   try {
     await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
+    // Cache the synthesized template so the next hotswap diffs against it
+    await writeHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template, currentTemplate.nestedStacks);
   } catch (e: any) {
     error = e;
   }

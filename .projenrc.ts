@@ -38,17 +38,23 @@ const TYPESCRIPT_VERSION = '5.9';
  */
 
 /**
- * When adding an SDK dependency for a library, use this function
+ * When adding an SDK dependency, use this function
  *
- * It forces the package.json to contain `@^3`; if we don't force that, projen
- * will make it contain something like `^3.282.74` and update that version every
- * couple of days.
+ * It forces the package.json to contain `@^3`. This has 2 benefits:
  *
- * By forcing a large range, we provide ample opportunity for our library user's
- * package manager to deduplicate whatever version of SDKv3 the consumer is
- * using with the version that our library expects.
+ * - If we don't force that, projen will make it contain something like
+ *   `^3.282.74` and update that version every couple of days.
+ *   By forcing a large range, we provide ample opportunity for our library user's
+ *   package manager to deduplicate whatever version of SDKv3 the consumer is
+ *   using with the version that our library expects.
+ * - The above is only necessary for libraries, but we use this for CLIs as well,
+ *   so that all SDK packages have the same specifier. This increases the chances of
+ *   `yarn up` updating all packages at the same time to the same version; otherwise,
+ *   if one SDK library is at `3.1028.0` and the other at `3.1033.0` (or whatever),
+ *   they sometimes bring different versions of Smithy packages which then take up
+ *   unnecessary space and also conflict with each other.
  */
-function sdkDepForLib(name: string) {
+function sdkDep(name: string) {
   if (!name.startsWith('@aws-sdk/')) {
     throw new Error('Must be an SDK package');
   }
@@ -58,7 +64,7 @@ function sdkDepForLib(name: string) {
 /**
  * Same as `sdkDepForLib`, but for smithy
  */
-function smithyDepForLib(name: string) {
+function smithyDep(name: string) {
   if (!name.startsWith('@smithy/')) {
     throw new Error('Must be a Smithy package');
   }
@@ -227,9 +233,9 @@ const repoProject = new yarn.Monorepo({
     'cdklabs-projen-project-types',
     'fast-glob',
     'semver',
-    '@aws-sdk/client-s3',
-    '@aws-sdk/credential-providers',
-    '@aws-sdk/lib-storage',
+    sdkDep('@aws-sdk/client-s3'),
+    sdkDep('@aws-sdk/credential-providers'),
+    sdkDep('@aws-sdk/lib-storage'),
     'tsx',
     'jest',
     '@types/jest',
@@ -520,7 +526,7 @@ const cloudFormationDiff = configureProject(
       pinnedDevDependency: false,
     },
     peerDeps: [
-      sdkDepForLib('@aws-sdk/client-cloudformation'),
+      sdkDep('@aws-sdk/client-cloudformation'),
     ],
     deps: [
       '@aws-cdk/aws-service-spec',
@@ -698,14 +704,14 @@ const cdkAssetsLib = configureProject(
       'archiver',
       'fast-glob',
       'mime@^2',
-      sdkDepForLib('@aws-sdk/client-ecr'),
-      sdkDepForLib('@aws-sdk/client-s3'),
-      sdkDepForLib('@aws-sdk/client-secrets-manager'),
-      sdkDepForLib('@aws-sdk/client-sts'),
-      sdkDepForLib('@aws-sdk/credential-providers'),
-      sdkDepForLib('@aws-sdk/lib-storage'),
-      smithyDepForLib('@smithy/config-resolver'),
-      smithyDepForLib('@smithy/node-config-provider'),
+      sdkDep('@aws-sdk/client-ecr'),
+      sdkDep('@aws-sdk/client-s3'),
+      sdkDep('@aws-sdk/client-secrets-manager'),
+      sdkDep('@aws-sdk/client-sts'),
+      sdkDep('@aws-sdk/credential-providers'),
+      sdkDep('@aws-sdk/lib-storage'),
+      smithyDep('@smithy/config-resolver'),
+      smithyDep('@smithy/node-config-provider'),
       'picomatch',
     ],
     devDeps: [
@@ -790,7 +796,7 @@ const cdkAssetsCli = configureProject(
       '@types/yargs',
       // These are for tests
       cloudAssemblySchema,
-      '@aws-sdk/client-s3',
+      sdkDep('@aws-sdk/client-s3'),
       'aws-sdk-client-mock',
     ],
     tsconfigDev: {
@@ -880,33 +886,33 @@ const toolkitLib = configureProject(
       cdkAssetsLib.customizeReference({ versionType: 'any-minor' }), // stay within the same MV, otherwise any should work
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      sdkDepForLib('@aws-sdk/client-appsync'),
-      sdkDepForLib('@aws-sdk/client-bedrock-agentcore-control'),
-      sdkDepForLib('@aws-sdk/client-cloudformation'),
-      sdkDepForLib('@aws-sdk/client-cloudwatch-logs'),
-      sdkDepForLib('@aws-sdk/client-cloudcontrol'),
-      sdkDepForLib('@aws-sdk/client-codebuild'),
-      sdkDepForLib('@aws-sdk/client-ec2'),
-      sdkDepForLib('@aws-sdk/client-ecr'),
-      sdkDepForLib('@aws-sdk/client-ecs'),
-      sdkDepForLib('@aws-sdk/client-elastic-load-balancing-v2'),
-      sdkDepForLib('@aws-sdk/client-iam'),
-      sdkDepForLib('@aws-sdk/client-kms'),
-      sdkDepForLib('@aws-sdk/client-lambda'),
-      sdkDepForLib('@aws-sdk/client-route-53'),
-      sdkDepForLib('@aws-sdk/client-s3'),
-      sdkDepForLib('@aws-sdk/client-secrets-manager'),
-      sdkDepForLib('@aws-sdk/client-sfn'),
-      sdkDepForLib('@aws-sdk/client-ssm'),
-      sdkDepForLib('@aws-sdk/client-sts'),
-      sdkDepForLib('@aws-sdk/credential-providers'),
-      sdkDepForLib('@aws-sdk/ec2-metadata-service'),
-      sdkDepForLib('@aws-sdk/lib-storage'),
-      smithyDepForLib('@smithy/middleware-endpoint'),
-      smithyDepForLib('@smithy/property-provider'),
-      smithyDepForLib('@smithy/shared-ini-file-loader'),
-      smithyDepForLib('@smithy/util-retry'),
-      smithyDepForLib('@smithy/util-waiter'),
+      sdkDep('@aws-sdk/client-appsync'),
+      sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
+      sdkDep('@aws-sdk/client-cloudformation'),
+      sdkDep('@aws-sdk/client-cloudwatch-logs'),
+      sdkDep('@aws-sdk/client-cloudcontrol'),
+      sdkDep('@aws-sdk/client-codebuild'),
+      sdkDep('@aws-sdk/client-ec2'),
+      sdkDep('@aws-sdk/client-ecr'),
+      sdkDep('@aws-sdk/client-ecs'),
+      sdkDep('@aws-sdk/client-elastic-load-balancing-v2'),
+      sdkDep('@aws-sdk/client-iam'),
+      sdkDep('@aws-sdk/client-kms'),
+      sdkDep('@aws-sdk/client-lambda'),
+      sdkDep('@aws-sdk/client-route-53'),
+      sdkDep('@aws-sdk/client-s3'),
+      sdkDep('@aws-sdk/client-secrets-manager'),
+      sdkDep('@aws-sdk/client-sfn'),
+      sdkDep('@aws-sdk/client-ssm'),
+      sdkDep('@aws-sdk/client-sts'),
+      sdkDep('@aws-sdk/credential-providers'),
+      sdkDep('@aws-sdk/ec2-metadata-service'),
+      sdkDep('@aws-sdk/lib-storage'),
+      smithyDep('@smithy/middleware-endpoint'),
+      smithyDep('@smithy/property-provider'),
+      smithyDep('@smithy/shared-ini-file-loader'),
+      smithyDep('@smithy/util-retry'),
+      smithyDep('@smithy/util-waiter'),
       'archiver',
       'cdk-from-cfn',
       'chalk@^4',
@@ -1208,35 +1214,35 @@ const cli = configureProject(
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
       'archiver',
-      '@aws-sdk/client-appsync',
-      '@aws-sdk/client-bedrock-agentcore-control',
-      '@aws-sdk/client-cloudformation',
-      '@aws-sdk/client-cloudwatch-logs',
-      '@aws-sdk/client-cloudcontrol',
-      '@aws-sdk/client-codebuild',
-      '@aws-sdk/client-ec2',
-      '@aws-sdk/client-ecr',
-      '@aws-sdk/client-ecs',
-      '@aws-sdk/client-elastic-load-balancing-v2',
-      '@aws-sdk/client-iam',
-      '@aws-sdk/client-kms',
-      '@aws-sdk/client-lambda',
-      '@aws-sdk/client-route-53',
-      '@aws-sdk/client-s3',
-      '@aws-sdk/client-secrets-manager',
-      '@aws-sdk/client-sfn',
-      '@aws-sdk/client-ssm',
-      '@aws-sdk/client-sts',
-      '@smithy/smithy-client',
-      '@aws-sdk/credential-providers',
-      '@aws-sdk/ec2-metadata-service',
-      '@aws-sdk/lib-storage',
-      '@smithy/middleware-endpoint',
-      '@smithy/property-provider',
-      '@smithy/shared-ini-file-loader',
-      '@smithy/types',
-      '@smithy/util-retry',
-      '@smithy/util-waiter',
+      sdkDep('@aws-sdk/client-appsync'),
+      sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
+      sdkDep('@aws-sdk/client-cloudformation'),
+      sdkDep('@aws-sdk/client-cloudwatch-logs'),
+      sdkDep('@aws-sdk/client-cloudcontrol'),
+      sdkDep('@aws-sdk/client-codebuild'),
+      sdkDep('@aws-sdk/client-ec2'),
+      sdkDep('@aws-sdk/client-ecr'),
+      sdkDep('@aws-sdk/client-ecs'),
+      sdkDep('@aws-sdk/client-elastic-load-balancing-v2'),
+      sdkDep('@aws-sdk/client-iam'),
+      sdkDep('@aws-sdk/client-kms'),
+      sdkDep('@aws-sdk/client-lambda'),
+      sdkDep('@aws-sdk/client-route-53'),
+      sdkDep('@aws-sdk/client-s3'),
+      sdkDep('@aws-sdk/client-secrets-manager'),
+      sdkDep('@aws-sdk/client-sfn'),
+      sdkDep('@aws-sdk/client-ssm'),
+      sdkDep('@aws-sdk/client-sts'),
+      sdkDep('@aws-sdk/credential-providers'),
+      sdkDep('@aws-sdk/ec2-metadata-service'),
+      sdkDep('@aws-sdk/lib-storage'),
+      smithyDep('@smithy/smithy-client'),
+      smithyDep('@smithy/middleware-endpoint'),
+      smithyDep('@smithy/property-provider'),
+      smithyDep('@smithy/shared-ini-file-loader'),
+      smithyDep('@smithy/types'),
+      smithyDep('@smithy/util-retry'),
+      smithyDep('@smithy/util-waiter'),
       'camelcase@^6', // Non-ESM
       cdkAssetsLib,
       'cdk-from-cfn',
@@ -1462,7 +1468,7 @@ const integRunner = configureProject(
       'yargs@^16',
       'proxy-agent',
       '@aws-cdk/aws-service-spec',
-      '@aws-sdk/client-cloudformation',
+      sdkDep('@aws-sdk/client-cloudformation'),
     ],
     devDeps: [
       'aws-cdk-lib',
@@ -1551,23 +1557,23 @@ const cliInteg = configureProject(
     libdir: '.',
     deps: [
       '@octokit/rest@^20', // newer versions are ESM only
-      '@aws-sdk/client-codeartifact',
-      '@aws-sdk/client-cloudformation',
-      '@aws-sdk/client-dynamodb',
-      '@aws-sdk/client-ecr',
-      '@aws-sdk/client-ecr-public',
-      '@aws-sdk/client-ecs',
-      '@aws-sdk/client-iam',
-      '@aws-sdk/client-lambda',
-      '@aws-sdk/client-s3',
-      '@aws-sdk/client-sns',
-      '@aws-sdk/client-sso',
-      '@aws-sdk/client-sts',
-      '@aws-sdk/client-secrets-manager',
-      '@aws-sdk/credential-providers',
+      sdkDep('@aws-sdk/client-codeartifact'),
+      sdkDep('@aws-sdk/client-cloudformation'),
+      sdkDep('@aws-sdk/client-dynamodb'),
+      sdkDep('@aws-sdk/client-ecr'),
+      sdkDep('@aws-sdk/client-ecr-public'),
+      sdkDep('@aws-sdk/client-ecs'),
+      sdkDep('@aws-sdk/client-iam'),
+      sdkDep('@aws-sdk/client-lambda'),
+      sdkDep('@aws-sdk/client-s3'),
+      sdkDep('@aws-sdk/client-sns'),
+      sdkDep('@aws-sdk/client-sso'),
+      sdkDep('@aws-sdk/client-sts'),
+      sdkDep('@aws-sdk/client-secrets-manager'),
+      sdkDep('@aws-sdk/credential-providers'),
+      smithyDep('@smithy/util-retry'),
+      smithyDep('@smithy/types'),
       '@cdklabs/cdk-atmosphere-client',
-      '@smithy/util-retry', // smithy packages don't have the same major version as SDK packages
-      '@smithy/types', // smithy packages don't have the same major version as SDK packages
       'chalk@^4',
       'fs-extra@^11',
       'fast-glob',
