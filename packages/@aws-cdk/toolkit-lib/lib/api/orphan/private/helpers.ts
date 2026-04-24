@@ -197,7 +197,7 @@ export function ensureNonEmptyResources(template: any): void {
  */
 export function parseAndValidateConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
   if (paths.length === 0) {
-    throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. --path MyStack/MyTable)');
+    throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. cdk orphan MyStack/MyTable)');
   }
 
   const constructPaths: string[] = [];

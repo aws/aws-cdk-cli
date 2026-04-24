@@ -35,9 +35,9 @@ integTest(
       // Orphan the table
       const orphanOutput = await fixture.cdk([
         'orphan',
-        '--path', `${stackName}/MyTable`,
+        `${stackName}/MyTable`,
         '--unstable=orphan',
-        '--force',
+        '--yes',
       ]);
 
       // Verify the output contains a resource mapping for import
