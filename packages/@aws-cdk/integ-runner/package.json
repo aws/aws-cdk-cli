@@ -71,7 +71,7 @@
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
-    "@aws-sdk/client-cloudformation": "^3",
+    "@aws-sdk/client-cloudformation": "^3.1036.0",
     "aws-cdk": "^0.0.0",
     "chalk": "^4",
     "chokidar": "^4",
