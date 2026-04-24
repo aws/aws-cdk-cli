@@ -132,8 +132,18 @@ export class DriftFormatter {
 
   private buildLogicalToPathMap() {
     const map: { [id: string]: string } = {};
+    const template = this.stack.template ?? {};
+    const ownLogicalIds = new Set<string>();
+    for (const section of ['Resources', 'Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
+      for (const id of Object.keys(template[section] ?? {})) {
+        ownLogicalIds.add(id);
+      }
+    }
     for (const md of this.stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
       const logicalId = md.data as string;
+      if (!ownLogicalIds.has(logicalId)) {
+        continue;
+      }
       if (!(logicalId in map) || md.path.length < map[logicalId].length) {
         map[logicalId] = md.path;
       }

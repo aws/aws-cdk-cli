@@ -403,13 +403,23 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
 
 function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
   const map: { [id: string]: string } = {};
+  // The stack metadata includes entries from nested stacks too. Cross-reference
+  // against the stack's own template to only include IDs that belong to this stack.
+  const template = stack.template ?? {};
+  const ownLogicalIds = new Set<string>();
+  for (const section of ['Resources', 'Parameters', 'Conditions', 'Outputs', 'Rules', 'Mappings']) {
+    for (const id of Object.keys(template[section] ?? {})) {
+      ownLogicalIds.add(id);
+    }
+  }
   for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
     const logicalId = md.data as string;
-    // When a parent stack and a nested stack have resources with the same logical ID,
-    // the metadata will contain entries for both. We pick the shortest path, which
-    // corresponds to the resource directly in this stack rather than in a nested stack.
-    // This works because nested stack resources always have longer paths due to the
-    // additional nested stack construct name segment in the construct tree.
+    if (!ownLogicalIds.has(logicalId)) {
+      continue;
+    }
+    // For duplicate logical IDs (parent and nested stack sharing the same ID),
+    // prefer the shortest path — the parent stack resource always has a shorter
+    // construct tree path than the nested stack resource.
     if (!(logicalId in map) || md.path.length < map[logicalId].length) {
       map[logicalId] = md.path;
     }
