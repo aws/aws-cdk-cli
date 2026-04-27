@@ -65,7 +65,7 @@
     "chalk": "^4",
     "diff": "^9.0.0",
     "fast-deep-equal": "^3.1.3",
-    "string-width": "^4",
+    "string-width": "^7",
     "table": "^6"
   },
   "keywords": [
