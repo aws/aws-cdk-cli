@@ -94,6 +94,13 @@ const RESOURCE_DETECTORS: { [key: string]: HotswapDetector } = {
   'AWS::CloudWatch::Dashboard': isHotswappableCloudControlChange,
   'AWS::StepFunctions::StateMachine': isHotswappableCloudControlChange,
   'AWS::BedrockAgentCore::Runtime': isHotswappableCloudControlChange,
+
+  // QuickSight
+  'AWS::QuickSight::Dashboard': isHotswappableCloudControlChange,
+  'AWS::QuickSight::Analysis': isHotswappableCloudControlChange,
+  'AWS::QuickSight::Template': isHotswappableCloudControlChange,
+  'AWS::QuickSight::DataSet': isHotswappableCloudControlChange,
+  'AWS::QuickSight::DataSource': isHotswappableCloudControlChange,
 };
 
 /**

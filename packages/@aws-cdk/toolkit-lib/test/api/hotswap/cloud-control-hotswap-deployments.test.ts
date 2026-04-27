@@ -432,6 +432,11 @@ describe.each([
   'AWS::CloudWatch::Dashboard',
   'AWS::StepFunctions::StateMachine',
   'AWS::BedrockAgentCore::Runtime',
+  'AWS::QuickSight::Dashboard',
+  'AWS::QuickSight::Analysis',
+  'AWS::QuickSight::Template',
+  'AWS::QuickSight::DataSet',
+  'AWS::QuickSight::DataSource',
 ])('CCAPI sanity check for resources where Primary Identifier matches Physical ID %s', (resourceType) => {
   beforeEach(() => {
     hotswapMockSdkProvider = setup.setupHotswapTests();
@@ -526,6 +531,109 @@ describe.each([
       TypeName: resourceType,
       Identifier: 'res-123|res-123',
       PatchDocument: JSON.stringify([{ op: 'replace', path: '/SomeProp', value: 'new' }]),
+    });
+  });
+});
+
+describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('QuickSight hotswap via CCAPI in %p mode', (hotswapMode) => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({
+        primaryIdentifier: ['/properties/AwsAccountId', '/properties/DashboardId'],
+      }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('hotswaps a QuickSight Dashboard Name change', async () => {
+    // GIVEN
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyDashboard: {
+          Type: 'AWS::QuickSight::Dashboard',
+          Properties: {
+            AwsAccountId: '123456789012',
+            DashboardId: 'my-dashboard',
+            Name: 'Old Dashboard',
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyDashboard', 'AWS::QuickSight::Dashboard', 'my-dashboard'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyDashboard: {
+            Type: 'AWS::QuickSight::Dashboard',
+            Properties: {
+              AwsAccountId: '123456789012',
+              DashboardId: 'my-dashboard',
+              Name: 'New Dashboard',
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::QuickSight::Dashboard',
+      Identifier: 'my-dashboard',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/Name', value: 'New Dashboard' }]),
+    });
+  });
+
+  test('hotswaps a QuickSight Dashboard Definition change', async () => {
+    // GIVEN
+    const oldDefinition = { DataSetIdentifierDeclarations: [{ Identifier: 'ds1', DataSetArn: 'arn:old' }] };
+    const newDefinition = { DataSetIdentifierDeclarations: [{ Identifier: 'ds1', DataSetArn: 'arn:new' }] };
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyDashboard: {
+          Type: 'AWS::QuickSight::Dashboard',
+          Properties: {
+            AwsAccountId: '123456789012',
+            DashboardId: 'my-dashboard',
+            Definition: oldDefinition,
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyDashboard', 'AWS::QuickSight::Dashboard', 'my-dashboard'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyDashboard: {
+            Type: 'AWS::QuickSight::Dashboard',
+            Properties: {
+              AwsAccountId: '123456789012',
+              DashboardId: 'my-dashboard',
+              Definition: newDefinition,
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::QuickSight::Dashboard',
+      Identifier: 'my-dashboard',
+      PatchDocument: JSON.stringify([{ op: 'replace', path: '/Definition', value: newDefinition }]),
     });
   });
 });
