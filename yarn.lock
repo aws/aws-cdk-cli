@@ -234,6 +234,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-cdk/cloud-assembly-api@npm:^2.2.2":
+  version: 2.2.2
+  resolution: "@aws-cdk/cloud-assembly-api@npm:2.2.2"
+  dependencies:
+    jsonschema: "npm:~1.4.1"
+    semver: "npm:^7.7.4"
+  peerDependencies:
+    "@aws-cdk/cloud-assembly-schema": ">=53.15.0"
+  checksum: 10c0/cc5e7edd13d9d7e4ad7878c16f85a1a15c68e9ec51b71ad4a4c884ef0b3ed28fc25dc0627f0c226d65615cc6011ca02de94401862b650a996f8ccdff651e4d44
+  languageName: node
+  linkType: hard
+
 "@aws-cdk/cloud-assembly-schema@npm:^0.0.0, @aws-cdk/cloud-assembly-schema@workspace:packages/@aws-cdk/cloud-assembly-schema":
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloud-assembly-schema@workspace:packages/@aws-cdk/cloud-assembly-schema"
@@ -281,6 +293,16 @@ __metadata:
     jsonschema: "npm:~1.4.1"
     semver: "npm:^7.7.4"
   checksum: 10c0/c0be56cfe483f12d55d7b54c64921eb4035be0c2a84d3aeaac3c9eedd3e92e6ec6a3830ee5aa6e72f344d0cbf4ad90dfe41628a7d389f39409ef3f9f1759a165
+  languageName: node
+  linkType: hard
+
+"@aws-cdk/cloud-assembly-schema@npm:^53.18.0":
+  version: 53.18.0
+  resolution: "@aws-cdk/cloud-assembly-schema@npm:53.18.0"
+  dependencies:
+    jsonschema: "npm:~1.4.1"
+    semver: "npm:^7.7.4"
+  checksum: 10c0/f8e2f7f7f603f6ef9e8ec1a5c87d9b24f0011995a08153b336deba9fb0cac5235a97c0846b84f960fef34631a1c48808e13fdfa623eceb798e062d8a60c8a39f
   languageName: node
   linkType: hard
 
@@ -7555,6 +7577,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-cdk-lib@npm:2.251.0":
+  version: 2.251.0
+  resolution: "aws-cdk-lib@npm:2.251.0"
+  dependencies:
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.273"
+    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.1"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.2"
+    "@aws-cdk/cloud-assembly-schema": "npm:^53.18.0"
+    "@balena/dockerignore": "npm:^1.0.2"
+    case: "npm:1.6.3"
+    fs-extra: "npm:^11.3.3"
+    ignore: "npm:^5.3.2"
+    jsonschema: "npm:^1.5.0"
+    mime-types: "npm:^2.1.35"
+    minimatch: "npm:^10.2.3"
+    punycode: "npm:^2.3.1"
+    semver: "npm:^7.7.4"
+    table: "npm:^6.9.0"
+    yaml: "npm:1.10.3"
+  peerDependencies:
+    constructs: ^10.5.0
+  checksum: 10c0/ae1d8b47bfb9fa00d09fa2134d67258fae184d9c6bd79ef17fcdc474620801f0dd1c4afc2917bb4fb9387919877115f90f8855baeda38e2c3cf2086c5a3a9b39
+  languageName: node
+  linkType: hard
+
 "aws-cdk@npm:^0.0.0, aws-cdk@workspace:packages/aws-cdk":
   version: 0.0.0-use.local
   resolution: "aws-cdk@workspace:packages/aws-cdk"
@@ -7611,7 +7658,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     archiver: "npm:^7.0.1"
-    aws-cdk-lib: "npm:2.250.0"
+    aws-cdk-lib: "npm:2.251.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
