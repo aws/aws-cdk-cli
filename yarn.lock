@@ -347,14 +347,14 @@ __metadata:
   linkType: soft
 
 "@aws-cdk/cx-api@npm:^2":
-  version: 2.248.0
-  resolution: "@aws-cdk/cx-api@npm:2.248.0"
+  version: 2.251.0
+  resolution: "@aws-cdk/cx-api@npm:2.251.0"
   dependencies:
-    "@aws-cdk/cloud-assembly-api": "npm:^2.2.0"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.2"
     semver: "npm:^7.7.4"
   peerDependencies:
-    "@aws-cdk/cloud-assembly-schema": ">=53.0.0"
-  checksum: 10c0/bb7ef41d19547ceb226912d2f99db020db58639322e03edeb1835424279ff650291a2a7a3b357ab60524f959cff22f049ce20c76f548f45049fa8e2f41028a33
+    "@aws-cdk/cloud-assembly-schema": ">=53.18.0"
+  checksum: 10c0/480af47d19353bb6f5d52e1ea1e8f6179fed7039ff614f05a6c4f57668c054a00332cb5d02ecf39f7847140f41ecae69db594c4afce9749949f9fafdd79684fa
   languageName: node
   linkType: hard
 
