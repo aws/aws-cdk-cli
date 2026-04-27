@@ -77,7 +77,7 @@
     "chokidar": "^4",
     "fs-extra": "^11",
     "proxy-agent": "^6.5.0",
-    "workerpool": "^6",
+    "workerpool": "^10",
     "yargs": "^16"
   },
   "keywords": [

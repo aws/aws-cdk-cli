@@ -405,7 +405,7 @@ __metadata:
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
-    workerpool: "npm:^6"
+    workerpool: "npm:^10"
     yargs: "npm:^16"
   bin:
     integ-runner: bin/integ-runner
@@ -18236,7 +18236,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"workerpool@npm:^6, workerpool@npm:^6.5.1":
+"workerpool@npm:^10":
+  version: 10.0.2
+  resolution: "workerpool@npm:10.0.2"
+  checksum: 10c0/0bba62b1df89ca7b04adf089efb3f57b184225b956de7ce1df6f3e3783acdad82662fd0cd627f7630fe76581634c265d576eec735526c0024b1c0b2ac430c500
+  languageName: node
+  linkType: hard
+
+"workerpool@npm:^6.5.1":
   version: 6.5.1
   resolution: "workerpool@npm:6.5.1"
   checksum: 10c0/58e8e969782292cb3a7bfba823f1179a7615250a0cefb4841d5166234db1880a3d0fe83a31dd8d648329ec92c2d0cd1890ad9ec9e53674bb36ca43e9753cdeac
