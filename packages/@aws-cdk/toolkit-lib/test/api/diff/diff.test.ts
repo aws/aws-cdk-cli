@@ -40,6 +40,61 @@ describe('formatStackDiff', () => {
     } as any;
   });
 
+  test('shows metadata hint when only CDK metadata changes are present', () => {
+    // GIVEN
+    const oldTemplate = {
+      Resources: {
+        CDKMetadata: {
+          Type: 'AWS::CDK::Metadata',
+          Properties: { Analytics: 'v2:deflate64:oldvalue' },
+        },
+      },
+    };
+    const newTemplateWithMetadata = {
+      ...mockNewTemplate,
+      template: {
+        Resources: {
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: { Analytics: 'v2:deflate64:newvalue' },
+          },
+        },
+      },
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate,
+        newTemplate: newTemplateWithMetadata,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(0);
+    const sanitizedDiff = stripAnsi(result.formattedDiff!).trim();
+    expect(sanitizedDiff).toContain('There were no differences');
+    expect(sanitizedDiff).toContain('CDK metadata changes were hidden, run cdk diff --strict to show');
+  });
+
+  test('does not show metadata hint when templates are identical', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(0);
+    const sanitizedDiff = stripAnsi(result.formattedDiff!).trim();
+    expect(sanitizedDiff).toContain('There were no differences');
+    expect(sanitizedDiff).not.toContain('CDK metadata');
+  });
+
   test('returns no differences when templates are identical', () => {
     // WHEN
     const formatter = new DiffFormatter({

@@ -276,9 +276,11 @@ export class DiffFormatter {
 
       // filter out 'AWS::CDK::Metadata' resources from the template
       // filter out 'CheckBootstrapVersion' rules from the template
+      const diffWasNonEmpty = !activeDiff.isEmpty;
       if (!options.strict) {
         obscureDiff(activeDiff);
       }
+      const metadataWasFiltered = diffWasNonEmpty && activeDiff.isEmpty;
 
       if (!activeDiff.isEmpty) {
         numStacksWithChanges++;
@@ -289,7 +291,8 @@ export class DiffFormatter {
           ...logicalIdMap,
         }, options.contextLines);
       } else if (!options.quiet) {
-        stream.write(chalk.green('There were no differences\n'));
+        const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
+        stream.write(`${chalk.green('There were no differences')}${hint}\n`);
       }
 
       if (filteredChangesCount > 0) {
