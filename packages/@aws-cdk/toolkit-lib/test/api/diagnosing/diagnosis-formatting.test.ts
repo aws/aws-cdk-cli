@@ -9,7 +9,7 @@ function diagnosedStack(stackName: string, result: StackDiagnosis): DiagnosedSta
 
 function tracedError(overrides: Partial<TracedResourceError> = {}): TracedResourceError {
   return {
-    stackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid',
+    stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid',
     topLevelStackHierarchicalId: 'MyStack',
     parentStackLogicalIds: [],
     logicalId: 'MyBucket',

@@ -37,7 +37,7 @@ import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice, OldestEvent } from '../stack-events';
+import { StackActivityMonitor, StackEventPoller, RollbackChoice, PollRange } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -525,7 +525,7 @@ export class Deployments {
             // `DescribeStackResources` permissions).
             const poller = new StackEventPoller(cfn, {
               stackName: deployName,
-              oldestEvent: OldestEvent.stackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
+              initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
             });
             await poller.poll();
             resourcesToSkip = poller.resourceErrors

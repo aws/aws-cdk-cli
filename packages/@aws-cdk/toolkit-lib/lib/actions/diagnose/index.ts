@@ -40,11 +40,8 @@ export interface DiagnosedStack {
 export interface TracedResourceError {
   /**
    * The stack this resource error occurred in
-   *
-   * NOTE: This will be a stack ID (which is a full ARN including the unique identifier),
-   * not just a name.
    */
-  readonly stackId: string;
+  readonly stackArn: string;
 
   /**
    * Top-level stack name or stack construct path we found the error in

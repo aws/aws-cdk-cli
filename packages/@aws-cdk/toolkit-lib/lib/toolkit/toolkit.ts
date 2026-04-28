@@ -174,7 +174,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'flags' | 'publish-assets';
+export type UnstableFeature = 'refactor' | 'flags' | 'publish-assets' | 'diagnose';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -605,13 +605,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * the maximum number of diagnostics.
    */
   public async diagnose(cx: ICloudAssemblySource, options: DiagnoseOptions = {}): Promise<DiagnoseResult> {
+    this.requireUnstableFeature('diagnose');
+
     const ioHelper = asIoHelper(this.ioHost, 'diagnose');
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
 
-    // Do all stacks in parallel, for speed.
+    // Do stacks in parallel, for speed.
     const limit = pLimit(options.concurrency ?? 10);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism

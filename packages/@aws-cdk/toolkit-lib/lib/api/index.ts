@@ -23,5 +23,4 @@ export * from './work-graph';
 export * from './tree';
 export * from './tags';
 export * from './drift';
-export * from '../actions/diagnose';
 export * from './source-tracing';

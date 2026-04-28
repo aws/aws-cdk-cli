@@ -1,7 +1,7 @@
 import * as util from 'util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as uuid from 'uuid';
-import { StackEventPoller, OldestEvent } from './stack-event-poller';
+import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import type { ICloudFormationClient } from '../aws-auth/private';
@@ -132,7 +132,7 @@ export class StackActivityMonitor {
     this.pollingInterval = pollingInterval;
     this.poller = new StackEventPoller(cfn, {
       stackName,
-      oldestEvent: OldestEvent.timestamp(changeSetCreationTime?.getTime() ?? Date.now()),
+      initialPollRange: PollRange.sinceTimestamp(changeSetCreationTime?.getTime() ?? Date.now()),
     });
   }
 

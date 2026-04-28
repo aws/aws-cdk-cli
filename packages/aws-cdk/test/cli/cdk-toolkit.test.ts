@@ -58,7 +58,7 @@ import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
+import { Toolkit, type DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -2412,6 +2412,44 @@ describe('rollback', () => {
     expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ deploymentMethod: expect.objectContaining({ execute: false }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: false, deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(3, expect.objectContaining({ rollback: true }));
+  });
+});
+
+describe('diagnose', () => {
+  cliTest('exit code is 0 if there are no diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: { type: 'no-problem' },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).toEqual(0);
+  });
+
+  cliTest('exit code is non-zero if there are diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: {
+            type: 'problem',
+            detectedBy: { type: 'deployment', stackStatus: 'FAILED', statusReason: 'Thundering typhoons' },
+            problems: [],
+          },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).not.toEqual(0);
   });
 });
 

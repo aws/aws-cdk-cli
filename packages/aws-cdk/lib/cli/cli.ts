@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
-import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
@@ -83,8 +83,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
-  // Debug should always imply tracing
-  // (That's not what --debug means, --debug is intended for the CDK app -- huijbers@)
+  // If users request debug information (which switches on CDK_DEBUG=1 to get the
+  // CDK app to emit more information), they probably are troubleshooting and we've
+  // historically decided they then want more logging from the CLI as well.
+  // There is currently no way to get the CDK to emit tracing information that
+  // does not cause the CLI to barf logs to the console.
   setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
@@ -440,11 +443,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
         return cli.diagnose({
-          // Implicitly do all stacks if no pattern given
-          stacks: {
-            strategy: args.STACKS.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-            patterns: args.STACKS,
-          },
+          stacks: specificStacksOrAllRecursively(args.STACKS),
           concurrency: args.concurrency,
           toolkitStackName: args.toolkitStackName,
         });
@@ -666,11 +665,23 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
 /**
  * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
  */
-function convertStackSelector(selector: StackSelector, exclusively?: boolean) {
+function convertStackSelector(selector: StackSelector, exclusively?: boolean): LibStackSelector {
   return {
     patterns: selector.patterns,
     strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
     expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+  };
+}
+
+/**
+ * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
+ *
+ * If no patterns are given, all stacks in the assembly and all of its stages are selected.
+ */
+function specificStacksOrAllRecursively(patterns: string[]): LibStackSelector {
+  return {
+    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    patterns,
   };
 }
 

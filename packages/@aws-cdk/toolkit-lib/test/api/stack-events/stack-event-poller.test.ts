@@ -1,6 +1,6 @@
 import type { DescribeStackEventsCommandInput, StackEvent } from '@aws-sdk/client-cloudformation';
 import { DescribeStackEventsCommand } from '@aws-sdk/client-cloudformation';
-import { StackEventPoller, OldestEvent } from '../../../lib/api/stack-events';
+import { StackEventPoller, PollRange } from '../../../lib/api/stack-events';
 import { MockSdk, mockCloudFormationClient } from '../../_helpers/mock-sdk';
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ describe('poll', () => {
 
     const poller = new StackEventPoller(sdk.cloudFormation(), {
       stackName: 'stack',
-      oldestEvent: OldestEvent.timestamp(new Date().getTime()),
+      initialPollRange: PollRange.sinceTimestamp(new Date().getTime()),
     });
 
     const events = await poller.poll();
@@ -68,7 +68,7 @@ describe('poll', () => {
 
     const poller = new StackEventPoller(sdk.cloudFormation(), {
       stackName: 'stack',
-      oldestEvent: OldestEvent.timestamp(new Date().getTime()),
+      initialPollRange: PollRange.sinceTimestamp(new Date().getTime()),
     });
 
     await poller.poll();

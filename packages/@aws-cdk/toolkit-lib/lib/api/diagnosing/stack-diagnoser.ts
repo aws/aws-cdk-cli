@@ -7,7 +7,7 @@ import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ISourceTracer } from '../source-tracing/private/source-tracing';
-import { OldestEvent, StackEventPoller } from '../stack-events';
+import { PollRange, StackEventPoller } from '../stack-events';
 import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
 import { StackStatus } from '../stack-events/stack-status';
 
@@ -111,7 +111,7 @@ export class CloudFormationStackDiagnoser {
   private async _diagnoseViaStackEvents(stackName: string, stack: Stack): Promise<StackDiagnosis> {
     const poller = new StackEventPoller(this.cfn, {
       stackName,
-      oldestEvent: OldestEvent.mostRecentOperation(),
+      initialPollRange: PollRange.mostRecentOperation(),
     });
 
     // We don't need the resulting events of polling. Polling will automatically update the error collection,
@@ -217,9 +217,9 @@ export class CloudFormationStackDiagnoser {
   private async addErrorTrace(err: ResourceError): Promise<TracedResourceError> {
     let sourceTrace;
     if (err.logicalId) {
-      sourceTrace = await this.props.sourceTracer.traceResource(err.stackId, err.parentStackLogicalIds, err.logicalId);
+      sourceTrace = await this.props.sourceTracer.traceResource(err.stackArn, err.parentStackLogicalIds, err.logicalId);
     } else {
-      sourceTrace = await this.props.sourceTracer.traceStack(err.stackId, err.parentStackLogicalIds);
+      sourceTrace = await this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
     }
 
     return { ...err, sourceTrace, topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId };
@@ -245,7 +245,7 @@ export class CloudFormationStackDiagnoser {
           logicalId: undefined,
           message: changeSet.StatusReason ?? '',
           parentStackLogicalIds: this.parentStackLogicalIds,
-          stackId: changeSet.StackId ?? '',
+          stackArn: changeSet.StackId ?? '',
           physicalId: changeSet.StackId,
           resourceType: 'AWS::CloudFormation::Stack',
         }),
@@ -348,7 +348,7 @@ export class CloudFormationStackDiagnoser {
       ret.push({
         message: `Automatic import of existing resource ${thisResource} needs a DeletionPolicy of \'Retain\' or \'RetainExceptOnCreate\'. Set the removal policy to \'RemovalPolicy.RETAIN\' or \'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE\' (See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)`,
         parentStackLogicalIds: this.parentStackLogicalIds,
-        stackId: changeSet.StackId ?? '',
+        stackArn: changeSet.StackId ?? '',
         errorCode: 'AutomaticImportNeedsRetain',
         logicalId,
       });
@@ -385,6 +385,6 @@ function resourceErrorFromEarlyValidationError(stackId: string, parentStackLogic
     message: `${ev.message} (at ${ev.documentPath})`,
     errorCode: `${ev.validationName}_${ev.eventType}`,
     parentStackLogicalIds,
-    stackId,
+    stackArn: stackId,
   };
 }

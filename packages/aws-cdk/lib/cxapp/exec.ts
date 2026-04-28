@@ -31,7 +31,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   await debugFn(format('context:', context));
 
   if (params.env.CDK_DEBUG === 'true') {
-    await ioHelper.defaults.info('🔍 Synthesizing with debug information. This may take a bit longer. (--debug)');
+    await ioHelper.defaults.info('🔍 Synthesizing with debug information. This may take a bit longer.');
   }
 
   const env: Record<string, string> = noUndefined({

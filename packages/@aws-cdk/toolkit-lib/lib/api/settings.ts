@@ -1,7 +1,6 @@
 import * as os from 'os';
 import * as fs_path from 'path';
 import * as fs from 'fs-extra';
-import { ToolkitError } from '../toolkit/toolkit-error';
 import * as util from '../util';
 
 export type SettingsMap = { [key: string]: any };
@@ -23,17 +22,7 @@ export class Settings {
     return ret;
   }
 
-  private _readOnly = false;
-
-  constructor(
-    private settings: SettingsMap = {},
-    readOnly = false,
-  ) {
-    this._readOnly = readOnly;
-  }
-
-  public get readOnly() {
-    return this._readOnly;
+  constructor(private settings: SettingsMap = {}) {
   }
 
   public async save(fileName: string): Promise<this> {
@@ -53,27 +42,10 @@ export class Settings {
   }
 
   public subSettings(keyPrefix: string[]) {
-    return new Settings(this.get(keyPrefix) || {}, false);
-  }
-
-  public makeReadOnly(): Settings {
-    return new Settings(this.settings, true);
-  }
-
-  public temporarilyMutable(block: (x: Settings) => void) {
-    const old = this.readOnly;
-    this._readOnly = false;
-    try {
-      block(this);
-    } finally {
-      this._readOnly = old;
-    }
+    return new Settings(this.get(keyPrefix) || {});
   }
 
   public clear() {
-    if (this.readOnly) {
-      throw new ToolkitError('SettingsReadOnly', 'Cannot clear(): settings are readonly');
-    }
     this.settings = {};
   }
 
@@ -86,9 +58,6 @@ export class Settings {
   }
 
   public set(path: string[], value: any): Settings {
-    if (this.readOnly) {
-      throw new ToolkitError('SettingsReadOnly', `Can't set ${path}: settings object is readonly`);
-    }
     if (path.length === 0) {
       // deepSet can't handle this case
       this.settings = value;

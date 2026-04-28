@@ -161,6 +161,12 @@ See the [CDK reference documentation](https://docs.aws.amazon.com/cdk/api/latest
 
 ### `cdk diagnose`
 
+> [!CAUTION]
+> `cdk diagnose` is under development and therefore must be opted in via the
+> `--unstable` flag: `cdk --unstable=diagnose diagnose`. `--unstable` indicates
+> that the scope and API of feature might still change. Otherwise the feature
+> is generally production ready and fully supported.
+
 Looks at a failed stack deployment in CloudFormation, and prints the root cause
 reason with pointers to the CDK source code that caused the problem.
 
@@ -168,14 +174,14 @@ This peforms the same diagnosis that `cdk deploy` does, but does it
 after-the-fact.  This can be useful to refresh your memory, ask a colleague to
 help diagnose a deployment problem, or try to diagnose a deployment problem if
 your way of working dictates that you perform stack deployment via a CI/CD
-system (instead of directly using the CLI).
+system instead of directly using the CDK CLI.
 
 ```console
 # Diagnose all stacks found inside the application
-$ cdk diagnose
+$ cdk --unstable=diagnose diagnose
 
 # Diagnose the failed deployment of a specific stack
-$ cdk diagnose <MyStackName>
+$ cdk --unstable=diagnose diagnose <MyStackName>
 ```
 
 ### `cdk diff`

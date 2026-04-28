@@ -21,6 +21,8 @@ export interface TemplateParameter {
  *
  * Bundle and cache some information that we need during deployment (so we don't have to make
  * repeated calls to CloudFormation).
+ *
+ * Wraps a `Stack` object from the `@aws-sdk/client-cloudformation` library.
  */
 export class CloudFormationStack {
   public static async lookup(
@@ -65,7 +67,10 @@ export class CloudFormationStack {
   ) {
   }
 
-  public get underlyingStackObject(): Stack {
+  /**
+   * Returns the Stack object returned from the CloudFormation service response that this decorating object wraps
+   */
+  public get wrapped(): Stack {
     if (!this.stack) {
       throw new ToolkitError('NoStack', 'CloudFormationStack object does not hold a stack');
     }

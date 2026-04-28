@@ -18,28 +18,29 @@ export interface StackEventPollerProps {
   /**
    * A configurable algorithm to indicate when we should stop consuming the event stream.
    *
-   * The "oldest event" algorithm will be called on the first occurence of
-   * polling. It will be shown all events in a chunk in turn, newest-to-oldest,
-   * and should decide the oldest event we're still interested in.
+   * The initialPollRange object will be called on the first occurrence of
+   * polling.  It will be shown all events in a chunk in turn, newest-to-oldest,
+   * and should decide the oldest event we're still interested in. We will not
+   * go back further consuming the event stream.
    *
    * On subsequent polls, we will use the events we've already seen to decide when to stop
    * polling.
    */
-  readonly oldestEvent: IOldestEvent;
+  readonly initialPollRange: IPollRange;
 }
 
-export interface IOldestEvent {
+export interface IPollRange {
   /**
    * Whether polling should stop on seeing this event
    */
   shouldStop(event: ResourceEvent): 'stop-include' | 'stop-exclude' | 'continue';
 }
 
-export abstract class OldestEvent {
+export abstract class PollRange {
   /**
-   * Stop when events are older than a given time
+   * Only include events since than a given time
    */
-  public static timestamp(startTime: number): IOldestEvent {
+  public static sinceTimestamp(startTime: number): IPollRange {
     return {
       shouldStop(event) {
         return event.event.Timestamp!.valueOf() < startTime ? 'stop-exclude' : 'continue';
@@ -53,7 +54,7 @@ export abstract class OldestEvent {
    * Should be something like `CREATE_IN_PROGRESS`, `UPDATE_IN_PROGRESS`,
    * `DELETE_IN_PROGRESS, `ROLLBACK_IN_PROGRESS`.
    */
-  public static stackStatus(statuses: string[]): IOldestEvent {
+  public static sinceStackStatus(statuses: string[]): IPollRange {
     return {
       shouldStop(event) {
         return event.isRootStackEvent && statuses.includes(event.event.ResourceStatus ?? '') ? 'stop-include' : 'continue';
@@ -66,7 +67,7 @@ export abstract class OldestEvent {
    *
    * Records the first OperationId, and stops as soon as we see events that don't have it anymore.
    */
-  public static mostRecentOperation(): IOldestEvent {
+  public static mostRecentOperation(): IPollRange {
     let operationId: string | undefined;
     return {
       shouldStop(event) {
@@ -81,9 +82,9 @@ export abstract class OldestEvent {
   }
 
   /**
-   * An "oldest event" decider that always returns 'continue'
+   * A poll range decider that always returns 'continue', consuming the entire CFN event stream.
    */
-  public static consumeAll(): IOldestEvent {
+  public static consumeAll(): IPollRange {
     return {
       shouldStop() {
         return 'continue';
@@ -125,7 +126,7 @@ export interface ResourceEvent {
  * stack events   (new) z y x w v u t s r q p o n m l k j i h g f e d c b a (old)
  * bursts                                          [   poll() #1    ]
  *                                   [  poll() #2   ]               ^
- *                     [  poll() #3   ]                        oldestEvent
+ *                     [  poll() #3   ]                      initialPollRange
  *                                                          decides to stop here
  * ```
  *
@@ -200,7 +201,7 @@ export class StackEventPoller {
   private async doPoll(): Promise<ResourceEvent[]> {
     // If we already have events and we poll again, we can only get newer events up to
     // events we've already seen. No need to invoke the "oldestEvent" decider again.
-    const stopDecider = this.eventIds.size > 0 ? OldestEvent.consumeAll() : this.props.oldestEvent;
+    const stopDecider = this.eventIds.size > 0 ? PollRange.consumeAll() : this.props.initialPollRange;
 
     const events: ResourceEvent[] = [];
     try {
@@ -284,7 +285,7 @@ export class StackEventPoller {
       this.nestedStackPollers[logicalId] = new StackEventPoller(this.cfn, {
         stackName: physicalResourceId,
         parentStackLogicalIds: parentStackLogicalIds,
-        oldestEvent: OldestEvent.timestamp(event.Timestamp!.valueOf()),
+        initialPollRange: PollRange.sinceTimestamp(event.Timestamp!.valueOf()),
       });
     }
   }

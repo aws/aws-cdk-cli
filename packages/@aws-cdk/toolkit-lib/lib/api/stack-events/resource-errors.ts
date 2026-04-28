@@ -10,7 +10,7 @@ export interface ResourceError {
    * NOTE: This will be a stack ID (which is a full ARN including the unique identifier),
    * not just a name.
    */
-  readonly stackId: string;
+  readonly stackArn: string;
 
   /**
    * IDs of parent stacks of the resource, in case of resources in nested stacks
@@ -118,7 +118,7 @@ function errorFromEvent(ev: ResourceEvent): ResourceError {
     message: ev.event.ResourceStatusReason ?? '',
     parentStackLogicalIds: ev.parentStackLogicalIds,
     resourceType: ev.event.ResourceType ?? '',
-    stackId: ev.event.StackId ?? '',
+    stackArn: ev.event.StackId ?? '',
     errorCode: extractErrorCode(ev.event),
     physicalId: ev.event.PhysicalResourceId,
   };

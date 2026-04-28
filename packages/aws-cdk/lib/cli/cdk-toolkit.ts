@@ -2,9 +2,8 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { DiagnoseOptions } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -317,10 +316,9 @@ export class CdkToolkit {
           removeNonImportResources(stack);
         }
 
-        let changeSet;
-        if (options.method !== 'template') {
-          changeSet = await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet);
-        }
+        const changeSet = (options.method !== 'template')
+          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
+          : undefined;
 
         const mappings = allMappings.find(m =>
           m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
