@@ -478,7 +478,16 @@ export class Deployments {
   public async describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<DescribeChangeSetCommandOutput> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, { fetchAll: true });
+    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, {
+      fetchAll: true,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(stack),
+        ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
+      }),
+    });
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
