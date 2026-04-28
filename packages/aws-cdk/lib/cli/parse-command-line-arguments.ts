@@ -490,9 +490,9 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           alias: 'm',
           type: 'string',
-          choices: ['direct', 'change-set', 'prepare-change-set'],
+          choices: ['direct', 'change-set', 'prepare-change-set', 'execute-change-set'],
           requiresArg: true,
-          desc: 'How to perform the deployment. Direct is a bit faster but lacks progress information',
+          desc: 'How to perform the deployment. "change-set" (default) creates and executes a change set. "prepare-change-set" creates a change set without executing it. "execute-change-set" executes a previously created change set, bypassing synthesis entirely. "direct" skips change sets for faster deployments but lacks progress information',
         })
         .option('import-existing-resources', {
           default: false,
@@ -725,6 +725,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'm',
           requiresArg: true,
           desc: 'If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts',
+        })
+        .option('resource-mapping-inline', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'Inline JSON resource mapping, e.g. \'{"MyResource":{"TableName":"my-table"}}\'',
         }),
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
@@ -1068,6 +1074,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
         .option('additional-stack-name', {

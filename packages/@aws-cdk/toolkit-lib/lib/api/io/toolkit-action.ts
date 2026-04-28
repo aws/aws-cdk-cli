@@ -21,4 +21,5 @@ export type ToolkitAction =
 | 'migrate'
 | 'refactor'
 | 'diagnose'
+| 'orphan'
 | 'flags';

@@ -31,7 +31,7 @@ import {
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import { ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import { ExpandStackSelection, ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
 import { isChangeSetDeployment, isExecutingChangeSetDeployment, isNonExecutingChangeSetDeployment, toExecuteChangeSetDeployment } from '../api/deploy-private';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
@@ -207,7 +207,7 @@ export class CdkToolkit {
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor', 'flags', 'publish-assets'],
+      unstableFeatures: ['refactor', 'orphan', 'flags', 'publish-assets'],
     });
   }
 
@@ -415,6 +415,37 @@ export class CdkToolkit {
       this.ioHost.stackProgress = options.progress;
     }
 
+    // the ioHost uses this internally to determine if a confirmation
+    // is actually needed, so it needs the same value we determine here.
+    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
+    this.ioHost.requireDeployApproval = requireApproval;
+
+    // execute-change-set is a new flow that we can just delegate to toolkit-lib
+    if (options.deploymentMethod?.method === 'execute-change-set') {
+      await this.toolkit.deploy(this.props.cloudExecutable, {
+        deploymentMethod: options.deploymentMethod,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+          expand: ExpandStackSelection.NONE,
+        },
+        roleArn: options.roleArn,
+        forceDeployment: options.force,
+        rollback: options.rollback,
+        reuseAssets: options.reuseAssets,
+        concurrency: options.concurrency,
+        traceLogs: options.traceLogs,
+        notificationArns: options.notificationArns,
+        tags: options.tags,
+        outputsFile: options.outputsFile,
+        assetParallelism: options.assetParallelism,
+        assetBuildConcurrency: options.assetBuildConcurrency,
+        assetBuildTime: options.assetBuildTime,
+        parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
+      });
+      return;
+    }
+
     const startSynthTime = new Date().getTime();
     const stackCollection = await this.selectStacksForDeploy(
       options.selector,
@@ -438,11 +469,6 @@ export class CdkToolkit {
       toolkitStackName: this.toolkitStackName,
       ...options,
     });
-
-    // the ioHost uses this internally to determine if a confirmation
-    // is actually needed, so it needs the same value we determine here.
-    const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
-    this.ioHost.requireDeployApproval = requireApproval;
 
     const parameterMap = buildParameterMap(options.parameters);
 
@@ -984,6 +1010,14 @@ export class CdkToolkit {
       });
   }
 
+  public async orphan(options: OrphanOptions) {
+    await this.toolkit.orphan(this.props.cloudExecutable, {
+      constructPaths: options.constructPath,
+      roleArn: options.roleArn,
+      toolkitStackName: options.toolkitStackName,
+    });
+  }
+
   public async import(options: ImportOptions) {
     const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
 
@@ -999,8 +1033,8 @@ export class CdkToolkit {
       );
     }
 
-    if (!process.stdout.isTTY && !options.resourceMappingFile) {
-      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping is required when input is not a terminal');
+    if (!process.stdout.isTTY && !options.resourceMappingFile && !options.resourceMappingInline) {
+      throw new ToolkitError('ResourceMappingRequired', '--resource-mapping or --resource-mapping-inline is required when input is not a terminal');
     }
 
     const stack = stacks.stackArtifacts[0];
@@ -1038,9 +1072,14 @@ export class CdkToolkit {
     }
 
     // Prepare a mapping of physical resources to CDK constructs
-    const actualImport = !options.resourceMappingFile
-      ? await resourceImporter.askForResourceIdentifiers(additions)
-      : await resourceImporter.loadResourceIdentifiers(additions, options.resourceMappingFile);
+    let actualImport: Awaited<ReturnType<typeof resourceImporter.askForResourceIdentifiers>>;
+    if (options.resourceMappingInline) {
+      actualImport = await resourceImporter.loadResourceIdentifiers(additions, options.resourceMappingInline);
+    } else if (options.resourceMappingFile) {
+      actualImport = await resourceImporter.loadResourceIdentifiersFromFile(additions, options.resourceMappingFile);
+    } else {
+      actualImport = await resourceImporter.askForResourceIdentifiers(additions);
+    }
 
     if (actualImport.importResources.length === 0) {
       await this.ioHost.asIoHelper().defaults.warn('No resources selected for import.');
@@ -1983,6 +2022,12 @@ export interface RollbackOptions {
   readonly validateBootstrapStackVersion?: boolean;
 }
 
+export interface OrphanOptions {
+  readonly constructPath: string[];
+  readonly roleArn?: string;
+  readonly toolkitStackName?: string;
+}
+
 export interface ImportOptions extends CfnDeployOptions {
   /**
    * Build a physical resource mapping and write it to the given file, without performing the actual import operation
@@ -1998,6 +2043,13 @@ export interface ImportOptions extends CfnDeployOptions {
    * @default - No mapping file
    */
   readonly resourceMappingFile?: string;
+
+  /**
+   * Inline JSON string with the physical resource mapping
+   *
+   * @default - No inline mapping
+   */
+  readonly resourceMappingInline?: string;
 
   /**
    * Allow non-addition changes to the template

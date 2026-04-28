@@ -39,7 +39,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.0",
+    "@cdklabs/eslint-plugin": "^2.0.2",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -63,9 +63,9 @@
     "jsii-rosetta": "5.9",
     "license-checker": "^25.0.1",
     "mock-fs": "^5.5.0",
-    "nx": "^22.6.4",
+    "nx": "^22.6.5",
     "prettier": "^2.8",
-    "projen": "^0.99.48",
+    "projen": "^0.99.52",
     "ts-jest": "^29.4.9",
     "tsx": "^4.21.0",
     "typescript": "5.9",

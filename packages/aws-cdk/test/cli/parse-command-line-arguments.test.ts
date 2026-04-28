@@ -38,3 +38,14 @@ describe('cdk docs', () => {
     expect(argv.browser).toBe(browser);
   });
 });
+
+test('cdk orphan accepts positional construct paths', async () => {
+  const argv = await parseCommandLineArguments(['orphan', 'MyStack/MyTable', 'MyStack/MyBucket']);
+  expect(argv.PATHS).toEqual(['MyStack/MyTable', 'MyStack/MyBucket']);
+});
+
+test('cdk orphan accepts positional construct paths with --unstable=orphan', async () => {
+  const argv = await parseCommandLineArguments(['orphan', '--unstable=orphan', 'MyStack/MyTable', 'MyStack/MyBucket']);
+  expect(argv.PATHS).toEqual(['MyStack/MyTable', 'MyStack/MyBucket']);
+  expect(argv.unstable).toEqual(['orphan']);
+});

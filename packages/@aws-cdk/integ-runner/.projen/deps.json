@@ -165,6 +165,7 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
       "type": "runtime"
     },
     {

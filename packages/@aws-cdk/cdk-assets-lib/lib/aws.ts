@@ -130,9 +130,9 @@ export class DefaultAwsClient implements IAws {
   private readonly mainCredentials: AwsCredentialIdentityProvider;
 
   constructor(private readonly profile?: string) {
-    const clientConfig: STSClientConfig = {
+    const clientConfig = {
       customUserAgent: USER_AGENT,
-    };
+    } satisfies STSClientConfig;
 
     // storing the main credentials separately because
     // the `config` object changes every time we assume the file publishing role.

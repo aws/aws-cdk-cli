@@ -39,6 +39,7 @@ import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
 import {
   buildParameterMap,
   isChangeSetDeployment,
+  isExecuteChangeSetDeployment,
   isExecutingChangeSetDeployment,
   isNonExecutingChangeSetDeployment,
   type PrivateDeployOptions,
@@ -46,15 +47,18 @@ import {
   toExecuteChangeSetDeployment,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
+import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
+import type { OrphanOptions } from '../actions/orphan';
 import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
+import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
 import {
@@ -75,6 +79,7 @@ import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
+import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
@@ -82,6 +87,8 @@ import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
 import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
+import { ResourceOrphaner } from '../api/orphan/orphaner';
+import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
 import { Mode, PluginHost } from '../api/plugin';
 import {
   formatAmbiguousMappings,
@@ -94,20 +101,17 @@ import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudforma
 import { RefactoringContext } from '../api/refactoring/context';
 import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
+import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
-import { WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
+import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
 import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { countAssemblyResults } from './private/count-assembly-results';
-import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
-import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 
 export interface ToolkitOptions {
   /**
@@ -174,7 +178,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'flags' | 'publish-assets' | 'diagnose';
+export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -563,9 +567,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     };
 
     await workGraph.doParallel(graphConcurrency, {
-      deployStack: async () => {
-        // No-op: we're only publishing assets, not deploying
-      },
+      // No-op: we're only publishing assets, not deploying
+      deployStack: WorkGraph.NOOP,
       buildAsset: this.createBuildAssetFunction(ioHelper, deployments, undefined),
       publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
     });
@@ -677,9 +680,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const deployments = await this.deploymentsForAction('deploy');
-    const migrator = new ResourceMigrator({ deployments, ioHelper });
 
-    await migrator.tryMigrateResources(stackCollection, options);
+    if (!isExecuteChangeSetDeployment(options.deploymentMethod)) {
+      const migrator = new ResourceMigrator({ deployments, ioHelper });
+      await migrator.tryMigrateResources(stackCollection, options);
+    }
 
     const parameterMap = buildParameterMap(options.parameters?.parameters);
 
@@ -693,6 +698,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const stacks = stackCollection.stackArtifacts;
     const stackOutputs: { [key: string]: any } = {};
     const outputsFile = options.outputsFile;
+
+    const { buildAsset, publishAsset } = (() => {
+      if (isExecuteChangeSetDeployment(options.deploymentMethod)) {
+        // No-op: assets are already published
+        return {
+          buildAsset: WorkGraph.NOOP,
+          publishAsset: WorkGraph.NOOP,
+        };
+      }
+
+      return {
+        buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
+        publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing),
+      };
+    })();
 
     const deployStack = async (stackNode: StackNode) => {
       const stack = stackNode.stack;
@@ -775,11 +795,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // changes — there is nothing for the user to approve. Outputs, stack ARN,
       // and timings are still emitted via the normal no-op deploy path below.
       if (!prepareResult?.noOp) {
+        // For execute-change-set, describe the existing change set so we can show an accurate diff
+        const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
+          ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName)
+          : prepareResult?.changeSet;
+
         const formatter = new DiffFormatter({
           templateInfo: {
             oldTemplate: currentTemplate,
             newTemplate: stack,
-            changeSet: prepareResult?.changeSet,
+            changeSet: diffChangeSet,
           },
         });
 
@@ -981,8 +1006,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await workGraph.doParallel(graphConcurrency, {
       deployStack,
-      buildAsset: this.createBuildAssetFunction(ioHelper, deployments, options.roleArn),
-      publishAsset: this.createPublishAssetFunction(ioHelper, deployments, options.roleArn, options.forceAssetPublishing),
+      buildAsset,
+      publishAsset,
     });
 
     return ret;
@@ -1208,6 +1233,72 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     return ret;
+  }
+
+  /**
+   * Orphan Action. Detaches resources from a CloudFormation stack without deleting them.
+   */
+  public async orphan(cx: ICloudAssemblySource, options: OrphanOptions): Promise<void> {
+    this.requireUnstableFeature('orphan');
+
+    const ioHelper = asIoHelper(this.ioHost, 'orphan');
+
+    // Parse construct paths into stack construct ID + construct-level paths.
+    const parsed = parseAndValidateConstructPaths(options.constructPaths);
+
+    // Synth all stacks, then find the one whose hierarchicalId matches the stack construct ID.
+    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
+    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+    const stack = allStacks.stackArtifacts.find(s => s.hierarchicalId === parsed.stackId);
+
+    if (!stack) {
+      throw new ToolkitError(
+        'StackNotFound',
+        `No stack found with construct ID '${parsed.stackId}'. Available stacks: ${allStacks.stackArtifacts.map(s => s.hierarchicalId).join(', ')}`,
+      );
+    }
+    const deployments = await this.deploymentsForAction('orphan');
+
+    const orphaner = new ResourceOrphaner({
+      deployments,
+      ioHelper,
+      roleArn: options.roleArn,
+      toolkitStackName: options.toolkitStackName ?? this.toolkitStackName,
+    });
+
+    const plan = await orphaner.makePlan(stack, parsed.constructPaths);
+
+    // Show the plan
+    const resourceLines = plan.orphanedResources
+      .map((r) => `  ${r.logicalId} (${r.resourceType}) - ${r.cdkPath}`)
+      .join('\n');
+    await ioHelper.defaults.info(
+      `Stack: ${plan.stackName}\n` +
+      `Resources to orphan (${plan.orphanedResources.length}):\n` +
+      resourceLines,
+    );
+
+    // Confirm before orphaning
+    const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I8810.req(
+      'Do you wish to orphan these resources? This will perform 3 CloudFormation deployments.', {
+        motivation: 'User confirmation is needed before orphaning resources',
+      }));
+    if (!confirmed) {
+      throw new ToolkitError('OrphanAborted', 'Aborted by user');
+    }
+
+    const result = await plan.execute();
+
+    // Output next steps
+    const mappingJson = Object.keys(result.resourceMapping).length > 0
+      ? ` --resource-mapping-inline '${JSON.stringify(result.resourceMapping)}'`
+      : '';
+    await ioHelper.defaults.info(
+      `✅ Resources orphaned from ${plan.stackName}\n\n` +
+      'Next steps:\n' +
+      '  1. Update your CDK code to use the new resource type\n' +
+      `  2. cdk import${mappingJson}`,
+    );
   }
 
   /**

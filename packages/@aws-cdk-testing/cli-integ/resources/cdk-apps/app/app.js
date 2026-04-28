@@ -479,6 +479,35 @@ class LambdaStack extends cdk.Stack {
   }
 }
 
+class OrphanableStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    const table = new cdk.aws_dynamodb.Table(this, 'MyTable', {
+      partitionKey: { name: 'PK', type: cdk.aws_dynamodb.AttributeType.STRING },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Lambda that references the table via Ref (TABLE_NAME) and GetAtt (TABLE_ARN)
+    const fn = new lambda.Function(this, 'Consumer', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline('exports.handler = async () => {}'),
+      environment: {
+        TABLE_NAME: table.tableName,
+        TABLE_ARN: table.tableArn,
+      },
+    });
+
+    table.grantReadData(fn);
+
+    new cdk.CfnOutput(this, 'TableName', { value: table.tableName });
+    new cdk.CfnOutput(this, 'TableArn', { value: table.tableArn });
+    new cdk.CfnOutput(this, 'FunctionName', { value: fn.functionName });
+  }
+}
+
 class DriftableStack extends cdk.Stack {
   constructor(parent, id, props) {
     const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
@@ -748,8 +777,8 @@ class CloudControlHotswapStack extends cdk.Stack {
       agentName: `${cdk.Stack.of(this).stackName}-agent`.substring(0, 40),
       agentResourceRoleArn: agentRole.roleArn,
       instruction: process.env.DYNAMIC_CC_PROPERTY_VALUE
-        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}`
-        : `You help query the table ${table.tableName}. original`,
+        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
+        : `You help query the table ${table.tableName}. original. original`,
       foundationModel: 'anthropic.claude-instant-v1',
     });
 
@@ -1102,6 +1131,8 @@ switch (stackSet) {
     new MetadataStack(app, `${stackPrefix}-metadata`);
 
     new DriftableStack(app, `${stackPrefix}-driftable`);
+
+    new OrphanableStack(app, `${stackPrefix}-orphanable`);
 
     new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack1`);
     new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack2`);

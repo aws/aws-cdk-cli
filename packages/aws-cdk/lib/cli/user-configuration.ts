@@ -38,6 +38,7 @@ export enum Command {
   DOCS = 'docs',
   DOC = 'doc',
   DOCTOR = 'doctor',
+  ORPHAN = 'orphan',
   REFACTOR = 'refactor',
   DRIFT = 'drift',
   CLI_TELEMETRY = 'cli-telemetry',

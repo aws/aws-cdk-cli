@@ -23,6 +23,7 @@ The AWS CDK Toolkit provides the `cdk` command-line interface that can be used t
 | [`cdk publish-assets`](#cdk-publish-assets) | Publish assets for stack(s) without deploying                                     |
 | [`cdk rollback`](#cdk-rollback)             | Roll back a failed deployment                                                     |
 | [`cdk import`](#cdk-import)                 | Import existing AWS resources into a CDK stack                                    |
+| [`cdk orphan`](#cdk-orphan)                 | Detach resources from a stack without deleting them                               |
 | [`cdk migrate`](#cdk-migrate)               | Migrate AWS resources, CloudFormation stacks, and CloudFormation templates to CDK |
 | [`cdk watch`](#cdk-watch)                   | Watches a CDK app for deployable and hotswappable changes                         |
 | [`cdk destroy`](#cdk-destroy)               | Deletes a stack from an AWS account                                               |
@@ -434,6 +435,11 @@ be deployed and then executes it. This behavior can be controlled with the
 - `--method=prepare-change-set`: create the change set but don't execute it.
   This is useful if you have external tools that will inspect the change set or
   you have an approval process for change sets.
+- `--method=execute-change-set`: execute a previously created change set. This
+  bypasses change set creation and asset publishing entirely. Requires exactly
+  one stack name. Defaults to the `cdk-deploy-change-set` change set name if
+  `--change-set-name` is not provided. This is useful for two-step deployment
+  workflows where you first review a change set and then execute it.
 - `--method=direct`: do not create a change set but apply the change immediately.
   This is typically a bit faster than creating a change set, but it loses
   the progress information.
@@ -453,8 +459,23 @@ set to make it easier to later execute:
 $ cdk deploy --method=prepare-change-set --change-set-name MyChangeSetName
 ```
 
-For more control over when stack changes are deployed, the CDK can generate a
-CloudFormation change set but not execute it.
+To review a change set before executing it, use a two-step workflow:
+
+```console
+$ # Step 1: Create the change set without executing it
+$ cdk deploy MyStack --method=prepare-change-set
+
+$ # Step 2: Review the change set (e.g., in the AWS Console or via CLI)
+
+$ # Step 3: Execute the change set
+$ cdk deploy MyStack --method=execute-change-set
+```
+
+A custom change set name can be provided with `--change-set-name` in both steps.
+
+When using `--method=execute-change-set`, the options `--force`, `--parameters`,
+`--import-existing-resources`, and `--revert-drift` cannot be used
+since the change set has already been created.
 
 #### Import existing resources
 
@@ -815,6 +836,73 @@ This feature currently has the following limitations:
 - Uses the deploy role credentials (necessary to read the encrypted staging
   bucket). Requires version 12 of the bootstrap stack, for the added
   IAM permissions to the `deploy-role`.
+
+
+### `cdk orphan`
+
+> `cdk orphan` is currently experimental, meaning we reserve the right to change 
+> options and flag names in the future. Pass the `--unstable=orphan` flag when using
+> this command and be aware of this when using it in scripts.
+
+Safely detaches one or more resources from a CloudFormation stack without deleting them.
+This is useful when you need to migrate a resource from one construct type to another
+(for example, migrating a DynamoDB `Table` to `TableV2`) without any downtime or data loss.
+
+The orphan command works by:
+
+1. Resolving cross-resource references (`Ref`, `Fn::GetAtt`, `Fn::Sub`) to the orphaned resources, so that other resources in the stack that depend on them continue to work after the orphaned resources are removed
+2. Setting the `DeletionPolicy` to `Retain`, replacing all cross-resource references with literal values, and removing `DependsOn` entries to isolate the resources from the rest of the stack
+3. Removing the resources from the CloudFormation template (they continue to exist in your AWS account)
+
+After orphaning, you can update your CDK code and use `cdk import` to bring the resource back under management with the new construct type.
+
+All construct paths must reference the same stack. Wildcard patterns are not supported; paths are matched as exact prefixes.
+
+```console
+$ # Orphan a single resource
+$ cdk orphan --unstable=orphan MyStack/MyTable
+
+$ # Orphan multiple resources
+$ cdk orphan --unstable=orphan MyStack/MyTable MyStack/MyBucket
+```
+
+#### Example: Migrating DynamoDB Table to TableV2
+
+1. Deploy your stack with the original `Table` construct:
+
+    ```ts
+    const table = new dynamodb.Table(this, 'MyTable', {
+      tableName: 'my-table',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+    });
+    ```
+
+2. Orphan the table from the stack:
+
+    ```console
+    $ cdk orphan --unstable=orphan MyStack/MyTable
+    ```
+
+    The command outputs next steps including a `cdk import` command with the resource mapping.
+
+3. Update your CDK code to use `TableV2`:
+
+    ```ts
+    const table = new dynamodb.TableV2(this, 'MyTable', {
+      tableName: 'my-table',
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+    });
+    ```
+
+4. Import the existing table into the new construct:
+
+    ```console
+    $ cdk import --resource-mapping-inline '{"MyTable794EDED1":{"TableName":"my-table"}}'
+    ```
+
+    The import command will show any pending drift and offer to run `cdk deploy` afterwards to reconcile it.
+
+The table remains available throughout the entire process with zero downtime.
 
 
 ### `cdk migrate`

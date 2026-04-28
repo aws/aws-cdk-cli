@@ -1,7 +1,7 @@
 import type { StackSelector } from '../../api/cloud-assembly';
 import type { Tag } from '../../api/tags';
 
-export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | HotswapDeployment;
+export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | ExecuteChangeSetDeployment | HotswapDeployment;
 
 /**
  * Use stack APIs to the deploy stack changes
@@ -42,6 +42,22 @@ export interface ChangeSetDeployment {
    * @default false
    */
   readonly revertDrift?: boolean;
+}
+
+/**
+ * Execute an existing change set that was previously created
+ *
+ * This bypasses change set creation and asset publishing entirely.
+ * The stack name and change set name must refer to an existing change set
+ * in CREATE_COMPLETE status.
+ */
+export interface ExecuteChangeSetDeployment {
+  readonly method: 'execute-change-set';
+
+  /**
+   * The name of the change set to execute.
+   */
+  readonly changeSetName: string;
 }
 
 /**

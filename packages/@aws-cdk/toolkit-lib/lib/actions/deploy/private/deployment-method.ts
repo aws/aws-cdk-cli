@@ -1,15 +1,6 @@
-import type { ChangeSetDeployment, DeploymentMethod } from '..';
+import type { ChangeSetDeployment, DeploymentMethod, ExecuteChangeSetDeployment } from '..';
 
 export const DEFAULT_DEPLOY_CHANGE_SET_NAME = 'cdk-deploy-change-set';
-
-/**
- * Execute a previously created change set.
- * This is an internal deployment method used by the two-phase deploy flow.
- */
-export interface ExecuteChangeSetDeployment {
-  readonly method: 'execute-change-set';
-  readonly changeSetName: string;
-}
 
 /**
  * A change set deployment that will execute.
@@ -40,6 +31,13 @@ export function isExecutingChangeSetDeployment(method?: DeploymentMethod): metho
  */
 export function isNonExecutingChangeSetDeployment(method?: DeploymentMethod): method is NonExecutingChangeSetDeployment {
   return isChangeSetDeployment(method) && (method.execute === false);
+}
+
+/**
+ * Returns true if the deployment method is a execute-change-set deployment.
+ */
+export function isExecuteChangeSetDeployment(method?: DeploymentMethod): method is ExecuteChangeSetDeployment {
+  return method?.method === 'execute-change-set';
 }
 
 /**

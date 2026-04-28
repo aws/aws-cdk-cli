@@ -5,6 +5,7 @@ import {
   UpdateTerminationProtectionCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -55,6 +56,7 @@ export class AwsClients {
   public readonly lambda: LambdaClient;
   public readonly sts: STSClient;
   public readonly secretsManager: SecretsManagerClient;
+  public readonly dynamoDb: DynamoDB;
 
   private constructor(
     /** A random string to use for temporary resources, like roles (should preferably match unique test-specific randomString) */
@@ -79,6 +81,7 @@ export class AwsClients {
     this.lambda = new LambdaClient(this.config);
     this.sts = new STSClient(this.config);
     this.secretsManager = new SecretsManagerClient(this.config);
+    this.dynamoDb = new DynamoDB(this.config);
   }
 
   public addCleanup(cleanup: () => Promise<any>) {

@@ -29,6 +29,7 @@ import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
 import { StackArtifactSourceTracer } from '../../../lib/api/source-tracing/private/stack-source-tracing';
+import { invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
 import { testStack } from '../../_helpers/assembly';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { advanceTime } from '../../_helpers/fake-time';
@@ -49,6 +50,7 @@ function testDeployStack(options: DeployStackApiOptions) {
 }
 
 jest.mock('../../../lib/api/hotswap/hotswap-deployments');
+jest.mock('../../../lib/api/hotswap/hotswap-template-cache');
 jest.mock('../../../lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
@@ -238,6 +240,52 @@ test('correctly passes SSM parameters when hotswapping', async () => {
   );
 });
 
+describe('hotswap template cache', () => {
+  test('writeHotswapTemplateCache is called on a successful hotswap deployment', async () => {
+    // GIVEN
+    (tryHotswapDeployment as jest.Mock).mockImplementation(async () => {
+      await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {});
+      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {} };
+    });
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    });
+
+    // THEN
+    expect(writeHotswapTemplateCache).toHaveBeenCalled();
+    expect(invalidateHotswapTemplateCache).not.toHaveBeenCalled();
+  });
+
+  test('invalidateHotswapTemplateCache is called on a non-hotswap deployment', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    expect(invalidateHotswapTemplateCache).toHaveBeenCalled();
+  });
+
+  test('invalidateHotswapTemplateCache is called on a hotswap fallback deployment', async () => {
+    // GIVEN - hotswap fails (returns undefined), falls back to full CFN
+    (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    });
+
+    // THEN
+    expect(tryHotswapDeployment).toHaveBeenCalled();
+    expect(invalidateHotswapTemplateCache).toHaveBeenCalled();
+  });
+});
+
 test('call CreateStack when method=direct and the stack doesnt exist yet', async () => {
   // WHEN
   await testDeployStack({
@@ -247,6 +295,39 @@ test('call CreateStack when method=direct and the stack doesnt exist yet', async
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateStackCommand);
+});
+
+test('execute-change-set describes and executes an existing change set', async () => {
+  // GIVEN - stack and change set exist
+  givenStackExists();
+  givenChangeSetExists({ ChangeSetName: 'MyChangeSet', Status: ChangeSetStatus.CREATE_COMPLETE });
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+  });
+
+  // THEN - should execute the change set without creating a new one
+  expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('execute-change-set throws if change set is not ready', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+    Stacks: [{ ...baseResponse }],
+  });
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+    Status: 'FAILED',
+    StatusReason: 'some reason',
+  });
+
+  // WHEN/THEN
+  await expect(testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+  })).rejects.toThrow('not ready for execution');
 });
 
 test('call UpdateStack when method=direct and the stack exists already', async () => {

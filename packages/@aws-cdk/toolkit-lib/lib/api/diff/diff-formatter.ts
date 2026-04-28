@@ -1,6 +1,5 @@
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import {
   formatDifferences,
   formatSecurityChanges,
@@ -13,6 +12,7 @@ import {
 import * as chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates, Template } from '../cloudformation';
+import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 import { StringWriteStream } from '../streams';
 
 /**
@@ -231,7 +231,7 @@ export class DiffFormatter {
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
       mappings: this.mappings,
-      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate),
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
     }, options);
   }
 
@@ -276,9 +276,11 @@ export class DiffFormatter {
 
       // filter out 'AWS::CDK::Metadata' resources from the template
       // filter out 'CheckBootstrapVersion' rules from the template
+      const diffWasNonEmpty = !activeDiff.isEmpty;
       if (!options.strict) {
         obscureDiff(activeDiff);
       }
+      const metadataWasFiltered = diffWasNonEmpty && activeDiff.isEmpty;
 
       if (!activeDiff.isEmpty) {
         numStacksWithChanges++;
@@ -289,7 +291,8 @@ export class DiffFormatter {
           ...logicalIdMap,
         }, options.contextLines);
       } else if (!options.quiet) {
-        stream.write(chalk.green('There were no differences\n'));
+        const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
+        stream.write(`${chalk.green('There were no differences')}${hint}\n`);
       }
 
       if (filteredChangesCount > 0) {
@@ -328,7 +331,7 @@ export class DiffFormatter {
       stackName: this.stackName,
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
-      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate),
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
     }, options);
 
     return { formattedDiff, permissionChangeType, numStacksWithChanges };
@@ -399,14 +402,6 @@ function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
     return PermissionChangeType.NON_BROADENING;
   }
   return PermissionChangeType.NONE;
-}
-
-function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
-  const map: { [id: string]: string } = {};
-  for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-    map[md.data as string] = md.path;
-  }
-  return map;
 }
 
 function logicalIdMapFromTemplate(template: Template) {

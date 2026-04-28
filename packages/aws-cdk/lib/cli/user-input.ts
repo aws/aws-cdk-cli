@@ -140,6 +140,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Detach resources from a CloudFormation stack without deleting them
+   */
+  readonly orphan?: OrphanOptions;
+
+  /**
    * Moves resources between stacks or within the same stack
    */
   readonly refactor?: RefactorOptions;
@@ -797,7 +802,7 @@ export interface DeployOptions {
   readonly changeSetName?: string;
 
   /**
-   * How to perform the deployment. Direct is a bit faster but lacks progress information
+   * How to perform the deployment. "change-set" (default) creates and executes a change set. "prepare-change-set" creates a change set without executing it. "execute-change-set" executes a previously created change set, bypassing synthesis entirely. "direct" skips change sets for faster deployments but lacks progress information
    *
    * aliases: m
    *
@@ -1139,6 +1144,13 @@ export interface ImportOptions {
    * @default - undefined
    */
   readonly resourceMapping?: string;
+
+  /**
+   * Inline JSON resource mapping, e.g. '{"MyResource":{"TableName":"my-table"}}'
+   *
+   * @default - undefined
+   */
+  readonly resourceMappingInline?: string;
 
   /**
    * Positional argument for import
@@ -1682,6 +1694,18 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Detach resources from a CloudFormation stack without deleting them
+ *
+ * @struct
+ */
+export interface OrphanOptions {
+  /**
+   * Positional argument for orphan
+   */
+  readonly PATHS?: Array<string>;
 }
 
 /**

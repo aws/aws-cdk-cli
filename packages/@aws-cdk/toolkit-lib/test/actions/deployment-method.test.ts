@@ -1,5 +1,6 @@
 import {
   isChangeSetDeployment,
+  isExecuteChangeSetDeployment,
   isExecutingChangeSetDeployment,
   isNonExecutingChangeSetDeployment,
   toExecuteChangeSetDeployment,
@@ -52,6 +53,24 @@ describe('isNonExecutingChangeSetDeployment', () => {
 
   test('false for direct method', () => {
     expect(isNonExecutingChangeSetDeployment({ method: 'direct' })).toBe(false);
+  });
+});
+
+describe('isExecuteChangeSetDeployment', () => {
+  test('true for execute-change-set method', () => {
+    expect(isExecuteChangeSetDeployment({ method: 'execute-change-set', changeSetName: 'my-cs' })).toBe(true);
+  });
+
+  test('false for change-set method', () => {
+    expect(isExecuteChangeSetDeployment({ method: 'change-set' })).toBe(false);
+  });
+
+  test('false for direct method', () => {
+    expect(isExecuteChangeSetDeployment({ method: 'direct' })).toBe(false);
+  });
+
+  test('false for undefined', () => {
+    expect(isExecuteChangeSetDeployment(undefined)).toBe(false);
   });
 });
 

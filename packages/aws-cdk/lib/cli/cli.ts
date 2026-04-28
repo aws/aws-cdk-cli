@@ -470,6 +470,18 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           concurrency: args.concurrency,
         });
 
+      case 'orphan':
+        if (!configuration.settings.get(['unstable']).includes('orphan')) {
+          throw new ToolkitError('UnstableOrphan', 'Unstable feature use: \'orphan\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk orphan --unstable=orphan\'');
+        }
+
+        ioHost.currentAction = 'orphan';
+        return cli.orphan({
+          constructPath: args.PATHS ?? [],
+          roleArn: args.roleArn,
+          toolkitStackName,
+        });
+
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({
@@ -485,6 +497,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           rollback: configuration.settings.get(['rollback']),
           recordResourceMapping: args['record-resource-mapping'],
           resourceMappingFile: args['resource-mapping'],
+          resourceMappingInline: args['resource-mapping-inline'],
           force: args.force,
         });
 
@@ -726,16 +739,29 @@ function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
   let deploymentMethod: ChangeSetDeployment | DirectDeployment | undefined;
   switch (args.method) {
+    case 'execute-change-set':
+      if (!args.STACKS || args.STACKS.length !== 1) {
+        throw new ToolkitError('ExactlyOneStack', '--method=execute-change-set requires exactly one stack');
+      }
+      if (watch || args.watch) {
+        throw new ToolkitError('WatchWithExecuteChangeSet', '--method=execute-change-set cannot be used with watch');
+      }
+      rejectIncompatibleOptions(args, '--method=execute-change-set', {
+        force: '--force',
+        parameters: '--parameters',
+        importExistingResources: '--import-existing-resources',
+        revertDrift: '--revert-drift',
+      });
+      return {
+        method: 'execute-change-set',
+        changeSetName: args.changeSetName ?? 'cdk-deploy-change-set',
+      };
     case 'direct':
-      if (args.changeSetName) {
-        throw new ToolkitError('ChangeSetNameWithDirect', '--change-set-name cannot be used with method=direct');
-      }
-      if (args.importExistingResources) {
-        throw new ToolkitError('ImportWithDirect', '--import-existing-resources cannot be enabled with method=direct');
-      }
-      if (args.revertDrift) {
-        throw new ToolkitError('RevertDriftWithDirect', '--revert-drift cannot be used with method=direct');
-      }
+      rejectIncompatibleOptions(args, '--method=direct', {
+        changeSetName: '--change-set-name',
+        importExistingResources: '--import-existing-resources',
+        revertDrift: '--revert-drift',
+      });
       deploymentMethod = { method: 'direct' };
       break;
     case 'change-set':
@@ -785,6 +811,27 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
     default:
     case HotswapMode.FULL_DEPLOYMENT:
       return deploymentMethod;
+  }
+}
+
+/**
+ * Throw if any of the given flags are set, as they are incompatible with the given option.
+ */
+function rejectIncompatibleOptions(args: any, option: string, flags: Record<string, string>) {
+  for (const [key, flag] of Object.entries(flags)) {
+    const value = args[key];
+
+    let isSet = false;
+    if (Array.isArray(value)) {
+      // yargs may default array options to [{}], so only count real values
+      isSet = value.some((v: unknown) => typeof v === 'string' || typeof v === 'number');
+    } else {
+      isSet = !!value;
+    }
+
+    if (isSet) {
+      throw new ToolkitError('IncompatibleOptions', `${flag} cannot be used with ${option}`);
+    }
   }
 }
 
