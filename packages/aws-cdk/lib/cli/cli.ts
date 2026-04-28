@@ -343,9 +343,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
       case 'refactor':
-        if (!configuration.settings.get(['unstable']).includes('refactor')) {
-          throw new ToolkitError('UnstableRefactor', 'Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
-        }
+        cliRequireUnstable(configuration, 'refactor');
 
         ioHost.currentAction = 'refactor';
         return cli.refactor({
@@ -435,6 +433,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
       case 'diagnose':
+        cliRequireUnstable(configuration, 'diagnose');
         ioHost.currentAction = 'diagnose';
 
         // Implicitly switch 'debug' mode to true, that is going to be most useful.
@@ -461,9 +460,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'publish-assets':
         ioHost.currentAction = 'publish-assets';
-        if (!configuration.settings.get(['unstable']).includes('publish-assets')) {
-          throw new ToolkitError('UnstablePublishAssets', 'Unstable feature use: \'publish-assets\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish-assets --unstable=publish-assets\'');
-        }
+        cliRequireUnstable(configuration, 'publish-assets');
+
         return cli.publishAssets({
           stacks: convertStackSelector(selector, args.exclusively),
           force: args.force,
@@ -471,9 +469,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
       case 'orphan':
-        if (!configuration.settings.get(['unstable']).includes('orphan')) {
-          throw new ToolkitError('UnstableOrphan', 'Unstable feature use: \'orphan\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk orphan --unstable=orphan\'');
-        }
+        cliRequireUnstable(configuration, 'orphan');
 
         ioHost.currentAction = 'orphan';
         return cli.orphan({
@@ -530,9 +526,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'gc':
         ioHost.currentAction = 'gc';
-        if (!configuration.settings.get(['unstable']).includes('gc')) {
-          throw new ToolkitError('UnstableGc', 'Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
-        }
+        cliRequireUnstable(configuration, 'gc');
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
         }
@@ -553,9 +547,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'flags':
         ioHost.currentAction = 'flags';
 
-        if (!configuration.settings.get(['unstable']).includes('flags')) {
-          throw new ToolkitError('UnstableFlags', 'Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
-        }
+        cliRequireUnstable(configuration, 'flags');
+
         const toolkit = new Toolkit({
           ioHost,
           toolkitStackName,
@@ -613,9 +606,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           return printAvailableTemplates(ioHelper, language);
         } else {
           // Gate custom template support with unstable flag
-          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
-            throw new ToolkitError('UnstableInit', 'Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          if (args['from-path']) {
+            cliRequireUnstable(configuration, 'init');
           }
+
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
@@ -811,6 +805,16 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
     default:
     case HotswapMode.FULL_DEPLOYMENT:
       return deploymentMethod;
+  }
+}
+
+function cliRequireUnstable(configuration: Configuration, feature: string) {
+  if (!configuration.settings.get(['unstable']).includes(feature)) {
+    throw new ToolkitError(`Unstable${ucfirst(feature)}`, 'Unstable feature use: \'${feature}\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk ${feature} --unstable=${feature}\'');
+  }
+
+  function ucfirst(x: string) {
+    return x[0].toUpperCase() + x.slice(1);
   }
 }
 

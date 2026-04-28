@@ -1646,7 +1646,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
     if (!this.unstableFeatures.includes(requestedFeature)) {
-      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures' (currently enabled: ${this.unstableFeatures})`);
     }
   }
 
