@@ -172,7 +172,7 @@ Looks at a failed stack deployment in CloudFormation, and prints the root cause
 reason with pointers to the CDK source code that caused the problem.
 
 This peforms the same diagnosis that `cdk deploy` does, but does it
-after-the-fact.  This can be useful to refresh your memory, ask a colleague to
+after-the-fact. This can be useful to refresh your memory, ask a colleague to
 help diagnose a deployment problem, or try to diagnose a deployment problem if
 your way of working dictates that you perform stack deployment via a CI/CD
 system instead of directly using the CDK CLI.
