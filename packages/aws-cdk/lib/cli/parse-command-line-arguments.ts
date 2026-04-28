@@ -611,6 +611,21 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
     )
+    .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
+      yargs
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)',
+          requiresArg: true,
+        })
+        .option('concurrency', {
+          default: undefined,
+          type: 'number',
+          desc: 'How many stacks to diagnose in parallel',
+          requiresArg: true,
+        }),
+    )
     .command('rollback [STACKS..]', 'Rolls back the stack(s) named STACKS to their last stable state', (yargs: Argv) =>
       yargs
         .option('all', {

@@ -25,7 +25,7 @@ integTest(
         allowErrExit: true,
       });
 
-      expect(stdErr).toContain('Import of existing resources failed');
+      expect(stdErr).toContain('needs a DeletionPolicy');
       expect(stdErr).toContain('MyRole');
       expect(stdErr).toContain('RemovalPolicy.RETAIN');
       expect(stdErr).toContain('https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal');

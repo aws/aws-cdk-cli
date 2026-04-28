@@ -47,6 +47,7 @@ import {
   toExecuteChangeSetDeployment,
 } from '../actions/deploy/private';
 import { type DestroyOptions } from '../actions/destroy';
+import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
@@ -59,6 +60,7 @@ import { type SynthOptions } from '../actions/synth';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
+import { EnvironmentAccess } from '../api';
 import {
   BaseCredentials,
   type IBaseCredentialsProvider,
@@ -76,6 +78,8 @@ import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
+import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
+import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
@@ -97,6 +101,7 @@ import { ResourceMapping, ResourceLocation } from '../api/refactoring/cloudforma
 import { RefactoringContext } from '../api/refactoring/context';
 import { generateStackDefinitions } from '../api/refactoring/stack-definitions';
 import { ResourceMigrator } from '../api/resource-import';
+import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
@@ -173,7 +178,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets';
+export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -273,6 +278,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const parameters = options.parameters;
     const bootstrapper = new Bootstrapper(source, ioHelper);
     const sdkProvider = await this.sdkProvider('bootstrap');
+
     const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
@@ -590,6 +596,57 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     await ioHelper.notify(IO.CDK_TOOLKIT_I2901.msg(message, { stacks }));
     return stacks;
+  }
+
+  /**
+   * Try to find the root causes for deployment failures of the given stacks.
+   *
+   * Both emits the diagnosis results over the IO host as they are coming in, as well
+   * as returns all of them as the result of the function.
+   *
+   * NOTE: The Cloud Assembly Source **should** be configured with `debug: true` to add
+   * the maximum number of diagnostics.
+   */
+  public async diagnose(cx: ICloudAssemblySource, options: DiagnoseOptions = {}): Promise<DiagnoseResult> {
+    this.requireUnstableFeature('diagnose');
+
+    const ioHelper = asIoHelper(this.ioHost, 'diagnose');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
+
+    // Do stacks in parallel, for speed.
+    const limit = pLimit(options.concurrency ?? 10);
+
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    const stacks = await Promise.all(stackCollection.stackArtifacts.map((stack) => limit(async () => {
+      const stackEnv = await envs.accessStackForLookupBestEffort(stack);
+
+      const diagnoser = new CloudFormationStackDiagnoser({
+        sdk: stackEnv.sdk,
+        envResources: stackEnv.resources,
+        sourceTracer: new StackArtifactSourceTracer(stack),
+        ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
+      });
+      const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
+
+      const ret: DiagnosedStack = {
+        stackName: stack.stackName,
+        hierarchicalId: stack.hierarchicalId,
+        result: diagnosis,
+      };
+
+      await this.ioHost.notify({
+        action: 'diagnose',
+        ...hostMessageFromDiagnosis(ret),
+      });
+
+      return ret;
+    })));
+
+    return { stacks };
   }
 
   /**
@@ -1589,7 +1646,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private requireUnstableFeature(requestedFeature: UnstableFeature) {
     if (!this.unstableFeatures.includes(requestedFeature)) {
-      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures'`);
+      throw new ToolkitError('UnstableFeatureNotEnabled', `Unstable feature '${requestedFeature}' is not enabled. Please enable it under 'unstableFeatures' (currently enabled: ${this.unstableFeatures})`);
     }
   }
 

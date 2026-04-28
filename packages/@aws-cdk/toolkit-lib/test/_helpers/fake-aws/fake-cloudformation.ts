@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   type ContinueUpdateRollbackCommandInput,
   type ContinueUpdateRollbackCommandOutput,
@@ -11,6 +12,8 @@ import {
   type DeleteStackCommandOutput,
   type DescribeChangeSetCommandInput,
   type DescribeChangeSetCommandOutput,
+  type DescribeEventsCommandInput,
+  type DescribeEventsCommandOutput,
   type DescribeStackEventsCommandInput,
   type DescribeStackEventsCommandOutput,
   type DescribeStacksCommandInput,
@@ -21,8 +24,11 @@ import {
   type GetTemplateCommandOutput,
   type GetTemplateSummaryCommandInput,
   type GetTemplateSummaryCommandOutput,
+  type ListChangeSetsCommandInput,
+  type ListChangeSetsCommandOutput,
   type ListStacksCommandInput,
   type ListStacksCommandOutput,
+  type OperationEvent,
   type UpdateStackCommandInput,
   type UpdateStackCommandOutput,
   type UpdateTerminationProtectionCommandInput,
@@ -36,6 +42,8 @@ import {
   type ServiceInputTypes,
   type ServiceOutputTypes,
   type CloudFormationClientResolvedConfig,
+  DescribeEventsCommand,
+  ListChangeSetsCommand,
   ListStacksCommand,
   CreateStackCommand,
   UpdateStackCommand,
@@ -112,6 +120,7 @@ interface InMemoryChangeSet {
   description?: string;
   changes: Change[];
   creationTime: Date;
+  earlyValidationErrors: EarlyValidationErrorPrime[];
 }
 
 interface InMemoryStack {
@@ -156,6 +165,17 @@ export interface FakeCloudFormationBehaviorOptions {
 // ---------------------------------------------------------------------------
 
 /**
+ * An early validation error to prime on the fake, to be returned by DescribeEvents
+ */
+export interface EarlyValidationErrorPrime {
+  readonly logicalId: string;
+  readonly resourceType?: string;
+  readonly validationStatusReason: string;
+  readonly validationPath: string;
+  readonly validationName?: string;
+}
+
+/**
  * An in-memory implementation of CloudFormation, to test against
  *
  * The behavior of this model is described in `fake-cloudformation.md`, and must
@@ -182,6 +202,13 @@ export class FakeCloudFormation {
    */
   public overrideChangeSetStatus?: { status: string; statusReason?: string; executionStatus: string };
 
+  /**
+   * If set, the next createChangeSet call will fail with an early validation
+   * error, and the given errors will be returned by DescribeEvents.
+   * Auto-clears after use.
+   */
+  public overrideEarlyValidationErrors?: EarlyValidationErrorPrime[];
+
   constructor() {
     this.reset();
   }
@@ -195,6 +222,7 @@ export class FakeCloudFormation {
     this.failFirstDeploy = behavior?.failFirstDeploy ?? false;
     this.overrideChangeSetChanges = undefined;
     this.overrideChangeSetStatus = undefined;
+    this.overrideEarlyValidationErrors = undefined;
   }
 
   public accessStack(name: string): InMemoryStack {
@@ -229,6 +257,8 @@ export class FakeCloudFormation {
     mock.on(DeleteChangeSetCommand).callsFake(this.deleteChangeSet.bind(this));
     mock.on(GetTemplateCommand).callsFake(this.getTemplate.bind(this));
     mock.on(GetTemplateSummaryCommand).callsFake(this.getTemplateSummary.bind(this));
+    mock.on(ListChangeSetsCommand).callsFake(this.listChangeSets.bind(this));
+    mock.on(DescribeEventsCommand).callsFake(this.describeEvents.bind(this));
     mock.on(ContinueUpdateRollbackCommand).callsFake(this.continueUpdateRollback.bind(this));
     mock.on(UpdateTerminationProtectionCommand).callsFake(this.updateTerminationProtection.bind(this));
   }
@@ -271,9 +301,10 @@ export class FakeCloudFormation {
   }
 
   public async createStack(input: CreateStackCommandInput): Promise<CreateStackCommandOutput> {
-    const { id, stack, template } = this.initCreateStack(input);
+    const operationId = randomUUID();
+    const { id, stack, template } = this.initCreateStack(input, operationId);
     this.scheduleAsync(() => {
-      this.finalizeCreateStack(stack, template, input.DisableRollback);
+      this.finalizeCreateStack(stack, template, input.DisableRollback, operationId);
     });
     return { StackId: id, $metadata: {} };
   }
@@ -290,18 +321,19 @@ export class FakeCloudFormation {
       cfnError('ValidationError', 'No updates are to be performed.');
     }
 
+    const operationId = randomUUID();
     stack.status = 'UPDATE_IN_PROGRESS';
     stack.lastUpdatedTime = new Date();
-    this.addEvent(stack, 'UPDATE_IN_PROGRESS', 'User Initiated');
+    this.addEvent(stack, 'UPDATE_IN_PROGRESS', 'User Initiated', operationId);
 
     this.scheduleAsync(() => {
       if (this.shouldFail(template)) {
         if (input.DisableRollback) {
-          this.transitionStack(stack, 'UPDATE_FAILED', 'Resource update failed');
+          this.transitionStack(stack, 'UPDATE_FAILED', 'Resource update failed', operationId);
         } else {
-          this.transitionStack(stack, 'UPDATE_ROLLBACK_IN_PROGRESS', 'Resource update failed');
+          this.transitionStack(stack, 'UPDATE_ROLLBACK_IN_PROGRESS', 'Resource update failed', operationId);
           this.scheduleAsync(() => {
-            this.transitionStack(stack, 'UPDATE_ROLLBACK_COMPLETE');
+            this.transitionStack(stack, 'UPDATE_ROLLBACK_COMPLETE', undefined, operationId);
           });
         }
       } else {
@@ -310,7 +342,7 @@ export class FakeCloudFormation {
         if (input.Tags) stack.tags = input.Tags;
         if (input.Capabilities) stack.capabilities = input.Capabilities as string[];
         if (input.RoleARN) stack.roleArn = input.RoleARN;
-        this.transitionStack(stack, 'UPDATE_COMPLETE');
+        this.transitionStack(stack, 'UPDATE_COMPLETE', undefined, operationId);
       }
     });
 
@@ -328,11 +360,12 @@ export class FakeCloudFormation {
     }
 
     stack.status = 'DELETE_IN_PROGRESS';
-    this.addEvent(stack, 'DELETE_IN_PROGRESS', 'User Initiated');
+    const operationId = randomUUID();
+    this.addEvent(stack, 'DELETE_IN_PROGRESS', 'User Initiated', operationId);
 
     this.scheduleAsync(() => {
       stack.deletionTime = new Date();
-      this.transitionStack(stack, 'DELETE_COMPLETE');
+      this.transitionStack(stack, 'DELETE_COMPLETE', undefined, operationId);
     });
 
     return { $metadata: {} };
@@ -345,10 +378,11 @@ export class FakeCloudFormation {
     }
 
     stack.status = 'UPDATE_ROLLBACK_IN_PROGRESS';
-    this.addEvent(stack, 'UPDATE_ROLLBACK_IN_PROGRESS');
+    const operationId = randomUUID();
+    this.addEvent(stack, 'UPDATE_ROLLBACK_IN_PROGRESS', undefined, operationId);
 
     this.scheduleAsync(() => {
-      this.transitionStack(stack, 'UPDATE_ROLLBACK_COMPLETE');
+      this.transitionStack(stack, 'UPDATE_ROLLBACK_COMPLETE', undefined, operationId);
     });
 
     return { $metadata: {} };
@@ -418,6 +452,7 @@ export class FakeCloudFormation {
       description: input.Description,
       changes: changes ?? [],
       creationTime: new Date(),
+      earlyValidationErrors: [],
     };
     stack.changeSets.push(cs);
     stack.lastChangeSetTemplate = template;
@@ -484,9 +519,10 @@ export class FakeCloudFormation {
     if (cs.capabilities.length > 0) stack.capabilities = cs.capabilities;
 
     const inProgressStatus = isCreate ? 'CREATE_IN_PROGRESS' : 'UPDATE_IN_PROGRESS';
+    const operationId = randomUUID();
     stack.status = inProgressStatus;
     stack.lastUpdatedTime = new Date();
-    this.addEvent(stack, inProgressStatus, 'User Initiated');
+    this.addEvent(stack, inProgressStatus, 'User Initiated', operationId);
 
     this.scheduleAsync(() => {
       cs.status = 'EXECUTE_COMPLETE';
@@ -495,18 +531,18 @@ export class FakeCloudFormation {
       if (this.shouldFail(cs.template)) {
         const failedStatus = isCreate ? 'CREATE_FAILED' : 'UPDATE_FAILED';
         if (input.DisableRollback) {
-          this.transitionStack(stack, failedStatus, 'Resource operation failed');
+          this.transitionStack(stack, failedStatus, 'Resource operation failed', operationId);
         } else {
           const rollbackStatus = isCreate ? 'ROLLBACK_IN_PROGRESS' : 'UPDATE_ROLLBACK_IN_PROGRESS';
           const rollbackComplete = isCreate ? 'ROLLBACK_COMPLETE' : 'UPDATE_ROLLBACK_COMPLETE';
-          this.transitionStack(stack, rollbackStatus, 'Resource operation failed');
+          this.transitionStack(stack, rollbackStatus, 'Resource operation failed', operationId);
           this.scheduleAsync(() => {
-            this.transitionStack(stack, rollbackComplete);
+            this.transitionStack(stack, rollbackComplete, undefined, operationId);
           });
         }
       } else {
         const completeStatus = isCreate ? 'CREATE_COMPLETE' : 'UPDATE_COMPLETE';
-        this.transitionStack(stack, completeStatus);
+        this.transitionStack(stack, completeStatus, undefined, operationId);
       }
     });
 
@@ -645,11 +681,61 @@ export class FakeCloudFormation {
     };
   }
 
+  public async listChangeSets(input: ListChangeSetsCommandInput): Promise<ListChangeSetsCommandOutput> {
+    const stack = this.requireStack(input.StackName!);
+    const summaries = stack.changeSets.map((cs) => ({
+      ChangeSetId: cs.id,
+      ChangeSetName: cs.name,
+      StackId: cs.stackId,
+      StackName: stack.name,
+      Status: cs.status as any,
+      StatusReason: cs.statusReason,
+      ExecutionStatus: cs.executionStatus as any,
+      CreationTime: cs.creationTime,
+    }));
+
+    const startIndex = input.NextToken ? parseInt(input.NextToken, 10) : 0;
+    const page = summaries.slice(startIndex, startIndex + this.pageSize);
+    const nextIndex = startIndex + this.pageSize;
+
+    return {
+      Summaries: page,
+      NextToken: nextIndex < summaries.length ? String(nextIndex) : undefined,
+      $metadata: {},
+    };
+  }
+
+  public async describeEvents(input: DescribeEventsCommandInput): Promise<DescribeEventsCommandOutput> {
+    // Only ChangeSetName + Filters.FailedEvents=true is supported
+    if (!input.ChangeSetName || !input.Filters?.FailedEvents) {
+      cfnError('ValidationError', 'FakeCloudFormation: describeEvents only supports ChangeSetName + Filters.FailedEvents=true');
+    }
+
+    const { changeSet: cs } = this.resolveChangeSet(input.ChangeSetName, input.StackName);
+
+    const events: OperationEvent[] = cs.earlyValidationErrors.map((err) => ({
+      EventId: uid(),
+      StackId: cs.stackId,
+      EventType: 'VALIDATION_ERROR',
+      LogicalResourceId: err.logicalId,
+      ResourceType: err.resourceType,
+      ValidationStatusReason: err.validationStatusReason,
+      ValidationPath: err.validationPath,
+      ValidationName: err.validationName ?? 'NAME_CONFLICT_VALIDATION',
+      Timestamp: new Date(),
+    }));
+
+    return {
+      OperationEvents: events,
+      $metadata: {},
+    };
+  }
+
   // -----------------------------------------------------------------------
   // Private helpers
   // -----------------------------------------------------------------------
 
-  private initCreateStack(input: CreateStackCommandInput): { id: string; stack: InMemoryStack; template: Record<string, any> } {
+  private initCreateStack(input: CreateStackCommandInput, operationId: string): { id: string; stack: InMemoryStack; template: Record<string, any> } {
     const name = input.StackName!;
     const existing = this.stacks.get(name);
     if (existing && existing.status !== 'DELETE_COMPLETE') {
@@ -675,22 +761,22 @@ export class FakeCloudFormation {
       events: [],
     };
     this.stacks.set(name, stack);
-    this.addEvent(stack, 'CREATE_IN_PROGRESS', 'User Initiated');
+    this.addEvent(stack, 'CREATE_IN_PROGRESS', 'User Initiated', operationId);
     return { id, stack, template };
   }
 
-  private finalizeCreateStack(stack: InMemoryStack, template: Record<string, any>, disableRollback?: boolean) {
-    const { failed, created } = this.createResources(stack, template);
+  private finalizeCreateStack(stack: InMemoryStack, template: Record<string, any>, disableRollback?: boolean, operationId?: string) {
+    const { failed, created } = this.createResources(stack, template, operationId);
     if (failed) {
       if (disableRollback) {
-        this.transitionStack(stack, 'CREATE_FAILED', 'Resource creation failed');
+        this.transitionStack(stack, 'CREATE_FAILED', 'Resource creation failed', operationId);
       } else {
-        this.transitionStack(stack, 'ROLLBACK_IN_PROGRESS', 'Resource creation failed');
-        this.rollbackResources(stack, template, created);
-        this.transitionStack(stack, 'ROLLBACK_COMPLETE');
+        this.transitionStack(stack, 'ROLLBACK_IN_PROGRESS', 'Resource creation failed', operationId);
+        this.rollbackResources(stack, template, created, operationId);
+        this.transitionStack(stack, 'ROLLBACK_COMPLETE', undefined, operationId);
       }
     } else {
-      this.transitionStack(stack, 'CREATE_COMPLETE');
+      this.transitionStack(stack, 'CREATE_COMPLETE', undefined, operationId);
     }
   }
 
@@ -757,6 +843,7 @@ export class FakeCloudFormation {
       description: input.Description,
       changes: [],
       creationTime: new Date(),
+      earlyValidationErrors: [],
     };
     stack.changeSets.push(cs);
     stack.lastChangeSetTemplate = template;
@@ -773,6 +860,16 @@ export class FakeCloudFormation {
       cs.statusReason = this.overrideChangeSetStatus.statusReason;
       cs.executionStatus = this.overrideChangeSetStatus.executionStatus;
       this.overrideChangeSetStatus = undefined;
+      return;
+    }
+
+    // Allow tests to prime early validation errors
+    if (this.overrideEarlyValidationErrors) {
+      cs.status = 'FAILED';
+      cs.statusReason = 'AWS::EarlyValidation failed';
+      cs.executionStatus = 'UNAVAILABLE';
+      cs.earlyValidationErrors = this.overrideEarlyValidationErrors;
+      this.overrideEarlyValidationErrors = undefined;
       return;
     }
 
@@ -907,29 +1004,29 @@ export class FakeCloudFormation {
   }
 
   /** "Create" resources — just generate events for each resource */
-  private createResources(stack: InMemoryStack, template: Record<string, any>): { failed: boolean; created: string[] } {
+  private createResources(stack: InMemoryStack, template: Record<string, any>, operationId?: string): { failed: boolean; created: string[] } {
     const created: string[] = [];
     const forceFailAll = this.shouldForceFailAll();
     for (const [logicalId, res] of Object.entries(templateResources(template))) {
       const r = res as any;
       if (forceFailAll || r.Properties?.Fail === true) {
-        this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_IN_PROGRESS');
-        this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_FAILED');
+        this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_IN_PROGRESS', operationId);
+        this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_FAILED', operationId);
         return { failed: true, created };
       }
-      this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_IN_PROGRESS');
-      this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_COMPLETE');
+      this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_IN_PROGRESS', operationId);
+      this.addResourceEvent(stack, logicalId, r.Type, 'CREATE_COMPLETE', operationId);
       created.push(logicalId);
     }
     return { failed: false, created };
   }
 
   /** Generate DELETE_COMPLETE events for previously created resources (reverse order) */
-  private rollbackResources(stack: InMemoryStack, template: Record<string, any>, logicalIds: string[]) {
+  private rollbackResources(stack: InMemoryStack, template: Record<string, any>, logicalIds: string[], operationId?: string) {
     const resources = templateResources(template);
     for (let i = logicalIds.length - 1; i >= 0; i--) {
       const logicalId = logicalIds[i];
-      this.addResourceEvent(stack, logicalId, resources[logicalId].Type, 'DELETE_COMPLETE');
+      this.addResourceEvent(stack, logicalId, resources[logicalId].Type, 'DELETE_COMPLETE', operationId);
     }
   }
 
@@ -1003,13 +1100,13 @@ export class FakeCloudFormation {
     return changes;
   }
 
-  private transitionStack(stack: InMemoryStack, status: string, reason?: string) {
+  private transitionStack(stack: InMemoryStack, status: string, reason?: string, operationId?: string) {
     stack.status = status;
     stack.statusReason = reason;
-    this.addEvent(stack, status, reason);
+    this.addEvent(stack, status, reason, operationId);
   }
 
-  private addEvent(stack: InMemoryStack, status: string, reason?: string) {
+  private addEvent(stack: InMemoryStack, status: string, reason?: string, operationId?: string) {
     // Events are in reverse chronological order (newest first)
     stack.events.unshift({
       StackId: stack.id,
@@ -1020,11 +1117,12 @@ export class FakeCloudFormation {
       ResourceType: 'AWS::CloudFormation::Stack',
       ResourceStatus: status as any,
       ResourceStatusReason: reason,
+      OperationId: operationId,
       Timestamp: new Date(),
     });
   }
 
-  private addResourceEvent(stack: InMemoryStack, logicalId: string, resourceType: string, status: string) {
+  private addResourceEvent(stack: InMemoryStack, logicalId: string, resourceType: string, status: string, operationId?: string) {
     stack.events.unshift({
       StackId: stack.id,
       StackName: stack.name,
@@ -1033,6 +1131,7 @@ export class FakeCloudFormation {
       PhysicalResourceId: `fake-${logicalId}-${uid()}`,
       ResourceType: resourceType,
       ResourceStatus: status as any,
+      OperationId: operationId,
       Timestamp: new Date(),
     });
   }

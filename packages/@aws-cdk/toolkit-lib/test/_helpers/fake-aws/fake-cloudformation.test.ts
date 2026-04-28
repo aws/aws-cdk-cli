@@ -774,3 +774,102 @@ describe('Test control', () => {
     expect(fake.overrideChangeSetStatus).toBeUndefined();
   });
 });
+
+// =========================================================================
+// OperationId
+// =========================================================================
+
+describe('OperationId', () => {
+  test('all events from createStack share the same OperationId', async () => {
+    await createStack('S', TEMPLATE_WITH_TWO_RESOURCES);
+    const events = await fake.describeStackEvents({ StackName: 'S' });
+    const operationIds = new Set(events.StackEvents!.map(e => e.OperationId));
+    // All events should have the same non-undefined OperationId
+    expect(operationIds.size).toBe(1);
+    expect(events.StackEvents![0].OperationId).toBeDefined();
+  });
+
+  test('different operations get different OperationIds', async () => {
+    await createStack('S');
+    const eventsAfterCreate = await fake.describeStackEvents({ StackName: 'S' });
+    const createOpId = eventsAfterCreate.StackEvents![0].OperationId;
+
+    await fake.updateStack({ StackName: 'S', TemplateBody: TEMPLATE_WITH_TWO_RESOURCES });
+    await flush();
+    const eventsAfterUpdate = await fake.describeStackEvents({ StackName: 'S' });
+    // The newest event should have a different OperationId
+    const updateOpId = eventsAfterUpdate.StackEvents![0].OperationId;
+
+    expect(createOpId).toBeDefined();
+    expect(updateOpId).toBeDefined();
+    expect(createOpId).not.toBe(updateOpId);
+  });
+
+  test('executeChangeSet events have OperationId', async () => {
+    await createStack('S');
+    await fake.createChangeSet({ StackName: 'S', ChangeSetName: 'CS', TemplateBody: TEMPLATE_WITH_TWO_RESOURCES });
+    await flush();
+    await fake.executeChangeSet({ ChangeSetName: 'CS', StackName: 'S' });
+    await flush();
+    const events = await fake.describeStackEvents({ StackName: 'S' });
+    // The most recent events (from executeChangeSet) should have an OperationId
+    expect(events.StackEvents![0].OperationId).toBeDefined();
+  });
+});
+
+// =========================================================================
+// DescribeEvents (early validation)
+// =========================================================================
+
+describe('DescribeEvents', () => {
+  test('returns primed early validation errors', async () => {
+    fake.createStackSync({ StackName: 'S' });
+    fake.overrideEarlyValidationErrors = [
+      {
+        logicalId: 'MyBucket',
+        resourceType: 'AWS::S3::Bucket',
+        validationStatusReason: 'Resource already exists',
+        validationPath: '/Resources/MyBucket',
+        validationName: 'NAME_CONFLICT_VALIDATION',
+      },
+    ];
+    await fake.createChangeSet({ StackName: 'S', ChangeSetName: 'CS', TemplateBody: TEMPLATE_WITH_RESOURCE });
+    await flush();
+
+    // Change set should be FAILED with early validation
+    const cs = await fake.describeChangeSet({ ChangeSetName: 'CS', StackName: 'S' });
+    expect(cs.Status).toBe('FAILED');
+    expect(cs.StatusReason).toContain('EarlyValidation');
+
+    // DescribeEvents should return the primed errors
+    const events = await fake.describeEvents({
+      StackName: 'S',
+      ChangeSetName: 'CS',
+      Filters: { FailedEvents: true },
+    });
+    expect(events.OperationEvents).toHaveLength(1);
+    expect(events.OperationEvents![0].LogicalResourceId).toBe('MyBucket');
+    expect(events.OperationEvents![0].ValidationStatusReason).toBe('Resource already exists');
+    expect(events.OperationEvents![0].ValidationPath).toBe('/Resources/MyBucket');
+  });
+
+  test('auto-clears overrideEarlyValidationErrors after use', async () => {
+    fake.createStackSync({ StackName: 'S' });
+    fake.overrideEarlyValidationErrors = [
+      { logicalId: 'X', validationStatusReason: 'err', validationPath: '/Resources/X' },
+    ];
+    await fake.createChangeSet({ StackName: 'S', ChangeSetName: 'CS1', TemplateBody: TEMPLATE_WITH_RESOURCE });
+    await flush();
+    expect(fake.overrideEarlyValidationErrors).toBeUndefined();
+  });
+
+  test('throws on unsupported query (no ChangeSetName)', async () => {
+    fake.createStackSync({ StackName: 'S' });
+    await expect(fake.describeEvents({ StackName: 'S' })).rejects.toThrow(/only supports/);
+  });
+
+  test('throws on unsupported query (no FailedEvents filter)', async () => {
+    fake.createStackSync({ StackName: 'S' });
+    await expect(fake.describeEvents({ StackName: 'S', ChangeSetName: 'CS' })).rejects.toThrow(/only supports/);
+  });
+});
