@@ -810,7 +810,7 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
 
 function cliRequireUnstable(configuration: Configuration, feature: string) {
   if (!configuration.settings.get(['unstable']).includes(feature)) {
-    throw new ToolkitError(`Unstable${ucfirst(feature)}`, 'Unstable feature use: \'${feature}\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk ${feature} --unstable=${feature}\'');
+    throw new ToolkitError(`Unstable${ucfirst(feature)}`, `Unstable feature use: \'${feature}\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk ${feature} --unstable=${feature}\'`);
   }
 
   function ucfirst(x: string) {
