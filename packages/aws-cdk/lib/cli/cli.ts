@@ -80,6 +80,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     currentAction: cmd,
     stackProgress: argv.progress,
     autoRespond: argv.yes,
+    printAsJson: argv.jsonlog,
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 

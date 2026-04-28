@@ -28,6 +28,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'lookups': { type: 'boolean', desc: 'Perform context lookups (synthesis fails if this is disabled and context lookups need to be performed)', default: true },
       'ignore-errors': { type: 'boolean', default: false, desc: 'Ignores synthesis errors, which will likely produce an invalid output' },
       'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
+      'jsonlog': { type: 'boolean', alias: 'J', desc: 'Print log output in JSON-lines format to stderr', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)', default: false },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },

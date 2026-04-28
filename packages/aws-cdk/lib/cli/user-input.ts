@@ -220,6 +220,13 @@ export interface GlobalOptions {
   readonly json?: boolean;
 
   /**
+   * Print log output in JSON-lines format to stderr
+   *
+   * @default - false
+   */
+  readonly jsonlog?: boolean;
+
+  /**
    * Show debug logs (specify multiple times to increase verbosity)
    *
    * @default - false
