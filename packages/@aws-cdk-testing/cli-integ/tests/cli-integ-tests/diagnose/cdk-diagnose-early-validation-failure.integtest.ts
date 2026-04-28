@@ -21,7 +21,7 @@ integTest(
 
     // Run cdk diagnose on the second stack
     const diagnoseOutput = await fixture.cdk(
-      ['diagnose', fixture.fullStackName('diagnose-early-val-2')],
+      ['--unstable=diagnose', 'diagnose', fixture.fullStackName('diagnose-early-val-2')],
       {
         modEnv: { BUCKET_NAME: bucketName },
         allowErrExit: true,

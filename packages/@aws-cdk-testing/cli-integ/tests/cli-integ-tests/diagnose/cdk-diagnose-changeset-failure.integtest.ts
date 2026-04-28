@@ -29,7 +29,7 @@ integTest(
 
       // Step 4: Run cdk diagnose
       const diagnoseOutput = await fixture.cdk(
-        ['diagnose', fixture.fullStackName('diagnose-import-fail')],
+        ['--unstable=diagnose', 'diagnose', fixture.fullStackName('diagnose-import-fail')],
         {
           modEnv: { REMOVAL_POLICY: 'destroy' },
           allowErrExit: true,

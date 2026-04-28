@@ -15,7 +15,7 @@ integTest(
 
     // Run cdk diagnose on the failed stack
     const diagnoseOutput = await fixture.cdk(
-      ['diagnose', fixture.fullStackName('diagnose-deploy-fail')],
+      ['--unstable=diagnose', 'diagnose', fixture.fullStackName('diagnose-deploy-fail')],
       { allowErrExit: true },
     );
 
