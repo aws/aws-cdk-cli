@@ -63,6 +63,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       alias: 'j',
       desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
     })
+    .option('jsonlog', {
+      default: false,
+      type: 'boolean',
+      alias: 'J',
+      desc: 'Print log output in JSON-lines format to stderr',
+    })
     .option('verbose', {
       default: false,
       type: 'boolean',
