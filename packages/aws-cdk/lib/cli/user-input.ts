@@ -56,6 +56,11 @@ export interface UserInput {
   readonly deploy?: DeployOptions;
 
   /**
+   * Find the root cause(s) of stack deployment failures
+   */
+  readonly diagnose?: DiagnoseOptions;
+
+  /**
    * Rolls back the stack(s) named STACKS to their last stable state
    */
   readonly rollback?: RollbackOptions;
@@ -958,6 +963,32 @@ export interface DeployOptions {
 
   /**
    * Positional argument for deploy
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Find the root cause(s) of stack deployment failures
+ *
+ * @struct
+ */
+export interface DiagnoseOptions {
+  /**
+   * The name of the existing CDK toolkit stack (only used for app using legacy synthesis)
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
+
+  /**
+   * How many stacks to diagnose in parallel
+   *
+   * @default - undefined
+   */
+  readonly concurrency?: number;
+
+  /**
+   * Positional argument for diagnose
    */
   readonly STACKS?: Array<string>;
 }

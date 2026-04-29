@@ -20,5 +20,6 @@ export type ToolkitAction =
 | 'init'
 | 'migrate'
 | 'refactor'
+| 'diagnose'
 | 'orphan'
 | 'flags';

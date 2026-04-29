@@ -43,4 +43,4 @@ export function createBranded<A extends Branded<any, any>>(value: TypeUnderlying
 }
 /* c8 ignore stop */
 
-type TypeUnderlyingBrand<A> = A extends Branded<infer T, any> ? T : never;
+type TypeUnderlyingBrand<A> = Omit<A, keyof Brand<any>>;

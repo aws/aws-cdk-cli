@@ -33,10 +33,12 @@ import {
   loadCurrentTemplateWithNestedStacks,
   makeBodyParameter,
 } from '../cloudformation';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
+import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
+import { StackActivityMonitor, StackEventPoller, RollbackChoice, PollRange } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -408,6 +410,13 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(options.stack),
+        ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: options.stack.hierarchicalId,
+      }),
     }, this.ioHelper);
   }
 
@@ -469,7 +478,16 @@ export class Deployments {
   public async describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<DescribeChangeSetCommandOutput> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, { fetchAll: true });
+    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, {
+      fetchAll: true,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(stack),
+        ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
+      }),
+    });
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
@@ -523,12 +541,13 @@ export class Deployments {
             // `DescribeStackResources` permissions).
             const poller = new StackEventPoller(cfn, {
               stackName: deployName,
-              stackStatuses: ['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS'],
+              initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
             });
             await poller.poll();
             resourcesToSkip = poller.resourceErrors
-              .filter((r) => !r.isStackEvent && r.parentStackLogicalIds.length === 0)
-              .map((r) => r.event.LogicalResourceId ?? '');
+              .filter((r) => r.parentStackLogicalIds.length === 0)
+              .map((r) => r.logicalId)
+              .filter((id) => typeof id === 'string');
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
@@ -570,12 +589,12 @@ export class Deployments {
         }
         finalStackState = successStack;
 
-        const errors = monitor.allErrorMessages.join(', ');
+        const errors = monitor.errors.allErrorMessages.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages);
       } finally {
         await monitor.stop();
       }
@@ -592,7 +611,7 @@ export class Deployments {
 
       throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
-        monitor.rootCauseErrorCode ?? 'RollbackFailed',
+        monitor.errors.rootCauseErrorCode ?? 'RollbackFailed',
       );
     }
     throw new ToolkitError(

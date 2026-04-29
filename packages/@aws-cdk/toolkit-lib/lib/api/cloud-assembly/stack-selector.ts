@@ -71,7 +71,7 @@ export enum ExpandStackSelection {
  */
 export interface StackSelector {
   /**
-   * The behavior if if no selectors are provided.
+   * How the patterns should be interpreted.
    */
   strategy: StackSelectionStrategy;
 

@@ -23,3 +23,4 @@ export * from './work-graph';
 export * from './tree';
 export * from './tags';
 export * from './drift';
+export * from './source-tracing';

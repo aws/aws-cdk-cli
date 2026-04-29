@@ -2449,6 +2449,44 @@ describe('rollback', () => {
   });
 });
 
+describe('diagnose', () => {
+  cliTest('exit code is 0 if there are no diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: { type: 'no-problem' },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).toEqual(0);
+  });
+
+  cliTest('exit code is non-zero if there are diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: {
+            type: 'problem',
+            detectedBy: { type: 'deployment', stackStatus: 'FAILED', statusReason: 'Thundering typhoons' },
+            problems: [],
+          },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).not.toEqual(0);
+  });
+});
+
 class MockStack {
   public static readonly MOCK_STACK_A: TestStackArtifact = {
     stackName: 'Test-Stack-A',

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
-import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment } from '@aws-cdk/toolkit-lib';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
@@ -83,7 +83,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
-  // Debug should always imply tracing
+  // If users request debug information (which switches on CDK_DEBUG=1 to get the
+  // CDK app to emit more information), they probably are troubleshooting and we've
+  // historically decided they then want more logging from the CLI as well.
+  // There is currently no way to get the CDK to emit tracing information that
+  // does not cause the CLI to barf logs to the console.
   setSdkTracing(argv.debug || argv.verbose > 2);
 
   try {
@@ -339,9 +343,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
       case 'refactor':
-        if (!configuration.settings.get(['unstable']).includes('refactor')) {
-          throw new ToolkitError('UnstableRefactor', 'Unstable feature use: \'refactor\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk refactor --unstable=refactor\'');
-        }
+        cliRequireUnstable(configuration, 'refactor');
 
         ioHost.currentAction = 'refactor';
         return cli.refactor({
@@ -430,6 +432,21 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ignoreNoStacks: args.ignoreNoStacks,
         });
 
+      case 'diagnose':
+        cliRequireUnstable(configuration, 'diagnose');
+        ioHost.currentAction = 'diagnose';
+
+        // Implicitly switch 'debug' mode to true, that is going to be most useful.
+        configuration.settings.temporarilyMutable((settings) => {
+          settings.set(['debug'], true);
+        });
+
+        return cli.diagnose({
+          stacks: specificStacksOrAllRecursively(args.STACKS),
+          concurrency: args.concurrency,
+          toolkitStackName: args.toolkitStackName,
+        });
+
       case 'rollback':
         ioHost.currentAction = 'rollback';
         return cli.rollback({
@@ -443,9 +460,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'publish-assets':
         ioHost.currentAction = 'publish-assets';
-        if (!configuration.settings.get(['unstable']).includes('publish-assets')) {
-          throw new ToolkitError('UnstablePublishAssets', 'Unstable feature use: \'publish-assets\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk publish-assets --unstable=publish-assets\'');
-        }
+        cliRequireUnstable(configuration, 'publish-assets');
+
         return cli.publishAssets({
           stacks: convertStackSelector(selector, args.exclusively),
           force: args.force,
@@ -453,9 +469,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         });
 
       case 'orphan':
-        if (!configuration.settings.get(['unstable']).includes('orphan')) {
-          throw new ToolkitError('UnstableOrphan', 'Unstable feature use: \'orphan\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk orphan --unstable=orphan\'');
-        }
+        cliRequireUnstable(configuration, 'orphan');
 
         ioHost.currentAction = 'orphan';
         return cli.orphan({
@@ -512,9 +526,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'gc':
         ioHost.currentAction = 'gc';
-        if (!configuration.settings.get(['unstable']).includes('gc')) {
-          throw new ToolkitError('UnstableGc', 'Unstable feature use: \'gc\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk gc --unstable=gc\'');
-        }
+        cliRequireUnstable(configuration, 'gc');
         if (args.bootstrapStackName) {
           await ioHost.defaults.warn('--bootstrap-stack-name is deprecated and will be removed when gc is GA. Use --toolkit-stack-name.');
         }
@@ -535,9 +547,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'flags':
         ioHost.currentAction = 'flags';
 
-        if (!configuration.settings.get(['unstable']).includes('flags')) {
-          throw new ToolkitError('UnstableFlags', 'Unstable feature use: \'flags\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk flags --unstable=flags\'');
-        }
+        cliRequireUnstable(configuration, 'flags');
+
         const toolkit = new Toolkit({
           ioHost,
           toolkitStackName,
@@ -595,9 +606,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           return printAvailableTemplates(ioHelper, language);
         } else {
           // Gate custom template support with unstable flag
-          if (args['from-path'] && !configuration.settings.get(['unstable']).includes('init')) {
-            throw new ToolkitError('UnstableInit', 'Unstable feature use: \'init\' with custom templates is unstable. It must be opted in via \'--unstable\', e.g. \'cdk init --from-path=./my-template --unstable=init\'');
+          if (args['from-path']) {
+            cliRequireUnstable(configuration, 'init');
           }
+
           return cliInit({
             ioHelper,
             type: args.TEMPLATE,
@@ -660,11 +672,23 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
 /**
  * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
  */
-function convertStackSelector(selector: StackSelector, exclusively?: boolean) {
+function convertStackSelector(selector: StackSelector, exclusively?: boolean): LibStackSelector {
   return {
     patterns: selector.patterns,
     strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
     expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+  };
+}
+
+/**
+ * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
+ *
+ * If no patterns are given, all stacks in the assembly and all of its stages are selected.
+ */
+function specificStacksOrAllRecursively(patterns: string[]): LibStackSelector {
+  return {
+    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    patterns,
   };
 }
 
@@ -781,6 +805,16 @@ function determineDeploymentMethod(args: any, configuration: Configuration, watc
     default:
     case HotswapMode.FULL_DEPLOYMENT:
       return deploymentMethod;
+  }
+}
+
+function cliRequireUnstable(configuration: Configuration, feature: string) {
+  if (!configuration.settings.get(['unstable']).includes(feature)) {
+    throw new ToolkitError(`Unstable${ucfirst(feature)}`, `Unstable feature use: \'${feature}\' is unstable. It must be opted in via \'--unstable\', e.g. \'cdk ${feature} --unstable=${feature}\'`);
+  }
+
+  function ucfirst(x: string) {
+    return x[0].toUpperCase() + x.slice(1);
   }
 }
 

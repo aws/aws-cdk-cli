@@ -2,7 +2,7 @@ import * as path from 'path';
 import { format } from 'util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, PublishAssetsOptions, ToolkitAction, ToolkitOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -37,7 +37,6 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import { FlagOperations } from '../commands/flags/operations';
 import { listStacks } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
@@ -71,6 +70,7 @@ import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
+import { FlagOperations } from '../commands/flags/operations';
 
 // Must use a require() otherwise esbuild complains about calling a namespace
 // eslint-disable-next-line @typescript-eslint/no-require-imports,@typescript-eslint/consistent-type-imports
@@ -201,13 +201,25 @@ export class CdkToolkit {
     this.ioHost = props.ioHost ?? CliIoHost.instance();
     this.toolkitStackName = props.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME;
 
+    // We don't have the toolkit check unstable features. Instead, the error
+    // messages the CLI give are slightly different, and so they need to be checked
+    // separately. Instead, the Toolkit we use has all unstable features automatically
+    // enabled.
+    const iPromiseUnstablenessIsCheckedByTheCli: Record<UnstableFeature, true> = {
+      'publish-assets': true,
+      'diagnose': true,
+      'flags': true,
+      'orphan': true,
+      'refactor': true,
+    };
+
     this.toolkit = new InternalToolkit(props.sdkProvider, {
       assemblyFailureAt: this.validateMetadataFailAt(),
       color: true,
       emojis: true,
       ioHost: this.ioHost,
       toolkitStackName: this.toolkitStackName,
-      unstableFeatures: ['refactor', 'orphan', 'flags', 'publish-assets'],
+      unstableFeatures: Object.keys(iPromiseUnstablenessIsCheckedByTheCli) as UnstableFeature[],
     });
   }
 
@@ -830,6 +842,18 @@ export class CdkToolkit {
 
     const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     return totalDrifts > 0 && options.fail ? 1 : 0;
+  }
+
+  /**
+   * Diagnose errors
+   */
+  public async diagnose(options: DiagnoseOptions): Promise<number> {
+    const results = await this.toolkit.diagnose(this.props.cloudExecutable, options);
+
+    if (results.stacks.some(s => s.result.type !== 'no-problem')) {
+      return 1;
+    }
+    return 0;
   }
 
   /**

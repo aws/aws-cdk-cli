@@ -16,6 +16,7 @@ import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -1208,13 +1209,22 @@ test('tags are passed along to create change set', async () => {
     ioHelper,
     {
       stack: stack,
-      cfn: new MockSdk().cloudFormation(),
+      cfn: sdk.cloudFormation(),
       changeSetName: 'foo',
       willExecute: false,
       exists: true,
       uuid: '142DF82A-8ED8-4944-8EEB-A5BAE141F13F',
       bodyParameter: {},
       parameters: {},
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk,
+        sourceTracer: {
+          traceResource: () => Promise.resolve(undefined),
+          traceStack: () => Promise.resolve(undefined),
+        },
+        ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
+      }),
     },
   );
 

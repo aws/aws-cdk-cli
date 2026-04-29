@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiagnosedStack } from '../../../actions/diagnose';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
@@ -482,6 +483,25 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9402',
     description: 'Publish assets results on success',
     interface: 'AssetsPayload',
+  }),
+
+  // diagnose (95xx)
+  CDK_TOOLKIT_I9500: make.info<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_I9500',
+    description: 'Stack diagnosis (no problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_E9500: make.error<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_E9500',
+    description: 'Stack diagnosis (problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_W9501: make.warn<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_W9501',
+    description: 'Stack diagnosis (diagnosis could not be performed)',
+    interface: 'DiagnosedStack',
   }),
 
   // Notices

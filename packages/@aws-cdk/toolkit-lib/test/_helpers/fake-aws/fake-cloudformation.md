@@ -197,7 +197,27 @@ and `GetTemplate` (when the `ChangeSetName` parameter is used).
 2. Events are generated for:
    - Stack status changes (resource type `AWS::CloudFormation::Stack`)
    - Individual resource create/update/delete operations
-3. Paginated via `NextToken`.
+3. Each event includes an `OperationId` that is unique per stack operation
+   (see **OperationId** below).
+4. Paginated via `NextToken`.
+
+### DescribeEvents
+
+1. **Only** supports queries with `ChangeSetName` + `Filters.FailedEvents=true`.
+   Any other combination throws `ValidationError`.
+2. Returns `OperationEvents` containing early validation errors that were
+   primed on the change set via `overrideEarlyValidationErrors`.
+3. Each returned `OperationEvent` includes `EventType`, `LogicalResourceId`,
+   `ResourceType`, `ValidationStatusReason`, `ValidationPath`, and
+   `ValidationName`.
+
+## OperationId
+
+Every stack operation (`CreateStack`, `UpdateStack`, `DeleteStack`,
+`ContinueUpdateRollback`, `ExecuteChangeSet`) generates a unique UUID as its
+`OperationId`. This ID is recorded on every stack event and resource event
+produced by that operation. This allows consumers to distinguish events from
+different operations on the same stack.
 
 ### UpdateTerminationProtection
 
@@ -235,3 +255,8 @@ The fake exposes:
   these changes instead of computing them. Auto-clears after use.
 - `overrideChangeSetStatus`: if set, the next `createChangeSet` call uses
   this status/reason/executionStatus. Auto-clears after use.
+- `overrideEarlyValidationErrors`: if set, the next `createChangeSet` call
+  fails with `AWS::EarlyValidation` status and the given errors are stored
+  on the change set. These errors are returned by `DescribeEvents` when
+  queried with `ChangeSetName` + `Filters.FailedEvents=true`. Auto-clears
+  after use.

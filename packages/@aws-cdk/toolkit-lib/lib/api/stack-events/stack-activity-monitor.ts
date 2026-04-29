@@ -1,12 +1,9 @@
 import * as util from 'util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import * as uuid from 'uuid';
-import { StackEventPoller } from './stack-event-poller';
+import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
-import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
-import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
@@ -95,13 +92,6 @@ export class StackActivityMonitor {
    */
   private readonly pollingInterval: number;
 
-  /**
-   * A list of all non-cancellation errors we have seen.
-   *
-   * By the nature of the order we see events in, will be ordered from oldest to newest.
-   */
-  private readonly _errors: StackEvent[] = [];
-
   private monitorId?: string;
 
   private readonly progressMonitor: StackProgressMonitor;
@@ -142,36 +132,15 @@ export class StackActivityMonitor {
     this.pollingInterval = pollingInterval;
     this.poller = new StackEventPoller(cfn, {
       stackName,
-      startTime: changeSetCreationTime?.getTime() ?? Date.now(),
+      initialPollRange: PollRange.sinceTimestamp(changeSetCreationTime?.getTime() ?? Date.now()),
     });
   }
 
   /**
-   * Return error messages of all encountered errors (that aren't cancellations)
+   * The resource errors that were discovered during monitoring of this stack
    */
-  public get allErrorMessages(): string[] {
-    return this._errors.map(e => e.ResourceStatusReason ?? '');
-  }
-
-  /**
-   * Return error codeds of all encountered errors (that aren't cancellations nor stack errors)
-   *
-   * We don't need to include nested stack errors because our poller will poll the nested stack,
-   * and have returned the actual error as well.
-   */
-  public get allErrorCodes(): string[] {
-    return this._errors
-      .filter(isRegularResourceEvent)
-      .map(extractErrorCode);
-  }
-
-  /**
-   * Take our best guess at the error code of the root cause
-   *
-   * The first error that occurs is the root cause.
-   */
-  public get rootCauseErrorCode(): string | undefined {
-    return this.allErrorCodes[0];
+  public get errors() {
+    return this.poller.errors;
   }
 
   public async start() {
@@ -342,7 +311,6 @@ export class StackActivityMonitor {
         progress: this.progressMonitor.progress,
       };
 
-      this.checkForErrors(activity);
       await this.ioHelper.notify(IO.CDK_TOOLKIT_I5502.msg(this.formatActivity(activity, true), activity));
     }
   }
@@ -388,72 +356,5 @@ export class StackActivityMonitor {
       metadata?.entry.trace ? `\n\t${metadata.entry.trace.join('\n\t\\_ ')}` : '',
     );
   }
-
-  private checkForErrors(activity: StackActivity) {
-    if (isErrorEvent(activity.event)) {
-      // Cancelled is not an interesting failure reason, nor is the stack message (stack
-      // message will just say something like "stack failed to update")
-      if (!isCancellationEvent(activity.event) && isRegularResourceEvent(activity.event)) {
-        this._errors.push(activity.event);
-      }
-    }
-  }
 }
 
-// Some custom resource types that the CDK standard library creates that we
-// would like to see it if they fail.
-const OUR_CUSTOM_RESOURCE_TYPES = [
-  'Custom::AWS',
-  'Custom::AWSCDK-EKS-Cluster',
-  'Custom::AWSCDK-EKS-FargateProfile',
-  'Custom::AWSCDK-EKS-HelmChart',
-  'Custom::AWSCDK-EKS-KubernetesObjectValue',
-  'Custom::AWSCDK-EKS-KubernetesPatch',
-  'Custom::AWSCDK-EKS-KubernetesResource',
-  'Custom::AWSCDKCfnJson',
-  'Custom::AWSCDKCfnJsonStringify',
-  'Custom::AWSCDKOpenIdConnectProvider',
-  'Custom::CDKBucketDeployment',
-  'Custom::CloudwatchLogResourcePolicy',
-  'Custom::CrossAccountZoneDelegation',
-  'Custom::CrossRegionExportReader',
-  'Custom::CrossRegionExportWriter',
-  'Custom::CrossRegionStringParameterReader',
-  'Custom::DeleteExistingRecordSet',
-  'Custom::DescribeCognitoUserPoolClient',
-  'Custom::DynamoDBReplica',
-  'Custom::ECRAutoDeleteImages',
-  'Custom::ElasticsearchAccessPolicy',
-  'Custom::LogRetention',
-  'Custom::OpenSearchAccessPolicy',
-  'Custom::S3AutoDeleteObjects',
-  'Custom::S3BucketNotifications',
-  'Custom::SyntheticsAutoDeleteUnderlyingResources',
-  'Custom::Trigger',
-  'Custom::UserPoolCloudFrontDomainName',
-  'Custom::VpcRestrictDefaultSG',
-];
-
-/**
- * Extract an error code from the given stack event.
- *
- * Always contains the services, and includes the handler error code if available.
- */
-export function extractErrorCode(event: StackEvent): string {
-  const isOurCustomResource = OUR_CUSTOM_RESOURCE_TYPES.includes(event.ResourceType ?? '');
-
-  // Get the resource type; if it is non-AWS then we are done.
-  const resourceTypeParts = (event.ResourceType ?? '').split('::');
-  if (resourceTypeParts[0] !== 'AWS' && !isOurCustomResource) {
-    return DeploymentErrorCodes.PRIVATE_RESOURCE_ERROR;
-  }
-
-  const resourceType = isOurCustomResource ? resourceTypeParts.join('') : resourceTypeParts.slice(1).join('');
-
-  const reason = event.ResourceStatusReason ?? '';
-
-  const errorRe = /(?:HandlerErrorCode:|Error Code:) ([a-zA-Z0-9:-]+)/;
-  const handlerCode = reason.match(errorRe);
-
-  return `${resourceType}:${handlerCode ? handlerCode[1] : DeploymentErrorCodes.UNKNOWN_ERROR}`;
-}

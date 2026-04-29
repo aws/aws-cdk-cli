@@ -220,6 +220,17 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
       },
+      'diagnose': {
+        description: 'Find the root cause(s) of stack deployment failures',
+        options: {
+          'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
+          'concurrency': { type: 'number', desc: 'How many stacks to diagnose in parallel', requiresArg: true },
+        },
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+      },
       'rollback': {
         description: 'Rolls back the stack(s) named STACKS to their last stable state',
         arg: {

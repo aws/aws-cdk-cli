@@ -123,6 +123,8 @@ import type {
   DescribeTypeCommandOutput,
   GetHookResultCommandInput,
   GetHookResultCommandOutput,
+  ListChangeSetsCommandInput,
+  ListChangeSetsCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -167,6 +169,7 @@ import {
   waitUntilStackRefactorExecuteComplete,
   DescribeTypeCommand,
   GetHookResultCommand,
+  ListChangeSetsCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
 import type {
@@ -510,6 +513,7 @@ export interface ICloudFormationClient {
   waitUntilStackRefactorCreateComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   getHookResult(input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput>;
+  listChangeSets(input: ListChangeSetsCommandInput): Promise<ListChangeSetsCommandOutput>;
 }
 
 export interface ICloudWatchLogsClient {
@@ -867,6 +871,7 @@ export class SDK {
       },
       getHookResult: (input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput> =>
         client.send(new GetHookResultCommand(input)),
+      listChangeSets: (input) => client.send(new ListChangeSetsCommand(input)),
     };
   }
 

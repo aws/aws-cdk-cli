@@ -149,6 +149,14 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'diagnose':
+      commandOptions = {
+        toolkitStackName: args.toolkitStackName,
+        concurrency: args.concurrency,
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'rollback':
       commandOptions = {
         all: args.all,
@@ -455,6 +463,10 @@ export function convertConfigToUserInput(config: any): UserInput {
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
   };
+  const diagnoseOptions = {
+    toolkitStackName: config.diagnose?.toolkitStackName,
+    concurrency: config.diagnose?.concurrency,
+  };
   const rollbackOptions = {
     all: config.rollback?.all,
     toolkitStackName: config.rollback?.toolkitStackName,
@@ -574,6 +586,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     gc: gcOptions,
     flags: flagsOptions,
     deploy: deployOptions,
+    diagnose: diagnoseOptions,
     rollback: rollbackOptions,
     publishAssets: publishAssetsOptions,
     import: importOptions,

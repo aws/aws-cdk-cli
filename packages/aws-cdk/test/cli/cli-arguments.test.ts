@@ -170,6 +170,7 @@ describe('config', () => {
       orphan: expect.anything(),
       refactor: expect.anything(),
       cliTelemetry: expect.anything(),
+      diagnose: expect.anything(),
     });
   });
 });

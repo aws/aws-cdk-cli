@@ -1,6 +1,9 @@
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import type {
-  CreateChangeSetCommandInput, ExecuteChangeSetCommandInput, Stack,
+  CreateChangeSetCommandInput,
+  ExecuteChangeSetCommandInput,
+  Stack,
   Change,
 } from '@aws-sdk/client-cloudformation';
 import {
@@ -22,9 +25,11 @@ import {
 import { assertIsSuccessfulDeployStackResult } from '../../../lib/api/deployments';
 import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/api/deployments/deploy-stack';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
+import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
 import { invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
+import { StackArtifactSourceTracer } from '../../../lib/api/source-tracing/private/stack-source-tracing';
 import { testStack } from '../../_helpers/assembly';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
 import { advanceTime } from '../../_helpers/fake-time';
@@ -116,14 +121,20 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-function standardDeployStackArguments(): DeployStackApiOptions {
+function standardDeployStackArguments(stack: CloudFormationStackArtifact = FAKE_STACK): DeployStackApiOptions {
   const resolvedEnvironment = mockResolvedEnvironment();
   return {
-    stack: FAKE_STACK,
+    stack,
     sdk,
     sdkProvider,
     resolvedEnvironment,
     envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+    diagnoser: new CloudFormationStackDiagnoser({
+      sdk,
+      sourceTracer: new StackArtifactSourceTracer(stack),
+      ioHelper,
+      topLevelStackHierarchicalId: stack.hierarchicalId,
+    }),
   };
 }
 
@@ -200,18 +211,19 @@ test('correctly passes SSM parameters when hotswapping', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: testStack({
-      stackName: 'stack',
-      template: {
-        Parameters: {
-          SomeParameter: {
-            Type: 'AWS::SSM::Parameter::Value<String>',
-            Default: 'ParameterName',
+    ...standardDeployStackArguments(
+      testStack({
+        stackName: 'stack',
+        template: {
+          Parameters: {
+            SomeParameter: {
+              Type: 'AWS::SSM::Parameter::Value<String>',
+              Default: 'ParameterName',
+            },
           },
         },
-      },
-    }),
+      }),
+    ),
     deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     usePreviousParameters: true,
   });
@@ -437,8 +449,7 @@ test('reuse previous parameters if requested', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_WITH_PARAMETERS,
+    ...standardDeployStackArguments(FAKE_STACK_WITH_PARAMETERS),
     parameters: {
       OtherParameter: 'SomeValue',
     },
@@ -469,8 +480,7 @@ test('do not reuse previous parameters if not requested', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_WITH_PARAMETERS,
+    ...standardDeployStackArguments(FAKE_STACK_WITH_PARAMETERS),
     parameters: {
       HasValue: 'SomeValue',
       OtherParameter: 'SomeValue',
@@ -502,8 +512,7 @@ test('throw exception if not enough parameters supplied', async () => {
   // WHEN
   await expect(
     testDeployStack({
-      ...standardDeployStackArguments(),
-      stack: FAKE_STACK_WITH_PARAMETERS,
+      ...standardDeployStackArguments(FAKE_STACK_WITH_PARAMETERS),
       parameters: {
         OtherParameter: 'SomeValue',
       },
@@ -538,8 +547,7 @@ test('deploy is skipped if parameters are the same', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_WITH_PARAMETERS,
+    ...standardDeployStackArguments(FAKE_STACK_WITH_PARAMETERS),
     parameters: {},
     usePreviousParameters: true,
   });
@@ -562,8 +570,7 @@ test('deploy is not skipped if parameters are different', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_WITH_PARAMETERS,
+    ...standardDeployStackArguments(FAKE_STACK_WITH_PARAMETERS),
     parameters: {
       HasValue: 'NewValue',
     },
@@ -591,8 +598,7 @@ test('deploy is skipped if notificationArns are the same', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK,
+    ...standardDeployStackArguments(FAKE_STACK),
     notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:TestTopic'],
   });
 
@@ -609,8 +615,7 @@ test('deploy is not skipped if notificationArns are different', async () => {
 
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK,
+    ...standardDeployStackArguments(FAKE_STACK),
     notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MagicTopic'],
   });
 
@@ -745,6 +750,15 @@ test('deploy not skipped if template did not change but tags changed', async () 
       },
     ],
     envResources: new NoBootstrapStackEnvironmentResources(resolvedEnvironment, sdk, ioHelper),
+    diagnoser: new CloudFormationStackDiagnoser({
+      sdk,
+      sourceTracer: {
+        traceResource: () => Promise.resolve(undefined),
+        traceStack: () => Promise.resolve(undefined),
+      },
+      ioHelper,
+      topLevelStackHierarchicalId: FAKE_STACK.hierarchicalId,
+    }),
   });
 
   // THEN
@@ -776,6 +790,7 @@ test('deployStack reports no change if describeChangeSet returns an error that i
 
 test('deployStack throws error in case of early validation failures', async () => {
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+    ChangeSetName: 'cdk-deploy-change-set',
     Status: ChangeSetStatus.FAILED,
     StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
   });
@@ -794,12 +809,12 @@ test('deployStack throws error in case of early validation failures', async () =
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow(`Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set'):
-  - Resource already exists (at Resources/MyResource)`);
+  ).rejects.toThrow('Early validation failed for change set cdk-deploy-change-set');
 });
 
 test('deployStack warns when it cannot get the events in case of early validation errors', async () => {
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+    ChangeSetName: 'cdk-deploy-change-set',
     Status: ChangeSetStatus.FAILED,
     StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
   });
@@ -812,7 +827,7 @@ test('deployStack warns when it cannot get the events in case of early validatio
     testDeployStack({
       ...standardDeployStackArguments(),
     }),
-  ).rejects.toThrow("Early validation failed for stack 'withouterrors' (ChangeSet 'cdk-deploy-change-set')");
+  ).rejects.toThrow('Early validation failed for change set cdk-deploy-change-set');
 });
 
 test('deploy not skipped if template did not change but one tag removed', async () => {
@@ -966,13 +981,14 @@ test('use S3 url for stack deployment if present in Stack Artifact', async () =>
 test('use REST API S3 url with substituted placeholders if manifest url starts with s3://', async () => {
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: testStack({
-      stackName: 'withouterrors',
-      properties: {
-        stackTemplateAssetObjectUrl: 's3://use-me-use-me-${AWS::AccountId}/object',
-      },
-    }),
+    ...standardDeployStackArguments(
+      testStack({
+        stackName: 'withouterrors',
+        properties: {
+          stackTemplateAssetObjectUrl: 's3://use-me-use-me-${AWS::AccountId}/object',
+        },
+      }),
+    ),
   });
 
   // THEN
@@ -1035,8 +1051,7 @@ test('changeset is updated when stack exists in CREATE_COMPLETE status', async (
 test('deploy with termination protection enabled', async () => {
   // WHEN
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_TERMINATION_PROTECTION,
+    ...standardDeployStackArguments(FAKE_STACK_TERMINATION_PROTECTION),
   });
 
   // THEN
@@ -1167,65 +1182,32 @@ describe('import-existing-resources', () => {
     };
 
     // THEN
-    await expect(testDeployStack({
-      ...standardDeployStackArguments(),
-      stack,
-      deploymentMethod: {
-        method: 'change-set',
-        importExistingResources: true,
-      },
-    })).rejects.toThrow(
-      [
-        "Import of existing resources failed for stack 'import-error-stack' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
-        '  - import-error-stack/Dashboards/MyRole/Resource (DashboardsMyRoleABC123)',
-        '  - import-error-stack/MyService/AnotherResource/Resource (AnotherResourceABC123)',
-        '',
-        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
-        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
-      ].join('\n'),
-    );
-  });
-
-  test('does not enhance error message when importExistingResources is false', async () => {
-    // GIVEN
-    const stack = testStack({
-      stackName: 'import-error-stack-no-enhance',
-      template: {
-        Resources: {
-          MyRoleF4B2B07F: {
-            Type: 'AWS::IAM::Role',
-            Metadata: { 'aws:cdk:path': 'MyStack/MyConstruct/MyRole/Resource' },
-          },
-        },
-      },
-    });
-    givenStackExists({ StackName: 'import-error-stack-no-enhance' });
-    fakeCfn.overrideChangeSetStatus = {
-      status: 'FAILED',
-      statusReason:
-        'CloudFormation is attempting to import some resources because they already exist in your account. ' +
-        "The resources must have the DeletionPolicy attribute set to 'Retain' or 'RetainExceptOnCreate' in the template for successful import. " +
-        'The affected resources are MyRoleF4B2B07F ({RoleName=MyRole})',
-      executionStatus: 'UNAVAILABLE',
-    };
-
-    // THEN - original error without enhancement, because importExistingResources is false
-    let error: Error | undefined;
-    try {
-      await testDeployStack({
-        ...standardDeployStackArguments(),
-        stack,
+    await expect(
+      testDeployStack({
+        ...standardDeployStackArguments(stack),
         deploymentMethod: {
           method: 'change-set',
+          importExistingResources: true,
         },
-      });
-    } catch (e: any) {
-      error = e;
-    }
-    expect(error).toBeDefined();
-    expect(error!.message).toContain('Failed to create ChangeSet cdk-deploy-change-set on import-error-stack-no-enhance: FAILED');
-    expect(error!.message).not.toContain('Import of existing resources failed');
-    expect(error!.message).not.toContain('RemovalPolicy');
+      }),
+    ).rejects.toMatchInlineSnapshot(`
+      [DeploymentError: Failed to create change set cdk-deploy-change-set:
+       └─ import-error-stack
+           ├─ Dashboards
+           │   └─ MyRole
+           │       └─ Resource  (DashboardsMyRoleABC123)
+           │          🛑 Automatic import of existing resource DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}) needs a DeletionPolicy of
+           │             'Retain' or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+           │             'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+           │             https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)
+           └─ MyService
+               └─ AnotherResource
+                   └─ Resource  (AnotherResourceABC123)
+                      🛑 Automatic import of existing resource AnotherResourceABC123 ({BucketName=my-bucket}) needs a DeletionPolicy of 'Retain'
+                         or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+                         'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+                         https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)]
+    `);
   });
 
   test('falls back to logical ID when no construct path metadata exists', async () => {
@@ -1251,22 +1233,15 @@ describe('import-existing-resources', () => {
     };
 
     // THEN - enhanced message with logical ID fallback (no construct path)
-    await expect(testDeployStack({
-      ...standardDeployStackArguments(),
-      stack,
-      deploymentMethod: {
-        method: 'change-set',
-        importExistingResources: true,
-      },
-    })).rejects.toThrow(
-      [
-        "Import of existing resources failed for stack 'import-error-no-metadata' because the following resources need a DeletionPolicy of 'Retain' or 'RetainExceptOnCreate':",
-        '  - MyRoleF4B2B07F',
-        '',
-        "Set the removal policy to 'RemovalPolicy.RETAIN' or 'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' on these resources.",
-        'See https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal',
-      ].join('\n'),
-    );
+    await expect(
+      testDeployStack({
+        ...standardDeployStackArguments(stack),
+        deploymentMethod: {
+          method: 'change-set',
+          importExistingResources: true,
+        },
+      }),
+    ).rejects.toThrow(/import.*MyRoleF4B2B07F/);
   });
 });
 
@@ -1314,27 +1289,28 @@ test.each([
   [StackStatus.UPDATE_FAILED, 'rollback', 'no-replacement', 'failpaused-need-rollback-first'],
   // From a stable state, any deployment containing a replacement requires a regular deployment (--rollback)
   [StackStatus.UPDATE_COMPLETE, 'no-rollback', 'replacement', 'replacement-requires-rollback'],
-] satisfies Array<[StackStatus, 'rollback' | 'no-rollback', 'replacement' | 'no-replacement', string]>)
-('no-rollback and replacement is disadvised: %s %s %s -> %s', async (stackStatus, rollback, replacement, expectedType) => {
-  // GIVEN
-  givenStackExists({
-    // First call
-    StackStatus: stackStatus,
-  });
-  givenTemplateIs(FAKE_STACK.template);
-  givenChangeSetContainsReplacement(replacement === 'replacement');
+] satisfies Array<[StackStatus, 'rollback' | 'no-rollback', 'replacement' | 'no-replacement', string]>)(
+  'no-rollback and replacement is disadvised: %s %s %s -> %s',
+  async (stackStatus, rollback, replacement, expectedType) => {
+    // GIVEN
+    givenStackExists({
+      // First call
+      StackStatus: stackStatus,
+    });
+    givenTemplateIs(FAKE_STACK.template);
+    givenChangeSetContainsReplacement(replacement === 'replacement');
 
-  // WHEN
-  const result = await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK,
-    rollback: rollback === 'rollback',
-    forceDeployment: true, // Bypass 'canSkipDeploy'
-  });
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK),
+      rollback: rollback === 'rollback',
+      forceDeployment: true, // Bypass 'canSkipDeploy'
+    });
 
-  // THEN
-  expect(result.type).toEqual(expectedType);
-});
+    // THEN
+    expect(result.type).toEqual(expectedType);
+  },
+);
 
 test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();
@@ -1372,10 +1348,12 @@ describe('execute-change-set deployment method', () => {
     });
 
     // THEN
-    await expect(testDeployStack({
-      ...standardDeployStackArguments(),
-      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
-    })).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
+    await expect(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      }),
+    ).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
   });
 
   test('throws when change set is in CREATE_PENDING status', async () => {
@@ -1387,10 +1365,12 @@ describe('execute-change-set deployment method', () => {
     });
 
     // THEN
-    await expect(testDeployStack({
-      ...standardDeployStackArguments(),
-      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
-    })).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
+    await expect(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      }),
+    ).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
   });
 
   test('throws without reason when status reason is absent', async () => {
@@ -1402,10 +1382,12 @@ describe('execute-change-set deployment method', () => {
     });
 
     // THEN
-    await expect(testDeployStack({
-      ...standardDeployStackArguments(),
-      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
-    })).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
+    await expect(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      }),
+    ).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
   });
 
   test('returns replacement-requires-rollback when change set has replacement and rollback is disabled', async () => {
@@ -1414,17 +1396,17 @@ describe('execute-change-set deployment method', () => {
     givenChangeSetExists({
       Status: 'CREATE_COMPLETE',
       ChangeSetName: 'my-change-set',
-      Changes: [
-        replacementChange(),
-      ],
+      Changes: [replacementChange()],
     });
 
     // WHEN
-    const result = await advanceTime(testDeployStack({
-      ...standardDeployStackArguments(),
-      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
-      rollback: false,
-    }));
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        rollback: false,
+      }),
+    );
 
     // THEN
     expect(result.type).toEqual('replacement-requires-rollback');
@@ -1476,10 +1458,12 @@ describe('change set returned with execute:false', () => {
     givenNoUpdatesAreToBePerformed();
 
     // WHEN
-    const result = await advanceTime(testDeployStack({
-      ...standardDeployStackArguments(),
-      deploymentMethod: { method: 'change-set', execute: false },
-    }));
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'change-set', execute: false },
+      }),
+    );
 
     // THEN
     assertIsSuccessfulDeployStackResult(result);
@@ -1493,8 +1477,7 @@ test('does not pass IncludeNestedStacks even for stacks with nested stacks', asy
   // "duplicate Export names" errors when nested stacks use intrinsic functions
   // (like Fn::Join) in export names.
   await testDeployStack({
-    ...standardDeployStackArguments(),
-    stack: FAKE_STACK_WITH_NESTED_STACK,
+    ...standardDeployStackArguments(FAKE_STACK_WITH_NESTED_STACK),
   });
 
   const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
