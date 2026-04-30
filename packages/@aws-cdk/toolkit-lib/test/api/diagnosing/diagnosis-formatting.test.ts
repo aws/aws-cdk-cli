@@ -69,6 +69,47 @@ describe('hostMessageFromDiagnosis', () => {
     expect(redactTime(msg)).toMatchSnapshot();
   });
 
+  test('change set failure with multiple errors for the same resource', () => {
+    const diagnosis = {
+      type: 'problem',
+      detectedBy: {
+        type: 'early-validation',
+        changeSetName: 'my-cs',
+      },
+      problems: [
+        {
+          errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+          logicalId: 'BadPolicy',
+          message: 'Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)',
+          parentStackLogicalIds: [],
+          physicalId: undefined,
+          resourceType: 'AWS::IAM::Policy',
+          sourceTrace: undefined,
+          stackArn: '',
+          topLevelStackHierarchicalId: 'TestStack',
+        },
+        {
+          errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+          logicalId: 'BadPolicy',
+          message: 'Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)',
+          parentStackLogicalIds: [],
+          physicalId: undefined,
+          resourceType: 'AWS::IAM::Policy',
+          sourceTrace: undefined,
+          stackArn: '',
+          topLevelStackHierarchicalId: 'TestStack',
+        },
+      ],
+    } satisfies StackDiagnosis;
+
+    // THEN
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', diagnosis));
+    // Want to see both errors represented in the output
+    expect(msg.message).toMatchSnapshot();
+    expect(msg.message).toContain('[PolicyDocument]');
+    expect(msg.message).toContain('[PolicyName]');
+  });
+
   test('change set failure without resource errors', () => {
     const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
       type: 'problem',

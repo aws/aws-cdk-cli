@@ -1,17 +1,17 @@
-import { Tree } from './tree';
+import { Tree, TreeText } from './tree';
 
 export class TreeBuilder {
   private readonly root: TreeBuilderNode;
 
   constructor(private readonly rootText: string) {
     this.root = {
-      tree: new Tree(rootText),
+      tree: new Tree(new TreeText([rootText])),
       children: {},
     };
   }
 
-  public setNodeText(constructPath: string, nodeText: string) {
-    this.obtainNode(constructPath).text = nodeText;
+  public nodeText(constructPath: string): TreeText {
+    return this.obtainNode(constructPath).text;
   }
 
   public render() {
@@ -40,7 +40,7 @@ export class TreeBuilder {
       if (child) {
         cur = child;
       } else {
-        const tree = new Tree(next);
+        const tree = new Tree(new TreeText([next]));
         cur.tree.addChild(tree);
         cur = cur.children[next] = {
           tree,

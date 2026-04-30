@@ -1,7 +1,8 @@
 import {
   ChangeSetStatus,
+  DescribeEventsCommand,
 } from '@aws-sdk/client-cloudformation';
-import type { StackDiagnosis } from '../../../lib/actions/diagnose';
+import type { DiagnosedStack, DiagnoseResult, StackDiagnosis } from '../../../lib/actions/diagnose';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import type { ISourceTracer } from '../../../lib/api/source-tracing/private/source-tracing';
 import type { SourceTrace } from '../../../lib/api/source-tracing/types';
@@ -335,6 +336,91 @@ describe('CloudFormationStackDiagnoser', () => {
         type: 'problem',
         detectedBy: { type: 'change-set' },
       });
+    });
+
+    test('multiple problems from DescribeEvents are all returned', async () => {
+      fakeCfn.createStackSync({
+        StackName: 'MyStack',
+      });
+      fakeCfn.createChangeSetSync({
+        StackName: 'MyStack',
+        ChangeSetName: 'my-cs',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+      fakeCfn.accessChangeSet('MyStack', 'my-cs').changeSetFailureEvents = [
+        {
+          EventId: '4a71cc61-289f-40dc-90ab-933a93bbbf63',
+          StackId: 'arn:aws:cloudformation:eu-west-1:111111111111:stack/MyStack/9bca3980-37f6-11f1-9b72-0230792d700d',
+          OperationId: '345a3ffd-e545-437c-b32f-f71647308416',
+          OperationType: 'CREATE_CHANGESET',
+          EventType: 'VALIDATION_ERROR',
+          LogicalResourceId: 'BadPolicy',
+          PhysicalResourceId: '',
+          ResourceType: 'AWS::IAM::Policy',
+          Timestamp: new Date(),
+          ValidationFailureMode: 'FAIL',
+          ValidationName: 'PROPERTY_VALIDATION',
+          ValidationStatus: 'FAILED',
+          ValidationStatusReason: 'Required property [PolicyDocument] not found',
+          ValidationPath: '/Resources/BadPolicy/Properties',
+        },
+        {
+          EventId: '3f399b2a-6fed-4652-a682-9a8a30816f02',
+          StackId: 'arn:aws:cloudformation:eu-west-1:111111111111:stack/MyStack/9bca3980-37f6-11f1-9b72-0230792d700d',
+          OperationId: '345a3ffd-e545-437c-b32f-f71647308416',
+          OperationType: 'CREATE_CHANGESET',
+          EventType: 'VALIDATION_ERROR',
+          LogicalResourceId: 'BadPolicy',
+          PhysicalResourceId: '',
+          ResourceType: 'AWS::IAM::Policy',
+          Timestamp: new Date(),
+          ValidationFailureMode: 'FAIL',
+          ValidationName: 'PROPERTY_VALIDATION',
+          ValidationStatus: 'FAILED',
+          ValidationStatusReason: 'Required property [PolicyName] not found',
+          ValidationPath: '/Resources/BadPolicy/Properties',
+        },
+      ];
+
+      const result = await makeDiagnoser().diagnoseChangeSet({
+        ChangeSetName: 'my-cs',
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+
+      expect(result).toMatchObject({
+        type: 'problem',
+        detectedBy: {
+          type: 'early-validation',
+          changeSetName: 'my-cs',
+        },
+        problems: [
+          {
+            errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+            logicalId: 'BadPolicy',
+            message: 'Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)',
+            parentStackLogicalIds: [],
+            physicalId: undefined,
+            resourceType: 'AWS::IAM::Policy',
+            sourceTrace: undefined,
+            stackArn: '',
+            topLevelStackHierarchicalId: 'TestStack',
+          },
+          {
+            errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+            logicalId: 'BadPolicy',
+            message: 'Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)',
+            parentStackLogicalIds: [],
+            physicalId: undefined,
+            resourceType: 'AWS::IAM::Policy',
+            sourceTrace: undefined,
+            stackArn: '',
+            topLevelStackHierarchicalId: 'TestStack',
+          },
+        ],
+      } satisfies StackDiagnosis);
     });
   });
 
