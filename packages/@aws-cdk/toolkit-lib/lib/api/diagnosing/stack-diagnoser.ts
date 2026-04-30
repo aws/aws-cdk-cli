@@ -226,7 +226,7 @@ export class CloudFormationStackDiagnoser {
       await this.props.ioHelper.defaults.warn(ev.message);
     }
 
-    return this._nonSpecificChangeSetError(changeSet);
+    return this._nonSpecificChangeSetError(changeSet, detectedBy);
   }
 
   private async addErrorTraces(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
@@ -250,15 +250,10 @@ export class CloudFormationStackDiagnoser {
    *
    * We can't point to a specific resource.
    */
-  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
     return {
       type: 'problem',
-      detectedBy: {
-        type: 'change-set',
-        changeSetName: changeSet.ChangeSetName ?? '',
-        changeSetStatus: changeSet.Status ?? '',
-        statusReason: changeSet.StatusReason ?? '',
-      },
+      detectedBy,
       problems: [
         await this.addErrorTrace({
           // It's about a stack
@@ -280,7 +275,12 @@ export class CloudFormationStackDiagnoser {
     const nested = await this._findFailedNestedStack(changeSet);
     if (!nested) {
       // That's weird. Let's return the change set's status reason as a non-specific error
-      return this._nonSpecificChangeSetError(changeSet);
+      return this._nonSpecificChangeSetError(changeSet, {
+        type: 'change-set',
+        changeSetName: changeSet.ChangeSetName ?? '',
+        changeSetStatus: changeSet.Status ?? '',
+        statusReason: changeSet.StatusReason ?? '',
+      });
     }
 
     const nestedCs = await this.cfn.describeChangeSet({

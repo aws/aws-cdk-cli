@@ -48,7 +48,7 @@ it('logs a warning and returns the plain summary when DescribeEvents API call fa
   expect(result).toEqual("Early validation failed for stack 'test-stack' (ChangeSet 'test-change-set')");
   expect(ioHelper.defaults.warn).toHaveBeenCalledTimes(1);
   expect(ioHelper.defaults.warn).toHaveBeenCalledWith(
-    'Could not retrieve additional details about early validation errors (Error: AccessDenied). ' +
+    'Could not retrieve additional details about change set creation errors (Error: AccessDenied). ' +
     "Make sure you have permissions to call the DescribeEvents API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. " +
     'Bootstrap toolkit stack version 30 or later is needed; current version: 29.',
   );
