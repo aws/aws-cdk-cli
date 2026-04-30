@@ -25,7 +25,8 @@ integTest(
         allowErrExit: true,
       });
 
-      expect(stdErr).toContain('needs a DeletionPolicy');
+      // This error text is word-wrapped, only check presence of individual words
+      expect(stdErr).toContain('DeletionPolicy');
       expect(stdErr).toContain('MyRole');
       expect(stdErr).toContain('RemovalPolicy.RETAIN');
       expect(stdErr).toContain('https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal');
