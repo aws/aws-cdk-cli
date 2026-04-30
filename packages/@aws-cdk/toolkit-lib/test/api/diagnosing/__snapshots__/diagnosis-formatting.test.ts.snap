@@ -1,5 +1,14 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`hostMessageFromDiagnosis change set failure with multiple errors for the same resource 1`] = `
+"❌ Stack MyStack:
+Early validation failed for change set my-cs:
+ └─ TestStack
+     └─ BadPolicy  (AWS::IAM::Policy BadPolicy)
+        🛑 Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)
+        🛑 Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)"
+`;
+
 exports[`hostMessageFromDiagnosis change set failure with resource errors 1`] = `
 {
   "code": "CDK_TOOLKIT_E9500",

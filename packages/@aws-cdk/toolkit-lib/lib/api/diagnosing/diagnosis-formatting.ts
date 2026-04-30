@@ -121,11 +121,13 @@ function formatResourceErrors(es: TracedResourceError[]) {
   for (const e of es) {
     const p = locateResourceError(e);
     const lastPart = p.split('/').slice(-1)[0];
-    b.setNodeText(p, [
-      `${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim(),
-      ...sideBySide(['🛑'], ' ', wrapText(120, e.message)),
-      ...e.sourceTrace?.creationStackTrace ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace) : [],
-    ].join('\n'));
+
+    const nodeText = b.nodeText(p);
+    nodeText.header = [`${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim()];
+    nodeText.body.push(...sideBySide(['🛑'], ' ', wrapText(120, e.message)));
+    nodeText.footer = e.sourceTrace?.creationStackTrace
+      ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace)
+      : [];
   }
   return b.render();
 }

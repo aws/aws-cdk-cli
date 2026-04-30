@@ -120,6 +120,7 @@ interface InMemoryChangeSet {
   description?: string;
   changes: Change[];
   creationTime: Date;
+  changeSetFailureEvents: OperationEvent[];
   earlyValidationErrors: EarlyValidationErrorPrime[];
 }
 
@@ -209,6 +210,11 @@ export class FakeCloudFormation {
    */
   public overrideEarlyValidationErrors?: EarlyValidationErrorPrime[];
 
+  /**
+   * Error events for the next change set operation
+   */
+  public overrideChangeSetErrorEvents?: OperationEvent[];
+
   constructor() {
     this.reset();
   }
@@ -223,6 +229,7 @@ export class FakeCloudFormation {
     this.overrideChangeSetChanges = undefined;
     this.overrideChangeSetStatus = undefined;
     this.overrideEarlyValidationErrors = undefined;
+    this.overrideChangeSetErrorEvents = undefined;
   }
 
   public accessStack(name: string): InMemoryStack {
@@ -231,6 +238,18 @@ export class FakeCloudFormation {
       throw new Error(`No such stack: ${name}`);
     }
     return ret;
+  }
+
+  public accessChangeSet(stackName: string, changeSetName: string): InMemoryChangeSet {
+    const ret = this.stacks.get(stackName);
+    if (!ret) {
+      throw new Error(`No such stack: ${stackName}`);
+    }
+    const cs = ret.changeSets.find((x) => x.name === changeSetName);
+    if (!cs) {
+      throw new Error(`No such stack: ${changeSetName} in stack ${stackName}`);
+    }
+    return cs;
   }
 
   public firstStack(): InMemoryStack {
@@ -452,6 +471,7 @@ export class FakeCloudFormation {
       description: input.Description,
       changes: changes ?? [],
       creationTime: new Date(),
+      changeSetFailureEvents: [],
       earlyValidationErrors: [],
     };
     stack.changeSets.push(cs);
@@ -713,17 +733,20 @@ export class FakeCloudFormation {
 
     const { changeSet: cs } = this.resolveChangeSet(input.ChangeSetName, input.StackName);
 
-    const events: OperationEvent[] = cs.earlyValidationErrors.map((err) => ({
-      EventId: uid(),
-      StackId: cs.stackId,
-      EventType: 'VALIDATION_ERROR',
-      LogicalResourceId: err.logicalId,
-      ResourceType: err.resourceType,
-      ValidationStatusReason: err.validationStatusReason,
-      ValidationPath: err.validationPath,
-      ValidationName: err.validationName ?? 'NAME_CONFLICT_VALIDATION',
-      Timestamp: new Date(),
-    }));
+    const events: OperationEvent[] = [
+      ...cs.changeSetFailureEvents,
+      ...cs.earlyValidationErrors.map((err) => ({
+        EventId: uid(),
+        StackId: cs.stackId,
+        EventType: 'VALIDATION_ERROR' as const,
+        LogicalResourceId: err.logicalId,
+        ResourceType: err.resourceType,
+        ValidationStatusReason: err.validationStatusReason,
+        ValidationPath: err.validationPath,
+        ValidationName: err.validationName ?? 'NAME_CONFLICT_VALIDATION',
+        Timestamp: new Date(),
+      })),
+    ];
 
     return {
       OperationEvents: events,
@@ -843,6 +866,7 @@ export class FakeCloudFormation {
       description: input.Description,
       changes: [],
       creationTime: new Date(),
+      changeSetFailureEvents: [],
       earlyValidationErrors: [],
     };
     stack.changeSets.push(cs);
@@ -871,6 +895,13 @@ export class FakeCloudFormation {
       cs.earlyValidationErrors = this.overrideEarlyValidationErrors;
       this.overrideEarlyValidationErrors = undefined;
       return;
+    }
+    if (this.overrideChangeSetErrorEvents) {
+      cs.status = 'FAILED';
+      cs.statusReason = 'Change set creation failed due to prepared errors';
+      cs.executionStatus = 'UNAVAILABLE';
+      cs.changeSetFailureEvents = this.overrideChangeSetErrorEvents;
+      this.overrideChangeSetErrorEvents = undefined;
     }
 
     // Allow tests to override the computed changes

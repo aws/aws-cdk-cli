@@ -1,18 +1,10 @@
 export class Tree {
-  private lines: string[];
+  public text: TreeText;
   private readonly children: Tree[];
 
-  constructor(text: string, children: Tree[] = []) {
-    this.lines = text.split('\n');
+  constructor(text: TreeText, children: Tree[] = []) {
+    this.text = text;
     this.children = [...children];
-  }
-
-  public get text() {
-    return this.lines.join('\n');
-  }
-
-  public set text(text: string) {
-    this.lines = text.split('\n');
   }
 
   public addChild(tree: Tree) {
@@ -20,7 +12,7 @@ export class Tree {
   }
 
   public height(): number {
-    return this.lines.length + sum(this.children.map(c => c.height()));
+    return this.text.lineCount() + sum(this.children.map(c => c.height()));
   }
 
   public render(): string {
@@ -33,7 +25,7 @@ export class Tree {
 
   private _render(): string[] {
     const ret: string[] = [];
-    ret.push(...this.lines);
+    ret.push(...this.text.lines);
     for (let i = 0; i < this.children.length; i++) {
       const isLastChild = i === this.children.length - 1;
 
@@ -55,6 +47,23 @@ export class Tree {
       }
     }
     return ret;
+  }
+}
+
+export class TreeText {
+  constructor(
+    public header: string[] = [],
+    public body: string[] = [],
+    public footer: string[] = [],
+  ) {
+  }
+
+  public get lines() {
+    return [...this.header, ...this.body, ...this.footer];
+  }
+
+  public lineCount(): number {
+    return this.header.length + this.body.length + this.footer.length;
   }
 }
 
