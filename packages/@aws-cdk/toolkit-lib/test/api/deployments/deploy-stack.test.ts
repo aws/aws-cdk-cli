@@ -830,6 +830,22 @@ test('deployStack warns when it cannot get the events in case of early validatio
   ).rejects.toThrow('Early validation failed for change set cdk-deploy-change-set');
 });
 
+test('even if ChangeSet error does not match pattern, DescribeEvents is called', async () => {
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+    ChangeSetName: 'cdk-deploy-change-set',
+    Status: ChangeSetStatus.FAILED,
+    StatusReason: 'Something somewhere went wrong, cannot be more specific than that.',
+  });
+
+  await expect(
+    testDeployStack({
+      ...standardDeployStackArguments(),
+    }),
+  ).rejects.toThrow();
+
+  expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeEventsCommand);
+});
+
 test('deploy not skipped if template did not change but one tag removed', async () => {
   // GIVEN
   givenStackExists({
