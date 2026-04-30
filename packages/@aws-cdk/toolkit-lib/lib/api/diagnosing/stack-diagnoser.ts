@@ -1,8 +1,8 @@
 import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
-import type { EarlyValidationError } from './early-validation';
-import { EarlyValidationReporter } from './early-validation';
-import type { StackDiagnosis, TracedResourceError } from '../../actions/diagnose';
+import type { ChangeSetResourceError } from './changeset-error-fetcher';
+import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
+import type { StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
@@ -160,38 +160,23 @@ export class CloudFormationStackDiagnoser {
       return { type: 'no-problem' };
     }
 
+    // We report early validation errors differently than generic changeset errors. Mostly
+    // for historical reasons.
     const isEarlyValidationError = changeSet.StatusReason?.includes('AWS::EarlyValidation');
     if (isEarlyValidationError) {
-      const ev = await new EarlyValidationReporter(this.props.sdk, this.props.envResources)
-        .fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
-      switch (ev.type) {
-        case 'could-not-check':
-          // Emit the warning here and otherwise just return an empty error block
-          await this.props.ioHelper.defaults.warn(ev.message);
-          return {
-            type: 'problem',
-            detectedBy: {
-              type: 'early-validation',
-              changeSetName: changeSet.ChangeSetName ?? '',
-            },
-            problems: [],
-          };
-        case 'resource-errors':
-          return {
-            type: 'problem',
-            detectedBy: {
-              type: 'early-validation',
-              changeSetName: changeSet.ChangeSetName ?? '',
-            },
-            problems: await this.addErrorTraces(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
-          };
-      }
+      return this._reportChangeSetFailureFromEvents(changeSet, {
+        type: 'early-validation',
+        changeSetName: changeSet.ChangeSetName ?? '',
+      });
     }
 
+    // We will recurse into nested change sets if necessary.
     if (changeSet.StatusReason?.includes('Nested change set')) {
       return this._diagnoseNestedChangeSetFailure(changeSet);
     }
 
+    // We special-case failed automatic imports. We know all the meat of the error details are in the
+    // status reason, and nowhere else. We parse it specifically.
     const failedAutoErrors = this._tryDetectFailedAutoImport(changeSet);
     if (failedAutoErrors) {
       return {
@@ -206,7 +191,42 @@ export class CloudFormationStackDiagnoser {
       };
     }
 
-    return this._nonSpecificChangeSetError(changeSet);
+    // Otherwise, a generic change set creation error where `DescribeEvents`
+    // might or might not give additional information.
+    return this._reportChangeSetFailureFromEvents(changeSet, {
+      type: 'change-set',
+      changeSetStatus: changeSet.Status ?? '',
+      changeSetName: changeSet.ChangeSetName ?? '',
+      statusReason: changeSet.StatusReason ?? '',
+    });
+  }
+
+  /**
+   * Try to read the resource-specific reasons for a changeset failure from `DescribeEvents`.
+   *
+   * If we couldn't read the events or there are 0 errors returned by that API, return a generic
+   * error.
+   */
+  private async _reportChangeSetFailureFromEvents(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
+    const ev = await new ChangeSetResourceErrorFetcher(this.props.sdk, this.props.envResources)
+      .fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
+
+    // If we have errors to return, return them
+    if (ev.type === 'resource-errors' && ev.errors.length > 0) {
+      return {
+        type: 'problem',
+        detectedBy,
+        problems: await this.addErrorTraces(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
+      };
+    }
+
+    // Otherwise, we will return a generic changeset error message. If there was a problem
+    // checking, we log that for good measure but the result is the same.
+    if (ev.type === 'could-not-check') {
+      await this.props.ioHelper.defaults.warn(ev.message);
+    }
+
+    return this._nonSpecificChangeSetError(changeSet, detectedBy);
   }
 
   private async addErrorTraces(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
@@ -230,15 +250,10 @@ export class CloudFormationStackDiagnoser {
    *
    * We can't point to a specific resource.
    */
-  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
     return {
       type: 'problem',
-      detectedBy: {
-        type: 'change-set',
-        changeSetName: changeSet.ChangeSetName ?? '',
-        changeSetStatus: changeSet.Status ?? '',
-        statusReason: changeSet.StatusReason ?? '',
-      },
+      detectedBy,
       problems: [
         await this.addErrorTrace({
           // It's about a stack
@@ -260,7 +275,12 @@ export class CloudFormationStackDiagnoser {
     const nested = await this._findFailedNestedStack(changeSet);
     if (!nested) {
       // That's weird. Let's return the change set's status reason as a non-specific error
-      return this._nonSpecificChangeSetError(changeSet);
+      return this._nonSpecificChangeSetError(changeSet, {
+        type: 'change-set',
+        changeSetName: changeSet.ChangeSetName ?? '',
+        changeSetStatus: changeSet.Status ?? '',
+        statusReason: changeSet.StatusReason ?? '',
+      });
     }
 
     const nestedCs = await this.cfn.describeChangeSet({
@@ -377,7 +397,7 @@ export function changeSetHasNoChanges(description: ChangeSetSummary) {
   );
 }
 
-function resourceErrorFromEarlyValidationError(stackId: string, parentStackLogicalIds: string[], ev: EarlyValidationError): ResourceError {
+function resourceErrorFromEarlyValidationError(stackId: string, parentStackLogicalIds: string[], ev: ChangeSetResourceError): ResourceError {
   return {
     logicalId: ev.logicalId,
     physicalId: ev.physicalId,

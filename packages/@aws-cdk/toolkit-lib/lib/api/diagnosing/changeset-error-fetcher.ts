@@ -4,10 +4,9 @@ import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 
 /**
- * A ValidationReporter that checks for early validation errors right after
- * creating the change set.
+ * Uses `DescribeEvents` to get the detailed reasons for why a changeset failed to create, if available.
  */
-export class EarlyValidationReporter {
+export class ChangeSetResourceErrorFetcher {
   constructor(private readonly sdk: SDK, private readonly envResources?: EnvironmentResources) {
   }
 
@@ -15,6 +14,9 @@ export class EarlyValidationReporter {
    * Fetch the details and return them as a string.
    *
    * If the details could not be fetched, log that as a warning using the IoHelper.
+   *
+   * (This method will only ever be used for early validation, so we are not generalizing
+   * the error message in here).
    */
   public async fetchDetailsString(changeSetName: string, stackName: string, ioHelper: IoHelper): Promise<string> {
     const summary = `Early validation failed for stack '${stackName}' (ChangeSet '${changeSetName}')`;
@@ -39,7 +41,7 @@ export class EarlyValidationReporter {
   /**
    * Fetch the details and return them in structured form.
    */
-  public async fetchDetailsStructured(changeSetName: string, stackName: string): Promise<EarlyValidationCheckResult> {
+  public async fetchDetailsStructured(changeSetName: string, stackName: string): Promise<ChangeSetErrorCheckResult> {
     let operationEvents: OperationEvent[] = [];
     try {
       operationEvents = await this.getFailedEvents(stackName, changeSetName);
@@ -52,7 +54,7 @@ export class EarlyValidationReporter {
 
       return {
         type: 'could-not-check',
-        message: `Could not retrieve additional details about early validation errors (${error}). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
+        message: `Could not retrieve additional details about change set creation errors (${error}). Make sure you have permissions to call the DescribeEvents API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. Bootstrap toolkit stack version 30 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
       };
     }
 
@@ -66,7 +68,7 @@ export class EarlyValidationReporter {
         validationName: ev.ValidationName ?? '',
         documentPath: ev.ValidationPath ?? '',
         resourceType: ev.ResourceType,
-      } satisfies EarlyValidationError)),
+      } satisfies ChangeSetResourceError)),
     };
   }
 
@@ -81,11 +83,11 @@ export class EarlyValidationReporter {
   }
 }
 
-export type EarlyValidationCheckResult =
+export type ChangeSetErrorCheckResult =
   | { type: 'could-not-check'; message: string }
-  | { type: 'resource-errors'; errors: EarlyValidationError[] };
+  | { type: 'resource-errors'; errors: ChangeSetResourceError[] };
 
-export interface EarlyValidationError {
+export interface ChangeSetResourceError {
   readonly logicalId: string;
   readonly physicalId?: string;
   readonly message: string;
