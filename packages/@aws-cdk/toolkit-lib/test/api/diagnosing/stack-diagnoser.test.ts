@@ -1,8 +1,7 @@
 import {
   ChangeSetStatus,
-  DescribeEventsCommand,
 } from '@aws-sdk/client-cloudformation';
-import type { DiagnosedStack, DiagnoseResult, StackDiagnosis } from '../../../lib/actions/diagnose';
+import type { StackDiagnosis } from '../../../lib/actions/diagnose';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import type { ISourceTracer } from '../../../lib/api/source-tracing/private/source-tracing';
 import type { SourceTrace } from '../../../lib/api/source-tracing/types';
