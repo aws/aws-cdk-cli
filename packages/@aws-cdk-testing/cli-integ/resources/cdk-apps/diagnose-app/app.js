@@ -28,7 +28,10 @@ class DeployFailStack extends cdk.Stack {
 
     new cdk.CfnResource(this, 'BadPolicy', {
       type: 'AWS::IAM::Policy',
-      // Missing required PolicyDocument property — will fail during deployment
+      properties: {
+        PolicyName: 'SomePolicy',
+        // Missing required PolicyDocument property — will fail during deployment
+      },
     });
   }
 }
