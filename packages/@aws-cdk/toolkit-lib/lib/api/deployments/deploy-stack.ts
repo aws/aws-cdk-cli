@@ -342,6 +342,9 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
     } else {
+      await ioHelper.defaults.info(format(
+        `Your next regular deployment with ${stackEnv.name} should use 'cdk deploy --revert-drift' to resolve the drift you introduced while hotswapping.`
+      ));
       return {
         type: 'did-deploy-stack',
         noOp: true,
