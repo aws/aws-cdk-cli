@@ -320,6 +320,11 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       );
 
       if (hotswapDeploymentResult) {
+        if (deploymentMethod.fallback) {
+          await ioHelper.defaults.info(
+            `Your next CloudFormation deployment with ${stackEnv.name} should use 'cdk deploy --revert-drift' to resolve the drift that was introduced while hotswapping.`,
+          );
+        }
         return hotswapDeploymentResult;
       }
 
@@ -342,9 +347,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
     } else {
-      await ioHelper.defaults.info(format(
-        `Your next regular deployment with ${stackEnv.name} should use 'cdk deploy --revert-drift' to resolve the drift that was introduced while hotswapping.`,
-      ));
       return {
         type: 'did-deploy-stack',
         noOp: true,
