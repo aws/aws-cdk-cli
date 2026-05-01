@@ -343,7 +343,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       deploymentMethod = deploymentMethod.fallback;
     } else {
       await ioHelper.defaults.info(format(
-        `Your next regular deployment with ${stackEnv.name} should use 'cdk deploy --revert-drift' to resolve the drift that was introduced while hotswapping.`
+        `Your next regular deployment with ${stackEnv.name} should use 'cdk deploy --revert-drift' to resolve the drift that was introduced while hotswapping.`,
       ));
       return {
         type: 'did-deploy-stack',
