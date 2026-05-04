@@ -240,6 +240,24 @@ test('correctly passes SSM parameters when hotswapping', async () => {
   );
 });
 
+test('prints revert-drift recommendation on successful hotswap deployment', async () => {
+  givenStackExists();
+  (tryHotswapDeployment as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {},
+  });
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'hotswap' },
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringMatching(/should include '--revert-drift' to resolve the drift that was introduced while hotswapping/),
+  }));
+});
+
 describe('hotswap template cache', () => {
   test('writeHotswapTemplateCache is called on a successful hotswap deployment', async () => {
     // GIVEN
