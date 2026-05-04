@@ -572,9 +572,12 @@ const cloudAssemblyApi = configureProject(
     name: '@aws-cdk/cloud-assembly-api',
     description: 'API for working with Cloud Assemblies',
     srcdir: 'lib',
-    bundledDeps: ['jsonschema@~1.4.1', 'semver'],
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+    ],
+    deps: [
+      'jsonschema@~1.4.1',
+      'semver',
     ],
     peerDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
