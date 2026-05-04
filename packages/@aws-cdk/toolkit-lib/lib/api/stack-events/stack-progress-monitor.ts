@@ -1,5 +1,5 @@
 import * as util from 'util';
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { ResourceEvent } from './stack-event-poller';
 import type { StackProgress } from '../../payloads/progress';
 import { padLeft } from '../../util';
 
@@ -84,13 +84,20 @@ export class StackProgressMonitor {
   /**
    * Process as stack event and update the progress state.
    */
-  public process(event: StackEvent): void {
+  public process(resourceEvent: ResourceEvent): void {
+    // Only resources in the root stack (nested stack events do not count towards progress)
+    if (resourceEvent.parentStackLogicalIds.length > 0) {
+      return;
+    }
+
+    const event = resourceEvent.event;
     const status = event.ResourceStatus;
     if (!status || !event.LogicalResourceId) {
       return;
     }
 
     if (status.endsWith('_COMPLETE_CLEANUP_IN_PROGRESS')) {
+      // The stack
       this.resourcesDone++;
     }
 

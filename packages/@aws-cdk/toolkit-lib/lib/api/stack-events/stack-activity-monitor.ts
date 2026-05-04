@@ -294,7 +294,7 @@ export class StackActivityMonitor {
     const pollEvents = await this.poller.poll();
 
     for (const resourceEvent of pollEvents) {
-      this.progressMonitor.process(resourceEvent.event);
+      this.progressMonitor.process(resourceEvent);
 
       // If this is a failed Guard Hook event with an invocation ID, fetch annotations
       if (resourceEvent.event.HookInvocationId) {
