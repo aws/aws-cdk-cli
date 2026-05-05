@@ -20,7 +20,7 @@ export async function execNpmView(currentVersion: string) {
       throw new ToolkitError('NpmViewCurrentFailed', `npm view command for current version failed: ${currentResult.stderr.trim()}`);
     }
 
-    const latestVersion = latestResult.stdout;
+    const latestVersion = latestResult.stdout.trim();
     const currentInfo = JSON.parse(currentResult.stdout);
 
     return {
