@@ -17,7 +17,17 @@ export interface CloudFormationStackDiagnoserProps {
   readonly sourceTracer: ISourceTracer;
   readonly ioHelper: IoHelper;
   readonly topLevelStackHierarchicalId: string;
+
+  /**
+   * Optionally: a function to return an SDK that can be used for additional
+   * (readonly) exploratory calls.
+   *
+   * Typically, this should be an SDK that is primed with the "lookup" role, or similar.
+   */
+  readonly additionalExplorationSdkProvider?: SdkProvider;
 }
+
+export type SdkProvider = () => Promise<SDK>;
 
 /**
  * Diagnose a stack's failed state
@@ -35,6 +45,8 @@ export interface CloudFormationStackDiagnoserProps {
 export class CloudFormationStackDiagnoser {
   private readonly cfn: ICloudFormationClient;
   private parentStackLogicalIds: string[];
+  private additionalExplorationSdkFetched = false;
+  private _additionalExplorationSdk?: SDK;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
@@ -99,7 +111,7 @@ export class CloudFormationStackDiagnoser {
         stackStatus: stack.StackStatus ?? '',
         statusReason: stack.StackStatusReason ?? '',
       },
-      problems: await this.addErrorTraces(errors.all),
+      problems: await this.enhanceErrors(errors.all),
     };
   }
 
@@ -183,7 +195,7 @@ export class CloudFormationStackDiagnoser {
               type: 'early-validation',
               changeSetName: changeSet.ChangeSetName ?? '',
             },
-            problems: await this.addErrorTraces(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
+            problems: await this.enhanceErrors(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
           };
       }
     }
@@ -202,25 +214,35 @@ export class CloudFormationStackDiagnoser {
           changeSetName: changeSet.ChangeSetName ?? '',
           statusReason: changeSet.StatusReason ?? '',
         },
-        problems: await this.addErrorTraces(failedAutoErrors),
+        problems: await this.enhanceErrors(failedAutoErrors),
       };
     }
 
     return this._nonSpecificChangeSetError(changeSet);
   }
 
-  private async addErrorTraces(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+  private async enhanceErrors(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+    // We're not actually limiting this here. But we are making the assumption that the amount of resources
+    // that will have errors are always pretty low in number.
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    return Promise.all(errs.map((e) => this.addErrorTrace(e)));
+    return Promise.all(errs.map((e) => this.enhanceError(e)));
   }
 
-  private async addErrorTrace(err: ResourceError): Promise<TracedResourceError> {
-    let sourceTrace;
+  private async enhanceError(err: ResourceError): Promise<TracedResourceError> {
+    let sourceTracePromise;
     if (err.logicalId) {
-      sourceTrace = await this.props.sourceTracer.traceResource(err.stackArn, err.parentStackLogicalIds, err.logicalId);
+      sourceTracePromise = await this.props.sourceTracer.traceResource(err.stackArn, err.parentStackLogicalIds, err.logicalId);
     } else {
-      sourceTrace = await this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
+      sourceTracePromise = await this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
     }
+
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    const [sourceTrace] = await Promise.all([
+      sourceTracePromise,
+    ]);
+
+    const addl = await this.additionalExplorationSdk();
+    void addl;
 
     return { ...err, sourceTrace, topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId };
   }
@@ -240,7 +262,7 @@ export class CloudFormationStackDiagnoser {
         statusReason: changeSet.StatusReason ?? '',
       },
       problems: [
-        await this.addErrorTrace({
+        await this.enhanceError({
           // It's about a stack
           logicalId: undefined,
           message: changeSet.StatusReason ?? '',
@@ -354,6 +376,17 @@ export class CloudFormationStackDiagnoser {
       });
     }
     return ret;
+  }
+
+  /**
+   * Return the additional exploration SDK, if available.
+   */
+  private async additionalExplorationSdk(): Promise<SDK | undefined> {
+    if (!this.additionalExplorationSdkFetched) {
+      this.additionalExplorationSdkFetched = true;
+      this._additionalExplorationSdk = await this.props.additionalExplorationSdkProvider?.();
+    }
+    return this._additionalExplorationSdk;
   }
 }
 
