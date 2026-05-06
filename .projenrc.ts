@@ -1556,6 +1556,15 @@ const cliInteg = configureProject(
     // integ tests.
     majorVersion: 3,
 
+    // For our integ tests we can just release anything, doesn't matter if it
+    // is a dependency update or something else. In fact we often incorrectly
+    // label changes updates as 'chore' and then our canaries start failing
+    // because we didn't release the integ tests package.
+    //
+    // Cannot be set to `ReleasableCommits.everyCommit()` because that would
+    // actually include very commit in the monorepo.
+    releasableCommits: pj.ReleasableCommits.exec('git log --no-merges --oneline $LATEST_TAG..HEAD -- .'),
+
     srcdir: '.',
     libdir: '.',
     deps: [
