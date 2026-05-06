@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
+import * as promptly from 'promptly';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
@@ -40,6 +41,7 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
+import { readTelemetryPrefs, writeTelemetryPrefs } from './telemetry/telemetry-prefs';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -191,7 +193,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         // variable here. It will be released when the CLI exits. Locks are not re-entrant
         // so release it if we have to synthesize more than once (because of context lookups).
         await outDirLock?.release();
-        const { assembly, lock } = await execProgram(aws, ioHost.asIoHelper(), config);
+        const { assembly, lock, perfCounters } = await execProgram(aws, ioHost.asIoHelper(), config);
         outDirLock = lock;
 
         const tree = await loadTree(assembly, ioHelper.defaults.trace.bind(ioHelper.defaults));
@@ -200,6 +202,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           if (v) {
             ioHost.telemetry?.attachCdkLibVersion(v);
           }
+        }
+
+        if (perfCounters) {
+          ioHost.telemetry?.holdSynthPerfCounters(perfCounters);
         }
 
         return assembly;
@@ -224,7 +230,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   try {
-    return await main(cmd, argv);
+    const ret = await main(cmd, argv);
+
+    await maybeCommitPerfCounters(ioHost);
+
+    return ret;
   } finally {
     // If we locked the 'cdk.out' directory, release it here.
     await outDirLock?.release();
@@ -667,6 +677,58 @@ async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: s
 
 function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
   return configuration.context.get(featureFlag) ?? cxapi.futureFlagDefault(featureFlag);
+}
+
+async function maybeCommitPerfCounters(ioHost: CliIoHost) {
+  if (!ioHost.telemetry?.hasSynthPerfCounters()) {
+    // Nothing to commit
+    return;
+  }
+
+  const telemetryPrefs = await readTelemetryPrefs();
+  if (telemetryPrefs.defaultSendPerfCounters === false) {
+    // User has said "never".
+    return;
+  }
+
+  if (telemetryPrefs.defaultSendPerfCounters === undefined) {
+    if (!ioHost.isTTY) {
+      // Need to ask a question but no TTY? Just don't bother.
+      return;
+    }
+
+    const choices = ['y', 'n', 'a', 'r'] as const;
+    type Choice = (typeof choices)[number];
+
+    // Ask the user
+    const answer: Choice = await promptly.prompt(`${chalk.cyan('App synthesis produced a performance profile. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R)`, {
+      retry: true,
+      trim: true,
+      validator: (xx: string) => {
+        const x = xx.toLocaleLowerCase() as Choice;
+        if (!choices.includes(x)) {
+          throw new Error(choices.join('/'));
+        }
+        return x;
+      },
+    }) as any;
+
+    if (answer === 'r' || answer === 'a') {
+      // Update prefs if always or never
+      writeTelemetryPrefs({
+        ...telemetryPrefs,
+        defaultSendPerfCounters: answer === 'a'
+      });
+    }
+
+    // Return early if answer is negatory
+    if (answer === 'n' || answer === 'r') {
+      return;
+    }
+  }
+
+  // If we got here then the answer was yes.
+  ioHost.telemetry?.commitSynthPerfCounters();
 }
 
 /**

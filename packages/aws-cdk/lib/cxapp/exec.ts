@@ -11,10 +11,12 @@ import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, 
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
 import { versionNumber } from '../cli/version';
+import { tryReadJson } from '../cli/util/fs-util';
 
 export interface ExecProgramResult {
   readonly assembly: CloudAssembly;
   readonly lock: IReadLock;
+  readonly perfCounters?: Record<string, number>;
 }
 
 /** Invokes the cloud executable and returns JSON output */
@@ -99,6 +101,11 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
   await fs.promises.rm(errorFile, { force: true });
   env.CDK_ERROR_FILE = errorFile;
 
+  // Prepare a performance counters location
+  const perfCountersFile = path.join(outdir, 'performance-counters.json');
+  await fs.promises.rm(perfCountersFile, { force: true });
+  env.CDK_PERF_COUNTERS_FILE = perfCountersFile;
+
   await debugFn(format('env:', env));
 
   const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
@@ -107,7 +114,13 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
     const assembly = createAssembly(outdir);
 
-    return { assembly, lock: await writerLock.convertToReaderLock() };
+    const perfCounters = await tryReadJson(perfCountersFile);
+
+    return {
+      assembly,
+      lock: await writerLock.convertToReaderLock(),
+      perfCounters: typeof perfCounters === 'object' && typeof (perfCounters as any).counters === 'object' ? (perfCounters as any).counters : undefined,
+    };
   } catch (e) {
     await writerLock.release();
     throw e;

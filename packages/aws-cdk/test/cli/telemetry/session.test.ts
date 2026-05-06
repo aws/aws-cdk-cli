@@ -50,6 +50,36 @@ describe('TelemetrySession', () => {
     }));
   });
 
+  test('performance counters can be held and commited later, with a copy of the SYNTH event before it', async () => {
+    // WHEN
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+      counters: {
+        amount: 1,
+      },
+    });
+    session.holdSynthPerfCounters({
+      speed: 20,
+    });
+    session.commitSynthPerfCounters();
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        state: 'SUCCEEDED',
+        eventType: 'SYNTH_PERF_COUNTERS',
+      }),
+      duration: expect.objectContaining({
+        total: 1234,
+      }),
+      counters: expect.objectContaining({
+        amount: 1,
+        speed: 20,
+      }),
+    }));
+  });
+
   test('state is failed if error supplied', async () => {
     // WHEN
     await session.emit({

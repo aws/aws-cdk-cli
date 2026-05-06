@@ -24,7 +24,7 @@ interface SessionEvent {
   readonly command: Command;
 }
 
-export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY' | 'HOTSWAP';
+export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY' | 'HOTSWAP' | 'SYNTH_PERF_COUNTERS';
 export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
 interface Event extends SessionEvent {
   readonly state: State;
