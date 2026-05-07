@@ -19,7 +19,7 @@ integTest(
     });
 
     const json = fs.readJSONSync(telemetryFile);
-    expect(json).toContainEqual([
+    expect(json).toContainEqual(
       expect.objectContaining({
         event: expect.objectContaining({
           eventType: 'SYNTH_PERF_COUNTERS',
@@ -28,7 +28,7 @@ integTest(
           ExampleCounter: 42,
         }),
       }),
-    ]);
+    );
     fs.unlinkSync(telemetryFile);
   }),
 );
