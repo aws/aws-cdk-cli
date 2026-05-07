@@ -93,13 +93,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/aws-service-spec@npm:^0.1.177":
-  version: 0.1.177
-  resolution: "@aws-cdk/aws-service-spec@npm:0.1.177"
+"@aws-cdk/aws-service-spec@npm:^0.1.178":
+  version: 0.1.178
+  resolution: "@aws-cdk/aws-service-spec@npm:0.1.178"
   dependencies:
-    "@aws-cdk/service-spec-types": "npm:^0.0.243"
+    "@aws-cdk/service-spec-types": "npm:^0.0.244"
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/4a989b7e63ad0e3f6f1b92eeb33adbf565c0cfdbda23be8cfcf3b08ad2a7ae200af8d5e29bcdc01770244a8a7bae13b1158d798156d00d8d75899aff2274ac51
+  checksum: 10c0/74f1bba0ad290ae1f22ed6031a1f67b35668822d915a13a9d881e5a21a9fd6a1f87d410256ec465e5c171e1a299b226db34d05335d2a3c9d10a5e9c1dd6a5763
   languageName: node
   linkType: hard
 
@@ -288,8 +288,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloudformation-diff@workspace:packages/@aws-cdk/cloudformation-diff"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.177"
-    "@aws-cdk/service-spec-types": "npm:^0.0.243"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.178"
+    "@aws-cdk/service-spec-types": "npm:^0.0.244"
     "@cdklabs/eslint-plugin": "npm:^2.0.3"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
@@ -340,7 +340,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/integ-runner@workspace:packages/@aws-cdk/integ-runner"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.177"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.178"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
@@ -400,12 +400,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/service-spec-types@npm:^0.0.243":
-  version: 0.0.243
-  resolution: "@aws-cdk/service-spec-types@npm:0.0.243"
+"@aws-cdk/service-spec-types@npm:^0.0.244":
+  version: 0.0.244
+  resolution: "@aws-cdk/service-spec-types@npm:0.0.244"
   dependencies:
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/be4492bc3df738ebf68a2cdf03d6f3ba13ddfbcc1b7f8fa072d60c92f472335d97a028dccfa95b411113f1cc0330e0d0a248e50330b562cab928ca0c1b060c4b
+  checksum: 10c0/cf82dca441e642ecd9926e7d4e27f1d580aedc1d5a9edd51dd97f5c4f7fa40fa574e701988baf75df4f21b3179041523fa5310c9db2b3dfe769ed7774b6a03dc
   languageName: node
   linkType: hard
 
@@ -413,7 +413,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/toolkit-lib@workspace:packages/@aws-cdk/toolkit-lib"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.177"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.178"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
