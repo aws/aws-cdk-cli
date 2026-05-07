@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
-import * as promptly from 'promptly';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
+import * as promptly from 'promptly';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
@@ -39,9 +39,9 @@ import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { readTelemetryPrefs, updateTelemetryPrefs } from './telemetry/telemetry-prefs';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
-import { readTelemetryPrefs, writeTelemetryPrefs } from './telemetry/telemetry-prefs';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
@@ -697,38 +697,54 @@ async function maybeCommitPerfCounters(ioHost: CliIoHost) {
       return;
     }
 
-    const choices = ['y', 'n', 'a', 'r'] as const;
+    const choices = ['y', 'n', 'a', 'r', 'v'] as const;
     type Choice = (typeof choices)[number];
 
     // Ask the user
-    const answer: Choice = await promptly.prompt(`${chalk.cyan('App synthesis produced a performance profile. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R)`, {
-      retry: true,
-      trim: true,
-      validator: (xx: string) => {
-        const x = xx.toLocaleLowerCase() as Choice;
-        if (!choices.includes(x)) {
-          throw new Error(choices.join('/'));
-        }
-        return x;
-      },
-    }) as any;
+    let decision: boolean | undefined = undefined;
+    while (decision === undefined) {
+      const answer: Choice = await promptly.prompt(`${chalk.cyan('App synthesis produced a performance profile. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R) (V)iew`, {
+        retry: true,
+        trim: true,
+        validator: (xx: string) => {
+          const x = xx.toLocaleLowerCase() as Choice;
+          if (!choices.includes(x)) {
+            // eslint-disable-next-line @cdklabs/no-throw-default-error
+            throw new Error(choices.join('/'));
+          }
+          return x;
+        },
+      }) as any;
 
-    if (answer === 'r' || answer === 'a') {
-      // Update prefs if always or never
-      writeTelemetryPrefs({
-        ...telemetryPrefs,
-        defaultSendPerfCounters: answer === 'a'
-      });
+      switch (answer) {
+        case 'y':
+          decision = true;
+          break;
+        case 'a':
+          await updateTelemetryPrefs({ defaultSendPerfCounters: true });
+          decision = true;
+          break;
+        case 'r':
+          await updateTelemetryPrefs({ defaultSendPerfCounters: false });
+          decision = false;
+          break;
+        case 'n':
+          decision = false;
+          break;
+        case 'v':
+          // eslint-disable-next-line no-console
+          console.log(JSON.stringify(ioHost.telemetry?.synthPerfCounters, undefined, 2));
+          break;
+      }
     }
 
-    // Return early if answer is negatory
-    if (answer === 'n' || answer === 'r') {
+    if (!decision) {
       return;
     }
   }
 
   // If we got here then the answer was yes.
-  ioHost.telemetry?.commitSynthPerfCounters();
+  await ioHost.telemetry?.commitSynthPerfCounters();
 }
 
 /**

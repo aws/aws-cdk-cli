@@ -10,8 +10,8 @@ import type { SdkProvider, IReadLock } from '../api';
 import { RWLock, guessExecutable, prepareDefaultEnvironment, writeContextToEnv, synthParametersFromSettings, execInChildProcess } from '../api';
 import type { Configuration } from '../cli/user-configuration';
 import { PROJECT_CONFIG, USER_DEFAULTS } from '../cli/user-configuration';
-import { versionNumber } from '../cli/version';
 import { tryReadJson } from '../cli/util/fs-util';
+import { versionNumber } from '../cli/version';
 
 export interface ExecProgramResult {
   readonly assembly: CloudAssembly;

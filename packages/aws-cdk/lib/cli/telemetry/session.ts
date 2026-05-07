@@ -14,6 +14,8 @@ import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
 import { USER_INTERRUPTED_CODE } from './error';
+import type { TelemetryPrefsFile } from './telemetry-prefs';
+import { readTelemetryPrefs } from './telemetry-prefs';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -51,9 +53,10 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
-  private synthPerfCounters?: Record<string, number>;
+  private _synthPerfCounters?: Record<string, number>;
   private count = 0;
   private synthEvent?: TelemetryEvent;
+  private prefs?: TelemetryPrefsFile;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
@@ -63,6 +66,7 @@ export class TelemetrySession {
   public async begin() {
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
+    this.prefs = await readTelemetryPrefs();
     this._sessionInfo = {
       identifiers: {
         installationId: await getOrCreateInstallationId(this.ioHost.asIoHelper()),
@@ -168,31 +172,38 @@ export class TelemetrySession {
    * They may be committed to the sent telemetry later.
    */
   public holdSynthPerfCounters(counters: Record<string, number>) {
-    this.synthPerfCounters = counters;
+    this._synthPerfCounters = counters;
   }
 
   /**
    * Whether there are synth perf counters to submit
    */
   public hasSynthPerfCounters() {
-    return !!this.synthPerfCounters;
+    return !!this._synthPerfCounters;
+  }
+
+  /**
+   * Return the perf counters
+   */
+  public get synthPerfCounters() {
+    return { ...this._synthPerfCounters };
   }
 
   /**
    * Commit the synth perf counters to the telemetry data
    */
-  public commitSynthPerfCounters() {
+  public async commitSynthPerfCounters() {
     // Emit a separate SYNTH_PERF_COUNTERS event, which is a copy of the SYNTH
     // event but with the additional counters added. I would have preferred to be able
     // to update the SYNTH event itself with the additional counters, but it has already
     // been flushed to the underlying sink, and depending on the sink type may not be
     // mutable anymore.
-    this.emit({
+    await this.emit({
       eventType: 'SYNTH_PERF_COUNTERS',
       duration: this.synthEvent?.duration ?? 0,
       counters: {
         ...this.synthEvent?.counters,
-        ...this.synthPerfCounters,
+        ...this._synthPerfCounters,
       },
     });
   }
@@ -215,6 +226,11 @@ export class TelemetrySession {
       this.synthEvent = event;
     }
 
+    const counters = {
+      ...this.prefs?.permanentCounters,
+      ...event.counters,
+    };
+
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,
@@ -236,7 +252,7 @@ export class TelemetrySession {
           name: event.error.name,
         },
       } : {}),
-      ...(event.counters && Object.keys(event.counters).length > 0 ? { counters: event.counters } : {}),
+      ...(Object.keys(counters).length > 0 ? { counters } : {}),
     });
   }
 

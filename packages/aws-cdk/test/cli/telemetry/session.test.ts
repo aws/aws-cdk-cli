@@ -4,12 +4,19 @@ import { CliIoHost } from '../../../lib/cli/io-host';
 import { type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession } from '../../../lib/cli/telemetry/session';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/sink/io-host-sink';
+import * as telemetryPrefs from '../../../lib/cli/telemetry/telemetry-prefs';
 import { withEnv } from '../../_helpers/with-env';
 
 let ioHost: CliIoHost;
 let session: TelemetrySession;
 let clientEmitSpy: jest.SpyInstance<any, [event: TelemetrySchema], any>;
 let clientFlushSpy: jest.SpyInstance<any, unknown[], any>;
+
+const mockReadTelemetryPrefs = jest.spyOn(telemetryPrefs, 'readTelemetryPrefs');
+
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 
 describe('TelemetrySession', () => {
   beforeEach(async () => {
@@ -62,7 +69,7 @@ describe('TelemetrySession', () => {
     session.holdSynthPerfCounters({
       speed: 20,
     });
-    session.commitSynthPerfCounters();
+    await session.commitSynthPerfCounters();
 
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -76,6 +83,37 @@ describe('TelemetrySession', () => {
       counters: expect.objectContaining({
         amount: 1,
         speed: 20,
+      }),
+    }));
+  });
+
+  test('counters can be added to every event', async () => {
+    // GIVEN
+    mockReadTelemetryPrefs.mockResolvedValue({
+      permanentCounters: {
+        Permanent: 1,
+      },
+    });
+
+    // WHEN
+    // Begin again to force re-reading of prefs
+    await session.begin();
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+      counters: {
+        Specific: 2,
+      },
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        eventType: 'SYNTH',
+      }),
+      counters: expect.objectContaining({
+        Permanent: 1,
+        Specific: 2,
       }),
     }));
   });
