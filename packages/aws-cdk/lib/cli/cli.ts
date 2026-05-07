@@ -697,13 +697,13 @@ async function maybeCommitPerfCounters(ioHost: CliIoHost) {
       return;
     }
 
-    const choices = ['y', 'n', 'a', 'r', 'v'] as const;
+    const choices = ['yes', 'no', 'always', 'never', 'view', 'y', 'n', 'a', 'r', 'v'] as const;
     type Choice = (typeof choices)[number];
 
     // Ask the user
     let decision: boolean | undefined = undefined;
     while (decision === undefined) {
-      const answer: Choice = await promptly.prompt(`${chalk.cyan('App synthesis produced a performance profile. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R) (V)iew`, {
+      const answer: Choice = await promptly.prompt(`🔍 ${chalk.cyan('Your CDK app produced a performance profile to help AWS diagnose slow synthesis. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R) (V)iew`, {
         retry: true,
         trim: true,
         validator: (xx: string) => {
@@ -717,24 +717,31 @@ async function maybeCommitPerfCounters(ioHost: CliIoHost) {
       }) as any;
 
       switch (answer) {
+        case 'yes':
         case 'y':
           decision = true;
           break;
+        case 'always':
         case 'a':
           await updateTelemetryPrefs({ defaultSendPerfCounters: true });
           decision = true;
           break;
+        case 'never':
         case 'r':
           await updateTelemetryPrefs({ defaultSendPerfCounters: false });
           decision = false;
           break;
+        case 'no':
         case 'n':
           decision = false;
           break;
+        case 'view':
         case 'v':
           // eslint-disable-next-line no-console
           console.log(JSON.stringify(ioHost.telemetry?.synthPerfCounters, undefined, 2));
           break;
+        default:
+          assertNever(answer);
       }
     }
 
@@ -966,3 +973,7 @@ export function cli(args: string[] = process.argv.slice(2)) {
     });
 }
 /* c8 ignore stop */
+
+function assertNever(x: never) {
+  void x;
+}
