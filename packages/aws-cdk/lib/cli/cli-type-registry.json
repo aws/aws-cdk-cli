@@ -44,6 +44,12 @@
       "desc": "Use JSON output instead of YAML when templates are printed to STDOUT",
       "default": false
     },
+    "jsonlog": {
+      "type": "boolean",
+      "alias": "J",
+      "desc": "Print log output in JSON-lines format to stderr",
+      "default": false
+    },
     "verbose": {
       "type": "boolean",
       "alias": "v",

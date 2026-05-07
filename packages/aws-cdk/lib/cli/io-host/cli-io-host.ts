@@ -96,6 +96,13 @@ export interface CliIoHostProps {
    * @default false
    */
   readonly autoRespond?: boolean;
+
+  /**
+   * Print output as JSON instead of as human-readable text
+   *
+   * @default false
+   */
+  readonly printAsJson?: boolean;
 }
 
 /**
@@ -176,7 +183,7 @@ export class CliIoHost implements IIoHost {
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
   private readonly autoRespond: boolean;
-
+  private readonly printAsJson: boolean;
   public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
@@ -187,6 +194,7 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
     this.autoRespond = props.autoRespond ?? false;
+    this.printAsJson = props.printAsJson ?? false;
   }
 
   public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
@@ -254,12 +262,18 @@ export class CliIoHost implements IIoHost {
    * Gets the stackProgress value.
    *
    * This takes into account other state of the ioHost,
-   * like if isTTY and isCI.
+   * like `isTTY`, `isCI` and `printAsJson`.
    */
   public get stackProgress(): StackActivityProgress {
     // We can always use EVENTS
     if (this._progress === StackActivityProgress.EVENTS) {
       return this._progress;
+    }
+
+    // If we're doing machine-readable output, we're not going to do
+    // live-updating ANSI characters.
+    if (this.printAsJson) {
+      return StackActivityProgress.EVENTS;
     }
 
     // if a debug message (and thus any more verbose messages) are relevant to the current log level, we have verbose logging
@@ -397,6 +411,11 @@ export class CliIoHost implements IIoHost {
    * Determines the output stream, based on message and configuration.
    */
   private selectStream(msg: IoMessage<any>): NodeJS.WriteStream | undefined {
+    if (this.printAsJson) {
+      // JSON output always goes to stderr
+      return process.stderr;
+    }
+
     if (isNoticesMessage(msg)) {
       return targetStreamObject(this.noticesDestination);
     }
@@ -520,6 +539,10 @@ export class CliIoHost implements IIoHost {
    * Formats a message for console output with optional color support
    */
   private formatMessage(msg: IoMessage<unknown>): string {
+    if (this.printAsJson) {
+      return `${JSON.stringify(msg)}\n`;
+    }
+
     // apply provided style or a default style if we're in TTY mode
     let message_text = this.isTTY
       ? styleMap[msg.level](msg.message)
