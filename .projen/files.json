@@ -9,6 +9,7 @@
     ".github/workflows/bootstrap-template-protection.yml",
     ".github/workflows/build.yml",
     ".github/workflows/codecov.yml",
+    ".github/workflows/dependency-review.yml",
     ".github/workflows/integ.yml",
     ".github/workflows/issue-label-assign.yml",
     ".github/workflows/issue-regression-labeler.yml",

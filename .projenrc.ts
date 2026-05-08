@@ -297,6 +297,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   githubOptions: {
+    dependencyReview: true,
     projenCredentials: pj.github.GithubCredentials.fromPersonalAccessToken({
       secret: 'PROJEN_GITHUB_TOKEN',
       environment: 'automation',

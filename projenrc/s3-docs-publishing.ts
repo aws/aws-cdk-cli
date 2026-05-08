@@ -76,6 +76,7 @@ export class S3DocsPublishing extends Component {
       environment: 'releasing', // <-- this has the configuration
       needs: [`${safeName}_release_npm`],
       runsOn: ['ubuntu-latest'],
+      if: '${{ !inputs.dry_run }}',
       permissions: {
         idToken: github.workflows.JobPermission.WRITE,
         contents: github.workflows.JobPermission.READ,
