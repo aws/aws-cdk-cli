@@ -5,7 +5,7 @@ import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
 import { GitHubToken, stringifyList } from './util';
 
-const OSDS_DEVS = ['ashishdhingra', 'khushail', 'hunhsieh'];
+const OSDS_DEVS = ['hunhsieh'];
 const AREA_AFFIXES = ['@aws-cdk/'];
 const AREA_PARAMS = [
   { area: '@aws-cdk/cloud-assembly-schema', keywords: ['cloud-assembly', 'schema'], labels: ['@aws-cdk/cloud-assembly-schema'] },
@@ -38,19 +38,30 @@ interface TriageManagerOptions {
   credentials?: GithubCredentials;
 }
 
+function triageManagerHumanFriendlyName(target: TriageManagerOptions['target']): string {
+  switch (target) {
+    case 'both':
+      return 'Issues and Pull Requests';
+    case 'issues':
+      return 'Issues';
+    case 'pull-requests':
+      return 'Pull Requests';
+  }
+}
+
 function triageManagerJob(triageManagerOptions: TriageManagerOptions) {
   const credentials = triageManagerOptions.credentials ?? GitHubToken.GITHUB_TOKEN;
-
+  const name = `Triage ${triageManagerHumanFriendlyName(triageManagerOptions.target)}`;
   return {
-    name: 'Triage Manager',
-    runsOn: ['aws-cdk_ubuntu-latest_4-core'],
+    name,
+    runsOn: ['ubuntu-latest'],
     permissions: { issues: JobPermission.WRITE, pullRequests: JobPermission.WRITE },
     environment: credentials.environment,
     steps: [
       ...credentials.setupSteps,
       {
         name: 'Triage Manager',
-        uses: 'aws-github-ops/aws-issue-triage-manager@main',
+        uses: 'aws-github-ops/aws-issue-triage-manager@701b2b0b4ba8c03c587149c37519052c357a2a61',
         with: {
           'github-token': credentials.tokenRef,
           'target': triageManagerOptions.target,
@@ -103,7 +114,7 @@ export class IssueLabeler extends Component {
     this.workflow.addJob('Triage-Pull-Requests', triageManagerJob({
       target: 'pull-requests',
       areaIsKeyword: true,
-      defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-owners"]}}',
+      defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-core-team"]}}',
       parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]',
       credentials: repo.github?.projenCredentials,
     }));
