@@ -21,7 +21,7 @@ export class RecordPublishingTimestamp extends Component {
     releaseWf.addJob('record_timestamp', {
       name: 'aws-cdk: Record publishing timestamp',
       environment: 'releasing', // <-- this has the configuration
-      needs: ['release'],
+      needs: ['release', 'aws-cdk_release_npm'],
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,
