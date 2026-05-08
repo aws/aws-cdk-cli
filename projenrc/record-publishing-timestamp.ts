@@ -27,7 +27,7 @@ export class RecordPublishingTimestamp extends Component {
         contents: JobPermission.WRITE,
         idToken: JobPermission.WRITE,
       },
-      if: '${{ needs.release.outputs.latest_commit == github.sha }}',
+      if: '${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}',
       steps: [
         {
           name: 'Download build artifacts',

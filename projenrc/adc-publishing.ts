@@ -41,7 +41,7 @@ export class AdcPublishing extends Component {
         contents: JobPermission.WRITE,
         idToken: JobPermission.WRITE,
       },
-      if: '${{ needs.release.outputs.latest_commit == github.sha }}',
+      if: '${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}',
       steps: [
         github.WorkflowSteps.checkout(),
         ...this.project_.renderWorkflowSetup(),
