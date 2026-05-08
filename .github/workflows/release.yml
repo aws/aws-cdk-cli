@@ -218,7 +218,7 @@ jobs:
           overwrite: true
       - name: "standalone: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: standalone_build-artifact
           path: dist/standalone
@@ -1222,8 +1222,8 @@ jobs:
           package-manager-cache: false
       - name: Install dependencies
         run: yarn install --immutable
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: standalone_build-artifact
           path: dist/standalone
@@ -1251,8 +1251,8 @@ jobs:
     environment: releasing
     if: ${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -1281,8 +1281,8 @@ jobs:
     environment: releasing
     if: ${{ !inputs.dry_run }}
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist

@@ -22,14 +22,15 @@ export class AdcPublishing extends Component {
     }
 
     (releaseWf.getJob('release') as github.workflows.Job).steps.push({
+      ...github.WorkflowSteps.uploadArtifact({
+        with: {
+          name: 'standalone_build-artifact',
+          path: 'dist/standalone',
+          overwrite: true,
+        },
+      }),
       name: 'standalone: Upload artifact',
       if: '${{ steps.git_remote.outputs.latest_commit == github.sha }}',
-      uses: 'actions/upload-artifact@v4.4.0',
-      with: {
-        name: 'standalone_build-artifact',
-        path: 'dist/standalone',
-        overwrite: true,
-      },
     });
 
     releaseWf.addJob('standalone_release_adc', {
@@ -45,14 +46,12 @@ export class AdcPublishing extends Component {
       steps: [
         github.WorkflowSteps.checkout(),
         ...this.project_.renderWorkflowSetup(),
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
+        github.WorkflowSteps.downloadArtifact({
           with: {
             name: 'standalone_build-artifact',
             path: 'dist/standalone',
           },
-        },
+        }),
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',

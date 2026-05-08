@@ -62,17 +62,17 @@ jobs:
           RELEASE: "true"
         run: yarn projen build
       - name: Upload artifact
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifact
           path: packages/**/dist/js/*.tgz
-          overwrite: "true"
-      - name: Upload scripts
-        uses: actions/upload-artifact@v4.4.0
+          overwrite: true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
         with:
           name: script-artifact
           path: .projen/*.sh
-          overwrite: "true"
+          overwrite: true
           include-hidden-files: true
   integ_cli:
     needs: prepare
@@ -88,13 +88,13 @@ jobs:
       CI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: packages
-      - name: Download scripts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: script-artifact
           path: .projen
@@ -165,11 +165,11 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
-          overwrite: "true"
+          overwrite: true
       - name: Append artifact URL
         if: always()
         run: |-
@@ -209,13 +209,13 @@ jobs:
       CI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: packages
-      - name: Download scripts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: script-artifact
           path: .projen
@@ -286,11 +286,11 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
-          overwrite: "true"
+          overwrite: true
       - name: Append artifact URL
         if: always()
         run: |-
@@ -320,13 +320,13 @@ jobs:
       CI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: packages
-      - name: Download scripts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: script-artifact
           path: .projen
@@ -397,11 +397,11 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
-          overwrite: "true"
+          overwrite: true
       - name: Append artifact URL
         if: always()
         run: |-
@@ -428,13 +428,13 @@ jobs:
       CI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: packages
-      - name: Download scripts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: script-artifact
           path: .projen
@@ -505,11 +505,11 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
-          overwrite: "true"
+          overwrite: true
       - name: Append artifact URL
         if: always()
         run: |-
@@ -550,13 +550,13 @@ jobs:
       CI: "true"
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: build-artifact
           path: packages
-      - name: Download scripts
-        uses: actions/download-artifact@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
           name: script-artifact
           path: .projen
@@ -627,11 +627,11 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v4.4.0
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
-          overwrite: "true"
+          overwrite: true
       - name: Append artifact URL
         if: always()
         run: |-

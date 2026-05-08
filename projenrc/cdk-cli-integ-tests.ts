@@ -17,22 +17,18 @@ const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr
  */
 function downloadArtifactsSteps(): github.workflows.JobStep[] {
   return [
-    {
-      name: 'Download build artifacts',
-      uses: 'actions/download-artifact@v4',
+    github.WorkflowSteps.downloadArtifact({
       with: {
         name: 'build-artifact',
         path: 'packages',
       },
-    },
-    {
-      name: 'Download scripts',
-      uses: 'actions/download-artifact@v4',
+    }),
+    github.WorkflowSteps.downloadArtifact({
       with: {
         name: 'script-artifact',
         path: '.projen',
       },
-    },
+    }),
   ];
 }
 
@@ -433,25 +429,21 @@ export class CdkCliIntegTestsWorkflow extends Component {
             RELEASE: 'true',
           },
         },
-        {
-          name: 'Upload artifact',
-          uses: 'actions/upload-artifact@v4.4.0',
+        github.WorkflowSteps.uploadArtifact({
           with: {
             name: 'build-artifact',
             path: 'packages/**/dist/js/*.tgz',
-            overwrite: 'true',
+            overwrite: true,
           },
-        },
-        {
-          name: 'Upload scripts',
-          uses: 'actions/upload-artifact@v4.4.0',
+        }),
+        github.WorkflowSteps.uploadArtifact({
           with: {
-            'name': 'script-artifact',
-            'path': '.projen/*.sh',
-            'overwrite': 'true',
-            'include-hidden-files': true,
+            name: 'script-artifact',
+            path: '.projen/*.sh',
+            overwrite: true,
+            includeHiddenFiles: true,
           },
-        },
+        }),
       ],
     });
 
@@ -634,15 +626,16 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         {
+          ...github.WorkflowSteps.uploadArtifact({
+            with: {
+              name: '${{ steps.artifactid.outputs.slug }}',
+              path: 'logs/',
+              overwrite: true,
+            },
+          }),
           name: 'Upload logs',
           if: 'always()',
-          uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
-          with: {
-            name: '${{ steps.artifactid.outputs.slug }}',
-            path: 'logs/',
-            overwrite: 'true',
-          },
         },
         {
           name: 'Append artifact URL',
