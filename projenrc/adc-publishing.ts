@@ -35,7 +35,7 @@ export class AdcPublishing extends Component {
     releaseWf.addJob('standalone_release_adc', {
       name: 'standalone: publish to ADC',
       environment: 'releasing', // <-- this has the configuration
-      needs: ['release'],
+      needs: ['release', 'aws-cdk_release_npm'],
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,

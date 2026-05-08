@@ -1203,7 +1203,9 @@ jobs:
         run: npx -p publib@latest publib-npm
   standalone_release_adc:
     name: "standalone: publish to ADC"
-    needs: release
+    needs:
+      - release
+      - aws-cdk_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -1243,7 +1245,9 @@ jobs:
         run: yarn projen publish-to-adc
   record_timestamp:
     name: "aws-cdk: Record publishing timestamp"
-    needs: release
+    needs:
+      - release
+      - aws-cdk_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
