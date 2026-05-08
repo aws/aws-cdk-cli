@@ -1,5 +1,5 @@
 import type { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
-import { Component } from 'projen';
+import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 
 /**
@@ -29,14 +29,12 @@ export class RecordPublishingTimestamp extends Component {
       },
       if: '${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}',
       steps: [
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
+        github.WorkflowSteps.downloadArtifact({
           with: {
             name: 'aws-cdk_build-artifact',
             path: 'dist',
           },
-        },
+        }),
         {
           name: 'Read version from build artifacts',
           id: 'aws-cdk-version',

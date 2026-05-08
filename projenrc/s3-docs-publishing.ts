@@ -82,14 +82,12 @@ export class S3DocsPublishing extends Component {
         contents: github.workflows.JobPermission.READ,
       },
       steps: [
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
+        github.WorkflowSteps.downloadArtifact({
           with: {
             name: `${safeName}_build-artifact`,
             path: 'dist',
           },
-        },
+        }),
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
