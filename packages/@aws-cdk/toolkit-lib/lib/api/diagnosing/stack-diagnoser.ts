@@ -23,6 +23,12 @@ export interface CloudFormationStackDiagnoserProps {
    * (readonly) exploratory calls.
    *
    * Typically, this should be an SDK that is primed with the "lookup" role, or similar.
+   *
+   * This is necessary because the "deploy" role will not typically have permissions to
+   * do very much.
+   *
+   * Regardless, if lookups of additional information fail, they are emitted at debug
+   * level and their information is simply not added to the output.
    */
   readonly additionalExplorationSdkProvider?: SdkProvider;
 }
