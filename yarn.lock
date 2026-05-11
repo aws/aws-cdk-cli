@@ -5306,6 +5306,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@smithy/core@npm:^3.24.0":
+  version: 3.24.0
+  resolution: "@smithy/core@npm:3.24.0"
+  dependencies:
+    "@aws-crypto/crc32": "npm:5.2.0"
+    "@smithy/types": "npm:^4.14.1"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/f317e449a193e9e12afd76719ea58cdfb316d03fc46e6452b20a089665c86941a76f30e7c7a0bc9e2232334e673d432c08f647ca6651a2c145a33198ec0ee0d6
+  languageName: node
+  linkType: hard
+
 "@smithy/credential-provider-imds@npm:^4.2.14":
   version: 4.2.14
   resolution: "@smithy/credential-provider-imds@npm:4.2.14"
@@ -5814,25 +5825,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@smithy/util-retry@npm:^4, @smithy/util-retry@npm:^4.3.4":
-  version: 4.3.4
-  resolution: "@smithy/util-retry@npm:4.3.4"
+"@smithy/util-retry@npm:^4, @smithy/util-retry@npm:^4.3.4, @smithy/util-retry@npm:^4.3.6":
+  version: 4.4.0
+  resolution: "@smithy/util-retry@npm:4.4.0"
   dependencies:
-    "@smithy/service-error-classification": "npm:^4.3.0"
-    "@smithy/types": "npm:^4.14.1"
+    "@smithy/core": "npm:^3.24.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/8d80edf2dfb23199f5b8095b20ae3774edf3f34b391ce8b7acc6c0ac89a7963677cfdccf8a388d8e688c67a453e8a94448c1753ec3bfdcaa253373770e58538b
-  languageName: node
-  linkType: hard
-
-"@smithy/util-retry@npm:^4.3.6":
-  version: 4.3.6
-  resolution: "@smithy/util-retry@npm:4.3.6"
-  dependencies:
-    "@smithy/service-error-classification": "npm:^4.3.1"
-    "@smithy/types": "npm:^4.14.1"
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/a2d3b34ca48edd4f58885c91de28f7ccbe48d0e4a8f005eb569197cf37640b5c04043fd556b0e1ecf6d8623b6c384b52b1c34c898acf77260e517f7d00641811
+  checksum: 10c0/c4e3a31331234f55f7473ad6c7165ff6f6a456b53f3a641e934bd8fa4591cf0fc2bc6a1c14a0ba44a5a9bb4565e7de61eccb2e5b5fb10dcf6dd61bdf71e2e8a8
   languageName: node
   linkType: hard
 
