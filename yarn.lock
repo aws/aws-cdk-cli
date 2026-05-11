@@ -1637,22 +1637,22 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/client-secrets-manager@npm:^3":
-  version: 3.1036.0
-  resolution: "@aws-sdk/client-secrets-manager@npm:3.1036.0"
+  version: 3.1045.0
+  resolution: "@aws-sdk/client-secrets-manager@npm:3.1045.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
-    "@aws-sdk/core": "npm:^3.974.5"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.36"
+    "@aws-sdk/core": "npm:^3.974.8"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.39"
     "@aws-sdk/middleware-host-header": "npm:^3.972.10"
     "@aws-sdk/middleware-logger": "npm:^3.972.10"
     "@aws-sdk/middleware-recursion-detection": "npm:^3.972.11"
-    "@aws-sdk/middleware-user-agent": "npm:^3.972.35"
+    "@aws-sdk/middleware-user-agent": "npm:^3.972.38"
     "@aws-sdk/region-config-resolver": "npm:^3.972.13"
     "@aws-sdk/types": "npm:^3.973.8"
     "@aws-sdk/util-endpoints": "npm:^3.996.8"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.10"
-    "@aws-sdk/util-user-agent-node": "npm:^3.973.21"
+    "@aws-sdk/util-user-agent-node": "npm:^3.973.24"
     "@smithy/config-resolver": "npm:^4.4.17"
     "@smithy/core": "npm:^3.23.17"
     "@smithy/fetch-http-handler": "npm:^5.3.17"
@@ -1660,7 +1660,7 @@ __metadata:
     "@smithy/invalid-dependency": "npm:^4.2.14"
     "@smithy/middleware-content-length": "npm:^4.2.14"
     "@smithy/middleware-endpoint": "npm:^4.4.32"
-    "@smithy/middleware-retry": "npm:^4.5.5"
+    "@smithy/middleware-retry": "npm:^4.5.7"
     "@smithy/middleware-serde": "npm:^4.2.20"
     "@smithy/middleware-stack": "npm:^4.2.14"
     "@smithy/node-config-provider": "npm:^4.3.14"
@@ -1676,10 +1676,10 @@ __metadata:
     "@smithy/util-defaults-mode-node": "npm:^4.2.54"
     "@smithy/util-endpoints": "npm:^3.4.2"
     "@smithy/util-middleware": "npm:^4.2.14"
-    "@smithy/util-retry": "npm:^4.3.4"
+    "@smithy/util-retry": "npm:^4.3.6"
     "@smithy/util-utf8": "npm:^4.2.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/bbf1d65b0507b4c119360fb5535bb0cef0ca7cc9c2a37542a128bb2e39fcb2a5f2498777d73ec76bba47e269273e15c0f4a8d40720bd66c7b9df281c098001b4
+  checksum: 10c0/4d35ad1428d70735888a374528f4a33f52ff43d81376577970f2048e35063d9c9c5c06a6caa767efb65f0f7460e342c2b92b96be75cd8a3ca6087733c50b1fbd
   languageName: node
   linkType: hard
 
