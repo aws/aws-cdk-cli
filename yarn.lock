@@ -1574,30 +1574,30 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/client-s3@npm:^3":
-  version: 3.1036.0
-  resolution: "@aws-sdk/client-s3@npm:3.1036.0"
+  version: 3.1045.0
+  resolution: "@aws-sdk/client-s3@npm:3.1045.0"
   dependencies:
     "@aws-crypto/sha1-browser": "npm:5.2.0"
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
-    "@aws-sdk/core": "npm:^3.974.5"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.36"
+    "@aws-sdk/core": "npm:^3.974.8"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.39"
     "@aws-sdk/middleware-bucket-endpoint": "npm:^3.972.10"
     "@aws-sdk/middleware-expect-continue": "npm:^3.972.10"
-    "@aws-sdk/middleware-flexible-checksums": "npm:^3.974.13"
+    "@aws-sdk/middleware-flexible-checksums": "npm:^3.974.16"
     "@aws-sdk/middleware-host-header": "npm:^3.972.10"
     "@aws-sdk/middleware-location-constraint": "npm:^3.972.10"
     "@aws-sdk/middleware-logger": "npm:^3.972.10"
     "@aws-sdk/middleware-recursion-detection": "npm:^3.972.11"
-    "@aws-sdk/middleware-sdk-s3": "npm:^3.972.34"
+    "@aws-sdk/middleware-sdk-s3": "npm:^3.972.37"
     "@aws-sdk/middleware-ssec": "npm:^3.972.10"
-    "@aws-sdk/middleware-user-agent": "npm:^3.972.35"
+    "@aws-sdk/middleware-user-agent": "npm:^3.972.38"
     "@aws-sdk/region-config-resolver": "npm:^3.972.13"
-    "@aws-sdk/signature-v4-multi-region": "npm:^3.996.22"
+    "@aws-sdk/signature-v4-multi-region": "npm:^3.996.25"
     "@aws-sdk/types": "npm:^3.973.8"
     "@aws-sdk/util-endpoints": "npm:^3.996.8"
     "@aws-sdk/util-user-agent-browser": "npm:^3.972.10"
-    "@aws-sdk/util-user-agent-node": "npm:^3.973.21"
+    "@aws-sdk/util-user-agent-node": "npm:^3.973.24"
     "@smithy/config-resolver": "npm:^4.4.17"
     "@smithy/core": "npm:^3.23.17"
     "@smithy/eventstream-serde-browser": "npm:^4.2.14"
@@ -1611,7 +1611,7 @@ __metadata:
     "@smithy/md5-js": "npm:^4.2.14"
     "@smithy/middleware-content-length": "npm:^4.2.14"
     "@smithy/middleware-endpoint": "npm:^4.4.32"
-    "@smithy/middleware-retry": "npm:^4.5.5"
+    "@smithy/middleware-retry": "npm:^4.5.7"
     "@smithy/middleware-serde": "npm:^4.2.20"
     "@smithy/middleware-stack": "npm:^4.2.14"
     "@smithy/node-config-provider": "npm:^4.3.14"
@@ -1627,12 +1627,12 @@ __metadata:
     "@smithy/util-defaults-mode-node": "npm:^4.2.54"
     "@smithy/util-endpoints": "npm:^3.4.2"
     "@smithy/util-middleware": "npm:^4.2.14"
-    "@smithy/util-retry": "npm:^4.3.4"
+    "@smithy/util-retry": "npm:^4.3.6"
     "@smithy/util-stream": "npm:^4.5.25"
     "@smithy/util-utf8": "npm:^4.2.2"
-    "@smithy/util-waiter": "npm:^4.2.16"
+    "@smithy/util-waiter": "npm:^4.3.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/82dd6dd94bf79e8906c5f4cae2723adea832322bf9533f02ba4af91d6ed76f823ccc2cab3e70f2cf983aa75e73b7aa9506dc97de20ee59b88ad6a5b664646e99
+  checksum: 10c0/e1c017dd5ee22f57658f0527fcc736e6a240de0e836d49b125b2cde120cd7ff017c7d2e9ac172cca404ffa4c853048079221db068a49ab0faf5e2d6b7a2f93fa
   languageName: node
   linkType: hard
 
@@ -2420,14 +2420,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/middleware-flexible-checksums@npm:^3.974.13":
-  version: 3.974.13
-  resolution: "@aws-sdk/middleware-flexible-checksums@npm:3.974.13"
+"@aws-sdk/middleware-flexible-checksums@npm:^3.974.16":
+  version: 3.974.16
+  resolution: "@aws-sdk/middleware-flexible-checksums@npm:3.974.16"
   dependencies:
     "@aws-crypto/crc32": "npm:5.2.0"
     "@aws-crypto/crc32c": "npm:5.2.0"
     "@aws-crypto/util": "npm:5.2.0"
-    "@aws-sdk/core": "npm:^3.974.5"
+    "@aws-sdk/core": "npm:^3.974.8"
     "@aws-sdk/crc64-nvme": "npm:^3.972.7"
     "@aws-sdk/types": "npm:^3.973.8"
     "@smithy/is-array-buffer": "npm:^4.2.2"
@@ -2438,7 +2438,7 @@ __metadata:
     "@smithy/util-stream": "npm:^4.5.25"
     "@smithy/util-utf8": "npm:^4.2.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/5610111f3f19270b61578d04af2a223dd0eb0aa1e0a75989c60658ef68db3317c1d7ee8b84b5c750f37f863a1bf13c326196fb767c6be1b56cdebfbbe6df81ab
+  checksum: 10c0/0725e497e2ebd4201682a786b28da90acc9c86459bfd6a3a29591021b7be4e5e17aee2628b71921eba003740d49b88d48eab8bd80220dfc5aa16dc7c50488775
   languageName: node
   linkType: hard
 
