@@ -51,7 +51,7 @@ __metadata:
     fast-glob: "npm:^3.3.3"
     fs-extra: "npm:^11"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     make-runnable: "npm:^1"
     mockttp: "npm:^3"
@@ -143,7 +143,7 @@ __metadata:
     fs-extra: "npm:^11"
     graceful-fs: "npm:^4.2.11"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     jszip: "npm:^3.10.1"
     license-checker: "npm:^25.0.1"
     mime: "npm:^2"
@@ -177,7 +177,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
@@ -208,7 +208,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     jsonschema: "npm:~1.4.1"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
@@ -255,7 +255,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     jsii: "npm:5.9"
     jsii-diff: "npm:^1.129.0"
     jsii-pacmak: "npm:^1.129.0"
@@ -310,7 +310,7 @@ __metadata:
     fast-check: "npm:^3.23.2"
     fast-deep-equal: "npm:^3.1.3"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
@@ -373,7 +373,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     fs-extra: "npm:^11"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     mock-fs: "npm:^5"
     node-backpack: "npm:^1.1.32"
@@ -484,7 +484,7 @@ __metadata:
     fs-extra: "npm:^11"
     jest: "npm:^29.7.0"
     jest-environment-node: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     jest-when: "npm:^3.7.0"
     license-checker: "npm:^25.0.1"
     nock: "npm:13"
@@ -530,7 +530,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
@@ -562,7 +562,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-check: "npm:^4.7.0"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.57"
@@ -7406,7 +7406,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-glob: "npm:^3.3.3"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.57"
@@ -7521,7 +7521,7 @@ __metadata:
     fs-extra: "npm:^11"
     jest: "npm:^29.7.0"
     jest-environment-node: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     jest-mock: "npm:^29.7.0"
     license-checker: "npm:^25.0.1"
     nock: "npm:13"
@@ -8159,7 +8159,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     node-backpack: "npm:^1.1.32"
     nx: "npm:^22.7.1"
@@ -8202,7 +8202,7 @@ __metadata:
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
-    jest-junit: "npm:^16"
+    jest-junit: "npm:^17"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
@@ -12406,15 +12406,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jest-junit@npm:^16":
-  version: 16.0.0
-  resolution: "jest-junit@npm:16.0.0"
+"jest-junit@npm:^17":
+  version: 17.0.0
+  resolution: "jest-junit@npm:17.0.0"
   dependencies:
     mkdirp: "npm:^1.0.4"
     strip-ansi: "npm:^6.0.1"
-    uuid: "npm:^8.3.2"
+    uuid: "npm:^14.0.0"
     xml: "npm:^1.0.1"
-  checksum: 10c0/d813d4d142341c2b51b634db7ad6ceb9849514cb58f96ec5e7e4cf4031a557133490452710c2d9dec9b1dd546334d9ca663e042d3070c3e8f102ce6217bd8e2e
+  checksum: 10c0/24206792c48064a474cb13deba5edac6212667065f79dc024677cb6f34615b96991ed231cb61846fd32eca2d5f97011e5dfb714d8a30b583f5e584b41b0878da
   languageName: node
   linkType: hard
 
@@ -17946,6 +17946,15 @@ __metadata:
   bin:
     uuid: dist/esm/bin/uuid
   checksum: 10c0/9e3af58eba872ece5a5e76f4773a94fc78a0ef2c2444c38dbe6b42f41dadf76c01850fd783604f27986f6195e6286aef064d45987d401b2a33127b98ddf7c0c5
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^14.0.0":
+  version: 14.0.0
+  resolution: "uuid@npm:14.0.0"
+  bin:
+    uuid: dist-node/bin/uuid
+  checksum: 10c0/a57ae7794c45005c1a9208989196c5baf79a7679c30f43c1bee9033a2c4d113a2cea216fa6fcc9663b08b0d55635df1a7c6eb7e7f3d21c3e50688c698fa39a50
   languageName: node
   linkType: hard
 
