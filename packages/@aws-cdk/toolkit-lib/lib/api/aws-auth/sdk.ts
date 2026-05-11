@@ -668,7 +668,7 @@ export class SDK {
       region,
       credentials: credProvider,
       requestHandler,
-      retryStrategy: new ConfiguredRetryStrategy(7, (attempt) => 300 * (2 ** attempt)),
+      retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(300, 15_000)),
       customUserAgent: defaultCliUserAgent(),
       logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
@@ -740,7 +740,7 @@ export class SDK {
   public cloudFormation(): ICloudFormationClient {
     const client = new CloudFormationClient({
       ...this.config,
-      retryStrategy: new ConfiguredRetryStrategy(11, (attempt: number) => 1000 * (2 ** attempt)),
+      retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(1000, 15_000)),
     });
     return {
       continueUpdateRollback: async (
@@ -1202,4 +1202,23 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
     warn: logger.warn.bind(logger),
     error: logger.error.bind(logger),
   };
+}
+
+/**
+ * Build an exponential-backoff delay function whose result is capped at a maximum.
+ *
+ * An uncapped exponential backoff (`base * 2^attempt`) grows without bound as the
+ * number of retries increases. For the retry counts we use on the CloudFormation
+ * client in particular (11 attempts), that means the SDK can spend *tens of
+ * minutes* silently sleeping between retries when the service returns a
+ * retryable error such as `InternalFailure`. To the user that looks like the
+ * CLI has hung. Capping each individual delay at ~15s bounds the total retry
+ * time to a few minutes at worst, while still giving the SDK plenty of
+ * opportunity to ride out transient server problems or throttling.
+ *
+ * @param baseMs - base delay in milliseconds (used in `baseMs * 2^attempt`)
+ * @param capMs - maximum delay in milliseconds; any computed delay larger than this is clamped
+ */
+export function cappedExponentialBackoff(baseMs: number, capMs: number): (attempt: number) => number {
+  return (attempt: number) => Math.min(baseMs * (2 ** attempt), capMs);
 }
