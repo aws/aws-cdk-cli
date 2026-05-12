@@ -2,6 +2,7 @@ import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
+import { investigateResource } from './resource-investigation';
 import type { StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
@@ -81,7 +82,7 @@ export class CloudFormationStackDiagnoser {
         };
       }
 
-      if (status.isFailure) {
+      if (status.isFailure || status.isRollbackSuccess) {
         return await this._diagnoseViaStackEvents(stack);
       }
 
@@ -234,7 +235,7 @@ export class CloudFormationStackDiagnoser {
       return {
         type: 'problem',
         detectedBy,
-        problems: await this.addErrorTraces(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
+        problems: await this.enhanceErrors(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
       };
     }
 
@@ -267,10 +268,27 @@ export class CloudFormationStackDiagnoser {
       sourceTracePromise,
     ]);
 
-    const addl = await this.additionalExplorationSdk();
-    void addl;
+    const additionalContext = await this.investigateResourceBestEffort(err);
 
-    return { ...err, sourceTrace, topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId };
+    return {
+      ...err,
+      sourceTrace,
+      topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId,
+      ...(additionalContext.length > 0 ? { additionalContext } : {}),
+    };
+  }
+
+  private async investigateResourceBestEffort(err: ResourceError) {
+    const sdk = await this.additionalExplorationSdk();
+    if (!sdk) {
+      return [];
+    }
+    try {
+      return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg));
+    } catch (e: any) {
+      await this.props.ioHelper.defaults.debug(`Resource investigation failed: ${e.message}`);
+      return [];
+    }
   }
 
   /**
