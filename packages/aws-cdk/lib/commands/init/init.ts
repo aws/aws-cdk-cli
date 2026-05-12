@@ -1020,5 +1020,7 @@ async function loadInitVersions(): Promise<Versions> {
  */
 export async function currentlyRecommendedAwsCdkLibFlags() {
   const recommendedFlagsFile = path.join(cliRootDir(), 'lib', 'init-templates', '.recommended-feature-flags.json');
-  return JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
+  const flags = JSON.parse(await fs.readFile(recommendedFlagsFile, { encoding: 'utf-8' }));
+  const sortedKeys = Object.keys(flags).sort();
+  return Object.fromEntries(sortedKeys.map(k => [k, flags[k]]));
 }
