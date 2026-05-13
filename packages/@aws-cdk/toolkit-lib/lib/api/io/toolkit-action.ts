@@ -22,4 +22,5 @@ export type ToolkitAction =
 | 'refactor'
 | 'diagnose'
 | 'orphan'
-| 'flags';
+| 'flags'
+| 'validate';
