@@ -263,9 +263,9 @@ test('ci is recorded properly - false', async () => {
     GITHUB_ACTION: undefined,
   });
 
-  test('counters can be attached to the next event', async () => {
+  test('counters can be attached, only to the next event', async () => {
     // WHEN
-    session.holdSynthPerfCounters({
+    session.attachCountersToNextEvent({
       speed: 20,
     });
     await session.emit({
@@ -275,18 +275,27 @@ test('ci is recorded properly - false', async () => {
         amount: 1,
       },
     });
+    await session.emit({
+      eventType: 'DEPLOY',
+      duration: 1234,
+    });
 
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
       event: expect.objectContaining({
-        state: 'SUCCEEDED',
         eventType: 'SYNTH',
-      }),
-      duration: expect.objectContaining({
-        total: 1234,
       }),
       counters: expect.objectContaining({
         amount: 1,
+        speed: 20,
+      }),
+    }));
+
+    expect(clientEmitSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        eventType: 'DEPLOY',
+      }),
+      counters: expect.objectContaining({
         speed: 20,
       }),
     }));

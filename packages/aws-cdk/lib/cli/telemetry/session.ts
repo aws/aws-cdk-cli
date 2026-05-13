@@ -51,7 +51,7 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
-  private _counters?: Record<string, number>;
+  private _nextEventCounters?: Record<string, number>;
   private count = 0;
 
   constructor(private readonly props: TelemetrySessionProps) {
@@ -146,8 +146,8 @@ export class TelemetrySession {
    *
    * They may be committed to the sent telemetry later.
    */
-  public attachCounters(counters: Record<string, number>) {
-    this._counters = counters;
+  public attachCountersToNextEvent(counters: Record<string, number>) {
+    this._nextEventCounters = counters;
   }
 
   /**
@@ -185,9 +185,10 @@ export class TelemetrySession {
     this.count += 1;
 
     const counters = {
-      ...this._counters,
+      ...this._nextEventCounters,
       ...event.counters,
     };
+    this._nextEventCounters = undefined;
 
     return this.client.emit({
       event: {

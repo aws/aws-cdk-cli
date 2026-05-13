@@ -203,7 +203,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         if (perfCounters) {
-          ioHost.telemetry?.attachCounters(perfCounters);
+          ioHost.telemetry?.attachCountersToNextEvent(perfCounters);
         }
 
         return assembly;
