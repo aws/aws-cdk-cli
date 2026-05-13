@@ -325,6 +325,35 @@ test('the first error written to the $CDK_ERROR_FILE are attached to the Assembl
   throw new Error('Expected execProgram() to throw, but it didn\'t');
 });
 
+test('counters written to CDK_PERF_COUNTERS_FILE are returned', async () => {
+  // GIVEN
+  config.settings.set(['app'], 'cloud-executable');
+  mockSpawn({
+    commandLine: 'cloud-executable',
+    sideEffect: (_, options) => {
+      const perfFile = options.env?.CDK_PERF_COUNTERS_FILE;
+      if (!perfFile) {
+        throw new Error('Expecting $CDK_PERF_COUNTERS_FILE, but not set');
+      }
+
+      fs.writeFileSync(
+        perfFile,
+        JSON.stringify({
+          counters: {
+            SpeedCounter: 3,
+          },
+        }, undefined, 2),
+        'utf-8',
+      );
+      writeOutputAssembly();
+    },
+  });
+
+  // WHEN
+  const { perfCounters } = await execProgram(sdkProvider, ioHelper, config);
+  expect(perfCounters).toEqual({ SpeedCounter: 3 });
+});
+
 function writeOutputAssembly() {
   const asm = testAssembly({
     stacks: [],

@@ -441,6 +441,7 @@ export class TestFixture extends ShellHelper {
   public async cdkSynth(options: CdkCliOptions = {}) {
     return this.cdk([
       'synth',
+      ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
       ...(options.options ?? []),
     ], options);
   }

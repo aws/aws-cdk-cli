@@ -177,6 +177,11 @@ export class CliIoHost implements IIoHost {
 
   private readonly autoRespond: boolean;
 
+  /**
+   * The telemetry session object
+   *
+   * Will remain `undefined` if the user has disabled telemetry.
+   */
   public telemetry?: TelemetrySession;
 
   private constructor(props: CliIoHostProps = {}) {
