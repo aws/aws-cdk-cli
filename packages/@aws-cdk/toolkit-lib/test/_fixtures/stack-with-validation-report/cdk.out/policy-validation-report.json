@@ -1,0 +1,42 @@
+{
+  "title": "Validation Report",
+  "pluginReports": [
+    {
+      "version": "1.0.0",
+      "summary": {
+        "pluginName": "TestPlugin",
+        "status": "failure"
+      },
+      "violations": [
+        {
+          "ruleName": "no-public-buckets",
+          "description": "S3 Buckets must not be publicly accessible",
+          "fix": "Set PublicAccessBlockConfiguration on the bucket",
+          "severity": "error",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucketF68F3FF0",
+              "templatePath": "Stack1.template.json",
+              "locations": ["/Resources/MyBucketF68F3FF0"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "Stack1/MyBucket/Resource",
+              "resourceLogicalId": "MyBucketF68F3FF0",
+              "templatePath": "Stack1.template.json",
+              "locations": ["/Resources/MyBucketF68F3FF0"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "summary": {
+        "pluginName": "Construct Annotations",
+        "status": "success"
+      },
+      "violations": []
+    }
+  ]
+}
