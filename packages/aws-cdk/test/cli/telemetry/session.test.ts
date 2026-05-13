@@ -226,6 +226,44 @@ test('ci is recorded properly - true', async () => {
   });
 });
 
+test('counters can be attached, only to the next event', async () => {
+  // WHEN
+  session.attachCountersToNextEvent({
+    speed: 20,
+  });
+  await session.emit({
+    eventType: 'SYNTH',
+    duration: 1234,
+    counters: {
+      amount: 1,
+    },
+  });
+  await session.emit({
+    eventType: 'DEPLOY',
+    duration: 1234,
+  });
+
+  // THEN
+  expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+    event: expect.objectContaining({
+      eventType: 'SYNTH',
+    }),
+    counters: expect.objectContaining({
+      amount: 1,
+      speed: 20,
+    }),
+  }));
+
+  expect(clientEmitSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    event: expect.objectContaining({
+      eventType: 'DEPLOY',
+    }),
+    counters: expect.objectContaining({
+      speed: 20,
+    }),
+  }));
+});
+
 test('ci is recorded properly - false', async () => {
   await withEnv(async () => {
     // GIVEN
@@ -261,43 +299,5 @@ test('ci is recorded properly - false', async () => {
     // Our tests can run in these environments and we check for them too
     CODEBUILD_BUILD_ID: undefined,
     GITHUB_ACTION: undefined,
-  });
-
-  test('counters can be attached, only to the next event', async () => {
-    // WHEN
-    session.attachCountersToNextEvent({
-      speed: 20,
-    });
-    await session.emit({
-      eventType: 'SYNTH',
-      duration: 1234,
-      counters: {
-        amount: 1,
-      },
-    });
-    await session.emit({
-      eventType: 'DEPLOY',
-      duration: 1234,
-    });
-
-    // THEN
-    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
-      event: expect.objectContaining({
-        eventType: 'SYNTH',
-      }),
-      counters: expect.objectContaining({
-        amount: 1,
-        speed: 20,
-      }),
-    }));
-
-    expect(clientEmitSpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      event: expect.objectContaining({
-        eventType: 'DEPLOY',
-      }),
-      counters: expect.objectContaining({
-        speed: 20,
-      }),
-    }));
   });
 });
