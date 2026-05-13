@@ -3,7 +3,6 @@ import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
-import * as promptly from 'promptly';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
@@ -39,7 +38,6 @@ import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
-import { readTelemetryPrefs, updateTelemetryPrefs } from './telemetry/telemetry-prefs';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
@@ -230,11 +228,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }
 
   try {
-    const ret = await main(cmd, argv);
-
-    await maybeCommitPerfCounters(ioHost);
-
-    return ret;
+    return await main(cmd, argv);
   } finally {
     // If we locked the 'cdk.out' directory, release it here.
     await outDirLock?.release();
@@ -679,81 +673,6 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
   return configuration.context.get(featureFlag) ?? cxapi.futureFlagDefault(featureFlag);
 }
 
-async function maybeCommitPerfCounters(ioHost: CliIoHost) {
-  if (!ioHost.telemetry?.hasSynthPerfCounters()) {
-    // Nothing to commit
-    return;
-  }
-
-  const telemetryPrefs = await readTelemetryPrefs();
-  if (telemetryPrefs.defaultSendPerfCounters === false) {
-    // User has said "never".
-    return;
-  }
-
-  if (telemetryPrefs.defaultSendPerfCounters === undefined) {
-    if (!ioHost.isTTY) {
-      // Need to ask a question but no TTY? Just don't bother.
-      return;
-    }
-
-    const choices = ['yes', 'no', 'always', 'never', 'view', 'y', 'n', 'a', 'r', 'v'] as const;
-    type Choice = (typeof choices)[number];
-
-    // Ask the user
-    let decision: boolean | undefined = undefined;
-    while (decision === undefined) {
-      const answer: Choice = await promptly.prompt(`🔍 ${chalk.cyan('Your CDK app produced a performance profile to help AWS diagnose slow synthesis. Send in for analysis?')} (Y)es (N)o (A)lways Neve(R) (V)iew`, {
-        retry: true,
-        trim: true,
-        validator: (xx: string) => {
-          const x = xx.toLocaleLowerCase() as Choice;
-          if (!choices.includes(x)) {
-            // eslint-disable-next-line @cdklabs/no-throw-default-error
-            throw new Error(choices.join('/'));
-          }
-          return x;
-        },
-      }) as any;
-
-      switch (answer) {
-        case 'yes':
-        case 'y':
-          decision = true;
-          break;
-        case 'always':
-        case 'a':
-          await updateTelemetryPrefs({ defaultSendPerfCounters: true });
-          decision = true;
-          break;
-        case 'never':
-        case 'r':
-          await updateTelemetryPrefs({ defaultSendPerfCounters: false });
-          decision = false;
-          break;
-        case 'no':
-        case 'n':
-          decision = false;
-          break;
-        case 'view':
-        case 'v':
-          // eslint-disable-next-line no-console
-          console.log(JSON.stringify(ioHost.telemetry?.synthPerfCounters, undefined, 2));
-          break;
-        default:
-          assertNever(answer);
-      }
-    }
-
-    if (!decision) {
-      return;
-    }
-  }
-
-  // If we got here then the answer was yes.
-  await ioHost.telemetry?.commitSynthPerfCounters();
-}
-
 /**
  * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
  */
@@ -973,7 +892,3 @@ export function cli(args: string[] = process.argv.slice(2)) {
     });
 }
 /* c8 ignore stop */
-
-function assertNever(x: never) {
-  void x;
-}

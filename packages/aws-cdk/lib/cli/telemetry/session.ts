@@ -14,8 +14,6 @@ import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
 import { USER_INTERRUPTED_CODE } from './error';
-import type { TelemetryPrefsFile } from './telemetry-prefs';
-import { readTelemetryPrefs } from './telemetry-prefs';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -56,7 +54,6 @@ export class TelemetrySession {
   private _synthPerfCounters?: Record<string, number>;
   private count = 0;
   private synthEvent?: TelemetryEvent;
-  private prefs?: TelemetryPrefsFile;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
@@ -66,7 +63,6 @@ export class TelemetrySession {
   public async begin() {
     // sanitize the raw cli input
     const { path, parameters } = sanitizeCommandLineArguments(this.props.arguments);
-    this.prefs = await readTelemetryPrefs();
     this._sessionInfo = {
       identifiers: {
         installationId: await getOrCreateInstallationId(this.ioHost.asIoHelper()),
