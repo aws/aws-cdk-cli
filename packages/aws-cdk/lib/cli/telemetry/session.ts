@@ -51,6 +51,7 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
+  private _nextEventCounters?: Record<string, number>;
   private count = 0;
 
   constructor(private readonly props: TelemetrySessionProps) {
@@ -141,6 +142,15 @@ export class TelemetrySession {
   }
 
   /**
+   * Temporarily attach counters for the next event operation.
+   *
+   * They may be committed to the sent telemetry later.
+   */
+  public attachCountersToNextEvent(counters: Record<string, number>) {
+    this._nextEventCounters = counters;
+  }
+
+  /**
    * Attach the CDK library version
    *
    * By default the telemetry will guess at the CDK library version if it so
@@ -174,6 +184,12 @@ export class TelemetrySession {
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
 
+    const counters = {
+      ...this._nextEventCounters,
+      ...event.counters,
+    };
+    this._nextEventCounters = undefined;
+
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,
@@ -195,7 +211,7 @@ export class TelemetrySession {
           name: event.error.name,
         },
       } : {}),
-      ...(event.counters && Object.keys(event.counters).length > 0 ? { counters: event.counters } : {}),
+      ...(Object.keys(counters).length > 0 ? { counters } : {}),
     });
   }
 

@@ -198,7 +198,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         // variable here. It will be released when the CLI exits. Locks are not re-entrant
         // so release it if we have to synthesize more than once (because of context lookups).
         await outDirLock?.release();
-        const { assembly, lock } = await execProgram(aws, ioHost.asIoHelper(), config);
+        const { assembly, lock, perfCounters } = await execProgram(aws, ioHost.asIoHelper(), config);
         outDirLock = lock;
 
         const tree = await loadTree(assembly, ioHelper.defaults.trace.bind(ioHelper.defaults));
@@ -207,6 +207,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           if (v) {
             ioHost.telemetry?.attachCdkLibVersion(v);
           }
+        }
+
+        if (perfCounters) {
+          ioHost.telemetry?.attachCountersToNextEvent(perfCounters);
         }
 
         return assembly;
