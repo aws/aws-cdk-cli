@@ -84,4 +84,38 @@ describe('findUnknownOptions', () => {
     };
     expect(findUnknownOptions(argv)).toEqual([]);
   });
+
+  test('does not report keys injected by yargs .env("CDK") from environment variables', () => {
+    process.env.CDK_INTEG_ATMOSPHERE_POOL = 'test-pool';
+    process.env.CDK_MAJOR_VERSION = '2';
+    try {
+      const argv = {
+        _: ['deploy'],
+        $0: 'cdk',
+        integAtmospherePool: 'test-pool',
+        majorVersion: '2',
+      };
+      expect(findUnknownOptions(argv)).toEqual([]);
+    } finally {
+      delete process.env.CDK_INTEG_ATMOSPHERE_POOL;
+      delete process.env.CDK_MAJOR_VERSION;
+    }
+  });
+
+  test('still reports truly unknown options even when CDK_ env vars exist', () => {
+    process.env.CDK_INTEG_ATMOSPHERE_POOL = 'test-pool';
+    try {
+      const argv = {
+        _: ['deploy'],
+        $0: 'cdk',
+        integAtmospherePool: 'test-pool',
+        totallyFakeOption: 'value',
+      };
+      const unknown = findUnknownOptions(argv);
+      expect(unknown).not.toContain('integAtmospherePool');
+      expect(unknown).toContain('totallyFakeOption');
+    } finally {
+      delete process.env.CDK_INTEG_ATMOSPHERE_POOL;
+    }
+  });
 });

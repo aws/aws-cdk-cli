@@ -49,6 +49,7 @@ export function findUnknownOptions(argv: any): string[] {
 
   const unknown: string[] = [];
   for (const key of Object.keys(argv)) {
+    if (argv[key] === undefined) continue;
     if (yargsInternals.has(key)) continue;
     if (globalOptions.has(key)) continue;
     if (commandOptions.has(key)) continue;
@@ -65,6 +66,11 @@ export function findUnknownOptions(argv: any): string[] {
           globalOptions.has(positiveKebab) || commandOptions.has(positiveKebab)) continue;
     }
 
+    // yargs .env('CDK') injects CDK_* environment variables as camelCase argv
+    // keys (e.g. CDK_INTEG_ATMOSPHERE_POOL -> integAtmospherePool). These are
+    // intentional configuration from the environment, not user typos.
+    if (isFromEnvPrefix(key, 'CDK')) continue;
+
     unknown.push(key);
   }
 
@@ -73,4 +79,14 @@ export function findUnknownOptions(argv: any): string[] {
 
 function camelToKebab(str: string): string {
   return str.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+/**
+ * Checks whether a camelCase argv key was injected by yargs' .env(PREFIX)
+ * feature. yargs converts PREFIX_FOO_BAR env vars into camelCase keys
+ * (fooBar). We reverse the mapping and check if the env var exists.
+ */
+function isFromEnvPrefix(key: string, prefix: string): boolean {
+  const screamingSnake = key.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase();
+  return process.env[`${prefix}_${screamingSnake}`] !== undefined;
 }
