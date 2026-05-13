@@ -57,6 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
+import type { ValidateOptions, ValidateResult } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -647,6 +648,77 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     })));
 
     return { stacks };
+  }
+
+  /**
+   * Validate Action
+   *
+   * Synthesizes the CDK app and reads the policy validation report
+   * from the cloud assembly output directory.
+   */
+  public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+
+    const reportPath = path.join(assembly.directory, 'policy-validation-report.json');
+
+    if (!await fs.pathExists(reportPath)) {
+      const result: ValidateResult = {
+        status: 'success',
+        pluginReports: [],
+      };
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No policy validation report found'));
+      return result;
+    }
+
+    const reportJson = await fs.readJson(reportPath);
+
+    const pluginReports = (reportJson.pluginReports ?? []).map((pr: any) => ({
+      version: pr.version,
+      summary: {
+        pluginName: pr.summary.pluginName,
+        status: pr.summary.status as 'success' | 'failure',
+        metadata: pr.summary.metadata,
+      },
+      violations: (pr.violations ?? []).map((v: any) => ({
+        ruleName: v.ruleName,
+        description: v.description,
+        fix: v.fix,
+        ruleMetadata: v.ruleMetadata,
+        severity: v.severity,
+        violatingResources: (v.violatingResources ?? []).map((r: any) => ({
+          resourceLogicalId: r.resourceLogicalId,
+          templatePath: r.templatePath,
+          locations: r.locations,
+        })),
+        violatingConstructs: (v.violatingConstructs ?? []).map((c: any) => ({
+          constructPath: c.constructPath,
+          constructStack: c.constructStack,
+          locations: c.locations,
+          resourceLogicalId: c.resourceLogicalId,
+          templatePath: c.templatePath,
+        })),
+      })),
+    }));
+
+    const status = pluginReports.some(
+      (pr: any) => pr.summary.status === 'failure',
+    ) ? 'failure' as const : 'success' as const;
+
+    const result: ValidateResult = {
+      status,
+      title: reportJson.title,
+      pluginReports,
+    };
+
+    if (status === 'failure') {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('Policy validation failed', result));
+    } else {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('Policy validation passed', result));
+    }
+
+    return result;
   }
 
   /**
