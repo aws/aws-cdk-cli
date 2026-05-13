@@ -109,9 +109,9 @@ export class SdkProvider {
    * @param profile - Profile to read from ~/.aws
    * @returns a configured SdkProvider
    */
-  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string) {
+  public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string, region?: string) {
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
-    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(profile);
+    const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(profile, region);
     return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
   }
 

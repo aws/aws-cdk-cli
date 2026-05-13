@@ -1803,6 +1803,8 @@ Some of the interesting keys that can be used in the JSON configuration files:
     "context": {                                // Context entries                   (--context=key=value)
         "key": "value"
     },
+    "profile": "my-profile",                    // Use AWS profile as default        (--profile=my-profile)
+    "region": "us-west-2",                      // Use AWS region as default         (--region=us-west-2)
     "toolkitStackName": "foo",                  // Customize 'bootstrap' stack name  (--toolkit-stack-name=foo)
     "toolkitBucket": {
         "bucketName": "amzn-s3-demo-bucket",    // Customize 'bootstrap' bucket name (--toolkit-bucket-name=amzn-s3-demo-bucket)

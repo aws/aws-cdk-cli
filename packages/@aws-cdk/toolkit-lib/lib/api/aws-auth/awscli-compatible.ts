@@ -33,12 +33,15 @@ export class AwsCliCompatible {
     this.logger = logger;
   }
 
-  public async baseConfig(profile?: string): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
+  public async baseConfig(
+    profile?: string,
+    region?: string,
+  ): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
     const credentialProvider = await this.credentialChainBuilder({
       profile,
       logger: this.logger,
     });
-    const defaultRegion = await this.region(profile);
+    const defaultRegion = region ?? await this.region(profile);
     return { credentialProvider, defaultRegion };
   }
 

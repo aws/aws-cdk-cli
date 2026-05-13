@@ -232,6 +232,47 @@ async function region(opts: {
   }
 }
 
+describe('AwsCliCompatible.baseConfig region override', () => {
+  beforeEach(() => {
+    process.env.AWS_CONFIG_FILE = '/dev/null';
+    process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
+    delete process.env.AWS_REGION;
+    delete process.env.AMAZON_REGION;
+    delete process.env.AWS_DEFAULT_REGION;
+    delete process.env.AMAZON_DEFAULT_REGION;
+  });
+
+  test('explicit region overrides all other sources', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, 'us-gov-west-1');
+    expect(config.defaultRegion).toBe('us-gov-west-1');
+  });
+
+  test('explicit region overrides environment variables', async () => {
+    process.env.AWS_REGION = 'eu-west-1';
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, 'us-gov-west-1');
+    expect(config.defaultRegion).toBe('us-gov-west-1');
+  });
+
+  test('explicit region overrides profile region', async () => {
+    const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'awscli-compatible.test'));
+    try {
+      const configPath = path.join(workdir, 'config');
+      fs.writeFileSync(configPath, '[profile govuser]\nregion=us-gov-east-1\n');
+      process.env.AWS_CONFIG_FILE = configPath;
+
+      const config = await new AwsCliCompatible(ioHelper, {}).baseConfig('govuser', 'us-gov-west-1');
+      expect(config.defaultRegion).toBe('us-gov-west-1');
+    } finally {
+      fs.removeSync(workdir);
+    }
+  });
+
+  test('falls back to normal resolution when no region override provided', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, undefined);
+    expect(config.defaultRegion).toBe('us-east-1');
+  });
+});
+
 describe('Session token', () => {
   beforeEach(() => {
     process.env.AWS_ACCESS_KEY_ID = 'foo';
