@@ -262,4 +262,33 @@ test('ci is recorded properly - false', async () => {
     CODEBUILD_BUILD_ID: undefined,
     GITHUB_ACTION: undefined,
   });
+
+  test('counters can be attached to the next event', async () => {
+    // WHEN
+    session.holdSynthPerfCounters({
+      speed: 20,
+    });
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+      counters: {
+        amount: 1,
+      },
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        state: 'SUCCEEDED',
+        eventType: 'SYNTH',
+      }),
+      duration: expect.objectContaining({
+        total: 1234,
+      }),
+      counters: expect.objectContaining({
+        amount: 1,
+        speed: 20,
+      }),
+    }));
+  });
 });

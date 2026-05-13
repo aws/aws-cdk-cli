@@ -10,19 +10,13 @@ integTest(
     // Deploy stack while collecting telemetry
     await fixture.cdkSynth({
       telemetryFile,
-      interact: [
-        {
-          prompt: /Send in for analysis/,
-          input: 'y',
-        },
-      ],
     });
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toContainEqual(
       expect.objectContaining({
         event: expect.objectContaining({
-          eventType: 'SYNTH_PERF_COUNTERS',
+          eventType: 'SYNTH',
         }),
         counters: expect.objectContaining({
           ExampleCounter: 42,

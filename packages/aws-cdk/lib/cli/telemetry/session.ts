@@ -51,9 +51,8 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private span?: IMessageSpan<EventResult>;
-  private _synthPerfCounters?: Record<string, number>;
+  private _counters?: Record<string, number>;
   private count = 0;
-  private synthEvent?: TelemetryEvent;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
@@ -143,6 +142,15 @@ export class TelemetrySession {
   }
 
   /**
+   * Temporarily attach counters for the next event operation.
+   *
+   * They may be committed to the sent telemetry later.
+   */
+  public attachCounters(counters: Record<string, number>) {
+    this._counters = counters;
+  }
+
+  /**
    * Attach the CDK library version
    *
    * By default the telemetry will guess at the CDK library version if it so
@@ -163,48 +171,6 @@ export class TelemetrySession {
   }
 
   /**
-   * Temporarily hold performance counters for the synth operation.
-   *
-   * They may be committed to the sent telemetry later.
-   */
-  public holdSynthPerfCounters(counters: Record<string, number>) {
-    this._synthPerfCounters = counters;
-  }
-
-  /**
-   * Whether there are synth perf counters to submit
-   */
-  public hasSynthPerfCounters() {
-    return !!this._synthPerfCounters;
-  }
-
-  /**
-   * Return the perf counters
-   */
-  public get synthPerfCounters() {
-    return { ...this._synthPerfCounters };
-  }
-
-  /**
-   * Commit the synth perf counters to the telemetry data
-   */
-  public async commitSynthPerfCounters() {
-    // Emit a separate SYNTH_PERF_COUNTERS event, which is a copy of the SYNTH
-    // event but with the additional counters added. I would have preferred to be able
-    // to update the SYNTH event itself with the additional counters, but it has already
-    // been flushed to the underlying sink, and depending on the sink type may not be
-    // mutable anymore.
-    await this.emit({
-      eventType: 'SYNTH_PERF_COUNTERS',
-      duration: this.synthEvent?.duration ?? 0,
-      counters: {
-        ...this.synthEvent?.counters,
-        ...this._synthPerfCounters,
-      },
-    });
-  }
-
-  /**
    * When the command is complete, so is the CliIoHost. Ends the span of the entire CliIoHost
    * and notifies with an optional error message in the data.
    */
@@ -217,13 +183,9 @@ export class TelemetrySession {
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
-    if (event.eventType === 'SYNTH') {
-      // Hold on to the synth event to make the performance counters easier to analyze later
-      this.synthEvent = event;
-    }
 
     const counters = {
-      ...this.prefs?.permanentCounters,
+      ...this._counters,
       ...event.counters,
     };
 
