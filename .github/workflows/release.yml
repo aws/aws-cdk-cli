@@ -241,7 +241,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -268,7 +268,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -317,7 +317,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -365,7 +365,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
@@ -410,10 +410,11 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 6.x
+          cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -455,10 +456,11 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - uses: actions/setup-go@v6
         with:
           go-version: ^1.18.0
+          cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -504,7 +506,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -531,7 +533,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -563,12 +565,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -597,12 +599,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -633,7 +635,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -660,7 +662,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -694,12 +696,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -730,12 +732,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -763,12 +765,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -793,12 +795,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -838,12 +840,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -880,12 +882,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -925,12 +927,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -967,12 +969,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1000,12 +1002,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1030,12 +1032,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1077,12 +1079,12 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1121,12 +1123,12 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1157,7 +1159,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1184,7 +1186,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          package-manager-cache: "false"
+          package-manager-cache: false
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
