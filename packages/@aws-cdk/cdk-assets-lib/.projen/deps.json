@@ -1,16 +1,16 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/tools",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
     {
       "name": "@stylistic/eslint-plugin",
       "version": "^3",
-      "type": "build"
-    },
-    {
-      "name": "@types/archiver",
       "type": "build"
     },
     {
@@ -192,10 +192,6 @@
     {
       "name": "@smithy/node-config-provider",
       "version": "^4",
-      "type": "runtime"
-    },
-    {
-      "name": "archiver",
       "type": "runtime"
     },
     {

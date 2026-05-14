@@ -63,6 +63,9 @@
     },
     {
       "path": "../cli-plugin-contract"
+    },
+    {
+      "path": "../tools"
     }
   ]
 }

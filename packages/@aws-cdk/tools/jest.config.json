@@ -34,8 +34,7 @@
     "\\.generated\\.[jt]s$",
     "<rootDir>/test/",
     ".warnings.jsii.js$",
-    "/node_modules/",
-    "lib/private/tools/zip/index\\.js$"
+    "/node_modules/"
   ],
   "reporters": [
     "default",
@@ -48,7 +47,6 @@
     ]
   ],
   "randomize": true,
-  "testTimeout": 10000,
   "clearMocks": true,
   "coverageDirectory": "coverage",
   "testPathIgnorePatterns": [

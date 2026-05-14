@@ -21,6 +21,7 @@ updates:
       - /packages/@aws-cdk/cloudformation-diff
       - /packages/@aws-cdk/integ-runner
       - /packages/@aws-cdk/toolkit-lib
+      - /packages/@aws-cdk/tools
       - /packages/@aws-cdk/user-input-gen
       - /packages/@aws-cdk/yarn-cling
       - /packages/aws-cdk

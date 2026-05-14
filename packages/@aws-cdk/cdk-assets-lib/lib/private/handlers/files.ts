@@ -8,11 +8,11 @@ import type { FileManifestEntry } from '../../asset-manifest';
 import type { IS3Client } from '../../aws';
 import type { PutObjectCommandInput } from '../../aws-types';
 import { EventType, shellEventPublisherFromEventEmitter } from '../../progress';
-import { zipDirectory } from '../archive';
 import type { IAssetHandler, IHandlerHost, PublishOptions } from '../asset-handler';
 import { pathExists } from '../fs-extra';
 import { replaceAwsPlaceholders } from '../placeholders';
 import { shell } from '../shell';
+import { zipDirectory } from '../tools/zip';
 
 /**
  * The size of an empty zip file is 22 bytes

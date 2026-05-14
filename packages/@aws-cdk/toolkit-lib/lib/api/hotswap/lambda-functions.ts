@@ -1,17 +1,13 @@
-import { Writable } from 'stream';
 import type { PropertyDifference } from '@aws-cdk/cloudformation-diff';
 import type { UpdateFunctionConfigurationCommandInput } from '@aws-sdk/client-lambda';
 import type { HotswapChange } from './common';
 import { classifyChanges } from './common';
 import type { AffectedResource, ResourceChange } from '../../payloads/hotswap';
+import { zipString } from '../../private/tools/zip';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { flatMap } from '../../util';
 import type { ILambdaClient, SDK } from '../aws-auth/private';
 import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../cloudformation';
-
-// namespace object imports won't work in the bundle for function exports
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const archiver = require('archiver');
 
 export async function isHotswappableLambdaFunctionChange(
   logicalId: string,
@@ -258,42 +254,6 @@ interface LambdaFunctionConfigurations {
 interface LambdaFunctionChange {
   readonly code?: LambdaFunctionCode;
   readonly configurations?: LambdaFunctionConfigurations;
-}
-
-/**
- * Compress a string as a file, returning a promise for the zip buffer
- * https://github.com/archiverjs/node-archiver/issues/342
- */
-function zipString(fileName: string, rawString: string): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const buffers: Buffer[] = [];
-
-    const converter = new Writable();
-
-    converter._write = (chunk: Buffer, _: string, callback: () => void) => {
-      buffers.push(chunk);
-      process.nextTick(callback);
-    };
-
-    converter.on('finish', () => {
-      resolve(Buffer.concat(buffers));
-    });
-
-    const archive = archiver('zip');
-
-    archive.on('error', (err: any) => {
-      reject(err);
-    });
-
-    archive.pipe(converter);
-
-    archive.append(rawString, {
-      name: fileName,
-      date: new Date('1980-01-01T00:00:00.000Z'), // Add date to make resulting zip file deterministic
-    });
-
-    void archive.finalize();
-  });
 }
 
 /**
