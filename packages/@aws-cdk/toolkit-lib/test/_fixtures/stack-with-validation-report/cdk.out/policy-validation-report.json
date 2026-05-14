@@ -23,6 +23,24 @@
           "violatingConstructs": [
             {
               "constructPath": "Stack1/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "Stack1",
+                  "path": "Stack1",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.200.0",
+                  "location": "new MyStack (lib/my-stack.ts:30:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "Stack1/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.200.0",
+                    "location": "new Bucket (lib/my-stack.ts:12:5)"
+                  }
+                }
+              },
               "resourceLogicalId": "MyBucketF68F3FF0",
               "templatePath": "Stack1.template.json",
               "locations": ["/Resources/MyBucketF68F3FF0"]

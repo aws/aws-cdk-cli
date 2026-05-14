@@ -1,0 +1,17 @@
+{
+  "version": "tree-0.1",
+  "tree": {
+    "id": "App",
+    "path": "",
+    "children": {
+      "Stack1": {
+        "id": "Stack1",
+        "path": "Stack1",
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "0.0.0"
+        }
+      }
+    }
+  }
+}
