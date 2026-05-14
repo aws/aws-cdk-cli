@@ -55,7 +55,7 @@
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/jest,@types/jest-when,@types/picomatch,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,nx,projen,ts-jest,tsx,archiver,cdk-from-cfn,fast-deep-equal,fast-glob,picomatch,semver,split2"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/jest,@types/jest-when,@types/picomatch,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,nx,projen,ts-jest,tsx,cdk-from-cfn,fast-deep-equal,fast-glob,picomatch,semver,split2"
         }
       ]
     },
@@ -117,7 +117,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=any-minor @aws-cdk/cdk-assets-lib=any-minor @aws-cdk/cloud-assembly-api=exact @aws-cdk/cli-plugin-contract=any-minor",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/tools=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=any-minor @aws-cdk/cdk-assets-lib=any-minor @aws-cdk/cloud-assembly-api=exact @aws-cdk/cli-plugin-contract=any-minor",
           "receiveArgs": true
         }
       ]
@@ -198,6 +198,9 @@
       "steps": [
         {
           "spawn": "check-licenses"
+        },
+        {
+          "exec": "node -e \"const p=require.resolve('@aws-cdk/tools/lib/zip/index.js');const d=require('path').dirname(p);const fs=require('fs');fs.mkdirSync('lib/private/tools/zip',{recursive:true});fs.copyFileSync(p,'lib/private/tools/zip/index.js');fs.copyFileSync(require('path').join(d,'index.d.ts'),'lib/private/tools/zip/index.d.ts');\""
         }
       ]
     },

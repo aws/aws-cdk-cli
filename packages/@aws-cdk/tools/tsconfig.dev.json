@@ -25,11 +25,9 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
+      "archiver",
       "jest",
-      "mime",
-      "mock-fs",
-      "node",
-      "picomatch"
+      "node"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -39,21 +37,10 @@
   },
   "include": [
     "lib/**/*.ts",
-    "test/**/*.ts",
-    "bin/**/*.ts"
+    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules"
   ],
-  "references": [
-    {
-      "path": "../cloud-assembly-schema"
-    },
-    {
-      "path": "../cloud-assembly-api"
-    },
-    {
-      "path": "../tools"
-    }
-  ]
+  "references": []
 }

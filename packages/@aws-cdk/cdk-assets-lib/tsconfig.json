@@ -25,7 +25,6 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
-      "archiver",
       "jest",
       "mime",
       "mock-fs",
@@ -48,6 +47,9 @@
     },
     {
       "path": "../cloud-assembly-api"
+    },
+    {
+      "path": "../tools"
     }
   ]
 }

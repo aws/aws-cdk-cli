@@ -30,6 +30,9 @@
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {
+      "path": "packages/@aws-cdk/tools"
+    },
+    {
       "path": "packages/@aws-cdk/user-input-gen"
     },
     {

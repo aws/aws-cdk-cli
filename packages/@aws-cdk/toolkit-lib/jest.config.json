@@ -34,7 +34,8 @@
     "\\.generated\\.[jt]s$",
     "<rootDir>/test/",
     ".warnings.jsii.js$",
-    "/node_modules/"
+    "/node_modules/",
+    "lib/private/tools/zip/index\\.js$"
   ],
   "reporters": [
     "default",

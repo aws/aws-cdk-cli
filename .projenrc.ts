@@ -16,6 +16,7 @@ import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
+import { CdkTypeScriptWorkspace, ToolsWorkspace } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -692,20 +693,47 @@ const cliPluginContract = configureProject(
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/tools
+
+/**
+ * Private (unpublished) package hosting small, self-contained utilities.
+ * Consumers cherry-pick tools via `useTools: ['<name>']` on a
+ * `CdkTypeScriptWorkspace`.
+ *
+ * Adding a new tool: create `packages/@aws-cdk/tools/lib/<tool>/index.ts`.
+ * It is auto-discovered and bundled individually.
+ */
+configureProject(
+  new ToolsWorkspace({
+    ...genericCdkProps({ private: true }),
+    parent: repo,
+    // Runtime deps that `esbuild` bundles into any tool that imports them.
+    deps: ['archiver', 'fast-glob'],
+    devDeps: ['@types/archiver', 'jszip'],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+  }),
+);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region @aws-cdk/cdk-assets-lib
 
 const cdkAssetsLib = configureProject(
-  new yarn.TypeScriptWorkspace({
+  new CdkTypeScriptWorkspace({
     ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/cdk-assets-lib',
     majorVersion: 1,
     description: 'CDK Asset Publishing Library',
     srcdir: 'lib',
+    useTools: ['zip'],
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      'archiver',
       'fast-glob',
       'mime@^2',
       sdkDep('@aws-sdk/client-ecr'),
@@ -719,7 +747,6 @@ const cdkAssetsLib = configureProject(
       'picomatch',
     ],
     devDeps: [
-      '@types/archiver',
       '@types/mime@^2',
       '@types/picomatch',
       'fs-extra@^11',
@@ -873,7 +900,7 @@ const toolkitLibTsCompilerOptions = {
 };
 
 const toolkitLib = configureProject(
-  new yarn.TypeScriptWorkspace({
+  new CdkTypeScriptWorkspace({
     ...genericCdkProps(),
     homepage: 'https://docs.aws.amazon.com/cdk/api/toolkit-lib',
     parent: repo,
@@ -881,6 +908,7 @@ const toolkitLib = configureProject(
     description: 'AWS CDK Programmatic Toolkit Library',
     majorVersion: 1,
     srcdir: 'lib',
+    useTools: ['zip'],
     peerDeps: [
       cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
     ],
@@ -917,7 +945,6 @@ const toolkitLib = configureProject(
       smithyDep('@smithy/shared-ini-file-loader'),
       smithyDep('@smithy/util-retry'),
       smithyDep('@smithy/util-waiter'),
-      'archiver',
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^4',
