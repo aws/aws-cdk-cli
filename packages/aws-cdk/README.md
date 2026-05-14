@@ -1827,6 +1827,20 @@ The following environment variables affect aws-cdk:
 - `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
 
+### Region resolution
+
+The CDK CLI determines which AWS region to use with the following priority order (highest first):
+
+1. `--region` flag (or `region` in `cdk.json`)
+2. `AWS_REGION` / `AMAZON_REGION` environment variable
+3. `AWS_DEFAULT_REGION` / `AMAZON_DEFAULT_REGION` environment variable
+4. Region from the shared INI files (`~/.aws/credentials` then `~/.aws/config`) for the active profile
+5. Region from the `[default]` profile in the shared INI files
+6. EC2 instance metadata (IMDS)
+7. `us-east-1`
+
+When `--profile` is specified, the region configured in that profile is used (step 4). When `--region` is also specified, it takes priority over everything else including environment variables and the profile's own region setting. This is consistent with how the AWS CLI handles `--region`, and is useful for non-commercial partitions where the default `us-east-1` fallback would fail because credentials are partition-specific.
+
 ### Running in CI
 
 The CLI will attempt to detect whether it is being run in CI by looking for the presence of an

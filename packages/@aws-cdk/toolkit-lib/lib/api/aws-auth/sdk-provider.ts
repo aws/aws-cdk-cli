@@ -107,6 +107,7 @@ export class SdkProvider {
    *
    * @param options - Options for the default SDK provider
    * @param profile - Profile to read from ~/.aws
+   * @param region - Region override. Takes priority over environment variables, profile config, and the us-east-1 default.
    * @returns a configured SdkProvider
    */
   public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string, region?: string) {
