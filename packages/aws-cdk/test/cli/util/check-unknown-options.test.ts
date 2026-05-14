@@ -6,7 +6,6 @@ describe('findUnknownOptions', () => {
       _: ['deploy'],
       $0: 'cdk',
       profile: 'my-profile',
-      region: 'us-west-2',
       verbose: 1,
     };
     expect(findUnknownOptions(argv)).toEqual([]);
