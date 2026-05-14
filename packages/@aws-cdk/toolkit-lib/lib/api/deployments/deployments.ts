@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';

@@ -1,5 +1,6 @@
-import * as path from 'path';
-import { format } from 'util';
+import { randomUUID } from 'node:crypto';
+import * as path from 'node:path';
+import { format } from 'node:util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature } from '@aws-cdk/toolkit-lib';
@@ -8,7 +9,6 @@ import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import * as uuid from 'uuid';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
@@ -406,7 +406,7 @@ export class CdkToolkit {
 
     return cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
       stack,
-      uuid: uuid.v4(),
+      uuid: randomUUID(),
       deployments: this.props.deployments,
       willExecute: false,
       sdkProvider: this.props.sdkProvider,

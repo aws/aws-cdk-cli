@@ -1,4 +1,5 @@
-import { format } from 'util';
+import { randomUUID } from 'node:crypto';
+import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type {
   CreateChangeSetCommandInput,
@@ -9,7 +10,6 @@ import type {
   Tag,
 } from '@aws-sdk/client-cloudformation';
 import * as chalk from 'chalk';
-import * as uuid from 'uuid';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import { publishAssets } from './asset-publishing';
 import { addMetadataAssetsToManifest } from './assets';
@@ -228,7 +228,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     await ioHelper.defaults.debug(
       `Found existing stack ${deployName} that had previously failed creation. Deleting it before attempting to re-create it.`,
     );
-    await cfn.deleteStack({ StackName: cloudFormationStack.stackId, ClientRequestToken: uuid.v4() });
+    await cfn.deleteStack({ StackName: cloudFormationStack.stackId, ClientRequestToken: randomUUID() });
     const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(
@@ -401,7 +401,7 @@ class FullCloudFormationDeployment {
 
     this.update = cloudFormationStack.exists && cloudFormationStack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
     this.verb = this.update ? 'update' : 'create';
-    this.uuid = uuid.v4();
+    this.uuid = randomUUID();
   }
 
   public async performDeployment(): Promise<DeployStackResult> {
@@ -769,7 +769,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
   await monitor.start();
 
   try {
-    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: uuid.v4() });
+    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID() });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');

@@ -928,7 +928,6 @@ const toolkitLib = configureProject(
       'semver',
       'split2',
       'fast-glob',
-      'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -1263,7 +1262,6 @@ const cli = configureProject(
       'proxy-agent',
       'semver',
       'strip-ansi@^6',
-      'uuid',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
       'yargs@^15',

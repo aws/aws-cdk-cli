@@ -1,6 +1,6 @@
-import * as util from 'util';
+import { randomUUID } from 'node:crypto';
+import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import * as uuid from 'uuid';
 import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
@@ -145,7 +145,7 @@ export class StackActivityMonitor {
   }
 
   public async start() {
-    this.monitorId = uuid.v4();
+    this.monitorId = randomUUID();
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
       deployment: this.monitorId,
       stack: this.stack,
