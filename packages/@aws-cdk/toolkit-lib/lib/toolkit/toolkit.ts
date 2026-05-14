@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportJson } from '../actions/validate';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportStatus } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -113,6 +113,8 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+
+const POLICY_VALIDATION_REPORT_FILE = 'policy-validation-report.json';
 
 export interface ToolkitOptions {
   /**
@@ -661,7 +663,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const reportPath = path.join(assembly.directory, 'policy-validation-report.json');
+    const reportPath = path.join(assembly.directory, POLICY_VALIDATION_REPORT_FILE);
 
     if (!await fs.pathExists(reportPath)) {
       const result: ValidateResult = {
@@ -680,9 +682,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const report = reportJson as PolicyValidationReportJson;
 
-    const status = report.pluginReports.some(
+    const status: PolicyValidationReportStatus = report.pluginReports.some(
       (pr) => pr.summary.status === 'failure',
-    ) ? 'failure' as const : 'success' as const;
+    ) ? 'failure' : 'success';
 
     const result: ValidateResult = {
       status,
