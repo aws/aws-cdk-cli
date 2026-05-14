@@ -60,7 +60,7 @@ __metadata:
     nx: "npm:^22.7.1"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -93,13 +93,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/aws-service-spec@npm:^0.1.179":
-  version: 0.1.179
-  resolution: "@aws-cdk/aws-service-spec@npm:0.1.179"
+"@aws-cdk/aws-service-spec@npm:^0.1.180":
+  version: 0.1.180
+  resolution: "@aws-cdk/aws-service-spec@npm:0.1.180"
   dependencies:
-    "@aws-cdk/service-spec-types": "npm:^0.0.245"
+    "@aws-cdk/service-spec-types": "npm:^0.0.246"
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/0acb06d56a9a12a6ab0a21c17dec4dd3927c739ab3c9d8be1b4b53766d02140838fa785b286721b38675fd6d06b14cfd1c94613c91b2935a8a575d783fea0142
+  checksum: 10c0/086b2c00480b80bca639503e2f4f0f90e8ea59a538b3af2c94a90c5dad4da856cda1bf47ae09dc32e407c0c7f2272c66f64dd183598da61d5293ff50338be852
   languageName: node
   linkType: hard
 
@@ -151,7 +151,7 @@ __metadata:
     nx: "npm:^22.7.1"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -181,7 +181,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -213,8 +213,8 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
-    semver: "npm:^7.7.4"
+    projen: "npm:^0.99.60"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   peerDependencies:
@@ -277,8 +277,8 @@ __metadata:
     mock-fs: "npm:^5.5.0"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
-    semver: "npm:^7.7.4"
+    projen: "npm:^0.99.60"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.9"
     tsx: "npm:^4.21.0"
     typescript: "npm:5.9"
@@ -310,8 +310,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloudformation-diff@workspace:packages/@aws-cdk/cloudformation-diff"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.179"
-    "@aws-cdk/service-spec-types": "npm:^0.0.245"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.180"
+    "@aws-cdk/service-spec-types": "npm:^0.0.246"
     "@cdklabs/eslint-plugin": "npm:^2.0.4"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
@@ -336,7 +336,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.9"
@@ -362,7 +362,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/integ-runner@workspace:packages/@aws-cdk/integ-runner"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.179"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.180"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
@@ -381,7 +381,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     aws-cdk: "npm:^0.0.0"
-    aws-cdk-lib: "npm:2.253.0"
+    aws-cdk-lib: "npm:2.253.1"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -401,7 +401,7 @@ __metadata:
     node-backpack: "npm:^1.1.32"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
@@ -422,12 +422,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/service-spec-types@npm:^0.0.245":
-  version: 0.0.245
-  resolution: "@aws-cdk/service-spec-types@npm:0.0.245"
+"@aws-cdk/service-spec-types@npm:^0.0.246":
+  version: 0.0.246
+  resolution: "@aws-cdk/service-spec-types@npm:0.0.246"
   dependencies:
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/d1e305ac2dc50f126ec979f45967a9bbef46bad203eda4ec927bbaa593a3f6100c63af0174c08495f9bc0d6ad74aca6a2067988aee43737a3a2d879ca7f143ef
+  checksum: 10c0/d8fe8e21e79ccf7f379ccd30d12c667f390522be4856ec40cdadea55626ff81b32c0e5d0daa5d1657e0935b0f4f8b3a52b14e2dd19591bb279d840d189e524cb
   languageName: node
   linkType: hard
 
@@ -435,7 +435,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/toolkit-lib@workspace:packages/@aws-cdk/toolkit-lib"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.179"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.180"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
@@ -473,7 +473,7 @@ __metadata:
     "@smithy/property-provider": "npm:^4"
     "@smithy/shared-ini-file-loader": "npm:^4"
     "@smithy/util-retry": "npm:^4"
-    "@smithy/util-stream": "npm:^4.5.25"
+    "@smithy/util-stream": "npm:^4.6.0"
     "@smithy/util-waiter": "npm:^4"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/fs-extra": "npm:^11"
@@ -485,7 +485,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     archiver: "npm:^7.0.1"
-    aws-cdk-lib: "npm:2.253.0"
+    aws-cdk-lib: "npm:2.253.1"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     cdk-from-cfn: "npm:^0.299.0"
@@ -514,8 +514,8 @@ __metadata:
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
-    semver: "npm:^7.7.4"
+    projen: "npm:^0.99.60"
+    semver: "npm:^7.8.0"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.9"
     tsx: "npm:^4.21.0"
@@ -555,7 +555,7 @@ __metadata:
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   languageName: unknown
@@ -586,8 +586,8 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
-    semver: "npm:^7.7.4"
+    projen: "npm:^0.99.60"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   bin:
@@ -5872,6 +5872,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@smithy/util-stream@npm:^4.6.0":
+  version: 4.6.0
+  resolution: "@smithy/util-stream@npm:4.6.0"
+  dependencies:
+    "@smithy/core": "npm:^3.24.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/283ae66729690496a191bc92726f8423acbad6773622fa93293d14263d90845b32a9bff68369b08fe35a5875a06d9c8828621a125126738bc59a2834d6fd4f4e
+  languageName: node
+  linkType: hard
+
 "@smithy/util-uri-escape@npm:^4.2.2":
   version: 4.2.2
   resolution: "@smithy/util-uri-escape@npm:4.2.2"
@@ -7429,17 +7439,17 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
-    semver: "npm:^7.7.4"
+    projen: "npm:^0.99.60"
+    semver: "npm:^7.8.0"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.21.0"
     typescript: "npm:5.9"
   languageName: unknown
   linkType: soft
 
-"aws-cdk-lib@npm:2.253.0":
-  version: 2.253.0
-  resolution: "aws-cdk-lib@npm:2.253.0"
+"aws-cdk-lib@npm:2.253.1":
+  version: 2.253.1
+  resolution: "aws-cdk-lib@npm:2.253.1"
   dependencies:
     "@aws-cdk/asset-awscli-v1": "npm:2.2.273"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.1"
@@ -7458,7 +7468,7 @@ __metadata:
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/dceca4b559c81aaf28a2cb2fd2581d61ee9e5555b31fba255ac2145db66e582c3e1a276d28ba8019cae334813e67e1676be91f07420877d01a6f76cb83a50176
+  checksum: 10c0/dd0924791c8c1b22f85d46b662b04a38a6f586ce2f6c17158855256265fedf163be794ee7aa30594d3476187a4896c1f5106a1a85332ea87e917a2cc3f1736c9
   languageName: node
   linkType: hard
 
@@ -7576,10 +7586,10 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
-    semver: "npm:^7.7.4"
+    semver: "npm:^7.8.0"
     sinon: "npm:^19.0.5"
     strip-ansi: "npm:^6"
     ts-jest: "npm:^29.4.9"
@@ -8208,7 +8218,7 @@ __metadata:
     node-backpack: "npm:^1.1.32"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.2"
@@ -8250,7 +8260,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.1"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.57"
+    projen: "npm:^0.99.60"
     ts-jest: "npm:^29.4.9"
     typescript: "npm:5.9"
   bin:
@@ -15542,9 +15552,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.99.57":
-  version: 0.99.57
-  resolution: "projen@npm:0.99.57"
+"projen@npm:^0.99.60":
+  version: 0.99.60
+  resolution: "projen@npm:0.99.60"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
@@ -15556,7 +15566,7 @@ __metadata:
     fast-json-patch: "npm:^3.1.1"
     ini: "npm:^2.0.0"
     parse-conflict-json: "npm:^4.0.0"
-    semver: "npm:^7.7.4"
+    semver: "npm:^7.8.0"
     shx: "npm:^0.4.0"
     xmlbuilder2: "npm:^4.0.3"
     yaml: "npm:^2.2.2"
@@ -15565,7 +15575,7 @@ __metadata:
     constructs: ^10.0.0
   bin:
     projen: bin/projen
-  checksum: 10c0/c71a50f9e838a21dd9d45f3b3ce3a75d329de14766d3446becb3044017a677f31e7a289421f5a2b024cc177a1cf1aa09aa5c24b5d8a4f08bd57998e366122be7
+  checksum: 10c0/34ea9116e22cddaaf699133afbd2a1cbbe820ff5ecb42a595a099b1fa37b96dbb554ae50e8343f3cc1a653c9b225951d66ef002b4a06e17b3a06d48cd2cdf33c
   languageName: node
   linkType: hard
 
@@ -16325,6 +16335,15 @@ __metadata:
   bin:
     semver: bin/semver.js
   checksum: 10c0/e3d79b609071caa78bcb6ce2ad81c7966a46a7431d9d58b8800cfa9cb6a63699b3899a0e4bcce36167a284578212d9ae6942b6929ba4aa5015c079a67751d42d
+  languageName: node
+  linkType: hard
+
+"semver@npm:^7.8.0":
+  version: 7.8.0
+  resolution: "semver@npm:7.8.0"
+  bin:
+    semver: bin/semver.js
+  checksum: 10c0/8f096ca9b80ffd47b308d03f9ce8c873e27e2983f36023c559cdc92c51e8433fc23ebbfe57ec9623fc155636a6961ee989501099841ae4bb1babc8d2b3f048cd
   languageName: node
   linkType: hard
 

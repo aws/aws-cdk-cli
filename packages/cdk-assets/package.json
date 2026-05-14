@@ -60,7 +60,7 @@
     "node-backpack": "^1.1.32",
     "nx": "^22.7.1",
     "prettier": "^2.8",
-    "projen": "^0.99.57",
+    "projen": "^0.99.60",
     "ts-jest": "^29.4.9",
     "typescript": "5.9"
   },

@@ -52,7 +52,7 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.1",
     "prettier": "^2.8",
-    "projen": "^0.99.57",
+    "projen": "^0.99.60",
     "ts-jest": "^29.4.9",
     "typescript": "5.9"
   },
@@ -60,8 +60,8 @@
     "@aws-sdk/client-cloudformation": "^3"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.179",
-    "@aws-cdk/service-spec-types": "^0.0.245",
+    "@aws-cdk/aws-service-spec": "^0.1.180",
+    "@aws-cdk/service-spec-types": "^0.0.246",
     "chalk": "^4",
     "diff": "^9.0.0",
     "fast-deep-equal": "^3.1.3",
