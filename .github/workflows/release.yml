@@ -565,7 +565,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -599,7 +599,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -696,7 +696,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -732,7 +732,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -765,7 +765,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -795,7 +795,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -840,7 +840,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -882,7 +882,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -927,7 +927,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -969,7 +969,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1002,7 +1002,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1032,7 +1032,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1079,7 +1079,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1123,7 +1123,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
     steps:
       - uses: actions/setup-node@v6
         with:
