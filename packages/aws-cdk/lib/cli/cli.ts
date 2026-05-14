@@ -38,6 +38,7 @@ import { getLanguageFromAlias } from '../commands/language';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
+import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
@@ -98,6 +99,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   await ioHost.defaults.debug('CDK Toolkit CLI version:', versionWithBuild());
   await ioHost.defaults.debug('Command line arguments:', argv);
+
+  const unknownOptions = findUnknownOptions(argv);
+  if (unknownOptions.length > 0) {
+    const formatted = unknownOptions.map((o) => `--${o}`).join(', ');
+    await ioHost.defaults.warn(`Unknown option(s): ${formatted}. These will be ignored. Run 'cdk --help' to see available options.`);
+  }
 
   const configuration = await Configuration.fromArgsAndFiles(ioHelper,
     {
