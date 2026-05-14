@@ -43,7 +43,7 @@
     "@types/yargs": "^17.0.35",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk-lib": "2.253.0",
+    "aws-cdk-lib": "2.253.1",
     "commit-and-tag-version": "^12",
     "constructs": "^10",
     "eslint": "^9",
@@ -60,12 +60,12 @@
     "node-backpack": "^1.1.32",
     "nx": "^22.7.1",
     "prettier": "^2.8",
-    "projen": "^0.99.57",
+    "projen": "^0.99.61",
     "ts-jest": "^29.4.9",
     "typescript": "5.9"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.179",
+    "@aws-cdk/aws-service-spec": "^0.1.180",
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
