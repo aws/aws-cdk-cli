@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult } from '../actions/validate';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportJson } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -672,44 +672,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return result;
     }
 
-    const reportJson = await fs.readJson(reportPath);
+    const report: PolicyValidationReportJson = await fs.readJson(reportPath);
 
-    const pluginReports = (reportJson.pluginReports ?? []).map((pr: any) => ({
-      version: pr.version,
-      summary: {
-        pluginName: pr.summary.pluginName,
-        status: pr.summary.status as 'success' | 'failure',
-        metadata: pr.summary.metadata,
-      },
-      violations: (pr.violations ?? []).map((v: any) => ({
-        ruleName: v.ruleName,
-        description: v.description,
-        fix: v.fix,
-        ruleMetadata: v.ruleMetadata,
-        severity: v.severity,
-        violatingResources: (v.violatingResources ?? []).map((r: any) => ({
-          resourceLogicalId: r.resourceLogicalId,
-          templatePath: r.templatePath,
-          locations: r.locations,
-        })),
-        violatingConstructs: (v.violatingConstructs ?? []).map((c: any) => ({
-          constructPath: c.constructPath,
-          constructStack: c.constructStack,
-          locations: c.locations,
-          resourceLogicalId: c.resourceLogicalId,
-          templatePath: c.templatePath,
-        })),
-      })),
-    }));
-
-    const status = pluginReports.some(
-      (pr: any) => pr.summary.status === 'failure',
+    const status = report.pluginReports.some(
+      (pr) => pr.summary.status === 'failure',
     ) ? 'failure' as const : 'success' as const;
 
     const result: ValidateResult = {
       status,
-      title: reportJson.title,
-      pluginReports,
+      title: report.title,
+      pluginReports: report.pluginReports,
     };
 
     if (status === 'failure') {
