@@ -672,7 +672,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return result;
     }
 
-    const report: PolicyValidationReportJson = await fs.readJson(reportPath);
+    const reportJson = await fs.readJson(reportPath);
+
+    if (!Array.isArray(reportJson.pluginReports)) {
+      throw new ToolkitError('MalformedValidationReport', `Policy validation report at ${reportPath} is malformed: missing or invalid 'pluginReports' field`);
+    }
+
+    const report = reportJson as PolicyValidationReportJson;
 
     const status = report.pluginReports.some(
       (pr) => pr.summary.status === 'failure',
