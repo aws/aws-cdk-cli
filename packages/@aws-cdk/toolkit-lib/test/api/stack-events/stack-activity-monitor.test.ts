@@ -27,7 +27,7 @@ beforeEach(async () => {
     stack: testStack({
       stackName: 'StackName',
     }),
-    stackName: 'StackName',
+    stackArn: 'StackName',
     changeSetCreationTime: new Date(T100),
     pollingInterval: 0,
     envResources: mockEnvResources as any,

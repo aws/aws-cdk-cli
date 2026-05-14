@@ -64,10 +64,10 @@ export class CloudFormationStackDiagnoser {
       }
 
       if (status.isFailure) {
-        return await this._diagnoseViaStackEvents(stackName, stack);
+        return await this._diagnoseViaStackEvents(stack);
       }
 
-      return await this._diagnoseChangeSetFailureFromStackName(stackName);
+      return await this._diagnoseChangeSetFailureFromStackName(stack);
     } catch (e: any) {
       return { type: 'error-diagnosing', message: e.message };
     }
@@ -108,9 +108,9 @@ export class CloudFormationStackDiagnoser {
    *
    * This is the same logic that the deployment monitor uses.
    */
-  private async _diagnoseViaStackEvents(stackName: string, stack: Stack): Promise<StackDiagnosis> {
+  private async _diagnoseViaStackEvents(stack: Stack): Promise<StackDiagnosis> {
     const poller = new StackEventPoller(this.cfn, {
-      stackName,
+      stackArn: stack.StackId!,
       initialPollRange: PollRange.mostRecentOperation(),
     });
 
@@ -121,16 +121,16 @@ export class CloudFormationStackDiagnoser {
     return this.diagnoseFromErrorCollection(poller.errors, stack);
   }
 
-  private async _diagnoseChangeSetFailureFromStackName(stackName: string): Promise<StackDiagnosis> {
+  private async _diagnoseChangeSetFailureFromStackName(stack: Stack): Promise<StackDiagnosis> {
     const cs = (await this.cfn.listChangeSets({
-      StackName: stackName,
+      StackName: stack.StackId!,
     })).Summaries ?? [];
 
     const pending = cs.filter(x => x.Status === ChangeSetStatus.CREATE_IN_PROGRESS || x.Status === ChangeSetStatus.CREATE_PENDING);
     if (pending.length > 0) {
       return {
         type: 'error-diagnosing',
-        message: `Stack with name ${stackName} has change sets currently being created (${pending[0].ChangeSetName}). Try again when it's finished.`,
+        message: `Stack with name ${stack.StackName} has change sets currently being created (${pending[0].ChangeSetName}). Try again when it's finished.`,
       };
     }
 
@@ -284,8 +284,8 @@ export class CloudFormationStackDiagnoser {
     }
 
     const nestedCs = await this.cfn.describeChangeSet({
-      ChangeSetName: nested.changeSetName,
-      StackName: nested.stackName,
+      ChangeSetName: nested.changeSetArn,
+      StackName: nested.stackArn,
     });
 
     const nestedDiag = new CloudFormationStackDiagnoser(this.props);
@@ -294,8 +294,8 @@ export class CloudFormationStackDiagnoser {
   }
 
   private async _findFailedNestedStack(changeSet: ChangeSetSummary): Promise<{
-    stackName: string;
-    changeSetName: string;
+    stackArn: string;
+    changeSetArn: string;
     logicalId: string;
   } | undefined> {
     // The status reason only includes the change set ID, but we also need the stack name. The way to get this is
@@ -305,16 +305,16 @@ export class CloudFormationStackDiagnoser {
     do {
       // Changes in this response might be paginated
       const resp = await this.cfn.describeChangeSet({
-        StackName: changeSet.StackName,
-        ChangeSetName: changeSet.ChangeSetName,
+        StackName: changeSet.StackId,
+        ChangeSetName: changeSet.ChangeSetId,
         ...nextToken ? { NextToken: nextToken } : {},
       });
 
       for (const change of resp.Changes ?? []) {
         if (change.Type === ChangeType.Resource && change.ResourceChange?.ResourceType === 'AWS::CloudFormation::Stack' && change.ResourceChange?.ChangeSetId && changeSet.StatusReason?.includes(change.ResourceChange?.ChangeSetId)) {
           return {
-            changeSetName: change.ResourceChange.ChangeSetId,
-            stackName: change.ResourceChange.PhysicalResourceId ?? '',
+            changeSetArn: change.ResourceChange.ChangeSetId,
+            stackArn: change.ResourceChange.PhysicalResourceId ?? '',
             logicalId: change.ResourceChange.LogicalResourceId ?? '',
           };
         }

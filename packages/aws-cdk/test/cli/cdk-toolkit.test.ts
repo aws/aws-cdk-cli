@@ -1296,11 +1296,13 @@ describe('deploy', () => {
           Stacks: [
             {
               StackName: 'Test-Stack-C',
+              StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack-C/some-id',
               StackStatus: StackStatus.CREATE_COMPLETE,
               CreationTime: new Date(),
             },
             {
               StackName: 'Test-Stack-A',
+              StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack-A/some-id',
               StackStatus: StackStatus.CREATE_COMPLETE,
               CreationTime: new Date(),
             },
@@ -2696,8 +2698,8 @@ class ChangeSetState {
   public createChangeSet(input: CreateChangeSetInput): CreateChangeSetOutput {
     this.changeSet = input;
     return {
-      Id: input.ChangeSetName,
-      StackId: input.StackName,
+      Id: `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${input.ChangeSetName}/fake-id`,
+      StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${input.StackName}/fake-id`,
     };
   }
 
@@ -2707,9 +2709,17 @@ class ChangeSetState {
   }
 
   public describeChangeSet(input: DescribeChangeSetInput): DescribeChangeSetOutput {
-    if (input.StackName === this.changeSet?.StackName && input.ChangeSetName === this.changeSet?.ChangeSetName) {
+    const stackArn = `arn:aws:cloudformation:us-east-1:123456789012:stack/${this.changeSet?.StackName}/fake-id`;
+    const changeSetArn = `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${this.changeSet?.ChangeSetName}/fake-id`;
+
+    const stackMatches = input.StackName === this.changeSet?.StackName || input.StackName === stackArn;
+    const csMatches = input.ChangeSetName === this.changeSet?.ChangeSetName || input.ChangeSetName === changeSetArn;
+    if (stackMatches && csMatches) {
       return {
         ...this.changeSet,
+        StackId: stackArn,
+        ChangeSetId: changeSetArn,
+        ChangeSetName: this.changeSet?.ChangeSetName,
         Status: 'CREATE_COMPLETE',
         Changes: [{ Type: 'Resource' }],
       };
