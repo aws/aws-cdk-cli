@@ -436,10 +436,6 @@
       "type": "runtime"
     },
     {
-      "name": "uuid",
-      "type": "runtime"
-    },
-    {
       "name": "wrap-ansi",
       "version": "^7",
       "type": "runtime"

@@ -7,7 +7,7 @@ const tempDir = path.join(os.tmpdir(), `installation-id-test-${Date.now()}-${Mat
 
 // Mock crypto.randomUUID to return predictable values
 const mockRandomUUID = jest.fn();
-jest.mock('crypto', () => ({
+jest.mock('node:crypto', () => ({
   randomUUID: mockRandomUUID,
 }));
 

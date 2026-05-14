@@ -52,7 +52,7 @@
     "@types/yargs": "^15",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk-lib": "2.253.1",
+    "aws-cdk-lib": "2.254.0",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
@@ -134,7 +134,6 @@
     "proxy-agent": "^6.5.0",
     "semver": "^7.7.4",
     "strip-ansi": "^6",
-    "uuid": "^11.1.1",
     "wrap-ansi": "^7",
     "yaml": "^1",
     "yargs": "^15"

@@ -1006,7 +1006,7 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
     ResourcesToSkip: ['Xyz'],
-    StackName: 'boop',
+    StackName: 'stack/boop',
     ClientRequestToken: expect.anything(),
   });
 });
@@ -1195,6 +1195,10 @@ describe('stackExists', () => {
 });
 
 test('tags are passed along to create change set', async () => {
+  mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+    Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/foo/uuid',
+    StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/test-stack/uuid',
+  });
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: ChangeSetStatus.CREATE_COMPLETE,
   });
@@ -1205,7 +1209,7 @@ test('tags are passed along to create change set', async () => {
     stack[methodName] = jest.fn();
   }
 
-  await cfnApi.createChangeSet(
+  await cfnApi.createChangeSetAndCleanup(
     ioHelper,
     {
       stack: stack,

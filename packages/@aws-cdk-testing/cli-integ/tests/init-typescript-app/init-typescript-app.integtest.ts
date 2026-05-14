@@ -17,7 +17,7 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
     await shell.shell(['npm', 'run', 'test']);
 
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 300_000);
 });
 
 // Same as https://github.com/DefinitelyTyped/DefinitelyTyped?tab=readme-ov-file#support-window

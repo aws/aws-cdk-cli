@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
@@ -470,15 +470,27 @@ export class Deployments {
     // If the stack was newly created for this change set, it will be in REVIEW_IN_PROGRESS.
     // Delete it and wait for the deletion to complete so we don't leave an empty stack behind.
     if (cloudFormationStack.stackStatus.name === 'REVIEW_IN_PROGRESS') {
-      await cfn.deleteStack({ StackName: deployName });
+      await cfn.deleteStack({ StackName: deployName, ClientRequestToken: randomUUID() });
       await waitForStackDelete(cfn, this.ioHelper, deployName);
     }
   }
 
-  public async describeChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<DescribeChangeSetCommandOutput> {
+  /**
+   * Describe a specific change set for a stack.
+   *
+   * @param stack - The Stack artifact
+   * @param changeSetName - The name of the change set
+   * @param stackArn - Optional the exact arn of the stack. Prefer this if you have it available.
+   * @returns the DescribeChangeSet response
+   */
+  public async describeChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+    stackArn?: string,
+  ): Promise<DescribeChangeSetCommandOutput> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stack.stackName, changeSetName, {
+    return waitForChangeSet(cfn, this.ioHelper, stackArn ?? stack.stackName, changeSetName, {
       fetchAll: true,
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
@@ -521,12 +533,12 @@ export class Deployments {
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
           await this.ioHelper.defaults.warn(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`);
-          return { stackArn: cloudFormationStack.stackId, notInRollbackableState: true };
+          return { stackArn, notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
           await this.ioHelper.defaults.debug(`Initiating rollback of stack ${deployName}`);
           await cfn.rollbackStack({
-            StackName: deployName,
+            StackName: stackArn,
             RoleARN: executionRoleArn,
             ClientRequestToken: randomUUID(),
             // Enabling this is just the better overall default, the only reason it isn't the upstream default is backwards compatibility
@@ -540,7 +552,7 @@ export class Deployments {
             // (Using deployment log because we definitely have `DescribeStackEvents` permissions, and we might not have
             // `DescribeStackResources` permissions).
             const poller = new StackEventPoller(cfn, {
-              stackName: deployName,
+              stackArn,
               initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
             });
             await poller.poll();
@@ -553,7 +565,7 @@ export class Deployments {
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
           await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${skipDescription}`);
           await cfn.continueUpdateRollback({
-            StackName: deployName,
+            StackName: stackArn,
             ClientRequestToken: randomUUID(),
             RoleARN: executionRoleArn,
             ResourcesToSkip: resourcesToSkip,
@@ -573,7 +585,7 @@ export class Deployments {
       const monitor = new StackActivityMonitor({
         cfn,
         stack: options.stack,
-        stackName: deployName,
+        stackArn,
         ioHelper: this.ioHelper,
       });
       await monitor.start();
