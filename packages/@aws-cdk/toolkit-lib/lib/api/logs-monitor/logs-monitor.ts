@@ -1,7 +1,7 @@
-import * as util from 'util';
+import { randomUUID } from 'node:crypto';
+import * as util from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
-import * as uuid from 'uuid';
 import type { CloudWatchLogEvent } from '../../payloads/logs-monitor';
 import { flatten } from '../../util';
 import type { SDK } from '../aws-auth/private';
@@ -75,7 +75,7 @@ export class CloudWatchLogEventMonitor {
    * resume reading/printing events
    */
   public async activate(): Promise<void> {
-    this.monitorId = uuid.v4();
+    this.monitorId = randomUUID();
 
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5032.msg('Start monitoring log groups', {
       monitor: this.monitorId,

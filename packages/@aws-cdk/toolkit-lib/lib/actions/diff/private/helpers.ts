@@ -1,7 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as fs from 'fs-extra';
-import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
 import type { SdkProvider } from '../../../api/aws-auth/private';
@@ -97,7 +97,7 @@ async function cfnDiff(
       parameters: methodOptions.parameters ?? {},
       failOnError: !(methodOptions.fallbackToTemplate ?? true),
       importExistingResources: methodOptions.importExistingResources,
-      uuid: uuid.v4(),
+      uuid: randomUUID(),
       willExecute: false,
     }) : undefined;
 

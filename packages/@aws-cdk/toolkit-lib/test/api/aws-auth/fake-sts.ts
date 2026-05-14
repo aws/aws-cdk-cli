@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import type { Tag } from '@aws-sdk/client-sts';
 import * as nock from 'nock';
-import * as uuid from 'uuid';
 import { formatErrorMessage } from '../../../lib/util';
 
 interface RegisteredIdentity {
@@ -244,7 +244,7 @@ export class FakeSts {
       );
     }
 
-    const freshAccessKey = uuid.v4();
+    const freshAccessKey = randomUUID();
 
     // Register a new "user" (identity) for this access key
     this.registerUser(targetRole.account, freshAccessKey, {

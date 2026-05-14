@@ -1,11 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
-import * as uuid from 'uuid';
+import type { IoDefaultMessages } from './io-default-messages';
 import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
 import type * as make from './message-maker';
 import type { Duration } from '../../../payloads/types';
 import { formatTime } from '../../../util';
 import type { IActionAwareIoHost } from '../io-host';
-import type { IoDefaultMessages } from './io-default-messages';
 
 /**
  * These data fields are automatically added by ending a span
@@ -175,7 +175,7 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
   public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>, makeHelper: (ioHost: IActionAwareIoHost) => IoHelper) {
     this.definition = definition;
     this.ioHelper = ioHelper;
-    this.spanId = uuid.v4();
+    this.spanId = randomUUID();
     this.startTime = new Date().getTime();
     this.timingMsgTemplate = '\n✨  %s time: %ds\n';
     this.asHelper = makeHelper(this);

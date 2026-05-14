@@ -134,7 +134,6 @@
     "proxy-agent": "^6.5.0",
     "semver": "^7.7.4",
     "strip-ansi": "^6",
-    "uuid": "^11.1.1",
     "wrap-ansi": "^7",
     "yaml": "^1",
     "yargs": "^15"
