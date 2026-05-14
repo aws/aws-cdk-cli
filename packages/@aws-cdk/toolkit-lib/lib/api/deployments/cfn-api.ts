@@ -13,6 +13,7 @@ import {
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
+import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
@@ -27,28 +28,28 @@ import { StackArtifactSourceTracer } from '../source-tracing/private/stack-sourc
  * Describe a changeset in CloudFormation, regardless of its current state.
  *
  * @param cfn           - a CloudFormation client
- * @param stackName     - the name of the Stack the ChangeSet belongs to
- * @param changeSetName - the name of the ChangeSet
+ * @param stackNameOrArn     - the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
+ * @param changeSetNameOrArn - the name or ARN of the ChangeSet, prefer ARN
  * @param fetchAll      - if true, fetches all pages of the change set description.
  *
  * @returns       CloudFormation information about the ChangeSet
  */
 async function describeChangeSet(
   cfn: ICloudFormationClient,
-  stackName: string,
-  changeSetName: string,
+  stackNameOrArn: string,
+  changeSetNameOrArn: string,
   { fetchAll }: { fetchAll: boolean },
 ): Promise<DescribeChangeSetCommandOutput> {
   const response = await cfn.describeChangeSet({
-    StackName: stackName,
-    ChangeSetName: changeSetName,
+    StackName: stackNameOrArn,
+    ChangeSetName: changeSetNameOrArn,
   });
 
   // If fetchAll is true, traverse all pages from the change set description.
   while (fetchAll && response.NextToken != null) {
     const nextPage = await cfn.describeChangeSet({
-      StackName: stackName,
-      ChangeSetName: response.ChangeSetId ?? changeSetName,
+      StackName: response.StackId ?? stackNameOrArn,
+      ChangeSetName: response.ChangeSetId ?? changeSetNameOrArn,
       NextToken: response.NextToken,
     });
 
@@ -93,30 +94,32 @@ async function waitFor<T>(
  * Will return a changeset that is either ready to be executed or has no changes.
  * Will throw in other cases.
  *
- * @param cfn           - a CloudFormation client
- * @param stackName     - the name of the Stack that the ChangeSet belongs to
- * @param changeSetName - the name of the ChangeSet
- * @param fetchAll      - if true, fetches all pages of the ChangeSet before returning.
+ * @param cfn - a CloudFormation client
+ * @param stackNameOrArn - the name or ARN of the Stack that the ChangeSet belongs to, prefer passing an ARN if available
+ * @param changeSetNameOrArn - the name or ARN of the ChangeSet, prefer passing an ARN if available
+ * @param fetchAll - if true, fetches all pages of the ChangeSet before returning.
  *
  * @returns       the CloudFormation description of the ChangeSet
  */
 export async function waitForChangeSet(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  stackName: string,
-  changeSetName: string,
+  stackNameOrArn: string,
+  changeSetNameOrArn: string,
   { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
 ): Promise<DescribeChangeSetCommandOutput> {
-  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
+  const stackDisplayName = stackNameFromArn(stackNameOrArn);
+  const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
+  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetDisplayName, stackDisplayName));
   const ret = await waitFor(async () => {
-    const description = await describeChangeSet(cfn, stackName, changeSetName, {
+    const description = await describeChangeSet(cfn, stackNameOrArn, changeSetNameOrArn, {
       fetchAll,
     });
 
     // The following doesn't use a switch because tsc will not allow fall-through, UNLESS it is allows
     // EVERYWHERE that uses this library directly or indirectly, which is undesirable.
     if (description.Status === 'CREATE_PENDING' || description.Status === 'CREATE_IN_PROGRESS') {
-      await ioHelper.defaults.debug(format('Changeset %s on stack %s is still creating', changeSetName, stackName));
+      await ioHelper.defaults.debug(format('Changeset %s on stack %s is still creating', changeSetDisplayName, stackDisplayName));
       return undefined;
     }
 
@@ -138,15 +141,17 @@ export async function waitForChangeSet(
 export async function waitForChangeSetGone(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  stackName: string,
-  changeSetName: string,
+  stackNameOrArn: string,
+  changeSetNameOrArn: string,
 ): Promise<void> {
-  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', changeSetName, stackName));
+  const stackDisplayName = stackNameFromArn(stackNameOrArn);
+  const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
+  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', changeSetDisplayName, stackDisplayName));
   await waitFor(async () => {
     try {
       const description = await cfn.describeChangeSet({
-        StackName: stackName,
-        ChangeSetName: changeSetName,
+        StackName: stackNameOrArn,
+        ChangeSetName: changeSetNameOrArn,
       });
 
       if (description.Status === ChangeSetStatus.DELETE_COMPLETE || description.Status === ChangeSetStatus.DELETE_FAILED) {
@@ -279,7 +284,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
   );
 
-  return createChangeSet(ioHelper, {
+  return createChangeSetAndCleanup(ioHelper, {
     cfn,
     changeSetName: 'cdk-diff-change-set',
     stack: options.stack,
@@ -329,7 +334,7 @@ export async function uploadStackTemplateAssets(stack: cxapi.CloudFormationStack
   }
 }
 
-export async function createChangeSet(
+export async function createChangeSetAndCleanup(
   ioHelper: IoHelper,
   options: CreateChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput> {
@@ -361,11 +366,23 @@ export async function createChangeSet(
 
   await ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
   // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await waitForChangeSet(options.cfn, ioHelper, options.stack.stackName, options.changeSetName, {
-    fetchAll: options.willExecute,
-    diagnoser: options.diagnoser,
-  });
-  await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
+  const createdChangeSet = await waitForChangeSet(
+    options.cfn,
+    ioHelper,
+    changeSet.StackId ?? options.stack.stackName,
+    changeSet.Id ?? options.changeSetName,
+    {
+      fetchAll: options.willExecute,
+      diagnoser: options.diagnoser,
+    },
+  );
+
+  await cleanupOldChangeset(
+    options.cfn,
+    ioHelper,
+    changeSet.Id ?? options.changeSetName,
+    changeSet.StackId ?? options.stack.stackName,
+  );
 
   return createdChangeSet;
 }
@@ -380,15 +397,17 @@ function toCfnTags(tags: { [id: string]: string }): Tag[] {
 async function cleanupOldChangeset(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  changeSetName: string,
-  stackName: string,
+  changeSetNameOrArn: string,
+  stackNameOrArn: string,
 ) {
+  const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
+  await ioHelper.defaults.debug(`Removing existing change set with name ${changeSetDisplayName} if it exists`);
+
   // Delete any existing change sets generated by CDK since change set names must be unique.
   // The delete request is successful as long as the stack exists (even if the change set does not exist).
-  await ioHelper.defaults.debug(`Removing existing change set with name ${changeSetName} if it exists`);
   await cfn.deleteChangeSet({
-    StackName: stackName,
-    ChangeSetName: changeSetName,
+    StackName: stackNameOrArn,
+    ChangeSetName: changeSetNameOrArn,
   });
 }
 
@@ -400,16 +419,17 @@ async function cleanupOldChangeset(
  * already deleted.
  *
  * @param cfn        - a CloudFormation client
- * @param stackName      - the name of the stack to wait for after a delete
+ * @param stackNameOrArn      - the name of the stack to wait for after a delete
  *
  * @returns     the CloudFormation description of the stabilized stack after the delete attempt
  */
 export async function waitForStackDelete(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  stackName: string,
+  stackNameOrArn: string,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, ioHelper, stackName);
+  const stackDisplayName = stackNameFromArn(stackNameOrArn);
+  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn);
   if (!stack) {
     return undefined;
   }
@@ -418,7 +438,7 @@ export async function waitForStackDelete(
   if (status.isFailure) {
     throw new ToolkitError(
       'StackDeleteFailed',
-      `The stack named ${stackName} is in a failed state. You may need to delete it from the AWS console : ${status}`,
+      `The stack named ${stackDisplayName} is in a failed state. You may need to delete it from the AWS console : ${status}`,
     );
   } else if (status.isDeleted) {
     return undefined;
@@ -467,18 +487,19 @@ export async function waitForStackDeploy(
 export async function stabilizeStack(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  stackName: string,
+  stackNameOrArn: string,
 ) {
-  await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackName));
+  const stackDisplayName = stackNameFromArn(stackNameOrArn);
+  await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackDisplayName));
   return waitFor(async () => {
-    const stack = await CloudFormationStack.lookup(cfn, stackName);
+    const stack = await CloudFormationStack.lookup(cfn, stackNameOrArn);
     if (!stack.exists) {
-      await ioHelper.defaults.debug(format('Stack %s does not exist', stackName));
+      await ioHelper.defaults.debug(format('Stack %s does not exist', stackDisplayName));
       return null;
     }
     const status = stack.stackStatus;
     if (status.isInProgress) {
-      await ioHelper.defaults.debug(format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackName, status));
+      await ioHelper.defaults.debug(format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackDisplayName, status));
       return undefined;
     } else if (status.isReviewInProgress) {
       // This may happen if a stack creation operation is interrupted before the ChangeSet execution starts. Recovering
@@ -487,7 +508,7 @@ export async function stabilizeStack(
       // "forever" we proceed as if the stack was existing and stable. If there is a concurrent operation that just
       // hasn't finished proceeding just yet, either this operation or the concurrent one may fail due to the other one
       // having made progress. Which is fine. I guess.
-      await ioHelper.defaults.debug(format('Stack %s is in REVIEW_IN_PROGRESS state. Considering this is a stable status (%s)', stackName, status));
+      await ioHelper.defaults.debug(format('Stack %s is in REVIEW_IN_PROGRESS state. Considering this is a stable status (%s)', stackDisplayName, status));
     }
 
     return stack;

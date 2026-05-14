@@ -70,7 +70,7 @@ test('do bootstrap', async () => {
   expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -90,7 +90,7 @@ test('do bootstrap using custom bucket name', async () => {
   expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -110,7 +110,7 @@ test('do bootstrap using KMS CMK', async () => {
   expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -130,7 +130,7 @@ test('bootstrap disable bucket Public Access Block Configuration', async () => {
   expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('false');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -150,7 +150,7 @@ test('do bootstrap with custom tags for toolkit stack', async () => {
   expect(lastChangeSetTemplate()!.Conditions.UsePublicAccessBlockConfiguration['Fn::Equals'][0]).toBe('true');
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -196,7 +196,7 @@ test('even if the bootstrap stack is in a rollback state, can still retry bootst
     StackName: 'MagicalStack',
   });
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
 });
 
@@ -218,10 +218,11 @@ test('even if the bootstrap stack failed to create, can still retry bootstrappin
   ).toBeUndefined();
   expect(ret.noOp).toBeFalsy();
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(DeleteStackCommand, {
-    StackName: 'MagicalStack',
+    StackName: expect.stringContaining('MagicalStack'),
+    ClientRequestToken: expect.any(String),
   });
 });
 
@@ -244,7 +245,7 @@ test('stack is not termination protected by default', async () => {
     TemplateBody: templateBody,
   });
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
   expect(mockCloudFormationClient).not.toHaveReceivedCommandWith(UpdateTerminationProtectionCommand, {
     EnableTerminationProtection: true,
@@ -258,7 +259,7 @@ test('stack is termination protected when set', async () => {
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
   });
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(UpdateTerminationProtectionCommand, {
     EnableTerminationProtection: true,
