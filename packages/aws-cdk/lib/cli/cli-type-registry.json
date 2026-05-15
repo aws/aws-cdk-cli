@@ -61,6 +61,11 @@
       "desc": "Use the indicated AWS profile as the default environment",
       "requiresArg": true
     },
+    "region": {
+      "type": "string",
+      "desc": "Use the indicated AWS region as the default region",
+      "requiresArg": true
+    },
     "proxy": {
       "type": "string",
       "desc": "Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified",
