@@ -64,16 +64,6 @@ describe('findUnknownOptions', () => {
     expect(findUnknownOptions(argv)).toEqual([]);
   });
 
-  test('does not report yargs boolean negation keys (noFoo for --no-foo)', () => {
-    const argv = {
-      _: ['deploy'],
-      $0: 'cdk',
-      rollback: false,
-      noRollback: true,
-    };
-    expect(findUnknownOptions(argv)).toEqual([]);
-  });
-
   test('does not report negativeAlias keys', () => {
     const argv = {
       _: ['deploy'],
@@ -84,6 +74,8 @@ describe('findUnknownOptions', () => {
     expect(findUnknownOptions(argv)).toEqual([]);
   });
 
+  // yargs .env('CDK') injects CDK_* env vars as camelCase keys in argv.
+  // This also covers "noFoo" patterns (e.g. CDK_NO_ROLLBACK -> noRollback).
   test('does not report keys injected by yargs .env("CDK") from environment variables', () => {
     process.env.CDK_INTEG_ATMOSPHERE_POOL = 'test-pool';
     process.env.CDK_MAJOR_VERSION = '2';

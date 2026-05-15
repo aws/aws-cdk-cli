@@ -1,75 +1,69 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const config = require('../cli-type-registry.json');
+
 /**
- * Detect unrecognized CLI options and emit warnings.
+ * Build a set of all known option names for a given option definitions object.
+ * Includes the kebab-case name, its camelCase equivalent, all aliases, and negativeAliases.
+ */
+function collectKnownOptions(optionDefs: Record<string, any>): Set<string> {
+  const known = new Set<string>();
+  for (const [name, def] of Object.entries<any>(optionDefs)) {
+    known.add(name);
+    known.add(kebabToCamel(name));
+    if (def.alias) {
+      const aliases = Array.isArray(def.alias) ? def.alias : [def.alias];
+      for (const a of aliases) {
+        known.add(a);
+      }
+    }
+    if (def.negativeAlias) {
+      known.add(def.negativeAlias);
+    }
+  }
+  return known;
+}
+
+/** Pre-computed set of known global options (static, doesn't depend on argv) */
+const globalKnownOptions = collectKnownOptions(config.globalOptions);
+
+/** yargs internal keys that are always present in argv */
+const yargsInternals = new Set(['_', '$0', 'help', 'h', 'version']);
+
+/**
+ * Detect unrecognized CLI options.
  *
  * Yargs does not enable strict option checking by default, so unknown flags
- * like `--region` (before it was added) are silently swallowed. This function
- * compares the parsed argv keys against the known global and command options
- * from the CLI type registry and warns for any that don't match.
+ * are silently swallowed. This function compares the parsed argv keys against
+ * the known global and command options from the CLI type registry and returns
+ * any that don't match.
  */
 export function findUnknownOptions(argv: any): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const config = require('../cli-type-registry.json');
   const command = argv._[0];
 
-  const globalOptions = new Set<string>(Object.keys(config.globalOptions));
-  const commandOptions = new Set<string>(Object.keys(config.commands[command]?.options ?? {}));
+  const commandDef = config.commands[command];
+  const commandKnownOptions = commandDef?.options
+    ? collectKnownOptions(commandDef.options)
+    : new Set<string>();
 
-  // Collect all known aliases and negativeAliases
-  for (const [, optDef] of Object.entries<any>(config.globalOptions)) {
-    if (optDef.alias) {
-      const aliases = Array.isArray(optDef.alias) ? optDef.alias : [optDef.alias];
-      for (const a of aliases) {
-        globalOptions.add(a);
-      }
-    }
-    if (optDef.negativeAlias) {
-      globalOptions.add(optDef.negativeAlias);
-    }
-  }
-  for (const [, optDef] of Object.entries<any>(config.commands[command]?.options ?? {})) {
-    if (optDef.alias) {
-      const aliases = Array.isArray(optDef.alias) ? optDef.alias : [optDef.alias];
-      for (const a of aliases) {
-        commandOptions.add(a);
-      }
-    }
-    if (optDef.negativeAlias) {
-      commandOptions.add(optDef.negativeAlias);
-    }
-  }
-
-  // yargs internal keys to ignore
-  const yargsInternals = new Set(['_', '$0', 'help', 'h', 'version']);
-
-  // The command's positional arg name
-  const commandArg = config.commands[command]?.arg?.name;
-  if (commandArg) {
-    yargsInternals.add(commandArg);
-  }
+  const positionalArg = commandDef?.arg?.name;
 
   const unknown: string[] = [];
   for (const key of Object.keys(argv)) {
-    if (argv[key] === undefined) continue;
-    if (yargsInternals.has(key)) continue;
-    if (globalOptions.has(key)) continue;
-    if (commandOptions.has(key)) continue;
-
-    // yargs creates camelCase versions of kebab-case options — skip those
-    const kebab = camelToKebab(key);
-    if (kebab !== key && (globalOptions.has(kebab) || commandOptions.has(kebab))) continue;
-
-    // yargs creates "noFoo" keys for --no-foo boolean negations — skip those
-    if (key.startsWith('no') && key.length > 2 && key[2] === key[2].toUpperCase()) {
-      const positiveKey = key[2].toLowerCase() + key.slice(3);
-      const positiveKebab = camelToKebab(positiveKey);
-      if (globalOptions.has(positiveKey) || commandOptions.has(positiveKey) ||
-          globalOptions.has(positiveKebab) || commandOptions.has(positiveKebab)) continue;
+    if (argv[key] === undefined) {
+      continue;
     }
-
+    if (yargsInternals.has(key) || key === positionalArg) {
+      continue;
+    }
+    if (globalKnownOptions.has(key) || commandKnownOptions.has(key)) {
+      continue;
+    }
     // yargs .env('CDK') injects CDK_* environment variables as camelCase argv
     // keys (e.g. CDK_INTEG_ATMOSPHERE_POOL -> integAtmospherePool). These are
     // intentional configuration from the environment, not user typos.
-    if (isFromEnvPrefix(key, 'CDK')) continue;
+    if (isFromEnvPrefix(key, 'CDK')) {
+      continue;
+    }
 
     unknown.push(key);
   }
@@ -77,8 +71,8 @@ export function findUnknownOptions(argv: any): string[] {
   return unknown;
 }
 
-function camelToKebab(str: string): string {
-  return str.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
 /**
