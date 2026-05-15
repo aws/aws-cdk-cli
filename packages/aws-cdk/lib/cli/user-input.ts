@@ -246,6 +246,13 @@ export interface GlobalOptions {
   readonly profile?: string;
 
   /**
+   * Use the indicated AWS region as the default region
+   *
+   * @default - undefined
+   */
+  readonly region?: string;
+
+  /**
    * Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified
    *
    * @default - undefined

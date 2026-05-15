@@ -179,7 +179,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
-  }, configuration.settings.get(['profile']));
+  }, configuration.settings.get(['profile']), configuration.settings.get(['region']));
 
   try {
     await ioHost.telemetry?.attachRegion(sdkProvider.defaultRegion);
