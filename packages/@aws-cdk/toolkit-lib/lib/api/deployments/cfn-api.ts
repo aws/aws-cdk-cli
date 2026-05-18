@@ -16,9 +16,9 @@ import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
+import type { StackDiagnosis } from '../../actions/diagnose';
 import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
-import type { TargetEnvironment } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
@@ -100,13 +100,24 @@ async function waitFor<T>(
  *
  * @returns       the CloudFormation description of the ChangeSet
  */
-export async function waitForChangeSet(
+export interface ChangeSetReport {
+  readonly description: DescribeChangeSetCommandOutput;
+  readonly diagnosis: StackDiagnosis;
+}
+
+/**
+ * Waits for a ChangeSet to reach a terminal state and returns the diagnosis without throwing.
+ *
+ * Use this when you want to inspect the diagnosis result directly (e.g. for `cdk validate --online`).
+ * For the throwing variant used by deploy/diff, see `waitForChangeSet`.
+ */
+export async function waitForChangeSetReport(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackName: string,
   changeSetName: string,
   { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
-): Promise<DescribeChangeSetCommandOutput> {
+): Promise<ChangeSetReport> {
   await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetName, stackName));
   const ret = await waitFor(async () => {
     const description = await describeChangeSet(cfn, stackName, changeSetName, {
@@ -120,12 +131,8 @@ export async function waitForChangeSet(
       return undefined;
     }
 
-    const diag = await diagnoser.diagnoseChangeSet(description);
-    if (diag.type === 'no-problem') {
-      return description;
-    }
-
-    throwDeploymentErrorFromDiagnosis(diag);
+    const diagnosis = await diagnoser.diagnoseChangeSet(description);
+    return { description, diagnosis };
   });
 
   if (!ret) {
@@ -133,6 +140,26 @@ export async function waitForChangeSet(
   }
 
   return ret;
+}
+
+/**
+ * Waits for a ChangeSet to be available for triggering a StackUpdate.
+ *
+ * Will return a changeset that is either ready to be executed or has no changes.
+ * Will throw in other cases.
+ */
+export async function waitForChangeSet(
+  cfn: ICloudFormationClient,
+  ioHelper: IoHelper,
+  stackName: string,
+  changeSetName: string,
+  { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
+): Promise<DescribeChangeSetCommandOutput> {
+  const { description, diagnosis } = await waitForChangeSetReport(cfn, ioHelper, stackName, changeSetName, { fetchAll, diagnoser });
+  if (diagnosis.type !== 'no-problem') {
+    throwDeploymentErrorFromDiagnosis(diagnosis);
+  }
+  return description;
 }
 
 export async function waitForChangeSetGone(
@@ -206,8 +233,7 @@ export async function createDiffChangeSet(
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
   try {
-    const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
-    return await uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
+    return await uploadBodyParameterAndCreateChangeSet(ioHelper, {
       ...options,
       includeNestedStacks: templateContainsNestedStacks(options.stack.template),
     });
@@ -252,14 +278,19 @@ function templatesFromAssetManifestArtifact(
   return [assetManifest, assets];
 }
 
-/**
- * Only ever called for 'cdk diff'
- */
-async function uploadBodyParameterAndCreateChangeSet(
+interface PreparedChangeSetEnv {
+  cfn: ICloudFormationClient;
+  bodyParameter: TemplateBodyParameter;
+  exists: boolean;
+  executionRoleArn: string | undefined;
+  diagnoser: CloudFormationStackDiagnoser;
+}
+
+async function prepareChangeSetEnv(
   ioHelper: IoHelper,
-  env: TargetEnvironment,
-  options: PrepareChangeSetOptions,
-): Promise<DescribeChangeSetCommandOutput | undefined> {
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
+): Promise<PreparedChangeSetEnv> {
+  const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
   await uploadStackTemplateAssets(options.stack, options.deployments);
   const bodyParameter = await makeBodyParameter(
     ioHelper,
@@ -273,8 +304,24 @@ async function uploadBodyParameterAndCreateChangeSet(
   // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
   // that was never executed. Treat it as non-existent for changeset purposes.
   const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
-
   const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
+  const diagnoser = new CloudFormationStackDiagnoser({
+    sdk: env.sdk,
+    envResources: env.resources,
+    sourceTracer: new StackArtifactSourceTracer(options.stack),
+    ioHelper,
+    topLevelStackHierarchicalId: options.stack.hierarchicalId,
+  });
+
+  return { cfn, bodyParameter, exists, executionRoleArn, diagnoser };
+}
+
+async function uploadBodyParameterAndCreateChangeSet(
+  ioHelper: IoHelper,
+  options: Omit<PrepareChangeSetOptions, 'diagnoser'>,
+): Promise<DescribeChangeSetCommandOutput | undefined> {
+  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+
   await ioHelper.defaults.info(
     'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
   );
@@ -292,13 +339,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     importExistingResources: options.importExistingResources,
     includeNestedStacks: options.includeNestedStacks,
     role: executionRoleArn,
-    diagnoser: new CloudFormationStackDiagnoser({
-      sdk: env.sdk,
-      envResources: env.resources,
-      sourceTracer: new StackArtifactSourceTracer(options.stack),
-      ioHelper,
-      topLevelStackHierarchicalId: options.stack.hierarchicalId,
-    }),
+    diagnoser,
   });
 }
 
@@ -368,6 +409,51 @@ export async function createChangeSet(
   await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
 
   return createdChangeSet;
+}
+
+/**
+ * Create a change set for online validation (never executes, returns diagnosis instead of throwing).
+ *
+ * Uses the same env preparation as `uploadBodyParameterAndCreateChangeSet` (diff path),
+ * but calls `waitForChangeSetReport` to return the diagnosis rather than throwing on failure.
+ */
+export async function createValidationChangeSet(
+  ioHelper: IoHelper,
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
+): Promise<ChangeSetReport> {
+  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+  const changeSetName = 'cdk-validate-change-set';
+
+  if (exists) {
+    await cleanupOldChangeset(cfn, ioHelper, changeSetName, options.stack.stackName);
+  }
+
+  const templateParams = TemplateParameters.fromTemplate(options.stack.template);
+  const stackParams = templateParams.supplyAll(options.parameters);
+
+  await cfn.createChangeSet({
+    StackName: options.stack.stackName,
+    ChangeSetName: changeSetName,
+    ChangeSetType: exists ? 'UPDATE' : 'CREATE',
+    Description: `CDK Changeset for validation ${options.uuid}`,
+    ClientToken: `validate${options.uuid}`,
+    TemplateURL: bodyParameter.TemplateURL,
+    TemplateBody: bodyParameter.TemplateBody,
+    Parameters: stackParams.apiParameters,
+    IncludeNestedStacks: templateContainsNestedStacks(options.stack.template) || undefined,
+    RoleARN: executionRoleArn,
+    Tags: toCfnTags(options.stack.tags),
+    Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
+  });
+
+  const report = await waitForChangeSetReport(cfn, ioHelper, options.stack.stackName, changeSetName, {
+    fetchAll: false,
+    diagnoser,
+  });
+
+  await cleanupOldChangeset(cfn, ioHelper, changeSetName, options.stack.stackName);
+
+  return report;
 }
 
 function toCfnTags(tags: { [id: string]: string }): Tag[] {

@@ -13,7 +13,7 @@ beforeEach(() => {
 describe('validate', () => {
   test('returns failure when report contains failing plugin', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.status).toBe('failure');
     expect(result.title).toBe('Validation Report');
@@ -27,7 +27,7 @@ describe('validate', () => {
 
   test('returns success when all plugins pass', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.status).toBe('success');
     expect(result.pluginReports).toHaveLength(1);
@@ -37,30 +37,30 @@ describe('validate', () => {
 
   test('returns success with no reports when no report file exists', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.status).toBe('success');
     expect(result.pluginReports).toHaveLength(0);
     ioHost.expectMessage({ containing: 'No policy validation report found', level: 'info' });
   });
 
-  test('emits error IO message on failure', async () => {
+  test('emits info IO message on failure', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
-    ioHost.expectMessage({ containing: 'S3 Buckets must not be publicly accessible', level: 'error' });
+    ioHost.expectMessage({ containing: 'S3 Buckets must not be publicly accessible', level: 'info' });
   });
 
   test('emits info IO message on success', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
     ioHost.expectMessage({ containing: 'Policy validation passed. No violations found.', level: 'info' });
   });
 
   test('can invoke without options', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.status).toBe('success');
   });
@@ -69,6 +69,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
     });
 
     expect(result.status).toBe('failure');
@@ -76,7 +77,7 @@ describe('validate', () => {
 
   test('parses violation details correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const violation = result.pluginReports[0].violations[0];
     expect(violation.severity).toBe('error');
@@ -89,7 +90,7 @@ describe('validate', () => {
 
   test('includes plugin version in report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.pluginReports[0].version).toBe('1.0.0');
     expect(result.pluginReports[1].version).toBeUndefined();
@@ -98,12 +99,12 @@ describe('validate', () => {
   test('throws on malformed report missing pluginReports', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
 
-    await expect(toolkit.validate(cx)).rejects.toThrow(/malformed.*pluginReports/i);
+    await expect(toolkit.validate(cx, { online: false })).rejects.toThrow(/malformed.*pluginReports/i);
   });
 
   test('parses constructStack trace correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const construct = result.pluginReports[0].violations[0].violatingConstructs[0];
     expect(construct.constructStack).toBeDefined();
@@ -118,13 +119,13 @@ describe('validate', () => {
 
   test('IO message payload contains full ValidateResult', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
-    const errorMsg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_E9600',
+    const msg = ioHost.messages.find(
+      (m) => m.code === 'CDK_TOOLKIT_I9600',
     );
-    expect(errorMsg).toBeDefined();
-    expect(errorMsg!.data).toMatchObject({
+    expect(msg).toBeDefined();
+    expect(msg!.data).toMatchObject({
       status: 'failure',
       title: 'Validation Report',
       pluginReports: expect.arrayContaining([
@@ -137,7 +138,7 @@ describe('validate', () => {
 
   test('handles report with missing title field', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-no-title-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.status).toBe('failure');
     expect(result.title).toBeUndefined();

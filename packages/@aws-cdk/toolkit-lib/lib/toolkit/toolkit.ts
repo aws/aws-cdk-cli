@@ -57,7 +57,8 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportStatus } from '../actions/validate';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportStatus, PluginReportJson } from '../actions/validate';
+import { randomUUID } from 'node:crypto';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -79,6 +80,7 @@ import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
+import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter } from '../api/diff';
@@ -664,38 +666,99 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
+    const pluginReports: PluginReportJson[] = [];
+    let title: string | undefined;
+
+    // Offline validation: read the policy validation report from the cloud assembly
     const reportPath = path.join(assembly.directory, POLICY_VALIDATION_REPORT_FILE);
-
-    if (!await fs.pathExists(reportPath)) {
-      const result: ValidateResult = {
-        status: 'success',
-        pluginReports: [],
-      };
+    if (await fs.pathExists(reportPath)) {
+      const reportJson = await fs.readJson(reportPath);
+      if (!Array.isArray(reportJson.pluginReports)) {
+        throw new ToolkitError('MalformedValidationReport', `Policy validation report at ${reportPath} is malformed: missing or invalid 'pluginReports' field`);
+      }
+      const report = reportJson as PolicyValidationReportJson;
+      title = report.title;
+      pluginReports.push(...report.pluginReports);
+    } else if (options.online === false) {
       await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No policy validation report found'));
-      return result;
     }
 
-    const reportJson = await fs.readJson(reportPath);
+    // Online validation: submit templates to CloudFormation for early validation
+    if (options.online ?? true) {
+      const stacks = await assembly.selectStacksV2(selectStacks);
+      const deployments = await this.deploymentsForAction('validate');
+      const sdkProvider = await this.sdkProvider('validate');
 
-    if (!Array.isArray(reportJson.pluginReports)) {
-      throw new ToolkitError('MalformedValidationReport', `Policy validation report at ${reportPath} is malformed: missing or invalid 'pluginReports' field`);
+      const onlineReport = await this.validateOnline(ioHelper, stacks, deployments, sdkProvider);
+      if (onlineReport) {
+        pluginReports.push(onlineReport);
+      }
     }
 
-    const report = reportJson as PolicyValidationReportJson;
-
-    const status: PolicyValidationReportStatus = report.pluginReports.some(
-      (pr) => pr.summary.status === 'failure',
+    const status: PolicyValidationReportStatus = pluginReports.some(
+      (pr: any) => pr.summary.status === 'failure',
     ) ? 'failure' : 'success';
 
     const result: ValidateResult = {
       status,
-      title: report.title,
-      pluginReports: report.pluginReports,
+      title,
+      pluginReports,
     };
 
     await ioHelper.notify(hostMessageFromValidation(result));
 
     return result;
+  }
+
+  private async validateOnline(
+    ioHelper: IoHelper,
+    stacks: StackCollection,
+    deployments: Deployments,
+    sdkProvider: SdkProvider,
+  ): Promise<PluginReportJson | undefined> {
+    const violations: any[] = [];
+
+    for (const stack of stacks.stackArtifacts) {
+      try {
+        const report = await createValidationChangeSet(ioHelper, {
+          deployments,
+          stack,
+          sdkProvider,
+          parameters: {},
+          uuid: randomUUID(),
+          willExecute: false,
+          failOnError: true,
+        });
+
+        if (report.diagnosis.type === 'problem') {
+          for (const problem of report.diagnosis.problems) {
+            violations.push({
+              ruleName: problem.errorCode ?? 'CloudFormationValidation',
+              description: problem.message,
+              severity: 'error',
+              violatingConstructs: [{
+                resourceLogicalId: problem.logicalId ?? 'Unknown',
+                templatePath: `${stack.stackName}.template.json`,
+              }],
+            });
+          }
+        }
+      } catch (e: any) {
+        await ioHelper.defaults.warn(`Failed to run online validation for stack ${stack.stackName}: ${e.message}`);
+      }
+    }
+
+    if (violations.length === 0) {
+      return undefined;
+    }
+
+    return {
+      summary: {
+        pluginName: 'CloudFormation',
+        status: 'failure',
+      },
+      violations,
+    };
   }
 
   /**
