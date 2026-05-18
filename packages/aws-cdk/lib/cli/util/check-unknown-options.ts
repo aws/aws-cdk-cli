@@ -4,6 +4,10 @@ const config = require('../cli-type-registry.json');
 /**
  * Build a set of all known option names for a given option definitions object.
  * Includes the kebab-case name, its camelCase equivalent, all aliases, and negativeAliases.
+ *
+ * @param optionDefs - Option definitions keyed by their kebab-case CLI names
+ *   (as defined in cli-type-registry.json). Each key is converted to camelCase
+ *   and both forms are included in the returned set.
  */
 function collectKnownOptions(optionDefs: Record<string, any>): Set<string> {
   const known = new Set<string>();

@@ -29,7 +29,7 @@ describe('findUnknownOptions', () => {
       fakeOption: 'value',
     };
     const unknown = findUnknownOptions(argv);
-    expect(unknown).toContain('fakeOption');
+    expect(unknown).toEqual(['fakeOption']);
   });
 
   test('does not report camelCase variants of known kebab-case options', () => {
@@ -103,8 +103,7 @@ describe('findUnknownOptions', () => {
         totallyFakeOption: 'value',
       };
       const unknown = findUnknownOptions(argv);
-      expect(unknown).not.toContain('integAtmospherePool');
-      expect(unknown).toContain('totallyFakeOption');
+      expect(unknown).toEqual(['totallyFakeOption']);
     } finally {
       delete process.env.CDK_INTEG_ATMOSPHERE_POOL;
     }
