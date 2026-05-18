@@ -149,6 +149,12 @@ export function convertYargsToUserInput(args: any): UserInput {
       };
       break;
 
+    case 'validate':
+      commandOptions = {
+        STACKS: args.STACKS,
+      };
+      break;
+
     case 'diagnose':
       commandOptions = {
         toolkitStackName: args.toolkitStackName,
@@ -463,6 +469,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
   };
+  const validateOptions = {};
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
     concurrency: config.diagnose?.concurrency,
@@ -586,6 +593,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     gc: gcOptions,
     flags: flagsOptions,
     deploy: deployOptions,
+    validate: validateOptions,
     diagnose: diagnoseOptions,
     rollback: rollbackOptions,
     publishAssets: publishAssetsOptions,

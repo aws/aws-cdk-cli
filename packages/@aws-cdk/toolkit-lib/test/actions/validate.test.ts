@@ -48,14 +48,14 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'Validation found policy violations', level: 'error' });
+    ioHost.expectMessage({ containing: 'S3 Buckets must not be publicly accessible', level: 'error' });
   });
 
   test('emits info IO message on success', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'All policy checks passed', level: 'info' });
+    ioHost.expectMessage({ containing: 'Policy validation passed. No violations found.', level: 'info' });
   });
 
   test('can invoke without options', async () => {
@@ -81,10 +81,10 @@ describe('validate', () => {
     const violation = result.pluginReports[0].violations[0];
     expect(violation.severity).toBe('error');
     expect(violation.fix).toBe('Set PublicAccessBlockConfiguration on the bucket');
-    expect(violation.violatingResources).toHaveLength(1);
-    expect(violation.violatingResources[0].resourceLogicalId).toBe('MyBucketF68F3FF0');
-    expect(violation.violatingResources[0].templatePath).toBe('Stack1.template.json');
-    expect(violation.violatingResources[0].locations).toEqual(['/Resources/MyBucketF68F3FF0']);
+    expect(violation.violatingConstructs).toHaveLength(1);
+    expect(violation.violatingConstructs[0].resourceLogicalId).toBe('MyBucketF68F3FF0');
+    expect(violation.violatingConstructs[0].templatePath).toBe('Stack1.template.json');
+    expect(violation.violatingConstructs[0].locations).toEqual(['/Resources/MyBucketF68F3FF0']);
   });
 
   test('includes plugin version in report', async () => {

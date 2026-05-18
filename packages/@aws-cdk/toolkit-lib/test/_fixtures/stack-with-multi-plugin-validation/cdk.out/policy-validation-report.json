@@ -1,0 +1,250 @@
+{
+  "title": "Validation Report",
+  "pluginReports": [
+    {
+      "version": "2.1.0",
+      "summary": {
+        "pluginName": "SecurityPlugin",
+        "status": "failure"
+      },
+      "violations": [
+        {
+          "ruleName": "no-public-buckets",
+          "description": "S3 Buckets must not be publicly accessible",
+          "fix": "Set PublicAccessBlockConfiguration on the bucket",
+          "severity": "fatal",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/PublicAccessBlockConfiguration"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/PublicAccessBlockConfiguration"]
+            }
+          ]
+        },
+        {
+          "ruleName": "require-encryption",
+          "description": "S3 Buckets must have server-side encryption enabled",
+          "fix": "Add BucketEncryption property with SSE-S3 or SSE-KMS",
+          "severity": "error",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/BucketEncryption"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/BucketEncryption"]
+            }
+          ]
+        },
+        {
+          "ruleName": "require-versioning",
+          "description": "S3 Buckets should have versioning enabled for data protection",
+          "severity": "warning",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/VersioningConfiguration"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/VersioningConfiguration"]
+            }
+          ]
+        },
+        {
+          "ruleName": "consider-intelligent-tiering",
+          "description": "Consider using Intelligent-Tiering storage class for cost optimization",
+          "severity": "info",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/IntelligentTieringConfigurations"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/IntelligentTieringConfigurations"]
+            }
+          ]
+        },
+        {
+          "ruleName": "org-tagging-policy",
+          "description": "Resource does not comply with organization tagging policy TG-0042",
+          "severity": "compliance",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/Tags"]
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket/Resource",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json",
+              "locations": ["/Resources/MyBucket/Properties/Tags"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "summary": {
+        "pluginName": "Construct Annotations",
+        "status": "failure"
+      },
+      "violations": [
+        {
+          "ruleName": "bucket-no-lifecycle",
+          "description": "This bucket has no lifecycle rules configured",
+          "severity": "warning",
+          "violatingResources": [
+            {
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json"
+            }
+          ],
+          "violatingConstructs": [
+            {
+              "constructPath": "test-validate/MyBucket",
+              "constructStack": {
+                "id": "App",
+                "path": "",
+                "child": {
+                  "id": "test-validate",
+                  "path": "test-validate",
+                  "construct": "aws-cdk-lib.Stack",
+                  "libraryVersion": "2.253.0",
+                  "location": "new ValidateStack (app.js:78:5)",
+                  "child": {
+                    "id": "MyBucket",
+                    "path": "test-validate/MyBucket",
+                    "construct": "aws-cdk-lib/aws-s3.Bucket",
+                    "libraryVersion": "2.253.0",
+                    "location": "new Bucket (app.js:80:20)"
+                  }
+                }
+              },
+              "resourceLogicalId": "MyBucket",
+              "templatePath": "test-validate.template.json"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
