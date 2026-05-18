@@ -8,6 +8,24 @@ on:
         description: Dry run (skip actual publishing)
         required: false
         type: boolean
+      package:
+        description: Select specific package to release
+        required: false
+        type: choice
+        options:
+          - "*all packages*"
+          - "@aws-cdk/cloud-assembly-schema"
+          - "@aws-cdk/cloudformation-diff"
+          - "@aws-cdk/cloud-assembly-api"
+          - "@aws-cdk/cli-plugin-contract"
+          - "@aws-cdk/cdk-assets-lib"
+          - cdk-assets
+          - "@aws-cdk/toolkit-lib"
+          - aws-cdk
+          - cdk
+          - "@aws-cdk/integ-runner"
+          - "@aws-cdk-testing/cli-integ"
+        default: "*all packages*"
 jobs:
   release:
     runs-on: aws-cdk_ubuntu-latest_16-core
@@ -236,7 +254,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -263,7 +281,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -308,7 +326,7 @@ jobs:
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-java@v5
         with:
@@ -360,7 +378,7 @@ jobs:
       contents: read
       id-token: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -405,7 +423,7 @@ jobs:
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -451,7 +469,7 @@ jobs:
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -501,7 +519,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloudformation-diff","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -528,7 +546,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloudformation-diff","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -565,7 +583,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -599,7 +617,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -630,7 +648,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cli-plugin-contract","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -657,7 +675,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cli-plugin-contract","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -696,7 +714,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -732,7 +750,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -765,7 +783,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk-assets"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -795,7 +813,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk-assets"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -840,7 +858,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -882,7 +900,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -927,7 +945,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -969,7 +987,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1002,7 +1020,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1032,7 +1050,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1079,7 +1097,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1123,7 +1141,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' }}
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1154,7 +1172,7 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk-testing/cli-integ"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1181,7 +1199,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk-testing/cli-integ"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
