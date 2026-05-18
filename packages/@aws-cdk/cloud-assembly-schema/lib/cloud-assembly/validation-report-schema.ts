@@ -95,7 +95,7 @@ export interface PolicyViolationJson {
    *
    * @default - no severity
    */
-  readonly severity?: string;
+  readonly severity?: PolicyViolationSeverity;
 
   /**
    * Additional rule-specific metadata.
@@ -105,36 +105,31 @@ export interface PolicyViolationJson {
   readonly ruleMetadata?: { readonly [key: string]: string };
 
   /**
-   * Resources that violated the rule.
-   */
-  readonly violatingResources: ViolatingResourceJson[];
-
-  /**
    * Constructs that violated the rule.
    */
   readonly violatingConstructs: ViolatingConstructJson[];
 }
 
 /**
- * A resource that violated a policy rule.
+ * The severity of a policy violation.
+ *
+ * If you need to use a severity level that doesn't exist as a static member,
+ * use `PolicyViolationSeverity.custom('critical')`.
  */
-export interface ViolatingResourceJson {
-  /**
-   * The logical ID of the resource in the CloudFormation template.
-   */
-  readonly resourceLogicalId: string;
+export class PolicyViolationSeverity {
+  static readonly ERROR = new PolicyViolationSeverity('error');
+  static readonly WARNING = new PolicyViolationSeverity('warning');
+  static readonly INFO = new PolicyViolationSeverity('info');
 
-  /**
-   * The path to the CloudFormation template containing this resource.
-   */
-  readonly templatePath: string;
+  static custom(name: string): PolicyViolationSeverity {
+    return new PolicyViolationSeverity(name);
+  }
 
-  /**
-   * Locations within the template that pose violations.
-   *
-   * @default - no locations
-   */
-  readonly locations?: string[];
+  readonly name: string;
+
+  private constructor(name: string) {
+    this.name = name;
+  }
 }
 
 /**
