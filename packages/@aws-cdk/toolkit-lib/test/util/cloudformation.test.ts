@@ -1,5 +1,5 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import { validateSnsTopicArn, maxResourceTypeLength, isErrorEvent } from '../../lib/util/cloudformation';
+import { validateSnsTopicArn, maxResourceTypeLength, isErrorEvent, stackNameFromArn, changeSetNameFromArn } from '../../lib/util/cloudformation';
 
 describe('validateSnsTopicArn', () => {
   test('empty string', () => {
@@ -119,3 +119,41 @@ function stackEventHasErrorMessage(status: StackEvent['ResourceStatus']) {
     ResourceStatus: status,
   });
 }
+
+describe('stackNameFromArn', () => {
+  test('returns plain stack name as-is', () => {
+    expect(stackNameFromArn('my-stack')).toBe('my-stack');
+  });
+
+  test('extracts stack name from a standard ARN', () => {
+    expect(stackNameFromArn('arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid')).toBe('my-stack');
+  });
+
+  test('extracts stack name with hyphens and nested stack naming', () => {
+    expect(stackNameFromArn(
+      'arn:aws:cloudformation:us-east-1:312160754796:stack/amplify-cdkinteg0c4yeq1mqbr-kornherm-sandbo-amplifyDataAmplifyTableManagerNestedStackA-1XLFUMBAHXPWT/74a1c390-2910-11f1-b1a7-0e16f02188d7',
+    )).toBe('amplify-cdkinteg0c4yeq1mqbr-kornherm-sandbo-amplifyDataAmplifyTableManagerNestedStackA-1XLFUMBAHXPWT');
+  });
+
+  test('extracts stack name from a gov-cloud partition ARN', () => {
+    expect(stackNameFromArn('arn:aws-us-gov:cloudformation:us-gov-west-1:123456789012:stack/my-gov-stack/abc123')).toBe('my-gov-stack');
+  });
+
+  test('extracts stack name from a china partition ARN', () => {
+    expect(stackNameFromArn('arn:aws-cn:cloudformation:cn-north-1:123456789012:stack/my-cn-stack/def456')).toBe('my-cn-stack');
+  });
+});
+
+describe('changeSetNameFromArn', () => {
+  test('returns plain change set name as-is', () => {
+    expect(changeSetNameFromArn('my-changeset')).toBe('my-changeset');
+  });
+
+  test('extracts change set name from a standard ARN', () => {
+    expect(changeSetNameFromArn('arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-changeset/guid')).toBe('my-changeset');
+  });
+
+  test('extracts change set name from a gov-cloud partition ARN', () => {
+    expect(changeSetNameFromArn('arn:aws-us-gov:cloudformation:us-gov-west-1:123456789012:changeSet/my-gov-changeset/abc123')).toBe('my-gov-changeset');
+  });
+});

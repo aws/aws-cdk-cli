@@ -12,10 +12,10 @@
  * We therefore cannot mock the STS Client, but instead we intercept network
  * calls and locally fake an STS Endpoint using the `FakeSts` class.
  */
-import * as os from 'os';
+import { randomUUID } from 'node:crypto';
+import * as os from 'node:os';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
-import * as uuid from 'uuid';
 import type { RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
 import { FakeSts } from './fake-sts';
 import type { ConfigurationOptions, CredentialsOptions, SDK } from '../../../lib/api/aws-auth/private';
@@ -65,7 +65,7 @@ beforeEach(() => {
   //
   // - We have a cache from account# -> credentials
   // - We have a cache from access key -> account
-  uid = `(${uuid.v4()})`;
+  uid = `(${randomUUID()})`;
   pluginQueried = false;
 
   ioHost.notifySpy.mockClear();

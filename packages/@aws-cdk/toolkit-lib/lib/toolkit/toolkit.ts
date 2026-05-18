@@ -797,7 +797,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       if (!prepareResult?.noOp) {
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName)
+          ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)
           : prepareResult?.changeSet;
 
         const formatter = new DiffFormatter({

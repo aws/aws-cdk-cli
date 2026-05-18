@@ -58,3 +58,29 @@ export function maxResourceTypeLength(template: any, startWidth = 'AWS::CloudFor
   }
   return maxWidth;
 }
+
+/**
+ * Extract the stack name from a CloudFormation stack ARN.
+ * If the input is already a stack name (not an ARN), returns it as-is.
+ *
+ * ARN format: arn:<partition>:cloudformation:<region>:<account>:stack/<stack-name>/<unique-id>
+ */
+export function stackNameFromArn(stackNameOrArn: string): string {
+  if (!stackNameOrArn.startsWith('arn:')) {
+    return stackNameOrArn;
+  }
+  return stackNameOrArn.slice(stackNameOrArn.indexOf('/') + 1, stackNameOrArn.lastIndexOf('/'));
+}
+
+/**
+ * Extract the change set name from a CloudFormation change set ARN.
+ * If the input is already a change set name (not an ARN), returns it as-is.
+ *
+ * ARN format: arn:<partition>:cloudformation:<region>:<account>:changeSet/<changeset-name>/<unique-id>
+ */
+export function changeSetNameFromArn(changeSetNameOrArn: string): string {
+  if (!changeSetNameOrArn.startsWith('arn:')) {
+    return changeSetNameOrArn;
+  }
+  return changeSetNameOrArn.slice(changeSetNameOrArn.indexOf('/') + 1, changeSetNameOrArn.lastIndexOf('/'));
+}

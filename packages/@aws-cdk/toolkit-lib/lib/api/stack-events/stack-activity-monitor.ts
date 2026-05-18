@@ -1,9 +1,10 @@
-import * as util from 'util';
+import { randomUUID } from 'node:crypto';
+import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import * as uuid from 'uuid';
 import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
+import { stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
@@ -26,9 +27,9 @@ export interface StackActivityMonitorProps {
   readonly stack: CloudFormationStackArtifact;
 
   /**
-   * The name of the Stack that is getting deployed
+   * The ARN of the Stack that is getting deployed
    */
-  readonly stackName: string;
+  readonly stackArn: string;
 
   /**
    * Total number of resources to update
@@ -107,7 +108,7 @@ export class StackActivityMonitor {
   private readPromise?: Promise<any>;
 
   private readonly ioHelper: IoHelper;
-  private readonly stackName: string;
+  private readonly stackDisplayName: string;
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
   private readonly envResources?: EnvironmentResources;
@@ -116,7 +117,7 @@ export class StackActivityMonitor {
     cfn,
     ioHelper,
     stack,
-    stackName,
+    stackArn,
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
@@ -124,14 +125,14 @@ export class StackActivityMonitor {
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
-    this.stackName = stackName;
+    this.stackDisplayName = stackNameFromArn(stackArn);
     this.cfn = cfn;
     this.envResources = envResources;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
     this.poller = new StackEventPoller(cfn, {
-      stackName,
+      stackArn,
       initialPollRange: PollRange.sinceTimestamp(changeSetCreationTime?.getTime() ?? Date.now()),
     });
   }
@@ -144,11 +145,11 @@ export class StackActivityMonitor {
   }
 
   public async start() {
-    this.monitorId = uuid.v4();
-    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackName}`, {
+    this.monitorId = randomUUID();
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
       deployment: this.monitorId,
       stack: this.stack,
-      stackName: this.stackName,
+      stackName: this.stackDisplayName,
       resourcesTotal: this.progressMonitor.total,
     }));
     this.scheduleNextTick();
@@ -167,10 +168,10 @@ export class StackActivityMonitor {
     // up not printing the failure reason to users.
     await this.finalPollToEnd(oldMonitorId);
 
-    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackName}`, {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackDisplayName}`, {
       deployment: oldMonitorId,
       stack: this.stack,
-      stackName: this.stackName,
+      stackName: this.stackDisplayName,
       resourcesTotal: this.progressMonitor.total,
     }));
   }

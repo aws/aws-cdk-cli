@@ -36,7 +36,7 @@ describe('poll', () => {
     });
 
     const poller = new StackEventPoller(sdk.cloudFormation(), {
-      stackName: 'stack',
+      stackArn: 'stack',
       initialPollRange: PollRange.sinceTimestamp(new Date().getTime()),
     });
 
@@ -67,10 +67,58 @@ describe('poll', () => {
     });
 
     const poller = new StackEventPoller(sdk.cloudFormation(), {
-      stackName: 'stack',
+      stackArn: 'stack',
       initialPollRange: PollRange.sinceTimestamp(new Date().getTime()),
     });
 
     await poller.poll();
+  });
+
+  test('swallows "does not exist" ValidationError when ARN is passed', async () => {
+    const stackArn = 'arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/some-guid';
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+      Object.assign(new Error(`Stack [${stackArn}] does not exist`), { name: 'ValidationError' }),
+    );
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn,
+      initialPollRange: PollRange.sinceTimestamp(Date.now()),
+    });
+
+    const events = await poller.poll();
+    expect(events).toEqual([]);
+  });
+
+  test('swallows "does not exist" ValidationError when plain name is passed', async () => {
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+      Object.assign(new Error('Stack [my-stack] does not exist'), { name: 'ValidationError' }),
+    );
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn: 'my-stack',
+      initialPollRange: PollRange.sinceTimestamp(Date.now()),
+    });
+
+    const events = await poller.poll();
+    expect(events).toEqual([]);
+  });
+
+  test('rethrows non-matching ValidationError', async () => {
+    const stackArn = 'arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/some-guid';
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+      Object.assign(new Error('Something else went wrong'), { name: 'ValidationError' }),
+    );
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn,
+      initialPollRange: PollRange.sinceTimestamp(Date.now()),
+    });
+
+    await expect(poller.poll()).rejects.toThrow('Something else went wrong');
   });
 });

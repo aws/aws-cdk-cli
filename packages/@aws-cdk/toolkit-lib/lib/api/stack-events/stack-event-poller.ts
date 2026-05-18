@@ -8,7 +8,7 @@ export interface StackEventPollerProps {
   /**
    * The stack to poll
    */
-  readonly stackName: string;
+  readonly stackArn: string;
 
   /**
    * IDs of parent stacks of this resource, in case of resources in nested stacks
@@ -209,7 +209,7 @@ export class StackEventPoller {
       let finished = false;
 
       while (!finished) {
-        const page = await this.cfn.describeStackEvents({ StackName: this.props.stackName, NextToken: nextToken });
+        const page = await this.cfn.describeStackEvents({ StackName: this.props.stackArn, NextToken: nextToken });
         for (const event of page?.StackEvents ?? []) {
           // Already seen this one
           if (this.eventIds.has(event.EventId!)) {
@@ -258,7 +258,8 @@ export class StackEventPoller {
         }
       }
     } catch (e: any) {
-      if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackName}] does not exist`)) {
+      // CFN returns the input exactly as provided by us to the `DescribeStackEvents` api call
+      if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackArn}] does not exist`)) {
         throw e;
       }
     }
@@ -283,7 +284,7 @@ export class StackEventPoller {
 
     if (!this.nestedStackPollers[logicalId]) {
       this.nestedStackPollers[logicalId] = new StackEventPoller(this.cfn, {
-        stackName: physicalResourceId,
+        stackArn: physicalResourceId,
         parentStackLogicalIds: parentStackLogicalIds,
         initialPollRange: PollRange.sinceTimestamp(event.Timestamp!.valueOf()),
       });

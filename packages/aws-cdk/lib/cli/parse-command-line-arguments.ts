@@ -81,6 +81,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       desc: 'Use the indicated AWS profile as the default environment',
       requiresArg: true,
     })
+    .option('region', {
+      default: undefined,
+      type: 'string',
+      desc: 'Use the indicated AWS region as the default region',
+      requiresArg: true,
+    })
     .option('proxy', {
       default: undefined,
       type: 'string',
