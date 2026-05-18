@@ -324,7 +324,7 @@ When changing observable CLI behavior:
 
 ### Prerequisites
 
-- Node.js ^20.17.0 or >=22.9.0 (Active LTS recommended)
+- Node.js >= 18.0.0 (Active LTS recommended)
 - Yarn >= 4 (configured via `.yarnrc.yml`)
 - Docker >= 19.03 (for init template tests)
 - .NET SDK >= 6.0 (for C# init tests)
