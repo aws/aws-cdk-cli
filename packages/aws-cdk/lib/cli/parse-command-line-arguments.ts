@@ -611,6 +611,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
     )
+    .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) => yargs)
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
       yargs
         .option('toolkit-stack-name', {

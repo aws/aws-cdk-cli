@@ -1,5 +1,5 @@
 import * as chalk from 'chalk';
-import type { ConstructTraceJson, PluginReportJson, PolicyViolationJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import type { ConstructTraceJson, PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import type { ValidateResult } from '../../actions/validate';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
@@ -16,12 +16,12 @@ const SEVERITY_ORDER: Record<string, number> = {
   fatal: 0,
   error: 1,
   warning: 2,
+  info: 3,
 };
 
 export function hostMessageFromValidation(result: ValidateResult): ActionLessMessage<any> {
-  if (result.status === 'failure') {
-    return IO.CDK_TOOLKIT_E9600.msg(formatValidateResult(result), result);
-  }
+  // Always use info-level for the formatted output so the CLI doesn't wrap it in red.
+  // The result payload carries the status for programmatic consumers.
   return IO.CDK_TOOLKIT_I9600.msg(formatValidateResult(result), result);
 }
 
@@ -33,8 +33,8 @@ export function formatValidateResult(result: ValidateResult): string {
   }
 
   violations.sort((a, b) => {
-    const aOrder = SEVERITY_ORDER[a.severity.toLowerCase()] ?? 2;
-    const bOrder = SEVERITY_ORDER[b.severity.toLowerCase()] ?? 2;
+    const aOrder = SEVERITY_ORDER[a.severity.toLowerCase()] ?? 4;
+    const bOrder = SEVERITY_ORDER[b.severity.toLowerCase()] ?? 4;
     return aOrder - bOrder;
   });
 
@@ -49,27 +49,12 @@ function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolatio
     const pluginName = report.summary.pluginName;
 
     for (const violation of report.violations) {
-      const severity = normalizeSeverity(violation.severity);
+      // severity may be a PolicyViolationSeverity instance or a raw string from JSON deserialization
+      const rawSeverity = violation.severity as any;
+      const severity = normalizeSeverity(typeof rawSeverity === 'string' ? rawSeverity : rawSeverity?.name);
 
-      if (violation.violatingConstructs.length > 0) {
-        for (const construct of violation.violatingConstructs) {
-          result.push({ severity, description: violation.description, ruleName: violation.ruleName, pluginName, construct });
-        }
-      } else {
-        // Fall back to violatingResources if no constructs
-        for (const resource of violation.violatingResources) {
-          result.push({
-            severity,
-            description: violation.description,
-            ruleName: violation.ruleName,
-            pluginName,
-            construct: {
-              resourceLogicalId: resource.resourceLogicalId,
-              templatePath: resource.templatePath,
-              locations: resource.locations,
-            },
-          });
-        }
+      for (const construct of violation.violatingConstructs) {
+        result.push({ severity, description: violation.description, ruleName: violation.ruleName, pluginName, construct });
       }
     }
   }
@@ -82,7 +67,9 @@ function normalizeSeverity(severity: string | undefined): string {
   const lower = severity.toLowerCase();
   if (lower === 'fatal') return 'Fatal';
   if (lower === 'error') return 'Error';
-  return 'Warning';
+  if (lower === 'warning') return 'Warning';
+  if (lower === 'info') return 'Info';
+  return severity;
 }
 
 function formatViolationBlock(v: FlattenedViolation): string {
@@ -91,37 +78,44 @@ function formatViolationBlock(v: FlattenedViolation): string {
   // Line 1: source location
   const location = getLeafLocation(v.construct.constructStack);
   if (location) {
-    lines.push(chalk.dim(location));
+    lines.push(location);
   }
 
-  // Line 2: severity + description + plugin name
-  const severityLabel = formatSeverityLabel(v.severity);
-  const pluginLabel = chalk.dim(v.pluginName);
-  lines.push(`  ${severityLabel} ${v.description}  ${pluginLabel}`);
+  // Line 2: severity + description (bold together) + plugin name (plain)
+  const severityColor = getSeverityColor(v.severity);
+  const severityAndDesc = severityColor(chalk.bold(`${formatSeverityName(v.severity)} ${v.description}`));
+  lines.push(`${severityAndDesc} ${v.pluginName}`);
 
-  // Line 3: construct path + (logicalId) + construct FQN
+  // Line 3: construct path (bold) + (logicalId) + construct FQN
   const constructInfo = formatConstructInfo(v.construct);
-  lines.push(`    ${chalk.dim(constructInfo)}`);
+  lines.push(`   ${constructInfo}`);
 
   // Line 4: acknowledge instruction (omit for Fatal)
   if (v.severity.toLowerCase() !== 'fatal') {
     const ackId = `${v.pluginName}::${v.ruleName}`;
-    lines.push(`    ${chalk.dim(`Acknowledge '${ackId}'`)}`);
+    lines.push(`   Acknowledge '${ackId}'`);
   }
 
   return lines.join('\n');
 }
 
-function formatSeverityLabel(severity: string): string {
+function formatSeverityName(severity: string): string {
   switch (severity.toLowerCase()) {
-    case 'fatal':
-      return chalk.red.bold('Fatal');
-    case 'error':
-      return chalk.red('Error');
-    case 'warning':
-      return chalk.yellow('Warning');
-    default:
-      return chalk.yellow('Warning');
+    case 'fatal': return 'Fatal';
+    case 'error': return 'Error';
+    case 'warning': return 'Warning';
+    case 'info': return 'Info';
+    default: return severity;
+  }
+}
+
+function getSeverityColor(severity: string): (str: string) => string {
+  switch (severity.toLowerCase()) {
+    case 'fatal': return chalk.red;
+    case 'error': return chalk.hex('#FFA500');
+    case 'warning': return chalk.yellow;
+    case 'info': return chalk.yellow;
+    default: return chalk.yellow;
   }
 }
 
@@ -129,14 +123,14 @@ function formatConstructInfo(construct: ViolatingConstructJson): string {
   const parts: string[] = [];
 
   if (construct.constructPath) {
-    parts.push(`${construct.constructPath} (${construct.resourceLogicalId})`);
+    parts.push(`${chalk.bold(construct.constructPath)} (${construct.resourceLogicalId})`);
   } else {
-    parts.push(construct.resourceLogicalId);
+    parts.push(chalk.bold(construct.resourceLogicalId));
   }
 
   const leaf = getLeafNode(construct.constructStack);
   if (leaf?.construct) {
-    parts.push(` ${leaf.construct}`);
+    parts.push(leaf.construct);
   }
 
   return parts.join(' ');
@@ -145,7 +139,10 @@ function formatConstructInfo(construct: ViolatingConstructJson): string {
 function getLeafLocation(trace: ConstructTraceJson | undefined): string | undefined {
   if (!trace) return undefined;
   const leaf = getLeafNode(trace);
-  return leaf?.location;
+  if (!leaf?.location) return undefined;
+  // Location is in format "new ClassName (file:line:col)" — extract just the file:line:col
+  const match = leaf.location.match(/\((.+)\)$/);
+  return match ? match[1] : leaf.location;
 }
 
 function getLeafNode(trace: ConstructTraceJson | undefined): ConstructTraceJson | undefined {
