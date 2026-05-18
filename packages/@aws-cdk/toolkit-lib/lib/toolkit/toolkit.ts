@@ -693,9 +693,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     };
 
     if (status === 'failure') {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('Policy validation failed', result));
+      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ Validation found policy violations', result));
     } else {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('Policy validation passed', result));
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ All policy checks passed', result));
     }
 
     return result;
