@@ -10,9 +10,9 @@
  */
 export interface PolicyValidationReportJson {
   /**
-   * Report title.
+   * Report title, if present.
    */
-  readonly title: string;
+  readonly title?: string;
 
   /**
    * Reports from all validation plugins that ran during synthesis.
@@ -25,16 +25,28 @@ export interface PolicyValidationReportJson {
  */
 export interface PluginReportJson {
   /**
+   * The name of the plugin that produced this report.
+   */
+  readonly pluginName: string;
+
+  /**
    * Version of the plugin that produced this report.
    *
    * @default - no version
    */
-  readonly version?: string;
+  readonly pluginVersionersion?: string;
 
   /**
-   * Summary of the plugin's validation run.
+   * Whether the plugin's validation passed or failed.
    */
-  readonly summary: PolicyValidationReportSummary;
+  readonly conclusion: PolicyValidationReportConclusion;
+
+  /**
+   * Additional plugin-specific metadata.
+   *
+   * @default - no metadata
+   */
+  readonly metadata?: { readonly [key: string]: string };
 
   /**
    * Violations found by this plugin.
@@ -43,31 +55,9 @@ export interface PluginReportJson {
 }
 
 /**
- * Summary of a plugin's validation run.
+ * The final conclusion of a validation report.
  */
-export interface PolicyValidationReportSummary {
-  /**
-   * The name of the plugin that produced this report.
-   */
-  readonly pluginName: string;
-
-  /**
-   * Whether the plugin's validation passed or failed.
-   */
-  readonly status: PolicyValidationReportStatus;
-
-  /**
-   * Additional plugin-specific metadata.
-   *
-   * @default - no metadata
-   */
-  readonly metadata?: { readonly [key: string]: string };
-}
-
-/**
- * The final status of a validation report.
- */
-export type PolicyValidationReportStatus = 'success' | 'failure';
+export type PolicyValidationReportConclusion = 'success' | 'failure';
 
 /**
  * A single policy violation found by a validation plugin.
@@ -88,14 +78,17 @@ export interface PolicyViolationJson {
    *
    * @default - no fix provided
    */
-  readonly fix?: string;
+  readonly suggestedFix?: string;
 
   /**
    * The severity of the violation.
-   *
-   * @default - no severity
    */
-  readonly severity?: PolicyViolationSeverity;
+  readonly severity: PolicyViolationSeverity;
+
+  /**
+   * If the plugin wants to report using a non-standard severity, put it here
+   */
+  readonly customSeverity?: string;
 
   /**
    * Additional rule-specific metadata.
@@ -114,23 +107,9 @@ export interface PolicyViolationJson {
  * The severity of a policy violation.
  *
  * If you need to use a severity level that doesn't exist as a static member,
- * use `PolicyViolationSeverity.custom('critical')`.
+ * use `custom`.
  */
-export class PolicyViolationSeverity {
-  static readonly ERROR = new PolicyViolationSeverity('error');
-  static readonly WARNING = new PolicyViolationSeverity('warning');
-  static readonly INFO = new PolicyViolationSeverity('info');
-
-  static custom(name: string): PolicyViolationSeverity {
-    return new PolicyViolationSeverity(name);
-  }
-
-  readonly name: string;
-
-  private constructor(name: string) {
-    this.name = name;
-  }
-}
+export type PolicyViolationSeverity = 'fatal' | 'error' | 'warning' | 'info' | 'custom';
 
 /**
  * A construct that violated a policy rule.
@@ -141,72 +120,51 @@ export interface ViolatingConstructJson {
    *
    * @default - no construct path
    */
-  readonly constructPath?: string;
+  readonly constructPath: string;
 
   /**
-   * The construct creation stack trace.
-   *
-   * @default - no stack trace
-   */
-  readonly constructStack?: ConstructTraceJson;
-
-  /**
-   * Locations within the construct where the violation was detected.
-   *
-   * @default - no locations
-   */
-  readonly locations?: string[];
-
-  /**
-   * The logical ID of the resource in the CloudFormation template.
-   */
-  readonly resourceLogicalId: string;
-
-  /**
-   * The path to the CloudFormation template containing this resource.
-   */
-  readonly templatePath: string;
-}
-
-/**
- * A node in the construct creation stack trace.
- */
-export interface ConstructTraceJson {
-  /**
-   * The construct ID.
-   */
-  readonly id: string;
-
-  /**
-   * The construct path.
-   */
-  readonly path: string;
-
-  /**
-   * The child node in the trace (towards the leaf).
-   *
-   * @default - this is the leaf node
-   */
-  readonly child?: ConstructTraceJson;
-
-  /**
-   * The fully qualified name of the construct class.
+   * The fully qualified name of the construct class (includes the library name)
    *
    * @default - no construct info
    */
-  readonly construct?: string;
+  readonly constructFqn?: string;
 
   /**
    * The version of the library that contains this construct.
+   *
+   * The library name is the first component of the construct FQN.
    *
    * @default - no version info
    */
   readonly libraryVersion?: string;
 
   /**
-   * The source code location where this construct was created.
-   *
-   * @default - no location info
+   * If this construct violation regards a CloudFormation resource, a reference to the resource details
    */
-  readonly location?: string;
+  readonly cloudFormationResource?: CloudFormationResourceJson;
+}
+
+/**
+ * A node in the construct creation stack trace.
+ */
+export interface CloudFormationResourceJson {
+  /**
+   * The path to the CloudFormation template containing this resource.
+   */
+  readonly templatePath: string;
+
+  /**
+   * The logical ID of the resource in the CloudFormation template.
+   */
+  readonly logicalId: string;
+
+  /**
+   * Properties within the construct where the violation was detected.
+   *
+   * Either a single component, in which case it regards a top-level property
+   * name, or a JSON path (starting with `$.`) to indicate a deeper property.
+   *
+   * @default - no locations
+   */
+  readonly propertyPaths?: string[];
 }
