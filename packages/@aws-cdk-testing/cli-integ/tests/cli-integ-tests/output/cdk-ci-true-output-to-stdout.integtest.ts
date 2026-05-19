@@ -17,6 +17,9 @@ integTest(
 
         // Make sure we don't warn on use of deprecated APIs (that cannot be redirected)
         JSII_DEPRECATED: 'quiet',
+
+        // Suppress Node.js process warnings (e.g. fs-extra compatibility warnings)
+        NODE_NO_WARNINGS: '1',
       },
       options: ['--no-notices'],
     };
