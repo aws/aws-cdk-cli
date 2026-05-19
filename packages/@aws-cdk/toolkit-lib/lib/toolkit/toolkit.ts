@@ -2,7 +2,7 @@ import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
-import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportConclusion } from '../actions/validate';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportConclusion } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -674,7 +674,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return result;
     }
 
-    const report = await fs.readJson(reportPath) as PolicyValidationReportJson;
+    const report = Manifest.loadValidationReport(reportPath);
 
     const conclusion: PolicyValidationReportConclusion = report.pluginReports.some(
       (pr) => pr.conclusion === 'failure',
