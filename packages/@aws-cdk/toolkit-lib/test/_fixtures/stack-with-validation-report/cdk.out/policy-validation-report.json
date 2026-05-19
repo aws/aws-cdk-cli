@@ -2,58 +2,36 @@
   "title": "Validation Report",
   "pluginReports": [
     {
-      "version": "1.0.0",
-      "summary": {
-        "pluginName": "TestPlugin",
-        "status": "failure"
-      },
+      "pluginName": "TestPlugin",
+      "pluginVersion": "1.0.0",
+      "conclusion": "failure",
       "violations": [
         {
           "ruleName": "no-public-buckets",
           "description": "S3 Buckets must not be publicly accessible",
-          "fix": "Set PublicAccessBlockConfiguration on the bucket",
+          "suggestedFix": "Set PublicAccessBlockConfiguration on the bucket",
           "severity": "error",
-          "violatingResources": [
-            {
-              "resourceLogicalId": "MyBucketF68F3FF0",
-              "templatePath": "Stack1.template.json",
-              "locations": ["/Resources/MyBucketF68F3FF0"]
-            }
-          ],
           "violatingConstructs": [
             {
               "constructPath": "Stack1/MyBucket/Resource",
-              "constructStack": {
-                "id": "App",
-                "path": "",
-                "child": {
-                  "id": "Stack1",
-                  "path": "Stack1",
-                  "construct": "aws-cdk-lib.Stack",
-                  "libraryVersion": "2.200.0",
-                  "location": "new MyStack (lib/my-stack.ts:30:5)",
-                  "child": {
-                    "id": "MyBucket",
-                    "path": "Stack1/MyBucket",
-                    "construct": "aws-cdk-lib/aws-s3.Bucket",
-                    "libraryVersion": "2.200.0",
-                    "location": "new Bucket (lib/my-stack.ts:12:5)"
-                  }
-                }
+              "constructFqn": "aws-cdk-lib/aws-s3.Bucket",
+              "libraryVersion": "2.200.0",
+              "cloudFormationResource": {
+                "templatePath": "Stack1.template.json",
+                "logicalId": "MyBucketF68F3FF0",
+                "propertyPaths": ["/Resources/MyBucketF68F3FF0"]
               },
-              "resourceLogicalId": "MyBucketF68F3FF0",
-              "templatePath": "Stack1.template.json",
-              "locations": ["/Resources/MyBucketF68F3FF0"]
+              "stackTraces": [
+                "new Bucket (lib/my-stack.ts:12:5)\nnew MyStack (lib/my-stack.ts:30:5)"
+              ]
             }
           ]
         }
       ]
     },
     {
-      "summary": {
-        "pluginName": "Construct Annotations",
-        "status": "success"
-      },
+      "pluginName": "Construct Annotations",
+      "conclusion": "success",
       "violations": []
     }
   ]

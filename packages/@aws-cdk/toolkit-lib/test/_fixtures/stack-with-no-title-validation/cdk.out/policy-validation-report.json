@@ -1,21 +1,13 @@
 {
   "pluginReports": [
     {
-      "summary": {
-        "pluginName": "TestPlugin",
-        "status": "failure"
-      },
+      "pluginName": "TestPlugin",
+      "conclusion": "failure",
       "violations": [
         {
           "ruleName": "no-public-buckets",
           "description": "S3 Buckets must not be publicly accessible",
           "severity": "error",
-          "violatingResources": [
-            {
-              "resourceLogicalId": "MyBucketF68F3FF0",
-              "templatePath": "Stack1.template.json"
-            }
-          ],
           "violatingConstructs": []
         }
       ]
