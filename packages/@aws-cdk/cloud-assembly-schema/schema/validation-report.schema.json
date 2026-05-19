@@ -5,6 +5,10 @@
             "description": "The top-level structure of the policy validation report file.",
             "type": "object",
             "properties": {
+                "version": {
+                    "description": "Protocol version",
+                    "type": "string"
+                },
                 "title": {
                     "description": "Report title, if present.",
                     "type": "string"
@@ -17,7 +21,7 @@
                     }
                 }
             },
-            "required": ["pluginReports"]
+            "required": ["version", "pluginReports"]
         },
         "PluginReportJson": {
             "description": "A report from a single validation plugin.",

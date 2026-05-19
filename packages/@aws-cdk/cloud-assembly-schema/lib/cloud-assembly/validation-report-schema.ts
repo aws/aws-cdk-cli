@@ -10,6 +10,11 @@
  */
 export interface PolicyValidationReportJson {
   /**
+   * Protocol version
+   */
+  readonly version: string;
+
+  /**
    * Report title, if present.
    */
   readonly title?: string;

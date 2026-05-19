@@ -17,6 +17,7 @@ describe('Manifest.loadValidationReport', () => {
   test('loads a valid report', () => {
     const reportPath = path.join(tmpDir, 'policy-validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
       pluginReports: [{
         pluginName: 'TestPlugin',
         conclusion: 'failure',
@@ -64,7 +65,7 @@ describe('Manifest.loadValidationReport', () => {
     expect(report.pluginReports[0].metadata).toEqual({ environment: 'production' });
   });
 
-  test('throws on missing required field pluginReports', () => {
+  test('throws on missing required fields', () => {
     const reportPath = path.join(tmpDir, 'policy-validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       title: 'Validation Report',
@@ -76,6 +77,7 @@ describe('Manifest.loadValidationReport', () => {
   test('throws on invalid conclusion value', () => {
     const reportPath = path.join(tmpDir, 'policy-validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
       pluginReports: [{
         pluginName: 'TestPlugin',
         conclusion: 'maybe',
@@ -89,6 +91,7 @@ describe('Manifest.loadValidationReport', () => {
   test('throws on invalid severity value', () => {
     const reportPath = path.join(tmpDir, 'policy-validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
       pluginReports: [{
         pluginName: 'TestPlugin',
         conclusion: 'failure',
