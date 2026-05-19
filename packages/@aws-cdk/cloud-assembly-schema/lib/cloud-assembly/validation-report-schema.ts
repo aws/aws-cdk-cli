@@ -34,7 +34,7 @@ export interface PluginReportJson {
    *
    * @default - no version
    */
-  readonly pluginVersionersion?: string;
+  readonly pluginVersion?: string;
 
   /**
    * Whether the plugin's validation passed or failed.
