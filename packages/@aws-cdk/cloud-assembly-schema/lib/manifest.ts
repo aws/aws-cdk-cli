@@ -200,7 +200,7 @@ export abstract class Manifest {
     manifest: any,
     schema: jsonschema.Schema,
     options?: LoadManifestOptions,
-  ): asserts manifest is assembly.AssemblyManifest {
+  ): void {
     function parseVersion(version: string) {
       const ver = semver.valid(version);
       if (!ver) {
