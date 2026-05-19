@@ -1,4 +1,4 @@
-import type { PolicyValidationReportJson, PolicyValidationReportStatus, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
+import type { PolicyValidationReportJson, PolicyValidationReportConclusion, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import type { StackSelector } from '../../api/cloud-assembly';
 
 export interface ValidateOptions {
@@ -17,7 +17,7 @@ export interface ValidateResult {
    * 'success' if no plugins reported failures (or no plugins ran).
    * 'failure' if any plugin reported a failure.
    */
-  readonly status: PolicyValidationReportStatus;
+  readonly conclusion: PolicyValidationReportConclusion;
 
   /**
    * The title of the validation report
@@ -30,4 +30,4 @@ export interface ValidateResult {
   readonly pluginReports: PluginReportJson[];
 }
 
-export type { PolicyValidationReportJson, PolicyValidationReportStatus, PluginReportJson };
+export type { PolicyValidationReportJson, PolicyValidationReportConclusion, PluginReportJson };

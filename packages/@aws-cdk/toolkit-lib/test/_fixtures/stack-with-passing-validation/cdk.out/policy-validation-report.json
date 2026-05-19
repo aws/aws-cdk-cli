@@ -2,11 +2,9 @@
   "title": "Validation Report",
   "pluginReports": [
     {
-      "version": "1.0.0",
-      "summary": {
-        "pluginName": "TestPlugin",
-        "status": "success"
-      },
+      "pluginName": "TestPlugin",
+      "pluginVersion": "1.0.0",
+      "conclusion": "success",
       "violations": []
     }
   ]

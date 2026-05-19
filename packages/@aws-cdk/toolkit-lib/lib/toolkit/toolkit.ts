@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportStatus } from '../actions/validate';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportJson, PolicyValidationReportConclusion } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -667,7 +667,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     if (!await fs.pathExists(reportPath)) {
       const result: ValidateResult = {
-        status: 'success',
+        conclusion: 'success',
         pluginReports: [],
       };
       await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No policy validation report found'));
@@ -682,17 +682,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const report = reportJson as PolicyValidationReportJson;
 
-    const status: PolicyValidationReportStatus = report.pluginReports.some(
-      (pr) => pr.summary.status === 'failure',
+    const conclusion: PolicyValidationReportConclusion = report.pluginReports.some(
+      (pr) => pr.conclusion === 'failure',
     ) ? 'failure' : 'success';
 
     const result: ValidateResult = {
-      status,
+      conclusion,
       title: report.title,
       pluginReports: report.pluginReports,
     };
 
-    if (status === 'failure') {
+    if (conclusion === 'failure') {
       await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ Validation found policy violations', result));
     } else {
       await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ All policy checks passed', result));

@@ -15,11 +15,11 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx);
 
-    expect(result.status).toBe('failure');
+    expect(result.conclusion).toBe('failure');
     expect(result.title).toBe('Validation Report');
     expect(result.pluginReports).toHaveLength(2);
-    expect(result.pluginReports[0].summary.pluginName).toBe('TestPlugin');
-    expect(result.pluginReports[0].summary.status).toBe('failure');
+    expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
+    expect(result.pluginReports[0].conclusion).toBe('failure');
     expect(result.pluginReports[0].violations).toHaveLength(1);
     expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
     expect(result.pluginReports[0].violations[0].violatingConstructs[0].constructPath).toBe('Stack1/MyBucket/Resource');
@@ -29,9 +29,9 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
     const result = await toolkit.validate(cx);
 
-    expect(result.status).toBe('success');
+    expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(1);
-    expect(result.pluginReports[0].summary.status).toBe('success');
+    expect(result.pluginReports[0].conclusion).toBe('success');
     expect(result.pluginReports[0].violations).toHaveLength(0);
   });
 
@@ -39,7 +39,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx);
 
-    expect(result.status).toBe('success');
+    expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(0);
     ioHost.expectMessage({ containing: 'No policy validation report found', level: 'info' });
   });
@@ -62,7 +62,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx);
 
-    expect(result.status).toBe('success');
+    expect(result.conclusion).toBe('success');
   });
 
   test('passes stack selector to synthesis', async () => {
@@ -71,7 +71,7 @@ describe('validate', () => {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
-    expect(result.status).toBe('failure');
+    expect(result.conclusion).toBe('failure');
   });
 
   test('parses violation details correctly', async () => {
@@ -80,19 +80,19 @@ describe('validate', () => {
 
     const violation = result.pluginReports[0].violations[0];
     expect(violation.severity).toBe('error');
-    expect(violation.fix).toBe('Set PublicAccessBlockConfiguration on the bucket');
-    expect(violation.violatingResources).toHaveLength(1);
-    expect(violation.violatingResources[0].resourceLogicalId).toBe('MyBucketF68F3FF0');
-    expect(violation.violatingResources[0].templatePath).toBe('Stack1.template.json');
-    expect(violation.violatingResources[0].locations).toEqual(['/Resources/MyBucketF68F3FF0']);
+    expect(violation.suggestedFix).toBe('Set PublicAccessBlockConfiguration on the bucket');
+    expect(violation.violatingConstructs).toHaveLength(1);
+    expect(violation.violatingConstructs[0].cloudFormationResource?.logicalId).toBe('MyBucketF68F3FF0');
+    expect(violation.violatingConstructs[0].cloudFormationResource?.templatePath).toBe('Stack1.template.json');
+    expect(violation.violatingConstructs[0].cloudFormationResource?.propertyPaths).toEqual(['/Resources/MyBucketF68F3FF0']);
   });
 
   test('includes plugin version in report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx);
 
-    expect(result.pluginReports[0].version).toBe('1.0.0');
-    expect(result.pluginReports[1].version).toBeUndefined();
+    expect(result.pluginReports[0].pluginVersion).toBe('1.0.0');
+    expect(result.pluginReports[1].pluginVersion).toBeUndefined();
   });
 
   test('throws on malformed report missing pluginReports', async () => {
@@ -101,19 +101,14 @@ describe('validate', () => {
     await expect(toolkit.validate(cx)).rejects.toThrow(/malformed.*pluginReports/i);
   });
 
-  test('parses constructStack trace correctly', async () => {
+  test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx);
 
     const construct = result.pluginReports[0].violations[0].violatingConstructs[0];
-    expect(construct.constructStack).toBeDefined();
-    expect(construct.constructStack!.id).toBe('App');
-    expect(construct.constructStack!.child!.id).toBe('Stack1');
-    expect(construct.constructStack!.child!.construct).toBe('aws-cdk-lib.Stack');
-    expect(construct.constructStack!.child!.location).toBe('new MyStack (lib/my-stack.ts:30:5)');
-    expect(construct.constructStack!.child!.child!.id).toBe('MyBucket');
-    expect(construct.constructStack!.child!.child!.construct).toBe('aws-cdk-lib/aws-s3.Bucket');
-    expect(construct.constructStack!.child!.child!.location).toBe('new Bucket (lib/my-stack.ts:12:5)');
+    expect(construct.stackTraces).toBeDefined();
+    expect(construct.stackTraces![0]).toContain('new Bucket (lib/my-stack.ts:12:5)');
+    expect(construct.stackTraces![0]).toContain('new MyStack (lib/my-stack.ts:30:5)');
   });
 
   test('IO message payload contains full ValidateResult', async () => {
@@ -125,11 +120,12 @@ describe('validate', () => {
     );
     expect(errorMsg).toBeDefined();
     expect(errorMsg!.data).toMatchObject({
-      status: 'failure',
+      conclusion: 'failure',
       title: 'Validation Report',
       pluginReports: expect.arrayContaining([
         expect.objectContaining({
-          summary: expect.objectContaining({ pluginName: 'TestPlugin', status: 'failure' }),
+          pluginName: 'TestPlugin',
+          conclusion: 'failure',
         }),
       ]),
     });
@@ -139,7 +135,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-no-title-validation');
     const result = await toolkit.validate(cx);
 
-    expect(result.status).toBe('failure');
+    expect(result.conclusion).toBe('failure');
     expect(result.title).toBeUndefined();
     expect(result.pluginReports).toHaveLength(1);
     expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
