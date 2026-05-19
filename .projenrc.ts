@@ -444,7 +444,7 @@ const cloudAssemblySchema = configureProject(
     name: '@aws-cdk/cloud-assembly-schema',
     description: 'Schema for the protocol between CDK framework and CDK CLI',
     srcdir: 'lib',
-    bundledDeps: ['jsonschema@~1.4.1', 'semver'],
+    bundledDeps: ['jsonschema@^1.5.0', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
     disableTsconfig: true,
 
@@ -577,7 +577,7 @@ const cloudAssemblyApi = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
     ],
     deps: [
-      'jsonschema@~1.4.1',
+      'jsonschema@^1.5.0',
       'semver',
     ],
     peerDeps: [
