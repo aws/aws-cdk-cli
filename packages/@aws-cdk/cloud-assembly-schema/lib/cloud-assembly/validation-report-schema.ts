@@ -142,6 +142,18 @@ export interface ViolatingConstructJson {
    * If this construct violation regards a CloudFormation resource, a reference to the resource details
    */
   readonly cloudFormationResource?: CloudFormationResourceJson;
+
+  /**
+   * Stack traces associated with this violation
+   *
+   * This can be all the stack traces where a violating property got its value,
+   * or just the construct creation stack trace.
+   *
+   * Every element of the array is a stack trace, where each stack trace is a `\n`-delimited string.
+   *
+   * @default - No stack traces
+   */
+  readonly stackTraces?: string[];
 }
 
 /**
