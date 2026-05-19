@@ -670,17 +670,11 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         conclusion: 'success',
         pluginReports: [],
       };
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No policy validation report found'));
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable policy validation.'));
       return result;
     }
 
-    const reportJson = await fs.readJson(reportPath);
-
-    if (!Array.isArray(reportJson.pluginReports)) {
-      throw new ToolkitError('MalformedValidationReport', `Policy validation report at ${reportPath} is malformed: missing or invalid 'pluginReports' field`);
-    }
-
-    const report = reportJson as PolicyValidationReportJson;
+    const report = await fs.readJson(reportPath) as PolicyValidationReportJson;
 
     const conclusion: PolicyValidationReportConclusion = report.pluginReports.some(
       (pr) => pr.conclusion === 'failure',

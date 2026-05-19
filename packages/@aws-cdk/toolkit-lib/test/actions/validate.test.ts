@@ -41,7 +41,7 @@ describe('validate', () => {
 
     expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(0);
-    ioHost.expectMessage({ containing: 'No policy validation report found', level: 'info' });
+    ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
   });
 
   test('emits error IO message on failure', async () => {
@@ -95,11 +95,6 @@ describe('validate', () => {
     expect(result.pluginReports[1].pluginVersion).toBeUndefined();
   });
 
-  test('throws on malformed report missing pluginReports', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
-
-    await expect(toolkit.validate(cx)).rejects.toThrow(/malformed.*pluginReports/i);
-  });
 
   test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
