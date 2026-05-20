@@ -95,7 +95,6 @@ describe('validate', () => {
     expect(result.pluginReports[1].pluginVersion).toBeUndefined();
   });
 
-
   test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx);
