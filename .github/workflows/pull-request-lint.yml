@@ -49,6 +49,7 @@ jobs:
             integ-runner
             integ-testing
             toolkit-lib
+            toolkit-lib
             yarn-cling
           requireScope: false
   contributorStatement:
