@@ -147,6 +147,9 @@ function formatAdditionalContext(e: TracedResourceError): string[] {
     if (ctx.messages.length > 20) {
       lines.push(`   ... (${ctx.messages.length - 20} more lines)`);
     }
+    if (ctx.link) {
+      lines.push(`   🔗 ${ctx.link}`);
+    }
   }
   return lines;
 }
