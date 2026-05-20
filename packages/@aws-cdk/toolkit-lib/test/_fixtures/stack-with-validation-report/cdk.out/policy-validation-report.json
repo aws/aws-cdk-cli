@@ -1,0 +1,38 @@
+{
+  "title": "Validation Report",
+  "pluginReports": [
+    {
+      "pluginName": "TestPlugin",
+      "pluginVersion": "1.0.0",
+      "conclusion": "failure",
+      "violations": [
+        {
+          "ruleName": "no-public-buckets",
+          "description": "S3 Buckets must not be publicly accessible",
+          "suggestedFix": "Set PublicAccessBlockConfiguration on the bucket",
+          "severity": "error",
+          "violatingConstructs": [
+            {
+              "constructPath": "Stack1/MyBucket/Resource",
+              "constructFqn": "aws-cdk-lib/aws-s3.Bucket",
+              "libraryVersion": "2.200.0",
+              "cloudFormationResource": {
+                "templatePath": "Stack1.template.json",
+                "logicalId": "MyBucketF68F3FF0",
+                "propertyPaths": ["/Resources/MyBucketF68F3FF0"]
+              },
+              "stackTraces": [
+                "new Bucket (lib/my-stack.ts:12:5)\nnew MyStack (lib/my-stack.ts:30:5)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pluginName": "Construct Annotations",
+      "conclusion": "success",
+      "violations": []
+    }
+  ]
+}
