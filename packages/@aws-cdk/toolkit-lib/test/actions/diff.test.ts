@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
@@ -459,6 +459,61 @@ describe('diff', () => {
       });
 
       // THEN - a CREATE changeset was made
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetType: 'CREATE',
+      }));
+    });
+
+    test('ChangeSet diff deletes stack created in REVIEW_IN_PROGRESS for new stacks', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the stack is deleted after the changeset is cleaned up
+      expect(mockCloudFormationClient).toHaveReceivedCommandWith(DeleteStackCommand, {
+        StackName: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
+      });
+    });
+
+    test('ChangeSet diff treats DELETE_IN_PROGRESS stack as non-existent', async () => {
+      // GIVEN - stack is in DELETE_IN_PROGRESS (from a previous diff cleanup)
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+        Stacks: [{ StackName: 'Stack1', StackStatus: 'DELETE_IN_PROGRESS', CreationTime: new Date() }],
+      });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - a CREATE changeset was made (not UPDATE)
       const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
       expect(createCalls).toHaveLength(1);
       expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
