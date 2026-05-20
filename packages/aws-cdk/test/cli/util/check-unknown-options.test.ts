@@ -93,6 +93,39 @@ describe('findUnknownOptions', () => {
     }
   });
 
+  test('resolves command aliases to canonical names (e.g. ls -> list)', () => {
+    const argv = {
+      '_': ['ls'],
+      '$0': 'cdk',
+      'long': true,
+      'l': true,
+      'showDependencies': false,
+      'show-dependencies': false,
+      'd': false,
+    };
+    expect(findUnknownOptions(argv)).toEqual([]);
+  });
+
+  test('does not report positional args (both original case and lowercase)', () => {
+    const argv = {
+      _: ['ack'],
+      $0: 'cdk',
+      ID: 12345,
+      id: 12345,
+    };
+    expect(findUnknownOptions(argv)).toEqual([]);
+  });
+
+  test('resolves synth alias (synthesize -> synth)', () => {
+    const argv = {
+      _: ['synthesize'],
+      $0: 'cdk',
+      exclusively: true,
+      e: true,
+    };
+    expect(findUnknownOptions(argv)).toEqual([]);
+  });
+
   test('still reports truly unknown options even when CDK_ env vars exist', () => {
     process.env.CDK_INTEG_ATMOSPHERE_POOL = 'test-pool';
     try {
