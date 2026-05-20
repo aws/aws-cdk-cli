@@ -95,13 +95,13 @@ describe('findUnknownOptions', () => {
 
   test('resolves command aliases to canonical names (e.g. ls -> list)', () => {
     const argv = {
-      _: ['ls'],
-      $0: 'cdk',
-      long: true,
-      l: true,
-      showDependencies: false,
+      '_': ['ls'],
+      '$0': 'cdk',
+      'long': true,
+      'l': true,
+      'showDependencies': false,
       'show-dependencies': false,
-      d: false,
+      'd': false,
     };
     expect(findUnknownOptions(argv)).toEqual([]);
   });
