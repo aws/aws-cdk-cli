@@ -30,6 +30,16 @@ function collectKnownOptions(optionDefs: Record<string, any>): Set<string> {
 /** Pre-computed set of known global options (static, doesn't depend on argv) */
 const globalKnownOptions = collectKnownOptions(config.globalOptions);
 
+/** Reverse mapping from command alias to canonical command name */
+const commandAliasMap = new Map<string, string>();
+for (const [name, def] of Object.entries<any>(config.commands)) {
+  if (def.aliases) {
+    for (const alias of def.aliases) {
+      commandAliasMap.set(alias, name);
+    }
+  }
+}
+
 /** yargs internal keys that are always present in argv */
 const yargsInternals = new Set(['_', '$0', 'help', 'h', 'version']);
 
@@ -43,8 +53,9 @@ const yargsInternals = new Set(['_', '$0', 'help', 'h', 'version']);
  */
 export function findUnknownOptions(argv: any): string[] {
   const command = argv._[0];
+  const canonicalCommand = commandAliasMap.get(command) ?? command;
 
-  const commandDef = config.commands[command];
+  const commandDef = config.commands[canonicalCommand];
   const commandKnownOptions = commandDef?.options
     ? collectKnownOptions(commandDef.options)
     : new Set<string>();
