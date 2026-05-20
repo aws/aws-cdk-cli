@@ -106,6 +106,16 @@ describe('findUnknownOptions', () => {
     expect(findUnknownOptions(argv)).toEqual([]);
   });
 
+  test('does not report positional args (both original case and lowercase)', () => {
+    const argv = {
+      '_': ['ack'],
+      '$0': 'cdk',
+      'ID': 12345,
+      'id': 12345,
+    };
+    expect(findUnknownOptions(argv)).toEqual([]);
+  });
+
   test('resolves synth alias (synthesize -> synth)', () => {
     const argv = {
       _: ['synthesize'],

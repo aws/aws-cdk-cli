@@ -60,14 +60,17 @@ export function findUnknownOptions(argv: any): string[] {
     ? collectKnownOptions(commandDef.options)
     : new Set<string>();
 
-  const positionalArg = commandDef?.arg?.name;
+  const positionalArgRaw = commandDef?.arg?.name;
+  const positionalArgs = positionalArgRaw
+    ? new Set([positionalArgRaw, positionalArgRaw.toLowerCase()])
+    : new Set<string>();
 
   const unknown: string[] = [];
   for (const key of Object.keys(argv)) {
     if (argv[key] === undefined) {
       continue;
     }
-    if (yargsInternals.has(key) || key === positionalArg) {
+    if (yargsInternals.has(key) || positionalArgs.has(key)) {
       continue;
     }
     if (globalKnownOptions.has(key) || commandKnownOptions.has(key)) {
