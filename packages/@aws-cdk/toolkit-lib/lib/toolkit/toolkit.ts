@@ -670,7 +670,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         conclusion: 'success',
         pluginReports: [],
       };
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable policy validation.'));
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
       return result;
     }
 
@@ -687,9 +687,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     };
 
     if (conclusion === 'failure') {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ Validation found policy violations', result));
+      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ cdk validate found problems', result));
     } else {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ All policy checks passed', result));
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ No problems found', result));
     }
 
     return result;

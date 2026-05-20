@@ -146,9 +146,9 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I9500` | Stack diagnosis (no problems found) | `info` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_E9500` | Stack diagnosis (problems found) | `error` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_W9501` | Stack diagnosis (diagnosis could not be performed) | `warn` | {@link DiagnosedStack} |
-| `CDK_TOOLKIT_I9600` | Policy validation passed | `info` | {@link ValidateResult} |
-| `CDK_TOOLKIT_E9600` | Policy validation failed | `error` | {@link ValidateResult} |
-| `CDK_TOOLKIT_I9601` | No policy validation report found | `info` | n/a |
+| `CDK_TOOLKIT_I9600` | Validate passed with no problems | `info` | {@link ValidateResult} |
+| `CDK_TOOLKIT_E9600` | Validate found problems | `error` | {@link ValidateResult} |
+| `CDK_TOOLKIT_I9601` | No validation plugins configured | `info` | n/a |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |

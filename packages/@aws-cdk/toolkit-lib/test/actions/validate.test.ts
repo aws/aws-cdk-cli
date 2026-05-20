@@ -48,14 +48,14 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'Validation found policy violations', level: 'error' });
+    ioHost.expectMessage({ containing: 'cdk validate found problems', level: 'error' });
   });
 
   test('emits info IO message on success', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'All policy checks passed', level: 'info' });
+    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
   });
 
   test('can invoke without options', async () => {
