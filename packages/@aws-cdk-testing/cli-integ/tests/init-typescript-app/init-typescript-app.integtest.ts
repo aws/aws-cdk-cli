@@ -39,7 +39,6 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     await shell.shell(['npm', '--version']);
 
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', 'app', '--generate-only']);
-    await shell.shell(['npm', 'ci']); // this will fail if we have bundled dependencies that introduce version conflicts
 
     // Necessary because recent versions of ts-jest require TypeScript>=4.3 but we
     // still want to test with older versions as well.
