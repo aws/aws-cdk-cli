@@ -1,6 +1,5 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as chalk from 'chalk';
-import { templateContainsNestedStacks } from '../../../lib/api/cloudformation/nested-stack-helpers';
 import { DiffFormatter } from '../../../lib/api/diff/diff-formatter';
 
 function stripAnsi(s: string): string {
@@ -759,29 +758,3 @@ describe('duplicate logical ids in nested stacks', () => {
   });
 });
 
-describe('templateContainsNestedStacks', () => {
-  test('returns true when template has AWS::CloudFormation::Stack resources', () => {
-    expect(templateContainsNestedStacks({
-      Resources: {
-        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
-        Bucket: { Type: 'AWS::S3::Bucket' },
-      },
-    })).toBe(true);
-  });
-
-  test('returns false when template has no nested stacks', () => {
-    expect(templateContainsNestedStacks({
-      Resources: {
-        Bucket: { Type: 'AWS::S3::Bucket' },
-      },
-    })).toBe(false);
-  });
-
-  test('returns false for empty template', () => {
-    expect(templateContainsNestedStacks({})).toBe(false);
-  });
-
-  test('returns false for template with no Resources', () => {
-    expect(templateContainsNestedStacks({ Parameters: {} })).toBe(false);
-  });
-});

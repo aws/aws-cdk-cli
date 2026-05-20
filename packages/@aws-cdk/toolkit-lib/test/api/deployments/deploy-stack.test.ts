@@ -780,7 +780,9 @@ test('deploy not skipped if template did not change but tags changed', async () 
   });
 
   // THEN
-  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    Tags: [{ Key: 'Key', Value: 'NewValue' }],
+  });
   expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
   expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeChangeSetCommand);
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeStacksCommand, {
@@ -1311,6 +1313,8 @@ describe('revert-drift', () => {
       ...expect.anything,
       DeploymentMode: 'REVERT_DRIFT',
     });
+    const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+    expect(calls[0].args[0].input.IncludeNestedStacks).toBeUndefined();
   });
 });
 
@@ -1506,17 +1510,26 @@ describe('change set returned with execute:false', () => {
   });
 });
 
-test('does not pass IncludeNestedStacks even for stacks with nested stacks', async () => {
-  // Regression test: IncludeNestedStacks causes CloudFormation to report false
-  // "duplicate Export names" errors when nested stacks use intrinsic functions
-  // (like Fn::Join) in export names.
+test('passes IncludeNestedStacks to get nested stack error reporting', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(FAKE_STACK_WITH_NESTED_STACK),
   });
 
   const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
   expect(calls.length).toBeGreaterThan(0);
-  expect(calls[0].args[0].input).not.toHaveProperty('IncludeNestedStacks');
+  expect(calls[0].args[0].input).toHaveProperty('IncludeNestedStacks', true);
+});
+
+test('does not pass IncludeNestedStacks for import changesets', async () => {
+  givenStackExists({ StackName: 'withnestedstack' });
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK_WITH_NESTED_STACK),
+    resourcesToImport: [{ ResourceType: 'AWS::S3::Bucket', LogicalResourceId: 'Bucket', ResourceIdentifier: { BucketName: 'my-bucket' } }],
+  });
+
+  const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+  expect(calls.length).toBeGreaterThan(0);
+  expect(calls[0].args[0].input.IncludeNestedStacks).toBeUndefined();
 });
 
 /**
