@@ -38,6 +38,7 @@ async function investigateEcsService(
     return [];
   }
 
+  const region = sdk.currentRegion;
   const ecs = sdk.ecs();
   const cwl = sdk.cloudWatchLogs();
 
@@ -48,7 +49,7 @@ async function investigateEcsService(
 
   const results: AdditionalDiagnosticContext[] = [];
 
-  const stoppedTaskContext = await getStoppedTaskReasons(ecs, clusterArn, service, debug);
+  const stoppedTaskContext = await getStoppedTaskReasons(ecs, clusterArn, serviceName, region, service, debug);
   if (stoppedTaskContext) {
     results.push(stoppedTaskContext);
   }
@@ -58,17 +59,33 @@ async function investigateEcsService(
     return results;
   }
 
-  const logConfigs = await getLogConfigsFromTaskDefinition(ecs, taskDefinitionArn, debug);
+  const taskDefInfo = await getTaskDefinitionInfo(ecs, taskDefinitionArn, debug);
+
+  if (taskDefInfo && taskDefInfo.images.length > 0) {
+    results.push({ source: 'Container Images', messages: taskDefInfo.images });
+  }
+
+  const logConfigs = taskDefInfo?.logConfigs ?? [];
+
   if (logConfigs.length === 0) {
     return results;
   }
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, debug)));
+  const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, region, debug)));
+  let hasLogs = false;
   for (const context of logResults) {
     if (context) {
       results.push(context);
+      hasLogs = true;
     }
+  }
+
+  if (!hasLogs) {
+    results.push({
+      source: 'CloudWatch Logs',
+      messages: ['No application logs found (container may not have started). Check the stopped task reasons above for details.'],
+    });
   }
 
   return results;
@@ -111,6 +128,8 @@ async function describeService(
 async function getStoppedTaskReasons(
   ecs: IECSClient,
   cluster: string | undefined,
+  serviceName: string,
+  region: string,
   service: { events?: Array<{ message?: string }>; [key: string]: any },
   debug: (msg: string) => Promise<void>,
 ): Promise<AdditionalDiagnosticContext | undefined> {
@@ -143,6 +162,9 @@ async function getStoppedTaskReasons(
           if (container.reason) {
             messages.push(`Container "${container.name}": ${container.reason}`);
           }
+          if (container.exitCode != null && container.exitCode !== 0) {
+            messages.push(`Container "${container.name}" exited with code ${container.exitCode}`);
+          }
         }
       }
     }
@@ -159,7 +181,11 @@ async function getStoppedTaskReasons(
       return undefined;
     }
 
-    return { source: 'ECS Stopped Tasks', messages };
+    return {
+      source: 'ECS Stopped Tasks',
+      messages,
+      link: ecsStoppedTasksConsoleUrl(region, cluster ?? 'default', serviceName),
+    };
   } catch (e: any) {
     await debug(`ECS investigation: failed to get stopped task reasons: ${e.message}`);
     return undefined;
@@ -172,21 +198,30 @@ interface AwsLogsConfig {
   containerName?: string;
 }
 
-async function getLogConfigsFromTaskDefinition(
+interface TaskDefinitionInfo {
+  logConfigs: AwsLogsConfig[];
+  images: string[];
+}
+
+async function getTaskDefinitionInfo(
   ecs: IECSClient,
   taskDefinitionArn: string,
   debug: (msg: string) => Promise<void>,
-): Promise<AwsLogsConfig[]> {
+): Promise<TaskDefinitionInfo | undefined> {
   try {
     const resp = await ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn });
     const containers = resp.taskDefinition?.containerDefinitions ?? [];
-    const configs: AwsLogsConfig[] = [];
+    const logConfigs: AwsLogsConfig[] = [];
+    const images: string[] = [];
     for (const container of containers) {
+      if (container.image) {
+        images.push(`${container.name}: ${container.image}`);
+      }
       const logConfig = container.logConfiguration;
       if (logConfig?.logDriver === 'awslogs') {
         const logGroup = logConfig.options?.['awslogs-group'];
         if (logGroup) {
-          configs.push({
+          logConfigs.push({
             logGroup,
             streamPrefix: logConfig.options?.['awslogs-stream-prefix'],
             containerName: container.name,
@@ -194,16 +229,17 @@ async function getLogConfigsFromTaskDefinition(
         }
       }
     }
-    return configs;
+    return { logConfigs, images };
   } catch (e: any) {
     await debug(`ECS investigation: failed to describe task definition: ${e.message}`);
-    return [];
+    return undefined;
   }
 }
 
 async function fetchRecentLogs(
   cwl: ICloudWatchLogsClient,
   logConfig: AwsLogsConfig,
+  region: string,
   debug: (msg: string) => Promise<void>,
 ): Promise<AdditionalDiagnosticContext | undefined> {
   try {
@@ -230,9 +266,23 @@ async function fetchRecentLogs(
       ? `CloudWatch Logs: ${logConfig.logGroup} (container: ${logConfig.containerName})`
       : `CloudWatch Logs: ${logConfig.logGroup}`;
 
-    return { source, messages };
+    return {
+      source,
+      messages,
+      link: cloudWatchLogsConsoleUrl(region, logConfig.logGroup),
+    };
   } catch (e: any) {
     await debug(`ECS investigation: failed to fetch logs from ${logConfig.logGroup}: ${e.message}`);
     return undefined;
   }
+}
+
+// CloudWatch console uses double-URI-encoding with '$' replacing '%' for the log group in the fragment.
+function cloudWatchLogsConsoleUrl(region: string, logGroup: string): string {
+  const encodedLogGroup = encodeURIComponent(encodeURIComponent(logGroup)).replace(/%/g, '$');
+  return `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:log-groups/log-group/${encodedLogGroup}`;
+}
+
+function ecsStoppedTasksConsoleUrl(region: string, cluster: string, serviceName: string): string {
+  return `https://${region}.console.aws.amazon.com/ecs/v2/clusters/${cluster}/services/${serviceName}/tasks?status=STOPPED&region=${region}`;
 }

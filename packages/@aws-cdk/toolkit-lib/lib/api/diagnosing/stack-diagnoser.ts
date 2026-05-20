@@ -106,8 +106,20 @@ export class CloudFormationStackDiagnoser {
   /**
    * Diagnose potential problems with the change set
    */
-  public async diagnoseFromErrorCollection(errors: ResourceErrors, stack: Stack): Promise<StackDiagnosis> {
+  public async diagnoseFromErrorCollection(errors: ResourceErrors, stack: Stack, allowFallback = true): Promise<StackDiagnosis> {
     if (errors.isEmpty()) {
+      if (allowFallback) {
+        // The monitor may not have seen failure events yet (race condition).
+        // Fall back to polling stack events directly.
+        const stackName = stack.StackName;
+        if (stackName) {
+          try {
+            return await this._diagnoseViaStackEvents(stackName, stack);
+          } catch (e: any) {
+            await this.props.ioHelper.defaults.debug(`Fallback diagnosis failed: ${e.message}`);
+          }
+        }
+      }
       return { type: 'no-problem' };
     }
 
@@ -137,7 +149,7 @@ export class CloudFormationStackDiagnoser {
     // which is the thing we care about.
     await poller.poll();
 
-    return this.diagnoseFromErrorCollection(poller.errors, stack);
+    return this.diagnoseFromErrorCollection(poller.errors, stack, false);
   }
 
   private async _diagnoseChangeSetFailureFromStackName(stack: Stack): Promise<StackDiagnosis> {

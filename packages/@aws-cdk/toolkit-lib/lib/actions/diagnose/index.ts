@@ -107,4 +107,9 @@ export interface AdditionalDiagnosticContext {
    * The log lines or messages retrieved
    */
   readonly messages: string[];
+
+  /**
+   * An optional console deep link for further investigation
+   */
+  readonly link?: string;
 }
