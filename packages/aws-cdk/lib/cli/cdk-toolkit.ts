@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { format } from 'node:util';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -211,6 +211,7 @@ export class CdkToolkit {
       'flags': true,
       'orphan': true,
       'refactor': true,
+      'validate': true,
     };
 
     this.toolkit = new InternalToolkit(props.sdkProvider, {
@@ -842,6 +843,14 @@ export class CdkToolkit {
 
     const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     return totalDrifts > 0 && options.fail ? 1 : 0;
+  }
+
+  /**
+   * Validate synthesized templates against policy rules
+   */
+  public async validate(options: ValidateOptions): Promise<number> {
+    const result = await this.toolkit.validate(this.props.cloudExecutable, options);
+    return result.conclusion === 'failure' ? 1 : 0;
   }
 
   /**

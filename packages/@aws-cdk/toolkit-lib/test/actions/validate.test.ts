@@ -44,18 +44,11 @@ describe('validate', () => {
     ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
   });
 
-  test('emits error IO message on failure', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    await toolkit.validate(cx);
-
-    ioHost.expectMessage({ containing: 'cdk validate found problems', level: 'error' });
-  });
-
   test('emits info IO message on success', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
+    ioHost.expectMessage({ containing: 'No violations found', level: 'info' });
   });
 
   test('can invoke without options', async () => {
@@ -95,6 +88,12 @@ describe('validate', () => {
     expect(result.pluginReports[1].pluginVersion).toBeUndefined();
   });
 
+  test('throws on malformed report', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
+
+    await expect(toolkit.validate(cx)).rejects.toThrow();
+  });
+
   test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx);
@@ -109,11 +108,11 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     await toolkit.validate(cx);
 
-    const errorMsg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_E9600',
+    const msg = ioHost.messages.find(
+      (m) => m.code === 'CDK_TOOLKIT_I9600',
     );
-    expect(errorMsg).toBeDefined();
-    expect(errorMsg!.data).toMatchObject({
+    expect(msg).toBeDefined();
+    expect(msg!.data).toMatchObject({
       conclusion: 'failure',
       title: 'Validation Report',
       pluginReports: expect.arrayContaining([

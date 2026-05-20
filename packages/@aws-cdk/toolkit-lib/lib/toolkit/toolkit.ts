@@ -1,7 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import type { FeatureFlagReportProperties, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportConclusion } from '../actions/validate';
+import type { ValidateOptions, ValidateResult } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -89,6 +89,7 @@ import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { ResourceOrphaner } from '../api/orphan/orphaner';
+import { hostMessageFromValidation } from '../api/validate/validate-formatting';
 import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
 import { Mode, PluginHost } from '../api/plugin';
 import {
@@ -181,7 +182,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose';
+export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose' | 'validate';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -686,11 +687,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       pluginReports: report.pluginReports,
     };
 
-    if (conclusion === 'failure') {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ cdk validate found problems', result));
-    } else {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ No problems found', result));
-    }
+    await ioHelper.notify(hostMessageFromValidation(result));
 
     return result;
   }

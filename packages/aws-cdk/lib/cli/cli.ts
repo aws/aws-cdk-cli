@@ -444,6 +444,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ignoreNoStacks: args.ignoreNoStacks,
         });
 
+      case 'validate':
+        cliRequireUnstable(configuration, 'validate');
+        ioHost.currentAction = 'validate';
+        configuration.context.set('@aws-cdk/core:validationReportOnly', true);
+        return cli.validate({
+          stacks: specificStacksOrAllRecursively(args.STACKS),
+        });
+
       case 'diagnose':
         cliRequireUnstable(configuration, 'diagnose');
         ioHost.currentAction = 'diagnose';
