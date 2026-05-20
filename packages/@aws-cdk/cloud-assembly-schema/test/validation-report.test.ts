@@ -48,6 +48,7 @@ describe('Manifest.loadValidationReport', () => {
   test('loads a report with optional fields', () => {
     const reportPath = path.join(tmpDir, 'policy-validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
       title: 'Validation Report',
       pluginReports: [{
         pluginName: 'TestPlugin',
