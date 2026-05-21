@@ -450,6 +450,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
+          online: args.online,
         });
 
       case 'diagnose':

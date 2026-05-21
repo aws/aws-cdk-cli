@@ -13,7 +13,7 @@ beforeEach(() => {
 describe('validate', () => {
   test('returns failure when report contains failing plugin', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
     expect(result.title).toBe('Validation Report');
@@ -27,7 +27,7 @@ describe('validate', () => {
 
   test('returns success when all plugins pass', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(1);
@@ -37,7 +37,7 @@ describe('validate', () => {
 
   test('returns success with no reports when no report file exists', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(0);
@@ -46,14 +46,14 @@ describe('validate', () => {
 
   test('emits info IO message on success', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
     ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
   });
 
   test('can invoke without options', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('success');
   });
@@ -62,6 +62,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
     });
 
     expect(result.conclusion).toBe('failure');
@@ -69,7 +70,7 @@ describe('validate', () => {
 
   test('parses violation details correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const violation = result.pluginReports[0].violations[0];
     expect(violation.severity).toBe('error');
@@ -82,7 +83,7 @@ describe('validate', () => {
 
   test('includes plugin version in report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.pluginReports[0].pluginVersion).toBe('1.0.0');
     expect(result.pluginReports[1].pluginVersion).toBeUndefined();
@@ -91,12 +92,12 @@ describe('validate', () => {
   test('throws on malformed report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
 
-    await expect(toolkit.validate(cx)).rejects.toThrow();
+    await expect(toolkit.validate(cx, { online: false })).rejects.toThrow();
   });
 
   test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const construct = result.pluginReports[0].violations[0].violatingConstructs[0];
     expect(construct.stackTraces).toBeDefined();
@@ -106,7 +107,7 @@ describe('validate', () => {
 
   test('IO message payload contains full ValidateResult', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
     const msg = ioHost.messages.find(
       (m) => m.code === 'CDK_TOOLKIT_I9600',
@@ -126,7 +127,7 @@ describe('validate', () => {
 
   test('handles report with missing title field', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-no-title-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
     expect(result.title).toBeUndefined();
