@@ -69,9 +69,8 @@ class AlwaysPassesPlugin {
 
 const shouldFail = process.env.VALIDATION_SHOULD_FAIL === 'true';
 
-const app = new cdk.App({
-  policyValidationBeta1: [shouldFail ? new SecurityPlugin() : new AlwaysPassesPlugin()],
-});
+const app = new cdk.App();
+cdk.Validations.of(app).addPlugins(shouldFail ? new SecurityPlugin() : new AlwaysPassesPlugin());
 
 class ValidateStack extends cdk.Stack {
   constructor(scope, id, props) {

@@ -235,14 +235,14 @@ __metadata:
   linkType: hard
 
 "@aws-cdk/cloud-assembly-api@npm:^2.2.3":
-  version: 2.2.3
-  resolution: "@aws-cdk/cloud-assembly-api@npm:2.2.3"
+  version: 2.2.4
+  resolution: "@aws-cdk/cloud-assembly-api@npm:2.2.4"
   dependencies:
-    jsonschema: "npm:~1.4.1"
-    semver: "npm:^7.7.4"
+    jsonschema: "npm:^1.5.0"
+    semver: "npm:^7.8.0"
   peerDependencies:
-    "@aws-cdk/cloud-assembly-schema": ">=53.21.0"
-  checksum: 10c0/3f9309a28ef6e7ba62ed83925d8471b3141e991ec895f7b0340a5baa6a57cab1408e6876203cea2f8e6db75cf9785248e4015b4dca8c941b0c0ea2fc7900b8ea
+    "@aws-cdk/cloud-assembly-schema": ">=53.25.0"
+  checksum: 10c0/49ff690c827a1f4795267a9f449d10b2098522f9c55a09d5dc42db93faf9091e7ddef81c37763e2300e4c17d0c0564586fcfc3dad02232fdcdc912d050db7c67
   languageName: node
   linkType: hard
 
@@ -299,12 +299,12 @@ __metadata:
   linkType: soft
 
 "@aws-cdk/cloud-assembly-schema@npm:^53.21.0":
-  version: 53.23.0
-  resolution: "@aws-cdk/cloud-assembly-schema@npm:53.23.0"
+  version: 53.27.0
+  resolution: "@aws-cdk/cloud-assembly-schema@npm:53.27.0"
   dependencies:
-    jsonschema: "npm:~1.4.1"
-    semver: "npm:^7.7.4"
-  checksum: 10c0/1fae7ecb9c1a4ee8030d1a7314aae95d010e295b9dc9e6c74d65794c4ca43b8b85899d5509af02fbf34abeaaae46d02542ba00612f6f319e83abea44fcb2eb90
+    jsonschema: "npm:^1.5.0"
+    semver: "npm:^7.8.0"
+  checksum: 10c0/862ac533f5a261e24386fd6eff9cd18dca2be8b2799f2b8d3c3d6df57b3eba01bf78bdb265166466d5fafc6cd2d7d065f1cb0fe175c5b84ef41064fd00ae304e
   languageName: node
   linkType: hard
 

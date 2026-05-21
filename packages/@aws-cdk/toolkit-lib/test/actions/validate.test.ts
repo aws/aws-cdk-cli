@@ -104,12 +104,12 @@ describe('validate', () => {
     expect(construct.stackTraces![0]).toContain('new MyStack (lib/my-stack.ts:30:5)');
   });
 
-  test('IO message payload contains full ValidateResult at error level on failure', async () => {
+  test('IO message payload contains full ValidateResult', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     await toolkit.validate(cx);
 
     const msg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_E9600',
+      (m) => m.code === 'CDK_TOOLKIT_I9600',
     );
     expect(msg).toBeDefined();
     expect(msg!.data).toMatchObject({

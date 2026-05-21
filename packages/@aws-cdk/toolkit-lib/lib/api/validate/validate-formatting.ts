@@ -20,9 +20,9 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 export function hostMessageFromValidation(result: ValidateResult): ActionLessMessage<any> {
-  if (result.conclusion === 'failure') {
-    return IO.CDK_TOOLKIT_E9600.msg(formatValidateResult(result), result);
-  }
+  // Always emit at info level so the CLI IoHost doesn't wrap the entire output
+  // in a single color. The formatter handles per-severity coloring internally.
+  // Consumers detect failure via the structured `data.conclusion` field or exit code.
   return IO.CDK_TOOLKIT_I9600.msg(formatValidateResult(result), result);
 }
 
@@ -97,10 +97,9 @@ function formatViolationBlock(v: FlattenedViolation): string {
 function getSeverityColor(severity: string): (str: string) => string {
   switch (severity.toLowerCase()) {
     case 'fatal': return chalk.red;
-    case 'error': return chalk.hex('#FFA500');
+    case 'error': return chalk.ansi256(208);
     case 'warning': return chalk.yellow;
-    case 'info': return chalk.blue;
-    default: return chalk.yellow;
+    default: return chalk.blue;
   }
 }
 
