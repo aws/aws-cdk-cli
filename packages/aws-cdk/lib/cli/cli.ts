@@ -447,7 +447,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'validate':
         cliRequireUnstable(configuration, 'validate');
         ioHost.currentAction = 'validate';
-        configuration.context.set('@aws-cdk/core:validationReportOnly', true);
+        configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
         });

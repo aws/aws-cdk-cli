@@ -48,26 +48,6 @@ class SecurityPlugin {
             locations: ['/Resources/MyBucket/Properties/VersioningConfiguration'],
           })),
         },
-        {
-          ruleName: 'consider-intelligent-tiering',
-          description: 'Consider using Intelligent-Tiering storage class for cost optimization',
-          severity: 'info',
-          violatingResources: context.templatePaths.map(templatePath => ({
-            resourceLogicalId: 'MyBucket',
-            templatePath,
-            locations: ['/Resources/MyBucket/Properties/IntelligentTieringConfigurations'],
-          })),
-        },
-        {
-          ruleName: 'org-tagging-policy',
-          description: 'Resource does not comply with organization tagging policy TG-0042',
-          severity: 'compliance',
-          violatingResources: context.templatePaths.map(templatePath => ({
-            resourceLogicalId: 'MyBucket',
-            templatePath,
-            locations: ['/Resources/MyBucket/Properties/Tags'],
-          })),
-        },
       ],
     };
   }
@@ -88,24 +68,17 @@ class AlwaysPassesPlugin {
 }
 
 const shouldFail = process.env.VALIDATION_SHOULD_FAIL === 'true';
-const shouldAcknowledge = process.env.VALIDATION_ACKNOWLEDGE === 'true';
 
-const app = new cdk.App();
-cdk.Validations.of(app).addPlugins(shouldFail ? new SecurityPlugin() : new AlwaysPassesPlugin());
+const app = new cdk.App({
+  policyValidationBeta1: [shouldFail ? new SecurityPlugin() : new AlwaysPassesPlugin()],
+});
 
 class ValidateStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
-    const bucket = new s3.Bucket(this, 'MyBucket', {
+    new s3.Bucket(this, 'MyBucket', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
-
-    // Construct Annotations plugin will pick up this warning
-    cdk.Validations.of(bucket).addWarning('bucket-no-lifecycle', 'This bucket has no lifecycle rules configured');
-
-    if (shouldAcknowledge) {
-      cdk.Validations.of(bucket).acknowledge({ id: 'bucket-no-lifecycle', reason: 'Lifecycle rules not needed for this use case' });
-    }
   }
 }
 

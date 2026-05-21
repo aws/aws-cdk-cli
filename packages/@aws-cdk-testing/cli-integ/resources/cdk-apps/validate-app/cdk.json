@@ -2,6 +2,6 @@
   "app": "node app.js",
   "versionReporting": false,
   "context": {
-    "@aws-cdk/core:validationReportOnly": true
+    "@aws-cdk/core:failSynthOnValidationErrors": false
   }
 }
