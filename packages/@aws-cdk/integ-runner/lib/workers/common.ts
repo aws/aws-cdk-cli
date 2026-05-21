@@ -182,6 +182,13 @@ export interface IntegTestOptions {
    * @default - no additional CA bundle
    */
   readonly caBundlePath?: string;
+
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
 }
 
 /**

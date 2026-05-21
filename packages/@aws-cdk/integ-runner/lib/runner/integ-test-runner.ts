@@ -43,7 +43,12 @@ export interface CommonOptions {
 }
 
 export interface WatchOptions extends CommonOptions {
-
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
 }
 
 /**
@@ -82,6 +87,13 @@ export interface RunOptions extends CommonOptions {
    * @default true
    */
   readonly updateWorkflow?: boolean;
+
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
 }
 
 /**
@@ -206,6 +218,7 @@ export class IntegTestRunner extends IntegRunner {
           traceLogs: enableForVerbosityLevel(2) ?? false,
           verbose: enableForVerbosityLevel(3),
           debug: enableForVerbosityLevel(4),
+          roleArn: options.roleArn,
         },
         options.testCaseName,
         options.verbosity ?? 0,
@@ -250,6 +263,7 @@ export class IntegTestRunner extends IntegRunner {
             requireApproval: RequireApproval.NEVER,
             verbose: enableForVerbosityLevel(3),
             debug: enableForVerbosityLevel(4),
+            roleArn: options.roleArn,
           },
           updateWorkflowEnabled,
           options.testCaseName,
@@ -275,6 +289,7 @@ export class IntegTestRunner extends IntegRunner {
             output: path.relative(this.directory, this.cdkOutDir),
             ...actualTestCase.cdkCommandOptions?.destroy?.args,
             context: this.getContext(actualTestCase.cdkCommandOptions?.destroy?.args?.context),
+            roleArn: options.roleArn ?? actualTestCase.cdkCommandOptions?.destroy?.args?.roleArn,
             verbose: enableForVerbosityLevel(3),
             debug: enableForVerbosityLevel(4),
           });
