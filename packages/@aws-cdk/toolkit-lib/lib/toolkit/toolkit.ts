@@ -732,7 +732,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             violations.push({
               ruleName: problem.errorCode ?? 'CloudFormationValidation',
               description: problem.message,
-              severity: 'error',
+              severity: 'fatal',
               violatingConstructs: [{
                 constructPath: problem.logicalId ? `${stack.hierarchicalId}/${problem.logicalId}` : stack.hierarchicalId,
                 cloudFormationResource: problem.logicalId ? {
@@ -744,7 +744,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
         }
       } catch (e: any) {
-        await ioHelper.defaults.warn(`Failed to run online validation for stack ${stack.stackName}: ${e.message}`);
+        violations.push({
+          ruleName: 'CloudFormationValidation',
+          description: e.message,
+          severity: 'fatal',
+          violatingConstructs: [{
+            constructPath: stack.hierarchicalId,
+          }],
+        });
       }
     }
 

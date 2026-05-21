@@ -225,17 +225,17 @@ describe('validate --online', () => {
     expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
   });
 
-  test('gracefully handles online validation failure', async () => {
+  test('reports thrown errors as violations', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
-      new Error('Access denied'),
+      new Error('Template format error: Unrecognized resource types: [AWS::Fake::DoesNotExist]'),
     );
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx, { online: true });
 
-    // Should not throw, just warn and return success (no offline report either)
-    expect(result.conclusion).toBe('success');
-    expect(result.pluginReports).toHaveLength(0);
-    ioHost.expectMessage({ containing: 'Failed to run online validation', level: 'warn' });
+    expect(result.conclusion).toBe('failure');
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].pluginName).toBe('CloudFormation');
+    expect(result.pluginReports[0].violations[0].description).toContain('Unrecognized resource types');
   });
 });
