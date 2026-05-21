@@ -615,3 +615,36 @@ describe('parallel worker', () => {
     });
   });
 });
+
+describe('integTestWorker roleArn', () => {
+  let mockActualTests: jest.Mock;
+  let mockRunIntegTestCase: jest.Mock;
+
+  beforeEach(() => {
+    mockActualTests = jest.fn();
+    mockRunIntegTestCase = jest.fn();
+
+    jest.spyOn(IntegTestRunner.prototype, 'actualTests').mockImplementation(mockActualTests);
+    jest.spyOn(IntegTestRunner.prototype, 'runIntegTestCase').mockImplementation(mockRunIntegTestCase);
+  });
+
+  test('passes roleArn to runIntegTestCase', async () => {
+    mockActualTests.mockResolvedValue({
+      'test-case-1': { stacks: ['Stack1'] },
+    });
+    mockRunIntegTestCase.mockResolvedValue(undefined);
+
+    await integTestWorker({
+      tests: [{
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }],
+      region: 'us-east-1',
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    });
+
+    expect(mockRunIntegTestCase).toHaveBeenCalledWith(
+      expect.objectContaining({ roleArn: 'arn:aws:iam::123456789012:role/MyRole' }),
+    );
+  });
+});

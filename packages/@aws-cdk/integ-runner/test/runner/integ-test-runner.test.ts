@@ -775,3 +775,71 @@ describe('IntegTest watchIntegTest', () => {
     }).rejects.toThrow('xxxxx.test-with-error is a new test. Please use the IntegTest construct to configure the test\nhttps://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha');
   });
 });
+
+describe('IntegTest roleArn', () => {
+  test('roleArn is passed to deploy and destroy', async () => {
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    });
+
+    // THEN
+    expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    }));
+    expect(cdkMock.mocks.destroy).toHaveBeenCalledWith(expect.objectContaining({
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    }));
+  });
+
+  test('roleArn is passed to watch', async () => {
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+    await integTest.watchIntegTest({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    });
+
+    // THEN
+    expect(cdkMock.mocks.watch).toHaveBeenCalledWith(expect.objectContaining({
+      roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+    }), expect.anything());
+  });
+
+  test('roleArn overrides manifest destroy args', async () => {
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      roleArn: 'arn:aws:iam::123456789012:role/CliRole',
+    });
+
+    // THEN - CLI roleArn takes precedence
+    expect(cdkMock.mocks.destroy).toHaveBeenCalledWith(expect.objectContaining({
+      roleArn: 'arn:aws:iam::123456789012:role/CliRole',
+    }));
+  });
+});
