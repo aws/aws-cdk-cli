@@ -15,7 +15,7 @@ describe('Manifest.loadValidationReport', () => {
   });
 
   test('loads a valid report', () => {
-    const reportPath = path.join(tmpDir, 'policy-validation-report.json');
+    const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       version: '1.0.0',
       pluginReports: [{
@@ -46,7 +46,7 @@ describe('Manifest.loadValidationReport', () => {
   });
 
   test('loads a report with optional fields', () => {
-    const reportPath = path.join(tmpDir, 'policy-validation-report.json');
+    const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       version: '1.0.0',
       title: 'Validation Report',
@@ -67,7 +67,7 @@ describe('Manifest.loadValidationReport', () => {
   });
 
   test('throws on missing required fields', () => {
-    const reportPath = path.join(tmpDir, 'policy-validation-report.json');
+    const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       title: 'Validation Report',
     }));
@@ -76,7 +76,7 @@ describe('Manifest.loadValidationReport', () => {
   });
 
   test('throws on invalid conclusion value', () => {
-    const reportPath = path.join(tmpDir, 'policy-validation-report.json');
+    const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       version: '1.0.0',
       pluginReports: [{
@@ -90,7 +90,7 @@ describe('Manifest.loadValidationReport', () => {
   });
 
   test('throws on invalid severity value', () => {
-    const reportPath = path.join(tmpDir, 'policy-validation-report.json');
+    const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({
       version: '1.0.0',
       pluginReports: [{

@@ -114,7 +114,7 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 
-const POLICY_VALIDATION_REPORT_FILE = 'policy-validation-report.json';
+const POLICY_VALIDATION_REPORT_FILE = 'validation-report.json';
 
 export interface ToolkitOptions {
   /**
