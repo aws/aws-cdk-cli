@@ -20,6 +20,9 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 export function hostMessageFromValidation(result: ValidateResult): ActionLessMessage<any> {
+  if (result.conclusion === 'failure') {
+    return IO.CDK_TOOLKIT_E9600.msg(formatValidateResult(result), result);
+  }
   return IO.CDK_TOOLKIT_I9600.msg(formatValidateResult(result), result);
 }
 
@@ -77,7 +80,7 @@ function formatViolationBlock(v: FlattenedViolation): string {
   }
 
   const severityColor = getSeverityColor(v.severity);
-  const severityAndDesc = severityColor(chalk.bold(`${formatSeverityName(v.severity)} ${v.description}`));
+  const severityAndDesc = severityColor(chalk.bold(`${v.severity} ${v.description}`));
   lines.push(`${severityAndDesc} ${v.pluginName}`);
 
   const constructInfo = formatConstructInfo(v.construct);
@@ -91,22 +94,12 @@ function formatViolationBlock(v: FlattenedViolation): string {
   return lines.join('\n');
 }
 
-function formatSeverityName(severity: string): string {
-  switch (severity.toLowerCase()) {
-    case 'fatal': return 'Fatal';
-    case 'error': return 'Error';
-    case 'warning': return 'Warning';
-    case 'info': return 'Info';
-    default: return severity;
-  }
-}
-
 function getSeverityColor(severity: string): (str: string) => string {
   switch (severity.toLowerCase()) {
     case 'fatal': return chalk.red;
     case 'error': return chalk.hex('#FFA500');
     case 'warning': return chalk.yellow;
-    case 'info': return chalk.yellow;
+    case 'info': return chalk.blue;
     default: return chalk.yellow;
   }
 }
@@ -133,7 +126,7 @@ function getLeafLocation(stackTraces: string[] | undefined): string | undefined 
   const lastTrace = stackTraces[stackTraces.length - 1];
   const frames = lastTrace.split('\n');
   if (frames.length === 0) return undefined;
-  const leafFrame = frames[0];
-  const match = leafFrame.match(/\((.+)\)$/);
+  const leafFrame = frames[0].trim();
+  const match = leafFrame.match(/\((.+)\)$/) || leafFrame.match(/at\s+(.+)$/);
   return match ? match[1] : leafFrame;
 }
