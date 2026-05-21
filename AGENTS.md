@@ -124,22 +124,36 @@ cdk-assets (standalone CLI)
 
 ## CLI Commands
 
-The CLI supports these primary commands (each maps to a `toolkit-lib` action):
+The CLI supports these commands (each maps to a `toolkit-lib` action where noted):
 
 | Command | Action | Description |
 |---------|--------|-------------|
-| `synth` | Synth | Synthesize CloudFormation templates |
+| `synth` / `synthesize` | Synth | Synthesize CloudFormation templates |
 | `deploy` | Deploy | Deploy stacks to AWS |
 | `destroy` | Destroy | Delete stacks from AWS |
 | `diff` | Diff | Compare local templates with deployed stacks |
+| `drift` | Drift | Detect resource drift from deployed state |
 | `bootstrap` | Bootstrap | Provision CDK toolkit resources in an account |
 | `watch` | Watch | Monitor files and auto-deploy on changes |
 | `list` / `ls` | List | List stacks in the app |
-| `doctor` | — | Check environment for potential problems |
+| `rollback` | Rollback | Roll back a failed deployment |
+| `import` | — | Import existing resources into a stack |
+| `refactor` | Refactor | Rename/move resources across stacks (unstable) |
+| `orphan` | Orphan | Remove resources from stack management (unstable) |
+| `publish-assets` | PublishAssets | Publish assets without deploying (unstable) |
+| `diagnose` | Diagnose | Diagnose deployment failures (unstable) |
+| `gc` | — | Garbage collect unused bootstrap assets (unstable) |
+| `flags` | — | Manage feature flags (unstable) |
 | `init` | — | Initialize a new CDK project |
 | `migrate` | — | Migrate existing resources to CDK |
 | `context` | — | Manage cached context values |
 | `docs` | — | Open CDK documentation |
+| `doctor` | — | Check environment for potential problems |
+| `notices` | — | Display and acknowledge CDK notices |
+| `acknowledge` / `ack` | — | Acknowledge a specific notice |
+| `metadata` | — | Show metadata for a stack |
+| `version` | — | Print CLI version |
+| `cli-telemetry` | — | Enable/disable CLI telemetry |
 
 ## Adding a New CLI Command
 
