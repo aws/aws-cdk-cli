@@ -24,6 +24,11 @@ export function guessAgent(): true | undefined {
     return true;
   }
 
+  // https://code.visualstudio.com/updates/v1_121#_agentaware-terminal-commands
+  if (process.env.VSCODE_AGENT) {
+    return true;
+  }
+
   // Cline -- not sure if it sets these, but users might to configure Cline.
   if (Object.keys(process.env).some(x => x.startsWith('CLINE_'))) {
     return true;
