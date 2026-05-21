@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as chalk from 'chalk';
 import type { PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import type { ValidateResult } from '../../actions/validate';
@@ -68,7 +69,7 @@ function normalizeSeverity(severity: string | undefined): string {
   if (lower === 'error') return 'Error';
   if (lower === 'warning') return 'Warning';
   if (lower === 'info') return 'Info';
-  return severity;
+  return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
 function formatViolationBlock(v: FlattenedViolation): string {
@@ -76,18 +77,19 @@ function formatViolationBlock(v: FlattenedViolation): string {
 
   const location = getLeafLocation(v.construct.stackTraces);
   if (location) {
-    lines.push(location);
+    lines.push(chalk.underline(location));
   }
 
   const severityColor = getSeverityColor(v.severity);
-  const severityAndDesc = severityColor(chalk.bold(`${v.severity} ${v.description}`));
+  const description = stripAckTag(v.description);
+  const severityAndDesc = severityColor(chalk.bold(`${v.severity}: ${description}`));
   lines.push(`${severityAndDesc} ${v.pluginName}`);
 
   const constructInfo = formatConstructInfo(v.construct);
   lines.push(`   ${constructInfo}`);
 
   if (v.severity.toLowerCase() !== 'fatal') {
-    const ackId = `${v.pluginName}::${v.ruleName}`;
+    const ackId = `${v.pluginName}::${v.ruleName}`.replace(/ /g, '-');
     lines.push(`   Acknowledge '${ackId}'`);
   }
 
@@ -120,6 +122,10 @@ function formatConstructInfo(construct: ViolatingConstructJson): string {
   return parts.join(' ');
 }
 
+function stripAckTag(description: string): string {
+  return description.replace(/\s*\[ack:\s*[^\]]+\]\s*/g, '').trim();
+}
+
 function getLeafLocation(stackTraces: string[] | undefined): string | undefined {
   if (!stackTraces || stackTraces.length === 0) return undefined;
   const lastTrace = stackTraces[stackTraces.length - 1];
@@ -127,5 +133,6 @@ function getLeafLocation(stackTraces: string[] | undefined): string | undefined 
   if (frames.length === 0) return undefined;
   const leafFrame = frames[0].trim();
   const match = leafFrame.match(/\((.+)\)$/) || leafFrame.match(/at\s+(.+)$/);
-  return match ? match[1] : leafFrame;
+  const location = match ? match[1] : leafFrame;
+  return path.isAbsolute(location.split(':')[0]) ? path.relative(process.cwd(), location) : location;
 }

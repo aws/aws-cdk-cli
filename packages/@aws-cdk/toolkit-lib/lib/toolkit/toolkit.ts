@@ -115,7 +115,7 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 
-const POLICY_VALIDATION_REPORT_FILE = 'validation-report.json';
+const VALIDATION_REPORT_FILE = 'validation-report.json';
 
 export interface ToolkitOptions {
   /**
@@ -664,7 +664,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const reportPath = path.join(assembly.directory, POLICY_VALIDATION_REPORT_FILE);
+    const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
 
     if (!await fs.pathExists(reportPath)) {
       const result: ValidateResult = {
