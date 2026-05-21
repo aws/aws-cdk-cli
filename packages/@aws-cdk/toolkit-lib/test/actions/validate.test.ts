@@ -1,11 +1,17 @@
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
+import * as awsauth from '../../lib/api/aws-auth/private';
+import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, TestIoHost } from '../_helpers';
+import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 
 beforeEach(() => {
+  jest.restoreAllMocks();
+  restoreSdkMocksToDefault();
+  setDefaultSTSMocks();
   ioHost = new TestIoHost();
   toolkit = new Toolkit({ ioHost });
 });
@@ -133,5 +139,103 @@ describe('validate', () => {
     expect(result.title).toBeUndefined();
     expect(result.pluginReports).toHaveLength(1);
     expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
+  });
+});
+
+describe('validate --online', () => {
+  beforeEach(() => {
+    jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  });
+
+  test('reports CloudFormation validation errors as a plugin report', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: {
+        type: 'problem',
+        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        problems: [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'BadResource',
+            resourceType: 'AWS::Fake::DoesNotExist',
+            message: 'Resource type AWS::Fake::DoesNotExist does not exist',
+            errorCode: 'InvalidResourceType',
+            sourceTrace: undefined,
+          },
+        ],
+      },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].pluginName).toBe('CloudFormation');
+    expect(result.pluginReports[0].conclusion).toBe('failure');
+    expect(result.pluginReports[0].violations).toHaveLength(1);
+    expect(result.pluginReports[0].violations[0].ruleName).toBe('InvalidResourceType');
+    expect(result.pluginReports[0].violations[0].description).toBe('Resource type AWS::Fake::DoesNotExist does not exist');
+    expect(result.pluginReports[0].violations[0].violatingConstructs[0].cloudFormationResource?.logicalId).toBe('BadResource');
+  });
+
+  test('passes when CloudFormation finds no problems', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: { type: 'no-problem' },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+  });
+
+  test('merges offline and online results', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: {
+        type: 'problem',
+        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        problems: [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'MyBucket',
+            message: 'Property validation failure',
+            errorCode: 'InvalidProperty',
+            sourceTrace: undefined,
+          },
+        ],
+      },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    // 2 from offline report + 1 from online
+    expect(result.pluginReports).toHaveLength(3);
+    expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
+    expect(result.pluginReports[1].pluginName).toBe('Construct Annotations');
+    expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
+  });
+
+  test('gracefully handles online validation failure', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
+      new Error('Access denied'),
+    );
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    // Should not throw, just warn and return success (no offline report either)
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+    ioHost.expectMessage({ containing: 'Failed to run online validation', level: 'warn' });
   });
 });

@@ -21,7 +21,6 @@ import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import type { StackDiagnosis } from '../../actions/diagnose';
 import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
-import type { TargetEnvironment } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
@@ -134,6 +133,12 @@ export async function waitForChangeSetReport(
  *
  * Will return a changeset that is either ready to be executed or has no changes.
  * Will throw in other cases.
+ *
+ * @param cfn       a CloudFormation client
+ * @param stackNameOrArn       the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
+ * @param changeSetNameOrArn   the name or ARN of the ChangeSet, prefer ARN
+ * @param fetchAll  if true, fetches all pages of the ChangeSet before returning.
+ * @returns         the CloudFormation description of the ChangeSet
  */
 export async function waitForChangeSet(
   cfn: ICloudFormationClient,
@@ -222,8 +227,7 @@ export async function createDiffChangeSet(
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
 ): Promise<DescribeChangeSetCommandOutput | undefined> {
   try {
-    const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
-    return await uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
+    return await uploadBodyParameterAndCreateChangeSet(ioHelper, {
       ...options,
       includeNestedStacks: true,
     });
@@ -268,14 +272,19 @@ function templatesFromAssetManifestArtifact(
   return [assetManifest, assets];
 }
 
-/**
- * Only ever called for 'cdk diff'
- */
-async function uploadBodyParameterAndCreateChangeSet(
+interface PreparedChangeSetEnv {
+  cfn: ICloudFormationClient;
+  bodyParameter: TemplateBodyParameter;
+  exists: boolean;
+  executionRoleArn: string | undefined;
+  diagnoser: CloudFormationStackDiagnoser;
+}
+
+async function prepareChangeSetEnv(
   ioHelper: IoHelper,
-  env: TargetEnvironment,
-  options: PrepareChangeSetOptions,
-): Promise<DescribeChangeSetCommandOutput | undefined> {
+  options: { stack: cxapi.CloudFormationStackArtifact; deployments: Deployments },
+): Promise<PreparedChangeSetEnv> {
+  const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
   await uploadStackTemplateAssets(options.stack, options.deployments);
   const bodyParameter = await makeBodyParameter(
     ioHelper,
@@ -289,8 +298,24 @@ async function uploadBodyParameterAndCreateChangeSet(
   // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
   // that was never executed. Treat it as non-existent for changeset purposes.
   const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS' && stack.stackStatus.name !== 'DELETE_IN_PROGRESS';
-
   const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
+  const diagnoser = new CloudFormationStackDiagnoser({
+    sdk: env.sdk,
+    envResources: env.resources,
+    sourceTracer: new StackArtifactSourceTracer(options.stack),
+    ioHelper,
+    topLevelStackHierarchicalId: options.stack.hierarchicalId,
+  });
+
+  return { cfn, bodyParameter, exists, executionRoleArn, diagnoser };
+}
+
+async function uploadBodyParameterAndCreateChangeSet(
+  ioHelper: IoHelper,
+  options: PrepareChangeSetOptions,
+): Promise<DescribeChangeSetCommandOutput | undefined> {
+  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+
   await ioHelper.defaults.info(
     'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
   );
@@ -308,13 +333,7 @@ async function uploadBodyParameterAndCreateChangeSet(
     importExistingResources: options.importExistingResources,
     includeNestedStacks: options.includeNestedStacks,
     role: executionRoleArn,
-    diagnoser: new CloudFormationStackDiagnoser({
-      sdk: env.sdk,
-      envResources: env.resources,
-      sourceTracer: new StackArtifactSourceTracer(options.stack),
-      ioHelper,
-      topLevelStackHierarchicalId: options.stack.hierarchicalId,
-    }),
+    diagnoser,
   });
 }
 
@@ -410,25 +429,15 @@ async function createChangeSetAndCleanup(
 
 /**
  * Create a change set for online validation (never executes, returns diagnosis instead of throwing).
+ *
+ * Uses the same env preparation as diff, but calls `waitForChangeSetReport` to return
+ * the diagnosis rather than throwing on failure. Always cleans up the change set afterwards.
  */
 export async function createValidationChangeSet(
   ioHelper: IoHelper,
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider'>,
 ): Promise<ChangeSetReport> {
-  const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
-  await uploadStackTemplateAssets(options.stack, options.deployments);
-
-  const bodyParameter = await makeBodyParameter(
-    ioHelper,
-    options.stack,
-    env.resolvedEnvironment,
-    new AssetManifestBuilder(),
-    env.resources,
-  );
-  const cfn = env.sdk.cloudFormation();
-  const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
-  const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
-  const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
+  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = 'cdk-validate-change-set';
 
   if (exists) {
@@ -451,14 +460,6 @@ export async function createValidationChangeSet(
     RoleARN: executionRoleArn,
     Tags: toCfnTags(options.stack.tags),
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
-  });
-
-  const diagnoser = new CloudFormationStackDiagnoser({
-    sdk: env.sdk,
-    envResources: env.resources,
-    sourceTracer: new StackArtifactSourceTracer(options.stack),
-    ioHelper,
-    topLevelStackHierarchicalId: options.stack.hierarchicalId,
   });
 
   const report = await waitForChangeSetReport(
