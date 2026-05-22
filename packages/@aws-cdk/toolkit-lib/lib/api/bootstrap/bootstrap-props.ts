@@ -58,6 +58,14 @@ export interface BootstrapEnvironmentOptions {
    * @default true
    */
   usePreviousParameters?: boolean;
+
+  /**
+   * Whether to import existing resources into the stack instead of failing
+   * when they already exist.
+   *
+   * @default true
+   */
+  readonly importExistingResources?: boolean;
 }
 
 /**

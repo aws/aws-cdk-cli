@@ -142,7 +142,11 @@ export class BootstrapStack {
         forceDeployment: options.forceDeployment,
         roleArn: options.roleArn,
         tags: options.tags,
-        deploymentMethod: { method: 'change-set', execute: options.execute },
+        deploymentMethod: {
+          method: 'change-set',
+          execute: options.execute,
+          importExistingResources: options.importExistingResources ?? true,
+        },
         parameters,
         usePreviousParameters: options.usePreviousParameters ?? true,
         // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
