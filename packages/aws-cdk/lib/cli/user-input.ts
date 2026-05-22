@@ -993,6 +993,13 @@ export interface DeployOptions {
  */
 export interface ValidateOptions {
   /**
+   * Submit templates to CloudFormation for early validation (requires AWS credentials)
+   *
+   * @default - true
+   */
+  readonly online?: boolean;
+
+  /**
    * Positional argument for validate
    */
   readonly STACKS?: Array<string>;

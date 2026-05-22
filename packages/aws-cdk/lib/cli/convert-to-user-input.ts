@@ -153,6 +153,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'validate':
       commandOptions = {
+        online: args.online,
         STACKS: args.STACKS,
       };
       break;
@@ -473,7 +474,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
   };
-  const validateOptions = {};
+  const validateOptions = {
+    online: config.validate?.online,
+  };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
     concurrency: config.diagnose?.concurrency,

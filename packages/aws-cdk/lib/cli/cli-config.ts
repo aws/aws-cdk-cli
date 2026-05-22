@@ -225,7 +225,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'validate': {
         description: 'Validate synthesized CloudFormation templates against policy rules',
         options: {
-          'online': { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
+          online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
         },
         arg: {
           name: 'STACKS',

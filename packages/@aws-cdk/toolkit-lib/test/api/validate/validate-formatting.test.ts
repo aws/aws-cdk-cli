@@ -1,5 +1,5 @@
-import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
 import type { ValidateResult } from '../../../lib/actions/validate';
+import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
 
 // Disable chalk for predictable assertions
 process.env.FORCE_COLOR = '0';

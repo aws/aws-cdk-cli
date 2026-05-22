@@ -1,5 +1,5 @@
-import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as awsauth from '../../lib/api/aws-auth/private';
+import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, TestIoHost } from '../_helpers';

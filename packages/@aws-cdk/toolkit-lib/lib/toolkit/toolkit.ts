@@ -1,7 +1,7 @@
 import '../private/dispose-polyfill';
+import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { randomUUID } from 'node:crypto';
 import type { FeatureFlagReportProperties, PolicyValidationReportConclusion, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -91,7 +91,6 @@ import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { ResourceOrphaner } from '../api/orphan/orphaner';
-import { hostMessageFromValidation } from '../api/validate/validate-formatting';
 import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
 import { Mode, PluginHost } from '../api/plugin';
 import {
@@ -108,6 +107,7 @@ import { ResourceMigrator } from '../api/resource-import';
 import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
+import { hostMessageFromValidation } from '../api/validate/validate-formatting';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';

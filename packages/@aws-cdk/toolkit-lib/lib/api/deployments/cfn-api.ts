@@ -13,12 +13,12 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
+import type { StackDiagnosis } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
-import type { StackDiagnosis } from '../../actions/diagnose';
 import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { IoHelper } from '../io/private';
@@ -134,10 +134,10 @@ export async function waitForChangeSetReport(
  * Will return a changeset that is either ready to be executed or has no changes.
  * Will throw in other cases.
  *
- * @param cfn       a CloudFormation client
- * @param stackNameOrArn       the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
- * @param changeSetNameOrArn   the name or ARN of the ChangeSet, prefer ARN
- * @param fetchAll  if true, fetches all pages of the ChangeSet before returning.
+ * @param cfn       - a CloudFormation client
+ * @param stackNameOrArn       - the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
+ * @param changeSetNameOrArn   - the name or ARN of the ChangeSet, prefer ARN
+ * @param fetchAll  - if true, fetches all pages of the ChangeSet before returning.
  * @returns         the CloudFormation description of the ChangeSet
  */
 export async function waitForChangeSet(
