@@ -48,7 +48,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
     await toolkit.validate(cx);
 
-    ioHost.expectMessage({ containing: 'No violations found', level: 'info' });
+    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
   });
 
   test('can invoke without options', async () => {

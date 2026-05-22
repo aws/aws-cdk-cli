@@ -31,7 +31,7 @@ export function formatValidateResult(result: ValidateResult): string {
   const violations = flattenViolations(result.pluginReports);
 
   if (violations.length === 0) {
-    return 'Policy validation passed. No violations found.';
+    return 'Policy validation passed. No problems found.';
   }
 
   violations.sort((a, b) => {

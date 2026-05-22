@@ -1,9 +1,8 @@
-import * as chalk from 'chalk';
 import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
 import type { ValidateResult } from '../../../lib/actions/validate';
 
 // Disable chalk for predictable assertions
-chalk.level = 0;
+process.env.FORCE_COLOR = '0';
 
 function makeResult(pluginReports: ValidateResult['pluginReports']): ValidateResult {
   const conclusion = pluginReports.some((r) => r.conclusion === 'failure') ? 'failure' : 'success';
@@ -15,7 +14,7 @@ describe('formatValidateResult', () => {
     const result = makeResult([
       { pluginName: 'TestPlugin', conclusion: 'success', violations: [] },
     ]);
-    expect(formatValidateResult(result)).toBe('Policy validation passed. No violations found.');
+    expect(formatValidateResult(result)).toBe('Policy validation passed. No problems found.');
   });
 
   test('sorts violations by severity (fatal > error > warning > info > custom)', () => {
