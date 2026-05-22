@@ -171,6 +171,7 @@ describe('config', () => {
       refactor: expect.anything(),
       cliTelemetry: expect.anything(),
       diagnose: expect.anything(),
+      validate: expect.anything(),
     });
   });
 });
