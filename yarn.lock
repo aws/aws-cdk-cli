@@ -7848,9 +7848,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"aws-cdk-lib@npm:2.256.1":
-  version: 2.256.1
-  resolution: "aws-cdk-lib@npm:2.256.1"
+"aws-cdk-lib@npm:2.257.0":
+  version: 2.257.0
+  resolution: "aws-cdk-lib@npm:2.257.0"
   dependencies:
     "@aws-cdk/asset-awscli-v1": "npm:2.2.273"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.1"
@@ -7869,7 +7869,7 @@ __metadata:
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/ee0b97dba887512829c33771498d97f612135771d0cf3c44624d77ecaedc8846651c2077212a83696597aa05d5d22287d109d590f1b14c2062a88e4f7ad2fb5d
+  checksum: 10c0/878e552b3c7a3095adbe90a00f938c70df50a2935804edcb3ad32d84df5b90983fa55e7a98807aae48d77deec4f7e33e6b2f95f19bf0bcfd368166ef348b764c
   languageName: node
   linkType: hard
 
@@ -7929,7 +7929,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     archiver: "npm:^7.0.1"
-    aws-cdk-lib: "npm:2.256.1"
+    aws-cdk-lib: "npm:2.257.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
