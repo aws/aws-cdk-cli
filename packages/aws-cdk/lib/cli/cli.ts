@@ -572,6 +572,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
+        if (args.validationOutput === false) {
+          configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
+        }
         const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
         if (args.exclusively) {
           return cli.synth(args.STACKS, args.exclusively, quiet, args.validation, argv.json);

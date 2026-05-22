@@ -206,6 +206,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)',
         })
+        .option('validation-output', {
+          default: true,
+          type: 'boolean',
+          desc: 'Show the validation report output during synthesis. Use --no-validation-output to suppress the visual report (the report JSON is still written to the cloud assembly)',
+        })
         .option('quiet', {
           default: false,
           type: 'boolean',
