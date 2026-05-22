@@ -317,3 +317,15 @@ describe('Proxy options', () => {
     }
   });
 });
+
+describe('Role ARN option', () => {
+  test('--role-arn is parsed', () => {
+    const options = parseCliArgs(['--role-arn', 'arn:aws:iam::123456789012:role/MyRole']);
+    expect(options.roleArn).toBe('arn:aws:iam::123456789012:role/MyRole');
+  });
+
+  test('role-arn defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.roleArn).toBeUndefined();
+  });
+});

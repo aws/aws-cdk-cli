@@ -335,6 +335,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: true,
           type: 'boolean',
           desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)',
+        })
+        .option('import-existing-resources', {
+          default: true,
+          type: 'boolean',
+          desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist',
         }),
     )
     .command(

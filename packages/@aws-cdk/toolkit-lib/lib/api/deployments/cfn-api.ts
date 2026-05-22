@@ -1,4 +1,5 @@
-import { format } from 'util';
+import { randomUUID } from 'node:crypto';
+import { format } from 'node:util';
 import type { FileManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
@@ -16,7 +17,7 @@ import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
-import { CloudFormationStack, makeBodyParameter, templateContainsNestedStacks } from '../cloudformation';
+import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
 import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { TargetEnvironment } from '../environment';
@@ -214,7 +215,7 @@ export async function createDiffChangeSet(
     const env = await options.deployments.envs.accessStackForMutableStackOperations(options.stack);
     return await uploadBodyParameterAndCreateChangeSet(ioHelper, env, {
       ...options,
-      includeNestedStacks: templateContainsNestedStacks(options.stack.template),
+      includeNestedStacks: true,
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
@@ -277,7 +278,7 @@ async function uploadBodyParameterAndCreateChangeSet(
   const stack = await CloudFormationStack.lookup(cfn, options.stack.stackName, false);
   // A stack in REVIEW_IN_PROGRESS was created by a previous CREATE changeset
   // that was never executed. Treat it as non-existent for changeset purposes.
-  const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
+  const exists = stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS' && stack.stackStatus.name !== 'DELETE_IN_PROGRESS';
 
   const executionRoleArn = await env.replacePlaceholders(options.stack.cloudFormationExecutionRoleArn);
   await ioHelper.defaults.info(
@@ -334,7 +335,7 @@ export async function uploadStackTemplateAssets(stack: cxapi.CloudFormationStack
   }
 }
 
-export async function createChangeSetAndCleanup(
+async function createChangeSetAndCleanup(
   ioHelper: IoHelper,
   options: CreateChangeSetOptions,
 ): Promise<DescribeChangeSetCommandOutput> {
@@ -383,6 +384,16 @@ export async function createChangeSetAndCleanup(
     changeSet.Id ?? options.changeSetName,
     changeSet.StackId ?? options.stack.stackName,
   );
+
+  // If the stack didn't exist before, creating a CREATE changeset will have
+  // put it in REVIEW_IN_PROGRESS state. Delete the empty stack to clean up.
+  if (!options.exists) {
+    await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', changeSet.StackId ?? options.stack.stackName));
+    await options.cfn.deleteStack({
+      StackName: changeSet.StackId ?? options.stack.stackName,
+      ClientRequestToken: randomUUID(),
+    });
+  }
 
   return createdChangeSet;
 }

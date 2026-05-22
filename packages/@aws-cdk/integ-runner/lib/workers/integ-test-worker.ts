@@ -138,6 +138,7 @@ export async function runIntegrationTestsInParallel(
         updateWorkflow: options.updateWorkflow,
         proxy: options.proxy,
         caBundlePath: options.caBundlePath,
+        roleArn: options.roleArn,
       }], {
         on: printResults,
       });

@@ -1,4 +1,3 @@
-import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
@@ -7,16 +6,11 @@ import {
   RollbackStackCommand,
   type StackResourceSummary,
   StackStatus,
-  DescribeChangeSetCommand,
-  ChangeSetStatus,
-  CreateChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
-import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack } from '../../../lib/api/deployments/deploy-stack';
-import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -1191,49 +1185,6 @@ describe('stackExists', () => {
     expect(mockForEnvironment).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
       assumeRoleArn: expectedRoleArn,
     }));
-  });
-});
-
-test('tags are passed along to create change set', async () => {
-  mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
-    Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/foo/uuid',
-    StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/test-stack/uuid',
-  });
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
-    Status: ChangeSetStatus.CREATE_COMPLETE,
-  });
-
-  const stack: any = {};
-  stack.tags = { SomeKey: 'SomeValue' };
-  for (const methodName of Object.getOwnPropertyNames(cxapi.CloudFormationStackArtifact.prototype)) {
-    stack[methodName] = jest.fn();
-  }
-
-  await cfnApi.createChangeSetAndCleanup(
-    ioHelper,
-    {
-      stack: stack,
-      cfn: sdk.cloudFormation(),
-      changeSetName: 'foo',
-      willExecute: false,
-      exists: true,
-      uuid: '142DF82A-8ED8-4944-8EEB-A5BAE141F13F',
-      bodyParameter: {},
-      parameters: {},
-      diagnoser: new CloudFormationStackDiagnoser({
-        sdk,
-        sourceTracer: {
-          traceResource: () => Promise.resolve(undefined),
-          traceStack: () => Promise.resolve(undefined),
-        },
-        ioHelper,
-        topLevelStackHierarchicalId: stack.hierarchicalId,
-      }),
-    },
-  );
-
-  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
-    Tags: [{ Key: 'SomeKey', Value: 'SomeValue' }],
   });
 });
 

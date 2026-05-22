@@ -538,11 +538,7 @@ class FullCloudFormationDeployment {
       ClientToken: `create${this.uuid}`,
       ImportExistingResources: importExistingResources,
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
-
-      // This is necessary to trigger early validation on nested stacks as well
-      // TODO: We currently have a test explicitly checking that this is NOT set to true, but on the other
-      // hand for 'cdk diff' we DO turn it on. Investigate later.
-      // IncludeNestedStacks: true,
+      IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
       ...this.commonPrepareOptions(),
     });
 

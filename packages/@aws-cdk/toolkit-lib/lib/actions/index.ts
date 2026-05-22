@@ -11,3 +11,4 @@ export * from './rollback';
 export * from './synth';
 export * from './watch';
 export * from './diagnose';
+export * from './validate';
