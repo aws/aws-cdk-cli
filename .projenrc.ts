@@ -1784,7 +1784,6 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
     'docs',
     'bootstrap',
     'integ-testing',
-    'toolkit-lib',
     ...repoProject.subprojects
       .filter(p => p instanceof yarn.TypeScriptWorkspace)
       .map(p => p.name)
