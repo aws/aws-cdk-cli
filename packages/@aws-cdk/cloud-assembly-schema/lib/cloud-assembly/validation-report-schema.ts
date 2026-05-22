@@ -1,5 +1,5 @@
 /**
- * JSON schema for policy-validation-report.json
+ * JSON schema for validation-report.json
  *
  * This file is written to the cloud assembly directory by aws-cdk-lib
  * during synthesis and consumed by the CDK CLI's validate command.
