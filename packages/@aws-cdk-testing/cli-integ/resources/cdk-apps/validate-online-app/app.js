@@ -7,6 +7,8 @@ if (!stackPrefix) {
   throw new Error('the STACK_NAME_PREFIX environment variable is required');
 }
 
+const SHARED_BUCKET_NAME = `${stackPrefix}-validate-online-shared-bucket`;
+
 class SecurityPlugin {
   constructor() {
     this.name = 'SecurityPlugin';
@@ -50,34 +52,43 @@ class ValidStack extends cdk.Stack {
   }
 }
 
-// Invalid stack (online only) — CFN rejects the resource type
-class OnlineInvalidStack extends cdk.Stack {
+// Deployed stack — owns the bucket with the shared name
+class DeployedStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
-    new cdk.CfnResource(this, 'BadResource', {
-      type: 'AWS::Fake::DoesNotExist',
-      properties: { SomeProperty: 'value' },
+    new s3.Bucket(this, 'ExistingBucket', {
+      bucketName: SHARED_BUCKET_NAME,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+  }
+}
+
+// Conflicting stack — tries to create a bucket with the same name (early validation error)
+class ConflictingStack extends cdk.Stack {
+  constructor(scope, id, props) {
+    super(scope, id, props);
+    new s3.Bucket(this, 'ConflictBucket', {
+      bucketName: SHARED_BUCKET_NAME,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
   }
 }
 
 // Combined stack — has BOTH offline (S3 bucket triggers SecurityPlugin)
-// AND online errors (invalid resource type rejected by CFN)
+// AND online errors (bucket name conflict caught by CFN early validation)
 class CombinedStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
     new s3.Bucket(this, 'MyBucket', {
+      bucketName: SHARED_BUCKET_NAME,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-    new cdk.CfnResource(this, 'BadResource', {
-      type: 'AWS::Fake::DoesNotExist',
-      properties: { SomeProperty: 'value' },
     });
   }
 }
 
 new ValidStack(app, `${stackPrefix}-validate-online-valid`);
-new OnlineInvalidStack(app, `${stackPrefix}-validate-online-invalid`);
+new DeployedStack(app, `${stackPrefix}-validate-online-deployed`);
+new ConflictingStack(app, `${stackPrefix}-validate-online-conflicting`);
 new CombinedStack(app, `${stackPrefix}-validate-online-combined`);
 
 app.synth();

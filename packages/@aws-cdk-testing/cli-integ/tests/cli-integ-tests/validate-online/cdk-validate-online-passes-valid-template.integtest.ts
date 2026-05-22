@@ -7,6 +7,6 @@ integTest(
       ['--unstable=validate', 'validate', '--online', fixture.fullStackName('validate-online-valid')],
     );
 
-    expect(output).toContain('No violations found');
+    expect(output).toContain('No problems found');
   }),
 );

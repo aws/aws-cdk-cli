@@ -111,7 +111,10 @@ function formatConstructInfo(construct: ViolatingConstructJson): string {
   const logicalId = construct.cloudFormationResource?.logicalId;
 
   if (construct.constructPath) {
-    parts.push(logicalId ? `${chalk.bold(construct.constructPath)} (${logicalId})` : chalk.bold(construct.constructPath));
+    parts.push(chalk.bold(construct.constructPath));
+    if (logicalId) {
+      parts.push(logicalId);
+    }
   } else if (logicalId) {
     parts.push(chalk.bold(logicalId));
   }
@@ -132,8 +135,12 @@ function getLeafLocation(stackTraces: string[] | undefined): string | undefined 
   const lastTrace = stackTraces[stackTraces.length - 1];
   const frames = lastTrace.split('\n');
   if (frames.length === 0) return undefined;
-  const leafFrame = frames[0].trim();
-  const match = leafFrame.match(/\((.+)\)$/) || leafFrame.match(/at\s+(.+)$/);
-  const location = match ? match[1] : leafFrame;
+
+  // Find the first frame that's user code (not in node_modules or aws-cdk-lib)
+  const userFrame = frames.find(f => !f.includes('node_modules') && !f.includes('aws-cdk-lib'));
+  const frame = (userFrame ?? frames[0]).trim();
+
+  const match = frame.match(/\((.+)\)$/) || frame.match(/at\s+(.+)$/);
+  const location = match ? match[1] : frame;
   return path.isAbsolute(location.split(':')[0]) ? path.relative(process.cwd(), location) : location;
 }

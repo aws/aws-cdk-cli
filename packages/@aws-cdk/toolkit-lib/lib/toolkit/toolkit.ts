@@ -731,14 +731,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           for (const problem of report.diagnosis.problems) {
             violations.push({
               ruleName: problem.errorCode ?? 'CloudFormationValidation',
-              description: problem.message,
+              description: problem.message.replace(/\s*\(at\s+\/Resources\/[^)]+\)\s*$/, ''),
               severity: 'fatal',
               violatingConstructs: [{
-                constructPath: problem.logicalId ? `${stack.hierarchicalId}/${problem.logicalId}` : stack.hierarchicalId,
+                constructPath: problem.sourceTrace?.constructPath ?? (problem.logicalId ? `${stack.hierarchicalId}/${problem.logicalId}` : stack.hierarchicalId),
                 cloudFormationResource: problem.logicalId ? {
                   templatePath: `${stack.stackName}.template.json`,
                   logicalId: problem.logicalId,
                 } : undefined,
+                stackTraces: problem.sourceTrace?.creationStackTrace ? [problem.sourceTrace.creationStackTrace.join('\n')] : undefined,
               }],
             });
           }
