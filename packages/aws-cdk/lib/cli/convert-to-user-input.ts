@@ -82,6 +82,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         toolkitStackName: args.toolkitStackName,
         template: args.template,
         previousParameters: args.previousParameters,
+        importExistingResources: args.importExistingResources,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -412,6 +413,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     toolkitStackName: config.bootstrap?.toolkitStackName,
     template: config.bootstrap?.template,
     previousParameters: config.bootstrap?.previousParameters,
+    importExistingResources: config.bootstrap?.importExistingResources,
   };
   const gcOptions = {
     action: config.gc?.action,

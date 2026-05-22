@@ -593,6 +593,13 @@ export interface BootstrapOptions {
   readonly previousParameters?: boolean;
 
   /**
+   * Whether to import existing resources into the bootstrap stack instead of failing if they already exist
+   *
+   * @default - true
+   */
+  readonly importExistingResources?: boolean;
+
+  /**
    * Positional argument for bootstrap
    */
   readonly ENVIRONMENTS?: Array<string>;

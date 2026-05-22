@@ -306,6 +306,11 @@
           "type": "boolean",
           "default": true,
           "desc": "Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)"
+        },
+        "import-existing-resources": {
+          "type": "boolean",
+          "desc": "Whether to import existing resources into the bootstrap stack instead of failing if they already exist",
+          "default": true
         }
       }
     },
