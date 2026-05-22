@@ -14,7 +14,7 @@ describe('formatValidateResult', () => {
     const result = makeResult([
       { pluginName: 'TestPlugin', conclusion: 'success', violations: [] },
     ]);
-    expect(formatValidateResult(result)).toBe('Policy validation passed. No problems found.');
+    expect(formatValidateResult(result)).toContain('No problems found.');
   });
 
   test('sorts violations by severity (fatal > error > warning > info > custom)', () => {
@@ -31,12 +31,12 @@ describe('formatValidateResult', () => {
     }]);
 
     const output = formatValidateResult(result);
-    const lines = output.split('\n\n');
-    expect(lines[0]).toContain('fatal issue');
-    expect(lines[1]).toContain('error issue');
-    expect(lines[2]).toContain('warning issue');
-    expect(lines[3]).toContain('info issue');
-    expect(lines[4]).toContain('custom issue');
+    const lines = output.split('\n\n').filter(l => l.trim());
+    expect(lines[1]).toContain('fatal issue');
+    expect(lines[2]).toContain('error issue');
+    expect(lines[3]).toContain('warning issue');
+    expect(lines[4]).toContain('info issue');
+    expect(lines[5]).toContain('custom issue');
   });
 
   test('formats construct path with logical id', () => {

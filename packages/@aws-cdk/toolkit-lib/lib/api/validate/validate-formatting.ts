@@ -31,7 +31,7 @@ export function formatValidateResult(result: ValidateResult): string {
   const violations = flattenViolations(result.pluginReports);
 
   if (violations.length === 0) {
-    return 'Policy validation passed. No problems found.';
+    return '\nPolicy validation passed. No problems found.';
   }
 
   violations.sort((a, b) => {
@@ -40,8 +40,9 @@ export function formatValidateResult(result: ValidateResult): string {
     return aOrder - bOrder;
   });
 
+  const title = result.title ?? 'Validation Report';
   const blocks = violations.map((v) => formatViolationBlock(v));
-  return blocks.join('\n\n');
+  return `\n${title}\n${'-'.repeat(title.length)}\n\n${blocks.join('\n\n')}`;
 }
 
 function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolation[] {
