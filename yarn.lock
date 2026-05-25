@@ -1040,52 +1040,22 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/client-dynamodb@npm:^3":
-  version: 3.1036.0
-  resolution: "@aws-sdk/client-dynamodb@npm:3.1036.0"
+  version: 3.1053.0
+  resolution: "@aws-sdk/client-dynamodb@npm:3.1053.0"
   dependencies:
     "@aws-crypto/sha256-browser": "npm:5.2.0"
     "@aws-crypto/sha256-js": "npm:5.2.0"
-    "@aws-sdk/core": "npm:^3.974.5"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.36"
-    "@aws-sdk/dynamodb-codec": "npm:^3.973.5"
-    "@aws-sdk/middleware-endpoint-discovery": "npm:^3.972.11"
-    "@aws-sdk/middleware-host-header": "npm:^3.972.10"
-    "@aws-sdk/middleware-logger": "npm:^3.972.10"
-    "@aws-sdk/middleware-recursion-detection": "npm:^3.972.11"
-    "@aws-sdk/middleware-user-agent": "npm:^3.972.35"
-    "@aws-sdk/region-config-resolver": "npm:^3.972.13"
-    "@aws-sdk/types": "npm:^3.973.8"
-    "@aws-sdk/util-endpoints": "npm:^3.996.8"
-    "@aws-sdk/util-user-agent-browser": "npm:^3.972.10"
-    "@aws-sdk/util-user-agent-node": "npm:^3.973.21"
-    "@smithy/config-resolver": "npm:^4.4.17"
-    "@smithy/core": "npm:^3.23.17"
-    "@smithy/fetch-http-handler": "npm:^5.3.17"
-    "@smithy/hash-node": "npm:^4.2.14"
-    "@smithy/invalid-dependency": "npm:^4.2.14"
-    "@smithy/middleware-content-length": "npm:^4.2.14"
-    "@smithy/middleware-endpoint": "npm:^4.4.32"
-    "@smithy/middleware-retry": "npm:^4.5.5"
-    "@smithy/middleware-serde": "npm:^4.2.20"
-    "@smithy/middleware-stack": "npm:^4.2.14"
-    "@smithy/node-config-provider": "npm:^4.3.14"
-    "@smithy/node-http-handler": "npm:^4.6.1"
-    "@smithy/protocol-http": "npm:^5.3.14"
-    "@smithy/smithy-client": "npm:^4.12.13"
-    "@smithy/types": "npm:^4.14.1"
-    "@smithy/url-parser": "npm:^4.2.14"
-    "@smithy/util-base64": "npm:^4.3.2"
-    "@smithy/util-body-length-browser": "npm:^4.2.2"
-    "@smithy/util-body-length-node": "npm:^4.2.3"
-    "@smithy/util-defaults-mode-browser": "npm:^4.3.49"
-    "@smithy/util-defaults-mode-node": "npm:^4.2.54"
-    "@smithy/util-endpoints": "npm:^3.4.2"
-    "@smithy/util-middleware": "npm:^4.2.14"
-    "@smithy/util-retry": "npm:^4.3.4"
-    "@smithy/util-utf8": "npm:^4.2.2"
-    "@smithy/util-waiter": "npm:^4.2.16"
+    "@aws-sdk/core": "npm:^3.974.13"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.44"
+    "@aws-sdk/dynamodb-codec": "npm:^3.973.13"
+    "@aws-sdk/middleware-endpoint-discovery": "npm:^3.972.14"
+    "@aws-sdk/types": "npm:^3.973.9"
+    "@smithy/core": "npm:^3.24.3"
+    "@smithy/fetch-http-handler": "npm:^5.4.3"
+    "@smithy/node-http-handler": "npm:^4.7.3"
+    "@smithy/types": "npm:^4.14.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/9cbd8198bbaf6edef98728a611178cb867514fba16b7955b4c84359bb39bb9c8e0dc78715f37d738d6a9d32b2644253941a74966d02c71007e912942ccfbcaa7
+  checksum: 10c0/cd9d613fbff88fb24b9cb0e3069978bdaab07ba7eac6d79e865d3da22507042a30cda13eab92ed687668cb0ba5e3fe439ffecf72380ca564616d37f4ed73fba9
   languageName: node
   linkType: hard
 
@@ -2552,16 +2522,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/dynamodb-codec@npm:^3.973.5":
-  version: 3.973.5
-  resolution: "@aws-sdk/dynamodb-codec@npm:3.973.5"
+"@aws-sdk/dynamodb-codec@npm:^3.973.13":
+  version: 3.973.13
+  resolution: "@aws-sdk/dynamodb-codec@npm:3.973.13"
   dependencies:
-    "@aws-sdk/core": "npm:^3.974.5"
-    "@smithy/core": "npm:^3.23.17"
-    "@smithy/types": "npm:^4.14.1"
-    "@smithy/util-base64": "npm:^4.3.2"
+    "@aws-sdk/core": "npm:^3.974.13"
+    "@smithy/core": "npm:^3.24.3"
+    "@smithy/types": "npm:^4.14.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/26c4a71a8728338c1eca9d8502fa6039c83b35e2afe5bda16f92a8c81d9f9988e75ac87ccc4c412dde93cab3a9e881ecab972b550ee31c363f16ef0fddbc93df
+  checksum: 10c0/1d285b97fef513e15d14661f564f1aa05d798688abb47832883178092808e867c3015ca9c67cda6b9a2c29ce0ef04ab695f8a910a6f6f4b701c41a095697a3c2
   languageName: node
   linkType: hard
 
@@ -2623,17 +2592,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/middleware-endpoint-discovery@npm:^3.972.11":
-  version: 3.972.11
-  resolution: "@aws-sdk/middleware-endpoint-discovery@npm:3.972.11"
+"@aws-sdk/middleware-endpoint-discovery@npm:^3.972.14":
+  version: 3.972.14
+  resolution: "@aws-sdk/middleware-endpoint-discovery@npm:3.972.14"
   dependencies:
     "@aws-sdk/endpoint-cache": "npm:^3.972.5"
-    "@aws-sdk/types": "npm:^3.973.8"
-    "@smithy/node-config-provider": "npm:^4.3.14"
-    "@smithy/protocol-http": "npm:^5.3.14"
-    "@smithy/types": "npm:^4.14.1"
+    "@aws-sdk/types": "npm:^3.973.9"
+    "@smithy/core": "npm:^3.24.3"
+    "@smithy/types": "npm:^4.14.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/c448ec87dafdba2f25d3e28baf64942779e3f98bb4bb426566dc53accaf1b8e46225a375ffcb877bf6a3849e59f4ea843fd1e181c4e0ae86dc946182fa51a465
+  checksum: 10c0/46cccece5014365b26f7734e82502c3a4120fa58b302a05e9c17078b672d858e2ffaaec20f8a3d6d23a029ae92c850834407d9e47a8bd1e3b3336bb6a6bae957
   languageName: node
   linkType: hard
 
