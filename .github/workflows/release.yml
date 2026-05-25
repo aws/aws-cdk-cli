@@ -571,7 +571,6 @@ jobs:
   aws-cdk-cloud-assembly-api_release_github:
     name: "@aws-cdk/cloud-assembly-api: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk-cloud-assembly-api_release_npm
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
@@ -605,7 +604,6 @@ jobs:
   aws-cdk-cloud-assembly-api_release_npm:
     name: "@aws-cdk/cloud-assembly-api: Publish to npm"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
@@ -700,7 +698,6 @@ jobs:
   aws-cdk-cdk-assets-lib_release_github:
     name: "@aws-cdk/cdk-assets-lib: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk-cdk-assets-lib_release_npm
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
@@ -736,7 +733,6 @@ jobs:
   aws-cdk-cdk-assets-lib_release_npm:
     name: "@aws-cdk/cdk-assets-lib: Publish to npm"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
@@ -775,7 +771,6 @@ jobs:
   cdk-assets_release_github:
     name: "cdk-assets: Publish to GitHub Releases"
     needs:
-      - release
       - cdk-assets_release_npm
       - aws-cdk-cdk-assets-lib_release_github
       - aws-cdk-cdk-assets-lib_release_npm
@@ -805,7 +800,6 @@ jobs:
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs:
-      - release
       - aws-cdk-cdk-assets-lib_release_github
       - aws-cdk-cdk-assets-lib_release_npm
     runs-on: ubuntu-latest
@@ -838,7 +832,6 @@ jobs:
   aws-cdk-toolkit-lib_release_github:
     name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk-toolkit-lib_release_npm
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
@@ -880,7 +873,6 @@ jobs:
   aws-cdk-toolkit-lib_release_npm:
     name: "@aws-cdk/toolkit-lib: Publish to npm"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
@@ -925,7 +917,6 @@ jobs:
   aws-cdk_release_github:
     name: "aws-cdk: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk_release_npm
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
@@ -967,7 +958,6 @@ jobs:
   aws-cdk_release_npm:
     name: "aws-cdk: Publish to npm"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
@@ -1012,7 +1002,6 @@ jobs:
   cdk_release_github:
     name: "cdk: Publish to GitHub Releases"
     needs:
-      - release
       - cdk_release_npm
       - aws-cdk_release_github
       - aws-cdk_release_npm
@@ -1042,7 +1031,6 @@ jobs:
   cdk_release_npm:
     name: "cdk: Publish to npm"
     needs:
-      - release
       - aws-cdk_release_github
       - aws-cdk_release_npm
     runs-on: ubuntu-latest
@@ -1075,7 +1063,6 @@ jobs:
   aws-cdk-integ-runner_release_github:
     name: "@aws-cdk/integ-runner: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk-integ-runner_release_npm
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
@@ -1119,7 +1106,6 @@ jobs:
   aws-cdk-integ-runner_release_npm:
     name: "@aws-cdk/integ-runner: Publish to npm"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_github
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
