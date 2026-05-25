@@ -31,7 +31,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.5",
+    "@cdklabs/eslint-plugin": "^2.0.6",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -51,8 +51,8 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.61",
-    "ts-jest": "^29.4.9",
+    "projen": "^0.99.63",
+    "ts-jest": "^29.4.11",
     "typescript": "5.9"
   },
   "keywords": [

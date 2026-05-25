@@ -35,14 +35,14 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.180",
+    "@aws-cdk/aws-service-spec": "^0.1.181",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
-    "@cdklabs/eslint-plugin": "^2.0.5",
+    "@cdklabs/eslint-plugin": "^2.0.6",
     "@jest/environment": "^29.7.0",
     "@jest/globals": "^29.7.0",
     "@jest/types": "^29.6.3",
     "@microsoft/api-extractor": "^7.58.7",
-    "@smithy/util-stream": "^4.6.2",
+    "@smithy/util-stream": "^4.6.4",
     "@stylistic/eslint-plugin": "^3",
     "@types/fs-extra": "^11",
     "@types/jest": "^29.5.14",
@@ -52,7 +52,7 @@
     "@types/split2": "^4.2.3",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk-lib": "2.254.0",
+    "aws-cdk-lib": "2.257.0",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
@@ -73,9 +73,9 @@
     "nock": "13",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.61",
-    "ts-jest": "^29.4.9",
-    "tsx": "^4.22.0",
+    "projen": "^0.99.63",
+    "ts-jest": "^29.4.11",
+    "tsx": "^4.22.3",
     "typescript": "5.9"
   },
   "peerDependencies": {
@@ -123,7 +123,7 @@
     "fs-extra": "^11",
     "p-limit": "^3",
     "picomatch": "^4",
-    "semver": "^7.8.0",
+    "semver": "^7.8.1",
     "split2": "^4.2.0",
     "wrap-ansi": "^7",
     "yaml": "^1"
