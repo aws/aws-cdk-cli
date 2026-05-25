@@ -214,7 +214,7 @@ __metadata:
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   peerDependencies:
@@ -278,7 +278,7 @@ __metadata:
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.3"
     typescript: "npm:5.9"
@@ -505,7 +505,7 @@ __metadata:
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.3"
@@ -577,7 +577,7 @@ __metadata:
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   bin:
@@ -7666,7 +7666,7 @@ __metadata:
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.22.3"
     typescript: "npm:5.9"
@@ -7790,7 +7790,7 @@ __metadata:
     projen: "npm:^0.99.63"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     sinon: "npm:^19.0.5"
     strip-ansi: "npm:^6"
     ts-jest: "npm:^29.4.11"
@@ -16440,15 +16440,6 @@ __metadata:
   bin:
     semver: bin/semver.js
   checksum: 10c0/8f096ca9b80ffd47b308d03f9ce8c873e27e2983f36023c559cdc92c51e8433fc23ebbfe57ec9623fc155636a6961ee989501099841ae4bb1babc8d2b3f048cd
-  languageName: node
-  linkType: hard
-
-"semver@npm:^7.8.1":
-  version: 7.8.1
-  resolution: "semver@npm:7.8.1"
-  bin:
-    semver: bin/semver.js
-  checksum: 10c0/92d6871d6347e1f99d0ba396a70f2545ccf2a032cda3d378fa0699edf7506b5c6d266aed55c8b88e72bd91a30d2351e4f39db479375374430fcdc4b58f4e3c1a
   languageName: node
   linkType: hard
 
