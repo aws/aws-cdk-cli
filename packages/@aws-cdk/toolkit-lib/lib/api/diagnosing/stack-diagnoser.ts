@@ -111,13 +111,10 @@ export class CloudFormationStackDiagnoser {
       if (allowFallback) {
         // The monitor may not have seen failure events yet (race condition).
         // Fall back to polling stack events directly.
-        const stackName = stack.StackName;
-        if (stackName) {
-          try {
-            return await this._diagnoseViaStackEvents(stackName, stack);
-          } catch (e: any) {
-            await this.props.ioHelper.defaults.debug(`Fallback diagnosis failed: ${e.message}`);
-          }
+        try {
+          return await this._diagnoseViaStackEvents(stack);
+        } catch (e: any) {
+          await this.props.ioHelper.defaults.debug(`Fallback diagnosis failed: ${e.message}`);
         }
       }
       return { type: 'no-problem' };

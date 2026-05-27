@@ -49,9 +49,9 @@ async function investigateEcsService(
 
   const results: AdditionalDiagnosticContext[] = [];
 
-  const stoppedTaskContext = await getStoppedTaskReasons(ecs, clusterArn, serviceName, region, service, debug);
-  if (stoppedTaskContext) {
-    results.push(stoppedTaskContext);
+  const stoppedTaskResult = await getStoppedTaskReasons(ecs, clusterArn, serviceName, region, service, debug);
+  if (stoppedTaskResult.context) {
+    results.push(stoppedTaskResult.context);
   }
 
   const taskDefinitionArn = service.taskDefinition;
@@ -68,11 +68,22 @@ async function investigateEcsService(
   const logConfigs = taskDefInfo?.logConfigs ?? [];
 
   if (logConfigs.length === 0) {
+    results.push({
+      source: 'CloudWatch Logs',
+      messages: [
+        'No CloudWatch Logs configuration found. Enable logging to see container output on failure.',
+        'Example (CDK):',
+        '  taskDefinition.addContainer("app", {',
+        '    image: ecs.ContainerImage.fromRegistry("my-image"),',
+        '    logging: ecs.LogDrivers.awsLogs({ streamPrefix: "my-service" }),',
+        '  });',
+      ],
+    });
     return results;
   }
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, region, debug)));
+  const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, region, stoppedTaskResult.taskIds, debug)));
   let hasLogs = false;
   for (const context of logResults) {
     if (context) {
@@ -125,6 +136,11 @@ async function describeService(
   }
 }
 
+interface StoppedTaskResult {
+  context?: AdditionalDiagnosticContext;
+  taskIds: string[];
+}
+
 async function getStoppedTaskReasons(
   ecs: IECSClient,
   cluster: string | undefined,
@@ -132,14 +148,14 @@ async function getStoppedTaskReasons(
   region: string,
   service: { events?: Array<{ message?: string }>; [key: string]: any },
   debug: (msg: string) => Promise<void>,
-): Promise<AdditionalDiagnosticContext | undefined> {
+): Promise<StoppedTaskResult> {
   try {
     const failureEvents = (service.events ?? [])
-      .filter(e => e.message?.includes('stopped') || e.message?.includes('failed'))
+      .filter(e => e.message?.includes('stopped') || e.message?.includes('failed') || e.message?.includes('unhealthy'))
       .slice(0, 5);
 
     if (failureEvents.length === 0) {
-      return undefined;
+      return { taskIds: [] };
     }
 
     const taskIds = (service.events ?? [])
@@ -153,8 +169,10 @@ async function getStoppedTaskReasons(
     const messages: string[] = [];
 
     if (taskIds.length > 0) {
-      const tasksResp = await ecs.describeTasks({ cluster, tasks: taskIds });
-      for (const task of tasksResp.tasks ?? []) {
+      // Show details from the last failed task only
+      const tasksResp = await ecs.describeTasks({ cluster, tasks: [taskIds[taskIds.length - 1]] });
+      const task = tasksResp.tasks?.[0];
+      if (task) {
         if (task.stoppedReason) {
           messages.push(`Task stopped: ${task.stoppedReason}`);
         }
@@ -167,6 +185,9 @@ async function getStoppedTaskReasons(
           }
         }
       }
+      if (messages.length > 0 && taskIds.length > 1) {
+        messages.push(`(${taskIds.length - 1} other failed task(s) not shown)`);
+      }
     }
 
     if (messages.length === 0) {
@@ -178,17 +199,20 @@ async function getStoppedTaskReasons(
     }
 
     if (messages.length === 0) {
-      return undefined;
+      return { taskIds };
     }
 
     return {
-      source: 'ECS Stopped Tasks',
-      messages,
-      link: ecsStoppedTasksConsoleUrl(region, cluster ?? 'default', serviceName),
+      context: {
+        source: 'ECS Stopped Tasks',
+        messages,
+        link: ecsStoppedTasksConsoleUrl(region, cluster ?? 'default', serviceName),
+      },
+      taskIds,
     };
   } catch (e: any) {
     await debug(`ECS investigation: failed to get stopped task reasons: ${e.message}`);
-    return undefined;
+    return { taskIds: [] };
   }
 }
 
@@ -240,27 +264,44 @@ async function fetchRecentLogs(
   cwl: ICloudWatchLogsClient,
   logConfig: AwsLogsConfig,
   region: string,
+  taskIds: string[],
   debug: (msg: string) => Promise<void>,
 ): Promise<AdditionalDiagnosticContext | undefined> {
   try {
-    const startTime = Date.now() - 30 * 60 * 1000;
+    // Target the last failed task's log stream for the most relevant output
+    const lastTaskId = taskIds[taskIds.length - 1];
+    const targetStream = (logConfig.streamPrefix && logConfig.containerName && lastTaskId)
+      ? `${logConfig.streamPrefix}/${logConfig.containerName}/${lastTaskId}`
+      : undefined;
 
     const resp = await cwl.filterLogEvents({
       logGroupName: logConfig.logGroup,
-      startTime,
-      limit: 20,
-      ...(logConfig.streamPrefix ? { logStreamNamePrefix: logConfig.streamPrefix } : {}),
+      startTime: Date.now() - 30 * 60 * 1000,
+      limit: 200,
+      ...(targetStream
+        ? { logStreamNames: [targetStream] }
+        : logConfig.streamPrefix ? { logStreamNamePrefix: logConfig.streamPrefix } : {}),
     });
 
     const events = resp.events ?? [];
     if (events.length === 0) {
-      await debug(`ECS investigation: no recent log events in ${logConfig.logGroup}`);
+      await debug(`ECS investigation: no recent log events in ${logConfig.logGroup}${targetStream ? ` (targeted stream: ${targetStream})` : ''}`);
       return undefined;
     }
 
-    const messages = events
+    // Show the last 50 lines (most recent output is most relevant)
+    const allMessages = events
       .map(e => e.message?.trimEnd())
       .filter((m): m is string => m != null);
+    const messages = allMessages.slice(-50);
+
+    if (allMessages.length > 50) {
+      messages.unshift(`... (${allMessages.length - 50} earlier lines omitted)`);
+    }
+
+    if (taskIds.length > 1) {
+      messages.push(`(showing logs from last failed task; ${taskIds.length - 1} other failed task(s) available in console)`);
+    }
 
     const source = logConfig.containerName
       ? `CloudWatch Logs: ${logConfig.logGroup} (container: ${logConfig.containerName})`

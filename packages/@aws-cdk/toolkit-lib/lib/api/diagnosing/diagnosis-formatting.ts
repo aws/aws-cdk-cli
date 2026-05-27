@@ -125,33 +125,27 @@ function formatResourceErrors(es: TracedResourceError[]) {
     const nodeText = b.nodeText(p);
     nodeText.header = [`${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim()];
     nodeText.body.push(...sideBySide(['🛑'], ' ', wrapText(120, e.message)));
-    nodeText.body.push(...formatAdditionalContext(e));
     nodeText.footer = e.sourceTrace?.creationStackTrace
       ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace)
       : [];
+
+    if (e.additionalContext) {
+      for (const ctx of e.additionalContext) {
+        const ctxNode = b.nodeText(`${p}/${ctx.source}`);
+        ctxNode.header = [`📋 ${ctx.source}:`];
+        for (const msg of ctx.messages.slice(0, 20)) {
+          ctxNode.body.push(msg);
+        }
+        if (ctx.messages.length > 20) {
+          ctxNode.body.push(`... (${ctx.messages.length - 20} more lines)`);
+        }
+        if (ctx.link) {
+          ctxNode.body.push(`🔗 ${ctx.link}`);
+        }
+      }
+    }
   }
   return b.render();
-}
-
-function formatAdditionalContext(e: TracedResourceError): string[] {
-  if (!e.additionalContext || e.additionalContext.length === 0) {
-    return [];
-  }
-
-  const lines: string[] = [];
-  for (const ctx of e.additionalContext) {
-    lines.push('', `📋 ${ctx.source}:`);
-    for (const msg of ctx.messages.slice(0, 20)) {
-      lines.push(`   ${msg}`);
-    }
-    if (ctx.messages.length > 20) {
-      lines.push(`   ... (${ctx.messages.length - 20} more lines)`);
-    }
-    if (ctx.link) {
-      lines.push(`   🔗 ${ctx.link}`);
-    }
-  }
-  return lines;
 }
 
 /**
