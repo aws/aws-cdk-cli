@@ -1662,6 +1662,125 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer-core
+
+const cdkExplorerCore = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer-core',
+    description: 'Shared core library for CDK Explorer — parses cloud assemblies into typed models',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+    ],
+    devDeps: [],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorerCore);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-lsp
+
+const cdkLsp = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-lsp',
+    description: 'Language Server Protocol implementation for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cdkExplorerCore,
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkLsp);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'Web-based CDK Explorer — construct tree, template viewer, and source navigator',
+    srcdir: 'lib',
+    deps: [
+      cdkLsp,
+      cdkExplorerCore,
+      'express@^4',
+      'vscode-jsonrpc@^8',
+    ],
+    devDeps: [
+      '@types/express@^4',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+void cdkExplorer;
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region shared setup
 
 // The pj.github.Dependabot component is only for a single Node project,

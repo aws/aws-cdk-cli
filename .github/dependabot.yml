@@ -15,6 +15,9 @@ updates:
       - /
       - /packages/@aws-cdk-testing/cli-integ
       - /packages/@aws-cdk/cdk-assets-lib
+      - /packages/@aws-cdk/cdk-explorer
+      - /packages/@aws-cdk/cdk-explorer-core
+      - /packages/@aws-cdk/cdk-lsp
       - /packages/@aws-cdk/cli-plugin-contract
       - /packages/@aws-cdk/cloud-assembly-api
       - /packages/@aws-cdk/cloud-assembly-schema
