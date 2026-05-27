@@ -197,6 +197,15 @@ export interface SuppressedViolationJson extends PolicyViolationJson {
    * @default - unknown
    */
   readonly acknowledgedAt?: string;
+
+  /**
+   * Stack trace showing where the acknowledgement was declared.
+   *
+   * A `\n`-delimited string of stack frames.
+   *
+   * @default - no stack trace
+   */
+  readonly acknowledgedStackTrace?: string;
 }
 
 /**

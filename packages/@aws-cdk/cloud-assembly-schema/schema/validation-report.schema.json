@@ -163,6 +163,10 @@
                 "acknowledgedAt": {
                     "description": "The construct path where the acknowledgement was declared.",
                     "type": "string"
+                },
+                "acknowledgedStackTrace": {
+                    "description": "Stack trace showing where the acknowledgement was declared.",
+                    "type": "string"
                 }
             },
             "required": ["ruleName", "description", "severity", "violatingConstructs", "acknowledgedId"]
