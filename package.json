@@ -86,8 +86,6 @@
       "packages/cdk",
       "packages/@aws-cdk/integ-runner",
       "packages/@aws-cdk-testing/cli-integ",
-      "packages/@aws-cdk/cdk-explorer-core",
-      "packages/@aws-cdk/cdk-lsp",
       "packages/@aws-cdk/cdk-explorer"
     ]
   },
@@ -106,8 +104,6 @@
       "<rootDir>/packages/cdk",
       "<rootDir>/packages/@aws-cdk/integ-runner",
       "<rootDir>/packages/@aws-cdk-testing/cli-integ",
-      "<rootDir>/packages/@aws-cdk/cdk-explorer-core",
-      "<rootDir>/packages/@aws-cdk/cdk-lsp",
       "<rootDir>/packages/@aws-cdk/cdk-explorer"
     ]
   },

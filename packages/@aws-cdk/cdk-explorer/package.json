@@ -1,6 +1,6 @@
 {
   "name": "@aws-cdk/cdk-explorer",
-  "description": "Web-based CDK Explorer — construct tree, template viewer, and source navigator",
+  "description": "CDK Explorer — LSP server, synth daemon, and web interface for AWS CDK",
   "repository": {
     "type": "git",
     "url": "https://github.com/aws/aws-cdk-cli",
@@ -51,13 +51,16 @@
     "prettier": "^2.8",
     "projen": "^0.99.63",
     "ts-jest": "^29.4.11",
-    "typescript": "5.9"
+    "typescript": "5.9",
+    "vscode-languageserver-protocol": "^3"
   },
   "dependencies": {
-    "@aws-cdk/cdk-explorer-core": "^0.0.0",
-    "@aws-cdk/cdk-lsp": "^0.0.0",
+    "@aws-cdk/cloud-assembly-api": "^0.0.0",
+    "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "express": "^4",
-    "vscode-jsonrpc": "^8"
+    "vscode-jsonrpc": "^8",
+    "vscode-languageserver": "^9",
+    "vscode-languageserver-textdocument": "^1"
   },
   "keywords": [
     "aws",

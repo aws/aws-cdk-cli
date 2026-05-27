@@ -99,11 +99,16 @@
       "type": "build"
     },
     {
-      "name": "@aws-cdk/cdk-explorer-core",
+      "name": "vscode-languageserver-protocol",
+      "version": "^3",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cdk-lsp",
+      "name": "@aws-cdk/cloud-assembly-schema",
       "type": "runtime"
     },
     {
@@ -114,6 +119,16 @@
     {
       "name": "vscode-jsonrpc",
       "version": "^8",
+      "type": "runtime"
+    },
+    {
+      "name": "vscode-languageserver-textdocument",
+      "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "vscode-languageserver",
+      "version": "^9",
       "type": "runtime"
     }
   ],

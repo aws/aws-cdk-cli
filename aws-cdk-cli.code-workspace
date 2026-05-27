@@ -15,12 +15,6 @@
       "path": "packages/@aws-cdk/cdk-explorer"
     },
     {
-      "path": "packages/@aws-cdk/cdk-explorer-core"
-    },
-    {
-      "path": "packages/@aws-cdk/cdk-lsp"
-    },
-    {
       "path": "packages/@aws-cdk/cli-plugin-contract"
     },
     {

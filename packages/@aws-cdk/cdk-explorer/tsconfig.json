@@ -42,10 +42,10 @@
   "exclude": [],
   "references": [
     {
-      "path": "../cdk-lsp"
+      "path": "../cloud-assembly-schema"
     },
     {
-      "path": "../cdk-explorer-core"
+      "path": "../cloud-assembly-api"
     }
   ]
 }
