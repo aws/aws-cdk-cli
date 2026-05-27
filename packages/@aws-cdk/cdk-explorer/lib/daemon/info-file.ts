@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { DaemonInfo } from '../protocol';
+import type { DaemonInfo } from '../protocol';
 
 export function writeDaemonInfo(infoPath: string, info: DaemonInfo): void {
   fs.writeFileSync(infoPath, JSON.stringify(info) + '\n', 'utf-8');

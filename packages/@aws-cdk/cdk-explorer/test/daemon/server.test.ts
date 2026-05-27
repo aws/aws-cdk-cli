@@ -1,10 +1,11 @@
-import * as net from 'net';
 import * as fs from 'fs';
+import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { DaemonServer } from '../../lib/daemon/server';
-import { PROTOCOL_VERSION, DaemonMessage, ClientMessage } from '../../lib/protocol';
 import { infoPathForProject } from '../../lib/daemon/socket-path';
+import type { DaemonMessage, ClientMessage } from '../../lib/protocol';
+import { PROTOCOL_VERSION } from '../../lib/protocol';
 
 function uniqueSocketPath(): string {
   return path.join(os.tmpdir(), `cdk-test-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`);
@@ -71,7 +72,10 @@ describe('DaemonServer', () => {
     if (server) {
       await server.stop();
     }
-    try { fs.unlinkSync(socketPath); } catch {}
+    try {
+      fs.unlinkSync(socketPath);
+    } catch {
+    }
   });
 
   function createServer(options?: { onSynth?: (t: string) => Promise<void>; idleTimeoutMs?: number }) {
@@ -151,8 +155,14 @@ describe('DaemonServer', () => {
 
   test('subscribe registers client for broadcasts', async () => {
     let synthResolve: () => void;
-    const synthPromise = new Promise<void>((resolve) => { synthResolve = resolve; });
-    createServer({ onSynth: () => { synthResolve(); return synthPromise; } });
+    const synthPromise = new Promise<void>((resolve) => {
+      synthResolve = resolve;
+    });
+    createServer({
+      onSynth: () => {
+        synthResolve(); return synthPromise;
+      },
+    });
     await server.start();
 
     const socket = await connectToSocket(socketPath);
@@ -226,7 +236,9 @@ describe('DaemonServer', () => {
 
   test('multiple subscribers all receive broadcasts', async () => {
     let synthResolve: () => void;
-    const synthPromise = new Promise<void>((resolve) => { synthResolve = resolve; });
+    const synthPromise = new Promise<void>((resolve) => {
+      synthResolve = resolve;
+    });
     createServer({ onSynth: () => synthPromise });
     await server.start();
 
@@ -307,7 +319,8 @@ describe('DaemonServer', () => {
       socketPath,
       projectDir,
       logFile: socketPath + '.log',
-      onSynth: () => new Promise(() => {}),
+      onSynth: () => new Promise(() => {
+      }),
       idleTimeoutMs: 60_000,
       synthTimeoutMs: 50,
     });

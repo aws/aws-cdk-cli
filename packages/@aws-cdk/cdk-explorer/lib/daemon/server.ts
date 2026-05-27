@@ -1,14 +1,16 @@
-import * as net from 'net';
 import * as fs from 'fs';
-import {
+import * as net from 'net';
+import type {
   ClientMessage,
   DaemonMessage,
+} from '../protocol';
+import {
   PROTOCOL_VERSION,
 } from '../protocol';
-import { SynthLatch } from './state-machine';
-import { LineParser } from './line-parser';
 import { writeDaemonInfo, removeDaemonInfo } from './info-file';
+import { LineParser } from './line-parser';
 import { infoPathForProject } from './socket-path';
+import { SynthLatch } from './state-machine';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SYNTH_TIMEOUT_MS = 5 * 60 * 1000;

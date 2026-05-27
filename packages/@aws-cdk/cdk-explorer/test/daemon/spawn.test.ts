@@ -1,11 +1,11 @@
 import * as fs from 'fs';
-import { ensureDaemon } from '../../lib/daemon/spawn';
-import { DaemonConnection } from '../../lib/daemon/connect';
+import type { DaemonConnection } from '../../lib/daemon/connect';
 import {
   socketPathForProject,
   infoPathForProject,
   logPathForProject,
 } from '../../lib/daemon/socket-path';
+import { ensureDaemon } from '../../lib/daemon/spawn';
 
 const TEST_PROJECT = `/tmp/cdk-spawn-test-${process.pid}-${Date.now()}`;
 
@@ -25,7 +25,10 @@ describe('ensureDaemon', () => {
     // Clean up any leftover files
     const socketPath = socketPathForProject(TEST_PROJECT);
     for (const p of [socketPath, socketPath + '.lock', socketPath + '.info', socketPath + '.log']) {
-      try { fs.unlinkSync(p); } catch {}
+      try {
+        fs.unlinkSync(p);
+      } catch {
+      }
     }
   });
 
@@ -34,8 +37,8 @@ describe('ensureDaemon', () => {
     connections.push(conn);
 
     expect(conn).toBeDefined();
-    expect(conn.send).toBeInstanceOf(Function);
-    expect(conn.close).toBeInstanceOf(Function);
+    expect(typeof conn.send).toBe('function');
+    expect(typeof conn.close).toBe('function');
   }, 10_000);
 
   test('creates info file with daemon metadata', async () => {

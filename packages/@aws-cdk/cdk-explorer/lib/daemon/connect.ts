@@ -1,5 +1,6 @@
 import * as net from 'net';
-import { ClientMessage, DaemonMessage, PROTOCOL_VERSION } from '../protocol';
+import type { ClientMessage, DaemonMessage } from '../protocol';
+import { PROTOCOL_VERSION } from '../protocol';
 import { LineParser } from './line-parser';
 import { socketPathForProject } from './socket-path';
 
@@ -151,9 +152,13 @@ function createMessageIterable(socket: net.Socket, leftover: string): AsyncItera
           if (done) {
             return Promise.resolve({ value: undefined as never, done: true });
           }
-          return new Promise((r) => { resolve = r; });
+          return new Promise((r) => {
+            resolve = r;
+          });
         },
-        [Symbol.asyncIterator]() { return this; },
+        [Symbol.asyncIterator]() {
+          return this;
+        },
       };
     },
   };

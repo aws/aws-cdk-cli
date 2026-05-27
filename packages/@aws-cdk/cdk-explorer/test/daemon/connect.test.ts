@@ -1,5 +1,6 @@
+import type { DaemonConnection } from '../../lib/daemon/connect';
+import { connectToDaemon } from '../../lib/daemon/connect';
 import { DaemonServer } from '../../lib/daemon/server';
-import { connectToDaemon, DaemonConnection } from '../../lib/daemon/connect';
 import { socketPathForProject } from '../../lib/daemon/socket-path';
 
 const TEST_PROJECT = `/tmp/cdk-connect-test-${process.pid}`;
@@ -34,8 +35,8 @@ describe('connectToDaemon', () => {
     await startServer();
     connection = await connectToDaemon(TEST_PROJECT);
     expect(connection).toBeDefined();
-    expect(connection.send).toBeInstanceOf(Function);
-    expect(connection.close).toBeInstanceOf(Function);
+    expect(typeof connection.send).toBe('function');
+    expect(typeof connection.close).toBe('function');
   });
 
   test('receives messages via async iterable', async () => {

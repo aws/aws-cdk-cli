@@ -1,7 +1,8 @@
-import * as fs from 'fs';
 import * as child_process from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
-import { connectToDaemon, DaemonConnection } from './connect';
+import type { DaemonConnection } from './connect';
+import { connectToDaemon } from './connect';
 import { readDaemonInfo, removeDaemonInfo } from './info-file';
 import {
   socketPathForProject,
@@ -112,12 +113,18 @@ async function cleanupStaleState(projectDir: string): Promise<void> {
 
   const info = readDaemonInfo(infoPath);
   if (info && isProcessAlive(info.pid)) {
-    try { process.kill(info.pid, 'SIGTERM'); } catch {}
+    try {
+      process.kill(info.pid, 'SIGTERM');
+    } catch {
+    }
     await waitForProcessExit(info.pid, 2000);
   }
 
   removeDaemonInfo(infoPath);
-  try { fs.unlinkSync(socketPath); } catch {}
+  try {
+    fs.unlinkSync(socketPath);
+  } catch {
+  }
 }
 
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
