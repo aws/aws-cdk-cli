@@ -55,21 +55,23 @@ async function tryConnect(projectDir: string): Promise<DaemonConnection | undefi
   }
 }
 
+function createLockFile(lockPath: string): number {
+  const fd = fs.openSync(lockPath, 'wx');
+  fs.writeSync(fd, String(process.pid));
+  return fd;
+}
+
 function acquireLock(lockPath: string): number {
   try {
-    const fd = fs.openSync(lockPath, 'wx');
-    fs.writeSync(fd, String(process.pid));
-    return fd;
+    return createLockFile(lockPath);
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
       const stalePid = readLockPid(lockPath);
+      // PID is unreadable/garbage OR process is dead → stale lock
       if (stalePid === undefined || !isProcessAlive(stalePid)) {
-        // PID is unreadable/garbage OR process is dead → stale lock
+        unlinkIfExists(lockPath);
         try {
-          fs.unlinkSync(lockPath);
-          const fd = fs.openSync(lockPath, 'wx');
-          fs.writeSync(fd, String(process.pid));
-          return fd;
+          return createLockFile(lockPath);
         } catch {
           throw new Error('Another process is spawning the daemon');
         }
@@ -82,11 +84,7 @@ function acquireLock(lockPath: string): number {
 
 function releaseLock(fd: number, lockPath: string): void {
   fs.closeSync(fd);
-  try {
-    fs.unlinkSync(lockPath);
-  } catch {
-    // Best effort, safe because aquireLock guarantees we don't keep lock indefinitely
-  }
+  unlinkIfExists(lockPath);
 }
 
 function readLockPid(lockPath: string): number | undefined {
@@ -108,6 +106,14 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+function unlinkIfExists(filePath: string): void {
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // File may not exist — that's fine
+  }
+}
+
 async function cleanupStaleState(projectDir: string): Promise<void> {
   const socketPath = socketPathForProject(projectDir);
   const infoPath = infoPathForProject(projectDir);
@@ -122,10 +128,7 @@ async function cleanupStaleState(projectDir: string): Promise<void> {
   }
 
   removeDaemonInfo(infoPath);
-  try {
-    fs.unlinkSync(socketPath);
-  } catch {
-  }
+  unlinkIfExists(socketPath);
 }
 
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
