@@ -60,7 +60,7 @@ __metadata:
     nx: "npm:^22.7.2"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -151,7 +151,7 @@ __metadata:
     nx: "npm:^22.7.2"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -181,7 +181,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -213,7 +213,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
@@ -269,15 +269,15 @@ __metadata:
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     jsii: "npm:5.9"
-    jsii-diff: "npm:^1.131.0"
-    jsii-pacmak: "npm:^1.131.0"
+    jsii-diff: "npm:^1.132.0"
+    jsii-pacmak: "npm:^1.132.0"
     jsii-rosetta: "npm:5.9"
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
     mock-fs: "npm:^5.5.0"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.3"
@@ -326,7 +326,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.11"
@@ -391,7 +391,7 @@ __metadata:
     node-backpack: "npm:^1.1.34"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
@@ -504,7 +504,7 @@ __metadata:
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     semver: "npm:^7.8.0"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.11"
@@ -545,7 +545,7 @@ __metadata:
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -576,7 +576,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
@@ -4555,13 +4555,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jsii/check-node@npm:1.131.0":
-  version: 1.131.0
-  resolution: "@jsii/check-node@npm:1.131.0"
+"@jsii/check-node@npm:1.132.0":
+  version: 1.132.0
+  resolution: "@jsii/check-node@npm:1.132.0"
   dependencies:
     chalk: "npm:^4.1.2"
-    semver: "npm:^7.7.4"
-  checksum: 10c0/f708449e69a5da18cbff90585b6f95f972ec1cb6cfaf15e8f47448e02c5f15f8249d17311249936d9a148404abede235372014a76a4c20af6fc73c3e1d1d832f
+    semver: "npm:^7.8.0"
+  checksum: 10c0/cd02c62a4cdf7054e4811f908e108466f417e32c63332a7c8906d021f28e6890c2b0b21f05f397188479cb0d0f60e3558654cc0d91847f98ce7a9c094314d7e3
   languageName: node
   linkType: hard
 
@@ -4582,10 +4582,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jsii/spec@npm:1.131.0":
-  version: 1.131.0
-  resolution: "@jsii/spec@npm:1.131.0"
-  checksum: 10c0/81e3faebf32076b0d86a8358052a693db9127442c9c11fbfe8b17bf8a80bbbedbf7fb97ef1c11626d521c6e2b6f9e7e59af7b677b3be4b574aa5f8b399cc441a
+"@jsii/spec@npm:1.132.0":
+  version: 1.132.0
+  resolution: "@jsii/spec@npm:1.132.0"
+  checksum: 10c0/c0f62aa25665130e75f73f11493b5452bfb6705319c99f95fdacccca410f403b6b5380d792d0f7e0de4a1c09d47d0642ca9527b0bf03f9bcda261b8c5f2788bf
   languageName: node
   linkType: hard
 
@@ -7651,7 +7651,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     "@yarnpkg/types": "npm:^4.0.1"
-    cdklabs-projen-project-types: "npm:^0.4.0"
+    cdklabs-projen-project-types: "npm:^0.5.0"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -7665,7 +7665,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     semver: "npm:^7.8.0"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.22.3"
@@ -7787,7 +7787,7 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
     semver: "npm:^7.8.0"
@@ -8410,7 +8410,7 @@ __metadata:
     node-backpack: "npm:^1.1.34"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.2"
@@ -8452,7 +8452,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.68"
+    projen: "npm:^0.99.70"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   bin:
@@ -8460,15 +8460,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdklabs-projen-project-types@npm:^0.4.0":
-  version: 0.4.0
-  resolution: "cdklabs-projen-project-types@npm:0.4.0"
+"cdklabs-projen-project-types@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "cdklabs-projen-project-types@npm:0.5.0"
   dependencies:
     yaml: "npm:^2.9.0"
   peerDependencies:
     constructs: ^10.0.0
-    projen: ">=0.99.48 <1.0.0"
-  checksum: 10c0/7a352d03b0e022ecb41960ab71da064d5ef8cf145d7ef660526e63a71ba45742c66afa9d1820ccb8915b80f9a3d4c9665aec6df03c38820942374b71cc858b40
+    projen: ">=0.99.68 <1.0.0"
+  checksum: 10c0/c265d90160eb98ddc6001e9e8ebad6c401a4940ad9d7cb0c142cd8da17c512f173f809020573697c0909e4f6c836bb829d901b49cfbe6d00d19503b62c2923e1
   languageName: node
   linkType: hard
 
@@ -8653,14 +8653,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"codemaker@npm:^1.131.0":
-  version: 1.131.0
-  resolution: "codemaker@npm:1.131.0"
+"codemaker@npm:^1.132.0":
+  version: 1.132.0
+  resolution: "codemaker@npm:1.132.0"
   dependencies:
     camelcase: "npm:^6.3.0"
     decamelize: "npm:^5.0.1"
     fs-extra: "npm:^10.1.0"
-  checksum: 10c0/9ca326b085bbb655cd376fa9255c8d762a366764db25a0bd7e4684b38dc3e95a48a867624ab0f50af90b34e0674678458f6c99afd1768d0ee2ff847b988f5aca
+  checksum: 10c0/b3578ff7fe2a6d22d695bce766ae45a01b89b3a68be63596508e323d6a5058a5d289d91af2bae4d3c1e85894769fb310363ea7f0467e248d71b17dc60fde5e0d
   languageName: node
   linkType: hard
 
@@ -12958,35 +12958,35 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsii-diff@npm:^1.131.0":
-  version: 1.131.0
-  resolution: "jsii-diff@npm:1.131.0"
+"jsii-diff@npm:^1.132.0":
+  version: 1.132.0
+  resolution: "jsii-diff@npm:1.132.0"
   dependencies:
-    "@jsii/check-node": "npm:1.131.0"
-    "@jsii/spec": "npm:1.131.0"
+    "@jsii/check-node": "npm:1.132.0"
+    "@jsii/spec": "npm:1.132.0"
     fs-extra: "npm:^10.1.0"
-    jsii-reflect: "npm:^1.131.0"
+    jsii-reflect: "npm:^1.132.0"
     log4js: "npm:^6.9.1"
     yargs: "npm:^17.7.2"
   bin:
     jsii-diff: bin/jsii-diff
-  checksum: 10c0/c1bd616bdd3b7bdb67e98cb54504ea65f6131f748176b031e27a77bde13e8c311f92d452df36a2d729db17a12d02b13315bde81fd8fb1dff639a723690b5f67c
+  checksum: 10c0/aa18f2e470c0b192d0db91a0fdd1bb6fc5c95cb6d07873ad12cd2d1b88a5355b8f1988d62a4aa87b7b4a69a8589ce5bf95cf29b1845c16948fc655d848bcf37f
   languageName: node
   linkType: hard
 
-"jsii-pacmak@npm:^1.131.0":
-  version: 1.131.0
-  resolution: "jsii-pacmak@npm:1.131.0"
+"jsii-pacmak@npm:^1.132.0":
+  version: 1.132.0
+  resolution: "jsii-pacmak@npm:1.132.0"
   dependencies:
-    "@jsii/check-node": "npm:1.131.0"
-    "@jsii/spec": "npm:1.131.0"
+    "@jsii/check-node": "npm:1.132.0"
+    "@jsii/spec": "npm:1.132.0"
     clone: "npm:^2.1.2"
-    codemaker: "npm:^1.131.0"
+    codemaker: "npm:^1.132.0"
     commonmark: "npm:^0.31.2"
     escape-string-regexp: "npm:^4.0.0"
     fs-extra: "npm:^10.1.0"
-    jsii-reflect: "npm:^1.131.0"
-    semver: "npm:^7.7.4"
+    jsii-reflect: "npm:^1.132.0"
+    semver: "npm:^7.8.0"
     spdx-license-list: "npm:^6.11.0"
     xmlbuilder: "npm:^15.1.1"
     yargs: "npm:^17.7.2"
@@ -12994,24 +12994,24 @@ __metadata:
     jsii-rosetta: ">=5.9.0"
   bin:
     jsii-pacmak: bin/jsii-pacmak
-  checksum: 10c0/5cbd65b8e3045357c225222a6f5ae135ae6cc50e1e4fa8b6358e5f6ca919d66104397e9c2d87373d6f499af6778803c6a8149a340aabf8343e58b51540339693
+  checksum: 10c0/1f676aea987e66fcfe7e37e96a5c387462610b69942b916ed0098ef5453ed6211a80569d7f92b314f9cf495ab5732b85d26b788c118cbac012ff7390b1fd842e
   languageName: node
   linkType: hard
 
-"jsii-reflect@npm:^1.131.0":
-  version: 1.131.0
-  resolution: "jsii-reflect@npm:1.131.0"
+"jsii-reflect@npm:^1.132.0":
+  version: 1.132.0
+  resolution: "jsii-reflect@npm:1.132.0"
   dependencies:
-    "@jsii/check-node": "npm:1.131.0"
-    "@jsii/spec": "npm:1.131.0"
+    "@jsii/check-node": "npm:1.132.0"
+    "@jsii/spec": "npm:1.132.0"
     chalk: "npm:^4"
     fs-extra: "npm:^10.1.0"
-    oo-ascii-tree: "npm:^1.131.0"
+    oo-ascii-tree: "npm:^1.132.0"
     yargs: "npm:^17.7.2"
   bin:
     jsii-query: bin/jsii-query
     jsii-tree: bin/jsii-tree
-  checksum: 10c0/85f4763ee991f3e24b44ca768648c97fd85ed8bacb3530bd659da26d4fa1eae3e31e270c767e0b3865b16ae426ab8caf3ef10cb31bf1ed0f1301f47d6e799e04
+  checksum: 10c0/8290779cd7b577f082f2fb9a0f068891f4b0abf1e84aa5851878de004ade7cc655bed52f34bd9a64a249934ddc0d62ddbce6420ec26665f01db1ed2d5225214f
   languageName: node
   linkType: hard
 
@@ -14897,10 +14897,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"oo-ascii-tree@npm:^1.131.0":
-  version: 1.131.0
-  resolution: "oo-ascii-tree@npm:1.131.0"
-  checksum: 10c0/0e31397476048f96afc449a6cced5867824aa82a9b593a950f4c04919f14e00885728e9eba3234ca8f6eba6d640bf9589b208e4d2354338b3a613b26c2d64e95
+"oo-ascii-tree@npm:^1.132.0":
+  version: 1.132.0
+  resolution: "oo-ascii-tree@npm:1.132.0"
+  checksum: 10c0/414eb77bcc6a321dc7dd020937f97962091cf6eb238970fc354d60362f6f24364fb58ed5e2f52704a82f26b2b638aee20b92b2f93bdf63c47284a0edbe3646bc
   languageName: node
   linkType: hard
 
@@ -15648,9 +15648,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.99.68":
-  version: 0.99.68
-  resolution: "projen@npm:0.99.68"
+"projen@npm:^0.99.70":
+  version: 0.99.70
+  resolution: "projen@npm:0.99.70"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
@@ -15671,7 +15671,7 @@ __metadata:
     constructs: ^10.5.0
   bin:
     projen: bin/projen
-  checksum: 10c0/be09e6566ae6f4222e4eb9d4d4c7597f3daf85bc06335a96439fd8d7bad79dd1005fae8b267bb29592c7cf3fa54d113b23f160d0f707060778fd42a529333239
+  checksum: 10c0/51c88babaecc472040a99a8e1a3cfe1c887557f4afe8fc59cb95c129a0e7a344705f98426be53849bb279d7d0ed8252aa18e4d6da29cf4de55c733b164f53861
   languageName: node
   linkType: hard
 

@@ -10,7 +10,6 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
-import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
@@ -462,7 +461,7 @@ const cloudAssemblySchema = configureProject(
 );
 fixupTestTask(cloudAssemblySchema);
 
-new JsiiBuild(cloudAssemblySchema, {
+cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
   jsiiVersion: TYPESCRIPT_VERSION,
   excludeTypescript: ['**/test/**/*.ts'],
@@ -490,7 +489,7 @@ new JsiiBuild(cloudAssemblySchema, {
     moduleName: 'github.com/cdklabs/cloud-assembly-schema-go',
   },
   composite: true,
-});
+}));
 
 (() => {
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/update.ts');

@@ -52,7 +52,7 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.68",
+    "projen": "^0.99.70",
     "ts-jest": "^29.4.11",
     "typescript": "5.9"
   },
