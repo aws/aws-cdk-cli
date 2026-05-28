@@ -169,8 +169,8 @@ async function getStoppedTaskReasons(
     const messages: string[] = [];
 
     if (taskIds.length > 0) {
-      // Show details from the last failed task only
-      const tasksResp = await ecs.describeTasks({ cluster, tasks: [taskIds[taskIds.length - 1]] });
+      // Show details from the most recently failed task only
+      const tasksResp = await ecs.describeTasks({ cluster, tasks: [taskIds[0]] });
       const task = tasksResp.tasks?.[0];
       if (task) {
         if (task.stoppedReason) {
@@ -268,8 +268,8 @@ async function fetchRecentLogs(
   debug: (msg: string) => Promise<void>,
 ): Promise<AdditionalDiagnosticContext | undefined> {
   try {
-    // Target the last failed task's log stream for the most relevant output
-    const lastTaskId = taskIds[taskIds.length - 1];
+    // Target the most recently failed task's log stream for the most relevant output
+    const lastTaskId = taskIds[0];
     const targetStream = (logConfig.streamPrefix && logConfig.containerName && lastTaskId)
       ? `${logConfig.streamPrefix}/${logConfig.containerName}/${lastTaskId}`
       : undefined;
@@ -277,7 +277,7 @@ async function fetchRecentLogs(
     const resp = await cwl.filterLogEvents({
       logGroupName: logConfig.logGroup,
       startTime: Date.now() - 30 * 60 * 1000,
-      limit: 200,
+      limit: 1000,
       ...(targetStream
         ? { logStreamNames: [targetStream] }
         : logConfig.streamPrefix ? { logStreamNamePrefix: logConfig.streamPrefix } : {}),

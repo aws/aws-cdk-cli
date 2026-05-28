@@ -264,19 +264,15 @@ export class CloudFormationStackDiagnoser {
   }
 
   private async enhanceError(err: ResourceError): Promise<TracedResourceError> {
-    let sourceTracePromise;
-    if (err.logicalId) {
-      sourceTracePromise = await this.props.sourceTracer.traceResource(err.stackArn, err.parentStackLogicalIds, err.logicalId);
-    } else {
-      sourceTracePromise = await this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
-    }
+    const sourceTracePromise = err.logicalId
+      ? this.props.sourceTracer.traceResource(err.stackArn, err.parentStackLogicalIds, err.logicalId)
+      : this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const [sourceTrace] = await Promise.all([
+    const [sourceTrace, additionalContext] = await Promise.all([
       sourceTracePromise,
+      this.investigateResourceBestEffort(err),
     ]);
-
-    const additionalContext = await this.investigateResourceBestEffort(err);
 
     return {
       ...err,
