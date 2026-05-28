@@ -7,7 +7,12 @@ import type { ShellOptions } from './shell';
 import { rimraf } from './shell';
 import type { AwsContext } from './with-aws';
 import { withAws } from './with-aws';
-import { cloneDirectory, installNpmPackages, TestFixture, DEFAULT_TEST_TIMEOUT_S } from './with-cdk-app';
+import {
+  cloneDirectory,
+  installNpmPackages,
+  TestFixture,
+  EXTENDED_TEST_TIMEOUT_S,
+} from './with-cdk-app';
 import { withTimeout } from './with-timeout';
 
 export interface ActionOutput {
@@ -101,7 +106,7 @@ function errorCausedByGoPkg(error: string) {
  * SAM Integration test fixture for CDK - SAM integration test cases
  */
 export function withSamIntegrationFixture(block: (context: SamIntegrationTestFixture) => Promise<void>) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSamIntegrationCdkApp(block)));
+  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withSamIntegrationCdkApp(block)));
 }
 
 export class SamIntegrationTestFixture extends TestFixture {

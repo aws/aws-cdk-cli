@@ -52,6 +52,13 @@
                     "items": {
                         "$ref": "#/definitions/PolicyViolationJson"
                     }
+                },
+                "suppressedViolations": {
+                    "description": "Violations that were suppressed via acknowledgement.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/SuppressedViolationJson"
+                    }
                 }
             },
             "required": ["pluginName", "conclusion", "violations"]
@@ -106,6 +113,63 @@
             "description": "The severity of a policy violation.",
             "type": "string",
             "enum": ["fatal", "error", "warning", "info", "custom"]
+        },
+        "SuppressedViolationJson": {
+            "description": "A violation that was acknowledged/suppressed and excluded from the active violation set.",
+            "type": "object",
+            "properties": {
+                "ruleName": {
+                    "description": "The name of the rule that was violated.",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "A description of the violation.",
+                    "type": "string"
+                },
+                "suggestedFix": {
+                    "description": "How to fix the violation.",
+                    "type": "string"
+                },
+                "severity": {
+                    "description": "The severity of the violation.",
+                    "$ref": "#/definitions/PolicyViolationSeverity"
+                },
+                "customSeverity": {
+                    "description": "If the plugin wants to report using a non-standard severity, put it here.",
+                    "type": "string"
+                },
+                "ruleMetadata": {
+                    "description": "Additional rule-specific metadata.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "violatingConstructs": {
+                    "description": "Constructs that violated the rule.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ViolatingConstructJson"
+                    }
+                },
+                "acknowledgedId": {
+                    "description": "The acknowledgement ID that caused this violation to be suppressed.",
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "The reason given for the acknowledgement, if provided.",
+                    "type": "string"
+                },
+                "acknowledgedAt": {
+                    "description": "The construct path where the acknowledgement was declared.",
+                    "type": "string"
+                },
+                "acknowledgedStackTrace": {
+                    "description": "Stack trace showing where the acknowledgement was declared.",
+                    "type": "string"
+                }
+            },
+            "required": ["ruleName", "description", "severity", "violatingConstructs", "acknowledgedId"]
         },
         "ViolatingConstructJson": {
             "description": "A construct that violated a policy rule.",

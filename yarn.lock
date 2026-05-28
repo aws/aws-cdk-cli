@@ -60,7 +60,7 @@ __metadata:
     nx: "npm:^22.7.2"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -151,7 +151,7 @@ __metadata:
     nx: "npm:^22.7.2"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -181,7 +181,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -213,8 +213,8 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    projen: "npm:^0.99.68"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   peerDependencies:
@@ -277,8 +277,8 @@ __metadata:
     mock-fs: "npm:^5.5.0"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    projen: "npm:^0.99.68"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.3"
     typescript: "npm:5.9"
@@ -326,7 +326,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.11"
@@ -391,7 +391,7 @@ __metadata:
     node-backpack: "npm:^1.1.34"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
@@ -504,8 +504,8 @@ __metadata:
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    projen: "npm:^0.99.68"
+    semver: "npm:^7.8.0"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.3"
@@ -545,7 +545,7 @@ __metadata:
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   languageName: unknown
@@ -576,8 +576,8 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    projen: "npm:^0.99.68"
+    semver: "npm:^7.8.0"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   bin:
@@ -7622,7 +7622,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     "@yarnpkg/types": "npm:^4.0.1"
-    cdklabs-projen-project-types: "npm:^0.3.36"
+    cdklabs-projen-project-types: "npm:^0.4.0"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -7636,8 +7636,8 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
-    semver: "npm:^7.8.1"
+    projen: "npm:^0.99.68"
+    semver: "npm:^7.8.0"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.22.3"
     typescript: "npm:5.9"
@@ -7758,10 +7758,10 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.0"
     sinon: "npm:^19.0.5"
     strip-ansi: "npm:^6"
     ts-jest: "npm:^29.4.11"
@@ -8381,7 +8381,7 @@ __metadata:
     node-backpack: "npm:^1.1.34"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.2"
@@ -8423,7 +8423,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.2"
     prettier: "npm:^2.8"
-    projen: "npm:^0.99.63"
+    projen: "npm:^0.99.68"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
   bin:
@@ -8431,15 +8431,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdklabs-projen-project-types@npm:^0.3.36":
-  version: 0.3.36
-  resolution: "cdklabs-projen-project-types@npm:0.3.36"
+"cdklabs-projen-project-types@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "cdklabs-projen-project-types@npm:0.4.0"
   dependencies:
     yaml: "npm:^2.9.0"
   peerDependencies:
     constructs: ^10.0.0
     projen: ">=0.99.48 <1.0.0"
-  checksum: 10c0/06901a1a6f08441943d80edf8c52a41290bc4196c0970d8b3dbf126ee2a663c62c6e63dbd82c8cd6021dfec1368b393287ed96a6e4f1907e655ca642425a75c1
+  checksum: 10c0/7a352d03b0e022ecb41960ab71da064d5ef8cf145d7ef660526e63a71ba45742c66afa9d1820ccb8915b80f9a3d4c9665aec6df03c38820942374b71cc858b40
   languageName: node
   linkType: hard
 
@@ -8830,7 +8830,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"constructs@npm:^10, constructs@npm:^10.0.0":
+"constructs@npm:^10, constructs@npm:^10.0.0, constructs@npm:^10.5.0":
   version: 10.6.0
   resolution: "constructs@npm:10.6.0"
   checksum: 10c0/67fbd1719698509b527d2d7c1f8a6ac26d91eaf15edc69fedebc71100abf4d8ebc306184883fbb677299d6fd9c2dcbbea80db0e4201564f88f9ff88f15d6668f
@@ -15619,30 +15619,30 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.99.63":
-  version: 0.99.63
-  resolution: "projen@npm:0.99.63"
+"projen@npm:^0.99.68":
+  version: 0.99.68
+  resolution: "projen@npm:0.99.68"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
     chalk: "npm:^4.1.2"
     comment-json: "npm:4.2.2"
-    constructs: "npm:^10.0.0"
+    constructs: "npm:^10.5.0"
     conventional-changelog-config-spec: "npm:^2.1.0"
     fast-glob: "npm:^3.3.3"
     fast-json-patch: "npm:^3.1.1"
     ini: "npm:^2.0.0"
     parse-conflict-json: "npm:^4.0.0"
-    semver: "npm:^7.8.0"
+    semver: "npm:^7.8.1"
     shx: "npm:^0.4.0"
     xmlbuilder2: "npm:^4.0.3"
     yaml: "npm:^2.2.2"
     yargs: "npm:^17.7.2"
   peerDependencies:
-    constructs: ^10.0.0
+    constructs: ^10.5.0
   bin:
     projen: bin/projen
-  checksum: 10c0/7a01a71562b3f3a6dff3bfdb7d5c53fafb787d6aa375e0113ae221a77e8fae196df4f473a9bc608842ca507968a6440e5e4953c577987c9d0fe64ba920089e32
+  checksum: 10c0/be09e6566ae6f4222e4eb9d4d4c7597f3daf85bc06335a96439fd8d7bad79dd1005fae8b267bb29592c7cf3fa54d113b23f160d0f707060778fd42a529333239
   languageName: node
   linkType: hard
 
