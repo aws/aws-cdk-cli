@@ -241,10 +241,168 @@ jobs:
           name: standalone_build-artifact
           path: dist/standalone
           overwrite: true
+  release_gate:
+    name: Publish gate
+    needs: release
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      packages_to_publish: ${{ steps.collect.outputs.packages_to_publish }}
+    if: ${{ needs.release.outputs.latest_commit == github.sha }}
+    steps:
+      - name: "@aws-cdk/cloud-assembly-schema: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-cloud-assembly-schema }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloud-assembly-schema: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloud-assembly-schema: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/cloud-assembly-schema"
+            echo "@aws-cdk/cloud-assembly-schema" >> publish.txt
+          fi
+      - name: "@aws-cdk/cloudformation-diff: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-cloudformation-diff }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloudformation-diff","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloudformation-diff: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloudformation-diff: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/cloudformation-diff"
+            echo "@aws-cdk/cloudformation-diff" >> publish.txt
+          fi
+      - name: "@aws-cdk/cloud-assembly-api: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-cloud-assembly-api }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloud-assembly-api: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cloud-assembly-api: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/cloud-assembly-api"
+            echo "@aws-cdk/cloud-assembly-api" >> publish.txt
+          fi
+      - name: "@aws-cdk/cli-plugin-contract: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-cli-plugin-contract }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cli-plugin-contract","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cli-plugin-contract: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cli-plugin-contract: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/cli-plugin-contract"
+            echo "@aws-cdk/cli-plugin-contract" >> publish.txt
+          fi
+      - name: "@aws-cdk/cdk-assets-lib: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-cdk-assets-lib }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cdk-assets-lib: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/cdk-assets-lib: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/cdk-assets-lib"
+            echo "@aws-cdk/cdk-assets-lib" >> publish.txt
+          fi
+      - name: "cdk-assets: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-cdk-assets }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk-assets"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping cdk-assets: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping cdk-assets: not selected for release"
+          else
+            echo "✅ Will publish cdk-assets"
+            echo "cdk-assets" >> publish.txt
+          fi
+      - name: "@aws-cdk/toolkit-lib: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-toolkit-lib }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/toolkit-lib: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/toolkit-lib: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/toolkit-lib"
+            echo "@aws-cdk/toolkit-lib" >> publish.txt
+          fi
+      - name: "aws-cdk: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping aws-cdk: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping aws-cdk: not selected for release"
+          else
+            echo "✅ Will publish aws-cdk"
+            echo "aws-cdk" >> publish.txt
+          fi
+      - name: "cdk: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-cdk }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping cdk: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping cdk: not selected for release"
+          else
+            echo "✅ Will publish cdk"
+            echo "cdk" >> publish.txt
+          fi
+      - name: "@aws-cdk/integ-runner: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-integ-runner }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/integ-runner: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk/integ-runner: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk/integ-runner"
+            echo "@aws-cdk/integ-runner" >> publish.txt
+          fi
+      - name: "@aws-cdk-testing/cli-integ: Check publish"
+        run: |-
+          should_publish="${{ needs.release.outputs.publish-aws-cdk-testing-cli-integ }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk-testing/cli-integ"]'), github.event.inputs.package)) }}"
+          if [[ "$should_publish" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk-testing/cli-integ: release tag already exists"
+          elif [[ "$package_filter" != "true" ]]; then
+            echo "⏭️ Skipping @aws-cdk-testing/cli-integ: not selected for release"
+          else
+            echo "✅ Will publish @aws-cdk-testing/cli-integ"
+            echo "@aws-cdk-testing/cli-integ" >> publish.txt
+          fi
+      - name: Collect packages to publish
+        id: collect
+        run: |-
+          if [ -f publish.txt ]; then
+            packages=$(jq -Rc '.' publish.txt | jq -sc '.')
+          else
+            packages='[]'
+          fi
+          echo "packages_to_publish=$packages" >> $GITHUB_OUTPUT
+          echo "Publishing: $packages"
+  aws-cdk-cloud-assembly-schema_release:
+    name: "@aws-cdk/cloud-assembly-schema: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/cloud-assembly-schema') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/cloud-assembly-schema..."
   aws-cdk-cloud-assembly-schema_release_github:
     name: "@aws-cdk/cloud-assembly-schema: Publish to GitHub Releases"
     needs:
-      - release
       - aws-cdk-cloud-assembly-schema_release_npm
       - aws-cdk-cloud-assembly-schema_release_maven
       - aws-cdk-cloud-assembly-schema_release_pypi
@@ -254,7 +412,6 @@ jobs:
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -263,8 +420,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -275,13 +432,12 @@ jobs:
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   aws-cdk-cloud-assembly-schema_release_npm:
     name: "@aws-cdk/cloud-assembly-schema: Publish to npm"
-    needs: release
+    needs: aws-cdk-cloud-assembly-schema_release
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -290,8 +446,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -321,12 +477,11 @@ jobs:
         run: npx -p publib@latest publib-npm
   aws-cdk-cloud-assembly-schema_release_maven:
     name: "@aws-cdk/cloud-assembly-schema: Publish to Maven Central"
-    needs: release
+    needs: aws-cdk-cloud-assembly-schema_release
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-java@v5
         with:
@@ -339,8 +494,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -372,13 +527,12 @@ jobs:
         run: npx -p publib@latest publib-maven
   aws-cdk-cloud-assembly-schema_release_pypi:
     name: "@aws-cdk/cloud-assembly-schema: Publish to PyPI"
-    needs: release
+    needs: aws-cdk-cloud-assembly-schema_release
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -390,8 +544,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -418,12 +572,11 @@ jobs:
         run: npx -p publib@latest publib-pypi
   aws-cdk-cloud-assembly-schema_release_nuget:
     name: "@aws-cdk/cloud-assembly-schema: Publish to NuGet Gallery"
-    needs: release
+    needs: aws-cdk-cloud-assembly-schema_release
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -436,8 +589,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -464,12 +617,11 @@ jobs:
         run: npx -p publib@latest publib-nuget
   aws-cdk-cloud-assembly-schema_release_golang:
     name: "@aws-cdk/cloud-assembly-schema: Publish to GitHub Go Module Repository"
-    needs: release
+    needs: aws-cdk-cloud-assembly-schema_release
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-schema == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-schema","@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -482,8 +634,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-schema_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-schema_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -510,16 +662,35 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-golang
+  aws-cdk-cloud-assembly-schema_release_done:
+    name: "@aws-cdk/cloud-assembly-schema: Release complete"
+    needs:
+      - aws-cdk-cloud-assembly-schema_release_github
+      - aws-cdk-cloud-assembly-schema_release_npm
+      - aws-cdk-cloud-assembly-schema_release_maven
+      - aws-cdk-cloud-assembly-schema_release_pypi
+      - aws-cdk-cloud-assembly-schema_release_nuget
+      - aws-cdk-cloud-assembly-schema_release_golang
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-cloudformation-diff_release:
+    name: "@aws-cdk/cloudformation-diff: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/cloudformation-diff') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/cloudformation-diff..."
   aws-cdk-cloudformation-diff_release_github:
     name: "@aws-cdk/cloudformation-diff: Publish to GitHub Releases"
-    needs:
-      - release
-      - aws-cdk-cloudformation-diff_release_npm
+    needs: aws-cdk-cloudformation-diff_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloudformation-diff","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -528,8 +699,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
+          name: aws-cdk-cloudformation-diff_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -540,13 +711,12 @@ jobs:
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   aws-cdk-cloudformation-diff_release_npm:
     name: "@aws-cdk/cloudformation-diff: Publish to npm"
-    needs: release
+    needs: aws-cdk-cloudformation-diff_release
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloudformation-diff == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloudformation-diff","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -555,8 +725,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloudformation-diff_build-artifact
           path: dist
+          name: aws-cdk-cloudformation-diff_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -568,21 +738,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-cloudformation-diff_release_done:
+    name: "@aws-cdk/cloudformation-diff: Release complete"
+    needs:
+      - aws-cdk-cloudformation-diff_release_github
+      - aws-cdk-cloudformation-diff_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-cloud-assembly-api_release:
+    name: "@aws-cdk/cloud-assembly-api: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/cloud-assembly-api') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/cloud-assembly-api..."
   aws-cdk-cloud-assembly-api_release_github:
     name: "@aws-cdk/cloud-assembly-api: Publish to GitHub Releases"
-    needs:
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
+    needs: aws-cdk-cloud-assembly-api_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -591,8 +771,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-api_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-api_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -604,18 +784,13 @@ jobs:
   aws-cdk-cloud-assembly-api_release_npm:
     name: "@aws-cdk/cloud-assembly-api: Publish to npm"
     needs:
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
+      - aws-cdk-cloud-assembly-api_release
+      - aws-cdk-cloud-assembly-schema_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cloud-assembly-api == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cloud-assembly-api","@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -624,8 +799,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cloud-assembly-api_build-artifact
           path: dist
+          name: aws-cdk-cloud-assembly-api_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -637,16 +812,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-cloud-assembly-api_release_done:
+    name: "@aws-cdk/cloud-assembly-api: Release complete"
+    needs:
+      - aws-cdk-cloud-assembly-api_release_github
+      - aws-cdk-cloud-assembly-api_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-cli-plugin-contract_release:
+    name: "@aws-cdk/cli-plugin-contract: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/cli-plugin-contract') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/cli-plugin-contract..."
   aws-cdk-cli-plugin-contract_release_github:
     name: "@aws-cdk/cli-plugin-contract: Publish to GitHub Releases"
-    needs:
-      - release
-      - aws-cdk-cli-plugin-contract_release_npm
+    needs: aws-cdk-cli-plugin-contract_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cli-plugin-contract","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -655,8 +845,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
+          name: aws-cdk-cli-plugin-contract_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -667,13 +857,12 @@ jobs:
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   aws-cdk-cli-plugin-contract_release_npm:
     name: "@aws-cdk/cli-plugin-contract: Publish to npm"
-    needs: release
+    needs: aws-cdk-cli-plugin-contract_release
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cli-plugin-contract == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cli-plugin-contract","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -682,8 +871,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cli-plugin-contract_build-artifact
           path: dist
+          name: aws-cdk-cli-plugin-contract_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -695,23 +884,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-cli-plugin-contract_release_done:
+    name: "@aws-cdk/cli-plugin-contract: Release complete"
+    needs:
+      - aws-cdk-cli-plugin-contract_release_github
+      - aws-cdk-cli-plugin-contract_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-cdk-assets-lib_release:
+    name: "@aws-cdk/cdk-assets-lib: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/cdk-assets-lib') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/cdk-assets-lib..."
   aws-cdk-cdk-assets-lib_release_github:
     name: "@aws-cdk/cdk-assets-lib: Publish to GitHub Releases"
-    needs:
-      - aws-cdk-cdk-assets-lib_release_npm
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
+    needs: aws-cdk-cdk-assets-lib_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -720,8 +917,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cdk-assets-lib_build-artifact
           path: dist
+          name: aws-cdk-cdk-assets-lib_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -733,20 +930,14 @@ jobs:
   aws-cdk-cdk-assets-lib_release_npm:
     name: "@aws-cdk/cdk-assets-lib: Publish to npm"
     needs:
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
+      - aws-cdk-cdk-assets-lib_release
+      - aws-cdk-cloud-assembly-schema_release_done
+      - aws-cdk-cloud-assembly-api_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-cdk-assets-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/cdk-assets-lib","cdk-assets","@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -755,8 +946,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-cdk-assets-lib_build-artifact
           path: dist
+          name: aws-cdk-cdk-assets-lib_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -768,17 +959,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
-  cdk-assets_release_github:
-    name: "cdk-assets: Publish to GitHub Releases"
+  aws-cdk-cdk-assets-lib_release_done:
+    name: "@aws-cdk/cdk-assets-lib: Release complete"
     needs:
-      - cdk-assets_release_npm
       - aws-cdk-cdk-assets-lib_release_github
       - aws-cdk-cdk-assets-lib_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  cdk-assets_release:
+    name: "cdk-assets: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), 'cdk-assets') }}
+    steps:
+      - run: echo "Releasing cdk-assets..."
+  cdk-assets_release_github:
+    name: "cdk-assets: Publish to GitHub Releases"
+    needs: cdk-assets_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk-assets"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -787,8 +992,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cdk-assets_build-artifact
           path: dist
+          name: cdk-assets_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -800,14 +1005,13 @@ jobs:
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs:
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
+      - cdk-assets_release
+      - aws-cdk-cdk-assets-lib_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk-assets == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk-assets"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -816,8 +1020,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cdk-assets_build-artifact
           path: dist
+          name: cdk-assets_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -829,29 +1033,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  cdk-assets_release_done:
+    name: "cdk-assets: Release complete"
+    needs:
+      - cdk-assets_release_github
+      - cdk-assets_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-toolkit-lib_release:
+    name: "@aws-cdk/toolkit-lib: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/toolkit-lib') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/toolkit-lib..."
   aws-cdk-toolkit-lib_release_github:
     name: "@aws-cdk/toolkit-lib: Publish to GitHub Releases"
-    needs:
-      - aws-cdk-toolkit-lib_release_npm
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cli-plugin-contract_release_github
-      - aws-cdk-cli-plugin-contract_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
+    needs: aws-cdk-toolkit-lib_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -860,8 +1066,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-toolkit-lib_build-artifact
           path: dist
+          name: aws-cdk-toolkit-lib_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -873,26 +1079,17 @@ jobs:
   aws-cdk-toolkit-lib_release_npm:
     name: "@aws-cdk/toolkit-lib: Publish to npm"
     needs:
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cli-plugin-contract_release_github
-      - aws-cdk-cli-plugin-contract_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
+      - aws-cdk-toolkit-lib_release
+      - aws-cdk-cloud-assembly-schema_release_done
+      - aws-cdk-cloudformation-diff_release_done
+      - aws-cdk-cloud-assembly-api_release_done
+      - aws-cdk-cli-plugin-contract_release_done
+      - aws-cdk-cdk-assets-lib_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-toolkit-lib == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/toolkit-lib","aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -901,8 +1098,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-toolkit-lib_build-artifact
           path: dist
+          name: aws-cdk-toolkit-lib_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -914,29 +1111,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
-  aws-cdk_release_github:
-    name: "aws-cdk: Publish to GitHub Releases"
+  aws-cdk-toolkit-lib_release_done:
+    name: "@aws-cdk/toolkit-lib: Release complete"
     needs:
-      - aws-cdk_release_npm
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
       - aws-cdk-toolkit-lib_release_github
       - aws-cdk-toolkit-lib_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk_release:
+    name: "aws-cdk: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), 'aws-cdk') }}
+    steps:
+      - run: echo "Releasing aws-cdk..."
+  aws-cdk_release_github:
+    name: "aws-cdk: Publish to GitHub Releases"
+    needs: aws-cdk_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -945,8 +1144,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk_build-artifact
           path: dist
+          name: aws-cdk_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -958,26 +1157,17 @@ jobs:
   aws-cdk_release_npm:
     name: "aws-cdk: Publish to npm"
     needs:
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
-      - aws-cdk-toolkit-lib_release_github
-      - aws-cdk-toolkit-lib_release_npm
+      - aws-cdk_release
+      - aws-cdk-cloud-assembly-schema_release_done
+      - aws-cdk-cloudformation-diff_release_done
+      - aws-cdk-cloud-assembly-api_release_done
+      - aws-cdk-cdk-assets-lib_release_done
+      - aws-cdk-toolkit-lib_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -986,8 +1176,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk_build-artifact
           path: dist
+          name: aws-cdk_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -999,17 +1189,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
-  cdk_release_github:
-    name: "cdk: Publish to GitHub Releases"
+  aws-cdk_release_done:
+    name: "aws-cdk: Release complete"
     needs:
-      - cdk_release_npm
       - aws-cdk_release_github
       - aws-cdk_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  cdk_release:
+    name: "cdk: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), 'cdk') }}
+    steps:
+      - run: echo "Releasing cdk..."
+  cdk_release_github:
+    name: "cdk: Publish to GitHub Releases"
+    needs: cdk_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1018,8 +1222,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cdk_build-artifact
           path: dist
+          name: cdk_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1031,14 +1235,13 @@ jobs:
   cdk_release_npm:
     name: "cdk: Publish to npm"
     needs:
-      - aws-cdk_release_github
-      - aws-cdk_release_npm
+      - cdk_release
+      - aws-cdk_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-cdk == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["cdk"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1047,8 +1250,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: cdk_build-artifact
           path: dist
+          name: cdk_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1060,31 +1263,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  cdk_release_done:
+    name: "cdk: Release complete"
+    needs:
+      - cdk_release_github
+      - cdk_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-integ-runner_release:
+    name: "@aws-cdk/integ-runner: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk/integ-runner') }}
+    steps:
+      - run: echo "Releasing @aws-cdk/integ-runner..."
   aws-cdk-integ-runner_release_github:
     name: "@aws-cdk/integ-runner: Publish to GitHub Releases"
-    needs:
-      - aws-cdk-integ-runner_release_npm
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
-      - aws-cdk-toolkit-lib_release_github
-      - aws-cdk-toolkit-lib_release_npm
-      - aws-cdk_release_github
-      - aws-cdk_release_npm
+    needs: aws-cdk-integ-runner_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1093,8 +1296,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-integ-runner_build-artifact
           path: dist
+          name: aws-cdk-integ-runner_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1106,28 +1309,18 @@ jobs:
   aws-cdk-integ-runner_release_npm:
     name: "@aws-cdk/integ-runner: Publish to npm"
     needs:
-      - aws-cdk-cloud-assembly-schema_release_github
-      - aws-cdk-cloud-assembly-schema_release_npm
-      - aws-cdk-cloud-assembly-schema_release_maven
-      - aws-cdk-cloud-assembly-schema_release_pypi
-      - aws-cdk-cloud-assembly-schema_release_nuget
-      - aws-cdk-cloud-assembly-schema_release_golang
-      - aws-cdk-cloudformation-diff_release_github
-      - aws-cdk-cloudformation-diff_release_npm
-      - aws-cdk-cloud-assembly-api_release_github
-      - aws-cdk-cloud-assembly-api_release_npm
-      - aws-cdk-cdk-assets-lib_release_github
-      - aws-cdk-cdk-assets-lib_release_npm
-      - aws-cdk-toolkit-lib_release_github
-      - aws-cdk-toolkit-lib_release_npm
-      - aws-cdk_release_github
-      - aws-cdk_release_npm
+      - aws-cdk-integ-runner_release
+      - aws-cdk-cloud-assembly-schema_release_done
+      - aws-cdk-cloudformation-diff_release_done
+      - aws-cdk-cloud-assembly-api_release_done
+      - aws-cdk-cdk-assets-lib_release_done
+      - aws-cdk-toolkit-lib_release_done
+      - aws-cdk_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !cancelled() && !failure() && needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-integ-runner == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1136,8 +1329,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-integ-runner_build-artifact
           path: dist
+          name: aws-cdk-integ-runner_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1149,16 +1342,31 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-integ-runner_release_done:
+    name: "@aws-cdk/integ-runner: Release complete"
+    needs:
+      - aws-cdk-integ-runner_release_github
+      - aws-cdk-integ-runner_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
+  aws-cdk-testing-cli-integ_release:
+    name: "@aws-cdk-testing/cli-integ: Release"
+    needs: release_gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ contains(fromJSON(needs.release_gate.outputs.packages_to_publish), '@aws-cdk-testing/cli-integ') }}
+    steps:
+      - run: echo "Releasing @aws-cdk-testing/cli-integ..."
   aws-cdk-testing-cli-integ_release_github:
     name: "@aws-cdk-testing/cli-integ: Publish to GitHub Releases"
-    needs:
-      - release
-      - aws-cdk-testing-cli-integ_release_npm
+    needs: aws-cdk-testing-cli-integ_release_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk-testing/cli-integ"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1167,8 +1375,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
+          name: aws-cdk-testing-cli-integ_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1179,13 +1387,12 @@ jobs:
         run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
   aws-cdk-testing-cli-integ_release_npm:
     name: "@aws-cdk-testing/cli-integ: Publish to npm"
-    needs: release
+    needs: aws-cdk-testing-cli-integ_release
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && needs.release.outputs.publish-aws-cdk-testing-cli-integ == 'true' && (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["@aws-cdk-testing/cli-integ"]'), github.event.inputs.package)) }}
     steps:
       - uses: actions/setup-node@v6
         with:
@@ -1194,8 +1401,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: aws-cdk-testing-cli-integ_build-artifact
           path: dist
+          name: aws-cdk-testing-cli-integ_build-artifact
       - name: Restore build artifact permissions
         run: cd dist && setfacl --restore=permissions-backup.acl
         continue-on-error: true
@@ -1207,6 +1414,16 @@ jobs:
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
         run: npx -p publib@latest publib-npm
+  aws-cdk-testing-cli-integ_release_done:
+    name: "@aws-cdk-testing/cli-integ: Release complete"
+    needs:
+      - aws-cdk-testing-cli-integ_release_github
+      - aws-cdk-testing-cli-integ_release_npm
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ !cancelled() && !failure() }}
+    steps:
+      - run: echo "All publish jobs complete"
   standalone_release_adc:
     name: "standalone: publish to ADC"
     needs:

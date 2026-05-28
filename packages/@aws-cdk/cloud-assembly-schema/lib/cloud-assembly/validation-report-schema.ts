@@ -57,6 +57,17 @@ export interface PluginReportJson {
    * Violations found by this plugin.
    */
   readonly violations: PolicyViolationJson[];
+
+  /**
+   * Violations that were suppressed via acknowledgement.
+   *
+   * These violations matched an acknowledged rule ID and were excluded
+   * from the active violations list. They are retained for audit
+   * trail and reporting purposes.
+   *
+   * @default - no suppressed violations
+   */
+  readonly suppressedViolations?: SuppressedViolationJson[];
 }
 
 /**
@@ -159,6 +170,42 @@ export interface ViolatingConstructJson {
    * @default - No stack traces
    */
   readonly stackTraces?: string[];
+}
+
+/**
+ * A violation that was acknowledged/suppressed and excluded from the
+ * active violation set.
+ */
+export interface SuppressedViolationJson extends PolicyViolationJson {
+  /**
+   * The acknowledgement ID that caused this violation to be suppressed.
+   *
+   * Format: `<plugin-name>::<rule-name>` (spaces replaced with hyphens).
+   */
+  readonly acknowledgedId: string;
+
+  /**
+   * The reason given for the acknowledgement, if provided.
+   *
+   * @default - no reason given
+   */
+  readonly reason?: string;
+
+  /**
+   * The construct path where the acknowledgement was declared.
+   *
+   * @default - unknown
+   */
+  readonly acknowledgedAt?: string;
+
+  /**
+   * Stack trace showing where the acknowledgement was declared.
+   *
+   * A `\n`-delimited string of stack frames.
+   *
+   * @default - no stack trace
+   */
+  readonly acknowledgedStackTrace?: string;
 }
 
 /**

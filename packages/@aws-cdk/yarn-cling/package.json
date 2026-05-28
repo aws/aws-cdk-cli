@@ -51,13 +51,13 @@
     "jest-junit": "^16",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.63",
+    "projen": "^0.99.68",
     "ts-jest": "^29.4.11",
     "typescript": "5.9"
   },
   "dependencies": {
     "@yarnpkg/parsers": "^3.0.3",
-    "semver": "^7.8.1"
+    "semver": "^7.8.0"
   },
   "keywords": [
     "aws",

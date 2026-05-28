@@ -28,6 +28,9 @@ jobs:
     permissions:
       contents: read
     environment: ${{ needs.determine_env.outputs.env_name }}
+    outputs:
+      packagesArtifact: ${{ steps.build-artifact.outputs.artifact-id }}
+      scriptsArtifact: ${{ steps.script-artifact.outputs.artifact-id }}
     env:
       CI: "true"
       DEBUG: "true"
@@ -36,7 +39,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -62,12 +65,14 @@ jobs:
           RELEASE: "true"
         run: yarn projen build
       - name: Upload artifact
+        id: build-artifact
         uses: actions/upload-artifact@v7
         with:
           name: build-artifact
           path: packages/**/dist/js/*.tgz
           overwrite: true
       - name: Upload artifact
+        id: script-artifact
         uses: actions/upload-artifact@v7
         with:
           name: script-artifact
@@ -91,32 +96,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: build-artifact
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: script-artifact
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-duration-seconds: 3600
-          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
-          role-session-name: run-tests@aws-cdk-cli-integ
-          output-credentials: true
       - name: Set git identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
@@ -134,6 +131,15 @@ jobs:
           LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
           echo "lib version: ${LIB_VERSION}"
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
@@ -212,32 +218,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: build-artifact
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: script-artifact
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-duration-seconds: 3600
-          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
-          role-session-name: run-tests@aws-cdk-cli-integ
-          output-credentials: true
       - name: Set git identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
@@ -255,6 +253,15 @@ jobs:
           LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
           echo "lib version: ${LIB_VERSION}"
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
@@ -323,32 +330,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: build-artifact
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: script-artifact
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-duration-seconds: 3600
-          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
-          role-session-name: run-tests@aws-cdk-cli-integ
-          output-credentials: true
       - name: Set git identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
@@ -366,6 +365,15 @@ jobs:
           LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
           echo "lib version: ${LIB_VERSION}"
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
@@ -431,32 +439,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: build-artifact
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: script-artifact
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-duration-seconds: 3600
-          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
-          role-session-name: run-tests@aws-cdk-cli-integ
-          output-credentials: true
       - name: Set git identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
@@ -474,6 +474,15 @@ jobs:
           LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
           echo "lib version: ${LIB_VERSION}"
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
@@ -553,32 +562,24 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: build-artifact
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: script-artifact
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Set up JDK 18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
-      - name: Authenticate Via OIDC Role
-        id: creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-duration-seconds: 3600
-          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
-          role-session-name: run-tests@aws-cdk-cli-integ
-          output-credentials: true
       - name: Set git identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
@@ -596,6 +597,15 @@ jobs:
           LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
           echo "lib version: ${LIB_VERSION}"
           echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"

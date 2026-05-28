@@ -73,7 +73,7 @@
     "nock": "13",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.63",
+    "projen": "^0.99.68",
     "ts-jest": "^29.4.11",
     "tsx": "^4.22.3",
     "typescript": "5.9"
@@ -123,7 +123,7 @@
     "fs-extra": "^11",
     "p-limit": "^3",
     "picomatch": "^4",
-    "semver": "^7.8.1",
+    "semver": "^7.8.0",
     "split2": "^4.2.0",
     "wrap-ansi": "^7",
     "yaml": "^1"

@@ -52,7 +52,7 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.2",
     "prettier": "^2.8",
-    "projen": "^0.99.63",
+    "projen": "^0.99.68",
     "ts-jest": "^29.4.11",
     "typescript": "5.9"
   },
@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "jsonschema": "^1.5.0",
-    "semver": "^7.8.1"
+    "semver": "^7.8.0"
   },
   "keywords": [
     "aws",
