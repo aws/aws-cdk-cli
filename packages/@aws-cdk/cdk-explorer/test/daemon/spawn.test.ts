@@ -5,11 +5,11 @@ import {
   infoPathForProject,
   logPathForProject,
 } from '../../lib/daemon/socket-path';
-import { ensureDaemon } from '../../lib/daemon/spawn';
+import { acquireDaemon } from '../../lib/daemon/spawn';
 
 const TEST_PROJECT = `/tmp/cdk-spawn-test-${process.pid}-${Date.now()}`;
 
-describe('ensureDaemon', () => {
+describe('acquireDaemon', () => {
   let connections: DaemonConnection[] = [];
 
   afterEach(async () => {
@@ -33,7 +33,7 @@ describe('ensureDaemon', () => {
   });
 
   test('spawns daemon and returns connected client', async () => {
-    const conn = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn);
 
     expect(conn).toBeDefined();
@@ -42,7 +42,7 @@ describe('ensureDaemon', () => {
   }, 10_000);
 
   test('creates info file with daemon metadata', async () => {
-    const conn = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn);
 
     const infoPath = infoPathForProject(TEST_PROJECT);
@@ -53,7 +53,7 @@ describe('ensureDaemon', () => {
   }, 10_000);
 
   test('creates log file', async () => {
-    const conn = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn);
 
     const logPath = logPathForProject(TEST_PROJECT);
@@ -61,13 +61,13 @@ describe('ensureDaemon', () => {
   }, 10_000);
 
   test('second call reuses existing daemon (singleton)', async () => {
-    const conn1 = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn1 = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn1);
 
     const infoPath = infoPathForProject(TEST_PROJECT);
     const pid1 = JSON.parse(fs.readFileSync(infoPath, 'utf-8')).pid;
 
-    const conn2 = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn2 = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn2);
 
     const pid2 = JSON.parse(fs.readFileSync(infoPath, 'utf-8')).pid;
@@ -75,7 +75,7 @@ describe('ensureDaemon', () => {
   }, 10_000);
 
   test('can exchange messages with spawned daemon', async () => {
-    const conn = await ensureDaemon({ projectDir: TEST_PROJECT });
+    const conn = await acquireDaemon({ projectDir: TEST_PROJECT });
     connections.push(conn);
 
     conn.send({ type: 'subscribe' });

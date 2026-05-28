@@ -14,18 +14,18 @@ import {
 const SPAWN_POLL_INTERVAL_MS = 10;
 const SPAWN_TIMEOUT_MS = 5000;
 
-export interface EnsureDaemonOptions {
+export interface AcquireDaemonOptions {
   readonly projectDir: string;
 }
 
 /**
- * Ensures a daemon is running for the given project directory
- * and returns a connected client.
+ * Acquires a daemon connection for the given project directory,
+ * spawning one if not already running.
  *
  * Uses an exclusive lock file to prevent concurrent spawns.
  * If a daemon is already running, connects to it directly.
  */
-export async function ensureDaemon(options: EnsureDaemonOptions): Promise<DaemonConnection> {
+export async function acquireDaemon(options: AcquireDaemonOptions): Promise<DaemonConnection> {
   const { projectDir } = options;
 
   // daemon already running

@@ -29,5 +29,5 @@ export type { DaemonServerOptions } from './daemon/server';
 export { connectToDaemon } from './daemon/connect';
 export type { DaemonConnection } from './daemon/connect';
 
-export { ensureDaemon } from './daemon/spawn';
-export type { EnsureDaemonOptions } from './daemon/spawn';
+export { acquireDaemon } from './daemon/spawn';
+export type { AcquireDaemonOptions } from './daemon/spawn';
