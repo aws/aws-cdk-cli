@@ -191,10 +191,12 @@ async function getStoppedTaskReasons(
     }
 
     if (messages.length === 0) {
-      for (const event of failureEvents) {
-        if (event.message) {
-          messages.push(event.message);
-        }
+      const firstEvent = failureEvents[0];
+      if (firstEvent?.message) {
+        messages.push(firstEvent.message);
+      }
+      if (failureEvents.length > 1) {
+        messages.push(`(${failureEvents.length - 1} other failure event(s) not shown)`);
       }
     }
 
