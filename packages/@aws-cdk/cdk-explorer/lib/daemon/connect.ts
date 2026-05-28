@@ -97,23 +97,34 @@ function createConnection(socket: net.Socket, leftover: string): DaemonConnectio
   };
 }
 
+const DONE: IteratorReturnResult<undefined> = { value: undefined, done: true };
+
 function createMessageIterable(socket: net.Socket, leftover: string): AsyncIterable<DaemonMessage> {
   return {
     [Symbol.asyncIterator](): AsyncIterableIterator<DaemonMessage> {
       const parser = new LineParser<DaemonMessage>();
       const queue: DaemonMessage[] = [];
-      let resolve: ((value: IteratorResult<DaemonMessage>) => void) | undefined;
+      let pending: ((value: IteratorResult<DaemonMessage>) => void) | undefined;
       let done = false;
 
       const enqueue = (messages: DaemonMessage[]) => {
         for (const msg of messages) {
-          if (resolve) {
-            const r = resolve;
-            resolve = undefined;
-            r({ value: msg, done: false });
+          if (pending) {
+            const settle = pending;
+            pending = undefined;
+            settle({ value: msg, done: false });
           } else {
             queue.push(msg);
           }
+        }
+      };
+
+      const terminate = () => {
+        done = true;
+        if (pending) {
+          const settle = pending;
+          pending = undefined;
+          settle(DONE);
         }
       };
 
@@ -126,23 +137,8 @@ function createMessageIterable(socket: net.Socket, leftover: string): AsyncItera
         enqueue(parser.feed(data.toString()));
       });
 
-      socket.on('close', () => {
-        done = true;
-        if (resolve) {
-          const r = resolve;
-          resolve = undefined;
-          r({ value: undefined as never, done: true });
-        }
-      });
-
-      socket.on('error', () => {
-        done = true;
-        if (resolve) {
-          const r = resolve;
-          resolve = undefined;
-          r({ value: undefined as never, done: true });
-        }
-      });
+      socket.on('close', terminate);
+      socket.on('error', terminate);
 
       return {
         next(): Promise<IteratorResult<DaemonMessage>> {
@@ -150,10 +146,10 @@ function createMessageIterable(socket: net.Socket, leftover: string): AsyncItera
             return Promise.resolve({ value: queue.shift()!, done: false });
           }
           if (done) {
-            return Promise.resolve({ value: undefined as never, done: true });
+            return Promise.resolve(DONE);
           }
-          return new Promise((r) => {
-            resolve = r;
+          return new Promise((settle) => {
+            pending = settle;
           });
         },
         [Symbol.asyncIterator]() {
