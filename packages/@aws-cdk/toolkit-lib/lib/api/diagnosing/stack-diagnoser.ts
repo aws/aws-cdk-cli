@@ -52,8 +52,7 @@ export type SdkProvider = () => Promise<SDK>;
 export class CloudFormationStackDiagnoser {
   private readonly cfn: ICloudFormationClient;
   private parentStackLogicalIds: string[];
-  private additionalExplorationSdkFetched = false;
-  private _additionalExplorationSdk?: SDK;
+  private _additionalExplorationSdkPromise?: Promise<SDK | undefined>;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
@@ -434,12 +433,11 @@ export class CloudFormationStackDiagnoser {
   /**
    * Return the additional exploration SDK, if available.
    */
-  private async additionalExplorationSdk(): Promise<SDK | undefined> {
-    if (!this.additionalExplorationSdkFetched) {
-      this.additionalExplorationSdkFetched = true;
-      this._additionalExplorationSdk = await this.props.additionalExplorationSdkProvider?.();
+  private additionalExplorationSdk(): Promise<SDK | undefined> {
+    if (!this._additionalExplorationSdkPromise) {
+      this._additionalExplorationSdkPromise = this.props.additionalExplorationSdkProvider?.() ?? Promise.resolve(undefined);
     }
-    return this._additionalExplorationSdk;
+    return this._additionalExplorationSdkPromise;
   }
 }
 
