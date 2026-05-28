@@ -28,29 +28,30 @@ export interface AcquireDaemonOptions {
 export async function acquireDaemon(options: AcquireDaemonOptions): Promise<DaemonConnection> {
   const { projectDir } = options;
 
-  // daemon already running
-  try {
-    return await connectToDaemon(projectDir);
-  } catch {
-    // Connection failed, need to spawn or clean up
-  }
+  const existing = await tryConnect(projectDir);
+  if (existing) return existing;
 
   const lockPath = lockPathForProject(projectDir);
   const lockFd = acquireLock(lockPath);
 
   try {
     // Re-check after acquiring lock (another process may have won the race)
-    try {
-      return await connectToDaemon(projectDir);
-    } catch {
-      // Still not running, so we need to spawn
-    }
+    const raceWinner = await tryConnect(projectDir);
+    if (raceWinner) return raceWinner;
 
     await cleanupStaleState(projectDir);
     await spawnDaemon(projectDir);
     return await connectToDaemon(projectDir);
   } finally {
     releaseLock(lockFd, lockPath);
+  }
+}
+
+async function tryConnect(projectDir: string): Promise<DaemonConnection | undefined> {
+  try {
+    return await connectToDaemon(projectDir);
+  } catch {
+    return undefined;
   }
 }
 
