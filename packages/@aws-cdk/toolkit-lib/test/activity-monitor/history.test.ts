@@ -96,6 +96,88 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
   ]);
 });
 
+test('DELETE_FAILED during stack update is shown as provisional in dim, without reason or stack trace', () => {
+  const historyActivityPrinter = new HistoryActivityPrinter({
+    stream: process.stderr,
+  });
+
+  const output = stderr.inspectSync(() => {
+    (historyActivityPrinter as any).isStackUpdate = true;
+    historyActivityPrinter.start({ stack: testStack({ stackName: 'stack-name' }) });
+    historyActivityPrinter.activity({
+      event: {
+        LogicalResourceId: 'MyResource',
+        ResourceStatus: ResourceStatus.DELETE_FAILED,
+        ResourceStatusReason: 'Resource cannot be deleted',
+        Timestamp: new Date(TIMESTAMP),
+        ResourceType: 'AWS::S3::Bucket',
+        StackId: 'stack-id',
+        EventId: '',
+        StackName: 'stack-name',
+      },
+      deployment: 'test',
+      metadata: {
+        constructPath: 'MyConstruct/MyResource',
+        entry: { trace: ['line1', 'line2'] },
+      } as any,
+      progress: {
+        completed: 1,
+        total: 2,
+        formatted: '1/2',
+      },
+    });
+    historyActivityPrinter.stop();
+  });
+
+  // Should show "(provisional)", no reason, no stack trace, no "Failed resources:" section
+  const joined = output.join('\n');
+  expect(joined).toContain('DELETE_FAILED (provisional)');
+  expect(joined).not.toContain('Resource cannot be deleted');
+  expect(joined).not.toContain('line1');
+  expect(joined).not.toContain('line2');
+  expect(joined).not.toContain('Failed resources:');
+});
+
+test('DELETE_FAILED during stack create is shown normally in red with reason and stack trace', () => {
+  const historyActivityPrinter = new HistoryActivityPrinter({
+    stream: process.stderr,
+  });
+
+  const output = stderr.inspectSync(() => {
+    historyActivityPrinter.start({ stack: testStack({ stackName: 'stack-name' }) });
+    historyActivityPrinter.activity({
+      event: {
+        LogicalResourceId: 'MyResource',
+        ResourceStatus: ResourceStatus.DELETE_FAILED,
+        ResourceStatusReason: 'Resource cannot be deleted',
+        Timestamp: new Date(TIMESTAMP),
+        ResourceType: 'AWS::S3::Bucket',
+        StackId: 'stack-id',
+        EventId: '',
+        StackName: 'stack-name',
+      },
+      deployment: 'test',
+      metadata: {
+        constructPath: 'MyConstruct/MyResource',
+        entry: { trace: ['line1', 'line2'] },
+      } as any,
+      progress: {
+        completed: 1,
+        total: 2,
+        formatted: '1/2',
+      },
+    });
+    historyActivityPrinter.stop();
+  });
+
+  // Should show reason, stack trace, and "Failed resources:" recap
+  const joined = output.join('\n');
+  expect(joined).toContain('Resource cannot be deleted');
+  expect(joined).toContain('line1');
+  expect(joined).not.toContain('(provisional)');
+  expect(joined).toContain('Failed resources:');
+});
+
 test('print failed resources because of hook failures', () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     stream: process.stderr,

@@ -18,6 +18,7 @@ export interface ActivityPrinterProps {
 export abstract class ActivityPrinterBase implements IActivityPrinter {
   protected static readonly TIMESTAMP_WIDTH = 12;
   protected static readonly STATUS_WIDTH = 20;
+  protected static readonly EXPANDED_STATUS_WIDTH = 27;
 
   /**
    * Stream to write to
@@ -40,6 +41,8 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
 
   protected readonly failures = new Array<StackActivity>();
 
+  protected isStackUpdate = false;
+
   protected hookFailureMap = new Map<string, Map<string, string>>();
 
   constructor(protected readonly props: ActivityPrinterProps) {
@@ -54,6 +57,7 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
   public notify(msg: IoMessage<unknown>): void {
     switch (true) {
       case IO.CDK_TOOLKIT_I5501.is(msg):
+        this.isStackUpdate = (msg.data as any)?.isStackUpdate ?? false;
         this.start(msg.data);
         break;
       case IO.CDK_TOOLKIT_I5502.is(msg):
@@ -149,5 +153,14 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
    */
   protected isActivityForTheStack(activity: StackActivity) {
     return activity.event.PhysicalResourceId === activity.event.StackId;
+  }
+
+  /**
+   * During a stack update, DELETE_FAILED events are provisional: CloudFormation
+   * will eventually skip them and complete the update. We display these with
+   * reduced urgency so users don't assume the deployment has failed.
+   */
+  protected isProvisionalFailure(activity: StackActivity): boolean {
+    return this.isStackUpdate && activity.event.ResourceStatus === 'DELETE_FAILED';
   }
 }

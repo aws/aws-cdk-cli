@@ -49,18 +49,25 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
     const toPrint: StackActivity[] = [...this.failures, ...Object.values(this.resourcesInProgress)];
     toPrint.sort((a, b) => a.event.Timestamp!.getTime() - b.event.Timestamp!.getTime());
 
+    const statusWidth = toPrint.some((activity) => this.isProvisionalFailure(activity))
+      ? CurrentActivityPrinter.EXPANDED_STATUS_WIDTH
+      : CurrentActivityPrinter.STATUS_WIDTH;
     lines.push(
       ...toPrint.map((res) => {
-        const color = colorFromStatusActivity(res.event.ResourceStatus);
+        const provisional = this.isProvisionalFailure(res);
+        const color = provisional ? chalk.dim : colorFromStatusActivity(res.event.ResourceStatus);
         const resourceName = res.metadata?.constructPath ?? res.event.LogicalResourceId ?? '';
+        const statusText = provisional
+          ? `${(res.event.ResourceStatus || '').slice(0, statusWidth)} (provisional)`
+          : (res.event.ResourceStatus || '').slice(0, statusWidth);
 
         return util.format(
           '%s | %s | %s | %s%s',
           padLeft(CurrentActivityPrinter.TIMESTAMP_WIDTH, new Date(res.event.Timestamp!).toLocaleTimeString()),
-          color(padRight(CurrentActivityPrinter.STATUS_WIDTH, (res.event.ResourceStatus || '').slice(0, CurrentActivityPrinter.STATUS_WIDTH))),
+          color(padRight(statusWidth, statusText)),
           padRight(this.resourceTypeColumnWidth, res.event.ResourceType || ''),
           color(chalk.bold(shorten(40, resourceName))),
-          this.failureReasonOnNextLine(res),
+          provisional ? '' : this.failureReasonOnNextLine(res),
         );
       }),
     );
@@ -71,11 +78,10 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
   public stop() {
     super.stop();
 
-    // Print failures at the end
+    // Print failures at the end (excluding provisional DELETE_FAILED during updates)
     const lines = new Array<string>();
     for (const failure of this.failures) {
-      // Root stack failures are not interesting
-      if (this.isActivityForTheStack(failure)) {
+      if (this.isActivityForTheStack(failure) || this.isProvisionalFailure(failure)) {
         continue;
       }
 

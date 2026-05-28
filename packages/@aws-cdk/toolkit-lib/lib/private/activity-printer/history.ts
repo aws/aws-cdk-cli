@@ -28,6 +28,8 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
 
   private readonly printable = new Array<StackActivity>();
 
+  private hasProvisionalFailures = false;
+
   constructor(props: ActivityPrinterProps) {
     super(props);
   }
@@ -40,15 +42,13 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
   public stop() {
     super.stop();
 
-    // Print failures at the end
-    if (this.failures.length > 0) {
+    // Print failures at the end (excluding provisional DELETE_FAILED during updates)
+    const realFailures = this.failures.filter(
+      (f) => !this.isActivityForTheStack(f) && !this.isProvisionalFailure(f),
+    );
+    if (realFailures.length > 0) {
       this.stream.write('\nFailed resources:\n');
-      for (const failure of this.failures) {
-        // Root stack failures are not interesting
-        if (this.isActivityForTheStack(failure)) {
-          continue;
-        }
-
+      for (const failure of realFailures) {
         this.printOne(failure, false);
       }
     }
@@ -65,13 +65,20 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
 
   private printOne(activity: StackActivity, progress?: boolean) {
     const event = activity.event;
-    const color = colorFromStatusResult(event.ResourceStatus);
+    const provisional = this.isProvisionalFailure(activity);
+    if (provisional) {
+      this.hasProvisionalFailures = true;
+    }
+    const statusWidth = this.hasProvisionalFailures
+      ? HistoryActivityPrinter.EXPANDED_STATUS_WIDTH
+      : HistoryActivityPrinter.STATUS_WIDTH;
+    const color = provisional ? chalk.dim : colorFromStatusResult(event.ResourceStatus);
     let reasonColor = chalk.cyan;
 
     let stackTrace = '';
     const metadata = activity.metadata;
 
-    if (event.ResourceStatus && event.ResourceStatus.indexOf('FAILED') !== -1) {
+    if (!provisional && event.ResourceStatus && event.ResourceStatus.indexOf('FAILED') !== -1) {
       if (progress == undefined || progress) {
         event.ResourceStatusReason = event.ResourceStatusReason ? this.failureReason(activity) : '';
       }
@@ -83,6 +90,9 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
 
     const resourceName = metadata ? metadata.constructPath : event.LogicalResourceId || '';
     const logicalId = resourceName !== event.LogicalResourceId ? `(${event.LogicalResourceId}) ` : '';
+    const statusText = provisional
+      ? `${(event.ResourceStatus || '').slice(0, statusWidth)} (provisional)`
+      : (event.ResourceStatus || '').slice(0, statusWidth);
 
     this.stream.write(
       util.format(
@@ -90,12 +100,12 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
         event.StackName,
         progress !== false ? `${activity.progress.formatted} | ` : '',
         new Date(event.Timestamp!).toLocaleTimeString(),
-        color(padRight(HistoryActivityPrinter.STATUS_WIDTH, (event.ResourceStatus || '').slice(0, HistoryActivityPrinter.STATUS_WIDTH))), // pad left and trim
+        color(padRight(statusWidth, statusText)),
         padRight(this.resourceTypeColumnWidth, event.ResourceType || ''),
         color(chalk.bold(resourceName)),
         logicalId,
-        reasonColor(chalk.bold(event.ResourceStatusReason ? event.ResourceStatusReason : '')),
-        reasonColor(stackTrace),
+        provisional ? '' : reasonColor(chalk.bold(event.ResourceStatusReason ? event.ResourceStatusReason : '')),
+        provisional ? '' : reasonColor(stackTrace),
       ),
     );
 
