@@ -78,9 +78,13 @@ export interface DaemonInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Protocol version — manually bumped when the wire protocol changes.
-// Used for daemon version handshake: if client and daemon versions differ,
-// the daemon shuts down so a new one matching the client can be spawned.
+// Protocol version — bump this when message types or fields change.
+//
+// The daemon is a long-lived detached process. After a CLI upgrade, the new
+// CLI may connect to an old daemon still running from before the upgrade.
+// On connect, client and daemon exchange versions. If they differ, the old
+// daemon shuts itself down so the client can spawn a fresh one that speaks
+// the same protocol.
 // ---------------------------------------------------------------------------
 
 export const PROTOCOL_VERSION = '1';
