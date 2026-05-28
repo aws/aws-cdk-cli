@@ -501,7 +501,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nock: "npm:13"
     nx: "npm:^22.7.2"
-    p-limit: "npm:^3"
+    p-limit: "npm:^4"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.68"
@@ -7783,7 +7783,7 @@ __metadata:
     nock: "npm:13"
     node-backpack: "npm:^1.1.34"
     nx: "npm:^22.7.2"
-    p-limit: "npm:^3"
+    p-limit: "npm:^4"
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.4"
     prettier: "npm:^2.8"
@@ -15022,12 +15022,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"p-limit@npm:^3, p-limit@npm:^3.0.2, p-limit@npm:^3.1.0":
+"p-limit@npm:^3.0.2, p-limit@npm:^3.1.0":
   version: 3.1.0
   resolution: "p-limit@npm:3.1.0"
   dependencies:
     yocto-queue: "npm:^0.1.0"
   checksum: 10c0/9db675949dbdc9c3763c89e748d0ef8bdad0afbb24d49ceaf4c46c02c77d30db4e0652ed36d0a0a7a95154335fab810d95c86153105bb73b3a90448e2bb14e1a
+  languageName: node
+  linkType: hard
+
+"p-limit@npm:^4":
+  version: 4.0.0
+  resolution: "p-limit@npm:4.0.0"
+  dependencies:
+    yocto-queue: "npm:^1.0.0"
+  checksum: 10c0/a56af34a77f8df2ff61ddfb29431044557fcbcb7642d5a3233143ebba805fc7306ac1d448de724352861cb99de934bc9ab74f0d16fe6a5460bdbdf938de875ad
   languageName: node
   linkType: hard
 
@@ -18687,6 +18696,13 @@ __metadata:
   version: 0.1.0
   resolution: "yocto-queue@npm:0.1.0"
   checksum: 10c0/dceb44c28578b31641e13695d200d34ec4ab3966a5729814d5445b194933c096b7ced71494ce53a0e8820685d1d010df8b2422e5bf2cdea7e469d97ffbea306f
+  languageName: node
+  linkType: hard
+
+"yocto-queue@npm:^1.0.0":
+  version: 1.2.2
+  resolution: "yocto-queue@npm:1.2.2"
+  checksum: 10c0/36d4793e9cf7060f9da543baf67c55e354f4862c8d3d34de1a1b1d7c382d44171315cc54abf84d8900b8113d742b830108a1434f4898fb244f9b7e8426d4b8f5
   languageName: node
   linkType: hard
 
