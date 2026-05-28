@@ -28,8 +28,6 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
 
   private readonly printable = new Array<StackActivity>();
 
-  private hasProvisionalFailures = false;
-
   constructor(props: ActivityPrinterProps) {
     super(props);
   }
@@ -52,6 +50,10 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
         this.printOne(failure, false);
       }
     }
+
+    if (this.failures.some((f) => this.isProvisionalFailure(f))) {
+      this.stream.write(chalk.yellow('\n ⚠️  Some resources failed to delete but were skipped. These resources may still exist and could incur charges. Clean them up manually.\n'));
+    }
   }
 
   protected print() {
@@ -66,13 +68,7 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
   private printOne(activity: StackActivity, progress?: boolean) {
     const event = activity.event;
     const provisional = this.isProvisionalFailure(activity);
-    if (provisional) {
-      this.hasProvisionalFailures = true;
-    }
-    const statusWidth = this.hasProvisionalFailures
-      ? HistoryActivityPrinter.EXPANDED_STATUS_WIDTH
-      : HistoryActivityPrinter.STATUS_WIDTH;
-    const color = provisional ? chalk.dim : colorFromStatusResult(event.ResourceStatus);
+    const color = provisional ? chalk.yellow : colorFromStatusResult(event.ResourceStatus);
     let reasonColor = chalk.cyan;
 
     let stackTrace = '';
@@ -91,8 +87,8 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
     const resourceName = metadata ? metadata.constructPath : event.LogicalResourceId || '';
     const logicalId = resourceName !== event.LogicalResourceId ? `(${event.LogicalResourceId}) ` : '';
     const statusText = provisional
-      ? `${(event.ResourceStatus || '').slice(0, statusWidth)} (provisional)`
-      : (event.ResourceStatus || '').slice(0, statusWidth);
+      ? `${(event.ResourceStatus || '').slice(0, HistoryActivityPrinter.STATUS_WIDTH)} (skipped)`
+      : (event.ResourceStatus || '').slice(0, HistoryActivityPrinter.STATUS_WIDTH);
 
     this.stream.write(
       util.format(
@@ -100,11 +96,11 @@ export class HistoryActivityPrinter extends ActivityPrinterBase {
         event.StackName,
         progress !== false ? `${activity.progress.formatted} | ` : '',
         new Date(event.Timestamp!).toLocaleTimeString(),
-        color(padRight(statusWidth, statusText)),
+        color(padRight(HistoryActivityPrinter.STATUS_WIDTH, statusText)),
         padRight(this.resourceTypeColumnWidth, event.ResourceType || ''),
         color(chalk.bold(resourceName)),
         logicalId,
-        provisional ? '' : reasonColor(chalk.bold(event.ResourceStatusReason ? event.ResourceStatusReason : '')),
+        provisional ? '(this will take a few minutes to recover)' : reasonColor(chalk.bold(event.ResourceStatusReason ? event.ResourceStatusReason : '')),
         provisional ? '' : reasonColor(stackTrace),
       ),
     );

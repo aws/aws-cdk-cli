@@ -40,7 +40,7 @@ test('prints "IN_PROGRESS" ResourceStatus', () => {
   });
 
   expect(output.map(x => x.trim())).toEqual([
-    `stack-name | 0/4 | ${HUMAN_TIME} | ${chalk.reset('CREATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
+    `stack-name | 0/4 | ${HUMAN_TIME} | ${chalk.reset('CREATE_IN_PROGRESS     ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
   ]);
 });
 
@@ -89,14 +89,14 @@ test('prints "Failed Resources:" list, when at least one deployment fails', () =
   });
 
   expect(output.map(x => x.trim())).toEqual([
-    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
-    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
+    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS     ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
+    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED          ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
     'Failed resources:',
-    `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
+    `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED          ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))}`,
   ]);
 });
 
-test('DELETE_FAILED during stack update is shown as provisional in dim, without reason or stack trace', () => {
+test('DELETE_FAILED during stack update is shown as skipped in yellow, with recovery note', () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     stream: process.stderr,
   });
@@ -129,16 +129,18 @@ test('DELETE_FAILED during stack update is shown as provisional in dim, without 
     historyActivityPrinter.stop();
   });
 
-  // Should show "(provisional)", no reason, no stack trace, no "Failed resources:" section
+  // Should show "(skipped)", recovery note, cleanup warning, no reason, no stack trace, no "Failed resources:" section
   const joined = output.join('\n');
-  expect(joined).toContain('DELETE_FAILED (provisional)');
+  expect(joined).toContain('DELETE_FAILED (skipped)');
+  expect(joined).toContain('(this will take a few minutes to recover)');
+  expect(joined).toContain('failed to delete but were skipped');
   expect(joined).not.toContain('Resource cannot be deleted');
   expect(joined).not.toContain('line1');
   expect(joined).not.toContain('line2');
   expect(joined).not.toContain('Failed resources:');
 });
 
-test('DELETE_FAILED during stack create is shown normally in red with reason and stack trace', () => {
+test('DELETE_FAILED during stack create is shown in red with reason and stack trace', () => {
   const historyActivityPrinter = new HistoryActivityPrinter({
     stream: process.stderr,
   });
@@ -174,7 +176,7 @@ test('DELETE_FAILED during stack create is shown normally in red with reason and
   const joined = output.join('\n');
   expect(joined).toContain('Resource cannot be deleted');
   expect(joined).toContain('line1');
-  expect(joined).not.toContain('(provisional)');
+  expect(joined).not.toContain('(skipped)');
   expect(joined).toContain('Failed resources:');
 });
 
@@ -227,9 +229,9 @@ test('print failed resources because of hook failures', () => {
   });
 
   expect(output.map(x => x.trim())).toEqual([
-    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS  ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
-    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
+    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.reset('UPDATE_IN_PROGRESS     ')} | AWS::CloudFormation::Stack | ${chalk.reset(chalk.bold('stack1'))}`,
+    `stack-name | 0/2 | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED          ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
     'Failed resources:',
-    `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED       ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
+    `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED          ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
   ]);
 });

@@ -17,8 +17,7 @@ export interface ActivityPrinterProps {
 
 export abstract class ActivityPrinterBase implements IActivityPrinter {
   protected static readonly TIMESTAMP_WIDTH = 12;
-  protected static readonly STATUS_WIDTH = 20;
-  protected static readonly EXPANDED_STATUS_WIDTH = 27;
+  protected static readonly STATUS_WIDTH = 23;
 
   /**
    * Stream to write to
@@ -74,6 +73,11 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
 
   public start({ stack }: { stack: CloudFormationStackArtifact }) {
     this.resourceTypeColumnWidth = maxResourceTypeLength(stack.template);
+    this.resourcesInProgress = {};
+    this.stackProgress = undefined;
+    this.rollingBack = false;
+    this.failures.length = 0;
+    this.hookFailureMap.clear();
   }
 
   public activity(activity: StackActivity) {
@@ -156,9 +160,8 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
   }
 
   /**
-   * During a stack update, DELETE_FAILED events are provisional: CloudFormation
-   * will eventually skip them and complete the update. We display these with
-   * reduced urgency so users don't assume the deployment has failed.
+   * During a stack update, DELETE_FAILED events are skippable: CloudFormation
+   * will eventually skip them and complete the update.
    */
   protected isProvisionalFailure(activity: StackActivity): boolean {
     return this.isStackUpdate && activity.event.ResourceStatus === 'DELETE_FAILED';
