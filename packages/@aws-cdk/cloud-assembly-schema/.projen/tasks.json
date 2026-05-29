@@ -150,8 +150,7 @@
       "description": "Creates the distribution package",
       "steps": [
         {
-          "spawn": "package:js",
-          "condition": "node -e \"if (!process.env.CI) process.exit(1)\""
+          "spawn": "package:js"
         }
       ]
     },
