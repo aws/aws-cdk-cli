@@ -39,6 +39,7 @@ describe('connectToDaemon', () => {
       ...jest.requireActual('../../lib/protocol'),
       PROTOCOL_VERSION: 'wrong-version',
     }));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { connectToDaemon: connectWithWrongVersion } = require('../../lib/daemon/connect');
 
     await expect(connectWithWrongVersion(TEST_PROJECT)).rejects.toThrow('protocol version mismatch');

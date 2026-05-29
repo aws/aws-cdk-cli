@@ -69,12 +69,14 @@ describe('DaemonServer', () => {
   });
 
   afterEach(async () => {
-    if (server) {
-      await server.stop();
-    }
     try {
-      fs.unlinkSync(socketPath);
-    } catch {
+      await server?.stop();
+    } finally {
+      try {
+        fs.unlinkSync(socketPath);
+      } catch {
+        // Should already be removed by stop(), if it succeeded
+      }
     }
   });
 
