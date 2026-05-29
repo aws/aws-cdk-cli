@@ -31,12 +31,17 @@ describe('connectToDaemon', () => {
     return server.start();
   }
 
-  test('connects and completes handshake', async () => {
+  test('rejects connection on protocol version mismatch', async () => {
     await startServer();
-    connection = await connectToDaemon(TEST_PROJECT);
-    expect(connection).toBeDefined();
-    expect(typeof connection.send).toBe('function');
-    expect(typeof connection.close).toBe('function');
+
+    jest.resetModules();
+    jest.doMock('../../lib/protocol', () => ({
+      ...jest.requireActual('../../lib/protocol'),
+      PROTOCOL_VERSION: 'wrong-version',
+    }));
+    const { connectToDaemon: connectWithWrongVersion } = require('../../lib/daemon/connect');
+
+    await expect(connectWithWrongVersion(TEST_PROJECT)).rejects.toThrow('protocol version mismatch');
   });
 
   test('receives messages via async iterable', async () => {
@@ -65,17 +70,6 @@ describe('connectToDaemon', () => {
 
     const result = await iterator.next();
     expect(result.done).toBe(true);
-  });
-
-  test('throws on version mismatch', async () => {
-    await startServer();
-
-    // Monkey-patch PROTOCOL_VERSION for this test is tricky,
-    // so instead we verify that connecting to a healthy server works.
-    // The version mismatch path is tested via the server test suite.
-    // Here we verify the error message format when connection fails entirely.
-    const badProject = '/tmp/no-daemon-here-' + Date.now();
-    await expect(connectToDaemon(badProject)).rejects.toThrow();
   });
 
   test('send after close does not throw', async () => {
