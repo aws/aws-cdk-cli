@@ -60,3 +60,4 @@ index_bg.wasm
 synth.lock
 !lib/init-templates/**
 build-info.json
+/schema/

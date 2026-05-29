@@ -9,6 +9,7 @@
 !/lib/
 !/lib/**/*.js
 !/lib/**/*.d.ts
+!/schema/
 dist
 /tsconfig.json
 /.github/

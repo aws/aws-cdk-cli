@@ -6,6 +6,7 @@ import { Context, PROJECT_CONTEXT } from '../api/context';
 import { Settings } from '../api/settings';
 import type { Tag } from '../api/tags';
 import type { IoHelper } from '../api-private';
+import { validateConfigurationFile } from './validate-config';
 
 export const PROJECT_CONFIG = 'cdk.json';
 export { PROJECT_CONTEXT } from '../api/context';
@@ -149,6 +150,11 @@ export class Configuration {
     const userConfig = await loadAndLog(this.ioHelper, USER_DEFAULTS);
     this._projectConfig = await loadAndLog(this.ioHelper, PROJECT_CONFIG);
     this._projectContext = await loadAndLog(this.ioHelper, PROJECT_CONTEXT);
+
+    // Validate project config against schema (warn-only, never blocks)
+    if (!this._projectConfig.empty) {
+      await validateConfigurationFile(this._projectConfig.all, this.ioHelper);
+    }
 
     if (userConfig.get(['build'])) {
       throw new ToolkitError(
