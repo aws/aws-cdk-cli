@@ -31,6 +31,13 @@ export interface StackMonitoringControlEvent {
    * Only use for informational purposes and handle the case when it's unavailable.
    */
   readonly resourcesTotal?: number;
+
+  /**
+   * Whether this deployment is an update to an existing stack (as opposed to a creation).
+   *
+   * @default false
+   */
+  readonly isStackUpdate?: boolean;
 }
 
 export interface StackActivity {

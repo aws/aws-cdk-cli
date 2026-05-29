@@ -661,6 +661,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       changeSetCreationTime: startTime,
       envResources: this.options.envResources,
+      isStackUpdate: this.update,
     });
     await monitor.start();
 
