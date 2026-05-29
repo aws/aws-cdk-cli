@@ -25,7 +25,10 @@ export async function connectToDaemon(projectDir: string): Promise<DaemonConnect
 
 async function connectSocket(socketPath: string): Promise<net.Socket> {
   return new Promise((resolve, reject) => {
-    const socket = net.connect(socketPath, () => resolve(socket));
+    const socket = net.connect(socketPath, () => {
+      socket.removeListener('error', reject);
+      resolve(socket);
+    });
     socket.on('error', reject);
   });
 }

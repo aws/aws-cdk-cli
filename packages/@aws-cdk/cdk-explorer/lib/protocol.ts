@@ -11,7 +11,6 @@
 
 export interface RequestSynthMessage {
   readonly type: 'requestSynth';
-  readonly triggerFile: string;
 }
 
 export interface SubscribeMessage {

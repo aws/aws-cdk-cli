@@ -80,7 +80,7 @@ describe('DaemonServer', () => {
     }
   });
 
-  function createServer(options?: { onSynth?: (t: string) => Promise<void>; idleTimeoutMs?: number }) {
+  function createServer(options?: { onSynth?: () => Promise<void>; idleTimeoutMs?: number }) {
     server = new DaemonServer({
       socketPath,
       projectDir,
@@ -172,7 +172,7 @@ describe('DaemonServer', () => {
     await waitForMessage(socket);
 
     sendMessage(socket, { type: 'subscribe' });
-    sendMessage(socket, { type: 'requestSynth', triggerFile: 'test.ts' });
+    sendMessage(socket, { type: 'requestSynth' });
 
     // Resolve the synth
     synthResolve!();
@@ -190,7 +190,7 @@ describe('DaemonServer', () => {
     await waitForMessage(socket);
 
     sendMessage(socket, { type: 'subscribe' });
-    sendMessage(socket, { type: 'requestSynth', triggerFile: 'test.ts' });
+    sendMessage(socket, { type: 'requestSynth' });
 
     const msg = await waitForMessage(socket);
     expect(msg.type).toBe('synthFailed');
@@ -215,12 +215,12 @@ describe('DaemonServer', () => {
     sendMessage(socket, { type: 'subscribe' });
 
     // First request starts synth
-    sendMessage(socket, { type: 'requestSynth', triggerFile: 'a.ts' });
+    sendMessage(socket, { type: 'requestSynth' });
     await new Promise((r) => setTimeout(r, 20));
     expect(synthCount).toBe(1);
 
     // Second request while first is running → queued
-    sendMessage(socket, { type: 'requestSynth', triggerFile: 'b.ts' });
+    sendMessage(socket, { type: 'requestSynth' });
     await new Promise((r) => setTimeout(r, 20));
     expect(synthCount).toBe(1);
 
@@ -258,7 +258,7 @@ describe('DaemonServer', () => {
     // Give the event loop time to process subscribes
     await new Promise((r) => setTimeout(r, 20));
 
-    sendMessage(socket1, { type: 'requestSynth', triggerFile: 'x.ts' });
+    sendMessage(socket1, { type: 'requestSynth' });
 
     // Give time for requestSynth to be processed, then resolve
     await new Promise((r) => setTimeout(r, 20));
@@ -332,7 +332,7 @@ describe('DaemonServer', () => {
     sendMessage(socket, { type: 'handshake', version: PROTOCOL_VERSION });
     await waitForMessage(socket);
     sendMessage(socket, { type: 'subscribe' });
-    sendMessage(socket, { type: 'requestSynth', triggerFile: 'hang.ts' });
+    sendMessage(socket, { type: 'requestSynth' });
 
     const msg = await waitForMessage(socket);
     expect(msg.type).toBe('synthFailed');

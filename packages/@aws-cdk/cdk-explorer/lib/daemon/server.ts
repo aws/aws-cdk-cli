@@ -19,7 +19,7 @@ export interface DaemonServerOptions {
   readonly socketPath: string;
   readonly projectDir: string;
   readonly logFile: string;
-  readonly onSynth: (triggerFile: string) => Promise<void>;
+  readonly onSynth: () => Promise<void>;
   readonly idleTimeoutMs?: number;
   readonly synthTimeoutMs?: number;
 }
@@ -28,7 +28,7 @@ export class DaemonServer {
   private readonly socketPath: string;
   private readonly projectDir: string;
   private readonly logFile: string;
-  private readonly onSynth: (triggerFile: string) => Promise<void>;
+  private readonly onSynth: () => Promise<void>;
   private readonly idleTimeoutMs: number;
   private readonly synthTimeoutMs: number;
   private readonly latch = new SynthLatch();
@@ -37,7 +37,7 @@ export class DaemonServer {
   private server: net.Server | undefined;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private synthTimer: ReturnType<typeof setTimeout> | undefined;
-  private pendingTriggerFile: string | undefined;
+  private synthGeneration = 0;
   private shuttingDown = false;
 
   constructor(options: DaemonServerOptions) {
@@ -136,7 +136,7 @@ export class DaemonServer {
         this.handleSubscribe(socket);
         break;
       case 'requestSynth':
-        this.handleRequestSynth(msg.triggerFile);
+        this.handleRequestSynth();
         break;
       case 'shutdown':
         void this.stop();
@@ -162,30 +162,30 @@ export class DaemonServer {
     this.clearIdleTimer();
   }
 
-  private handleRequestSynth(triggerFile: string): void {
+  private handleRequestSynth(): void {
     const { shouldStartSynth } = this.latch.requestSynth();
     if (shouldStartSynth) {
-      this.runSynth(triggerFile);
-    } else {
-      this.pendingTriggerFile = triggerFile;
+      this.runSynth();
     }
   }
 
-  private runSynth(triggerFile: string): void {
+  private runSynth(): void {
+    const generation = ++this.synthGeneration;
+
     this.synthTimer = setTimeout(() => {
-      this.onSynthSettled(new Error(`Synth timed out after ${this.synthTimeoutMs}ms`));
+      this.onSynthSettled(generation, new Error(`Synth timed out after ${this.synthTimeoutMs}ms`));
     }, this.synthTimeoutMs);
 
     Promise.resolve()
-      .then(() => this.onSynth(triggerFile))
+      .then(() => this.onSynth())
       .then(
-        () => this.onSynthSettled(undefined),
-        (err) => this.onSynthSettled(err),
+        () => this.onSynthSettled(generation, undefined),
+        (err) => this.onSynthSettled(generation, err),
       );
   }
 
-  private onSynthSettled(error: unknown): void {
-    if (this.latch.state === 'idle') return; // guard: already settled (e.g. timeout after completion)
+  private onSynthSettled(generation: number, error: unknown): void {
+    if (generation !== this.synthGeneration) return;
 
     if (this.synthTimer !== undefined) {
       clearTimeout(this.synthTimer);
@@ -203,8 +203,7 @@ export class DaemonServer {
 
     const { shouldStartSynth } = this.latch.synthComplete();
     if (shouldStartSynth) {
-      this.runSynth(this.pendingTriggerFile ?? '');
-      this.pendingTriggerFile = undefined;
+      this.runSynth();
     } else if (this.subscribers.size === 0) {
       this.resetIdleTimer();
     }

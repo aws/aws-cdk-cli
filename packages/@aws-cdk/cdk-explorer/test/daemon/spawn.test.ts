@@ -79,7 +79,7 @@ describe('acquireDaemon', () => {
     connections.push(conn);
 
     conn.send({ type: 'subscribe' });
-    conn.send({ type: 'requestSynth', triggerFile: 'test.ts' });
+    conn.send({ type: 'requestSynth' });
 
     const iterator = conn.messages[Symbol.asyncIterator]();
     const result = await iterator.next();

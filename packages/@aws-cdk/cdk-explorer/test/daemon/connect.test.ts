@@ -19,7 +19,7 @@ describe('connectToDaemon', () => {
     }
   });
 
-  function startServer(options?: { onSynth?: (t: string) => Promise<void> }) {
+  function startServer(options?: { onSynth?: () => Promise<void> }) {
     const socketPath = socketPathForProject(TEST_PROJECT);
     server = new DaemonServer({
       socketPath,
@@ -50,7 +50,7 @@ describe('connectToDaemon', () => {
     connection = await connectToDaemon(TEST_PROJECT);
 
     connection.send({ type: 'subscribe' });
-    connection.send({ type: 'requestSynth', triggerFile: 'test.ts' });
+    connection.send({ type: 'requestSynth' });
 
     const iterator = connection.messages[Symbol.asyncIterator]();
     const result = await iterator.next();
@@ -87,7 +87,7 @@ describe('connectToDaemon', () => {
     connection = await connectToDaemon(TEST_PROJECT);
 
     connection.send({ type: 'subscribe' });
-    connection.send({ type: 'requestSynth', triggerFile: 'fail.ts' });
+    connection.send({ type: 'requestSynth' });
 
     const iterator = connection.messages[Symbol.asyncIterator]();
     const result = await iterator.next();
@@ -108,14 +108,14 @@ describe('connectToDaemon', () => {
     connection = await connectToDaemon(TEST_PROJECT);
 
     connection.send({ type: 'subscribe' });
-    connection.send({ type: 'requestSynth', triggerFile: 'a.ts' });
+    connection.send({ type: 'requestSynth' });
 
     // Wait for synth to start
     await new Promise((r) => setTimeout(r, 20));
     expect(synthCount).toBe(1);
 
     // Queue another
-    connection.send({ type: 'requestSynth', triggerFile: 'b.ts' });
+    connection.send({ type: 'requestSynth' });
 
     // Complete first
     resolvers[0]();

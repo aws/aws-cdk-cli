@@ -144,16 +144,19 @@ async function spawnDaemon(projectDir: string): Promise<void> {
   const logPath = logPathForProject(projectDir);
   const logFd = fs.openSync(logPath, 'a');
 
-  const child = child_process.spawn(
-    process.execPath,
-    [entryPath, '--project-dir', projectDir],
-    {
-      detached: true,
-      stdio: ['ignore', logFd, logFd],
-    },
-  );
-  child.unref();
-  fs.closeSync(logFd);
+  try {
+    const child = child_process.spawn(
+      process.execPath,
+      [entryPath, '--project-dir', projectDir],
+      {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+      },
+    );
+    child.unref();
+  } finally {
+    fs.closeSync(logFd);
+  }
 
   await waitForSocket(projectDir);
 }

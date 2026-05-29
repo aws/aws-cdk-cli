@@ -41,7 +41,7 @@ function parseProjectDir(): string {
   return args[idx + 1];
 }
 
-async function stubSynth(_triggerFile: string): Promise<void> {
+async function stubSynth(): Promise<void> {
 }
 
 main();
