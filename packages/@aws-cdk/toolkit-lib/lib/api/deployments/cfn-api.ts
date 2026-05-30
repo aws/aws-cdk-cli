@@ -438,11 +438,7 @@ export async function createValidationChangeSet(
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider'>,
 ): Promise<ChangeSetReport> {
   const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
-  const changeSetName = 'cdk-validate-change-set';
-
-  if (exists) {
-    await cleanupOldChangeset(cfn, ioHelper, changeSetName, options.stack.stackName);
-  }
+  const changeSetName = `cdk-validate-${options.uuid}`;
 
   const templateParams = TemplateParameters.fromTemplate(options.stack.template);
   const stackParams = templateParams.supplyAll(options.parameters);
