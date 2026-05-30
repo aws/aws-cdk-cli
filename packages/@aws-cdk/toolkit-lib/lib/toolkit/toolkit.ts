@@ -745,14 +745,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
         }
       } catch (e: any) {
-        violations.push({
-          ruleName: 'CloudFormationValidation',
-          description: e.message,
-          severity: 'fatal',
-          violatingConstructs: [{
-            constructPath: stack.hierarchicalId,
-          }],
-        });
+        await ioHelper.notify(IO.CDK_TOOLKIT_W9602.msg(`Online validation could not be completed for stack '${stack.hierarchicalId}': ${e.message}`));
       }
     }
 

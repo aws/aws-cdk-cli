@@ -225,17 +225,20 @@ describe('validate --online', () => {
     expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
   });
 
-  test('reports thrown errors as violations', async () => {
+  test('emits warning when online validation throws instead of reporting violation', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
-      new Error('Template format error: Unrecognized resource types: [AWS::Fake::DoesNotExist]'),
+      new Error('Access denied'),
     );
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx, { online: true });
 
-    expect(result.conclusion).toBe('failure');
-    expect(result.pluginReports).toHaveLength(1);
-    expect(result.pluginReports[0].pluginName).toBe('CloudFormation');
-    expect(result.pluginReports[0].violations[0].description).toContain('Unrecognized resource types');
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warn',
+      code: 'CDK_TOOLKIT_W9602',
+      message: expect.stringContaining('Access denied'),
+    }));
   });
 });
