@@ -8,7 +8,7 @@ Proposed
 
 ## Context
 
-Multiple processes observe the same CDK project simultaneously: an editor LSP and a `cdk explore` web server. Each needs a consistent, fresh view of `cdk.out/` after file saves. Synthesis is not instantaneous for real apps.
+An editor LSP and a `cdk explore` web server may observe the same CDK project simultaneously. Both need a consistent, fresh view of `cdk.out/` after file saves, and synthesis is not instantaneous.
 
 Without coordination, three problems emerge:
 
@@ -22,11 +22,11 @@ Without coordination, three problems emerge:
 
 Processes compete for a write lock. Winner synthesizes, losers wait and read. This solves torn reads (#1) but creates a dilemma for #2 and #3:
 
-- *If losers synth unconditionally after acquiring the lock ("optimistic flock"):* Rapid saves produce unbounded back-to-back synths. With 3 clients and frequent saves, the system may spend near 100% of wall-clock time synthesizing.
+- *If losers synth unconditionally after acquiring the lock ("optimistic flock"):* Rapid saves produce unbounded back-to-back synths. With 3 clients and frequent saves, the system may spend near 100% of wall-clock time synthesizing. Only the last client to finish has fresh data, the others are already stale by the time they complete.
 
 ![Optimistic Flock](optimistic-flock.png)
 
-- *If losers skip synth and just read ("pessimistic flock"):* A save that occurred during the winner's synth is lost. `cdk.out/` reflects T1, not T2. Clients show stale data with no mechanism to detect it.
+- *If losers skip synth and just read ("pessimistic flock"):* A save that occurred during the winner's synth is lost. `cdk.out/` reflects T1, not T2. All clients may show stale data with no mechanism to detect it.
 
 ![Pessimistic Flock](pessimistic-flock.png)
 
@@ -46,17 +46,17 @@ A per-project daemon coordinates background synthesis.
 
 Coalesces all requests that arrive during a synth into one re-synth afterward (queue-of-one latch). At most one synth is in-flight and one is pending, regardless of how many saves or clients arrive. The daemon guarantees convergence to the latest source state without unbounded synth cost. For an LSP, freshness is critical — stale diagnostics are worse than no diagnostics.
 
-All connected clients receive a `synthComplete`/`synthFailed` broadcast when synthesis finishes. No polling, no `fs.watch` race.
+All connected clients receive a `synthComplete`/`synthFailed` broadcast when synthesis finishes.
 
 **What it does NOT do:**
 
-- Does not replace `cdk synth` or `cdk deploy`. Interactive CLI commands never go through the daemon — they are too critical to depend on another process.
-- Does not watch files. Clients decide when to request synth (LSP uses `didSave`, web server uses chokidar). The daemon is policy-free.
+- Does not replace `cdk synth` or `cdk deploy`. Interactive CLI commands never go through the daemon, they are too critical to depend on another process.
+- Does not watch files. Clients decide when to request synth (LSP uses `didSave`, web server uses chokidar).
 
 **Why now, not later:**
 
 - Multi-client is a day-1 use case: the editor LSP and `cdk explore` web server both need synth coordination from the start.
-- An LSP with stale data is useless — freshness must be solved before building features on top.
+- An LSP with stale data is essentially useless, freshness must be solved before building features on top.
 - Unbounded synth cost from uncoordinated clients is unacceptable for a tool meant to run in the background.
 
 **Lifecycle:**
@@ -76,7 +76,7 @@ The daemon implements `IIoHost` from `@aws-cdk/toolkit-lib`. All CDK app output 
 
 **Terminal attachment (TTY):**
 
-Not a concern. The CDK app is always spawned with piped stdio by `execInChildProcess` in toolkit-lib — `process.stdout.isTTY` is `false` regardless of whether the caller is the CLI, CI, or the daemon. The daemon does not change the app's TTY status.
+Not a concern. The CDK app is always spawned with piped stdio by `execInChildProcess` in toolkit-lib, so `process.stdout.isTTY` is `false` regardless of whether the caller is the CLI, CI, or the daemon. The daemon does not change the app's TTY status.
 
 **Failure modes:**
 
