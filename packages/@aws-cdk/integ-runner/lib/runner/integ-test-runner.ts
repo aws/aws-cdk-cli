@@ -94,6 +94,16 @@ export interface RunOptions extends CommonOptions {
    * @default - use the bootstrap cfn-exec role
    */
   readonly roleArn?: string;
+
+  /**
+   * Whether to allow resources that fail to delete during a stack update.
+   *
+   * When false, the test will fail if CloudFormation skips deleting a resource
+   * during a stack update. When true, only a warning is printed.
+   *
+   * @default false
+   */
+  readonly allowDeleteFailures?: boolean;
 }
 
 /**
@@ -249,6 +259,7 @@ export class IntegTestRunner extends IntegRunner {
     const clean = options.clean ?? true;
     const updateWorkflowEnabled = (options.updateWorkflow ?? true)
       && (actualTestCase.stackUpdateWorkflow ?? true);
+    const allowDeleteFailures = actualTestCase.allowDeleteFailures ?? options.allowDeleteFailures ?? false;
     const enableForVerbosityLevel = (needed = 1) => {
       const verbosity = options.verbosity ?? 0;
       return (verbosity >= needed) ? true : undefined;
@@ -267,6 +278,7 @@ export class IntegTestRunner extends IntegRunner {
           },
           updateWorkflowEnabled,
           options.testCaseName,
+          allowDeleteFailures,
         );
       }
 
@@ -478,6 +490,7 @@ export class IntegTestRunner extends IntegRunner {
     deployArgs: cdk.DeployOptions,
     updateWorkflowEnabled: boolean,
     testCaseName: string,
+    allowDeleteFailures: boolean,
   ): Promise<AssertionResults | undefined> {
     const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
     try {
@@ -510,7 +523,8 @@ export class IntegTestRunner extends IntegRunner {
         });
       }
       // now deploy the "actual" test.
-      await this.cdk.deploy({
+      // This is the stack update if the update workflow ran above.
+      const actualDeployResult = await this.cdk.deploy({
         ...deployArgs,
         lookups: (await this.actualTestSuite()).enableLookups,
         stacks: [
@@ -521,6 +535,20 @@ export class IntegTestRunner extends IntegRunner {
         context: this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
         app: this.cdkApp,
       });
+
+      if (actualDeployResult.deleteFailures.length > 0) {
+        const details = actualDeployResult.deleteFailures
+          .map(f => `  - ${f.logicalResourceId} (${f.resourceType}): ${f.reason}`)
+          .join('\n');
+        const message =
+          `${actualDeployResult.deleteFailures.length} resource(s) failed to delete during stack update:\n${details}\n` +
+          'These resources are no longer managed by CloudFormation but still exist and may incur charges.';
+        if (allowDeleteFailures) {
+          logger.warning(message);
+        } else {
+          throw new Error(message);
+        }
+      }
 
       // If there are any assertions
       // deploy the assertion stack as well

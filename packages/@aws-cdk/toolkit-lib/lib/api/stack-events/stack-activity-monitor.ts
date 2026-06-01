@@ -154,6 +154,14 @@ export class StackActivityMonitor {
     return this.poller.errors;
   }
 
+  /**
+   * Resources that received DELETE_FAILED during the stack update.
+   * CloudFormation skips these and completes the update anyway.
+   */
+  public get deleteFailures() {
+    return this.poller.deleteFailures;
+  }
+
   public async start() {
     this.monitorId = randomUUID();
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
