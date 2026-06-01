@@ -458,23 +458,26 @@ export async function createValidationChangeSet(
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
   });
 
-  const report = await waitForChangeSetReport(
-    cfn, ioHelper,
-    changeSet.StackId ?? options.stack.stackName,
-    changeSet.Id ?? changeSetName,
-    { fetchAll: false, diagnoser },
-  );
+  try {
+    const report = await waitForChangeSetReport(
+      cfn, ioHelper,
+      changeSet.StackId ?? options.stack.stackName,
+      changeSet.Id ?? changeSetName,
+      { fetchAll: false, diagnoser },
+    );
 
-  await cleanupOldChangeset(cfn, ioHelper, changeSet.Id ?? changeSetName, changeSet.StackId ?? options.stack.stackName);
+    return report;
+  } finally {
+    await cleanupOldChangeset(cfn, ioHelper, changeSet.Id ?? changeSetName, changeSet.StackId ?? options.stack.stackName)
+      .catch((e) => ioHelper.defaults.warn(`Failed to clean up validation change set: ${e}`));
 
-  if (!exists) {
-    await cfn.deleteStack({
-      StackName: changeSet.StackId ?? options.stack.stackName,
-      ClientRequestToken: randomUUID(),
-    });
+    if (!exists) {
+      await cfn.deleteStack({
+        StackName: changeSet.StackId ?? options.stack.stackName,
+        ClientRequestToken: randomUUID(),
+      }).catch((e) => ioHelper.defaults.warn(`Failed to clean up REVIEW_IN_PROGRESS stack: ${e}`));
+    }
   }
-
-  return report;
 }
 
 function toCfnTags(tags: { [id: string]: string }): Tag[] {
