@@ -157,7 +157,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@aws-cdk/cdk-explorer@workspace:packages/@aws-cdk/cdk-explorer":
+"@aws-cdk/cdk-explorer@npm:^0.0.0, @aws-cdk/cdk-explorer@workspace:packages/@aws-cdk/cdk-explorer":
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cdk-explorer@workspace:packages/@aws-cdk/cdk-explorer"
   dependencies:
@@ -7840,6 +7840,7 @@ __metadata:
   resolution: "aws-cdk@workspace:packages/aws-cdk"
   dependencies:
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
+    "@aws-cdk/cdk-explorer": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
