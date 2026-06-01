@@ -691,6 +691,63 @@ describe('IntegTest runIntegTests', () => {
     }));
     expect(fs.readJSONSync).toHaveBeenCalledWith(fullOutputsPath);
   });
+
+  test('fails when deploy returns deleteFailures', async () => {
+    // GIVEN
+    cdkMock.mockDeploy(jest.fn().mockResolvedValue({
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+    }));
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // THEN
+    await expect(integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    })).rejects.toThrow(/1 resource\(s\) failed to delete during stack update/);
+  });
+
+  test('does not fail when deploy returns deleteFailures with allowDeleteFailures', async () => {
+    // GIVEN
+    cdkMock.mockDeploy(jest.fn().mockResolvedValue({
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+    }));
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // THEN - does not throw
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      allowDeleteFailures: true,
+    });
+  });
 });
 
 describe('IntegTest watchIntegTest', () => {

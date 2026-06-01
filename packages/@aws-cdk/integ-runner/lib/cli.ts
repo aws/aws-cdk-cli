@@ -56,6 +56,7 @@ export function parseCliArgs(args: string[] = []) {
     .option('ca-bundle-path', { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true })
     .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .option('role-arn', { type: 'string', desc: 'ARN of the IAM role for CloudFormation to assume during deploy/destroy', requiresArg: true })
+    .option('allow-delete-failures', { type: 'boolean', default: false, desc: 'Do not fail the test when resources fail to delete during a stack update' })
     .strict()
     .parse(args);
 
@@ -121,6 +122,7 @@ export function parseCliArgs(args: string[] = []) {
     proxy: argv.proxy as (string | undefined),
     caBundlePath: argv['ca-bundle-path'] as (string | undefined),
     roleArn: argv['role-arn'] as (string | undefined),
+    allowDeleteFailures: argv['allow-delete-failures'] as boolean,
   };
 }
 
@@ -203,6 +205,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         proxy: options.proxy,
         caBundlePath: options.caBundlePath,
         roleArn: options.roleArn,
+        allowDeleteFailures: options.allowDeleteFailures,
       });
       testsSucceeded = success;
 

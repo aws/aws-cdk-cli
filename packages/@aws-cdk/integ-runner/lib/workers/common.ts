@@ -189,6 +189,16 @@ export interface IntegTestOptions {
    * @default - use the bootstrap cfn-exec role
    */
   readonly roleArn?: string;
+
+  /**
+   * Whether to allow resources that fail to delete during a stack update.
+   *
+   * When false, the test will fail if CloudFormation skips deleting a resource
+   * during a stack update. When true, only a warning is printed.
+   *
+   * @default false
+   */
+  readonly allowDeleteFailures?: boolean;
 }
 
 /**
