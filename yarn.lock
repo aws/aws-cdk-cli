@@ -2700,20 +2700,18 @@ __metadata:
   linkType: hard
 
 "@aws-sdk/lib-storage@npm:^3":
-  version: 3.1036.0
-  resolution: "@aws-sdk/lib-storage@npm:3.1036.0"
+  version: 3.1058.0
+  resolution: "@aws-sdk/lib-storage@npm:3.1058.0"
   dependencies:
-    "@smithy/middleware-endpoint": "npm:^4.4.32"
-    "@smithy/protocol-http": "npm:^5.3.14"
-    "@smithy/smithy-client": "npm:^4.12.13"
-    "@smithy/types": "npm:^4.14.1"
+    "@smithy/core": "npm:^3.24.5"
+    "@smithy/types": "npm:^4.14.2"
     buffer: "npm:5.6.0"
     events: "npm:3.3.0"
     stream-browserify: "npm:3.0.0"
     tslib: "npm:^2.6.2"
   peerDependencies:
-    "@aws-sdk/client-s3": ^3.1036.0
-  checksum: 10c0/594e9aab63073d7c118e6299e8c9ab2d9da222b6fe26ee5d5a9b94662b51bb3c708deb7150f9714aeda6aecea9c978a83f61e9a4e4ce8ced58278f5cf53d50f6
+    "@aws-sdk/client-s3": ^3.1058.0
+  checksum: 10c0/90d18a0749571b013d0ca8b31150ba055b7bc31939efbf5d0138c615c0bc9147ba5ddcd033c052fda30a134fade6e8101fd16df9c663a61e9f2e6aacec468afb
   languageName: node
   linkType: hard
 
