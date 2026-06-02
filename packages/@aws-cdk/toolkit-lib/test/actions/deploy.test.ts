@@ -105,9 +105,9 @@ IAM Statement Changes
   });
 
   test('request response contains stack diff when there are no security changes', async () => {
-    // WHEN
+    // WHEN — 'any-change' opts in to a prompt even without security changes
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    await toolkit.deploy(cx);
+    await toolkit.deploy(cx, { requireApproval: 'any-change' });
 
     // THEN
     const request = ioHost.requestSpy.mock.calls[0][0].message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
@@ -266,6 +266,69 @@ IAM Statement Changes
 
       // THEN — no deployStack call, prepare was final
       expect(mockDeployStack).toHaveBeenCalledTimes(0);
+    });
+  });
+
+  describe('requireApproval', () => {
+    test("'never' skips the approval prompt even on broadening permission changes", async () => {
+      // WHEN — stack-with-role would normally prompt under the default
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { requireApproval: 'never' });
+
+      // THEN — no I5060 request was emitted
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
+    test("'any-change' prompts even when there are no security changes", async () => {
+      // WHEN — stack-with-bucket has no security-sensitive changes
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, { requireApproval: 'any-change' });
+
+      // THEN — I5060 was still emitted
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+        data: expect.objectContaining({
+          permissionChangeType: 'none',
+        }),
+      }));
+    });
+
+    test("'broadening' (default) does not prompt when there are no security changes", async () => {
+      // WHEN — stack-with-bucket, default requireApproval
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, { requireApproval: 'broadening' });
+
+      // THEN — no I5060 request was emitted
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
+    test("'broadening' prompts on broadening permission changes", async () => {
+      // WHEN — stack-with-role broadens permissions
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { requireApproval: 'broadening' });
+
+      // THEN — I5060 was emitted with broadening permissionChangeType
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+        data: expect.objectContaining({
+          permissionChangeType: 'broadening',
+        }),
+      }));
+    });
+
+    test('default (option omitted) behaves like broadening', async () => {
+      // WHEN — stack-with-bucket, no requireApproval option set
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {});
+
+      // THEN — no I5060 emitted (no security changes), matching 'broadening' default
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
     });
   });
 
