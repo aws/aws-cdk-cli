@@ -10,7 +10,9 @@ import {
   type InitializeParams,
   type InitializeResult,
 } from 'vscode-languageserver/node';
-import { createIgnoreMatcher, WATCH_EXCLUDE_DEFAULTS } from '../toolkit-internals';
+/* eslint-disable import/no-relative-packages */
+import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
+import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
 
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
