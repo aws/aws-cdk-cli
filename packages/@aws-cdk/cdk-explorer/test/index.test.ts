@@ -1,5 +1,5 @@
-import { VERSION } from '../lib';
+import { startServer } from '../lib';
 
-test('package loads', () => {
-  expect(VERSION).toBe('0.0.0');
+test('package exports startServer', () => {
+  expect(typeof startServer).toBe('function');
 });

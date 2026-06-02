@@ -163,6 +163,7 @@ __metadata:
   dependencies:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
+    "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@cdklabs/eslint-plugin": "npm:^2.0.6"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/express": "npm:^4"

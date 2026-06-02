@@ -1671,11 +1671,12 @@ const cdkExplorer = configureProject(
     }),
     parent: repo,
     name: '@aws-cdk/cdk-explorer',
-    description: 'CDK Explorer — LSP server, synth daemon, and web interface for AWS CDK',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
       'vscode-languageserver@^9',
       'vscode-languageserver-textdocument@^1',
       'vscode-jsonrpc@^8',
