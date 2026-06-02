@@ -21,7 +21,7 @@ const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
  * Valid user agent prefixes that are allowed to report through CDK_CLI_USERAGENT.
  * This creates a mechanism to report user agents we control.
  */
-const VALID_USER_AGENTS = ['aws-blocks'] as const;
+const VALID_USER_AGENTS = ['aws-blocks'];
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -260,6 +260,6 @@ export function isValidWrapperUserAgent(value: string | undefined): value is str
   const parts = value.split('/');
   if (parts.length !== 3) return false;
   const [name, _version, mode] = parts;
-  if (!VALID_USER_AGENTS.includes(name as any)) return false;
+  if (!VALID_USER_AGENTS.includes(name)) return false;
   return mode === 'sandbox' || mode === 'production';
 }
