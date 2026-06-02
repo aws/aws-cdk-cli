@@ -125,4 +125,38 @@ describe('LSP Server', () => {
 
     await testClient.connection.sendRequest('shutdown');
   });
+
+  test('didSave is ignored after shutdown', async () => {
+    const synthRequests: string[] = [];
+    testClient = createTestClient({
+      onSynthRequest: (dir) => synthRequests.push(dir),
+    });
+    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+
+    await testClient.connection.sendRequest('shutdown');
+
+    await testClient.connection.sendNotification('textDocument/didSave', {
+      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(synthRequests).toEqual([]);
+  });
+
+  test('onSynthRequest errors are caught gracefully', async () => {
+    testClient = createTestClient({
+      onSynthRequest: () => {
+        throw new Error('synth failed');
+      },
+    });
+    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+
+    await testClient.connection.sendNotification('textDocument/didSave', {
+      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+    });
+
+    // Server should still be responsive after the error
+    await new Promise((r) => setTimeout(r, 50));
+    await testClient.connection.sendRequest('shutdown');
+  });
 });
