@@ -48,6 +48,9 @@
     },
     {
       "path": "../cloud-assembly-api"
+    },
+    {
+      "path": "../toolkit-lib"
     }
   ]
 }
