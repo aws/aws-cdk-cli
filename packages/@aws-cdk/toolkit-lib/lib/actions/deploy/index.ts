@@ -1,15 +1,6 @@
 import type { StackSelector } from '../../api/cloud-assembly';
 import type { Tag } from '../../api/tags';
 
-/**
- * Specifies what changes require manual approval before deploying.
- *
- * - `'never'` — never ask for approval, no diff is shown.
- * - `'any-change'` — ask on every change to the stack.
- * - `'broadening'` — ask only when changes broaden IAM permissions or security group ingress rules.
- */
-export type RequireApproval = 'never' | 'any-change' | 'broadening';
-
 export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | ExecuteChangeSetDeployment | HotswapDeployment;
 
 /**
@@ -212,13 +203,6 @@ export interface BaseDeployOptions {
    * @default false
    */
   readonly traceLogs?: boolean;
-
-  /**
-   * What kind of changes require explicit approval before deploying.
-   *
-   * @default 'broadening'
-   */
-  readonly requireApproval?: RequireApproval;
 }
 
 export interface DeployOptions extends BaseDeployOptions {

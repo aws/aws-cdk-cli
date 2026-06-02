@@ -1,3 +1,4 @@
+import * as util from 'node:util';
 import * as chalk from 'chalk';
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../api/io';
 import { isMessageRelevantForLevel } from '../api/io/private';
@@ -120,12 +121,20 @@ export class NonInteractiveIoHost implements IIoHost {
   /**
    * Notifies the host of a message that requires a response.
    *
-   * If the host does not return a response the suggested
-   * default response from the input message will be used.
+   * The non-interactive IoHost cannot prompt the user, so it always returns
+   * the request's `defaultResponse`. To make this visible, the message is
+   * annotated to indicate the auto-response — same convention as the CLI's
+   * `--yes` mode.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // in the non-interactive IoHost, no requests are promptable
-    await this.notify(msg);
+    const annotation = typeof msg.defaultResponse === 'boolean'
+      ? '(auto-confirmed)'
+      : `(auto-responded with default: ${util.format(msg.defaultResponse)})`;
+
+    await this.notify({
+      ...msg,
+      message: `${msg.message} ${annotation}`,
+    });
     return msg.defaultResponse;
   }
 

@@ -840,8 +840,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // Skip the approval prompt entirely when the prepared change set has no
       // changes — there is nothing for the user to approve. Outputs, stack ARN,
       // and timings are still emitted via the normal no-op deploy path below.
-      const requireApproval = options.requireApproval ?? 'broadening';
-      if (!prepareResult?.noOp && requireApproval !== 'never') {
+      if (!prepareResult?.noOp) {
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
           ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)
@@ -858,32 +857,24 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         const securityDiff = formatter.formatSecurityDiff();
         const stackDiff = formatter.formatStackDiff();
 
-        // 'any-change' always prompts; 'broadening' (default) only prompts on actual permission broadening.
-        const broadens = securityDiff.permissionChangeType === PermissionChangeType.BROADENING;
-        const needsApproval = requireApproval === 'any-change' || broadens;
-
-        if (needsApproval) {
-          // Send a request response with the diff as part of the message,
-          // and the template diff as data
-          // (IoHost decides whether to print depending on permissionChangeType)
-          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
-          const deployMotivation = hasSecurityChanges
-            ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
-            : '"--require-approval" is enabled and stack includes updates.';
-          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
-          const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
-          const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
-            motivation: deployMotivation,
-            concurrency,
-            permissionChangeType: securityDiff.permissionChangeType,
-            templateDiffs: formatter.diffs,
-          }));
-          if (!deployConfirmed) {
-            if (prepareResult?.changeSet?.ChangeSetName) {
-              await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
-            }
-            throw new ToolkitError('DeployAborted', 'Aborted by user');
+        // Send a request response with the diff as part of the message,
+        // and the template diff as data. The IoHost decides how to handle the
+        // request — interactively prompt the user, auto-confirm, or suppress.
+        const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+        const deployMotivation = 'Changes detected.';
+        const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
+        const deployQuestion = `${diffOutput}\n\n${deployMotivation} Do you wish to deploy these changes?`;
+        const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
+          motivation: deployMotivation,
+          concurrency,
+          permissionChangeType: securityDiff.permissionChangeType,
+          templateDiffs: formatter.diffs,
+        }));
+        if (!deployConfirmed) {
+          if (prepareResult?.changeSet?.ChangeSetName) {
+            await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
           }
+          throw new ToolkitError('DeployAborted', 'Aborted by user');
         }
       }
 
