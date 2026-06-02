@@ -2,7 +2,7 @@ import * as http from 'http';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 
-const DEFAULT_PORT = 4200;
+export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
 
 export interface WebServerOptions {

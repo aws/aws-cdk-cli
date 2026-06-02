@@ -1,4 +1,4 @@
-import { startWebServer, type WebServer } from '../../lib/web/server';
+import { startWebServer, DEFAULT_PORT, type WebServer } from '../../lib/web/server';
 
 describe('Web Server', () => {
   let server: WebServer;
@@ -24,11 +24,12 @@ describe('Web Server', () => {
     expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   });
 
-  test('auto-increments port when default is taken', async () => {
-    const first = await startWebServer();
+  test('auto-increments port by 1 when default is taken', async () => {
+    const first = await startWebServer({ port: DEFAULT_PORT });
     server = await startWebServer();
 
-    expect(server.url).not.toBe(first.url);
+    expect(first.url).toBe(`http://127.0.0.1:${DEFAULT_PORT}`);
+    expect(server.url).toBe(`http://127.0.0.1:${DEFAULT_PORT + 1}`);
     await first.stop();
   });
 
