@@ -166,4 +166,29 @@ describe('formatValidateResult', () => {
     const output = formatValidateResult(result);
     expect(output).toContain('aws-cdk-lib/aws-s3.Bucket');
   });
+
+  test('sanitizes control characters from all taint sources', () => {
+    const result = makeResult([{
+      pluginName: 'Evil\x1b[2JPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'evil\x1b[0mrule',
+        description: '\x1b[2K\rFake passed message',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: 'Stack/\x1b[31mRed',
+          constructFqn: 'lib/\x07beep',
+          cloudFormationResource: { templatePath: 'Stack.template.json', logicalId: '\x1b[0mFakeId' },
+          stackTraces: ['at \x1b[2Jmalicious.ts:1:1'],
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).not.toMatch(/\x1b/);
+    expect(output).not.toMatch(/\x07/);
+    expect(output).not.toMatch(/\r/);
+    expect(output).toContain('Fake passed message');
+    expect(output).toContain('Evil');
+  });
 });
