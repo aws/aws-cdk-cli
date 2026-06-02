@@ -5,7 +5,9 @@ describe('explore command', () => {
     const messages: string[] = [];
     const fakeIoHelper = {
       defaults: {
-        info: async (msg: string) => { messages.push(msg); },
+        info: async (msg: string) => {
+          messages.push(msg);
+        },
       },
     };
 
