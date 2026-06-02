@@ -140,6 +140,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Opens an interactive web explorer for your CDK app
+   */
+  readonly explore?: ExploreOptions;
+
+  /**
    * Detach resources from a CloudFormation stack without deleting them
    */
   readonly orphan?: OrphanOptions;
@@ -1708,6 +1713,20 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Opens an interactive web explorer for your CDK app
+ *
+ * @struct
+ */
+export interface ExploreOptions {
+  /**
+   * Port to bind the web server on
+   *
+   * @default - 4200
+   */
+  readonly port?: number;
 }
 
 /**

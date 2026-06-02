@@ -38,6 +38,7 @@ export enum Command {
   DOCS = 'docs',
   DOC = 'doc',
   DOCTOR = 'doctor',
+  EXPLORE = 'explore',
   ORPHAN = 'orphan',
   REFACTOR = 'refactor',
   DRIFT = 'drift',

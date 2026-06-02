@@ -1703,7 +1703,7 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
-void cdkExplorer;
+cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
