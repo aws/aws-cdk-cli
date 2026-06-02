@@ -18,7 +18,7 @@ export interface LspServerOptions {
   /**
    * Injectable synth trigger for testability.
    * Called when `didSave` fires on a tracked source file.
-   * Defaults to a no-op, real synth wiring added later.
+   * Defaults to a no-op, real synth wiring to be added later.
    */
   readonly onSynthRequest?: (projectDir: string) => void;
 }
