@@ -57,3 +57,4 @@ tsconfig.json
 .jsii.tabl.json
 !/rosetta/default.ts-fixture
 cli-version.json
+_generated.ts-fixture
