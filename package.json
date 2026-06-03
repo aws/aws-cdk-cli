@@ -32,7 +32,7 @@
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "@yarnpkg/types": "^4.0.1",
-    "cdklabs-projen-project-types": "^0.5.0",
+    "cdklabs-projen-project-types": "^0.5.1",
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",

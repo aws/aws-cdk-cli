@@ -7926,7 +7926,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     "@yarnpkg/types": "npm:^4.0.1"
-    cdklabs-projen-project-types: "npm:^0.5.0"
+    cdklabs-projen-project-types: "npm:^0.5.1"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -8757,15 +8757,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdklabs-projen-project-types@npm:^0.5.0":
-  version: 0.5.0
-  resolution: "cdklabs-projen-project-types@npm:0.5.0"
+"cdklabs-projen-project-types@npm:^0.5.1":
+  version: 0.5.1
+  resolution: "cdklabs-projen-project-types@npm:0.5.1"
   dependencies:
     yaml: "npm:^2.9.0"
   peerDependencies:
     constructs: ^10.0.0
     projen: ">=0.99.68 <1.0.0"
-  checksum: 10c0/c265d90160eb98ddc6001e9e8ebad6c401a4940ad9d7cb0c142cd8da17c512f173f809020573697c0909e4f6c836bb829d901b49cfbe6d00d19503b62c2923e1
+  checksum: 10c0/f25eecacc7839e9f439ed5a1aaa05a5e48264311e3f85d2c60772dc74d166f8a5bc007c1f04a72e31d1b828e02b8a7ad544f1b59991391143678e3064ef399ab
   languageName: node
   linkType: hard
 
