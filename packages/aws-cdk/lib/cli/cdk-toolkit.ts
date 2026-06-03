@@ -13,6 +13,12 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
+
+// [#1217-trace] Temporary instrumentation for issue #1217. Remove before merge.
+function trace1217(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.error(`[#1217-trace] ${new Date().toISOString()} ${msg}`);
+}
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
 import {
@@ -1288,7 +1294,9 @@ export class CdkToolkit {
       `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
     );
 
+    trace1217('synth: before displayFlagsMessage');
     await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
+    trace1217('synth: after displayFlagsMessage');
     return undefined;
   }
 
@@ -2347,11 +2355,14 @@ async function askUserConfirmation(
  * - The default value for the flag (unconfiguredBehavesLike) is different from the recommended value
  */
 export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToolkit, cloudExecutable: CloudExecutable): Promise<void> {
+  trace1217('displayFlagsMessage: before toolkit.flags');
   const flags = await toolkit.flags(cloudExecutable);
+  trace1217(`displayFlagsMessage: after toolkit.flags (count=${flags.length})`);
 
   // The "unconfiguredBehavesLike" information got added later. If none of the flags have this information,
   // we don't have enough information to reliably display this information without scaring users, so don't do anything.
   if (flags.every(flag => flag.unconfiguredBehavesLike === undefined)) {
+    trace1217('displayFlagsMessage: returning early (no unconfiguredBehavesLike data)');
     return;
   }
 
@@ -2359,8 +2370,11 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
   const numUnconfigured = unconfiguredFlags.length;
 
   if (numUnconfigured > 0) {
+    trace1217('displayFlagsMessage: before warn');
     await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
+    trace1217('displayFlagsMessage: after warn');
   }
+  trace1217('displayFlagsMessage: returning normally');
 }
 
 /**
