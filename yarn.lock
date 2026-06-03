@@ -93,13 +93,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/aws-service-spec@npm:^0.1.183":
-  version: 0.1.183
-  resolution: "@aws-cdk/aws-service-spec@npm:0.1.183"
+"@aws-cdk/aws-service-spec@npm:^0.1.184":
+  version: 0.1.184
+  resolution: "@aws-cdk/aws-service-spec@npm:0.1.184"
   dependencies:
-    "@aws-cdk/service-spec-types": "npm:^0.0.249"
+    "@aws-cdk/service-spec-types": "npm:^0.0.250"
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/74db0056e4079b5ea318f7badbc29979dc38b24b66a031bf4aba730596ad0a4c4deda759fa870b9216b1ec650b6fc6b1c4d7b0443871cf1e1072367440e13016
+  checksum: 10c0/5373a3c9ff023fb235df1a144b1aac0683f5298ae8ab5d6bc167d49b6a8a2b60f61c3cd030342c01676e01c259801599fae1c2e81ac1cb71a6d8e23d958f6e4b
   languageName: node
   linkType: hard
 
@@ -281,7 +281,7 @@ __metadata:
     projen: "npm:^0.99.70"
     semver: "npm:^7.8.1"
     ts-jest: "npm:^29.4.11"
-    tsx: "npm:^4.22.3"
+    tsx: "npm:^4.22.4"
     typescript: "npm:5.9"
     typescript-json-schema: "npm:^0.67.4"
   languageName: unknown
@@ -301,8 +301,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloudformation-diff@workspace:packages/@aws-cdk/cloudformation-diff"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.183"
-    "@aws-cdk/service-spec-types": "npm:^0.0.249"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.184"
+    "@aws-cdk/service-spec-types": "npm:^0.0.250"
     "@cdklabs/eslint-plugin": "npm:^2.0.7"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
@@ -353,7 +353,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/integ-runner@workspace:packages/@aws-cdk/integ-runner"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.183"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.184"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
@@ -413,12 +413,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/service-spec-types@npm:^0.0.249":
-  version: 0.0.249
-  resolution: "@aws-cdk/service-spec-types@npm:0.0.249"
+"@aws-cdk/service-spec-types@npm:^0.0.250":
+  version: 0.0.250
+  resolution: "@aws-cdk/service-spec-types@npm:0.0.250"
   dependencies:
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/fdf9675d4ac690682a4fd44a7364945af31af673b0d76ae655ddda30f62cb5dac046617929ed3f8a89e810c16161c2d82cad134135e63155bd4079c5ad050200
+  checksum: 10c0/9bf1057900656133636f45339a8f308e28a61392822a7007c4695e4239d15e685d5fbee425b960c6e1e8287a05824c84f7133daab5f8bc5df817972753bb0a48
   languageName: node
   linkType: hard
 
@@ -426,7 +426,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/toolkit-lib@workspace:packages/@aws-cdk/toolkit-lib"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.183"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.184"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
@@ -479,7 +479,7 @@ __metadata:
     aws-cdk-lib: "npm:2.257.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
-    cdk-from-cfn: "npm:^0.301.0"
+    cdk-from-cfn: "npm:^0.302.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -509,7 +509,7 @@ __metadata:
     semver: "npm:^7.8.1"
     split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.11"
-    tsx: "npm:^4.22.3"
+    tsx: "npm:^4.22.4"
     typescript: "npm:5.9"
     wrap-ansi: "npm:^7"
     yaml: "npm:^1"
@@ -7926,7 +7926,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     "@yarnpkg/types": "npm:^4.0.1"
-    cdklabs-projen-project-types: "npm:^0.5.0"
+    cdklabs-projen-project-types: "npm:^0.5.1"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -7943,7 +7943,7 @@ __metadata:
     projen: "npm:^0.99.70"
     semver: "npm:^7.8.1"
     ts-node: "npm:^10.9.2"
-    tsx: "npm:^4.22.3"
+    tsx: "npm:^4.22.4"
     typescript: "npm:5.9"
   languageName: unknown
   linkType: soft
@@ -8033,7 +8033,7 @@ __metadata:
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
-    cdk-from-cfn: "npm:^0.301.0"
+    cdk-from-cfn: "npm:^0.302.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -8071,7 +8071,7 @@ __metadata:
     ts-jest: "npm:^29.4.11"
     ts-mock-imports: "npm:^1.3.19"
     ts-node: "npm:^10.9.2"
-    tsx: "npm:^4.22.3"
+    tsx: "npm:^4.22.4"
     typescript: "npm:5.9"
     wrap-ansi: "npm:^7"
     yaml: "npm:^1"
@@ -8704,10 +8704,10 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdk-from-cfn@npm:^0.301.0":
-  version: 0.301.0
-  resolution: "cdk-from-cfn@npm:0.301.0"
-  checksum: 10c0/28e82cd00bf605126ccb81557b11d73c65634ac7d4bc13bdc00cff3d0dcd309eb404c42b5a68b66113c16c25c828afd09b5929352cb3a86e9d6f2c8ec6f9e047
+"cdk-from-cfn@npm:^0.302.0":
+  version: 0.302.0
+  resolution: "cdk-from-cfn@npm:0.302.0"
+  checksum: 10c0/95bd79d6f39fcde2c2e59c5062919d583be548f50e1aca5178cc635fda71a392cefac628d814901b01a2def740ad817c873425ada98b71b7c184d1a96c520f95
   languageName: node
   linkType: hard
 
@@ -8757,15 +8757,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdklabs-projen-project-types@npm:^0.5.0":
-  version: 0.5.0
-  resolution: "cdklabs-projen-project-types@npm:0.5.0"
+"cdklabs-projen-project-types@npm:^0.5.1":
+  version: 0.5.1
+  resolution: "cdklabs-projen-project-types@npm:0.5.1"
   dependencies:
     yaml: "npm:^2.9.0"
   peerDependencies:
     constructs: ^10.0.0
     projen: ">=0.99.68 <1.0.0"
-  checksum: 10c0/c265d90160eb98ddc6001e9e8ebad6c401a4940ad9d7cb0c142cd8da17c512f173f809020573697c0909e4f6c836bb829d901b49cfbe6d00d19503b62c2923e1
+  checksum: 10c0/f25eecacc7839e9f439ed5a1aaa05a5e48264311e3f85d2c60772dc74d166f8a5bc007c1f04a72e31d1b828e02b8a7ad544f1b59991391143678e3064ef399ab
   languageName: node
   linkType: hard
 
@@ -18013,9 +18013,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsx@npm:^4.22.3":
-  version: 4.22.3
-  resolution: "tsx@npm:4.22.3"
+"tsx@npm:^4.22.4":
+  version: 4.22.4
+  resolution: "tsx@npm:4.22.4"
   dependencies:
     esbuild: "npm:~0.28.0"
     fsevents: "npm:~2.3.3"
@@ -18024,7 +18024,7 @@ __metadata:
       optional: true
   bin:
     tsx: dist/cli.mjs
-  checksum: 10c0/09a5a7d354ff75e5af6285217d709ec80a46c2ee19e0d9b5c5d00eab81047c3ea6b2a5498a2c5255f3960d6e7acd1a1eee34b9433dc56fb32907ca3b38271f41
+  checksum: 10c0/3df31eb4929ff501b40b122163705b201ea57a492581e14312ae95d21eb015b33ded46a3fd564f9c89a0e8083186987fc4f10dd38182c4ad6241605974f6c927
   languageName: node
   linkType: hard
 
