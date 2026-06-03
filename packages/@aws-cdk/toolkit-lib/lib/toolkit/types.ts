@@ -52,6 +52,41 @@ export interface DeployedStack extends PhysicalStack {
    * The outputs of the deployed CloudFormation stack
    */
   readonly outputs: { [key: string]: string };
+
+  /**
+   * Resources that CloudFormation failed to delete during the stack update
+   *
+   * When a resource replacement or removal triggers a delete that fails,
+   * CloudFormation skips the deletion and completes the update anyway. These
+   * resources are no longer managed by CloudFormation but still exist and may
+   * incur charges.
+   */
+  readonly deleteFailures: ResourceDeleteFailure[];
+}
+
+/**
+ * A resource that CloudFormation failed to delete during a stack update
+ */
+export interface ResourceDeleteFailure {
+  /**
+   * The logical ID of the resource in the CloudFormation template
+   */
+  readonly logicalResourceId: string;
+
+  /**
+   * The physical ID of the resource (e.g. an ARN or name)
+   */
+  readonly physicalResourceId?: string;
+
+  /**
+   * The CloudFormation resource type (e.g. AWS::S3::Bucket)
+   */
+  readonly resourceType: string;
+
+  /**
+   * The reason CloudFormation gave for the deletion failure
+   */
+  readonly reason: string;
 }
 
 /**

@@ -7,6 +7,18 @@
 
 /**
  * The top-level structure of the policy validation report file.
+ *
+ * @example
+ * import { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const report: PolicyValidationReportJson = {
+ *   version: '1.0',
+ *   pluginReports: [{
+ *     pluginName: 'my-plugin',
+ *     conclusion: 'success',
+ *     violations: [],
+ *   }],
+ * };
  */
 export interface PolicyValidationReportJson {
   /**
@@ -27,6 +39,15 @@ export interface PolicyValidationReportJson {
 
 /**
  * A report from a single validation plugin.
+ *
+ * @example
+ * import { PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const report: PluginReportJson = {
+ *   pluginName: 'my-plugin',
+ *   conclusion: 'success',
+ *   violations: [],
+ * };
  */
 export interface PluginReportJson {
   /**
@@ -57,6 +78,17 @@ export interface PluginReportJson {
    * Violations found by this plugin.
    */
   readonly violations: PolicyViolationJson[];
+
+  /**
+   * Violations that were suppressed via acknowledgement.
+   *
+   * These violations matched an acknowledged rule ID and were excluded
+   * from the active violations list. They are retained for audit
+   * trail and reporting purposes.
+   *
+   * @default - no suppressed violations
+   */
+  readonly suppressedViolations?: SuppressedViolationJson[];
 }
 
 /**
@@ -66,6 +98,16 @@ export type PolicyValidationReportConclusion = 'success' | 'failure';
 
 /**
  * A single policy violation found by a validation plugin.
+ *
+ * @example
+ * import { PolicyViolationJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const violation: PolicyViolationJson = {
+ *   ruleName: 'no-public-access',
+ *   description: 'S3 bucket should not allow public access',
+ *   severity: 'error',
+ *   violatingConstructs: [{ constructPath: 'MyStack/MyBucket' }],
+ * };
  */
 export interface PolicyViolationJson {
   /**
@@ -159,6 +201,53 @@ export interface ViolatingConstructJson {
    * @default - No stack traces
    */
   readonly stackTraces?: string[];
+}
+
+/**
+ * A violation that was acknowledged/suppressed and excluded from the
+ * active violation set.
+ *
+ * @example
+ * import { SuppressedViolationJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const suppressed: SuppressedViolationJson = {
+ *   ruleName: 'no-public-access',
+ *   description: 'S3 bucket should not allow public access',
+ *   severity: 'warning',
+ *   violatingConstructs: [{ constructPath: 'MyStack/MyBucket' }],
+ *   acknowledgedId: 'my-plugin::no-public-access',
+ * };
+ */
+export interface SuppressedViolationJson extends PolicyViolationJson {
+  /**
+   * The acknowledgement ID that caused this violation to be suppressed.
+   *
+   * Format: `<plugin-name>::<rule-name>` (spaces replaced with hyphens).
+   */
+  readonly acknowledgedId: string;
+
+  /**
+   * The reason given for the acknowledgement, if provided.
+   *
+   * @default - no reason given
+   */
+  readonly reason?: string;
+
+  /**
+   * The construct path where the acknowledgement was declared.
+   *
+   * @default - unknown
+   */
+  readonly acknowledgedAt?: string;
+
+  /**
+   * Stack trace showing where the acknowledgement was declared.
+   *
+   * A `\n`-delimited string of stack frames.
+   *
+   * @default - no stack trace
+   */
+  readonly acknowledgedStackTrace?: string;
 }
 
 /**
