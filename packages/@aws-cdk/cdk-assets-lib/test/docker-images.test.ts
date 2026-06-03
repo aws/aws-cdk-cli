@@ -132,6 +132,31 @@ beforeEach(() => {
         },
       },
     }),
+    '/multi-dest/cdk.out/assets.json': JSON.stringify({
+      version: Manifest.version(),
+      dockerImages: {
+        theAsset: {
+          source: {
+            directory: 'dockerdir',
+          },
+          destinations: {
+            dest1: {
+              region: 'us-north-50',
+              assumeRoleArn: 'arn:aws:role',
+              repositoryName: 'repo1',
+              imageTag: 'abcdef',
+            },
+            dest2: {
+              region: 'eu-south-99',
+              assumeRoleArn: 'arn:aws:role',
+              repositoryName: 'repo2',
+              imageTag: 'abcdef',
+            },
+          },
+        },
+      },
+    }),
+    '/multi-dest/cdk.out/dockerdir/Dockerfile': 'FROM scratch',
     '/simple/cdk.out/dockerdir/Dockerfile': 'FROM scratch',
     '/abs/cdk.out/assets.json': JSON.stringify({
       version: Manifest.version(),
@@ -842,6 +867,89 @@ test('publishing only', async () => {
 
   expectAllSpawns();
   expect(true).toBeTruthy(); // Expect no exception, satisfy linter
+});
+
+test('publish re-tags image when local tag is missing for a destination', async () => {
+  const pub = new AssetPublishing(AssetManifest.fromPath(mockfs.path('/multi-dest/cdk.out')), {
+    aws,
+    throwOnError: true,
+  });
+
+  mockEcr.on(DescribeRepositoriesCommand).callsFake((input) => {
+    const repos: Record<string, string> = {
+      repo1: '12345.amazonaws.com/repo1',
+      repo2: '12345.amazonaws.com/repo2',
+    };
+    const url = repos[input.repositoryNames[0]];
+    if (!url) {
+      throw new Error(`Unexpected repo: ${JSON.stringify(input)}`);
+    }
+    return { repositories: [{ repositoryUri: url }] };
+  });
+
+  // Image doesn't exist in either ECR destination
+  mockEcr.on(DescribeImagesCommand).rejects(err);
+
+  const expectAllSpawns = mockSpawn(
+    // First destination: build + tag + push (buildCompleted=true, skips exists check)
+    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
+    { commandLine: ['docker', 'build', '--tag', 'cdkasset-theasset', '.'], cwd: 'multi-dest/cdk.out/dockerdir' },
+    { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo1:abcdef'] },
+    { commandLine: ['docker', 'push', '12345.amazonaws.com/repo1:abcdef'] },
+    // Second destination: build finds cached image, tags, then push
+    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    { commandLine: ['docker', 'inspect', 'cdkasset-theasset'] },
+    { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo2:abcdef'] },
+    { commandLine: ['docker', 'push', '12345.amazonaws.com/repo2:abcdef'] },
+  );
+
+  await pub.publish();
+
+  expectAllSpawns();
+});
+
+test('publish re-tags from existing image when build was not called for destination', async () => {
+  const pub = new AssetPublishing(AssetManifest.fromPath(mockfs.path('/multi-dest/cdk.out')), {
+    aws,
+    throwOnError: true,
+    buildAssets: false,
+    publishAssets: true,
+  });
+
+  mockEcr.on(DescribeRepositoriesCommand).callsFake((input) => {
+    const repos: Record<string, string> = {
+      repo1: '12345.amazonaws.com/repo1',
+      repo2: '12345.amazonaws.com/repo2',
+    };
+    const url = repos[input.repositoryNames[0]];
+    if (!url) {
+      throw new Error(`Unexpected repo: ${JSON.stringify(input)}`);
+    }
+    return { repositories: [{ repositoryUri: url }] };
+  });
+
+  // Image doesn't exist in either ECR destination
+  mockEcr.on(DescribeImagesCommand).rejects(err);
+
+  const expectAllSpawns = mockSpawn(
+    // First destination: publish() finds imageUri doesn't exist locally, finds by tag, re-tags
+    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    { commandLine: ['docker', 'inspect', '12345.amazonaws.com/repo1:abcdef'], exitCode: 1 },
+    { commandLine: ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}', '--filter', 'reference=*/*:abcdef'], stdout: 'cdkasset-theasset:abcdef' },
+    { commandLine: ['docker', 'tag', 'cdkasset-theasset:abcdef', '12345.amazonaws.com/repo1:abcdef'] },
+    { commandLine: ['docker', 'push', '12345.amazonaws.com/repo1:abcdef'] },
+    // Second destination: same flow
+    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    { commandLine: ['docker', 'inspect', '12345.amazonaws.com/repo2:abcdef'], exitCode: 1 },
+    { commandLine: ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}', '--filter', 'reference=*/*:abcdef'], stdout: 'cdkasset-theasset:abcdef' },
+    { commandLine: ['docker', 'tag', 'cdkasset-theasset:abcdef', '12345.amazonaws.com/repo2:abcdef'] },
+    { commandLine: ['docker', 'push', '12345.amazonaws.com/repo2:abcdef'] },
+  );
+
+  await pub.publish();
+
+  expectAllSpawns();
 });
 
 test('overriding the docker command', async () => {
