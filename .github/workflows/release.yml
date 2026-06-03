@@ -1434,7 +1434,7 @@ jobs:
       contents: write
       id-token: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}
+    if: ${{ !cancelled() && needs.aws-cdk_release_npm.result == 'success' && !inputs.dry_run }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -1476,7 +1476,7 @@ jobs:
       contents: write
       id-token: write
     environment: releasing
-    if: ${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}
+    if: ${{ !cancelled() && needs.aws-cdk_release_npm.result == 'success' && !inputs.dry_run }}
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1506,7 +1506,7 @@ jobs:
       id-token: write
       contents: read
     environment: releasing
-    if: ${{ !inputs.dry_run }}
+    if: ${{ !cancelled() && needs.aws-cdk-toolkit-lib_release_npm.result == 'success' && !inputs.dry_run }}
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v8

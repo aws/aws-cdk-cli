@@ -1,6 +1,7 @@
 import type { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
 import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
+import { runAfterPublish } from './util';
 
 export class AdcPublishing extends Component {
   constructor(private readonly project_: Monorepo) {
@@ -42,7 +43,7 @@ export class AdcPublishing extends Component {
         contents: JobPermission.WRITE,
         idToken: JobPermission.WRITE,
       },
-      if: '${{ needs.release.outputs.latest_commit == github.sha && !inputs.dry_run }}',
+      if: runAfterPublish('aws-cdk_release_npm'),
       steps: [
         github.WorkflowSteps.checkout(),
         ...this.project_.renderWorkflowSetup(),
