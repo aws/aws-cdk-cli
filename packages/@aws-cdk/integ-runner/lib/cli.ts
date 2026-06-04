@@ -57,7 +57,7 @@ export function parseCliArgs(args: string[] = []) {
     .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .option('role-arn', { type: 'string', desc: 'ARN of the IAM role for CloudFormation to assume during deploy/destroy', requiresArg: true })
     .option('allow-delete-failures', { type: 'boolean', default: false, desc: 'Do not fail the test when resources fail to delete during a stack update' })
-    .option('update-from-tags', { type: 'string', desc: 'Deploy snapshots from the given git tags in sequence before deploying the current code. Implies --force.', requiresArg: true })
+    .option('update-from-tags', { type: 'string', desc: 'Deploy snapshots from the given git tags in sequence before deploying the current code. Implies --force. Only works if snapshots are region-agnostic.', requiresArg: true })
     .strict()
     .parse(args);
 
