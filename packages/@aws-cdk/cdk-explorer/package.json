@@ -1,6 +1,6 @@
 {
   "name": "@aws-cdk/cdk-explorer",
-  "description": "CDK Explorer — LSP server, synth daemon, and web interface for AWS CDK",
+  "description": "CDK Explorer — LSP server and web interface for AWS CDK",
   "repository": {
     "type": "git",
     "url": "https://github.com/aws/aws-cdk-cli",
@@ -57,6 +57,7 @@
   "dependencies": {
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
+    "@aws-cdk/toolkit-lib": "^0.0.0",
     "express": "^4",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
