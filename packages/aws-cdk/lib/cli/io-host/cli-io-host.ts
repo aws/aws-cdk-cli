@@ -399,6 +399,44 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
+   * Augment toolkit-lib's flag-free I5060 motivation with the
+   * `--require-approval` framing so CLI users see flag context.
+   */
+  private augmentDeployApprovalMessage<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): IoRequest<DataType, ResponseType> {
+    const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
+    if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
+      return msg;
+    }
+
+    const data = (msg.data ?? {}) as { motivation?: string; permissionChangeType?: string };
+    const baseMotivation = data.motivation;
+    if (!baseMotivation) {
+      return msg;
+    }
+
+    let prefix: string;
+    switch (this.requireDeployApproval) {
+      case RequireApproval.ANYCHANGE:
+        prefix = `"--require-approval" is set to '${RequireApproval.ANYCHANGE}' and `;
+        break;
+      case RequireApproval.BROADENING:
+        if (data.permissionChangeType !== 'broadening') {
+          return msg;
+        }
+        prefix = '"--require-approval" is enabled and ';
+        break;
+      default:
+        return msg;
+    }
+
+    const augmentedMotivation = prefix + baseMotivation.charAt(0).toLowerCase() + baseMotivation.slice(1);
+    return {
+      ...msg,
+      message: msg.message.replace(baseMotivation, augmentedMotivation),
+    };
+  }
+
+  /**
    * Determines the output stream, based on message and configuration.
    */
   private selectStream(msg: IoMessage<any>): NodeJS.WriteStream | undefined {
@@ -464,13 +502,18 @@ export class CliIoHost implements IIoHost {
         return true;
       }
 
+      // The library emits I5060 with a flag-free motivation. The CLI is the
+      // layer that knows about `--require-approval` and adds it to the
+      // user-facing message before any downstream rendering.
+      const promptMessage = this.augmentDeployApprovalMessage(msg).message;
+
       // In --yes mode, respond for the user if we can
       if (this.autoRespond) {
         // respond with yes to all confirmations
         if (isConfirmationPrompt(msg)) {
           await this.notify({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+            message: `${chalk.cyan(promptMessage)} (auto-confirmed)`,
           });
           return true;
         }
@@ -479,7 +522,7 @@ export class CliIoHost implements IIoHost {
         if (msg.defaultResponse) {
           await this.notify({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+            message: `${chalk.cyan(promptMessage)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
           });
           return msg.defaultResponse;
         }
@@ -498,7 +541,7 @@ export class CliIoHost implements IIoHost {
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
+        const confirmed = await promptly.confirm(`${chalk.cyan(promptMessage)} (y/n)`);
         if (!confirmed) {
           throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
@@ -508,7 +551,7 @@ export class CliIoHost implements IIoHost {
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
       const desc = responseDescription ?? prompt.default;
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
+      const answer = await promptly.prompt(`${chalk.cyan(promptMessage)}${desc ? ` (${desc})` : ''}`, {
         default: prompt.default,
         trim: true,
       });
