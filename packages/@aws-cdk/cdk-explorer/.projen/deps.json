@@ -116,6 +116,11 @@
       "type": "runtime"
     },
     {
+      "name": "@jridgewell/trace-mapping",
+      "version": "^0.3",
+      "type": "runtime"
+    },
+    {
       "name": "express",
       "version": "^4",
       "type": "runtime"

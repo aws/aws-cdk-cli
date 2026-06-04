@@ -1681,6 +1681,7 @@ const cdkExplorer = configureProject(
       'vscode-languageserver-textdocument@^1',
       'vscode-jsonrpc@^8',
       'express@^4',
+      '@jridgewell/trace-mapping@^0.3',
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',

@@ -165,6 +165,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@cdklabs/eslint-plugin": "npm:^2.0.6"
+    "@jridgewell/trace-mapping": "npm:^0.3"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/express": "npm:^4"
     "@types/jest": "npm:^29.5.14"
@@ -4572,7 +4573,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jridgewell/trace-mapping@npm:^0.3.12, @jridgewell/trace-mapping@npm:^0.3.18, @jridgewell/trace-mapping@npm:^0.3.24, @jridgewell/trace-mapping@npm:^0.3.28":
+"@jridgewell/trace-mapping@npm:^0.3, @jridgewell/trace-mapping@npm:^0.3.12, @jridgewell/trace-mapping@npm:^0.3.18, @jridgewell/trace-mapping@npm:^0.3.24, @jridgewell/trace-mapping@npm:^0.3.28":
   version: 0.3.31
   resolution: "@jridgewell/trace-mapping@npm:0.3.31"
   dependencies:

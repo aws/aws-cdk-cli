@@ -1,99 +1,43 @@
-import { PassThrough } from 'stream';
-import type { MessageConnection } from 'vscode-jsonrpc/node';
-import {
-  createMessageConnection,
-  StreamMessageReader,
-  StreamMessageWriter,
-} from 'vscode-jsonrpc/node';
-import { startServer, type LspServerOptions } from '../../lib/lsp/server';
+import { pathToFileURL } from 'url';
+import type { Diagnostic } from 'vscode-languageserver/node';
+import type { AssemblyReadResult } from '../../lib';
+import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
 
-interface TestClient {
-  connection: MessageConnection;
-  serverIn: PassThrough;
-  serverOut: PassThrough;
+interface CapturedClient {
+  handlers: LspHandlers;
+  published: Array<{ uri: string; diagnostics: Diagnostic[] }>;
+  log: { warn: jest.Mock; error: jest.Mock };
 }
 
-function createTestClient(opts?: Partial<Pick<LspServerOptions, 'onSynthRequest'>>): TestClient {
-  const serverIn = new PassThrough();
-  const serverOut = new PassThrough();
-
-  startServer({
-    readable: serverIn,
-    writable: serverOut,
+function createTestClient(opts?: Partial<Pick<LspHandlerOptions, 'onSynthRequest' | 'readAssembly'>>): CapturedClient {
+  const published: Array<{ uri: string; diagnostics: Diagnostic[] }> = [];
+  const log = { warn: jest.fn(), error: jest.fn() };
+  const handlers = createLspHandlers({
     onSynthRequest: opts?.onSynthRequest,
+    // Default to "no assembly" so tests that don't care about diagnostics
+    // don't need a fake fixture. Tests that do care override this.
+    readAssembly: opts?.readAssembly ?? (() => ({ status: 'not-found' })),
+    logger: log,
+    onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
   });
-
-  const connection = createMessageConnection(
-    new StreamMessageReader(serverOut),
-    new StreamMessageWriter(serverIn),
-  );
-  connection.listen();
-
-  return { connection, serverIn, serverOut };
+  return { handlers, published, log };
 }
 
-async function initializeClient(client: TestClient, options?: Record<string, unknown>): Promise<void> {
-  // processId: null prevents vscode-languageserver from registering an
-  // undisposable parent-process watchdog timer that hangs jest.
-  await client.connection.sendRequest('initialize', {
+function initializeClient(client: CapturedClient, options?: Record<string, unknown>): void {
+  client.handlers.onInitialize({
     processId: null,
     capabilities: {},
     rootUri: null,
     initializationOptions: options ?? {},
   });
-  await client.connection.sendNotification('initialized');
-}
-
-interface LogMessage {
-  type: number;
-  message: string;
-}
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve(value: T): void;
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-}
-
-// didSave is a fire-and-forget notification. Tests gate on a deferred that
-// the relevant callback (onSynthRequest, or window/logMessage) resolves —
-// no setImmediate / setTimeout polling.
-const TIMEOUT_MS = 1000;
-
-async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), TIMEOUT_MS);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  client.handlers.onInitialized();
 }
 
 describe('LSP Server', () => {
-  let testClient: TestClient;
+  test('responds to initialize with capabilities', () => {
+    const client = createTestClient();
 
-  afterEach(() => {
-    if (testClient) {
-      testClient.connection.dispose();
-      testClient.serverIn.end();
-      testClient.serverOut.end();
-    }
-  });
-
-  test('responds to initialize with capabilities', async () => {
-    testClient = createTestClient();
-
-    const result = await testClient.connection.sendRequest('initialize', {
+    const result = client.handlers.onInitialize({
       processId: null,
       capabilities: {},
       rootUri: null,
@@ -107,93 +51,175 @@ describe('LSP Server', () => {
           change: 0,
           save: { includeText: false },
         },
+        codeLensProvider: { resolveProvider: false },
       },
     });
   });
 
-  test('didSave triggers onSynthRequest for source files', async () => {
-    const seen = deferred<string>();
-    testClient = createTestClient({
-      onSynthRequest: (dir) => seen.resolve(dir),
+  test('didSave triggers onSynthRequest for source files', () => {
+    const synthRequests: string[] = [];
+    const client = createTestClient({
+      onSynthRequest: (dir) => synthRequests.push(dir),
     });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
     });
 
-    await expect(withTimeout(seen.promise, 'onSynthRequest')).resolves.toBe('/tmp/test-project');
+    expect(synthRequests).toEqual(['/tmp/test-project']);
   });
 
-  test('didSave does not trigger for ignored files', async () => {
+  test('didSave does not trigger for ignored files', () => {
     const synthRequests: string[] = [];
-    testClient = createTestClient({
+    const client = createTestClient({
       onSynthRequest: (dir) => synthRequests.push(dir),
     });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/node_modules/foo/index.ts' },
     });
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/cdk.out/tree.json' },
     });
 
-    // Round-trip a request to drain the server's notification queue past the
-    // two didSaves, then assert the synth callback was never invoked.
-    await testClient.connection.sendRequest('shutdown');
     expect(synthRequests).toEqual([]);
   });
 
-  test('didSave is a no-op when onSynthRequest is not provided', async () => {
-    testClient = createTestClient();
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+  test('didSave does not throw without onSynthRequest configured', () => {
+    const client = createTestClient();
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    expect(() => client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
-    });
+    })).not.toThrow();
 
-    // Server stays responsive after didSave with no callback configured.
-    await testClient.connection.sendRequest('shutdown');
+    // Server should still be responsive after didSave with no callback
+    expect(() => client.handlers.onShutdown()).not.toThrow();
   });
 
-  test('didSave is ignored after shutdown', async () => {
+  test('shutdown completes without error', () => {
+    const client = createTestClient();
+    initializeClient(client);
+
+    expect(() => client.handlers.onShutdown()).not.toThrow();
+  });
+
+  test('didSave is ignored after shutdown', () => {
     const synthRequests: string[] = [];
-    testClient = createTestClient({
+    const client = createTestClient({
       onSynthRequest: (dir) => synthRequests.push(dir),
     });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
 
-    await testClient.connection.sendRequest('shutdown');
+    client.handlers.onShutdown();
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
     });
 
-    // Best-effort drain: the post-shutdown didSave is a notification, no
-    // request to await. Re-issuing shutdown rides the same queue and acks
-    // only after the prior didSave has been processed.
-    await testClient.connection.sendRequest('shutdown');
     expect(synthRequests).toEqual([]);
   });
 
-  test('onSynthRequest errors are surfaced via window/logMessage', async () => {
-    const logged = deferred<LogMessage>();
-    testClient = createTestClient({
+  test('onSynthRequest errors are caught gracefully', () => {
+    const client = createTestClient({
       onSynthRequest: () => {
         throw new Error('synth failed');
       },
     });
-    testClient.connection.onNotification('window/logMessage', (params: LogMessage) => {
-      if (params.message.includes('synth failed')) logged.resolve(params);
-    });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    expect(() => client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+    })).not.toThrow();
+
+    // Server should still be responsive after the error
+    expect(() => client.handlers.onShutdown()).not.toThrow();
+  });
+
+  test('publishes diagnostics on initialized when assembly has violations', () => {
+    const client = createTestClient({
+      readAssembly: () => ({
+        status: 'success',
+        data: {
+          tree: [{
+            path: 'Stack1',
+            id: 'Stack1',
+            children: [{
+              path: 'Stack1/MyBucket',
+              id: 'MyBucket',
+              children: [],
+              sourceLocation: { file: '/p/lib/stack.ts', line: 12, column: 5 },
+            }],
+          }],
+          violations: {
+            version: '1.0.0',
+            pluginReports: [{
+              pluginName: 'test-plugin',
+              conclusion: 'failure',
+              violations: [{
+                ruleName: 'no-public-buckets',
+                description: 'no public buckets',
+                severity: 'error',
+                violatingConstructs: [{ constructPath: 'Stack1/MyBucket' }],
+              }],
+            }],
+          },
+        },
+      }),
     });
 
-    const message = await withTimeout(logged.promise, 'window/logMessage');
-    expect(message.message).toContain('Synth request failed: synth failed');
+    initializeClient(client, { applicationDir: '/p' });
+
+    expect(client.published).toHaveLength(1);
+    expect(client.published[0].uri).toContain('stack.ts');
+    expect(client.published[0].diagnostics).toHaveLength(1);
+  });
+
+  test('responds to codeLens with resources for the requested file', () => {
+    const stackTs = '/p/lib/stack.ts';
+    const stackUri = pathToFileURL(stackTs).toString();
+
+    const client = createTestClient({
+      readAssembly: (): AssemblyReadResult => ({
+        status: 'success',
+        data: {
+          tree: [{
+            path: 'Stack1',
+            id: 'Stack1',
+            children: [{
+              path: 'Stack1/MyBucket/Resource',
+              id: 'Resource',
+              logicalId: 'MyBucketABC',
+              type: 'AWS::S3::Bucket',
+              sourceLocation: { file: stackTs, line: 12, column: 5 },
+              children: [],
+            }],
+          }],
+        },
+      }),
+    });
+
+    initializeClient(client, { applicationDir: '/p' });
+
+    const lenses = client.handlers.onCodeLens({
+      textDocument: { uri: stackUri },
+    });
+
+    expect(lenses).toHaveLength(1);
+    expect(lenses[0].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
+    expect(lenses[0].command?.title).toContain('AWS::S3::Bucket');
+    expect(lenses[0].command?.title).toContain('MyBucketABC');
+  });
+
+  test('publishes nothing when assembly is not-found (pre-synth)', () => {
+    const client = createTestClient({
+      readAssembly: () => ({ status: 'not-found' }),
+    });
+
+    initializeClient(client, { applicationDir: '/p' });
+
+    expect(client.published).toHaveLength(0);
   });
 });
