@@ -862,10 +862,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // request — interactively prompt the user, auto-confirm, or suppress.
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         const deployMotivation = hasSecurityChanges
-          ? 'Stack includes security-sensitive updates.'
-          : 'Stack includes updates.';
+          ? 'Stack includes security-sensitive updates'
+          : 'Stack includes updates';
         const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
-        const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes?`;
+        const deployQuestion = `${diffOutput}\n\n${deployMotivation}. Do you wish to deploy these changes?`;
         const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
           motivation: deployMotivation,
           concurrency,

@@ -608,9 +608,11 @@ export class CdkToolkit {
         const securityDiff = formatter.formatSecurityDiff();
         if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
           const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+          // Bare-fact motivation. `CliIoHost.augmentDeployApprovalMessage`
+          // adds the `--require-approval` framing for terminal users.
           const motivation = hasSecurityChanges
-            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+            ? 'Stack includes security-sensitive updates'
+            : 'Stack includes updates';
           const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
           await this.ioHost.asIoHelper().defaults.info(diffOutput);
 

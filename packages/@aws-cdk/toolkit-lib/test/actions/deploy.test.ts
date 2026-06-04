@@ -84,7 +84,7 @@ IAM Statement Changes
       code: 'CDK_TOOLKIT_I5060',
       message: expect.stringContaining('Do you wish to deploy these changes?'),
       data: expect.objectContaining({
-        motivation: 'Stack includes security-sensitive updates.',
+        motivation: 'Stack includes security-sensitive updates',
         permissionChangeType: 'broadening',
         templateDiffs: expect.objectContaining({
           Stack1: expect.objectContaining({
@@ -119,7 +119,7 @@ IAM Statement Changes
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_I5060',
       data: expect.objectContaining({
-        motivation: 'Stack includes updates.',
+        motivation: 'Stack includes updates',
         permissionChangeType: 'none',
       }),
     }));
