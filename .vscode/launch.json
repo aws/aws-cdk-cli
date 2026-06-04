@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch CDK LSP (dev extension)",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/dev-vscode-extension"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dev-vscode-extension/out/**/*.js",
+        "${workspaceFolder}/packages/@aws-cdk/cdk-explorer/lib/**/*.js"
+      ],
+      "preLaunchTask": "build cdk lsp dev extension"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "cdk-lsp-dev",
+  "displayName": "CDK LSP (development only)",
+  "description": "DEVELOPMENT-ONLY VS Code extension. Spawns the local @aws-cdk/cdk-explorer LSP server for F5 debugging. Not the shipping CDK LSP integration — see README.md.",
+  "version": "0.0.0-dev",
+  "publisher": "cdk-dev",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:typescript"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.85.0",
+    "typescript": "5.9"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9"
+  }
+}

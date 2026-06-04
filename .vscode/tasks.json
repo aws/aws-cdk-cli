@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build cdk lsp dev extension",
+      "detail": "Compiles dev-vscode-extension/ TypeScript so F5 has a fresh out/extension.js to load. Does NOT rebuild the LSP server itself — run 'yarn workspace @aws-cdk/cdk-explorer build' separately when you change LSP source.",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/dev-vscode-extension"
+      },
+      "problemMatcher": "$tsc",
+      "group": "build"
+    }
+  ]
+}
