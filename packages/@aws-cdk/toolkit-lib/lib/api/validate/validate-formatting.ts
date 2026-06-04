@@ -5,6 +5,14 @@ import type { ValidateResult } from '../../actions/validate';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
 
+// Matches C0 control chars (except \t and \n), DEL, and CSI (8-bit mode).
+// Strips ANSI escape sequences, carriage returns, backspaces, BEL, and
+// bidirectional overrides that could spoof terminal output.
+const CONTROL_CHARS = /[\x00-\x08\x0B-\x1F\x7F\x9B]/g;
+function sanitize(s: string | undefined): string {
+  return (s ?? '').replace(CONTROL_CHARS, '�');
+}
+
 interface FlattenedViolation {
   readonly severity: string;
   readonly description: string;
@@ -70,7 +78,8 @@ function normalizeSeverity(severity: string | undefined): string {
   if (lower === 'error') return 'Error';
   if (lower === 'warning') return 'Warning';
   if (lower === 'info') return 'Info';
-  return severity.charAt(0).toUpperCase() + severity.slice(1);
+  const safe = sanitize(severity);
+  return safe.charAt(0).toUpperCase() + safe.slice(1);
 }
 
 function formatViolationBlock(v: FlattenedViolation): string {
@@ -78,19 +87,19 @@ function formatViolationBlock(v: FlattenedViolation): string {
 
   const location = getLeafLocation(v.construct.stackTraces);
   if (location) {
-    lines.push(chalk.underline(location));
+    lines.push(chalk.underline(sanitize(location)));
   }
 
   const severityColor = getSeverityColor(v.severity);
-  const description = stripAckTag(v.description);
+  const description = stripAckTag(sanitize(v.description));
   const severityAndDesc = severityColor(chalk.bold(`${v.severity}: ${description}`));
-  lines.push(`${severityAndDesc} ${v.pluginName}`);
+  lines.push(`${severityAndDesc} ${sanitize(v.pluginName)}`);
 
   const constructInfo = formatConstructInfo(v.construct);
   lines.push(`   ${constructInfo}`);
 
   if (v.severity.toLowerCase() !== 'fatal') {
-    const ackId = `${v.pluginName}::${v.ruleName}`.replace(/ /g, '-');
+    const ackId = `${sanitize(v.pluginName)}::${sanitize(v.ruleName)}`.replace(/ /g, '-');
     lines.push(`   Acknowledge '${ackId}'`);
   }
 
@@ -108,19 +117,17 @@ function getSeverityColor(severity: string): (str: string) => string {
 
 function formatConstructInfo(construct: ViolatingConstructJson): string {
   const parts: string[] = [];
-  const logicalId = construct.cloudFormationResource?.logicalId;
+  const logicalId = sanitize(construct.cloudFormationResource?.logicalId);
 
   if (construct.constructPath) {
-    parts.push(chalk.bold(construct.constructPath));
-    if (logicalId) {
-      parts.push(logicalId);
-    }
+    const cPath = sanitize(construct.constructPath);
+    parts.push(logicalId ? `${chalk.bold(cPath)} (${logicalId})` : chalk.bold(cPath));
   } else if (logicalId) {
     parts.push(chalk.bold(logicalId));
   }
 
   if (construct.constructFqn) {
-    parts.push(construct.constructFqn);
+    parts.push(sanitize(construct.constructFqn));
   }
 
   return parts.join(' ');

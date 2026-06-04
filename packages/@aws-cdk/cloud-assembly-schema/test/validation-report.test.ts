@@ -89,6 +89,96 @@ describe('Manifest.loadValidationReport', () => {
     expect(() => Manifest.loadValidationReport(reportPath)).toThrow();
   });
 
+  test('loads a report with suppressed violations', () => {
+    const reportPath = path.join(tmpDir, 'validation-report.json');
+    fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
+      pluginReports: [{
+        pluginName: 'TestPlugin',
+        conclusion: 'success',
+        violations: [],
+        suppressedViolations: [{
+          ruleName: 'no-public-buckets',
+          description: 'S3 Buckets must not be publicly accessible',
+          severity: 'warning',
+          violatingConstructs: [{
+            constructPath: 'MyStack/MyBucket/Resource',
+          }],
+          acknowledgedId: 'TestPlugin::no-public-buckets',
+          reason: 'This bucket is intentionally public for static website hosting',
+          acknowledgedAt: 'MyStack',
+        }],
+      }],
+    }));
+
+    const report = Manifest.loadValidationReport(reportPath);
+
+    expect(report.pluginReports[0].suppressedViolations).toHaveLength(1);
+    expect(report.pluginReports[0].suppressedViolations![0].ruleName).toBe('no-public-buckets');
+    expect(report.pluginReports[0].suppressedViolations![0].acknowledgedId).toBe('TestPlugin::no-public-buckets');
+    expect(report.pluginReports[0].suppressedViolations![0].reason).toBe('This bucket is intentionally public for static website hosting');
+    expect(report.pluginReports[0].suppressedViolations![0].acknowledgedAt).toBe('MyStack');
+  });
+
+  test('loads a report with suppressed violations without optional fields', () => {
+    const reportPath = path.join(tmpDir, 'validation-report.json');
+    fs.writeFileSync(reportPath, JSON.stringify({
+      version: '1.0.0',
+      pluginReports: [{
+        pluginName: 'TestPlugin',
+        conclusion: 'success',
+        violations: [],
+        suppressedViolations: [{
+          ruleName: 'no-public-buckets',
+          description: 'S3 Buckets must not be publicly accessible',
+          severity: 'warning',
+          violatingConstructs: [{
+            constructPath: 'MyStack/MyBucket/Resource',
+          }],
+          acknowledgedId: 'TestPlugin::no-public-buckets',
+        }],
+      }],
+    }));
+
+    const report = Manifest.loadValidationReport(reportPath);
+
+    expect(report.pluginReports[0].suppressedViolations).toHaveLength(1);
+    expect(report.pluginReports[0].suppressedViolations![0].reason).toBeUndefined();
+    expect(report.pluginReports[0].suppressedViolations![0].acknowledgedAt).toBeUndefined();
+  });
+
+  test('throws on suppressed violation missing acknowledgedId when schema validation is enabled', () => {
+    const prev = process.env.TESTING_CDK;
+    process.env.TESTING_CDK = '1';
+    try {
+      const reportPath = path.join(tmpDir, 'validation-report.json');
+      fs.writeFileSync(reportPath, JSON.stringify({
+        version: '1.0.0',
+        pluginReports: [{
+          pluginName: 'TestPlugin',
+          conclusion: 'success',
+          violations: [],
+          suppressedViolations: [{
+            ruleName: 'no-public-buckets',
+            description: 'S3 Buckets must not be publicly accessible',
+            severity: 'warning',
+            violatingConstructs: [{
+              constructPath: 'MyStack/MyBucket/Resource',
+            }],
+          }],
+        }],
+      }));
+
+      expect(() => Manifest.loadValidationReport(reportPath)).toThrow();
+    } finally {
+      if (prev === undefined) {
+        delete process.env.TESTING_CDK;
+      } else {
+        process.env.TESTING_CDK = prev;
+      }
+    }
+  });
+
   test('throws on invalid severity value', () => {
     const reportPath = path.join(tmpDir, 'validation-report.json');
     fs.writeFileSync(reportPath, JSON.stringify({

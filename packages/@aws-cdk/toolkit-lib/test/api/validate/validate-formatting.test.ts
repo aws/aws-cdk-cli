@@ -1,8 +1,10 @@
+import * as chalk from 'chalk';
 import type { ValidateResult } from '../../../lib/actions/validate';
 import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
 
-// Disable chalk for predictable assertions
-process.env.FORCE_COLOR = '0';
+// Disable chalk for predictable assertions — set level directly because
+// env vars may not take effect when chalk is already loaded by another test in the same worker.
+(chalk as any).level = 0;
 
 function makeResult(pluginReports: ValidateResult['pluginReports']): ValidateResult {
   const conclusion = pluginReports.some((r) => r.conclusion === 'failure') ? 'failure' : 'success';
@@ -165,5 +167,30 @@ describe('formatValidateResult', () => {
 
     const output = formatValidateResult(result);
     expect(output).toContain('aws-cdk-lib/aws-s3.Bucket');
+  });
+
+  test('sanitizes control characters from all taint sources', () => {
+    const result = makeResult([{
+      pluginName: 'Evil\x1b[2JPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'evil\x1b[0mrule',
+        description: '\x1b[2K\rFake passed message',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: 'Stack/\x1b[31mRed',
+          constructFqn: 'lib/\x07beep',
+          cloudFormationResource: { templatePath: 'Stack.template.json', logicalId: '\x1b[0mFakeId' },
+          stackTraces: ['at \x1b[2Jmalicious.ts:1:1'],
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).not.toMatch(/\x1b/);
+    expect(output).not.toMatch(/\x07/);
+    expect(output).not.toMatch(/\r/);
+    expect(output).toContain('Fake passed message');
+    expect(output).toContain('Evil');
   });
 });
