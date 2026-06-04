@@ -163,6 +163,14 @@ export interface IntegTestOptions {
   readonly updateWorkflow?: boolean;
 
   /**
+   * List of git tags to deploy in sequence before deploying the current code.
+   * When provided, replaces the normal merge-base update workflow.
+   *
+   * @default - use the normal update workflow
+   */
+  readonly updateFromTags?: string[];
+
+  /**
    * true if running in watch mode
    *
    * @default false
