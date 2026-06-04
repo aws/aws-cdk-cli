@@ -71,6 +71,7 @@ export class WorkGraphBuilder {
         id: startId,
         dependencies: new Set(),
         deploymentState: DeploymentState.PENDING,
+        priority: WorkGraphBuilder.PRIORITIES.marker,
         marker: { type: 'start-asset', asset },
       } satisfies MarkerNode);
     }
@@ -83,6 +84,7 @@ export class WorkGraphBuilder {
         id: endId,
         dependencies: new Set(),
         deploymentState: DeploymentState.PENDING,
+        priority: WorkGraphBuilder.PRIORITIES.marker,
         marker: { type: 'end-asset', asset },
       } satisfies MarkerNode);
     }

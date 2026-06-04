@@ -174,7 +174,7 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: false });
 
     expect(traversal).toEqual([
       expect.stringMatching(/^build-work-graph-builder.test.js-.*$/),
@@ -236,14 +236,17 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: true });
 
+    // THEN: one build, multiple publishes, and the asset 'START' and 'END' markers are as tight as possible.
     expect(traversal).toEqual([
+      'start-abcdef',
       expect.stringMatching(/^build-abcdef-.*$/),
       expect.stringMatching(/^publish-abcdef-.*$/),
       expect.stringMatching(/^publish-abcdef-.*$/),
       'StackA',
       expect.stringMatching(/^publish-abcdef-.*$/),
+      'end-abcdef',
       'StackB',
     ]);
   });
@@ -282,7 +285,7 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: false });
 
     expect(traversal).toEqual([
       expect.stringMatching(/^build-abcdef-.*$/),
@@ -373,7 +376,7 @@ function assertableNode<A extends WorkNode>(x: A) {
   };
 }
 
-async function traverseAndRecord(graph: WorkGraph) {
+async function traverseAndRecord(graph: WorkGraph, options: { includeMarkers: boolean }) {
   const ret: string[] = [];
   await graph.doParallel(1, {
     deployStack: async (node) => {
@@ -385,7 +388,10 @@ async function traverseAndRecord(graph: WorkGraph) {
     publishAsset: async (node) => {
       ret.push(node.id);
     },
-    marker: async () => {
+    marker: async (node) => {
+      if (options.includeMarkers) {
+        ret.push(node.id);
+      }
     },
   });
   return ret;
