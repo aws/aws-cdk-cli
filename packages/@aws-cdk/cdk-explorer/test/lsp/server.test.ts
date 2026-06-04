@@ -1,166 +1,102 @@
-import { PassThrough } from 'stream';
-import type { MessageConnection } from 'vscode-jsonrpc/node';
-import {
-  createMessageConnection,
-  StreamMessageReader,
-  StreamMessageWriter,
-} from 'vscode-jsonrpc/node';
-import { startServer, type LspServerOptions } from '../../lib/lsp/server';
+import { TextDocumentSyncKind } from 'vscode-languageserver/node';
+import { createLspHandlers } from '../../lib/lsp/server';
 
-interface TestClient {
-  connection: MessageConnection;
-  serverIn: PassThrough;
-  serverOut: PassThrough;
-}
-
-function createTestClient(opts?: Partial<Pick<LspServerOptions, 'onSynthRequest'>>): TestClient {
-  const serverIn = new PassThrough();
-  const serverOut = new PassThrough();
-
-  startServer({
-    readable: serverIn,
-    writable: serverOut,
-    onSynthRequest: opts?.onSynthRequest,
-  });
-
-  const connection = createMessageConnection(
-    new StreamMessageReader(serverOut),
-    new StreamMessageWriter(serverIn),
-  );
-  connection.listen();
-
-  return { connection, serverIn, serverOut };
-}
-
-async function initializeClient(client: TestClient, options?: Record<string, unknown>): Promise<void> {
-  // processId MUST be null in tests. vscode-languageserver's watchdog starts an
-  // un-disposable setInterval(...3000) when processId is a number, leaking the
-  // event loop and hanging Jest after tests pass. Per LSP spec, null means
-  // "no parent process" — appropriate for an in-process test harness.
-  await client.connection.sendRequest('initialize', {
-    processId: null,
-    capabilities: {},
-    rootUri: null,
-    initializationOptions: options ?? {},
-  });
-  await client.connection.sendNotification('initialized');
-}
-
-describe('LSP Server', () => {
-  let testClient: TestClient;
-
-  afterEach(() => {
-    if (testClient) {
-      testClient.connection.dispose();
-      testClient.serverIn.end();
-      testClient.serverOut.end();
-    }
-  });
-
-  test('responds to initialize with capabilities', async () => {
-    testClient = createTestClient();
-
-    const result = await testClient.connection.sendRequest('initialize', {
+describe('createLspHandlers', () => {
+  function init(handlers: ReturnType<typeof createLspHandlers>, applicationDir = '/tmp/test-project') {
+    handlers.onInitialize({
       processId: null,
       capabilities: {},
       rootUri: null,
-      initializationOptions: { applicationDir: '/tmp/test-project' },
+      initializationOptions: { applicationDir },
+    });
+    handlers.onInitialized();
+  }
+
+  test('initialize advertises didSave-only textDocument sync', () => {
+    const result = createLspHandlers().onInitialize({
+      processId: null,
+      capabilities: {},
+      rootUri: null,
+      initializationOptions: {},
     });
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       capabilities: {
         textDocumentSync: {
           openClose: false,
-          change: 0,
+          change: TextDocumentSyncKind.None,
           save: { includeText: false },
         },
       },
     });
   });
 
-  test('didSave triggers onSynthRequest for source files', async () => {
-    const synthRequests: string[] = [];
-    testClient = createTestClient({
-      onSynthRequest: (dir) => synthRequests.push(dir),
-    });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+  test('didSave triggers onSynthRequest with the application dir', () => {
+    const requests: string[] = [];
+    const handlers = createLspHandlers({ onSynthRequest: (d) => requests.push(d) });
+    init(handlers);
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
     });
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(synthRequests).toEqual(['/tmp/test-project']);
+    expect(requests).toEqual(['/tmp/test-project']);
   });
 
-  test('didSave does not trigger for ignored files', async () => {
-    const synthRequests: string[] = [];
-    testClient = createTestClient({
-      onSynthRequest: (dir) => synthRequests.push(dir),
-    });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+  test('didSave is filtered for files matching the watch-exclude defaults', () => {
+    const requests: string[] = [];
+    const handlers = createLspHandlers({ onSynthRequest: (d) => requests.push(d) });
+    init(handlers);
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/node_modules/foo/index.ts' },
     });
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/cdk.out/tree.json' },
     });
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(synthRequests).toEqual([]);
+    expect(requests).toEqual([]);
   });
 
-  test('didSave does not throw without onSynthRequest configured', async () => {
-    testClient = createTestClient();
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+  test('didSave is a no-op when onSynthRequest is not provided', () => {
+    const handlers = createLspHandlers();
+    init(handlers);
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
+    expect(() =>
+      handlers.onDidSaveTextDocument({
+        textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+      }),
+    ).not.toThrow();
+  });
+
+  test('didSave is ignored after shutdown', () => {
+    const requests: string[] = [];
+    const handlers = createLspHandlers({ onSynthRequest: (d) => requests.push(d) });
+    init(handlers);
+
+    handlers.onShutdown();
+    handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
     });
 
-    // Server should still be responsive after didSave with no callback
-    await testClient.connection.sendRequest('shutdown');
+    expect(requests).toEqual([]);
   });
 
-  test('shutdown completes without error', async () => {
-    testClient = createTestClient();
-    await initializeClient(testClient);
-
-    await testClient.connection.sendRequest('shutdown');
-  });
-
-  test('didSave is ignored after shutdown', async () => {
-    const synthRequests: string[] = [];
-    testClient = createTestClient({
-      onSynthRequest: (dir) => synthRequests.push(dir),
-    });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
-
-    await testClient.connection.sendRequest('shutdown');
-
-    await testClient.connection.sendNotification('textDocument/didSave', {
-      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
-    });
-
-    await new Promise((r) => setTimeout(r, 50));
-    expect(synthRequests).toEqual([]);
-  });
-
-  test('onSynthRequest errors are caught gracefully', async () => {
-    testClient = createTestClient({
+  test('onSynthRequest errors are caught and surfaced via the logger', () => {
+    const errors: string[] = [];
+    const handlers = createLspHandlers({
       onSynthRequest: () => {
         throw new Error('synth failed');
       },
+      logger: { error: (m) => errors.push(m) },
     });
-    await initializeClient(testClient, { applicationDir: '/tmp/test-project' });
+    init(handlers);
 
-    await testClient.connection.sendNotification('textDocument/didSave', {
-      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
-    });
-
-    // Server should still be responsive after the error
-    await new Promise((r) => setTimeout(r, 50));
-    await testClient.connection.sendRequest('shutdown');
+    expect(() =>
+      handlers.onDidSaveTextDocument({
+        textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+      }),
+    ).not.toThrow();
+    expect(errors).toEqual(['Synth request failed: synth failed']);
   });
 });
