@@ -17,6 +17,12 @@ import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
+/**
+ * Valid user agent prefixes that are allowed to report through CDK_CLI_USERAGENT.
+ * This creates a mechanism to report user agents we control.
+ */
+const VALID_USER_AGENTS = ['aws-blocks'];
+
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
   readonly client: ITelemetrySink;
@@ -76,6 +82,9 @@ export class TelemetrySession {
           parameters,
           config: {
             context: sanitizeContext(this.props.context),
+            ...(isValidWrapperUserAgent(process.env.CDK_CLI_USERAGENT)
+              ? { cdkCliUserAgent: { [process.env.CDK_CLI_USERAGENT]: true } }
+              : {}),
           },
         },
       },
@@ -239,4 +248,18 @@ function isAbortedError(error?: ErrorDetails) {
 
 function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
   return x;
+}
+
+/**
+ * Validates that the CDK_CLI_USERAGENT env var value matches
+ * the expected format: `<name>/<version>/<mode>` where name is one of
+ * VALID_USER_AGENTS and mode is either `sandbox` or `production`.
+ */
+export function isValidWrapperUserAgent(value: string | undefined): value is string {
+  if (!value) return false;
+  const parts = value.split('/');
+  if (parts.length !== 3) return false;
+  const [name, _version, mode] = parts;
+  if (!VALID_USER_AGENTS.includes(name)) return false;
+  return mode === 'sandbox' || mode === 'production';
 }

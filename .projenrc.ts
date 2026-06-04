@@ -10,7 +10,6 @@ import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
-import { JsiiBuild } from './projenrc/jsii';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
@@ -462,10 +461,11 @@ const cloudAssemblySchema = configureProject(
 );
 fixupTestTask(cloudAssemblySchema);
 
-new JsiiBuild(cloudAssemblySchema, {
+cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
   jsiiVersion: TYPESCRIPT_VERSION,
   excludeTypescript: ['**/test/**/*.ts'],
+  rosettaDependencies: ['constructs@^10.0.0'],
   publishToMaven: {
     javaPackage: 'software.amazon.awscdk.cloudassembly.schema',
     mavenArtifactId: 'cdk-cloud-assembly-schema',
@@ -490,9 +490,13 @@ new JsiiBuild(cloudAssemblySchema, {
     moduleName: 'github.com/cdklabs/cloud-assembly-schema-go',
   },
   composite: true,
-});
+}));
 
 (() => {
+  cloudAssemblySchema.addDevDeps('cdk-generate-synthetic-examples');
+  cloudAssemblySchema.tasks.tryFind('rosetta:extract')!.reset('cdk-generate-synthetic-examples');
+  cloudAssemblySchema.tasks.tryFind('rosetta:extract')!.exec('jsii-rosetta extract --strict');
+
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/update.ts');
 
   // This file will be generated at release time. It needs to be gitignored or it will
@@ -502,6 +506,7 @@ new JsiiBuild(cloudAssemblySchema, {
   // by making it part of preCompile, because that makes it run as part of projen build.
   cloudAssemblySchema.preCompileTask.exec('tsx ../../../projenrc/copy-cli-version-to-assembly.task.ts');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
+  cloudAssemblySchema.gitignore.addPatterns('_generated.ts-fixture');
 
   cloudAssemblySchema.addPackageIgnore('*.ts');
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');
@@ -1784,7 +1789,6 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
     'docs',
     'bootstrap',
     'integ-testing',
-    'toolkit-lib',
     ...repoProject.subprojects
       .filter(p => p instanceof yarn.TypeScriptWorkspace)
       .map(p => p.name)

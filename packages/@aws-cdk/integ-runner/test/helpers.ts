@@ -1,6 +1,6 @@
 import * as path from 'path';
 import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeployOptions, ICdk, ListOptions, SynthOptions } from '../lib/engines/cdk-interface';
+import type { CdkDeployResult, DeployOptions, ICdk, ListOptions, SynthOptions } from '../lib/engines/cdk-interface';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
 
@@ -29,7 +29,7 @@ export interface MockCdkProviderOptions {
 }
 
 export interface MockCdkMocks {
-  deploy?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
+  deploy?: jest.MockedFn<(options: DeployOptions) => Promise<CdkDeployResult>>;
   watch?: jest.MockedFn<(options: DeployOptions) => Promise<void>>;
   synth?: jest.MockedFn<(options: SynthOptions) => Promise<void>>;
   destroy?: jest.MockedFn<(options: DestroyOptions) => Promise<void>>;
@@ -42,7 +42,7 @@ export class MockCdkProvider {
 
   constructor(_options: MockCdkProviderOptions) {
     this.cdk = {
-      deploy: jest.fn().mockImplementation(),
+      deploy: jest.fn().mockResolvedValue({ deleteFailures: [] }),
       watch: jest.fn().mockImplementation(),
       synth: jest.fn().mockImplementation(),
       destroy: jest.fn().mockImplementation(),
@@ -52,7 +52,7 @@ export class MockCdkProvider {
   }
 
   public mockDeploy(mock?: MockCdkMocks['deploy']) {
-    this.mocks.deploy = mock ?? jest.fn().mockImplementation();
+    this.mocks.deploy = mock ?? jest.fn().mockResolvedValue({ deleteFailures: [] });
     this.cdk.deploy = this.mocks.deploy;
   }
   public mockWatch(mock?: MockCdkMocks['watch']) {
