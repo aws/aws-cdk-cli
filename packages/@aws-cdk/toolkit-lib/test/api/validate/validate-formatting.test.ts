@@ -1,8 +1,10 @@
-import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
+import * as chalk from 'chalk';
 import type { ValidateResult } from '../../../lib/actions/validate';
+import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
 
-// Disable chalk for predictable assertions
-process.env.FORCE_COLOR = '0';
+// Disable chalk for predictable assertions — set level directly because
+// env vars may not take effect when chalk is already loaded by another test in the same worker.
+(chalk as any).level = 0;
 
 function makeResult(pluginReports: ValidateResult['pluginReports']): ValidateResult {
   const conclusion = pluginReports.some((r) => r.conclusion === 'failure') ? 'failure' : 'success';

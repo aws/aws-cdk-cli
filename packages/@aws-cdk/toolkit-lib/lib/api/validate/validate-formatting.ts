@@ -1,6 +1,6 @@
 import * as path from 'node:path';
-import * as chalk from 'chalk';
 import type { PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import * as chalk from 'chalk';
 import type { ValidateResult } from '../../actions/validate';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
