@@ -33,8 +33,12 @@ function createTestClient(opts?: Partial<Pick<LspServerOptions, 'onSynthRequest'
 }
 
 async function initializeClient(client: TestClient, options?: Record<string, unknown>): Promise<void> {
+  // processId MUST be null in tests. vscode-languageserver's watchdog starts an
+  // un-disposable setInterval(...3000) when processId is a number, leaking the
+  // event loop and hanging Jest after tests pass. Per LSP spec, null means
+  // "no parent process" — appropriate for an in-process test harness.
   await client.connection.sendRequest('initialize', {
-    processId: process.pid,
+    processId: null,
     capabilities: {},
     rootUri: null,
     initializationOptions: options ?? {},
@@ -57,7 +61,7 @@ describe('LSP Server', () => {
     testClient = createTestClient();
 
     const result = await testClient.connection.sendRequest('initialize', {
-      processId: process.pid,
+      processId: null,
       capabilities: {},
       rootUri: null,
       initializationOptions: { applicationDir: '/tmp/test-project' },
