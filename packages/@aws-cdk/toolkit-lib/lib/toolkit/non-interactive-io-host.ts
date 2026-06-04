@@ -128,7 +128,7 @@ export class NonInteractiveIoHost implements IIoHost {
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
     const annotation = typeof msg.defaultResponse === 'boolean'
-      ? '(auto-confirmed)'
+      ? (msg.defaultResponse ? '(auto-confirmed)' : '(auto-denied)')
       : `(auto-responded with default: ${util.format(msg.defaultResponse)})`;
 
     await this.notify({
