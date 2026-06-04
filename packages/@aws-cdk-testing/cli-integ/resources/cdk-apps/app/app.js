@@ -865,6 +865,24 @@ class MultipleDockerAssetsStack extends cdk.Stack {
 }
 
 /**
+ * A stack that uses the same docker image as another stack, to test that the
+ * same image asset can be published to multiple destinations without rebuilding.
+ */
+class DockerMultiDestStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    new docker.DockerImageAsset(this, 'image', {
+      directory: path.join(__dirname, 'docker')
+    });
+
+    new cdk.CfnResource(this, 'Handle', {
+      type: 'AWS::CloudFormation::WaitConditionHandle'
+    });
+  }
+}
+
+/**
  * A stack that will never succeed deploying (done in a way that CDK cannot detect but CFN will complain about)
  */
 class FailedStack extends cdk.Stack {
@@ -1081,6 +1099,14 @@ switch (stackSet) {
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
     new DockerStackWithCustomFile(app, `${stackPrefix}-docker-with-custom-file`);
     new MultipleDockerAssetsStack(app, `${stackPrefix}-multiple-docker-assets`);
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-1`, { env: defaultEnv });
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-2`, { env: defaultEnv });
+
+    if (process.env.CDK_SECONDARY_REGION) {
+      const secondaryEnv = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_SECONDARY_REGION };
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-1`, { env: defaultEnv });
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-2`, { env: secondaryEnv });
+    }
 
     new NotificationArnsStack(app, `${stackPrefix}-notification-arns`);
 

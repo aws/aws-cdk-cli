@@ -891,14 +891,13 @@ test('publish re-tags image when local tag is missing for a destination', async 
   mockEcr.on(DescribeImagesCommand).rejects(err);
 
   const expectAllSpawns = mockSpawn(
-    // First destination: build + tag + push (buildCompleted=true, skips exists check)
+    // First destination: login + build + tag + push (buildCompleted=true, skips exists check)
     { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset'], exitCode: 1 },
     { commandLine: ['docker', 'build', '--tag', 'cdkasset-theasset', '.'], cwd: 'multi-dest/cdk.out/dockerdir' },
     { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo1:abcdef'] },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/repo1:abcdef'] },
-    // Second destination: build finds cached image, tags, then push
-    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    // Second destination: login skipped (same domain), build finds cached image, tags, push
     { commandLine: ['docker', 'inspect', 'cdkasset-theasset'] },
     { commandLine: ['docker', 'tag', 'cdkasset-theasset', '12345.amazonaws.com/repo2:abcdef'] },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/repo2:abcdef'] },
@@ -933,14 +932,13 @@ test('publish re-tags from existing image when build was not called for destinat
   mockEcr.on(DescribeImagesCommand).rejects(err);
 
   const expectAllSpawns = mockSpawn(
-    // First destination: publish() finds imageUri doesn't exist locally, finds by tag, re-tags
+    // First destination: login + exists check fails + find by tag + re-tag + push
     { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
     { commandLine: ['docker', 'inspect', '12345.amazonaws.com/repo1:abcdef'], exitCode: 1 },
     { commandLine: ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}', '--filter', 'reference=*/*:abcdef'], stdout: 'cdkasset-theasset:abcdef' },
     { commandLine: ['docker', 'tag', 'cdkasset-theasset:abcdef', '12345.amazonaws.com/repo1:abcdef'] },
     { commandLine: ['docker', 'push', '12345.amazonaws.com/repo1:abcdef'] },
-    // Second destination: same flow
-    { commandLine: ['docker', 'login', '--username', 'user', '--password-stdin', 'proxy.com'] },
+    // Second destination: login skipped (same domain), same re-tag flow
     { commandLine: ['docker', 'inspect', '12345.amazonaws.com/repo2:abcdef'], exitCode: 1 },
     { commandLine: ['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}', '--filter', 'reference=*/*:abcdef'], stdout: 'cdkasset-theasset:abcdef' },
     { commandLine: ['docker', 'tag', 'cdkasset-theasset:abcdef', '12345.amazonaws.com/repo2:abcdef'] },
