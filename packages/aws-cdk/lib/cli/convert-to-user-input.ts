@@ -316,6 +316,12 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {};
       break;
 
+    case 'explore':
+      commandOptions = {
+        port: args.port,
+      };
+      break;
+
     case 'orphan':
       commandOptions = {
         PATHS: args.PATHS,
@@ -569,6 +575,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const exploreOptions = {
+    port: config.explore?.port,
+  };
   const orphanOptions = {};
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
@@ -606,6 +615,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    explore: exploreOptions,
     orphan: orphanOptions,
     refactor: refactorOptions,
     cliTelemetry: cliTelemetryOptions,
