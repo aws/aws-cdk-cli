@@ -227,7 +227,13 @@ By default, integration tests are run with the "update workflow" enabled. This c
 If an existing snapshot is being updated, the integration test runner will first deploy the existing snapshot and then perform a stack update
 with the new changes. This is to test for cases where an update would cause a breaking change only on a stack update.
 
-> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works with **environment-agnostic** snapshots. A snapshot is environment-agnostic when its templates do not embed specific account IDs or regions. Tests that use context lookups (e.g., VPC or AZ providers) store dummy resolved values in their snapshots — these are fine for diffing but can only be deployed if the snapshot doesn't hardcode real environment-specific values. If your test declares a specific `env: { account, region }`, its snapshot is not portable and the update workflow will not work reliably.
+> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works 
+> with **environment-agnostic** snapshots. A snapshot is environment-agnostic when its templates do
+> not embed specific account IDs or regions. Tests that use context lookups (e.g., VPC or AZ
+> providers) store dummy resolved values in their snapshots — these are fine for diffing but can
+> only be deployed if the snapshot doesn't hardcode real environment-specific values. If your test
+> declares a specific `env: { account, region }`, its snapshot is not portable and the update
+> workflow will not work reliably.
 
 The `integ-runner` will also attempt to warn you if you are making any destructive changes with a message like:
 
