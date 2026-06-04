@@ -15,43 +15,27 @@ import {
 import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
 
-export interface LspHandlerOptions {
+export interface LspServerOptions {
+  readonly readable: NodeJS.ReadableStream;
+  readonly writable: NodeJS.WritableStream;
   /**
-   * Injectable synth trigger for testability.
-   * Called when `didSave` fires on a tracked source file.
+   * Callback invoked on `didSave` for tracked source files
    */
   readonly onSynthRequest?: (projectDir: string) => void;
-  /**
-   * Sink for non-fatal error messages. In production, the connection's
-   * console writes to the editor's Output panel; in tests, capture into an array.
-   */
-  readonly logger?: { error(message: string): void };
 }
 
-/** Pure handler functions for LSP messages, extracted for direct unit testing. */
-export interface LspHandlers {
+interface LspHandlers {
   onInitialize(params: InitializeParams): InitializeResult;
   onInitialized(): void;
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
   onShutdown(): void;
 }
 
-export interface LspServerOptions extends LspHandlerOptions {
-  readonly readable: NodeJS.ReadableStream;
-  readonly writable: NodeJS.WritableStream;
+interface LogSink {
+  error(message: string): void;
 }
 
-/**
- * Build the LSP message handlers as plain functions over closed-over state.
- */
-export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers {
-  const onSynthRequest = options.onSynthRequest ?? (() => {
-  });
-  const logger = options.logger ?? {
-    error: () => {
-    },
-  };
-
+function buildHandlers(onSynthRequest: (projectDir: string) => void, log: LogSink): LspHandlers {
   let applicationDir: string | undefined;
   let shutdownRequested = false;
   let shouldIgnore: (filePath: string) => boolean = () => false;
@@ -96,7 +80,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       try {
         onSynthRequest(projectDir);
       } catch (err) {
-        logger.error(`Synth request failed: ${err instanceof Error ? err.message : String(err)}`);
+        log.error(`Synth request failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
     onShutdown() {
@@ -112,10 +96,9 @@ export function startServer(options: LspServerOptions): void {
     new StreamMessageWriter(options.writable),
   );
 
-  const handlers = createLspHandlers({
-    onSynthRequest: options.onSynthRequest,
-    logger: connection.console,
+  const onSynthRequest = options.onSynthRequest ?? (() => {
   });
+  const handlers = buildHandlers(onSynthRequest, connection.console);
 
   connection.onInitialize((params) => handlers.onInitialize(params));
   connection.onInitialized(() => handlers.onInitialized());
