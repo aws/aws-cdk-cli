@@ -43,6 +43,10 @@ import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
+  // This is the very first code that runs, but libraries have been loaded already and that also costs time.
+  // Measure that.
+  const libraryLoadTime = performance.now();
+
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
@@ -126,6 +130,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
+  ioHost.telemetry?.attachLoadTime(libraryLoadTime);
   ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
   ioHost.telemetry?.attachAgent(guessAgent());
 
@@ -291,6 +296,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       configuration,
       sdkProvider,
     });
+
+    ioHost.telemetry?.markOperationStart();
 
     switch (command) {
       case 'context':
