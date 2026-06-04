@@ -18,12 +18,25 @@ export interface SourceLocation {
 export type WarnFn = (message: string) => void;
 
 /**
+ * Cache of parsed source maps keyed by absolute .js file path. Source-map
+ * parsing is not free, and one cdk.out tree can ask for the same .js.map
+ * dozens of times. Callers create one cache per assembly read and pass it
+ * to every resolveSourceLocation call so the work amortises.
+ */
+export type SourceMapCache = Map<string, TraceMap | null>;
+
+export function createSourceMapCache(): SourceMapCache {
+  return new Map();
+}
+
+/**
  * Resolve a construct's creation site from its metadata entries. Returns
  * undefined when no trace is present (non-TS apps) or when every frame is
  * a skip-placeholder (framework-only call sites).
  */
 export function resolveSourceLocation(
   metadataEntries: readonly MetadataEntry[] | undefined,
+  cache: SourceMapCache,
   onWarn?: WarnFn,
 ): SourceLocation | undefined {
   const frames = pickCreationFrames(metadataEntries);
@@ -35,7 +48,7 @@ export function resolveSourceLocation(
   // that parses IS the user call site.
   for (const frame of frames) {
     const parsed = parseFrame(frame);
-    if (parsed) return mapJsToOriginalSource(parsed, onWarn) ?? parsed;
+    if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn) ?? parsed;
   }
   return undefined;
 }
@@ -80,11 +93,15 @@ function parseFrame(frame: string): SourceLocation | undefined {
  * Map a .js location to its original .ts via a sibling .js.map. Returns
  * undefined when there's no map; the caller falls back to the .js location.
  */
-function mapJsToOriginalSource(loc: SourceLocation, onWarn?: WarnFn): SourceLocation | undefined {
+function mapJsToOriginalSource(
+  loc: SourceLocation,
+  cache: SourceMapCache,
+  onWarn?: WarnFn,
+): SourceLocation | undefined {
   if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx')) return loc;
   if (!loc.file.endsWith('.js')) return undefined;
 
-  const tracer = loadTraceMap(loc.file, onWarn);
+  const tracer = loadTraceMap(loc.file, cache, onWarn);
   if (!tracer) return undefined;
 
   // trace-mapping uses 0-based columns, stack frames are 1-based.
@@ -98,33 +115,26 @@ function mapJsToOriginalSource(loc: SourceLocation, onWarn?: WarnFn): SourceLoca
   return { file: resolvedFile, line: orig.line, column: orig.column + 1 };
 }
 
-const traceMapCache = new Map<string, TraceMap | null>();
-
-function loadTraceMap(jsFile: string, onWarn?: WarnFn): TraceMap | null {
-  const cached = traceMapCache.get(jsFile);
+function loadTraceMap(jsFile: string, cache: SourceMapCache, onWarn?: WarnFn): TraceMap | null {
+  const cached = cache.get(jsFile);
   if (cached !== undefined) return cached;
 
   const mapPath = jsFile + '.map';
   if (!fs.existsSync(mapPath)) {
-    traceMapCache.set(jsFile, null);
+    cache.set(jsFile, null);
     return null;
   }
   try {
     const raw = fs.readFileSync(mapPath, 'utf-8');
     const tm = new TraceMap(JSON.parse(raw));
-    traceMapCache.set(jsFile, tm);
+    cache.set(jsFile, tm);
     return tm;
   } catch (err) {
     // Map file exists but is unreadable/invalid. Cache the failure so we
     // don't re-attempt every lookup, and surface it once so a broken map
     // doesn't masquerade as "no source map at all".
-    traceMapCache.set(jsFile, null);
+    cache.set(jsFile, null);
     onWarn?.(`Source map ${mapPath} failed to load: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
-}
-
-/** Test-only: clear the source map cache between test cases. */
-export function _clearTraceMapCache(): void {
-  traceMapCache.clear();
 }

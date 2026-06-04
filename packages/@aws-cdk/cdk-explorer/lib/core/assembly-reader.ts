@@ -7,7 +7,7 @@ import {
   type MetadataEntry,
   type PolicyValidationReportJson,
 } from '@aws-cdk/cloud-assembly-schema';
-import { resolveSourceLocation, type SourceLocation, type WarnFn } from './source-resolver';
+import { createSourceMapCache, resolveSourceLocation, type SourceLocation, type SourceMapCache, type WarnFn } from './source-resolver';
 
 /** A construct from tree.json plus the CFN metadata the LSP surfaces. */
 export interface ConstructNode {
@@ -59,8 +59,12 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
     const stacks = assembly.stacksRecursively;
 
     const stackIndex = buildStackIndex(stacks);
+    // One source-map cache per readAssembly call: avoids re-parsing the same
+    // .js.map for every construct, while keeping the cache scoped so a fresh
+    // synth observes any moved/edited maps.
+    const sourceMapCache = createSourceMapCache();
     const tree = rawTree
-      ? buildTree(rawTree, stackIndex, onWarn)
+      ? buildTree(rawTree, stackIndex, sourceMapCache, onWarn)
       : [];
 
     let violations: PolicyValidationReportJson | undefined;
@@ -80,8 +84,10 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
   }
 }
 
-// Raw tree.json node. The root tree.json holds the FULL hierarchy including
-// Stage children — nested-assembly subdirs don't shard tree.json.
+/**
+ * Raw tree.json node. The root tree.json holds the FULL hierarchy including
+ * Stage children; nested-assembly subdirs don't shard tree.json.
+ */
 interface RawTreeNode {
   readonly id: string;
   readonly path: string;
@@ -120,17 +126,19 @@ function buildStackIndex(stacks: CloudFormationStackArtifact[]): StackMetadataIn
 function buildTree(
   root: RawTreeNode,
   stackIndex: StackMetadataIndex,
+  sourceMapCache: SourceMapCache,
   onWarn?: WarnFn,
 ): ConstructNode[] {
   return Object.values(root.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, stackIndex, undefined, onWarn));
+    .map((child) => buildNode(child, stackIndex, undefined, sourceMapCache, onWarn));
 }
 
 function buildNode(
   raw: RawTreeNode,
   stackIndex: StackMetadataIndex,
   inheritedMetadata: Map<string, MetadataEntry[]> | undefined,
+  sourceMapCache: SourceMapCache,
   onWarn?: WarnFn,
 ): ConstructNode {
   // When a node IS a stack, switch to that stack's metadata. Otherwise inherit
@@ -147,7 +155,7 @@ function buildNode(
   const cfnTypeRaw = raw.attributes?.[CFN_TYPE_ATTRIBUTE];
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
 
-  const sourceLocation = resolveSourceLocation(entries, onWarn);
+  const sourceLocation = resolveSourceLocation(entries, sourceMapCache, onWarn);
 
   return {
     path: raw.path,
@@ -157,7 +165,7 @@ function buildNode(
     sourceLocation,
     children: Object.values(raw.children ?? {})
       .filter((child) => !isCdkInternal(child.id))
-      .map((child) => buildNode(child, stackIndex, metadata, onWarn)),
+      .map((child) => buildNode(child, stackIndex, metadata, sourceMapCache, onWarn)),
   };
 }
 

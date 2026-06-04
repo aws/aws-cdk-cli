@@ -81,10 +81,7 @@ function anchor(
   }
 
   // LSP positions are 0-based; sourceLocation is 1-based.
-  // Span to end-of-line so the squiggle is visible. The LSP spec defines
-  // Number.MAX_VALUE as the canonical end-of-line sentinel (vscode-
-  // languageserver-types' Position.create normalizes it to uinteger.MAX_VALUE),
-  // and conformant clients clamp character values past line length.
+  // Span to end-of-line with Number.MAX_VALUE so the squiggle is visible.
   const line = loc.line - 1;
   const character = loc.column - 1;
   return {

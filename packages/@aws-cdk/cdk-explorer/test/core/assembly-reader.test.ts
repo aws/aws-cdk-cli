@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { readAssembly, type ConstructNode } from '../../lib';
+import { readAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../../lib';
 import {
   buildFlatAssembly,
   buildNestedAssembly,
@@ -10,6 +10,13 @@ import {
   withMalformedValidationReport,
   withValidationReport,
 } from '../_fixtures/builders';
+
+/** Assert that readAssembly succeeded and return the typed data. */
+function expectSuccess(result: AssemblyReadResult): AssemblyData {
+  expect(result.status).toBe('success');
+  // Cast is safe because expect() above would have failed the test on mismatch.
+  return (result as Extract<AssemblyReadResult, { status: 'success' }>).data;
+}
 
 describe('readAssembly', () => {
   let dir: string | undefined;
@@ -40,11 +47,10 @@ describe('readAssembly', () => {
       ],
     });
 
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(result.data.tree).toHaveLength(2);
-    expect(result.data.tree.map((n) => n.id).sort()).toEqual(['Stack1', 'Stack2']);
+    expect(data.tree).toHaveLength(2);
+    expect(data.tree.map((n) => n.id).sort()).toEqual(['Stack1', 'Stack2']);
   });
 
   test('enriches resource nodes with logicalId and cfnType', () => {
@@ -56,10 +62,9 @@ describe('readAssembly', () => {
         }],
       }],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    const resource = findNode(result.data.tree, 'Stack1/MyBucket/Resource')!;
+    const resource = findNode(data.tree, 'Stack1/MyBucket/Resource')!;
     expect(resource.logicalId).toBe('MyBucketF68F3FF0');
     expect(resource.type).toBe('AWS::S3::Bucket');
   });
@@ -75,10 +80,9 @@ describe('readAssembly', () => {
         }],
       }],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    const wrapper = findNode(result.data.tree, 'Stack1/MyBucket')!;
+    const wrapper = findNode(data.tree, 'Stack1/MyBucket')!;
     expect(wrapper.logicalId).toBeUndefined();
     expect(wrapper.type).toBeUndefined();
   });
@@ -87,11 +91,10 @@ describe('readAssembly', () => {
     dir = buildFlatAssembly({
       stacks: [{ id: 'Stack1', resources: [{ id: 'X', logicalId: 'X', cfnType: 'AWS::S3::Bucket' }] }],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(Array.isArray(result.data.tree)).toBe(true);
-    expect(Array.isArray(result.data.tree[0].children)).toBe(true);
+    expect(Array.isArray(data.tree)).toBe(true);
+    expect(Array.isArray(data.tree[0].children)).toBe(true);
   });
 
   test('returns error for malformed manifest', () => {
@@ -133,34 +136,31 @@ describe('readAssembly with violations', () => {
       }],
     });
 
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(result.data.violations).toBeDefined();
-    expect(result.data.violations!.pluginReports[0].conclusion).toBe('failure');
-    expect(result.data.violations!.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
-    expect(result.data.violationsError).toBeUndefined();
+    expect(data.violations).toBeDefined();
+    expect(data.violations!.pluginReports[0].conclusion).toBe('failure');
+    expect(data.violations!.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
+    expect(data.violationsError).toBeUndefined();
   });
 
   test('returns undefined violations when report file is absent', () => {
     dir = buildFlatAssembly({ stacks: [{ id: 'Stack1', resources: [] }] });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(result.data.violations).toBeUndefined();
-    expect(result.data.violationsError).toBeUndefined();
+    expect(data.violations).toBeUndefined();
+    expect(data.violationsError).toBeUndefined();
   });
 
   test('malformed validation report does not crash the tree read', () => {
     dir = buildFlatAssembly({ stacks: [{ id: 'Stack1', resources: [] }] });
     withMalformedValidationReport(dir);
 
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(result.data.tree).toHaveLength(1);
-    expect(result.data.violations).toBeUndefined();
-    expect(result.data.violationsError).toBeTruthy();
+    expect(data.tree).toHaveLength(1);
+    expect(data.violations).toBeUndefined();
+    expect(data.violationsError).toBeTruthy();
   });
 });
 
@@ -176,10 +176,9 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
     dir = buildNestedAssembly({
       stages: [{ id: 'Prod', stacks: [{ id: 'Service', resources: [] }] }],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    const stage = result.data.tree.find((n) => n.id === 'Prod')!;
+    const stage = data.tree.find((n) => n.id === 'Prod')!;
     expect(stage.path).toBe('Prod');
   });
 
@@ -193,10 +192,9 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
         }],
       }],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    const resource = findNode(result.data.tree, 'Prod/Service/MyBucket/Resource')!;
+    const resource = findNode(data.tree, 'Prod/Service/MyBucket/Resource')!;
     expect(resource.logicalId).toBe('MyBucketABC');
     expect(resource.type).toBe('AWS::S3::Bucket');
   });
@@ -210,11 +208,10 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
         { id: 'Staging', stacks: [{ id: 'Service', resources: [{ id: 'X', logicalId: 'StagingX', cfnType: 'AWS::S3::Bucket' }] }] },
       ],
     });
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(findNode(result.data.tree, 'Prod/Service/X/Resource')!.logicalId).toBe('ProdX');
-    expect(findNode(result.data.tree, 'Staging/Service/X/Resource')!.logicalId).toBe('StagingX');
+    expect(findNode(data.tree, 'Prod/Service/X/Resource')!.logicalId).toBe('ProdX');
+    expect(findNode(data.tree, 'Staging/Service/X/Resource')!.logicalId).toBe('StagingX');
   });
 });
 
@@ -229,11 +226,10 @@ describe('readAssembly graceful degradation', () => {
   test('non-TypeScript app returns success with no source enrichment, no crash', () => {
     dir = buildNonTypeScriptAssembly();
 
-    const result = readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
+    const data = expectSuccess(readAssembly(dir));
 
-    expect(result.data.tree).toHaveLength(1);
-    const stack = result.data.tree[0];
+    expect(data.tree).toHaveLength(1);
+    const stack = data.tree[0];
     expect(stack.id).toBe('Stack1');
     expect(stack.sourceLocation).toBeUndefined();
   });

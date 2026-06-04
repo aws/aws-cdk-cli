@@ -1,11 +1,14 @@
 import * as path from 'path';
 import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
-import { _clearTraceMapCache, resolveSourceLocation } from '../../lib/core/source-resolver';
+import { createSourceMapCache, resolveSourceLocation, type SourceMapCache } from '../../lib/core/source-resolver';
 
 const SOURCE_MAPS_DIR = path.join(__dirname, '..', '_fixtures', 'source-maps');
 
+let cache: SourceMapCache;
+
 beforeEach(() => {
-  _clearTraceMapCache();
+  // Fresh cache per test so source-map parses don't bleed between cases.
+  cache = createSourceMapCache();
 });
 
 describe('resolveSourceLocation', () => {
@@ -22,7 +25,7 @@ describe('resolveSourceLocation', () => {
         '    (no user code in 10 frames, use --stack-trace-limit to capture more)',
       ],
     }];
-    expect(resolveSourceLocation(entries)).toBeUndefined();
+    expect(resolveSourceLocation(entries, cache)).toBeUndefined();
   });
 
   test('skips skip-placeholder frames and picks the first parseable user frame', () => {
@@ -35,7 +38,7 @@ describe('resolveSourceLocation', () => {
         '    at Object.<anonymous> (/project/bin/app.ts:8:1)',
       ],
     }];
-    expect(resolveSourceLocation(entries)).toEqual({
+    expect(resolveSourceLocation(entries, cache)).toEqual({
       file: '/project/lib/my-stack.ts',
       line: 42,
       column: 7,
@@ -53,7 +56,7 @@ describe('resolveSourceLocation', () => {
         trace: ['    at fromLogical (/a/from-logical.ts:2:2)'],
       },
     ];
-    expect(resolveSourceLocation(entries)).toEqual({
+    expect(resolveSourceLocation(entries, cache)).toEqual({
       file: '/a/from-logical.ts', line: 2, column: 2,
     });
   });
@@ -63,7 +66,7 @@ describe('resolveSourceLocation', () => {
       { type: ArtifactMetadataEntryType.LOGICAL_ID, data: 'X' }, // no trace
       { type: ArtifactMetadataEntryType.CREATION_STACK, data: ['    at fromCreation (/a/from-creation.ts:1:1)'] as unknown as string },
     ];
-    expect(resolveSourceLocation(entries)).toEqual({
+    expect(resolveSourceLocation(entries, cache)).toEqual({
       file: '/a/from-creation.ts', line: 1, column: 1,
     });
   });
@@ -79,7 +82,7 @@ describe('source-map resolution', () => {
       // sample.js line 5: `function greet(name) {`
       trace: [`    at greet (${SAMPLE_JS}:5:10)`],
     }];
-    const result = resolveSourceLocation(entries);
+    const result = resolveSourceLocation(entries, cache);
     expect(result).toBeDefined();
     expect(result!.file).toContain('sample.ts');
     expect(result!.line).toBe(2); // ts line 2 = `export function greet`
@@ -91,7 +94,7 @@ describe('source-map resolution', () => {
       data: 'X',
       trace: ['    at someFn (/tmp/no-map-here.js:1:1)'],
     }];
-    expect(resolveSourceLocation(entries)).toEqual({
+    expect(resolveSourceLocation(entries, cache)).toEqual({
       file: '/tmp/no-map-here.js', line: 1, column: 1,
     });
   });
@@ -102,7 +105,7 @@ describe('source-map resolution', () => {
       data: 'X',
       trace: ['    at someFn (/project/lib/foo.ts:3:2)'],
     }];
-    expect(resolveSourceLocation(entries)).toEqual({
+    expect(resolveSourceLocation(entries, cache)).toEqual({
       file: '/project/lib/foo.ts', line: 3, column: 2,
     });
   });
