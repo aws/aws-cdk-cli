@@ -57,6 +57,7 @@ export function parseCliArgs(args: string[] = []) {
     .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
     .option('role-arn', { type: 'string', desc: 'ARN of the IAM role for CloudFormation to assume during deploy/destroy', requiresArg: true })
     .option('allow-delete-failures', { type: 'boolean', default: false, desc: 'Do not fail the test when resources fail to delete during a stack update' })
+    .option('update-from-tags', { type: 'string', desc: 'Deploy snapshots from the given git tags in sequence before deploying the current code. Implies --force.', requiresArg: true })
     .strict()
     .parse(args);
 
@@ -95,6 +96,14 @@ export function parseCliArgs(args: string[] = []) {
 
   let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
 
+  const updateFromTags: string[] | undefined = argv['update-from-tags']
+    ? argv['update-from-tags'].split(',').map((t: string) => t.trim())
+    : undefined;
+
+  if (updateFromTags && argv['update-workflow'] === false) {
+    throw new Error('--update-from-tags and --no-update-workflow cannot be used together');
+  }
+
   return {
     tests: requestedTests,
     app: argv.app as (string | undefined),
@@ -123,6 +132,7 @@ export function parseCliArgs(args: string[] = []) {
     caBundlePath: argv['ca-bundle-path'] as (string | undefined),
     roleArn: argv['role-arn'] as (string | undefined),
     allowDeleteFailures: argv['allow-delete-failures'] as boolean,
+    updateFromTags,
   };
 }
 
@@ -141,6 +151,11 @@ export async function main(args: string[]) {
 }
 
 async function run(options: ReturnType<typeof parseCliArgs>) {
+  // --update-from-tags implies --force (always deploy all matched tests)
+  if (options.updateFromTags) {
+    options.force = true;
+  }
+
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
   // List only prints the discovered tests
@@ -201,6 +216,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         dryRun: options.dryRun,
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
+        updateFromTags: options.updateFromTags,
         watch: options.watch,
         proxy: options.proxy,
         caBundlePath: options.caBundlePath,
