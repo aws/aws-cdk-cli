@@ -40,11 +40,18 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
+import { enableHandleTracking, reportLeakedHandles } from './util/doctor';
 import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
+  if (argv.troubleshoot) {
+    // Start tracking async resources before any other work happens, so we can
+    // identify the ones still alive at exit time.
+    enableHandleTracking();
+  }
 
   // Handle color output settings
   // Priority: --no-color > --color > TTY detection
@@ -254,6 +261,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
+    }
+
+    if (argv.troubleshoot) {
+      // If the process is still alive a second from now, something is keeping
+      // the event loop busy. Dump the leaked handles so the user can see why.
+      // .unref() so this timer itself doesn't keep us alive.
+      setTimeout(() => {
+        void reportLeakedHandles(ioHelper);
+      }, 1000).unref();
     }
   }
 

@@ -30,6 +30,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)', default: false },
+      'troubleshoot': { type: 'boolean', desc: 'Diagnose CLI hangs by reporting Node async resources still keeping the process alive at exit, with the source location where each was created.', default: false },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },

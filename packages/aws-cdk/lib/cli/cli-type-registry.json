@@ -56,6 +56,11 @@
       "desc": "Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)",
       "default": false
     },
+    "troubleshoot": {
+      "type": "boolean",
+      "desc": "Diagnose CLI hangs by reporting Node async resources still keeping the process alive at exit, with the source location where each was created.",
+      "default": false
+    },
     "profile": {
       "type": "string",
       "desc": "Use the indicated AWS profile as the default environment",

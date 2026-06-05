@@ -239,6 +239,13 @@ export interface GlobalOptions {
   readonly debug?: boolean;
 
   /**
+   * Diagnose CLI hangs by reporting Node async resources still keeping the process alive at exit, with the source location where each was created.
+   *
+   * @default - false
+   */
+  readonly troubleshoot?: boolean;
+
+  /**
    * Use the indicated AWS profile as the default environment
    *
    * @default - undefined
