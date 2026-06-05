@@ -570,6 +570,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       'stack': 1,
       'asset-build': concurrency,
       'asset-publish': concurrency,
+      'marker': 1,
     };
 
     await workGraph.doParallel(graphConcurrency, {
@@ -577,6 +578,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       deployStack: WorkGraph.NOOP,
       buildAsset: this.createBuildAssetFunction(ioHelper, deployments, undefined),
       publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
+      marker: WorkGraph.NOOP,
     });
 
     await ioHelper.notify(IO.CDK_TOOLKIT_I9402.msg(chalk.green('\n✨  Assets published successfully\n'), { assets }));
@@ -1114,12 +1116,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       'stack': concurrency,
       'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
       'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+      'marker': 1,
     };
 
     await workGraph.doParallel(graphConcurrency, {
       deployStack,
       buildAsset,
       publishAsset,
+      // Markers are only used for telemetry, and the toolkit-lib isn't currently collecting any, so NOOP is fine.
+      marker: WorkGraph.NOOP,
     });
 
     return ret;
