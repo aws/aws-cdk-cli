@@ -16,6 +16,7 @@ import { ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
+import { enableHandleTracking, reportLeakedHandles } from './troubleshoot';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
@@ -40,7 +41,6 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
-import { enableHandleTracking, reportLeakedHandles } from './util/doctor';
 import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {

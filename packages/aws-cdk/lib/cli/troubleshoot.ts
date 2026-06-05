@@ -2,7 +2,7 @@ import { createHook } from 'node:async_hooks';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { IoHelper } from '../../../lib/api-private';
+import type { IoHelper } from '../../lib/api-private';
 
 /**
  * Async resource types that are too noisy to be useful in a hang report.
