@@ -3,6 +3,7 @@ import * as jsonschema from 'jsonschema';
 import * as semver from 'semver';
 import type * as assets from './assets';
 import * as assembly from './cloud-assembly';
+import type * as validation from './cloud-assembly/validation-report-schema';
 import type * as integ from './integ-tests';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
@@ -27,6 +28,8 @@ import ASSETS_SCHEMA = require('../schema/assets.schema.json');
 import ASSEMBLY_SCHEMA = require('../schema/cloud-assembly.schema.json');
 
 import INTEG_SCHEMA = require('../schema/integ.schema.json');
+
+import VALIDATION_REPORT_SCHEMA = require('../schema/validation-report.schema.json');
 
 /**
  * Version is shared for both manifests
@@ -154,6 +157,15 @@ export abstract class Manifest {
   }
 
   /**
+   * Load and validate the policy validation report from file.
+   *
+   * @param filePath - path to the validation report file.
+   */
+  public static loadValidationReport(filePath: string): validation.PolicyValidationReportJson {
+    return Manifest.loadManifest(filePath, VALIDATION_REPORT_SCHEMA);
+  }
+
+  /**
    * Fetch the current schema version number.
    */
   public static version(): string {
@@ -188,7 +200,7 @@ export abstract class Manifest {
     manifest: any,
     schema: jsonschema.Schema,
     options?: LoadManifestOptions,
-  ): asserts manifest is assembly.AssemblyManifest {
+  ): void {
     function parseVersion(version: string) {
       const ver = semver.valid(version);
       if (!ver) {

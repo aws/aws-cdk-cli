@@ -317,3 +317,37 @@ describe('Proxy options', () => {
     }
   });
 });
+
+describe('Role ARN option', () => {
+  test('--role-arn is parsed', () => {
+    const options = parseCliArgs(['--role-arn', 'arn:aws:iam::123456789012:role/MyRole']);
+    expect(options.roleArn).toBe('arn:aws:iam::123456789012:role/MyRole');
+  });
+
+  test('role-arn defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.roleArn).toBeUndefined();
+  });
+});
+
+describe('--update-from-tags option', () => {
+  test('parses comma-separated tags', () => {
+    const options = parseCliArgs(['--update-from-tags', 'v2.150.0,v2.151.0,v2.152.0']);
+    expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0', 'v2.152.0']);
+  });
+
+  test('trims whitespace from tags', () => {
+    const options = parseCliArgs(['--update-from-tags', 'v2.150.0, v2.151.0']);
+    expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0']);
+  });
+
+  test('defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.updateFromTags).toBeUndefined();
+  });
+
+  test('cannot be used with --no-update-workflow', () => {
+    expect(() => parseCliArgs(['--update-from-tags', 'v1.0.0', '--no-update-workflow']))
+      .toThrow('--update-from-tags and --no-update-workflow cannot be used together');
+  });
+});

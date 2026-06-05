@@ -102,6 +102,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
+          'import-existing-resources': { type: 'boolean', desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist', default: true },
         },
       },
       'gc': {

@@ -65,6 +65,11 @@
                     "description": "Additional commands to run at predefined points in the test workflow\n\ne.g. { postDeploy: ['yarn', 'test'] } (Default - no hooks)",
                     "$ref": "#/definitions/Hooks"
                 },
+                "allowDeleteFailures": {
+                    "description": "Whether to allow resources that fail to delete during a stack update.\n\nWhen false, the test will fail if CloudFormation skips deleting a resource\nduring a stack update. When true, only a warning is printed.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "diffAssets": {
                     "description": "Whether or not to include asset hashes in the diff\nAsset hashes can introduces a lot of unneccessary noise into tests,\nbut there are some cases where asset hashes _should_ be included. For example\nany tests involving custom resources or bundling",
                     "default": false,

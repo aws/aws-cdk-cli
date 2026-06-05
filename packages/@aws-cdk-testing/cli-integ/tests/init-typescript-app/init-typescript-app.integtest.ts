@@ -11,6 +11,8 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
 
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', template]);
 
+    await shell.shell(['npm', 'ci']); // this will fail if we have bundled dependencies that introduce version conflicts
+
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
     await shell.shell(['npm', 'run', 'build']);
@@ -48,6 +50,7 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     await shell.shell(['npm', 'install', '--save-dev', 'ts-node@^10']);
 
     await shell.shell(['npm', 'install']); // Older versions of npm require this to be a separate step from the one above
+
     await shell.shell(['npx', 'tsc', '--version']);
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies

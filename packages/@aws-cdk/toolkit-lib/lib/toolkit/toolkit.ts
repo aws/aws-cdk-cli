@@ -2,7 +2,7 @@ import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
-import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -57,6 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
+import type { ValidateOptions, ValidateResult, PolicyValidationReportConclusion } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -112,6 +113,8 @@ import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, va
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+
+const POLICY_VALIDATION_REPORT_FILE = 'validation-report.json';
 
 export interface ToolkitOptions {
   /**
@@ -651,6 +654,49 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   /**
+   * Validate Action
+   *
+   * Synthesizes the CDK app and reads the policy validation report
+   * from the cloud assembly output directory.
+   */
+  public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+
+    const reportPath = path.join(assembly.directory, POLICY_VALIDATION_REPORT_FILE);
+
+    if (!await fs.pathExists(reportPath)) {
+      const result: ValidateResult = {
+        conclusion: 'success',
+        pluginReports: [],
+      };
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
+      return result;
+    }
+
+    const report = Manifest.loadValidationReport(reportPath);
+
+    const conclusion: PolicyValidationReportConclusion = report.pluginReports.some(
+      (pr) => pr.conclusion === 'failure',
+    ) ? 'failure' : 'success';
+
+    const result: ValidateResult = {
+      conclusion,
+      title: report.title,
+      pluginReports: report.pluginReports,
+    };
+
+    if (conclusion === 'failure') {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ cdk validate found problems', result));
+    } else {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ No problems found', result));
+    }
+
+    return result;
+  }
+
+  /**
    * Deploy Action
    *
    * Deploys the selected stacks into an AWS account
@@ -949,6 +995,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           stackArn: deployResult.stackArn,
           outputs: deployResult.outputs,
           hierarchicalId: stack.hierarchicalId,
+          deleteFailures: deployResult.deleteFailures,
         });
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for

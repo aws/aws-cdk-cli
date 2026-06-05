@@ -121,7 +121,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context);
+    await ioHost.startTelemetry(argv, configuration.context, proxyAgent);
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
@@ -385,6 +385,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           tags: configuration.settings.get(['tags']),
           terminationProtection: args.terminationProtection,
           usePreviousParameters: args['previous-parameters'],
+          importExistingResources: args.importExistingResources,
           parameters: {
             bucketName: configuration.settings.get(['toolkitBucket', 'bucketName']),
             kmsKeyId: configuration.settings.get(['toolkitBucket', 'kmsKeyId']),

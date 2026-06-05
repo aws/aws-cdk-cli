@@ -3,3 +3,4 @@ export * from './metadata-schema';
 export * from './artifact-schema';
 export * from './context-queries';
 export * from './interfaces';
+export * from './validation-report-schema';

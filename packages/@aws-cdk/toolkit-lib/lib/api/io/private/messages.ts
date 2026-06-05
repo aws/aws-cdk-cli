@@ -2,6 +2,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
 import type { DiagnosedStack } from '../../../actions/diagnose';
+import type { ValidateResult } from '../../../actions/validate';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
@@ -502,6 +503,24 @@ export const IO = {
     code: 'CDK_TOOLKIT_W9501',
     description: 'Stack diagnosis (diagnosis could not be performed)',
     interface: 'DiagnosedStack',
+  }),
+
+  // validate (96xx)
+  CDK_TOOLKIT_I9600: make.info<ValidateResult>({
+    code: 'CDK_TOOLKIT_I9600',
+    description: 'Validate passed with no problems',
+    interface: 'ValidateResult',
+  }),
+
+  CDK_TOOLKIT_E9600: make.error<ValidateResult>({
+    code: 'CDK_TOOLKIT_E9600',
+    description: 'Validate found problems',
+    interface: 'ValidateResult',
+  }),
+
+  CDK_TOOLKIT_I9601: make.info({
+    code: 'CDK_TOOLKIT_I9601',
+    description: 'No validation plugins configured',
   }),
 
   // Notices

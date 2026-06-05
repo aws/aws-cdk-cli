@@ -163,6 +163,14 @@ export interface IntegTestOptions {
   readonly updateWorkflow?: boolean;
 
   /**
+   * List of git tags to deploy in sequence before deploying the current code.
+   * When provided, replaces the normal merge-base update workflow.
+   *
+   * @default - use the normal update workflow
+   */
+  readonly updateFromTags?: string[];
+
+  /**
    * true if running in watch mode
    *
    * @default false
@@ -182,6 +190,23 @@ export interface IntegTestOptions {
    * @default - no additional CA bundle
    */
   readonly caBundlePath?: string;
+
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
+
+  /**
+   * Whether to allow resources that fail to delete during a stack update.
+   *
+   * When false, the test will fail if CloudFormation skips deleting a resource
+   * during a stack update. When true, only a warning is printed.
+   *
+   * @default false
+   */
+  readonly allowDeleteFailures?: boolean;
 }
 
 /**

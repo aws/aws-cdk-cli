@@ -51,7 +51,10 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
             clean: request.clean,
             dryRun: request.dryRun,
             updateWorkflow: request.updateWorkflow,
+            updateFromTags: request.updateFromTags,
             verbosity,
+            roleArn: request.roleArn,
+            allowDeleteFailures: request.allowDeleteFailures,
           });
           if (results && Object.values(results).some(result => result.status === 'fail')) {
             failures.push(testInfo);
@@ -117,6 +120,7 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
     await runner.watchIntegTest({
       testCaseName,
       verbosity,
+      roleArn: options.roleArn,
     });
   }
 }
