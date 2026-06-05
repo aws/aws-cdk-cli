@@ -417,19 +417,19 @@ export class CliIoHost implements IIoHost {
     let prefix: string;
     switch (this.requireDeployApproval) {
       case RequireApproval.ANYCHANGE:
-        prefix = `"--require-approval" is set to '${RequireApproval.ANYCHANGE}' and `;
+        prefix = `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'. `;
         break;
       case RequireApproval.BROADENING:
         if (data.permissionChangeType !== 'broadening') {
           return msg;
         }
-        prefix = '"--require-approval" is enabled and ';
+        prefix = '"--require-approval" is enabled. ';
         break;
       default:
         return msg;
     }
 
-    const augmentedMotivation = prefix + baseMotivation.charAt(0).toLowerCase() + baseMotivation.slice(1);
+    const augmentedMotivation = prefix + baseMotivation;
     return {
       ...msg,
       message: msg.message.replace(baseMotivation, augmentedMotivation),
