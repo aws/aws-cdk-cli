@@ -16,6 +16,13 @@ const IGNORED_TYPES = new Set([
   'RANDOMBYTESREQUEST',
 ]);
 
+/**
+ * Filename suffix matching this module itself, used to drop our own frames
+ * from reported stack traces (the init callback is always the second frame).
+ * Suffix-match because the file is `.ts` in source and `.js` after build.
+ */
+const SELF_FILE_SUFFIXES = ['/troubleshoot.ts', '/troubleshoot.js'];
+
 /** A single frame in a captured stack trace. */
 interface StackFrame {
   readonly fileName: string | null;
@@ -54,8 +61,8 @@ const asyncHook = createHook({
  * keeping the Node event loop alive. Must be called before any async resource
  * we care about is created (so as early as possible during CLI startup).
  *
- * Only call this when the user has opted in via the --doctor flag; the hook
- * adds a small per-resource cost.
+ * Only call this when the user has opted in via the --troubleshoot flag; the
+ * hook adds a small per-resource cost.
  */
 export function enableHandleTracking(): void {
   asyncHook.enable();
@@ -77,7 +84,7 @@ export async function reportLeakedHandles(ioHelper: IoHelper): Promise<void> {
     return resource.hasRef?.() ?? true;
   });
 
-  await ioHelper.defaults.warn(`[cdk doctor] ${stillAlive.length} handle(s) keeping the process running.`);
+  await ioHelper.defaults.warn(`[cdk troubleshoot] ${stillAlive.length} handle(s) keeping the process running.`);
 
   for (const resource of stillAlive) {
     await reportResource(resource, ioHelper);
@@ -85,9 +92,14 @@ export async function reportLeakedHandles(ioHelper: IoHelper): Promise<void> {
 }
 
 async function reportResource(resource: TrackedResource, ioHelper: IoHelper): Promise<void> {
-  // Drop frames that are inside Node internals; the user can't act on those.
+  // Drop frames that are inside Node internals or this file itself; the user
+  // can't act on either.
   const userFrames = resource.creationStack.filter((frame) => {
-    return frame.fileName !== null && !frame.fileName.startsWith('node:');
+    if (frame.fileName === null) return false;
+    if (frame.fileName.startsWith('node:')) return false;
+    const normalized = normalizeFilePath(frame.fileName);
+    if (SELF_FILE_SUFFIXES.some((suffix) => normalized.endsWith(suffix))) return false;
+    return true;
   });
 
   await ioHelper.defaults.warn('');
