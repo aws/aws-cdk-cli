@@ -17,6 +17,12 @@ import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
+/**
+ * Valid user agent prefixes that are allowed to report through CDK_CLI_USERAGENT.
+ * This creates a mechanism to report user agents we control.
+ */
+const VALID_USER_AGENTS = ['aws-blocks'];
+
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
   readonly client: ITelemetrySink;
@@ -50,13 +56,26 @@ export class TelemetrySession {
   private ioHost: CliIoHost;
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
-  private span?: IMessageSpan<EventResult>;
+  private _commandSpan?: IMessageSpan<EventResult>;
   private _nextEventCounters?: Record<string, number>;
   private count = 0;
+  private loadTime?: number;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
     this.client = props.client;
+  }
+
+  /**
+   * The span that represents the CLI invocation.
+   *
+   * In the code, this span is named COMMAND but the matching event type
+   * in telemetry will be INVOKE.
+   *
+   * Will be emitted exactly once, at the end of the CLI operation.
+   */
+  public get commandSpan(): IMessageSpan<EventResult> | undefined {
+    return this._commandSpan;
   }
 
   public async begin() {
@@ -76,6 +95,9 @@ export class TelemetrySession {
           parameters,
           config: {
             context: sanitizeContext(this.props.context),
+            ...(isValidWrapperUserAgent(process.env.CDK_CLI_USERAGENT)
+              ? { cdkCliUserAgent: { [process.env.CDK_CLI_USERAGENT]: true } }
+              : {}),
           },
         },
       },
@@ -105,7 +127,7 @@ export class TelemetrySession {
     });
 
     // Begin the session span
-    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
+    this._commandSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
   }
 
   public async attachRegion(region: string) {
@@ -151,6 +173,25 @@ export class TelemetrySession {
   }
 
   /**
+   * Set the load time (will be emitted with the COMMAND span)
+   */
+  public attachLoadTime(loadTime: number) {
+    this.loadTime = loadTime;
+    this._commandSpan?.addTimer('load', loadTime);
+  }
+
+  /**
+   * Mark when the actual CLI operation starts
+   *
+   * Emitted as part of the COMMAND span.
+   */
+  public markOperationStart() {
+    if (this.loadTime) {
+      this._commandSpan?.addTimer('init', performance.now() - this.loadTime);
+    }
+  }
+
+  /**
    * Attach the CDK library version
    *
    * By default the telemetry will guess at the CDK library version if it so
@@ -175,9 +216,9 @@ export class TelemetrySession {
    * and notifies with an optional error message in the data.
    */
   public async end(error?: ErrorDetails) {
-    await this.span?.end({ error });
+    await this._commandSpan?.end({ error });
     // Ideally span.end() should no-op if called twice, but that is not the case right now
-    this.span = undefined;
+    this._commandSpan = undefined;
     await this.client.flush();
   }
 
@@ -239,4 +280,18 @@ function isAbortedError(error?: ErrorDetails) {
 
 function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
   return x;
+}
+
+/**
+ * Validates that the CDK_CLI_USERAGENT env var value matches
+ * the expected format: `<name>/<version>/<mode>` where name is one of
+ * VALID_USER_AGENTS and mode is either `sandbox` or `production`.
+ */
+export function isValidWrapperUserAgent(value: string | undefined): value is string {
+  if (!value) return false;
+  const parts = value.split('/');
+  if (parts.length !== 3) return false;
+  const [name, _version, mode] = parts;
+  if (!VALID_USER_AGENTS.includes(name)) return false;
+  return mode === 'sandbox' || mode === 'production';
 }

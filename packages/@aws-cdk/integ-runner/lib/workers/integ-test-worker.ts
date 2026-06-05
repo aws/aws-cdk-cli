@@ -136,9 +136,11 @@ export async function runIntegrationTestsInParallel(
         dryRun: options.dryRun,
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
+        updateFromTags: options.updateFromTags,
         proxy: options.proxy,
         caBundlePath: options.caBundlePath,
         roleArn: options.roleArn,
+        allowDeleteFailures: options.allowDeleteFailures,
       }], {
         on: printResults,
       });

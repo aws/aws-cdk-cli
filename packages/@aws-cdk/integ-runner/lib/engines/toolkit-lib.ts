@@ -5,7 +5,7 @@ import type { ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableClou
 import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import type { CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
+import type { CdkDeployResult, CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
 import { ProxyAgentProvider } from './proxy-agent';
 
 export interface ToolkitLibEngineOptions {
@@ -198,10 +198,10 @@ export class ToolkitLibRunnerEngine implements ICdk {
   /**
    * Deploys the CDK app
    */
-  public async deploy(options: DeployOptions) {
+  public async deploy(options: DeployOptions): Promise<CdkDeployResult> {
     const toolkit = this.getOrCreateToolkit(options);
     const cx = await this.cx(options);
-    await toolkit.deploy(cx, {
+    const result = await toolkit.deploy(cx, {
       roleArn: options.roleArn,
       traceLogs: options.traceLogs,
       stacks: this.stackSelector(options),
@@ -210,6 +210,9 @@ export class ToolkitLibRunnerEngine implements ICdk {
       },
       outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
     });
+    return {
+      deleteFailures: result.stacks.flatMap(s => s.deleteFailures),
+    };
   }
 
   /**

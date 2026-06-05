@@ -222,6 +222,14 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
       },
+      'validate': {
+        description: 'Validate synthesized CloudFormation templates against policy rules',
+        options: {},
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+      },
       'diagnose': {
         description: 'Find the root cause(s) of stack deployment failures',
         options: {

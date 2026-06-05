@@ -31,6 +31,21 @@ integTest(
         }),
       }),
       expect.objectContaining({
+        counters: expect.objectContaining({
+          buildAsset_cnt: expect.any(Number),
+          buildAsset_ms: expect.any(Number),
+          fileAsset: 1,
+          publishAsset_cnt: expect.any(Number),
+          publishAsset_ms: expect.any(Number),
+        }),
+        identifiers: expect.objectContaining({
+          eventId: expect.stringContaining(':2'),
+        }),
+        event: expect.objectContaining({
+          eventType: 'ASSET',
+        }),
+      }),
+      expect.objectContaining({
         event: expect.objectContaining({
           command: expect.objectContaining({
             path: ['deploy', '$STACKS_1'],
@@ -39,7 +54,7 @@ integTest(
           eventType: 'DEPLOY',
         }),
         identifiers: expect.objectContaining({
-          eventId: expect.stringContaining(':2'),
+          eventId: expect.stringContaining(':3'),
         }),
       }),
       expect.objectContaining({
@@ -51,7 +66,15 @@ integTest(
           eventType: 'INVOKE',
         }),
         identifiers: expect.objectContaining({
-          eventId: expect.stringContaining(':3'),
+          eventId: expect.stringContaining(':4'),
+        }),
+        counters: expect.objectContaining({
+          init_ms: expect.any(Number),
+          load_ms: expect.any(Number),
+          publishAssetST_ms: expect.any(Number),
+          totalDeployTime_ms: expect.any(Number),
+          totalDeployedResources: expect.any(Number),
+          totalDeployedStacks: expect.any(Number),
         }),
       }),
     ]);

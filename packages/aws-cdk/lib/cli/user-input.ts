@@ -56,6 +56,11 @@ export interface UserInput {
   readonly deploy?: DeployOptions;
 
   /**
+   * Validate synthesized CloudFormation templates against policy rules
+   */
+  readonly validate?: ValidateOptions;
+
+  /**
    * Find the root cause(s) of stack deployment failures
    */
   readonly diagnose?: DiagnoseOptions;
@@ -982,6 +987,18 @@ export interface DeployOptions {
 
   /**
    * Positional argument for deploy
+   */
+  readonly STACKS?: Array<string>;
+}
+
+/**
+ * Validate synthesized CloudFormation templates against policy rules
+ *
+ * @struct
+ */
+export interface ValidateOptions {
+  /**
+   * Positional argument for validate
    */
   readonly STACKS?: Array<string>;
 }

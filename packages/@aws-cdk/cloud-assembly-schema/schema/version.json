@@ -1,5 +1,5 @@
 {
-  "schemaHash": "cf2452236640f556f1b81778515335af1c6bbdb54c7ef12dad43f8cf6a56ddee",
+  "schemaHash": "095859ad1d3d89d3bc4f9cbe9393d219798972dbd2389287bcc66b49f323cef1",
   "$comment": "Do not hold back the version on additions: jsonschema validation of the manifest by the consumer will trigger errors on unexpected fields.",
-  "revision": 53
+  "revision": 54
 }

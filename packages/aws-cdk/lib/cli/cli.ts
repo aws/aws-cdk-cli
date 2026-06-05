@@ -44,6 +44,10 @@ import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
+  // This is the very first code that runs, but libraries have been loaded already and that also costs time.
+  // Measure that.
+  const libraryLoadTime = performance.now();
+
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
@@ -122,11 +126,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context);
+    await ioHost.startTelemetry(argv, configuration.context, proxyAgent);
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
+  ioHost.telemetry?.attachLoadTime(libraryLoadTime);
   ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
   ioHost.telemetry?.attachAgent(guessAgent());
 
@@ -293,6 +298,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       sdkProvider,
     });
 
+    ioHost.telemetry?.markOperationStart();
+
     switch (command) {
       case 'context':
         ioHost.currentAction = 'context';
@@ -450,6 +457,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+        });
+
+      case 'validate':
+        cliRequireUnstable(configuration, 'validate');
+        ioHost.currentAction = 'validate';
+        configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
+        return cli.validate({
+          stacks: specificStacksOrAllRecursively(args.STACKS),
         });
 
       case 'diagnose':
