@@ -51,8 +51,12 @@ export function fullDiff(
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
 ): types.TemplateDiff {
-  normalize(currentTemplate);
-  normalize(newTemplate);
+  // AFTER — work on clones, originals stay untouched
+  const currentCopy = JSON.parse(JSON.stringify(currentTemplate));
+  const newCopy     = JSON.parse(JSON.stringify(newTemplate));
+  normalize(currentCopy);
+  normalize(newCopy);
+  // use currentCopy / newCopy everywhere below instead
   const theDiff = diffTemplate(currentTemplate, newTemplate);
   if (changeSet) {
     // These methods mutate the state of theDiff, using the changeSet.
