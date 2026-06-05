@@ -27,7 +27,10 @@
     "types": [
       "express",
       "jest",
-      "node"
+      "node",
+      "react-dom",
+      "react",
+      "supertest"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -37,10 +40,12 @@
   },
   "include": [
     "lib/**/*.ts",
-    "test/**/*.ts"
+    "test/**/*.ts",
+    "build-tools/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "frontend"
   ],
   "references": [
     {

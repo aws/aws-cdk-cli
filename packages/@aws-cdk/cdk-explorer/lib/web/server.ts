@@ -1,6 +1,8 @@
 import * as http from 'http';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
+import { registerApi } from './routes';
+import { indexHtml, webAsset } from './web-assets';
 
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
@@ -8,6 +10,11 @@ const MAX_PORT_ATTEMPTS = 100;
 export interface WebServerOptions {
   readonly port?: number;
   readonly host?: string;
+  /**
+   * Root of the CDK app. File listing/reading is confined here. Defaults to
+   * `process.cwd()`.
+   */
+  readonly appDir?: string;
 }
 
 export interface WebServer {
@@ -25,11 +32,25 @@ export interface WebServer {
  */
 export async function startWebServer(options: WebServerOptions = {}): Promise<WebServer> {
   const host = options.host ?? '127.0.0.1';
+  const appDir = options.appDir ?? process.cwd();
 
   const app = express();
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok' });
+  registerApi(app, { appDir });
+
+  // Unknown /api routes must return JSON 404, not fall through to the SPA.
+  app.use('/api', (_req, res) => res.status(404).json({ error: 'unknown endpoint' }));
+
+  // Serve the SPA from the embedded bundle (survives CLI bundling). Named assets
+  // by path; any other GET falls back to index.html for client-side routing.
+  app.get('/:asset', (req, res, next) => {
+    const asset = webAsset(req.params.asset);
+    if (!asset) return next();
+    return res.type(asset.contentType).send(asset.body);
+  });
+  app.get('*', (_req, res) => {
+    const index = indexHtml();
+    res.type(index.contentType).send(index.body);
   });
 
   const server = http.createServer(app);

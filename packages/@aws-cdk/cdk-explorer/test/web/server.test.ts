@@ -56,4 +56,12 @@ describe('Web Server', () => {
     await server.stop();
     await server.stop();
   });
+
+  test('unknown /api route returns a JSON 404 rather than the SPA', async () => {
+    server = await startWebServer();
+    const res = await fetch(`${server.url}/api/does-not-exist`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toMatch(/application\/json/);
+    expect((await res.json()).error).toBeDefined();
+  });
 });

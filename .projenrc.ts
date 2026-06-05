@@ -1685,22 +1685,29 @@ const cdkExplorer = configureProject(
     devDeps: [
       'vscode-languageserver-protocol@^3',
       '@types/express@^4',
+      'react@^18',
+      'react-dom@^18',
+      '@types/react@^18',
+      '@types/react-dom@^18',
+      '@cloudscape-design/components@^3',
+      '@cloudscape-design/global-styles@^1',
+      'esbuild',
+      'tsx',
+      'supertest@^6',
+      '@types/supertest@^6',
     ],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
       },
+      exclude: ['frontend'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
           statements: 80,
-          // The vscode-languageserver onExit handler unconditionally calls
-          // process.exit, which is not unit-testable and counts as one of
-          // very few functions in this small skeleton package. Lowered to
-          // 50% until the package grows; raise as more code is added.
           branches: 80,
-          functions: 50,
+          functions: 80,
           lines: 80,
         },
       },
@@ -1708,6 +1715,10 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
+cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
+cdkExplorer.tsconfigDev.addInclude('build-tools/**/*.ts');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.json');
+cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
 cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion

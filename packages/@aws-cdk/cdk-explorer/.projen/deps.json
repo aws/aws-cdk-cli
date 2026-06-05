@@ -5,6 +5,16 @@
       "type": "build"
     },
     {
+      "name": "@cloudscape-design/components",
+      "version": "^3",
+      "type": "build"
+    },
+    {
+      "name": "@cloudscape-design/global-styles",
+      "version": "^1",
+      "type": "build"
+    },
+    {
       "name": "@stylistic/eslint-plugin",
       "version": "^3",
       "type": "build"
@@ -24,6 +34,21 @@
       "type": "build"
     },
     {
+      "name": "@types/react-dom",
+      "version": "^18",
+      "type": "build"
+    },
+    {
+      "name": "@types/react",
+      "version": "^18",
+      "type": "build"
+    },
+    {
+      "name": "@types/supertest",
+      "version": "^6",
+      "type": "build"
+    },
+    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -36,6 +61,10 @@
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -90,7 +119,26 @@
       "type": "build"
     },
     {
+      "name": "react-dom",
+      "version": "^18",
+      "type": "build"
+    },
+    {
+      "name": "react",
+      "version": "^18",
+      "type": "build"
+    },
+    {
+      "name": "supertest",
+      "version": "^6",
+      "type": "build"
+    },
+    {
       "name": "ts-jest",
+      "type": "build"
+    },
+    {
+      "name": "tsx",
       "type": "build"
     },
     {

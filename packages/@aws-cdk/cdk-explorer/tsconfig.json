@@ -29,7 +29,10 @@
     "types": [
       "express",
       "jest",
-      "node"
+      "node",
+      "react-dom",
+      "react",
+      "supertest"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -39,7 +42,9 @@
   "include": [
     "lib/**/*.ts"
   ],
-  "exclude": [],
+  "exclude": [
+    "frontend"
+  ],
   "references": [
     {
       "path": "../cloud-assembly-schema"

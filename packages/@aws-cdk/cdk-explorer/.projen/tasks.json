@@ -39,7 +39,7 @@
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,nx,projen,ts-jest"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,nx,projen,ts-jest,tsx"
         }
       ]
     },
@@ -119,7 +119,12 @@
     },
     "post-compile": {
       "name": "post-compile",
-      "description": "Runs after successful compilation"
+      "description": "Runs after successful compilation",
+      "steps": [
+        {
+          "exec": "tsx build-tools/bundle-frontend.ts"
+        }
+      ]
     },
     "pre-compile": {
       "name": "pre-compile",
