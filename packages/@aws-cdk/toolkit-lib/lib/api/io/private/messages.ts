@@ -508,19 +508,19 @@ export const IO = {
   // validate (96xx)
   CDK_TOOLKIT_I9600: make.info<ValidateResult>({
     code: 'CDK_TOOLKIT_I9600',
-    description: 'Validate passed with no problems',
+    description: 'Policy validation passed',
     interface: 'ValidateResult',
   }),
 
   CDK_TOOLKIT_E9600: make.error<ValidateResult>({
     code: 'CDK_TOOLKIT_E9600',
-    description: 'Validate found problems',
+    description: 'Policy validation failed',
     interface: 'ValidateResult',
   }),
 
   CDK_TOOLKIT_I9601: make.info({
     code: 'CDK_TOOLKIT_I9601',
-    description: 'No validation plugins configured',
+    description: 'No policy validation report found',
   }),
 
   // Notices

@@ -393,6 +393,7 @@ describe('imports', () => {
         noOp: true,
         outputs: {},
         stackArn: '',
+        deleteFailures: [],
         stackArtifact: options.stack,
       }),
     );
@@ -517,6 +518,7 @@ describe('non-nested stacks', () => {
         noOp: true,
         outputs: {},
         stackArn: '',
+        deleteFailures: [],
         stackArtifact: options.stack,
       }),
     );
@@ -725,6 +727,7 @@ describe('stack exists checks', () => {
         noOp: true,
         outputs: {},
         stackArn: '',
+        deleteFailures: [],
         stackArtifact: options.stack,
       }),
     );

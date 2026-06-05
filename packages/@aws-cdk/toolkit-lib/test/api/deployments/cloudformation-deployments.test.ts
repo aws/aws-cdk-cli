@@ -93,6 +93,7 @@ test('prepareStack calls deployStack with execute: false and returns successful 
   (deployStack as jest.Mock).mockResolvedValue({
     type: 'did-deploy-stack',
     noOp: false,
+    deleteFailures: [],
     outputs: {},
     stackArn: 'arn:stack',
     changeSet: { Status: 'CREATE_COMPLETE' },
@@ -114,6 +115,7 @@ test('prepareStack calls deployStack with execute: false and returns successful 
   expect(result).toEqual(expect.objectContaining({
     type: 'did-deploy-stack',
     noOp: false,
+    deleteFailures: [],
     changeSet: { Status: 'CREATE_COMPLETE' },
   }));
 });
