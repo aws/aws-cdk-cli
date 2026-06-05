@@ -243,7 +243,7 @@ test('correctly passes SSM parameters when hotswapping', async () => {
 test('prints revert-drift recommendation on successful hotswap deployment', async () => {
   givenStackExists();
   (tryHotswapDeployment as jest.Mock).mockResolvedValue({
-    type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {},
+    type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [],
   });
 
   // WHEN
@@ -263,7 +263,7 @@ describe('hotswap template cache', () => {
     // GIVEN
     (tryHotswapDeployment as jest.Mock).mockImplementation(async () => {
       await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {});
-      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {} };
+      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [] };
     });
 
     // WHEN

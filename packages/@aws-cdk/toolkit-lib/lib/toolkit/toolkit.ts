@@ -996,6 +996,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           stackArn: deployResult.stackArn,
           outputs: deployResult.outputs,
           hierarchicalId: stack.hierarchicalId,
+          deleteFailures: deployResult.deleteFailures,
         });
       } catch (e: any) {
         // It has to be exactly this string because an integration test tests for
