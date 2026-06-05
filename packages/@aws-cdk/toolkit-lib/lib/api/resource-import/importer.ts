@@ -296,27 +296,23 @@ export class ResourceImporter {
    */
   private async currentTemplate(): Promise<any> {
     if (!this._currentTemplate) {
-      this._currentTemplate = await this.cfn.readCurrentTemplate(this.stack);
+      this._currentTemplate = JSON.parse(JSON.stringify(await this.cfn.readCurrentTemplate(this.stack)));
     }
     return this._currentTemplate;
   }
-
   /**
    * Return the current template, with the given resources added to it
    */
   private async currentTemplateWithAdditions(additions: ImportableResource[]): Promise<any> {
-    const template = await this.currentTemplate();
+    const template = JSON.parse(JSON.stringify(await this.currentTemplate()));
     if (!template.Resources) {
       template.Resources = {};
     }
-
     for (const add of additions) {
       template.Resources[add.logicalId] = add.resourceDefinition;
     }
-
     return template;
   }
-
   /**
    * Get a list of import identifiers for all resource types used in the given
    * template that do support the import operation (SINGLETON)
