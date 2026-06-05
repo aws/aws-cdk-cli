@@ -223,7 +223,7 @@ describe('deploy', () => {
     // The confirmation prompt should use the non-security motivation and report no permission changes
     expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_I5060',
-      message: expect.stringContaining("'any-change'"),
+      message: 'Stack includes updates: Do you wish to deploy these changes?',
       data: expect.objectContaining({
         permissionChangeType: 'none',
       }),
