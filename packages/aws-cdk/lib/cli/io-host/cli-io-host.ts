@@ -631,6 +631,9 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
   if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
     return eventResult('DEPLOY', msg);
   }
+  if (CLI_PRIVATE_IO.CDK_CLI_I3003.is(msg)) {
+    return eventResult('ASSET', msg);
+  }
   // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
   // Instead we reuse the existing Hotswap span.
   if (IO.CDK_TOOLKIT_I5410.is(msg)) {
