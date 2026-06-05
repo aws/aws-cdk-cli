@@ -42,6 +42,14 @@ import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
+// [#1217-trace] Temporary instrumentation for issue #1217 (CDK CLI hangs in CI).
+// Writes timestamped breadcrumbs directly to stderr so the last printed line
+// pinpoints exactly which await never returned. Remove before merge.
+function trace1217(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.error(`[#1217-trace] ${new Date().toISOString()} ${msg}`);
+}
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
@@ -237,13 +245,21 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   try {
     return await main(cmd, argv);
   } finally {
+    trace1217('exec.finally: enter');
+
     // If we locked the 'cdk.out' directory, release it here.
+    trace1217('exec.finally: before outDirLock.release');
     await outDirLock?.release();
+    trace1217('exec.finally: after outDirLock.release');
 
     // Do PSAs here
+    trace1217('exec.finally: before displayVersionMessage');
     await displayVersionMessage(ioHelper);
+    trace1217('exec.finally: after displayVersionMessage');
 
+    trace1217('exec.finally: before await refreshNotices');
     await refreshNotices;
+    trace1217('exec.finally: after await refreshNotices');
     if (cmd === 'notices') {
       // do not trap errors here
       // this is the notices command itself, any error should be loud
@@ -253,8 +269,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         showTotal: argv.unacknowledged,
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
+      trace1217('exec.finally: before notices.display');
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
+      trace1217('exec.finally: after notices.display');
     }
+    trace1217('exec.finally: leave');
   }
 
   async function main(command: string, args: any): Promise<number | void> {
@@ -875,14 +894,30 @@ function determineHotswapMode(hotswap?: boolean, hotswapFallback?: boolean, watc
 
 /* c8 ignore start */ // we never call this in unit tests
 export function cli(args: string[] = process.argv.slice(2)) {
+  // [#1217-trace] Heartbeat: every 5s, dump active resource types so the customer's
+  // log shows what handles are alive at the moment of the hang. .unref() so this
+  // timer itself doesn't keep the loop alive.
+  const heartbeat = setInterval(() => {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[#1217-trace] ${new Date().toISOString()} heartbeat: active=${JSON.stringify(process.getActiveResourcesInfo())}`,
+    );
+  }, 5000);
+  heartbeat.unref();
+
+  trace1217(`cli: enter (isTTY=${!!process.stdout.isTTY}, argv=${JSON.stringify(args)})`);
+
   let error: ErrorDetails | undefined;
   exec(args)
     .then(async (value) => {
+      trace1217(`cli.then: enter (value=${typeof value === 'number' ? value : 'void'})`);
       if (typeof value === 'number') {
         process.exitCode = value;
       }
+      trace1217('cli.then: leave');
     })
     .catch(async (err) => {
+      trace1217(`cli.catch: enter (err.name=${err?.name}, err.message=${err?.message})`);
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
       prettyPrintError(err, isDeveloperBuildVersion());
@@ -890,13 +925,23 @@ export function cli(args: string[] = process.argv.slice(2)) {
         name: cdkCliErrorName(err),
       };
       process.exitCode = 1;
+      trace1217('cli.catch: leave');
     })
     .finally(async () => {
+      trace1217('cli.finally: enter');
       try {
+        trace1217('cli.finally: before telemetry.end');
         await CliIoHost.get()?.telemetry?.end(error);
+        trace1217('cli.finally: after telemetry.end');
       } catch (e: any) {
+        trace1217(`cli.finally: telemetry.end threw: ${e?.message}`);
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
+      // Final dump: if .finally() runs at all, we see what's alive at the very end.
+      // eslint-disable-next-line no-console
+      console.error(
+        `[#1217-trace] ${new Date().toISOString()} cli.finally: leave; active=${JSON.stringify(process.getActiveResourcesInfo())}`,
+      );
     });
 }
 /* c8 ignore stop */

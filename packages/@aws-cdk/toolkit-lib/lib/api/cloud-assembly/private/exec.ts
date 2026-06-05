@@ -4,6 +4,12 @@ import { readFileSync } from 'fs';
 import split = require('split2');
 import { AssemblyError } from '../../../toolkit/toolkit-error';
 
+// [#1217-trace] Temporary instrumentation for issue #1217. Remove before merge.
+function trace1217(msg: string): void {
+  // eslint-disable-next-line no-console
+  console.error(`[#1217-trace] ${new Date().toISOString()} ${msg}`);
+}
+
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
 
 interface ExecOptions {
@@ -27,6 +33,7 @@ interface ExecOptions {
  */
 export async function execInChildProcess(commandAndArgs: string, options: ExecOptions = {}) {
   const captureOutput = options.captureOutput ?? true;
+  trace1217(`execInChildProcess: spawning "${commandAndArgs}" (captureOutput=${captureOutput})`);
 
   return new Promise<void>((ok, fail) => {
     // We use a slightly lower-level interface to:
@@ -81,11 +88,14 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
     }
 
     proc.on('error', (e) => {
+      trace1217(`execInChildProcess: proc.on('error') — ${e?.message ?? e}`);
       fail(AssemblyError.withCause(`Failed to execute CDK app: ${commandAndArgs}`, e));
     });
 
     proc.on('exit', code => {
+      trace1217(`execInChildProcess: proc.on('exit') code=${code}`);
       if (code === 0) {
+        trace1217('execInChildProcess: resolving ok()');
         return ok();
       } else {
         const stdErrString = stderr.join('\n');
@@ -112,6 +122,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
           }
         }
 
+        trace1217(`execInChildProcess: rejecting fail() with code ${code}`);
         return fail(error);
       }
     });
