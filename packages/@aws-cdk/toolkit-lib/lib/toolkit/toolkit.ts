@@ -1,7 +1,7 @@
 import '../private/dispose-polyfill';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { FeatureFlagReportProperties } from '@aws-cdk/cloud-assembly-schema';
+import type { FeatureFlagReportProperties, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
@@ -57,7 +57,7 @@ import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publi
 import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
-import type { ValidateOptions, ValidateResult, PolicyValidationReportConclusion } from '../actions/validate';
+import type { ValidateOptions, ValidateResult } from '../actions/validate';
 import type { IWatcher, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
@@ -105,6 +105,7 @@ import { ResourceMigrator } from '../api/resource-import';
 import { StackArtifactSourceTracer } from '../api/source-tracing/private/stack-source-tracing';
 import { tagsForStack } from '../api/tags/private';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../api/toolkit-info';
+import { hostMessageFromValidation } from '../api/validate/validate-formatting';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '../api/work-graph';
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
@@ -114,7 +115,7 @@ import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 
-const POLICY_VALIDATION_REPORT_FILE = 'validation-report.json';
+const VALIDATION_REPORT_FILE = 'validation-report.json';
 
 export interface ToolkitOptions {
   /**
@@ -181,7 +182,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose';
+export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose' | 'validate';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -567,6 +568,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       'stack': 1,
       'asset-build': concurrency,
       'asset-publish': concurrency,
+      'marker': 1,
     };
 
     await workGraph.doParallel(graphConcurrency, {
@@ -574,6 +576,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       deployStack: WorkGraph.NOOP,
       buildAsset: this.createBuildAssetFunction(ioHelper, deployments, undefined),
       publishAsset: this.createPublishAssetFunction(ioHelper, deployments, undefined, options.force),
+      marker: WorkGraph.NOOP,
     });
 
     await ioHelper.notify(IO.CDK_TOOLKIT_I9402.msg(chalk.green('\n✨  Assets published successfully\n'), { assets }));
@@ -664,7 +667,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const reportPath = path.join(assembly.directory, POLICY_VALIDATION_REPORT_FILE);
+    const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
 
     if (!await fs.pathExists(reportPath)) {
       const result: ValidateResult = {
@@ -687,11 +690,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       pluginReports: report.pluginReports,
     };
 
-    if (conclusion === 'failure') {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E9600.msg('❌ cdk validate found problems', result));
-    } else {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('✅ No problems found', result));
-    }
+    await ioHelper.notify(hostMessageFromValidation(result));
 
     return result;
   }
@@ -1050,12 +1049,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       'stack': concurrency,
       'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
       'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+      'marker': 1,
     };
 
     await workGraph.doParallel(graphConcurrency, {
       deployStack,
       buildAsset,
       publishAsset,
+      // Markers are only used for telemetry, and the toolkit-lib isn't currently collecting any, so NOOP is fine.
+      marker: WorkGraph.NOOP,
     });
 
     return ret;
