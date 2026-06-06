@@ -133,11 +133,8 @@ function formatResourceErrors(es: TracedResourceError[]) {
       for (const ctx of e.additionalContext) {
         const ctxNode = b.nodeText(`${p}/${ctx.source.replace(/\//g, '|')}`);
         ctxNode.header = [`📋 ${ctx.source}:`];
-        for (const msg of ctx.messages.slice(0, 20)) {
+        for (const msg of ctx.messages) {
           ctxNode.body.push(msg);
-        }
-        if (ctx.messages.length > 20) {
-          ctxNode.body.push(`... (${ctx.messages.length - 20} more lines)`);
         }
         if (ctx.link) {
           ctxNode.body.push(`🔗 ${ctx.link}`);

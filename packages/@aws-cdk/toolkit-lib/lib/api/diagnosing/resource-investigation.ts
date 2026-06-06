@@ -3,6 +3,14 @@ import type { ICloudWatchLogsClient, IECSClient, SDK } from '../aws-auth/sdk';
 import type { ResourceError } from '../stack-events/resource-errors';
 
 /**
+ * Maximum number of log lines included per CloudWatch Logs context block.
+ *
+ * The formatter renders the messages array verbatim, so this is the
+ * single user-visible cap.
+ */
+const MAX_LOG_LINES = 50;
+
+/**
  * Investigate a failed resource using AWS service APIs to gather additional root cause context.
  *
  * Returns additional diagnostic context (e.g. log lines) or an empty array if
@@ -32,7 +40,7 @@ async function investigateEcsService(
     return [];
   }
 
-  const { clusterArn, serviceName } = parseEcsServiceIdentifier(physicalId);
+  const { cluster, serviceName } = parseEcsServiceIdentifier(physicalId);
   if (!serviceName) {
     await debug(`ECS investigation: could not parse service identifier from "${physicalId}"`);
     return [];
@@ -42,14 +50,14 @@ async function investigateEcsService(
   const ecs = sdk.ecs();
   const cwl = sdk.cloudWatchLogs();
 
-  const service = await describeService(ecs, clusterArn, serviceName, debug);
+  const service = await describeService(ecs, cluster, serviceName, debug);
   if (!service) {
     return [];
   }
 
   const results: AdditionalDiagnosticContext[] = [];
 
-  const stoppedTaskResult = await getStoppedTaskReasons(ecs, clusterArn, serviceName, region, service, debug);
+  const stoppedTaskResult = await getStoppedTaskReasons(ecs, cluster, serviceName, region, service, debug);
   if (stoppedTaskResult.context) {
     results.push(stoppedTaskResult.context);
   }
@@ -102,19 +110,32 @@ async function investigateEcsService(
   return results;
 }
 
-function parseEcsServiceIdentifier(physicalId: string): { clusterArn?: string; serviceName?: string } {
-  // ARN format: arn:aws:ecs:region:account:service/cluster-name/service-name
-  const arnMatch = physicalId.match(/arn:.*:ecs:.*:.*:service\/([^/]+)\/(.+)/);
+/**
+ * Parse an ECS service physical resource ID into cluster and service identifiers.
+ *
+ * The cluster portion is a name (not an ARN) — `describeServices`/`describeTasks`
+ * accept either form for their `cluster` parameter, so this is fine downstream.
+ *
+ * Recognized formats:
+ * - Long ARN: `arn:aws:ecs:region:account:service/cluster-name/service-name` (current default)
+ * - Path: `cluster-name/service-name`
+ * - Bare service name (uses the default cluster)
+ */
+export function parseEcsServiceIdentifier(physicalId: string): { cluster?: string; serviceName?: string } {
+  const arnMatch = physicalId.match(/^arn:[^:]+:ecs:[^:]*:[^:]*:service\/([^/]+)\/([^/]+)$/);
   if (arnMatch) {
-    return { clusterArn: arnMatch[1], serviceName: arnMatch[2] };
+    return { cluster: arnMatch[1], serviceName: arnMatch[2] };
   }
 
   const parts = physicalId.split('/');
-  if (parts.length === 2) {
-    return { clusterArn: parts[0], serviceName: parts[1] };
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return { cluster: parts[0], serviceName: parts[1] };
+  }
+  if (parts.length === 1 && parts[0]) {
+    return { serviceName: parts[0] };
   }
 
-  return { serviceName: physicalId };
+  return {};
 }
 
 async function describeService(
@@ -291,14 +312,15 @@ async function fetchRecentLogs(
       return undefined;
     }
 
-    // Show the last 50 lines (most recent output is most relevant)
+    // Keep the most recent lines (newer output is more useful for diagnosis).
+    // This is the only truncation point — the formatter renders these verbatim.
     const allMessages = events
       .map(e => e.message?.trimEnd())
       .filter((m): m is string => m != null);
-    const messages = allMessages.slice(-50);
-
-    if (allMessages.length > 50) {
-      messages.unshift(`... (${allMessages.length - 50} earlier lines omitted)`);
+    const messages: string[] = allMessages.slice(-MAX_LOG_LINES);
+    const omitted = allMessages.length - messages.length;
+    if (omitted > 0) {
+      messages.unshift(`... (${omitted} earlier lines omitted)`);
     }
 
     if (taskIds.length > 1) {
