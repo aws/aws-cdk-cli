@@ -442,7 +442,6 @@ export class CloudFormationStackDiagnoser {
     }
     return this._additionalExplorationSdkPromise;
   }
-  }
 }
 
 /**

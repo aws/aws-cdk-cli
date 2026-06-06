@@ -289,7 +289,7 @@ async function fetchRecentLogs(
   region: string,
   taskIds: string[],
   debug: (msg: string) => Promise<void>,
-): Promise<AdditionalDiagnosticContext | undefined | null> {
+): Promise<AdditionalDiagnosticContext | undefined> {
   try {
     // Target the most recently failed task's log stream for the most relevant output
     const lastTaskId = taskIds[0];
@@ -338,7 +338,7 @@ async function fetchRecentLogs(
     };
   } catch (e: any) {
     await debug(`ECS investigation: failed to fetch logs from ${logConfig.logGroup}: ${e.message}`);
-    return null;
+    return undefined;
   }
 }
 

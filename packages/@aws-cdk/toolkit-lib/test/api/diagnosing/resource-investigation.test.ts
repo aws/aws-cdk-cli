@@ -131,6 +131,46 @@ describe('investigateResource for AWS::ECS::Service', () => {
     expect(stopped!.link).toContain('clusters/my-cluster/services/my-service');
   });
 
+  test('only extracts task IDs from failure events, not healthy lifecycle events', async () => {
+    // A healthy "has started" event for one task precedes a "stopped" event for a different task.
+    // The healthy task's ID must NOT be looked up via describeTasks; only the failed one.
+    const healthyTaskId = 'aaaaaaaa-1111-2222-3333-444444444444';
+    const failedTaskId = 'ffffffff-9999-8888-7777-666666666666';
+
+    mockECSClient.on(DescribeServicesCommand).resolves({
+      services: [{
+        serviceName: 'my-service',
+        taskDefinition: 'arn:aws:ecs:us-east-1:123456789012:task-definition/my-task:5',
+        events: [
+          { message: `(service my-service) (task ${healthyTaskId}) has started 1 tasks` },
+          { message: `(service my-service) (task ${failedTaskId}) stopped` },
+        ],
+      }],
+    });
+    mockECSClient.on(DescribeTasksCommand).resolves({
+      tasks: [{ stoppedReason: 'Essential container exited', containers: [] }],
+    });
+    mockECSClient.on(DescribeTaskDefinitionCommand).resolves({
+      taskDefinition: { containerDefinitions: [] },
+    });
+
+    await investigateResource(
+      ecsServiceError('my-cluster/my-service'),
+      sdk,
+      debug,
+    );
+
+    expect(mockECSClient).toHaveReceivedCommandTimes(DescribeTasksCommand, 1);
+    expect(mockECSClient).toHaveReceivedCommandWith(DescribeTasksCommand, {
+      cluster: 'my-cluster',
+      tasks: [failedTaskId],
+    });
+    expect(mockECSClient).not.toHaveReceivedCommandWith(DescribeTasksCommand, {
+      cluster: 'my-cluster',
+      tasks: [healthyTaskId],
+    });
+  });
+
   test('falls back to the no-log-config message when task def has no awslogs driver', async () => {
     mockECSClient.on(DescribeServicesCommand).resolves({
       services: [{
