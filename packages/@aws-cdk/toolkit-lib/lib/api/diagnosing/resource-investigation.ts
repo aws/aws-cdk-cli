@@ -179,7 +179,7 @@ async function getStoppedTaskReasons(
       return { taskIds: [] };
     }
 
-    const taskIds = (service.events ?? [])
+    const taskIds = failureEvents
       .map(e => {
         const match = e.message?.match(/task ([a-f0-9-]+)/);
         return match ? match[1] : undefined;
@@ -289,7 +289,7 @@ async function fetchRecentLogs(
   region: string,
   taskIds: string[],
   debug: (msg: string) => Promise<void>,
-): Promise<AdditionalDiagnosticContext | undefined> {
+): Promise<AdditionalDiagnosticContext | undefined | null> {
   try {
     // Target the most recently failed task's log stream for the most relevant output
     const lastTaskId = taskIds[0];
@@ -338,7 +338,7 @@ async function fetchRecentLogs(
     };
   } catch (e: any) {
     await debug(`ECS investigation: failed to fetch logs from ${logConfig.logGroup}: ${e.message}`);
-    return undefined;
+    return null;
   }
 }
 

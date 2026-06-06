@@ -431,9 +431,17 @@ export class CloudFormationStackDiagnoser {
    */
   private additionalExplorationSdk(): Promise<SDK | undefined> {
     if (!this._additionalExplorationSdkPromise) {
-      this._additionalExplorationSdkPromise = this.props.additionalExplorationSdkProvider?.() ?? Promise.resolve(undefined);
+      this._additionalExplorationSdkPromise = (async () => {
+        try {
+          return await this.props.additionalExplorationSdkProvider?.();
+        } catch (e: any) {
+          await this.props.ioHelper.defaults.debug(`Additional exploration SDK provider failed: ${e.message}`);
+          return undefined;
+        }
+      })();
     }
     return this._additionalExplorationSdkPromise;
+  }
   }
 }
 
