@@ -670,20 +670,24 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const pluginReports: PluginReportJson[] = [];
     let title: string | undefined;
+    const stacks = await assembly.selectStacksV2(selectStacks);
+    const selectedStackIds = new Set(stacks.hierarchicalIds);
 
     // Offline validation: read the policy validation report from the cloud assembly
     const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
     if (await fs.pathExists(reportPath)) {
       const report = Manifest.loadValidationReport(reportPath);
       title = report.title;
-      pluginReports.push(...report.pluginReports);
+
+      // Filter the report to only include violations for the selected stacks
+      const filteredReports = filterReportsByStacks(report.pluginReports, selectedStackIds);
+      pluginReports.push(...filteredReports);
     } else if (options.online === false) {
       await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
     }
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
-      const stacks = await assembly.selectStacksV2(selectStacks);
       const deployments = await this.deploymentsForAction('validate');
 
       const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
@@ -1848,4 +1852,29 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
+}
+
+function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
+  return reports.map((report) => {
+    const filteredViolations = report.violations.filter((violation) => {
+      if (violation.violatingConstructs.length === 0) return true;
+      return violation.violatingConstructs.some((c) =>
+        selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+      );
+    }).map((violation) => {
+      if (violation.violatingConstructs.length === 0) return violation;
+      return {
+        ...violation,
+        violatingConstructs: violation.violatingConstructs.filter((c) =>
+          selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+        ),
+      };
+    });
+
+    return {
+      ...report,
+      violations: filteredViolations,
+      conclusion: filteredViolations.length > 0 ? report.conclusion : ('success' as const),
+    };
+  });
 }
