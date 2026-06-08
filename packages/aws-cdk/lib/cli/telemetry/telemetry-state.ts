@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { cdkCacheDir, ensureCacheDir } from '../../util';
+import { ensureCacheDir } from './installation-id';
+import { cdkCacheDir } from '../../util';
 
 /**
  * Telemetry state across CLI invocations

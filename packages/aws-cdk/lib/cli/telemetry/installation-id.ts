@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { IoHelper } from '../../api-private';
-import { cdkCacheDir, ensureCacheDir } from '../../util';
-
+import { cdkCacheDir } from '../../util';
 
 /**
  * Get or create installation id
@@ -11,7 +10,6 @@ import { cdkCacheDir, ensureCacheDir } from '../../util';
 export async function getOrCreateInstallationId(ioHelper: IoHelper) {
   // Do this quite lazily, so we can mock `cdkCacheDir` during tests
   const installationIdPath = path.join(cdkCacheDir(), 'installation-id.json');
-  console.log('path', installationIdPath);
 
   try {
     // Check if the installation ID file exists
@@ -32,16 +30,28 @@ export async function getOrCreateInstallationId(ioHelper: IoHelper) {
       await ensureCacheDir();
       fs.writeFileSync(installationIdPath, newId);
     } catch (e: any) {
-      console.error(e);
       // If we can't write the file, still return the generated ID
       // but log a trace message about the failure
       await ioHelper.defaults.trace(`Failed to write installation ID to ${installationIdPath}: ${e}`);
     }
     return newId;
   } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.log(e);
     // If anything goes wrong, generate a temporary ID for this session
     // and log a trace message about the failure
     await ioHelper.defaults.trace(`Error getting installation ID: ${e}`);
     return randomUUID();
   }
 }
+
+/**
+ * Make sure the cache dir exists
+ *
+ * Not part of `directories.ts` because that module is mocked in tests in order to mock the temporary directory
+ * to write to, and then I need to mock this function as well.
+ */
+export async function ensureCacheDir() {
+  await fs.promises.mkdir(cdkCacheDir(), { recursive: true });
+}
+

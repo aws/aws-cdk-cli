@@ -34,10 +34,6 @@ export function cdkHomeDir() {
     : home || fs.mkdtempSync(path.join(tmpDir, '.cdk')).trim();
 }
 
-export async function ensureCacheDir() {
-  await fs.promises.mkdir(cdkCacheDir(), { recursive: true });
-}
-
 export function cdkCacheDir() {
   return path.join(cdkHomeDir(), 'cache');
 }

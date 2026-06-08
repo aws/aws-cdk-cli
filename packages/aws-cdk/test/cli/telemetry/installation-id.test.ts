@@ -62,7 +62,6 @@ describe(getOrCreateInstallationId, () => {
 
     // Verify the file was created
     const installationIdPath = path.join(tempDir, 'installation-id.json');
-    console.log({ installationIdPath });
     expect(fs.existsSync(installationIdPath)).toBe(true);
     expect(fs.readFileSync(installationIdPath, 'utf-8')).toBe('12345678-1234-1234-1234-123456789abc');
 
@@ -157,24 +156,24 @@ describe(getOrCreateInstallationId, () => {
   test('handles general error gracefully and returns temporary ID', async () => {
     // GIVEN
     // Mock fs.existsSync to throw an error
-    const originalExistsSync = fs.existsSync;
-    jest.spyOn(fs, 'existsSync').mockImplementation(() => {
+    const mockExistsSync = jest.spyOn(fs, 'existsSync').mockImplementation(() => {
       throw new Error('Filesystem error');
     });
+    try {
+      // WHEN
+      const result = await getOrCreateInstallationId(mockIoHelper);
 
-    // WHEN
-    const result = await getOrCreateInstallationId(mockIoHelper);
+      // THEN
+      expect(result).toBe('12345678-1234-1234-1234-123456789abc');
+      expect(mockRandomUUID).toHaveBeenCalledTimes(1);
 
-    // THEN
-    expect(result).toBe('12345678-1234-1234-1234-123456789abc');
-    expect(mockRandomUUID).toHaveBeenCalledTimes(1);
-
-    // Should have logged a trace message about the general error
-    expect(traceSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error getting installation ID:'),
-    );
-
-    // Restore original function
-    (fs.existsSync as jest.Mock).mockImplementation(originalExistsSync);
+      // Should have logged a trace message about the general error
+      expect(traceSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error getting installation ID:'),
+      );
+    } finally {
+      // Restore original function
+      mockExistsSync.mockRestore();
+    }
   });
 });
