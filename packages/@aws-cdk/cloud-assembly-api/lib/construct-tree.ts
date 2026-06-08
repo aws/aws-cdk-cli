@@ -36,13 +36,14 @@ export interface ConstructTreeNodeFields<T extends ConstructTreeNode> {
 }
 
 /**
- * Produces a node of type `T` from the generic fields and the construct's
- * CloudFormation metadata entries (used by readers to attach extra data such
- * as a source location).
+ * Produces a node of type `T` from the generic fields, the owning stack
+ * artifact (if any), and the construct path. Readers use the stack + path to
+ * attach extra data (for example a source location traced from the stack).
  */
 export type ConstructNodeDecorator<T extends ConstructTreeNode> = (
   fields: ConstructTreeNodeFields<T>,
-  metadataEntries: readonly MetadataEntry[],
+  stack: CloudFormationStackArtifact | undefined,
+  constructPath: string,
 ) => T;
 
 /**
@@ -131,8 +132,12 @@ interface RawTreeNode {
   readonly constructInfo?: { readonly fqn: string; readonly version: string };
 }
 
-/** Per-stack metadata Map, keyed by the stack's construct path. */
-type StackMetadataIndex = Map<string, Map<string, MetadataEntry[]>>;
+/** A stack artifact plus its metadata Map, keyed (in the index) by construct path. */
+interface StackMetadata {
+  readonly stack: CloudFormationStackArtifact;
+  readonly metadata: Map<string, MetadataEntry[]>;
+}
+type StackMetadataIndex = Map<string, StackMetadata>;
 
 function loadTree(assemblyDir: string): RawTreeNode | undefined {
   const treePath = path.join(assemblyDir, 'tree.json');
@@ -149,7 +154,7 @@ function loadTree(assemblyDir: string): RawTreeNode | undefined {
 function buildStackIndex(stacks: CloudFormationStackArtifact[]): StackMetadataIndex {
   const index: StackMetadataIndex = new Map();
   for (const stack of stacks) {
-    index.set(stack.hierarchicalId, new Map(Object.entries(stack.metadata)));
+    index.set(stack.hierarchicalId, { stack, metadata: new Map(Object.entries(stack.metadata)) });
   }
   return index;
 }
@@ -157,16 +162,16 @@ function buildStackIndex(stacks: CloudFormationStackArtifact[]): StackMetadataIn
 function buildNode<T extends ConstructTreeNode>(
   raw: RawTreeNode,
   stackIndex: StackMetadataIndex,
-  inheritedMetadata: Map<string, MetadataEntry[]> | undefined,
+  inheritedStack: StackMetadata | undefined,
   decorate: ConstructNodeDecorator<T>,
 ): T {
-  // When a node IS a stack, switch to that stack's metadata. Otherwise inherit
-  // the parent's: this routes NestedStack children to the parent's metadata,
+  // When a node IS a stack, switch to that stack. Otherwise inherit the
+  // parent's: this routes NestedStack children to the parent's metadata,
   // since aws-cdk-lib emits their entries there.
-  const metadata = stackIndex.get(raw.path) ?? inheritedMetadata;
+  const owner = stackIndex.get(raw.path) ?? inheritedStack;
 
   // Metadata keys carry a leading "/", construct paths in tree.json don't.
-  const entries = metadata?.get('/' + raw.path) ?? [];
+  const entries = owner?.metadata.get('/' + raw.path) ?? [];
 
   const logicalIdEntry = entries.find((e) => e.type === ArtifactMetadataEntryType.LOGICAL_ID);
   const logicalId = typeof logicalIdEntry?.data === 'string' ? logicalIdEntry.data : undefined;
@@ -176,9 +181,9 @@ function buildNode<T extends ConstructTreeNode>(
 
   const children = Object.values(raw.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, stackIndex, metadata, decorate));
+    .map((child) => buildNode(child, stackIndex, owner, decorate));
 
-  return decorate({ path: raw.path, id: raw.id, type: cfnType, logicalId, children }, entries);
+  return decorate({ path: raw.path, id: raw.id, type: cfnType, logicalId, children }, owner?.stack, raw.path);
 }
 
 function isCdkInternal(id: string): boolean {

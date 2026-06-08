@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { Manifest, VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
-import { createSourceMapCache, resolveSourceLocation, type SourceLocation, type WarnFn } from './source-resolver';
+import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
+import { createSourceMapCache, resolveFramesToLocation, type SourceLocation, type WarnFn } from './source-resolver';
 
 /**
  * A construct from the cloud assembly, decorated with the user source location
@@ -44,9 +45,11 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
     // .js.map for every construct, while keeping the cache scoped so a fresh
     // synth observes any moved/edited maps.
     const sourceMapCache = createSourceMapCache();
-    const tree = buildConstructTree<ConstructNode>(assembly, (fields, metadataEntries) => ({
+    const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
       ...fields,
-      sourceLocation: resolveSourceLocation(metadataEntries, sourceMapCache, onWarn),
+      sourceLocation: stack
+        ? resolveFramesToLocation(findCreationStackTrace(stack, constructPath), sourceMapCache, onWarn)
+        : undefined,
     }));
 
     let violations: PolicyValidationReportJson | undefined;

@@ -79,7 +79,7 @@ export class StackArtifactSourceTracer implements ISourceTracer {
  *
  * Stack's currently don't emit any stack traces.
  */
-function findCreationStackTrace(stack: cxapi.CloudFormationStackArtifact, constructPath: string): string[] | undefined {
+export function findCreationStackTrace(stack: cxapi.CloudFormationStackArtifact, constructPath: string): string[] | undefined {
   const candidates = [
     // logical ID traces
     ...resourceMetadata(stack, constructPath, cxschema.ArtifactMetadataEntryType.LOGICAL_ID).flatMap((m) => {
@@ -106,7 +106,7 @@ function findCreationStackTrace(stack: cxapi.CloudFormationStackArtifact, constr
  * These are all places in the code where a property's value is overwritten after
  * construct creation.
  */
-function findMutationStackTraces(stack: cxapi.CloudFormationStackArtifact, constructPath: string, propertyName: string): string[][] | undefined {
+export function findMutationStackTraces(stack: cxapi.CloudFormationStackArtifact, constructPath: string, propertyName: string): string[][] | undefined {
   const assignments = resourceMetadata(stack, constructPath, 'aws:cdk:propertyAssignment');
 
   return assignments.flatMap((m) => {

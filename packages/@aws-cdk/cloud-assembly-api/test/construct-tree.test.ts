@@ -132,14 +132,16 @@ describe('buildConstructTree', () => {
     expect(paths).not.toContain('MyStack/CDKMetadata');
   });
 
-  test('passes metadata entries to the decorate callback', () => {
+  test('passes the owning stack and construct path to the decorate callback', () => {
     const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
-    const tree = buildConstructTree(assembly, (fields, entries) => ({
+    const tree = buildConstructTree(assembly, (fields, stack, constructPath) => ({
       ...fields,
-      hasLogicalIdEntry: entries.some((e) => e.type === 'aws:cdk:logicalId'),
+      stackId: stack?.id,
+      decoratedPath: constructPath,
     }));
     const resource = ConstructIndex.fromTree(tree).byPath('MyStack/Bucket/Resource');
-    expect((resource as any)?.hasLogicalIdEntry).toBe(true);
+    expect((resource as any)?.decoratedPath).toBe('MyStack/Bucket/Resource');
+    expect((resource as any)?.stackId).toBe('MyStack');
   });
 
   test('returns an empty tree when tree.json is absent', () => {

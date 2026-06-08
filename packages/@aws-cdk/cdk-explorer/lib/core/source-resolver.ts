@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 
 /**
@@ -30,23 +29,23 @@ export function createSourceMapCache(): SourceMapCache {
 }
 
 /**
- * Resolve a construct's creation site from its metadata entries. Returns
- * undefined when no trace is present (non-TS apps) or when every frame is
- * a skip-placeholder (framework-only call sites).
+ * Resolve the user source location from a creation stack trace (the frames
+ * produced by toolkit-lib's findCreationStackTrace). Returns undefined when
+ * there's no trace (non-TS apps) or every frame is a skip-placeholder
+ * (framework-only call sites).
  */
-export function resolveSourceLocation(
-  metadataEntries: readonly MetadataEntry[] | undefined,
+export function resolveFramesToLocation(
+  frames: readonly string[] | undefined,
   cache: SourceMapCache,
   onWarn?: WarnFn,
 ): SourceLocation | undefined {
-  const creationStackFrames = pickCreationFrames(metadataEntries);
-  if (!creationStackFrames) return undefined;
+  if (!frames) return undefined;
 
   // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
   // lib/stack-trace.js) pre-filters node_modules/node:internal frames into
   // skip-placeholder lines. Those don't match FRAME_RE, so the first frame
   // that parses IS the user call site.
-  for (const frame of creationStackFrames) {
+  for (const frame of frames) {
     const parsed = parseFrame(frame);
     if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn) ?? parsed;
   }
@@ -56,29 +55,6 @@ export function resolveSourceLocation(
 // renderCallStackJustMyCode emits frames as "    at <name> (<file>:<line>:<col>)".
 // Anchoring on "(" avoids capturing the leading "at " into the file group.
 const FRAME_RE = /\(([^()\s][^()]*?):(\d+):(\d+)\)\s*$/;
-
-/**
- * Mirrors toolkit-lib's findCreationStackTrace preference: prefer the
- * aws:cdk:logicalId.trace, fall back to aws:cdk:creationStack.data.
- */
-function pickCreationFrames(
-  entries: readonly MetadataEntry[] | undefined,
-): readonly string[] | undefined {
-  if (!entries) return undefined;
-
-  for (const e of entries) {
-    if (e.type === ArtifactMetadataEntryType.LOGICAL_ID && e.trace && e.trace.length > 0) {
-      return e.trace;
-    }
-  }
-  for (const e of entries) {
-    if (e.type === ArtifactMetadataEntryType.CREATION_STACK && Array.isArray(e.data) && e.data.length > 0) {
-      // aws-cdk-lib's captureStackTrace emits string[]; trust the producer contract.
-      return e.data as readonly string[];
-    }
-  }
-  return undefined;
-}
 
 function parseFrame(frame: string): SourceLocation | undefined {
   const m = FRAME_RE.exec(frame);
