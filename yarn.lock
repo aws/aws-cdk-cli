@@ -8054,6 +8054,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"aws-cdk@npm:^2.1125.0":
+  version: 2.1126.0
+  resolution: "aws-cdk@npm:2.1126.0"
+  bin:
+    cdk: bin/cdk
+  checksum: 10c0/3523d17f7a102242717626152b3381617543944d50689e8c903ccd9ede2246279feb33528d429978cf5be297bcf6229c1d8c15113c6bc6b5203b52843e494d23
+  languageName: node
+  linkType: hard
+
 "aws-sdk-client-mock-jest@npm:^4.1.0":
   version: 4.1.0
   resolution: "aws-sdk-client-mock-jest@npm:4.1.0"
@@ -8707,7 +8716,7 @@ __metadata:
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk: "npm:^0.0.0"
+    aws-cdk: "npm:^2.1125.0"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
