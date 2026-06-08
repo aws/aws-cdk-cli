@@ -111,7 +111,10 @@ export function buildConstructTree<T extends ConstructTreeNode>(
   assembly: CloudAssembly,
   decorate: ConstructNodeDecorator<T>,
 ): T[] {
-  const rawTree = loadTree(assembly.directory);
+  const treeArtifact = assembly.tree();
+  if (!treeArtifact) return [];
+
+  const rawTree = loadTree(path.join(assembly.directory, treeArtifact.file));
   if (!rawTree) return [];
 
   const stackIndex = buildStackIndex(assembly.stacksRecursively);
@@ -139,8 +142,7 @@ interface StackMetadata {
 }
 type StackMetadataIndex = Map<string, StackMetadata>;
 
-function loadTree(assemblyDir: string): RawTreeNode | undefined {
-  const treePath = path.join(assemblyDir, 'tree.json');
+function loadTree(treePath: string): RawTreeNode | undefined {
   if (!fs.existsSync(treePath)) return undefined;
   const content = JSON.parse(fs.readFileSync(treePath, 'utf-8'));
   return content.tree;

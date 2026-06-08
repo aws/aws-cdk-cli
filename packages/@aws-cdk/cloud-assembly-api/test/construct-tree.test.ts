@@ -64,23 +64,26 @@ describe('buildConstructTree', () => {
   let dir: string;
   afterEach(() => dir && rimraf(dir));
 
+  // Deliberately non-default so the tests prove we read the filename from the
+  // manifest's tree artifact rather than assuming "tree.json".
+  const TREE_FILE = 'foo.tree.json';
+
   function writeAssembly(opts: { withTree: boolean }): string {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'caa-tree-'));
-    const manifest = {
-      version: '0.0.0',
-      artifacts: {
-        Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
-        MyStack: {
-          type: 'aws:cloudformation:stack',
-          environment: 'aws://111/us-east-1',
-          properties: { templateFile: 'template.json' },
-          metadata: {
-            '/MyStack/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'BucketABC' }],
-          },
+    const artifacts: Record<string, unknown> = {
+      MyStack: {
+        type: 'aws:cloudformation:stack',
+        environment: 'aws://111/us-east-1',
+        properties: { templateFile: 'template.json' },
+        metadata: {
+          '/MyStack/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'BucketABC' }],
         },
       },
     };
-    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
+    if (opts.withTree) {
+      artifacts.Tree = { type: 'cdk:tree', properties: { file: TREE_FILE } };
+    }
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: '0.0.0', artifacts }));
     fs.writeFileSync(path.join(dir, 'template.json'), '{}');
     if (opts.withTree) {
       const tree = {
@@ -111,12 +114,12 @@ describe('buildConstructTree', () => {
           },
         },
       };
-      fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify(tree));
+      fs.writeFileSync(path.join(dir, TREE_FILE), JSON.stringify(tree));
     }
     return dir;
   }
 
-  test('joins tree.json with stack metadata: logicalId + CFN type', () => {
+  test('reads the tree filename from the manifest and joins logicalId + CFN type', () => {
     const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
     const tree = buildConstructTree(assembly, (fields) => fields);
 
@@ -144,7 +147,7 @@ describe('buildConstructTree', () => {
     expect((resource as any)?.stackId).toBe('MyStack');
   });
 
-  test('returns an empty tree when tree.json is absent', () => {
+  test('returns an empty tree when the assembly has no tree artifact', () => {
     const assembly = new CloudAssembly(writeAssembly({ withTree: false }));
     expect(buildConstructTree(assembly, (f) => f)).toEqual([]);
   });
