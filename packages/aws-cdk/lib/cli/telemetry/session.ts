@@ -277,7 +277,7 @@ export class TelemetrySession {
         state.sequentialDeploymentFailures = recentFailures + 1;
       }
 
-      counters['sequentialDeploymentFailures'] = state.sequentialDeploymentFailures;
+      counters.sequentialDeploymentFailures = state.sequentialDeploymentFailures;
     });
   }
 
