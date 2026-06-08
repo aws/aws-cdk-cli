@@ -1696,12 +1696,8 @@ const cdkExplorer = configureProject(
       jestConfig: {
         coverageThreshold: {
           statements: 80,
-          // The vscode-languageserver onExit handler unconditionally calls
-          // process.exit, which is not unit-testable and counts as one of
-          // very few functions in this small skeleton package. Lowered to
-          // 50% until the package grows; raise as more code is added.
           branches: 80,
-          functions: 50,
+          functions: 80,
           lines: 80,
         },
       },
