@@ -11,8 +11,6 @@ const INSTALLATION_ID_PATH = path.join(cdkCacheDir(), 'installation-id.json');
  */
 export async function getOrCreateInstallationId(ioHelper: IoHelper) {
   try {
-    await ensureCacheDir();
-
     // Check if the installation ID file exists
     if (fs.existsSync(INSTALLATION_ID_PATH)) {
       const cachedId = fs.readFileSync(INSTALLATION_ID_PATH, 'utf-8').trim();
@@ -28,6 +26,7 @@ export async function getOrCreateInstallationId(ioHelper: IoHelper) {
     // Create a new installation ID
     const newId = randomUUID();
     try {
+      await ensureCacheDir();
       fs.writeFileSync(INSTALLATION_ID_PATH, newId);
     } catch (e: any) {
       // If we can't write the file, still return the generated ID

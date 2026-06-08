@@ -35,9 +35,7 @@ export function cdkHomeDir() {
 }
 
 export async function ensureCacheDir() {
-  if (!fs.existsSync(cdkCacheDir())) {
-    fs.mkdirSync(cdkCacheDir(), { recursive: true });
-  }
+  fs.mkdirSync(cdkCacheDir(), { recursive: true });
 }
 
 export function cdkCacheDir() {
