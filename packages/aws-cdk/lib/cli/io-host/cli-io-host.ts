@@ -410,13 +410,13 @@ export class CliIoHost implements IIoHost {
     const hasSecurityChanges = msg.data.hasSecurityChanges;
 
     if (this.requireDeployApproval === RequireApproval.BROADENING && hasSecurityChanges) {
-      return 'Stack includes security-sensitive updates and "--require-approval" is set to broadening. Do you wish to deploy these changes?';
+      return 'Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?';
     }
     if (this.requireDeployApproval === RequireApproval.ANYCHANGE && hasSecurityChanges) {
-      return 'Stack includes security-sensitive updates and "--require-approval" is set to any-change. Do you wish to deploy these changes?';
+      return 'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?';
     }
     if (this.requireDeployApproval === RequireApproval.ANYCHANGE && !hasSecurityChanges) {
-      return 'Stack includes updates and "--require-approval" is set to any-change. Do you wish to deploy these changes?';
+      return 'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?';
     }
     return msg.message;
   }
