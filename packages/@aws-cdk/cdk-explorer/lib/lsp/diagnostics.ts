@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'url';
+import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type {
   PolicyValidationReportJson,
   PolicyViolationJson,
@@ -29,7 +30,7 @@ export interface MapViolationsResult {
  */
 export function mapViolationsToDiagnostics(
   violations: PolicyValidationReportJson | undefined,
-  nodesByPath: Map<string, ConstructNode>,
+  index: ConstructIndex<ConstructNode>,
 ): MapViolationsResult {
   const byUri = new Map<string, Diagnostic[]>();
   const dropped: Array<MapViolationsResult['dropped'][number]> = [];
@@ -39,7 +40,7 @@ export function mapViolationsToDiagnostics(
   for (const plugin of violations.pluginReports ?? []) {
     for (const violation of plugin.violations ?? []) {
       for (const target of violation.violatingConstructs ?? []) {
-        const anchored = anchor(target.constructPath, nodesByPath);
+        const anchored = anchor(target.constructPath, index);
         if ('error' in anchored) {
           dropped.push({
             ruleName: violation.ruleName,
@@ -63,11 +64,11 @@ interface ResolvedAnchor {
 
 function anchor(
   constructPath: string | undefined,
-  nodesByPath: Map<string, ConstructNode>,
+  index: ConstructIndex<ConstructNode>,
 ): ResolvedAnchor | { readonly error: string } {
   if (!constructPath) return { error: 'empty constructPath' };
 
-  const node = nodesByPath.get(constructPath);
+  const node = index.byPath(constructPath);
   if (!node) return { error: 'no tree node for constructPath' };
 
   const loc = node.sourceLocation;

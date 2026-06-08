@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'url';
+import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type { ConstructNode } from '../../lib';
 import { codeLensesForFile } from '../../lib/lsp/codelens';
 
@@ -14,7 +15,7 @@ const node = (overrides: Partial<ConstructNode> & { path: string }): ConstructNo
 
 describe('codeLensesForFile', () => {
   test('returns no lenses when tree is empty', () => {
-    expect(codeLensesForFile([], URI)).toEqual([]);
+    expect(codeLensesForFile(ConstructIndex.fromTree([]), URI)).toEqual([]);
   });
 
   test('returns no lenses for non-resource wrapper nodes (no logicalId)', () => {
@@ -25,7 +26,7 @@ describe('codeLensesForFile', () => {
       sourceLocation: { file: FILE, line: 12, column: 5 },
       // logicalId/type intentionally omitted
     })];
-    expect(codeLensesForFile(tree, URI)).toEqual([]);
+    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
   });
 
   test('emits one lens per resource on its source line', () => {
@@ -36,7 +37,7 @@ describe('codeLensesForFile', () => {
       sourceLocation: { file: FILE, line: 12, column: 5 },
     })];
 
-    const lenses = codeLensesForFile(tree, URI);
+    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].range).toEqual({
       start: { line: 11, character: 0 },
@@ -69,7 +70,7 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(tree, URI);
+    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].command?.title).toBe('3 resources: BucketABC, BucketPolicyDEF, KeyGHI');
   });
@@ -90,7 +91,7 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(tree, URI);
+    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(2);
     expect(lenses.map((l) => l.range.start.line).sort((a, b) => a - b)).toEqual([9, 19]);
   });
@@ -111,8 +112,8 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    expect(codeLensesForFile(tree, URI)).toHaveLength(1);
-    expect(codeLensesForFile(tree, OTHER_URI)).toHaveLength(1);
+    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toHaveLength(1);
+    expect(codeLensesForFile(ConstructIndex.fromTree(tree), OTHER_URI)).toHaveLength(1);
   });
 
   test('walks descendants — finds resources nested under wrappers', () => {
@@ -137,7 +138,7 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(tree, URI);
+    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].command?.title).toContain('AWS::S3::Bucket');
   });
@@ -150,6 +151,6 @@ describe('codeLensesForFile', () => {
       // sourceLocation omitted — non-TS app
     })];
 
-    expect(codeLensesForFile(tree, URI)).toEqual([]);
+    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
   });
 });

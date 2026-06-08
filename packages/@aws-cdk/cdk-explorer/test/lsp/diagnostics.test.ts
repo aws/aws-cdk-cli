@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'url';
+import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { DiagnosticSeverity } from 'vscode-languageserver/node';
 import type { ConstructNode } from '../../lib';
@@ -17,11 +18,7 @@ const nodeNoLocation = (path: string): ConstructNode => ({
   children: [],
 });
 
-const indexOf = (...nodes: ConstructNode[]): Map<string, ConstructNode> => {
-  const m = new Map<string, ConstructNode>();
-  for (const n of nodes) m.set(n.path, n);
-  return m;
-};
+const indexOf = (...nodes: ConstructNode[]): ConstructIndex => ConstructIndex.fromTree(nodes);
 
 const reportWith = (...violations: Array<{
   ruleName: string;

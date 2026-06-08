@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import {
   StreamMessageReader,
   StreamMessageWriter,
@@ -25,7 +26,6 @@ import {
   type AssemblyReadResult,
   type ConstructNode,
 } from '../core/assembly-reader';
-import { indexNodesByPath } from '../core/tree-utils';
 
 export interface LspHandlerOptions {
   /** Callback invoked on `didSave` for tracked source files. */
@@ -82,9 +82,9 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
   let shouldIgnore: (filePath: string) => boolean = () => false;
-  // Latest tree from readAssembly, served to CodeLens without re-reading
+  // Latest index from readAssembly, served to CodeLens without re-reading
   // cdk.out. Refreshed on every onInitialized; cdk.out watcher is a future feature.
-  let cachedTree: readonly ConstructNode[] = [];
+  let cachedIndex: ConstructIndex<ConstructNode> = ConstructIndex.fromTree<ConstructNode>([]);
 
   function refreshFromAssembly(projectDir: string): void {
     const assemblyDir = path.join(projectDir, 'cdk.out');
@@ -101,10 +101,9 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       log.warn(`validation-report.json failed to load: ${violationsError}`);
     }
 
-    cachedTree = tree;
+    cachedIndex = ConstructIndex.fromTree(tree);
 
-    const nodesByPath = indexNodesByPath(tree);
-    const { byUri, dropped } = mapViolationsToDiagnostics(violations, nodesByPath);
+    const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
 
     for (const drop of dropped) {
       log.warn(`Dropped diagnostic for '${drop.ruleName}' at '${drop.constructPath}': ${drop.reason}`);
@@ -161,7 +160,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       }
     },
     onCodeLens(params) {
-      return codeLensesForFile(cachedTree, params.textDocument.uri);
+      return codeLensesForFile(cachedIndex, params.textDocument.uri);
     },
     onShutdown() {
       shutdownRequested = true;

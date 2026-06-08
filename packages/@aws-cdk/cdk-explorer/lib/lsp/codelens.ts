@@ -1,49 +1,67 @@
 import { pathToFileURL } from 'url';
+import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Range } from 'vscode-languageserver/node';
 import type { ConstructNode } from '../core/assembly-reader';
+import type { SourceLocation } from '../core/source-resolver';
 
 /**
  * Build CodeLens entries for a single source file. For every construct whose
  * sourceLocation matches fileUri, group by line and emit one lens per line
  * summarising the CFN resources produced there.
  */
-export function codeLensesForFile(tree: readonly ConstructNode[], fileUri: string): CodeLens[] {
-  const matches: Array<{ line: number; resource: ResourceLensInfo }> = [];
-  walk(tree, (node) => {
-    if (!node.sourceLocation) return;
-    // Skip wrapper nodes (no logicalId/type) — only the CFN resources have a lens.
-    if (!node.logicalId || !node.type) return;
-    if (pathToFileURL(node.sourceLocation.file).toString() !== fileUri) return;
-
-    matches.push({
+export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri: string): CodeLens[] {
+  const matches = [...index]
+    .filter((node) => isResourceOnFile(node, fileUri))
+    .map((node) => ({
       line: node.sourceLocation.line,
       resource: { logicalId: node.logicalId, cfnType: node.type },
-    });
-  });
+    }));
 
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources).
-  const byLine = new Map<number, ResourceLensInfo[]>();
-  for (const m of matches) {
-    const list = byLine.get(m.line);
-    if (list) list.push(m.resource);
-    else byLine.set(m.line, [m.resource]);
-  }
-
-  const lenses: CodeLens[] = [];
-  for (const [line, resources] of byLine) {
-    // Empty command name = title-only lens; click does nothing for now.
-    lenses.push({
-      range: lineRange(line),
-      command: { title: titleFor(resources), command: '' },
-    });
-  }
-  return lenses;
+  // Empty command name = title-only lens; click does nothing for now.
+  return [...groupBy(matches, (m) => m.line)].map(([line, group]) => ({
+    range: lineRange(line),
+    command: { title: titleFor(group.map((m) => m.resource)), command: '' },
+  }));
 }
 
 interface ResourceLensInfo {
   readonly logicalId: string;
   readonly cfnType: string;
+}
+
+/** A construct that produces a CFN resource and carries a source location. */
+interface ResourceConstruct extends ConstructNode {
+  readonly sourceLocation: SourceLocation;
+  readonly logicalId: string;
+  readonly type: string;
+}
+
+/**
+ * A node gets a lens only if it maps to a CFN resource (has logicalId + type)
+ * and has a source location in the requested file. Wrapper nodes and non-TS
+ * constructs are excluded.
+ */
+function isResourceOnFile(node: ConstructNode, fileUri: string): node is ResourceConstruct {
+  return (
+    node.sourceLocation !== undefined &&
+    node.logicalId !== undefined &&
+    node.type !== undefined &&
+    pathToFileURL(node.sourceLocation.file).toString() === fileUri
+  );
+}
+
+/** Group items by a derived key, preserving first-seen order. */
+function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
+  const out = new Map<K, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = out.get(k);
+    if (list) list.push(item);
+    else out.set(k, [item]);
+  }
+  return out;
 }
 
 function lineRange(line1Based: number): Range {
@@ -59,11 +77,4 @@ function titleFor(resources: readonly ResourceLensInfo[]): string {
   }
   const ids = resources.map((r) => r.logicalId).join(', ');
   return `${resources.length} resources: ${ids}`;
-}
-
-function walk(nodes: readonly ConstructNode[], visit: (node: ConstructNode) => void): void {
-  for (const node of nodes) {
-    visit(node);
-    if (node.children.length > 0) walk(node.children, visit);
-  }
 }
