@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { IoHelper } from '../../api-private';
-import { cdkCacheDir } from '../../util';
+import { cdkCacheDir, ensureCacheDir } from '../../util';
 
 const INSTALLATION_ID_PATH = path.join(cdkCacheDir(), 'installation-id.json');
 
@@ -11,10 +11,7 @@ const INSTALLATION_ID_PATH = path.join(cdkCacheDir(), 'installation-id.json');
  */
 export async function getOrCreateInstallationId(ioHelper: IoHelper) {
   try {
-    // Create the cache directory if it doesn't exist
-    if (!fs.existsSync(path.dirname(INSTALLATION_ID_PATH))) {
-      fs.mkdirSync(path.dirname(INSTALLATION_ID_PATH), { recursive: true });
-    }
+    await ensureCacheDir();
 
     // Check if the installation ID file exists
     if (fs.existsSync(INSTALLATION_ID_PATH)) {

@@ -34,6 +34,12 @@ export function cdkHomeDir() {
     : home || fs.mkdtempSync(path.join(tmpDir, '.cdk')).trim();
 }
 
+export async function ensureCacheDir() {
+  if (!fs.existsSync(cdkCacheDir())) {
+    fs.mkdirSync(cdkCacheDir(), { recursive: true });
+  }
+}
+
 export function cdkCacheDir() {
   return path.join(cdkHomeDir(), 'cache');
 }

@@ -14,6 +14,7 @@ import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
 import { USER_INTERRUPTED_CODE } from './error';
+import { withTelemetryState } from './telemetry-state';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -231,6 +232,10 @@ export class TelemetrySession {
     };
     this._nextEventCounters = undefined;
 
+    if (event.eventType == 'DEPLOY') {
+      await this.trackDeployStatistics(event.error === undefined, counters);
+    }
+
     return this.client.emit({
       event: {
         command: this.sessionInfo.event.command,
@@ -253,6 +258,26 @@ export class TelemetrySession {
         },
       } : {}),
       ...(Object.keys(counters).length > 0 ? { counters } : {}),
+    });
+  }
+
+  /**
+   * This is a DEPLOY event, track some additional statistics about it
+   *
+   * We use this to measure things about deployment failures, such as the number of
+   * failed DEPLOY events in a sequence.
+   */
+  private async trackDeployStatistics(isSuccessful: boolean, counters: Record<string, number>) {
+    await withTelemetryState((state) => {
+      const recentFailures = state.sequentialDeploymentFailures ?? 0;
+
+      if (isSuccessful) {
+        state.sequentialDeploymentFailures = 0;
+      } else {
+        state.sequentialDeploymentFailures = recentFailures + 1;
+      }
+
+      counters['sequentialDeploymentFailures'] = state.sequentialDeploymentFailures;
     });
   }
 
