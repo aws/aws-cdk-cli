@@ -1,4 +1,3 @@
-
 import type { IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 

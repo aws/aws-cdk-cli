@@ -819,6 +819,85 @@ describe('CliIoHost', () => {
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
+
+      describe('CLI augments the library motivation with --require-approval framing', () => {
+        const bareMotivationMessage = 'Stack includes security-sensitive updates: Do you wish to deploy these changes?';
+        const bareNonSecurityMessage = 'Stack includes updates: Do you wish to deploy these changes?';
+
+        test('BROADENING + has-security adds the --require-approval suffix and breaks the question to a new line', async () => {
+          ioHost.requireDeployApproval = RequireApproval.BROADENING;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: bareMotivationMessage,
+            data: {
+              permissionChangeType: 'broadening',
+              hasSecurityChanges: true,
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('ANYCHANGE + has-security renders the any-change variant', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: bareMotivationMessage,
+            data: {
+              permissionChangeType: 'broadening',
+              hasSecurityChanges: true,
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('ANYCHANGE + non-security renders the non-security any-change variant', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: bareNonSecurityMessage,
+            data: {
+              permissionChangeType: 'none',
+              hasSecurityChanges: false,
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('non-I5060 messages pass through unchanged', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5050',
+            message: 'some other prompt',
+            defaultResponse: true,
+          }));
+
+          expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('some other prompt') + ' (y/n) ');
+        });
+      });
     });
   });
 });

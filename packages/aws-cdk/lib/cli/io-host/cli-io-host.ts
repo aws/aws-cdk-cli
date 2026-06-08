@@ -401,9 +401,16 @@ export class CliIoHost implements IIoHost {
   /**
    * Augment toolkit-lib's flag-free I5060 motivation with the
    * `--require-approval` framing so CLI users see flag context.
+   *
+   * Only the three reachable combinations are handled. `RequireApproval.NEVER`
+   * never reaches here (the toolkit short-circuits) and BROADENING with no
+   * security changes is filtered earlier by `requiresApproval()`, so the
+   * library-emitted message is returned unchanged for those cases.
    */
   private augmentDeployApprovalMessage(msg: IoRequest<any, any>): string {
-    if (!IO.CDK_TOOLKIT_I5060.is(msg) || msg.data?.hasSecurityChanges === undefined) {
+    // Library-emitted I5060 messages always carry data, but defend against
+    // partially-shaped inputs (e.g. tests, stubs) so we never crash a prompt.
+    if (!IO.CDK_TOOLKIT_I5060.is(msg) || !msg.data) {
       return msg.message;
     }
 
