@@ -32,6 +32,7 @@
   "devDependencies": {
     "@cdklabs/eslint-plugin": "^2.0.6",
     "@stylistic/eslint-plugin": "^3",
+    "@types/convert-source-map": "^2",
     "@types/express": "^4",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -59,6 +60,7 @@
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@jridgewell/trace-mapping": "^0.3",
+    "convert-source-map": "^2",
     "express": "^4",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",

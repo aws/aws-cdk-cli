@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { SourceResolver } from '../../lib/core/source-resolver';
 
@@ -46,6 +48,20 @@ describe('SourceResolver.resolveFrames', () => {
 
 describe('source-map resolution', () => {
   const SAMPLE_JS = path.join(SOURCE_MAPS_DIR, 'sample.js');
+  const SAMPLE_MAP = path.join(SOURCE_MAPS_DIR, 'sample.js.map');
+
+  const tmpDirs: string[] = [];
+  afterEach(() => tmpDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+
+  // sample.js body without its trailing sourceMappingURL comment, so each test
+  // can attach its own (inline or external) form. greet() stays on line 5.
+  const sampleBody = (): string =>
+    fs.readFileSync(SAMPLE_JS, 'utf-8').replace(/\/\/# sourceMappingURL=.*$/m, '').trimEnd();
+  const tmpDir = (): string => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'srcmap-'));
+    tmpDirs.push(dir);
+    return dir;
+  };
 
   test('resolves .js to .ts using sibling .js.map', () => {
     // sample.js line 5: `function greet(name) {`
@@ -65,5 +81,40 @@ describe('source-map resolution', () => {
     expect(resolver.resolveFrames(['    at someFn (/project/lib/foo.ts:3:2)'])).toEqual({
       file: '/project/lib/foo.ts', line: 3, column: 2,
     });
+  });
+
+  test('resolves an inline (data: URI) source map', () => {
+    const b64 = Buffer.from(fs.readFileSync(SAMPLE_MAP, 'utf-8'), 'utf-8').toString('base64');
+    const dir = tmpDir();
+    const jsPath = path.join(dir, 'sample.js');
+    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=data:application/json;base64,${b64}\n`);
+
+    const result = resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
+    expect(result!.file).toContain('sample.ts');
+    expect(result!.line).toBe(2);
+  });
+
+  test('resolves an external map referenced under a non-default filename', () => {
+    const dir = tmpDir();
+    fs.copyFileSync(SAMPLE_MAP, path.join(dir, 'renamed.map'));
+    const jsPath = path.join(dir, 'sample.js');
+    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=renamed.map\n`);
+
+    const result = resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
+    expect(result!.file).toContain('sample.ts');
+    expect(result!.line).toBe(2);
+  });
+
+  test('applies sourceRoot, resolving sources relative to the map', () => {
+    const dir = tmpDir();
+    const map = JSON.parse(fs.readFileSync(SAMPLE_MAP, 'utf-8'));
+    map.sourceRoot = 'nested/';
+    fs.writeFileSync(path.join(dir, 'renamed.map'), JSON.stringify(map));
+    const jsPath = path.join(dir, 'sample.js');
+    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=renamed.map\n`);
+
+    const result = resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
+    expect(result!.file).toBe(path.join(dir, 'nested', 'sample.ts'));
+    expect(result!.line).toBe(2);
   });
 });

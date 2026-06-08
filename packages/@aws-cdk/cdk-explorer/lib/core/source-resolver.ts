@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import * as convertSourceMap from 'convert-source-map';
 
 /**
  * Resolved source location for a construct, in user-space coordinates.
@@ -63,33 +65,52 @@ export class SourceResolver {
     const orig = originalPositionFor(tracer, { line: loc.line, column: loc.column - 1 });
     if (!orig.source || orig.line == null || orig.column == null) return loc;
 
-    const resolvedFile = path.isAbsolute(orig.source)
-      ? orig.source
-      : path.resolve(path.dirname(loc.file), orig.source);
-
-    return { file: resolvedFile, line: orig.line, column: orig.column + 1 };
+    // orig.source is already resolved against the map's location (we pass the
+    // map URL when building the TraceMap), with any sourceRoot applied — so it's
+    // a file:// URL for local maps. Convert it back to a path.
+    const file = orig.source.startsWith('file://') ? fileURLToPath(orig.source) : orig.source;
+    return { file, line: orig.line, column: orig.column + 1 };
   }
 
   private loadTraceMap(jsFile: string): TraceMap | null {
     const cached = this.cache.get(jsFile);
     if (cached !== undefined) return cached;
 
-    const mapPath = jsFile + '.map';
-    if (!fs.existsSync(mapPath)) {
-      this.cache.set(jsFile, null);
-      return null;
-    }
+    const tracer = this.readSourceMap(jsFile);
+    this.cache.set(jsFile, tracer);
+    return tracer;
+  }
+
+  /**
+   * Load a .js file's source map. Honors the `//# sourceMappingURL=` directive,
+   * so it handles maps inlined as a `data:` URI as well as external maps under
+   * any filename (resolved relative to the .js). Returns null when the file has
+   * no map; warns when a referenced map exists but can't be read or parsed.
+   */
+  private readSourceMap(jsFile: string): TraceMap | null {
+    let code: string;
     try {
-      const raw = fs.readFileSync(mapPath, 'utf-8');
-      const tm = new TraceMap(JSON.parse(raw));
-      this.cache.set(jsFile, tm);
-      return tm;
+      code = fs.readFileSync(jsFile, 'utf-8');
+    } catch {
+      return null; // .js not present/readable -> treat as "no map"
+    }
+
+    try {
+      // Inline maps live at the .js; external maps live at the referenced file.
+      // The map URL tells trace-mapping where `sources` (and sourceRoot) resolve.
+      let mapUrl = pathToFileURL(jsFile).href;
+      const converter =
+        convertSourceMap.fromSource(code)
+        ?? convertSourceMap.fromMapFileSource(code, (mapFile) => {
+          const mapPath = path.resolve(path.dirname(jsFile), mapFile);
+          mapUrl = pathToFileURL(mapPath).href;
+          return fs.readFileSync(mapPath, 'utf-8');
+        });
+      return converter ? new TraceMap(converter.toObject(), mapUrl) : null;
     } catch (err) {
-      // Map file exists but is unreadable/invalid. Cache the failure so we
-      // don't re-attempt every lookup, and surface it once so a broken map
-      // doesn't masquerade as "no source map at all".
-      this.cache.set(jsFile, null);
-      this.collectedWarnings.push(`Source map ${mapPath} failed to load: ${(err as Error).message}`);
+      // A map was referenced but couldn't be read/parsed. Surface it once
+      // rather than letting a broken map masquerade as "no source map".
+      this.collectedWarnings.push(`Source map for ${jsFile} failed to load: ${(err as Error).message}`);
       return null;
     }
   }

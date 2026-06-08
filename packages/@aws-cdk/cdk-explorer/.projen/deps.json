@@ -10,6 +10,11 @@
       "type": "build"
     },
     {
+      "name": "@types/convert-source-map",
+      "version": "^2",
+      "type": "build"
+    },
+    {
       "name": "@types/express",
       "version": "^4",
       "type": "build"
@@ -118,6 +123,11 @@
     {
       "name": "@jridgewell/trace-mapping",
       "version": "^0.3",
+      "type": "runtime"
+    },
+    {
+      "name": "convert-source-map",
+      "version": "^2",
       "type": "runtime"
     },
     {
