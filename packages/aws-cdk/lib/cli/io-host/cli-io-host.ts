@@ -1,7 +1,7 @@
 import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
@@ -402,16 +402,14 @@ export class CliIoHost implements IIoHost {
    * Augment toolkit-lib's flag-free I5060 motivation with the
    * `--require-approval` framing so CLI users see flag context.
    */
-  private augmentDeployApprovalMessage<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): IoRequest<DataType, ResponseType> {
-    const approvalToolkitCodes = ['CDK_TOOLKIT_I5060'];
-    if (!(msg.code && approvalToolkitCodes.includes(msg.code))) {
-      return msg;
+  private augmentDeployApprovalMessage(msg: IoRequest<any, any>): string {
+    if (!IO.CDK_TOOLKIT_I5060.is(msg)) {
+      return msg.message;
     }
 
-    const data = (msg.data ?? {}) as { motivation?: string; permissionChangeType?: string };
-    const baseMotivation = data.motivation;
+    const baseMotivation = msg.data?.motivation;
     if (!baseMotivation) {
-      return msg;
+      return msg.message;
     }
 
     let prefix: string;
@@ -420,20 +418,16 @@ export class CliIoHost implements IIoHost {
         prefix = `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'. `;
         break;
       case RequireApproval.BROADENING:
-        if (data.permissionChangeType !== 'broadening') {
-          return msg;
+        if (msg.data.permissionChangeType !== PermissionChangeType.BROADENING) {
+          return msg.message;
         }
         prefix = '"--require-approval" is enabled. ';
         break;
       default:
-        return msg;
+        return msg.message;
     }
 
-    const augmentedMotivation = prefix + baseMotivation;
-    return {
-      ...msg,
-      message: msg.message.replace(baseMotivation, augmentedMotivation),
-    };
+    return msg.message.replace(baseMotivation, prefix + baseMotivation);
   }
 
   /**
@@ -505,7 +499,7 @@ export class CliIoHost implements IIoHost {
       // The library emits I5060 with a flag-free motivation. The CLI is the
       // layer that knows about `--require-approval` and adds it to the
       // user-facing message before any downstream rendering.
-      const promptMessage = this.augmentDeployApprovalMessage(msg).message;
+      const promptMessage = this.augmentDeployApprovalMessage(msg);
 
       // In --yes mode, respond for the user if we can
       if (this.autoRespond) {
