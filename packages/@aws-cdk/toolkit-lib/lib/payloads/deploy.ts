@@ -35,9 +35,8 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
   readonly permissionChangeType: PermissionChangeType;
 
   /**
-   * Whether the change includes security-sensitive updates (IAM or security
-   * group changes). When true, the IoHost may want to phrase the prompt
-   * differently than for routine changes.
+   * True when the change includes security-sensitive updates (IAM or security
+   * group changes). IoHosts use this to phrase the prompt accordingly.
    */
   readonly hasSecurityChanges: boolean;
 
