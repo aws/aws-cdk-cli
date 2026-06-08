@@ -1,7 +1,7 @@
 import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { PermissionChangeType, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
@@ -403,31 +403,22 @@ export class CliIoHost implements IIoHost {
    * `--require-approval` framing so CLI users see flag context.
    */
   private augmentDeployApprovalMessage(msg: IoRequest<any, any>): string {
-    if (!IO.CDK_TOOLKIT_I5060.is(msg)) {
+    if (!IO.CDK_TOOLKIT_I5060.is(msg) || msg.data?.hasSecurityChanges === undefined) {
       return msg.message;
     }
 
-    const baseMotivation = msg.data?.motivation;
-    if (!baseMotivation) {
-      return msg.message;
-    }
+    const hasSecurityChanges = msg.data.hasSecurityChanges;
 
-    let prefix: string;
-    switch (this.requireDeployApproval) {
-      case RequireApproval.ANYCHANGE:
-        prefix = `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'. `;
-        break;
-      case RequireApproval.BROADENING:
-        if (msg.data.permissionChangeType !== PermissionChangeType.BROADENING) {
-          return msg.message;
-        }
-        prefix = '"--require-approval" is enabled. ';
-        break;
-      default:
-        return msg.message;
+    if (this.requireDeployApproval === RequireApproval.BROADENING && hasSecurityChanges) {
+      return 'Stack includes security-sensitive updates and "--require-approval" is set to broadening. Do you wish to deploy these changes?';
     }
-
-    return msg.message.replace(baseMotivation, prefix + baseMotivation);
+    if (this.requireDeployApproval === RequireApproval.ANYCHANGE && hasSecurityChanges) {
+      return 'Stack includes security-sensitive updates and "--require-approval" is set to any-change. Do you wish to deploy these changes?';
+    }
+    if (this.requireDeployApproval === RequireApproval.ANYCHANGE && !hasSecurityChanges) {
+      return 'Stack includes updates and "--require-approval" is set to any-change. Do you wish to deploy these changes?';
+    }
+    return msg.message;
   }
 
   /**

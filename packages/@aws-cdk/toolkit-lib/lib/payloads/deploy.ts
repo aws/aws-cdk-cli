@@ -35,6 +35,13 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
   readonly permissionChangeType: PermissionChangeType;
 
   /**
+   * Whether the change includes security-sensitive updates (IAM or security
+   * group changes). When true, the IoHost may want to phrase the prompt
+   * differently than for routine changes.
+   */
+  readonly hasSecurityChanges: boolean;
+
+  /**
    * The template diffs of the stack
    */
   readonly templateDiffs: { [name: string]: TemplateDiff };

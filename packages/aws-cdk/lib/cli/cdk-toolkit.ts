@@ -623,6 +623,7 @@ export class CdkToolkit {
                 motivation,
                 concurrency,
                 permissionChangeType: securityDiff.permissionChangeType,
+                hasSecurityChanges,
                 templateDiffs: formatter.diffs,
               }),
             );

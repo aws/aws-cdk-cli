@@ -870,6 +870,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           motivation: deployMotivation,
           concurrency,
           permissionChangeType: securityDiff.permissionChangeType,
+          hasSecurityChanges,
           templateDiffs: formatter.diffs,
         }));
         if (!deployConfirmed) {
