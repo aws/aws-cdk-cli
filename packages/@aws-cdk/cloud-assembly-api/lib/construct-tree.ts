@@ -4,6 +4,9 @@ import { ArtifactMetadataEntryType, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEn
 import type { CloudFormationStackArtifact } from './artifacts/cloudformation-artifact';
 import type { CloudAssembly } from './cloud-assembly';
 
+/** Construct ids that aws-cdk-lib injects into the tree but aren't user constructs. */
+const CDK_INTERNAL_IDS = new Set(['Tree', 'CDKMetadata', 'BootstrapVersion', 'CheckBootstrapVersion']);
+
 /**
  * A construct from tree.json joined with the CloudFormation metadata of the
  * stack it belongs to: the construct path/id plus, for CFN resources, the
@@ -177,8 +180,6 @@ function buildNode<T extends ConstructTreeNode>(
 
   return decorate({ path: raw.path, id: raw.id, type: cfnType, logicalId, children }, entries);
 }
-
-const CDK_INTERNAL_IDS = new Set(['Tree', 'CDKMetadata', 'BootstrapVersion', 'CheckBootstrapVersion']);
 
 function isCdkInternal(id: string): boolean {
   return CDK_INTERNAL_IDS.has(id);

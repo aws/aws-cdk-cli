@@ -39,14 +39,14 @@ export function resolveSourceLocation(
   cache: SourceMapCache,
   onWarn?: WarnFn,
 ): SourceLocation | undefined {
-  const frames = pickCreationFrames(metadataEntries);
-  if (!frames) return undefined;
+  const creationStackFrames = pickCreationFrames(metadataEntries);
+  if (!creationStackFrames) return undefined;
 
   // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
   // lib/stack-trace.js) pre-filters node_modules/node:internal frames into
   // skip-placeholder lines. Those don't match FRAME_RE, so the first frame
   // that parses IS the user call site.
-  for (const frame of frames) {
+  for (const frame of creationStackFrames) {
     const parsed = parseFrame(frame);
     if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn) ?? parsed;
   }
