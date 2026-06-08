@@ -106,7 +106,11 @@ export function findCreationStackTrace(stack: cxapi.CloudFormationStackArtifact,
  * These are all places in the code where a property's value is overwritten after
  * construct creation.
  */
-export function findMutationStackTraces(stack: cxapi.CloudFormationStackArtifact, constructPath: string, propertyName: string): string[][] | undefined {
+export function findMutationStackTraces(
+  stack: cxapi.CloudFormationStackArtifact,
+  constructPath: string,
+  propertyName: string,
+): string[][] | undefined {
   const assignments = resourceMetadata(stack, constructPath, 'aws:cdk:propertyAssignment');
 
   return assignments.flatMap((m) => {
