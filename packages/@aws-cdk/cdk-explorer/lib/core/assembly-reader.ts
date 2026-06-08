@@ -3,7 +3,7 @@ import * as path from 'path';
 import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { Manifest, VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
-import { createSourceMapCache, resolveFramesToLocation, type SourceLocation, type WarnFn } from './source-resolver';
+import { SourceResolver, type SourceLocation } from './source-resolver';
 
 /**
  * A construct from the cloud assembly, decorated with the user source location
@@ -21,6 +21,8 @@ export interface AssemblyData {
   readonly violations?: PolicyValidationReportJson;
   /** Set when validation-report.json fails to load. The tree still loads. */
   readonly violationsError?: string;
+  /** Non-fatal warnings collected while reading the assembly (e.g. unparseable source maps). */
+  readonly warnings: readonly string[];
 }
 
 export type AssemblyReadResult =
@@ -33,7 +35,7 @@ export type AssemblyReadResult =
  * each node and attaches any policy-validation violations. Tree construction
  * (tree.json + stack-metadata join) is delegated to buildConstructTree.
  */
-export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyReadResult {
+export function readAssembly(assemblyDir: string): AssemblyReadResult {
   const manifestPath = path.join(assemblyDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
     return { status: 'not-found' };
@@ -41,14 +43,13 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
 
   try {
     const assembly = new CloudAssembly(assemblyDir);
-    // One source-map cache per readAssembly call: avoids re-parsing the same
-    // .js.map for every construct, while keeping the cache scoped so a fresh
-    // synth observes any moved/edited maps.
-    const sourceMapCache = createSourceMapCache();
+    // One resolver per readAssembly call: caches parsed source maps across
+    // constructs, scoped so a fresh synth observes any moved/edited maps.
+    const sourceResolver = new SourceResolver();
     const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
       ...fields,
       sourceLocation: stack
-        ? resolveFramesToLocation(findCreationStackTrace(stack, constructPath), sourceMapCache, onWarn)
+        ? sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
         : undefined,
     }));
 
@@ -57,15 +58,15 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
     try {
       violations = loadViolations(assemblyDir);
     } catch (err) {
-      violationsError = err instanceof Error ? err.message : String(err);
+      violationsError = (err as Error).message;
     }
 
     return {
       status: 'success',
-      data: { tree, violations, violationsError },
+      data: { tree, violations, violationsError, warnings: sourceResolver.warnings },
     };
   } catch (err) {
-    return { status: 'error', message: err instanceof Error ? err.message : String(err) };
+    return { status: 'error', message: (err as Error).message };
   }
 }
 

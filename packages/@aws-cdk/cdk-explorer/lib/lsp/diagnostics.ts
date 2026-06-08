@@ -49,7 +49,7 @@ export function mapViolationsToDiagnostics(
           });
           continue;
         }
-        appendTo(byUri, anchored.uri, buildDiagnostic(violation, anchored.range));
+        appendTo(byUri, anchored.uri, buildDiagnostic(violation, anchored.range, plugin.pluginName));
       }
     }
   }
@@ -91,12 +91,12 @@ function anchor(
   };
 }
 
-function buildDiagnostic(violation: PolicyViolationJson, range: Range): Diagnostic {
+function buildDiagnostic(violation: PolicyViolationJson, range: Range, pluginName: string): Diagnostic {
   return {
     range,
     severity: severityFor(violation.severity),
     code: violation.ruleName,
-    source: 'CDK Synth',
+    source: pluginName,
     message: formatMessage(violation),
   };
 }

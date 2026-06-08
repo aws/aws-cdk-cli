@@ -143,6 +143,7 @@ describe('LSP Server', () => {
       readAssembly: () => ({
         status: 'success',
         data: {
+          warnings: [],
           tree: [{
             path: 'Stack1',
             id: 'Stack1',
@@ -185,6 +186,7 @@ describe('LSP Server', () => {
       readAssembly: (): AssemblyReadResult => ({
         status: 'success',
         data: {
+          warnings: [],
           tree: [{
             path: 'Stack1',
             id: 'Stack1',

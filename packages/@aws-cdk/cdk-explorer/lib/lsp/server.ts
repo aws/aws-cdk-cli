@@ -31,7 +31,7 @@ export interface LspHandlerOptions {
   /** Callback invoked on `didSave` for tracked source files. */
   readonly onSynthRequest?: (projectDir: string) => void;
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
-  readonly readAssembly?: (assemblyDir: string, onWarn?: (msg: string) => void) => AssemblyReadResult;
+  readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -88,7 +88,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
 
   function refreshFromAssembly(projectDir: string): void {
     const assemblyDir = path.join(projectDir, 'cdk.out');
-    const result = readAssembly(assemblyDir, (msg) => log.warn(msg));
+    const result = readAssembly(assemblyDir);
 
     if (result.status === 'error') {
       log.error(`Failed to read cloud assembly: ${result.message}`);
@@ -96,7 +96,10 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     }
     if (result.status === 'not-found') return;
 
-    const { tree, violations, violationsError } = result.data;
+    const { tree, violations, violationsError, warnings } = result.data;
+    for (const warning of warnings) {
+      log.warn(warning);
+    }
     if (violationsError) {
       log.warn(`validation-report.json failed to load: ${violationsError}`);
     }
@@ -156,7 +159,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       try {
         onSynthRequest(projectDir);
       } catch (err) {
-        log.error(`Synth request failed: ${err instanceof Error ? err.message : String(err)}`);
+        log.error(`Synth request failed: ${(err as Error).message}`);
       }
     },
     onCodeLens(params) {

@@ -1,21 +1,21 @@
 import * as path from 'path';
-import { createSourceMapCache, resolveFramesToLocation, type SourceMapCache } from '../../lib/core/source-resolver';
+import { SourceResolver } from '../../lib/core/source-resolver';
 
 const SOURCE_MAPS_DIR = path.join(__dirname, '..', '_fixtures', 'source-maps');
 
-let cache: SourceMapCache;
+let resolver: SourceResolver;
 
 beforeEach(() => {
-  // Fresh cache per test so source-map parses don't bleed between cases.
-  cache = createSourceMapCache();
+  // Fresh resolver (and cache) per test so source-map parses don't bleed between cases.
+  resolver = new SourceResolver();
 });
 
 // NOTE: choosing WHICH metadata entry's frames to use (LOGICAL_ID.trace vs
-// aws:cdk:creationStack) is toolkit-lib's findCreationStackTrace; this module
+// aws:cdk:creationStack) is toolkit-lib's findCreationStackTrace; this resolver
 // only turns the chosen frames into a user source location.
-describe('resolveFramesToLocation', () => {
+describe('SourceResolver.resolveFrames', () => {
   test('returns undefined for no frames', () => {
-    expect(resolveFramesToLocation(undefined, cache)).toBeUndefined();
+    expect(resolver.resolveFrames(undefined)).toBeUndefined();
   });
 
   test('returns undefined when all frames are skip-placeholders', () => {
@@ -27,7 +27,7 @@ describe('resolveFramesToLocation', () => {
       '    ...node internals...',
       '    (no user code in 10 frames, use --stack-trace-limit to capture more)',
     ];
-    expect(resolveFramesToLocation(frames, cache)).toBeUndefined();
+    expect(resolver.resolveFrames(frames)).toBeUndefined();
   });
 
   test('skips skip-placeholder frames and picks the first parseable user frame', () => {
@@ -36,7 +36,7 @@ describe('resolveFramesToLocation', () => {
       '    at new MyStack (/project/lib/my-stack.ts:42:7)',
       '    at Object.<anonymous> (/project/bin/app.ts:8:1)',
     ];
-    expect(resolveFramesToLocation(frames, cache)).toEqual({
+    expect(resolver.resolveFrames(frames)).toEqual({
       file: '/project/lib/my-stack.ts',
       line: 42,
       column: 7,
@@ -49,20 +49,20 @@ describe('source-map resolution', () => {
 
   test('resolves .js to .ts using sibling .js.map', () => {
     // sample.js line 5: `function greet(name) {`
-    const result = resolveFramesToLocation([`    at greet (${SAMPLE_JS}:5:10)`], cache);
+    const result = resolver.resolveFrames([`    at greet (${SAMPLE_JS}:5:10)`]);
     expect(result).toBeDefined();
     expect(result!.file).toContain('sample.ts');
     expect(result!.line).toBe(2); // ts line 2 = `export function greet`
   });
 
   test('falls back to .js location when no .js.map exists', () => {
-    expect(resolveFramesToLocation(['    at someFn (/tmp/no-map-here.js:1:1)'], cache)).toEqual({
+    expect(resolver.resolveFrames(['    at someFn (/tmp/no-map-here.js:1:1)'])).toEqual({
       file: '/tmp/no-map-here.js', line: 1, column: 1,
     });
   });
 
   test('returns .ts location unchanged (no source-map needed)', () => {
-    expect(resolveFramesToLocation(['    at someFn (/project/lib/foo.ts:3:2)'], cache)).toEqual({
+    expect(resolver.resolveFrames(['    at someFn (/project/lib/foo.ts:3:2)'])).toEqual({
       file: '/project/lib/foo.ts', line: 3, column: 2,
     });
   });

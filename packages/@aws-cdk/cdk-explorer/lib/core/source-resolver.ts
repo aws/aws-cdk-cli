@@ -13,43 +13,86 @@ export interface SourceLocation {
   readonly column: number;
 }
 
-/** Optional warning sink for non-fatal issues (e.g. unparseable .js.map). */
-export type WarnFn = (message: string) => void;
-
 /**
- * Cache of parsed source maps keyed by absolute .js file path. Source-map
- * parsing is not free, and one cdk.out tree can ask for the same .js.map
- * dozens of times. Callers create one cache per assembly read and pass it
- * to every resolveSourceLocation call so the work amortises.
+ * Resolves construct creation stack traces to user source locations, caching
+ * parsed source maps across calls. Source-map parsing is not free and one
+ * cdk.out tree asks for the same .js.map many times, so create one resolver
+ * per assembly read and reuse it for every construct.
  */
-export type SourceMapCache = Map<string, TraceMap | null>;
+export class SourceResolver {
+  // Parsed source maps keyed by absolute .js path; null = known to have no map.
+  private readonly cache = new Map<string, TraceMap | null>();
+  private readonly collectedWarnings: string[] = [];
 
-export function createSourceMapCache(): SourceMapCache {
-  return new Map();
-}
-
-/**
- * Resolve the user source location from a creation stack trace (the frames
- * produced by toolkit-lib's findCreationStackTrace). Returns undefined when
- * there's no trace (non-TS apps) or every frame is a skip-placeholder
- * (framework-only call sites).
- */
-export function resolveFramesToLocation(
-  frames: readonly string[] | undefined,
-  cache: SourceMapCache,
-  onWarn?: WarnFn,
-): SourceLocation | undefined {
-  if (!frames) return undefined;
-
-  // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
-  // lib/stack-trace.js) pre-filters node_modules/node:internal frames into
-  // skip-placeholder lines. Those don't match FRAME_RE, so the first frame
-  // that parses IS the user call site.
-  for (const frame of frames) {
-    const parsed = parseFrame(frame);
-    if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn);
+  /** Non-fatal warnings collected during resolution (e.g. an unparseable .js.map). */
+  public get warnings(): readonly string[] {
+    return this.collectedWarnings;
   }
-  return undefined;
+
+  /**
+   * Resolve the user source location from a creation stack trace (the frames
+   * produced by toolkit-lib's findCreationStackTrace). Returns undefined when
+   * there's no trace (non-TS apps) or every frame is a skip-placeholder
+   * (framework-only call sites).
+   */
+  public resolveFrames(frames: readonly string[] | undefined): SourceLocation | undefined {
+    if (!frames) return undefined;
+
+    // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
+    // lib/stack-trace.js) pre-filters node_modules/node:internal frames into
+    // skip-placeholder lines. Those don't match FRAME_RE, so the first frame
+    // that parses IS the user call site.
+    for (const frame of frames) {
+      const parsed = parseFrame(frame);
+      if (parsed) return this.mapJsToOriginalSource(parsed);
+    }
+    return undefined;
+  }
+
+  /**
+   * Map a .js location to its original .ts via a sibling .js.map. Returns the
+   * input location unchanged when it isn't a .js file or has no usable map.
+   */
+  private mapJsToOriginalSource(loc: SourceLocation): SourceLocation {
+    if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx') || !loc.file.endsWith('.js')) return loc;
+
+    const tracer = this.loadTraceMap(loc.file);
+    if (!tracer) return loc;
+
+    // trace-mapping uses 0-based columns, stack frames are 1-based.
+    const orig = originalPositionFor(tracer, { line: loc.line, column: loc.column - 1 });
+    if (!orig.source || orig.line == null || orig.column == null) return loc;
+
+    const resolvedFile = path.isAbsolute(orig.source)
+      ? orig.source
+      : path.resolve(path.dirname(loc.file), orig.source);
+
+    return { file: resolvedFile, line: orig.line, column: orig.column + 1 };
+  }
+
+  private loadTraceMap(jsFile: string): TraceMap | null {
+    const cached = this.cache.get(jsFile);
+    if (cached !== undefined) return cached;
+
+    const mapPath = jsFile + '.map';
+    if (!fs.existsSync(mapPath)) {
+      this.cache.set(jsFile, null);
+      return null;
+    }
+    try {
+      const raw = fs.readFileSync(mapPath, 'utf-8');
+      const tm = new TraceMap(JSON.parse(raw));
+      this.cache.set(jsFile, tm);
+      return tm;
+    } catch (err) {
+      // Map file exists but is unreadable/invalid. Cache the failure so we
+      // don't re-attempt every lookup, and surface it once so a broken map
+      // doesn't masquerade as "no source map at all".
+      this.cache.set(jsFile, null);
+      this.collectedWarnings.push(`Source map ${mapPath} failed to load: ${(err as Error).message}`);
+      return null;
+    }
+  }
 }
 
 // renderCallStackJustMyCode emits frames as "    at <name> (<file>:<line>:<col>)".
@@ -63,53 +106,4 @@ function parseFrame(frame: string): SourceLocation | undefined {
   const column = Number(m[3]);
   if (!Number.isFinite(line) || !Number.isFinite(column)) return undefined;
   return { file: m[1], line, column };
-}
-
-/**
- * Map a .js location to its original .ts via a sibling .js.map. Falls
- * back to the .js location when there's no map
- */
-function mapJsToOriginalSource(
-  loc: SourceLocation,
-  cache: SourceMapCache,
-  onWarn?: WarnFn,
-): SourceLocation {
-  if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx') || (!loc.file.endsWith('.js'))) return loc;
-
-  const tracer = loadTraceMap(loc.file, cache, onWarn);
-  if (!tracer) return loc;
-
-  // trace-mapping uses 0-based columns, stack frames are 1-based.
-  const orig = originalPositionFor(tracer, { line: loc.line, column: loc.column - 1 });
-  if (!orig.source || orig.line == null || orig.column == null) return loc;
-
-  const resolvedFile = path.isAbsolute(orig.source)
-    ? orig.source
-    : path.resolve(path.dirname(loc.file), orig.source);
-
-  return { file: resolvedFile, line: orig.line, column: orig.column + 1 };
-}
-
-function loadTraceMap(jsFile: string, cache: SourceMapCache, onWarn?: WarnFn): TraceMap | null {
-  const cached = cache.get(jsFile);
-  if (cached !== undefined) return cached;
-
-  const mapPath = jsFile + '.map';
-  if (!fs.existsSync(mapPath)) {
-    cache.set(jsFile, null);
-    return null;
-  }
-  try {
-    const raw = fs.readFileSync(mapPath, 'utf-8');
-    const tm = new TraceMap(JSON.parse(raw));
-    cache.set(jsFile, tm);
-    return tm;
-  } catch (err) {
-    // Map file exists but is unreadable/invalid. Cache the failure so we
-    // don't re-attempt every lookup, and surface it once so a broken map
-    // doesn't masquerade as "no source map at all".
-    cache.set(jsFile, null);
-    onWarn?.(`Source map ${mapPath} failed to load: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
 }

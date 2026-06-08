@@ -66,7 +66,7 @@ describe('mapViolationsToDiagnostics', () => {
     const diag = byUri.get(expectedUri)![0];
     expect(diag.severity).toBe(DiagnosticSeverity.Error);
     expect(diag.code).toBe('no-public-buckets');
-    expect(diag.source).toBe('CDK Synth');
+    expect(diag.source).toBe('test-plugin');
     // Range starts at construct creation (1-based -> 0-based) and extends
     // to LSP's end-of-line sentinel so the squiggle is visible.
     expect(diag.range).toEqual({

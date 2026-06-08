@@ -6,6 +6,7 @@ try {
     writable: process.stdout,
   });
 } catch (err) {
-  process.stderr.write(`CDK LSP startup fatal: ${err}\n`);
+  const e = err as Error;
+  process.stderr.write(`CDK LSP startup fatal: ${e.stack ?? e.message}\n`);
   process.exit(1);
 }
