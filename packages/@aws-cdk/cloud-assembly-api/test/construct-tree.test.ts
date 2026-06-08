@@ -1,8 +1,12 @@
-import { ConstructIndex, type ConstructTreeNode } from '../lib';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { buildConstructTree, CloudAssembly, ConstructIndex, type ConstructTreeNode } from '../lib';
+import { rimraf } from './util';
 
-const node = (path: string, children: ConstructTreeNode[] = []): ConstructTreeNode => ({
-  path,
-  id: path.split('/').pop() ?? path,
+const node = (nodePath: string, children: ConstructTreeNode[] = []): ConstructTreeNode => ({
+  path: nodePath,
+  id: nodePath.split('/').pop() ?? nodePath,
   children,
 });
 
@@ -49,9 +53,97 @@ describe('ConstructIndex', () => {
       readonly children: readonly Rich[];
       readonly label: string;
     }
-    const rich = (path: string, label: string): Rich => ({ path, id: path, label, children: [] });
+    const rich = (richPath: string, label: string): Rich => ({ path: richPath, id: richPath, label, children: [] });
     const index = ConstructIndex.fromTree<Rich>([rich('A', 'alpha')]);
     expect(index.byPath('A')?.label).toBe('alpha');
     expect([...index][0].label).toBe('alpha');
+  });
+});
+
+describe('buildConstructTree', () => {
+  let dir: string;
+  afterEach(() => dir && rimraf(dir));
+
+  function writeAssembly(opts: { withTree: boolean }): string {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'caa-tree-'));
+    const manifest = {
+      version: '0.0.0',
+      artifacts: {
+        Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
+        MyStack: {
+          type: 'aws:cloudformation:stack',
+          environment: 'aws://111/us-east-1',
+          properties: { templateFile: 'template.json' },
+          metadata: {
+            '/MyStack/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'BucketABC' }],
+          },
+        },
+      },
+    };
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
+    fs.writeFileSync(path.join(dir, 'template.json'), '{}');
+    if (opts.withTree) {
+      const tree = {
+        version: 'tree-0.1',
+        tree: {
+          id: 'App',
+          path: '',
+          children: {
+            MyStack: {
+              id: 'MyStack',
+              path: 'MyStack',
+              children: {
+                Bucket: {
+                  id: 'Bucket',
+                  path: 'MyStack/Bucket',
+                  children: {
+                    Resource: {
+                      id: 'Resource',
+                      path: 'MyStack/Bucket/Resource',
+                      attributes: { 'aws:cdk:cloudformation:type': 'AWS::S3::Bucket' },
+                    },
+                  },
+                },
+                // Internal node that must be filtered out.
+                CDKMetadata: { id: 'CDKMetadata', path: 'MyStack/CDKMetadata' },
+              },
+            },
+          },
+        },
+      };
+      fs.writeFileSync(path.join(dir, 'tree.json'), JSON.stringify(tree));
+    }
+    return dir;
+  }
+
+  test('joins tree.json with stack metadata: logicalId + CFN type', () => {
+    const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
+    const tree = buildConstructTree(assembly, (fields) => fields);
+
+    const resource = ConstructIndex.fromTree(tree).byPath('MyStack/Bucket/Resource');
+    expect(resource?.type).toBe('AWS::S3::Bucket');
+    expect(resource?.logicalId).toBe('BucketABC');
+  });
+
+  test('filters cdk-internal nodes (e.g. CDKMetadata)', () => {
+    const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
+    const paths = [...ConstructIndex.fromTree(buildConstructTree(assembly, (f) => f))].map((n) => n.path);
+    expect(paths).toContain('MyStack/Bucket');
+    expect(paths).not.toContain('MyStack/CDKMetadata');
+  });
+
+  test('passes metadata entries to the decorate callback', () => {
+    const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
+    const tree = buildConstructTree(assembly, (fields, entries) => ({
+      ...fields,
+      hasLogicalIdEntry: entries.some((e) => e.type === 'aws:cdk:logicalId'),
+    }));
+    const resource = ConstructIndex.fromTree(tree).byPath('MyStack/Bucket/Resource');
+    expect((resource as any)?.hasLogicalIdEntry).toBe(true);
+  });
+
+  test('returns an empty tree when tree.json is absent', () => {
+    const assembly = new CloudAssembly(writeAssembly({ withTree: false }));
+    expect(buildConstructTree(assembly, (f) => f)).toEqual([]);
   });
 });
