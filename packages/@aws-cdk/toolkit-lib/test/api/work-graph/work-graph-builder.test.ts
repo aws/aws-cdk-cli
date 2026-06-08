@@ -51,14 +51,14 @@ describe('with some stacks and assets', () => {
 
     expect(assertableNode(graph.node('stack2'))).toEqual(expect.objectContaining({
       type: 'stack',
-      dependencies: superset(['publish-F1-add54bdbcb']),
+      dependencies: superset(['publish-F1-a533139934add54bdbcb']),
     } as Partial<StackNode>));
   });
 
   test('asset publishing step depends on asset building step', () => {
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
 
-    expect(graph.node('publish-F1-add54bdbcb')).toEqual(expect.objectContaining({
+    expect(graph.node('publish-F1-a533139934add54bdbcb')).toEqual(expect.objectContaining({
       type: 'asset-publish',
       dependencies: superset(['build-F1-a533139934']),
     } satisfies Partial<AssetPublishNode>));
@@ -118,6 +118,8 @@ test('can handle nested assemblies', async () => {
     publishAsset: async () => {
       workDone += 1;
     },
+    marker: async () => {
+    },
   });
 
   // The asset is shared between parent assembly and nested assembly, but the stacks will be deployed
@@ -172,7 +174,7 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: false });
 
     expect(traversal).toEqual([
       expect.stringMatching(/^build-work-graph-builder.test.js-.*$/),
@@ -234,14 +236,17 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: true });
 
+    // THEN: one build, multiple publishes, and the asset 'START' and 'END' markers are as tight as possible.
     expect(traversal).toEqual([
+      'start-abcdef',
       expect.stringMatching(/^build-abcdef-.*$/),
       expect.stringMatching(/^publish-abcdef-.*$/),
       expect.stringMatching(/^publish-abcdef-.*$/),
       'StackA',
       expect.stringMatching(/^publish-abcdef-.*$/),
+      'end-abcdef',
       'StackB',
     ]);
   });
@@ -280,7 +285,7 @@ describe('tests that use assets', () => {
     const assembly = rootBuilder.buildAssembly();
 
     const graph = new WorkGraphBuilder(mockMsg, true).build(assembly.artifacts);
-    const traversal = await traverseAndRecord(graph);
+    const traversal = await traverseAndRecord(graph, { includeMarkers: false });
 
     expect(traversal).toEqual([
       expect.stringMatching(/^build-abcdef-.*$/),
@@ -371,7 +376,7 @@ function assertableNode<A extends WorkNode>(x: A) {
   };
 }
 
-async function traverseAndRecord(graph: WorkGraph) {
+async function traverseAndRecord(graph: WorkGraph, options: { includeMarkers: boolean }) {
   const ret: string[] = [];
   await graph.doParallel(1, {
     deployStack: async (node) => {
@@ -382,6 +387,11 @@ async function traverseAndRecord(graph: WorkGraph) {
     },
     publishAsset: async (node) => {
       ret.push(node.id);
+    },
+    marker: async (node) => {
+      if (options.includeMarkers) {
+        ret.push(node.id);
+      }
     },
   });
   return ret;

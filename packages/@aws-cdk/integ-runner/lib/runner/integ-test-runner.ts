@@ -89,6 +89,14 @@ export interface RunOptions extends CommonOptions {
   readonly updateWorkflow?: boolean;
 
   /**
+   * List of git tags to deploy in sequence before deploying the current code.
+   * When provided, replaces the normal merge-base update workflow.
+   *
+   * @default - use the normal update workflow
+   */
+  readonly updateFromTags?: string[];
+
+  /**
    * ARN of the IAM role for CloudFormation to assume during deploy/destroy
    *
    * @default - use the bootstrap cfn-exec role
@@ -137,6 +145,78 @@ export class IntegTestRunner extends IntegRunner {
         watch: { },
       }, undefined, 2));
     }
+  }
+
+  /**
+   * Checkout the snapshot directory at a specific git ref (tag, commit, branch).
+   * Fails fast if the snapshot does not exist at the given ref.
+   */
+  private checkoutSnapshotAtRef(ref: string): void {
+    const gitCwd = path.dirname(this.snapshotDir);
+    const git = ['git', '-C', gitCwd];
+    const relativeSnapshotDir = path.relative(gitCwd, this.snapshotDir);
+
+    try {
+      exec([...git, 'checkout', ref, '--', relativeSnapshotDir]);
+    } catch (e) {
+      throw new Error(
+        `Snapshot does not exist at tag '${ref}'. ` +
+        `Path: ${relativeSnapshotDir}\n` +
+        `Underlying error: ${formatError(e)}`,
+      );
+    }
+  }
+
+  /**
+   * Deploy the snapshot from each git tag in sequence, then let the caller
+   * deploy the current code as the final update.
+   */
+  private async deployFromTags(
+    deployArgs: cdk.DeployOptions,
+    testCaseName: string,
+    tags: string[],
+    allowDeleteFailures: boolean,
+  ): Promise<void> {
+    const totalTags = tags.length;
+
+    for (let i = 0; i < totalTags; i++) {
+      const tag = tags[i];
+      logger.highlight(`${this.testName}/${testCaseName}: deploying tag ${tag} (${i + 1}/${totalTags})`);
+
+      this.checkoutSnapshotAtRef(tag);
+
+      const expectedTestSuite = await this.expectedTestSuite();
+      if (!expectedTestSuite || !(testCaseName in expectedTestSuite.testSuite)) {
+        throw new Error(
+          `Test case '${testCaseName}' does not exist in snapshot at tag '${tag}'`,
+        );
+      }
+
+      const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
+      const deployResult = await this.cdk.deploy({
+        ...deployArgs,
+        stacks: expectedTestCase.stacks,
+        ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
+        context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
+        app: path.relative(this.directory, this.snapshotDir),
+        lookups: expectedTestSuite?.enableLookups,
+      });
+
+      if (deployResult.deleteFailures.length > 0) {
+        const details = deployResult.deleteFailures
+          .map(f => `  - ${f.logicalResourceId} (${f.resourceType}): ${f.reason}`)
+          .join('\n');
+        const message =
+          `Update from tag '${tag}': ${deployResult.deleteFailures.length} resource(s) failed to delete:\n${details}`;
+        if (allowDeleteFailures) {
+          logger.warning(message);
+        } else {
+          throw new Error(message);
+        }
+      }
+    }
+
+    logger.highlight(`${this.testName}/${testCaseName}: deploying current branch (final)`);
   }
 
   /**
@@ -279,6 +359,7 @@ export class IntegTestRunner extends IntegRunner {
           updateWorkflowEnabled,
           options.testCaseName,
           allowDeleteFailures,
+          options.updateFromTags,
         );
       }
 
@@ -491,6 +572,7 @@ export class IntegTestRunner extends IntegRunner {
     updateWorkflowEnabled: boolean,
     testCaseName: string,
     allowDeleteFailures: boolean,
+    updateFromTags?: string[],
   ): Promise<AssertionResults | undefined> {
     const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
     try {
@@ -501,26 +583,25 @@ export class IntegTestRunner extends IntegRunner {
           });
         });
       }
-      // if the update workflow is not disabled, first
-      // perform a deployment with the existing snapshot
-      // then perform a deployment (which will be a stack update)
-      // with the current integration test
-      // We also only want to run the update workflow if there is an existing
-      // snapshot (otherwise there is nothing to update)
-      const expectedTestSuite = await this.expectedTestSuite();
-      if (updateWorkflowEnabled && this.hasSnapshot() &&
-        (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite)) {
-        // make sure the snapshot is the latest from 'origin'
-        this.checkoutSnapshot();
-        const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
-        await this.cdk.deploy({
-          ...deployArgs,
-          stacks: expectedTestCase.stacks,
-          ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
-          context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
-          app: path.relative(this.directory, this.snapshotDir),
-          lookups: expectedTestSuite?.enableLookups,
-        });
+
+      if (updateFromTags && updateFromTags.length > 0) {
+        // Tag-sequence update workflow: deploy each tag's snapshot in order
+        await this.deployFromTags(deployArgs, testCaseName, updateFromTags, allowDeleteFailures);
+      } else if (updateWorkflowEnabled && this.hasSnapshot()) {
+        // Normal merge-base update workflow
+        const expectedTestSuite = await this.expectedTestSuite();
+        if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite) {
+          this.checkoutSnapshot();
+          const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
+          await this.cdk.deploy({
+            ...deployArgs,
+            stacks: expectedTestCase.stacks,
+            ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
+            context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
+            app: path.relative(this.directory, this.snapshotDir),
+            lookups: expectedTestSuite?.enableLookups,
+          });
+        }
       }
       // now deploy the "actual" test.
       // This is the stack update if the update workflow ran above.

@@ -51,6 +51,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
             clean: request.clean,
             dryRun: request.dryRun,
             updateWorkflow: request.updateWorkflow,
+            updateFromTags: request.updateFromTags,
             verbosity,
             roleArn: request.roleArn,
             allowDeleteFailures: request.allowDeleteFailures,

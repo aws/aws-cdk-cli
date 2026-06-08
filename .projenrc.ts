@@ -465,6 +465,7 @@ cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
   jsiiVersion: TYPESCRIPT_VERSION,
   excludeTypescript: ['**/test/**/*.ts'],
+  rosettaDependencies: ['constructs@^10.0.0'],
   publishToMaven: {
     javaPackage: 'software.amazon.awscdk.cloudassembly.schema',
     mavenArtifactId: 'cdk-cloud-assembly-schema',
@@ -492,6 +493,10 @@ cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
 }));
 
 (() => {
+  cloudAssemblySchema.addDevDeps('cdk-generate-synthetic-examples');
+  cloudAssemblySchema.tasks.tryFind('rosetta:extract')!.reset('cdk-generate-synthetic-examples');
+  cloudAssemblySchema.tasks.tryFind('rosetta:extract')!.exec('jsii-rosetta extract --strict');
+
   cloudAssemblySchema.preCompileTask.exec('tsx projenrc/update.ts');
 
   // This file will be generated at release time. It needs to be gitignored or it will
@@ -501,6 +506,7 @@ cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   // by making it part of preCompile, because that makes it run as part of projen build.
   cloudAssemblySchema.preCompileTask.exec('tsx ../../../projenrc/copy-cli-version-to-assembly.task.ts');
   cloudAssemblySchema.gitignore.addPatterns('cli-version.json');
+  cloudAssemblySchema.gitignore.addPatterns('_generated.ts-fixture');
 
   cloudAssemblySchema.addPackageIgnore('*.ts');
   cloudAssemblySchema.addPackageIgnore('!*.d.ts');

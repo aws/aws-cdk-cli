@@ -160,6 +160,7 @@ describe('config', () => {
       rollback: expect.anything(),
       publishAssets: expect.anything(),
       synth: expect.anything(),
+      validate: expect.anything(),
       watch: expect.anything(),
       notices: expect.anything(),
       import: expect.anything(),

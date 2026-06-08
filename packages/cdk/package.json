@@ -32,7 +32,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.7",
+    "@cdklabs/eslint-plugin": "^2.0.8",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -42,7 +42,7 @@
     "constructs": "^10.0.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jest": "^29.15.2",
     "eslint-plugin-jsdoc": "^62.9.0",
@@ -57,7 +57,7 @@
     "typescript": "5.9"
   },
   "dependencies": {
-    "aws-cdk": "^0.0.0"
+    "aws-cdk": "^2.1125.0"
   },
   "keywords": [
     "aws",
