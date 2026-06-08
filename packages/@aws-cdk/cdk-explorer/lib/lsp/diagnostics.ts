@@ -10,7 +10,9 @@ import {
   DiagnosticSeverity,
   type Range,
 } from 'vscode-languageserver/node';
+import { groupBy } from './codelens';
 import type { ConstructNode } from '../core/assembly-reader';
+import type { SourceLocation } from '../core/source-resolver';
 
 export interface MapViolationsResult {
   /** One entry per file URI, ready for connection.sendDiagnostics. */
@@ -25,70 +27,89 @@ export interface MapViolationsResult {
 
 /**
  * Convert a validation report into LSP diagnostics keyed by file URI.
- * Violations whose construct path is unknown, has no source location, or
- * points outside TypeScript are dropped (with a reason) rather than thrown.
+ * Violations we can't anchor to a TypeScript source location are dropped
+ * (with a reason) rather than thrown.
  */
 export function mapViolationsToDiagnostics(
   violations: PolicyValidationReportJson | undefined,
   index: ConstructIndex<ConstructNode>,
 ): MapViolationsResult {
-  const byUri = new Map<string, Diagnostic[]>();
   const dropped: Array<MapViolationsResult['dropped'][number]> = [];
+  const located: Array<{ uri: string; diagnostic: Diagnostic }> = [];
 
-  if (!violations) return { byUri, dropped };
-
-  for (const plugin of violations.pluginReports ?? []) {
-    for (const violation of plugin.violations ?? []) {
-      for (const target of violation.violatingConstructs ?? []) {
-        const anchored = anchor(target.constructPath, index);
-        if ('error' in anchored) {
-          dropped.push({
-            ruleName: violation.ruleName,
-            constructPath: target.constructPath ?? '',
-            reason: anchored.error,
-          });
-          continue;
-        }
-        appendTo(byUri, anchored.uri, buildDiagnostic(violation, anchored.range, plugin.pluginName));
-      }
+  for (const { pluginName, violation, constructPath } of flattenTargets(violations)) {
+    const anchored = anchorViolation(constructPath, index);
+    if ('reason' in anchored) {
+      dropped.push({ ruleName: violation.ruleName, constructPath: constructPath ?? '', reason: anchored.reason });
+    } else {
+      located.push({ uri: anchored.uri, diagnostic: buildDiagnostic(violation, anchored.range, pluginName) });
     }
   }
 
+  const byUri = new Map<string, Diagnostic[]>(
+    [...groupBy(located, (l) => l.uri)].map(([uri, items]) => [uri, items.map((i) => i.diagnostic)]),
+  );
   return { byUri, dropped };
 }
 
-interface ResolvedAnchor {
-  readonly uri: string;
-  readonly range: Range;
+interface ViolationTarget {
+  readonly pluginName: string;
+  readonly violation: PolicyViolationJson;
+  readonly constructPath: string | undefined;
 }
 
-function anchor(
+/** Flatten the report's plugin -> violation -> target nesting into a flat list. */
+function flattenTargets(report: PolicyValidationReportJson | undefined): ViolationTarget[] {
+  return (report?.pluginReports ?? []).flatMap((plugin) =>
+    (plugin.violations ?? []).flatMap((violation) =>
+      (violation.violatingConstructs ?? []).map((target) => ({
+        pluginName: plugin.pluginName,
+        violation,
+        constructPath: target.constructPath,
+      }))));
+}
+
+/** A construct's source location, or the reason it has none. */
+function resolveLocation(
   constructPath: string | undefined,
   index: ConstructIndex<ConstructNode>,
-): ResolvedAnchor | { readonly error: string } {
-  if (!constructPath) return { error: 'empty constructPath' };
-
+): SourceLocation | { readonly reason: string } {
+  if (!constructPath) return { reason: 'violation has no construct path' };
   const node = index.byPath(constructPath);
-  if (!node) return { error: 'no tree node for constructPath' };
+  if (!node) return { reason: 'not found in the construct tree' };
+  if (!node.sourceLocation) return { reason: 'no source location (non-TypeScript app or framework-only trace)' };
+  return node.sourceLocation;
+}
 
-  const loc = node.sourceLocation;
-  if (!loc) return { error: 'node has no sourceLocation (non-TS or framework-only trace)' };
+/** Resolve a violation to a presentable anchor, or a reason it can't be shown. */
+function anchorViolation(
+  constructPath: string | undefined,
+  index: ConstructIndex<ConstructNode>,
+): { readonly uri: string; readonly range: Range } | { readonly reason: string } {
+  const loc = resolveLocation(constructPath, index);
+  if ('reason' in loc) return loc;
 
-  if (!loc.file.endsWith('.ts') && !loc.file.endsWith('.tsx')) {
-    return { error: `non-TypeScript source: ${loc.file}` };
-  }
-  if (loc.line < 1 || loc.column < 1) {
-    return { error: `invalid line/column: ${loc.line}:${loc.column}` };
-  }
+  // We only surface diagnostics for TypeScript sources for now.
+  if (!isTypeScript(loc.file)) return { reason: `source file is not TypeScript: ${loc.file}` };
 
-  // LSP positions are 0-based; sourceLocation is 1-based.
-  // Span to end-of-line with Number.MAX_VALUE so the squiggle is visible.
-  const line = loc.line - 1;
-  const character = loc.column - 1;
-  return {
-    uri: pathToFileURL(loc.file).toString(),
-    range: { start: { line, character }, end: { line, character: Number.MAX_VALUE } },
-  };
+  return { uri: pathToFileURL(loc.file).toString(), range: toRange(loc) };
+}
+
+function isTypeScript(file: string): boolean {
+  return file.endsWith('.ts') || file.endsWith('.tsx');
+}
+
+/**
+ * LSP range for a source location. Anchors at the resolved line/column, or at
+ * the top of the file when the file is known but the line/column aren't. LSP
+ * positions are 0-based; sourceLocation is 1-based. The end spans to
+ * Number.MAX_VALUE so the squiggle covers the rest of the line.
+ */
+function toRange(loc: SourceLocation): Range {
+  const hasLineCol = loc.line >= 1 && loc.column >= 1;
+  const line = hasLineCol ? loc.line - 1 : 0;
+  const character = hasLineCol ? loc.column - 1 : 0;
+  return { start: { line, character }, end: { line, character: Number.MAX_VALUE } };
 }
 
 function buildDiagnostic(violation: PolicyViolationJson, range: Range, pluginName: string): Diagnostic {
@@ -118,10 +139,4 @@ function severityFor(s: PolicyViolationSeverity | undefined): DiagnosticSeverity
 function formatMessage(v: PolicyViolationJson): string {
   const head = v.description ?? v.ruleName;
   return v.suggestedFix ? `${head}\n\nSuggested fix: ${v.suggestedFix}` : head;
-}
-
-function appendTo(map: Map<string, Diagnostic[]>, uri: string, diag: Diagnostic): void {
-  const existing = map.get(uri);
-  if (existing) existing.push(diag);
-  else map.set(uri, [diag]);
 }

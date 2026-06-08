@@ -142,7 +142,7 @@ describe('mapViolationsToDiagnostics', () => {
     expect(dropped[0]).toMatchObject({
       ruleName: 'r',
       constructPath: 'S/Missing',
-      reason: expect.stringContaining('no tree node'),
+      reason: expect.stringContaining('construct tree'),
     });
   });
 
@@ -153,7 +153,7 @@ describe('mapViolationsToDiagnostics', () => {
     const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
     expect(byUri.size).toBe(0);
     expect(dropped).toHaveLength(1);
-    expect(dropped[0].reason).toContain('no sourceLocation');
+    expect(dropped[0].reason).toContain('no source location');
   });
 
   test('drops violations whose source file is not TypeScript', () => {
@@ -162,6 +162,16 @@ describe('mapViolationsToDiagnostics', () => {
 
     const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
     expect(byUri.size).toBe(0);
-    expect(dropped[0].reason).toContain('non-TypeScript');
+    expect(dropped[0].reason).toContain('not TypeScript');
+  });
+
+  test('anchors at the top of the file when line/column are unknown', () => {
+    const tree = indexOf(nodeWithLocation('S/X', '/p/lib/stack.ts', 0, 0));
+    const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/X'] });
+
+    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
+    expect(dropped).toHaveLength(0);
+    const diags = [...byUri.values()][0];
+    expect(diags[0].range.start).toEqual({ line: 0, character: 0 });
   });
 });
