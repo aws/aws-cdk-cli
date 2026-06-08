@@ -1,9 +1,17 @@
 # Test Fixtures
 
-Most tests build their `cdk.out/` programmatically via `builders.ts` —
-keeps test intent in TypeScript and avoids drift when aws-cdk-lib or the
-cloud-assembly schema upgrades. `builders.test.ts` sanity-checks each
-builder against `readAssembly`.
+These fixtures back the cdk-explorer unit tests. They come in two kinds.
+
+## Programmatic assemblies (`builders.ts`)
+
+Rather than checking in static `cdk.out/` directories, most tests construct
+their cloud assembly in memory with `builders.ts` — helpers that write a
+`manifest.json` + `tree.json` describing stacks, constructs, CFN resources,
+and validation reports. This keeps each test's intent readable in TypeScript
+and reduces the chance of the fixtures going stale as the cloud-assembly format evolves. The
+builders only populate the fields `readAssembly` actually consumes, using the
+metadata-key constants from `@aws-cdk/cloud-assembly-schema` so the keys stay
+correct. `builders.test.ts` sanity-checks each builder against `readAssembly`.
 
 ## source-maps/
 
