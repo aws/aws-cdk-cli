@@ -47,7 +47,7 @@ export function resolveFramesToLocation(
   // that parses IS the user call site.
   for (const frame of frames) {
     const parsed = parseFrame(frame);
-    if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn) ?? parsed;
+    if (parsed) return mapJsToOriginalSource(parsed, cache, onWarn);
   }
   return undefined;
 }
@@ -66,23 +66,22 @@ function parseFrame(frame: string): SourceLocation | undefined {
 }
 
 /**
- * Map a .js location to its original .ts via a sibling .js.map. Returns
- * undefined when there's no map; the caller falls back to the .js location.
+ * Map a .js location to its original .ts via a sibling .js.map. Falls
+ * back to the .js location when there's no map
  */
 function mapJsToOriginalSource(
   loc: SourceLocation,
   cache: SourceMapCache,
   onWarn?: WarnFn,
-): SourceLocation | undefined {
-  if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx')) return loc;
-  if (!loc.file.endsWith('.js')) return undefined;
+): SourceLocation {
+  if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx') || (!loc.file.endsWith('.js'))) return loc;
 
   const tracer = loadTraceMap(loc.file, cache, onWarn);
-  if (!tracer) return undefined;
+  if (!tracer) return loc;
 
   // trace-mapping uses 0-based columns, stack frames are 1-based.
   const orig = originalPositionFor(tracer, { line: loc.line, column: loc.column - 1 });
-  if (!orig.source || orig.line == null || orig.column == null) return undefined;
+  if (!orig.source || orig.line == null || orig.column == null) return loc;
 
   const resolvedFile = path.isAbsolute(orig.source)
     ? orig.source
