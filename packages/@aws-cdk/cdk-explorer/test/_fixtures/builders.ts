@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ArtifactMetadataEntryType } from '@aws-cdk/cloud-assembly-schema';
-import { VALIDATION_REPORT_FILE } from '../../lib/core/assembly-reader';
+import { ArtifactMetadataEntryType, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 
 /**
  * Programmatic fixture builders. Each builder writes a minimal cdk.out/ to a

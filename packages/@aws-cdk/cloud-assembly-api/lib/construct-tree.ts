@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ArtifactMetadataEntryType, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from './artifacts/cloudformation-artifact';
 import type { CloudAssembly } from './cloud-assembly';
 
@@ -131,10 +131,6 @@ interface RawTreeNode {
 /** Per-stack metadata Map, keyed by the stack's construct path. */
 type StackMetadataIndex = Map<string, Map<string, MetadataEntry[]>>;
 
-// tree.json attribute carrying the CFN resource type. aws-cdk-lib emits this
-// in `private/`; @aws-cdk/cloud-assembly-schema does not re-export it.
-const CFN_TYPE_ATTRIBUTE = 'aws:cdk:cloudformation:type';
-
 function loadTree(assemblyDir: string): RawTreeNode | undefined {
   const treePath = path.join(assemblyDir, 'tree.json');
   if (!fs.existsSync(treePath)) return undefined;
@@ -172,7 +168,7 @@ function buildNode<T extends ConstructTreeNode>(
   const logicalIdEntry = entries.find((e) => e.type === ArtifactMetadataEntryType.LOGICAL_ID);
   const logicalId = typeof logicalIdEntry?.data === 'string' ? logicalIdEntry.data : undefined;
 
-  const cfnTypeRaw = raw.attributes?.[CFN_TYPE_ATTRIBUTE];
+  const cfnTypeRaw = raw.attributes?.[CFN_RESOURCE_TYPE_ATTRIBUTE];
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
 
   const children = Object.values(raw.children ?? {})

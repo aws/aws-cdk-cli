@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
-import { Manifest, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+import { Manifest, VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { createSourceMapCache, resolveSourceLocation, type SourceLocation, type WarnFn } from './source-resolver';
 
 /**
@@ -66,9 +66,7 @@ export function readAssembly(assemblyDir: string, onWarn?: WarnFn): AssemblyRead
   }
 }
 
-/** Canonical filename of the policy-validation report inside cdk.out/. */
-export const VALIDATION_REPORT_FILE = 'validation-report.json';
-
+/** Loads the policy-validation report from the assembly dir, if present. */
 function loadViolations(assemblyDir: string): PolicyValidationReportJson | undefined {
   const reportPath = path.join(assemblyDir, VALIDATION_REPORT_FILE);
   if (!fs.existsSync(reportPath)) return undefined;
