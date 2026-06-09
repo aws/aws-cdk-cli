@@ -61,8 +61,8 @@ const asyncHook = createHook({
  * keeping the Node event loop alive. Must be called before any async resource
  * we care about is created (so as early as possible during CLI startup).
  *
- * Only call this when the user has opted in via the --troubleshoot flag; the
- * hook adds a small per-resource cost.
+ * Only call this when the user has opted in via --debug; the hook adds a
+ * small per-resource cost.
  */
 export function enableHandleTracking(): void {
   asyncHook.enable();
@@ -84,7 +84,7 @@ export async function reportLeakedHandles(ioHelper: IoHelper): Promise<void> {
     return resource.hasRef?.() ?? true;
   });
 
-  await ioHelper.defaults.warn(`[cdk troubleshoot] ${stillAlive.length} handle(s) keeping the process running.`);
+  await ioHelper.defaults.warn(`[cdk debug] ${stillAlive.length} handle(s) keeping the process running.`);
 
   for (const resource of stillAlive) {
     await reportResource(resource, ioHelper);

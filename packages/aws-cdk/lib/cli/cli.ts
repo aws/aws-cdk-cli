@@ -47,7 +47,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
-  if (argv.troubleshoot) {
+  if (argv.debug) {
     // Start tracking async resources before any other work happens, so we can
     // identify the ones still alive at exit time.
     enableHandleTracking();
@@ -263,7 +263,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
     }
 
-    if (argv.troubleshoot) {
+    if (argv.debug) {
       // If the process is still alive a second from now, something is keeping
       // the event loop busy. Dump the leaked handles so the user can see why.
       // .unref() so this timer itself doesn't keep us alive.

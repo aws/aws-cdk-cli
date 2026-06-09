@@ -73,12 +73,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)',
-    })
-    .option('troubleshoot', {
-      default: false,
-      type: 'boolean',
-      desc: 'Diagnose CLI hangs by reporting Node async resources still keeping the process alive at exit, with the source location where each was created.',
+      desc: 'Debug the CDK app and CLI. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis). Also reports any Node async resources still keeping the CLI process alive at exit, with the source location where each was created.',
     })
     .option('profile', {
       default: undefined,
