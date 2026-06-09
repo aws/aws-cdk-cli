@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'url';
 import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
-import { resourceTarget } from './template-locator';
+import { resourceTarget, type ResourceTarget } from './template-locator';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
 
@@ -31,22 +31,28 @@ interface ResourceLensInfo {
   readonly cfnType: string;
 }
 
+/** One selectable resource in a lens: a display label and where to open it. */
+export interface ResourceChoice {
+  readonly label: string;
+  readonly target: ResourceTarget;
+}
+
 /**
- * Builds the lens command for the resources on one line. A single resource gets
- * a clickable command carrying its navigation target, so the client can open
- * the template at the resource. Multiple resources (an L2 fanning out)
- * stay title-only until the picker is added; a single resource whose target
- * cannot be resolved also degrades to title-only (empty command = no-op click).
+ * Builds the lens command for the resources on one line. The command carries an
+ * array of resolvable resource choices; the client opens the only one directly
+ * or shows a picker when several share a line (an L2 fanning out). Resources
+ * whose target cannot be resolved are dropped, and a line where none resolve
+ * stays title-only (empty command = no-op click).
  */
 function commandFor(nodes: readonly ResourceConstruct[]): Command {
   const title = titleFor(nodes.map((n) => ({ logicalId: n.logicalId, cfnType: n.type })));
-  if (nodes.length === 1) {
-    const target = resourceTarget(nodes[0]);
-    if (target !== undefined) {
-      return { title, command: OPEN_RESOURCE_COMMAND, arguments: [target] };
-    }
+  const choices = nodes
+    .map((node) => ({ label: `${node.type}  ${node.logicalId}`, target: resourceTarget(node) }))
+    .filter((choice): choice is ResourceChoice => choice.target !== undefined);
+  if (choices.length === 0) {
+    return { title, command: '' };
   }
-  return { title, command: '' };
+  return { title, command: OPEN_RESOURCE_COMMAND, arguments: [choices] };
 }
 
 /** A construct that produces a CFN resource and carries a source location. */

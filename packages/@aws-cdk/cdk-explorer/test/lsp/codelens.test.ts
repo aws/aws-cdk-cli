@@ -172,20 +172,46 @@ describe('codeLensesForFile', () => {
 
       const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
-      expect(lens.command?.arguments).toEqual([{
-        uri: pathToFileURL(templateFile).toString(),
-        range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } },
-      }]);
+      expect(lens.command?.arguments).toEqual([[{
+        label: 'AWS::S3::Bucket  MyBucketF68F3FF0',
+        target: {
+          uri: pathToFileURL(templateFile).toString(),
+          range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } },
+        },
+      }]]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  test('a multi-resource lens stays title-only (picker not wired yet)', () => {
-    // Two resources on one line: even with a templateFile, no clickable command.
+  test('a multi-resource line carries all resolvable resources as choices', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
+    const templateFile = path.join(dir, 'Stack1.template.json');
+    fs.writeFileSync(templateFile, JSON.stringify({
+      Resources: { B1: { Type: 'AWS::S3::Bucket' }, B2: { Type: 'AWS::S3::BucketPolicy' } },
+    }, null, 2));
+    try {
+      const tree = [
+        node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
+        node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
+      ];
+
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const uri = pathToFileURL(templateFile).toString();
+      expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
+      expect(lens.command?.arguments).toEqual([[
+        { label: 'AWS::S3::Bucket  B1', target: { uri, range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } } } },
+        { label: 'AWS::S3::BucketPolicy  B2', target: { uri, range: { start: { line: 5, character: 4 }, end: { line: 5, character: 4 } } } },
+      ]]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a multi-resource line with no resolvable templates stays title-only', () => {
     const tree = [
-      node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile: '/unused.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
-      node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile: '/unused.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
+      node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
+      node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
     ];
 
     const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
