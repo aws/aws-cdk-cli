@@ -46,7 +46,9 @@ export class SourceResolver {
     // that parses IS the user call site.
     for (const frame of frames) {
       const parsed = parseFrame(frame);
-      if (parsed) return this.mapJsToOriginalSource(parsed);
+      if (!parsed) continue;
+      if (!isSupportedSourceFile(parsed.file)) return undefined;
+      return this.mapJsToOriginalSource(parsed);
     }
     return undefined;
   }
@@ -56,7 +58,9 @@ export class SourceResolver {
    * input location unchanged when it isn't a .js file or has no usable map.
    */
   private mapJsToOriginalSource(loc: SourceLocation): SourceLocation {
-    if (loc.file.endsWith('.ts') || loc.file.endsWith('.tsx') || !loc.file.endsWith('.js')) return loc;
+    // Input is allow-listed to .ts/.tsx/.js by resolveFrames; .ts/.tsx are
+    // already source-space, only .js needs mapping back to its original.
+    if (!loc.file.endsWith('.js')) return loc;
 
     const tracer = this.loadTraceMap(loc.file);
     if (!tracer) return loc;
@@ -114,6 +118,11 @@ export class SourceResolver {
       return null;
     }
   }
+}
+const SUPPORTED_SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js'] as const;
+
+function isSupportedSourceFile(file: string): boolean {
+  return SUPPORTED_SOURCE_EXTENSIONS.some((ext) => file.endsWith(ext));
 }
 
 // renderCallStackJustMyCode emits frames as "    at <name> (<file>:<line>:<col>)".

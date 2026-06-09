@@ -44,6 +44,10 @@ describe('SourceResolver.resolveFrames', () => {
       column: 7,
     });
   });
+
+  test('returns undefined for a non-TypeScript (host-language) frame', () => {
+    expect(resolver.resolveFrames(['    at <module> (/project/app/my_stack.py:42:5)'])).toBeUndefined();
+  });
 });
 
 describe('source-map resolution', () => {
