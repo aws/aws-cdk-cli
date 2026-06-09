@@ -36,8 +36,6 @@ export async function getOrCreateInstallationId(ioHelper: IoHelper) {
     }
     return newId;
   } catch (e: any) {
-    // eslint-disable-next-line no-console
-    console.log(e);
     // If anything goes wrong, generate a temporary ID for this session
     // and log a trace message about the failure
     await ioHelper.defaults.trace(`Error getting installation ID: ${e}`);
