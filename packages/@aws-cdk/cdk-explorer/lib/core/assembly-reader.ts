@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
+import { ASSET_RESOURCE_METADATA_PATH_KEY, buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
 import { SourceMapResolver, type SourceLocation } from './source-resolver';
@@ -13,6 +13,12 @@ import { SourceMapResolver, type SourceLocation } from './source-resolver';
 export interface ConstructNode extends ConstructTreeNode {
   /** User source location where the construct was created; undefined for non-TS apps. */
   readonly sourceLocation?: SourceLocation;
+  /**
+   * Absolute path to the `*.template.json` that declares this construct's CFN
+   * resource (the nested template for resources inside a NestedStack). Set only
+   * for CFN resources, and only when the template is resolvable.
+   */
+  readonly templateFile?: string;
   readonly children: readonly ConstructNode[];
 }
 
@@ -46,10 +52,14 @@ export function readAssembly(assemblyDir: string): AssemblyReadResult {
     // One resolver per readAssembly call: caches parsed source maps across
     // constructs, scoped so a fresh synth observes any moved/edited maps.
     const sourceResolver = new SourceMapResolver();
+    const templateFiles = templateFilesByLogicalId(assembly);
     const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
       ...fields,
       sourceLocation: stack
         ? sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
+        : undefined,
+      templateFile: fields.logicalId !== undefined
+        ? templateFiles.get(fields.logicalId)
         : undefined,
     }));
 
@@ -78,4 +88,31 @@ function loadViolations(assemblyDir: string): PolicyValidationReportJson | undef
   // check throws on older aws-cdk-lib reports that omit `version`. We only consume
   // pluginReports, which are version-independent across producer versions.
   return JSON.parse(fs.readFileSync(reportPath, 'utf-8')) as PolicyValidationReportJson;
+}
+
+/**
+ * Maps every CFN logical ID in the assembly to the absolute path of the
+ * template that declares it, descending into CDK-managed nested stacks via the
+ * `aws:asset:path` resource metadata (the same link CDK's own deploy/diff uses;
+ * absent when asset metadata is disabled, in which case the nested stack is not
+ * resolvable and its resources are simply omitted).
+ */
+function templateFilesByLogicalId(assembly: CloudAssembly): Map<string, string> {
+  const byLogicalId = new Map<string, string>();
+  const walk = (templateFile: string, template: any): void => {
+    for (const [logicalId, resource] of Object.entries<any>(template?.Resources ?? {})) {
+      byLogicalId.set(logicalId, templateFile);
+      const assetPath = resource?.Type === 'AWS::CloudFormation::Stack'
+        ? resource?.Metadata?.[ASSET_RESOURCE_METADATA_PATH_KEY]
+        : undefined;
+      if (typeof assetPath === 'string') {
+        const nestedFile = path.join(assembly.directory, assetPath);
+        walk(nestedFile, JSON.parse(fs.readFileSync(nestedFile, 'utf-8')));
+      }
+    }
+  };
+  for (const stack of assembly.stacksRecursively) {
+    walk(stack.templateFullPath, stack.template);
+  }
+  return byLogicalId;
 }

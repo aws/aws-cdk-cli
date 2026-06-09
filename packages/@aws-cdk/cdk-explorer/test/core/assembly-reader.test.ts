@@ -5,6 +5,7 @@ import { readAssembly, type AssemblyData, type AssemblyReadResult, type Construc
 import {
   buildFlatAssembly,
   buildNestedAssembly,
+  buildNestedStackAssembly,
   buildNonTypeScriptAssembly,
   cleanupFixture,
   withMalformedValidationReport,
@@ -244,6 +245,48 @@ describe('readAssembly graceful degradation', () => {
     const stack = data.tree[0];
     expect(stack.id).toBe('Stack1');
     expect(stack.sourceLocation).toBeUndefined();
+  });
+});
+
+describe('readAssembly resource templateFile', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    cleanupFixture(dir);
+    dir = undefined;
+  });
+
+  test('sets templateFile to the resource\'s own stack template, none on wrappers', () => {
+    dir = buildFlatAssembly({
+      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Stack1.template.json'));
+    // L2 wrapper is not a CFN resource -> no template.
+    expect(findNode(data.tree, 'Stack1/MyBucket')!.templateFile).toBeUndefined();
+  });
+
+  test('resolves nested-stack resources to the nested template, not the parent', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'TopBucket', logicalId: 'TopBucketABC', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'MyNested',
+          resources: [{ id: 'NestedQueue', logicalId: 'NestedQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    // Top-level resource lives in the parent template.
+    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    // The resource inside the NestedStack lives in the nested template.
+    expect(findNode(data.tree, 'Parent/MyNested/NestedQueue/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentMyNested.nested.template.json'));
   });
 });
 

@@ -227,7 +227,29 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
       children: parentChildren,
     }]),
   });
-  writeJson(path.join(dir, `${parent.id}.template.json`), { Resources: {} });
+  // Parent template: the parent's own resources, plus one
+  // AWS::CloudFormation::Stack per nested stack carrying the `aws:asset:path`
+  // metadata that points at the nested template (the contract toolkit-lib's
+  // nested-stack resolver follows). Each nested template is written flat in the
+  // assembly root, holding that nested stack's resources.
+  const parentResources: Record<string, unknown> = {};
+  for (const r of parent.resources) {
+    parentResources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+  }
+  for (const ns of parent.nestedStacks) {
+    const nestedTemplateFile = `${parent.id}${ns.id}.nested.template.json`;
+    parentResources[`${ns.id}NestedStackResource`] = {
+      Type: 'AWS::CloudFormation::Stack',
+      Metadata: { 'aws:asset:path': nestedTemplateFile },
+      Properties: {},
+    };
+    const nestedResources: Record<string, unknown> = {};
+    for (const r of ns.resources) {
+      nestedResources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+    }
+    writeJson(path.join(dir, nestedTemplateFile), { Resources: nestedResources });
+  }
+  writeJson(path.join(dir, `${parent.id}.template.json`), { Resources: parentResources });
   fs.writeFileSync(path.join(dir, 'cdk.out'), JSON.stringify({ version: ASSEMBLY_SCHEMA_VERSION }));
   return dir;
 }
