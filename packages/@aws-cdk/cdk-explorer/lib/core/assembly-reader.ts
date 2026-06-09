@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
-import { Manifest, VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
 import { SourceResolver, type SourceLocation } from './source-resolver';
 
@@ -74,5 +74,8 @@ export function readAssembly(assemblyDir: string): AssemblyReadResult {
 function loadViolations(assemblyDir: string): PolicyValidationReportJson | undefined {
   const reportPath = path.join(assemblyDir, VALIDATION_REPORT_FILE);
   if (!fs.existsSync(reportPath)) return undefined;
-  return Manifest.loadValidationReport(reportPath);
+  // Read as data, not via Manifest.loadValidationReport: that loader's version-compat
+  // check throws on older aws-cdk-lib reports that omit `version`. We only consume
+  // pluginReports, which are version-independent across producer versions.
+  return JSON.parse(fs.readFileSync(reportPath, 'utf-8')) as PolicyValidationReportJson;
 }

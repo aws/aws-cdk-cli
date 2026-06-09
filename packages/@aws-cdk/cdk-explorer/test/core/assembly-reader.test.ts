@@ -9,6 +9,7 @@ import {
   cleanupFixture,
   withMalformedValidationReport,
   withValidationReport,
+  withVersionlessValidationReport,
 } from '../_fixtures/builders';
 
 /** Assert that readAssembly succeeded and return the typed data. */
@@ -161,6 +162,17 @@ describe('readAssembly with violations', () => {
     expect(data.tree).toHaveLength(1);
     expect(data.violations).toBeUndefined();
     expect(data.violationsError).toBeTruthy();
+  });
+
+  test('loads a version-less validation report (legacy aws-cdk-lib shape)', () => {
+    dir = buildFlatAssembly({ stacks: [{ id: 'Stack1', resources: [] }] });
+    withVersionlessValidationReport(dir);
+
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(data.tree).toHaveLength(1);
+    expect(data.violations).toBeDefined();
+    expect(data.violationsError).toBeUndefined();
   });
 });
 

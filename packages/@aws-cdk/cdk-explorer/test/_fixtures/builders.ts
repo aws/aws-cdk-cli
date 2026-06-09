@@ -256,9 +256,20 @@ export function buildNonTypeScriptAssembly(): string {
   return dir;
 }
 
-/** Drop a malformed validation-report.json (invalid semver) into an existing fixture dir. */
+/** Drop an unparseable validation-report.json into an existing fixture dir. */
 export function withMalformedValidationReport(dir: string): void {
-  fs.writeFileSync(path.join(dir, VALIDATION_REPORT_FILE), '{"version": "not-semver", "pluginReports": []}');
+  fs.writeFileSync(path.join(dir, VALIDATION_REPORT_FILE), '{ "pluginReports": [');
+}
+
+/**
+ * Drop a well-formed but version-LESS validation-report.json: the legacy shape
+ * older aws-cdk-lib emits (no `version` field). The reader must still load it.
+ */
+export function withVersionlessValidationReport(dir: string): void {
+  writeJson(path.join(dir, VALIDATION_REPORT_FILE), {
+    title: 'Validation Report',
+    pluginReports: [],
+  });
 }
 
 /** Drop a well-formed validation-report.json into an existing fixture dir. */
