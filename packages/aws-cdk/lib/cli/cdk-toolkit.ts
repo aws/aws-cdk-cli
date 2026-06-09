@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import { format } from 'node:util';
+import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -12,9 +13,9 @@ import * as fs from 'fs-extra';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
-import type { ActionLessRequest, IoHelper } from '../../lib/api-private';
+import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode, WorkGraph } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
@@ -68,6 +69,7 @@ import {
 } from '../util';
 import { canCollectTelemetry } from './telemetry/collect-telemetry';
 import { cdkCliErrorName } from './telemetry/error';
+import type { EventResult } from './telemetry/messages';
 import { CLI_PRIVATE_SPAN } from './telemetry/messages';
 import type { ErrorDetails } from './telemetry/schema';
 import { FlagOperations } from '../commands/flags/operations';
@@ -211,6 +213,7 @@ export class CdkToolkit {
       'flags': true,
       'orphan': true,
       'refactor': true,
+      'validate': true,
     };
 
     this.toolkit = new InternalToolkit(props.sdkProvider, {
@@ -482,8 +485,6 @@ export class CdkToolkit {
       ...options,
     });
 
-    const parameterMap = buildParameterMap(options.parameters);
-
     if (options.deploymentMethod?.method === 'hotswap') {
       await this.ioHost.asIoHelper().defaults.warn(
         '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
@@ -492,302 +493,6 @@ export class CdkToolkit {
     }
 
     const stacks = stackCollection.stackArtifacts;
-
-    const stackOutputs: { [key: string]: any } = {};
-    const outputsFile = options.outputsFile;
-
-    const buildAsset = async (assetNode: AssetBuildNode) => {
-      await this.props.deployments.buildSingleAsset(
-        assetNode.assetManifestArtifact,
-        assetNode.assetManifest,
-        assetNode.asset,
-        {
-          stack: assetNode.parentStack,
-          roleArn: options.roleArn,
-          stackName: assetNode.parentStack.stackName,
-        },
-      );
-    };
-
-    const publishAsset = async (assetNode: AssetPublishNode) => {
-      await this.props.deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
-        stack: assetNode.parentStack,
-        roleArn: options.roleArn,
-        stackName: assetNode.parentStack.stackName,
-        forcePublish: options.force,
-      });
-    };
-
-    const deployStack = async (stackNode: StackNode) => {
-      const stack = stackNode.stack;
-      if (stackCollection.stackCount !== 1) {
-        await this.ioHost.asIoHelper().defaults.info(chalk.bold(stack.displayName));
-      }
-
-      if (!stack.environment) {
-        // eslint-disable-next-line @stylistic/max-len
-        throw new ToolkitError(
-          'MissingEnvironment',
-          `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
-        );
-      }
-
-      const resourceCount = Object.keys(stack.template.Resources || {}).length;
-      if (resourceCount === 0) {
-        // The generated stack has no resources
-        if (!(await this.props.deployments.stackExists({ stack }))) {
-          await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
-        } else {
-          await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, deleting existing stack.', chalk.bold(stack.displayName));
-          await this.destroy({
-            selector: { patterns: [stack.hierarchicalId] },
-            exclusively: true,
-            force: true,
-            roleArn: options.roleArn,
-            fromDeploy: true,
-          });
-        }
-        return;
-      }
-
-      // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
-      //
-      //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
-      //  - []:        =>  cdk manages it, and the user wants to wipe it out.
-      //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
-      const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
-        ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
-        : undefined;
-
-      for (const notificationArn of notificationArns ?? []) {
-        if (!validateSnsTopicArn(notificationArn)) {
-          throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
-        }
-      }
-
-      // Deploy options that are shared between change set creation and execution
-      const sharedDeployOptions = {
-        stack,
-        deployName: stack.stackName,
-        roleArn: options.roleArn,
-        toolkitStackName: options.toolkitStackName,
-        reuseAssets: options.reuseAssets,
-        tags: (options.tags?.length ? options.tags : tagsForStack(stack)),
-        forceDeployment: options.force,
-        parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
-        usePreviousParameters: options.usePreviousParameters,
-        rollback: options.rollback,
-        notificationArns,
-        extraUserAgent: options.extraUserAgent,
-        assetParallelism: options.assetParallelism,
-      };
-
-      // When using change-set method, always create the change set upfront.
-      // This gives us an accurate diff for approval and avoids creating it twice.
-      // For non-executing deployments (prepare-change-set), this is the final result.
-      const prepareResult = isChangeSetDeployment(options.deploymentMethod)
-        ? await this.props.deployments.prepareStack({
-          ...sharedDeployOptions,
-          deploymentMethod: options.deploymentMethod,
-          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
-        })
-        : undefined;
-
-      // Also skip the approval flow when the prepared change set is a no-op —
-      // there is nothing for the user to approve. Outputs, stack ARN, and
-      // timings are still emitted via the normal no-op deploy path below.
-      if (requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
-        const currentTemplate = await this.props.deployments.readCurrentTemplate(stack);
-        const formatter = new DiffFormatter({
-          templateInfo: {
-            oldTemplate: currentTemplate,
-            newTemplate: stack,
-            changeSet: prepareResult?.changeSet,
-          },
-        });
-        const securityDiff = formatter.formatSecurityDiff();
-        if (requiresApproval(requireApproval, securityDiff.permissionChangeType)) {
-          const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
-          const motivation = hasSecurityChanges
-            ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-            : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
-          const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
-          await this.ioHost.asIoHelper().defaults.info(diffOutput);
-
-          try {
-            await askUserConfirmation(
-              this.ioHost,
-              IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
-                motivation,
-                concurrency,
-                permissionChangeType: securityDiff.permissionChangeType,
-                templateDiffs: formatter.diffs,
-              }),
-            );
-          } catch (e) {
-            if (prepareResult?.changeSet?.ChangeSetName) {
-              await this.props.deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
-            }
-            throw e;
-          }
-        }
-      }
-
-      const stackIndex = stacks.indexOf(stack) + 1;
-      await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${stackCollection.stackCount}]`);
-      const startDeployTime = new Date().getTime();
-
-      // There is already a startDeployTime constant, but that does not work with telemetry.
-      // We should integrate the two in the future
-      const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
-      deploySpan.incCounter('resources', resourceCount);
-      let error: ErrorDetails | undefined;
-      let elapsedDeployTime = 0;
-      try {
-        // The prepare result is final if the change set was empty (noOp) or
-        // the deployment method is non-executing (prepare-change-set).
-        const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(options.deploymentMethod));
-        let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
-
-        // Start with user config for rollback,
-        // but it might change if we encounter a failed state.
-        let rollback = options.rollback;
-
-        // We limit the loop to 2 iterations max as defensive programming.
-        // Should not be possible to happen.
-        let iteration = 0;
-        while (!deployResult) {
-          if (++iteration > 2) {
-            throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
-          }
-
-          const r = await this.props.deployments.deployStack({
-            ...sharedDeployOptions,
-            // On the first iteration, execute the prepared change set.
-            // On retries (after rollback), create a new change set since the old one is gone.
-            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
-              ? toExecuteChangeSetDeployment(options.deploymentMethod)
-              : options.deploymentMethod,
-            rollback,
-          });
-
-          switch (r.type) {
-            case 'did-deploy-stack':
-              deployResult = r;
-              break;
-
-            case 'failpaused-need-rollback-first': {
-              const motivation = r.reason === 'replacement'
-                ? `Stack is in a paused fail state (${r.status}) and change includes a replacement which cannot be deployed with "--no-rollback"`
-                : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
-
-              if (options.force) {
-                await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Rolling back first (--force).`);
-              } else {
-                await askUserConfirmation(
-                  this.ioHost,
-                  IO.CDK_TOOLKIT_I5050.req(`${motivation}. Roll back first and then proceed with deployment`, {
-                    motivation,
-                    concurrency,
-                  }),
-                );
-              }
-
-              // Perform a rollback
-              await this.rollback({
-                selector: { patterns: [stack.hierarchicalId] },
-                toolkitStackName: options.toolkitStackName,
-                force: options.force,
-              });
-
-              // Go around through the 'while' loop again but switch rollback to true.
-              rollback = true;
-              break;
-            }
-
-            case 'replacement-requires-rollback': {
-              const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
-
-              if (options.force) {
-                await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with regular deployment (--force).`);
-              } else {
-                await askUserConfirmation(
-                  this.ioHost,
-                  IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
-                    concurrency,
-                    motivation,
-                  }),
-                );
-              }
-
-              // Go around through the 'while' loop again but switch rollback to true.
-              rollback = true;
-              break;
-            }
-
-            default:
-              throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
-          }
-        }
-
-        const message = deployResult.noOp
-          ? ' ✅  %s (no changes)'
-          : ' ✅  %s';
-
-        await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
-        elapsedDeployTime = new Date().getTime() - startDeployTime;
-        await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
-
-        if (Object.keys(deployResult.outputs).length > 0) {
-          await this.ioHost.asIoHelper().defaults.info('Outputs:');
-
-          stackOutputs[stack.stackName] = deployResult.outputs;
-        }
-
-        for (const name of Object.keys(deployResult.outputs).sort()) {
-          const value = deployResult.outputs[name];
-          await this.ioHost.asIoHelper().defaults.info(`${chalk.cyan(stack.id)}.${chalk.cyan(name)} = ${chalk.underline(chalk.cyan(value))}`);
-        }
-
-        await this.ioHost.asIoHelper().defaults.info('Stack ARN:');
-
-        await this.ioHost.asIoHelper().defaults.result(deployResult.stackArn);
-      } catch (e: any) {
-        // It has to be exactly this string because an integration test tests for
-        // "bold(stackname) failed: ResourceNotReady: <error>"
-        const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
-        const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
-        const wrappedError = new ToolkitError(code, newMessage);
-
-        error = {
-          name: cdkCliErrorName(wrappedError),
-        };
-
-        throw wrappedError;
-      } finally {
-        await deploySpan.end({ error });
-
-        if (options.cloudWatchLogMonitor) {
-          const foundLogGroupsResult = await findCloudWatchLogGroups(this.props.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
-          options.cloudWatchLogMonitor.addLogGroups(
-            foundLogGroupsResult.env,
-            foundLogGroupsResult.sdk,
-            foundLogGroupsResult.logGroupNames,
-          );
-        }
-        // If an outputs file has been specified, create the file path and write stack outputs to it once.
-        // Outputs are written after all stacks have been deployed. If a stack deployment fails,
-        // all of the outputs from successfully deployed stacks before the failure will still be written.
-        if (outputsFile) {
-          fs.ensureFileSync(outputsFile);
-          await fs.writeJson(outputsFile, stackOutputs, {
-            spaces: 2,
-            encoding: 'utf8',
-          });
-        }
-      }
-      await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(elapsedSynthTime + elapsedDeployTime)}s\n`);
-    };
 
     const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
     const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
@@ -820,13 +525,45 @@ export class CdkToolkit {
       'stack': concurrency,
       'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
       'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+      'marker': 1,
     };
 
-    await workGraph.doParallel(graphConcurrency, {
-      deployStack,
-      buildAsset,
-      publishAsset,
+    const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
+      roleArn: options.roleArn,
+      force: options.force,
+      stackCount: stackCollection.stackCount,
+      notificationArns: options.notificationArns,
+      deploymentMethod: options.deploymentMethod,
+      toolkitStackName: this.toolkitStackName,
+      reuseAssets: options.reuseAssets,
+      tags: options.tags,
+      parameters: options.parameters,
+      usePreviousParameters: options.usePreviousParameters,
+      rollback: options.rollback,
+      concurrency,
+      requireApproval,
+      assetParallelism: options.assetParallelism,
+      extraUserAgent: options.extraUserAgent,
+      cloudWatchLogMonitor: options.cloudWatchLogMonitor,
+      sdkProvider: this.props.sdkProvider,
     });
+
+    const startDeployTime = Date.now();
+
+    await workGraph.doParallel(graphConcurrency, deploymentActions);
+
+    if (options.outputsFile) {
+      // If an outputs file has been specified, create the file path and write stack outputs to it once.
+      // Outputs are written after all stacks have been deployed. If a stack deployment fails,
+      // all of the outputs from successfully deployed stacks before the failure will still be written.
+      await deploymentActions.writeOutputs(options.outputsFile);
+    }
+
+    // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
+    // spans because of parallelism).
+    this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
+
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
   }
 
   /**
@@ -842,6 +579,14 @@ export class CdkToolkit {
 
     const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
     return totalDrifts > 0 && options.fail ? 1 : 0;
+  }
+
+  /**
+   * Validate synthesized templates against policy rules
+   */
+  public async validate(options: ValidateOptions): Promise<number> {
+    const result = await this.toolkit.validate(this.props.cloudExecutable, options);
+    return result.conclusion === 'failure' ? 1 : 0;
   }
 
   /**
@@ -2386,6 +2131,387 @@ function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'in
       logFn(`  ${msg.entry.trace.join('\n  ')}`);
     }
   };
+}
+
+interface WorkGraphDeploymentActionsOptions {
+  readonly roleArn?: string;
+  readonly force?: boolean;
+  readonly stackCount?: number;
+  readonly notificationArns?: string[];
+  readonly deploymentMethod?: DeploymentMethod;
+  readonly toolkitStackName?: string;
+  readonly reuseAssets?: string[];
+  readonly tags?: Tag[];
+  readonly parameters?: { [name: string]: string | undefined };
+  readonly usePreviousParameters?: boolean;
+  readonly rollback?: boolean;
+  readonly extraUserAgent?: string;
+  readonly assetParallelism?: boolean;
+  readonly requireApproval: RequireApproval;
+  readonly concurrency: number;
+  readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
+  readonly sdkProvider: SdkProvider;
+}
+
+/**
+ * This class implements the callbacks for the parallel work graph executions.
+ *
+ * All this code used to be inlined into CdkToolkit#deploy(), but it was getting
+ * too much to live in there.
+ */
+class WorkGraphDeploymentActions implements WorkGraphActions {
+  private readonly stackOutputs: { [key: string]: any } = {};
+  private readonly assetSpans: Record<string, IMessageSpan<EventResult>> = {};
+  private stackCounter = 1;
+
+  constructor(
+    private readonly deployments: Deployments,
+    private readonly ioHost: CliIoHost,
+    private readonly stackOperations: Pick<CdkToolkit, 'destroy' | 'rollback'>,
+    private readonly options: WorkGraphDeploymentActionsOptions,
+  ) {
+  }
+
+  public async marker(markerNode: MarkerNode) {
+    // For assets, emit IoHost messages that have been defined to start and end asset spans, which will lead to events in telemetry.
+    switch (markerNode.marker.type) {
+      case 'start-asset': {
+        const assetSpan = await this.obtainSpan(markerNode.marker.asset);
+
+        // Count the asset type, both on the asset-specific span and on the global COMMAND span.
+        if (markerNode.marker.asset.type === 'file') {
+          this.ioHost.telemetry?.commandSpan?.incCounter('fileAsset');
+          assetSpan.incCounter('fileAsset');
+        } else if (markerNode.marker.asset.type === 'docker') {
+          this.ioHost.telemetry?.commandSpan?.incCounter('dockerAsset');
+          assetSpan.incCounter('dockerAsset');
+        }
+
+        break;
+      }
+      case 'end-asset': {
+        const assetSpan = await this.obtainSpan(markerNode.marker.asset);
+        await assetSpan.end({});
+        break;
+      }
+    }
+  }
+
+  private async obtainSpan(assetEntry: IManifestEntry): Promise<IMessageSpan<EventResult>> {
+    const span = this.assetSpans[assetEntry.id.assetId];
+    if (span) {
+      return span;
+    }
+    const assetSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.ASSET).begin({});
+    this.assetSpans[assetEntry.id.assetId] = assetSpan;
+    return assetSpan;
+  }
+
+  public async buildAsset(assetNode: AssetBuildNode) {
+    // Measure asset build time. Both on the global COMMAND span as well as on the asset-specific span.
+    // (parallelism may cause SUM(buildAssetST) >= totalDeployTime) on the COMMAND span, indicate with [S]ub[T]ask suffix).
+    using _invokeTimer = this.ioHost.telemetry?.commandSpan?.startTimer('buildAssetST');
+    using _assetTimer = (await this.obtainSpan(assetNode.asset)).startTimer('buildAsset');
+
+    await this.deployments.buildSingleAsset(
+      assetNode.assetManifestArtifact,
+      assetNode.assetManifest,
+      assetNode.asset,
+      {
+        stack: assetNode.parentStack,
+        roleArn: this.options.roleArn,
+        stackName: assetNode.parentStack.stackName,
+      },
+    );
+  }
+
+  public async publishAsset(assetNode: AssetPublishNode) {
+    // Measure asset publish time. Both on the global COMMAND span as well as on the asset-specific span.
+    // (parallelism may cause SUM(publishAssetST) >= totalDeployTime) on the COMMAND span, indicate with [S]ub[T]ask suffix).
+    using _invokeTimer = this.ioHost.telemetry?.commandSpan?.startTimer('publishAssetST');
+    using _assetTimer = (await this.obtainSpan(assetNode.asset)).startTimer('publishAsset');
+
+    await this.deployments.publishSingleAsset(assetNode.assetManifest, assetNode.asset, {
+      stack: assetNode.parentStack,
+      roleArn: this.options.roleArn,
+      stackName: assetNode.parentStack.stackName,
+      forcePublish: this.options.force,
+    });
+  }
+
+  public async deployStack(stackNode: StackNode) {
+    // Counter for totalDeployedStacks, to match 'totalDeployTime' timer on the COMMAND span.
+    this.ioHost.telemetry?.commandSpan?.incCounter('totalDeployedStacks');
+
+    const stack = stackNode.stack;
+    if (this.options.stackCount !== 1) {
+      await this.ioHost.asIoHelper().defaults.info(chalk.bold(stack.displayName));
+    }
+
+    if (!stack.environment) {
+      // eslint-disable-next-line @stylistic/max-len
+      throw new ToolkitError(
+        'MissingEnvironment',
+        `Stack ${stack.displayName} does not define an environment, and AWS credentials could not be obtained from standard locations or no region was configured.`,
+      );
+    }
+
+    const resourceCount = Object.keys(stack.template.Resources || {}).length;
+    if (resourceCount === 0) {
+      // The generated stack has no resources
+      if (!(await this.deployments.stackExists({ stack }))) {
+        await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
+      } else {
+        await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, deleting existing stack.', chalk.bold(stack.displayName));
+        await this.stackOperations.destroy({
+          selector: { patterns: [stack.hierarchicalId] },
+          exclusively: true,
+          force: true,
+          roleArn: this.options.roleArn,
+          fromDeploy: true,
+        });
+      }
+      return;
+    }
+
+    // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
+    //
+    //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+    //  - []:        =>  cdk manages it, and the user wants to wipe it out.
+    //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+    const notificationArns = (!!this.options.notificationArns || !!stack.notificationArns)
+      ? (this.options.notificationArns ?? []).concat(stack.notificationArns ?? [])
+      : undefined;
+
+    for (const notificationArn of notificationArns ?? []) {
+      if (!validateSnsTopicArn(notificationArn)) {
+        throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+      }
+    }
+
+    const parameterMap = buildParameterMap(this.options.parameters);
+
+    // Deploy options that are shared between change set creation and execution
+    const sharedDeployOptions = {
+      stack,
+      deployName: stack.stackName,
+      roleArn: this.options.roleArn,
+      toolkitStackName: this.options.toolkitStackName,
+      reuseAssets: this.options.reuseAssets,
+      tags: (this.options.tags?.length ? this.options.tags : tagsForStack(stack)),
+      forceDeployment: this.options.force,
+      parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
+      usePreviousParameters: this.options.usePreviousParameters,
+      rollback: this.options.rollback,
+      notificationArns,
+      extraUserAgent: this.options.extraUserAgent,
+      assetParallelism: this.options.assetParallelism,
+    };
+
+    // When using change-set method, always create the change set upfront.
+    // This gives us an accurate diff for approval and avoids creating it twice.
+    // For non-executing deployments (prepare-change-set), this is the final result.
+    const prepareResult = isChangeSetDeployment(this.options.deploymentMethod)
+      ? await this.deployments.prepareStack({
+        ...sharedDeployOptions,
+        deploymentMethod: this.options.deploymentMethod,
+        cleanupOnNoOp: isExecutingChangeSetDeployment(this.options.deploymentMethod),
+      })
+      : undefined;
+
+    // Also skip the approval flow when the prepared change set is a no-op —
+    // there is nothing for the user to approve. Outputs, stack ARN, and
+    // timings are still emitted via the normal no-op deploy path below.
+    if (this.options.requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
+      const currentTemplate = await this.deployments.readCurrentTemplate(stack);
+      const formatter = new DiffFormatter({
+        templateInfo: {
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+          changeSet: prepareResult?.changeSet,
+        },
+      });
+      const securityDiff = formatter.formatSecurityDiff();
+      if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType)) {
+        const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+        const motivation = hasSecurityChanges
+          ? '"--require-approval" is enabled and stack includes security-sensitive updates'
+          : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+        const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+        await this.ioHost.asIoHelper().defaults.info(diffOutput);
+
+        try {
+          await askUserConfirmation(
+            this.ioHost,
+            IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
+              motivation,
+              concurrency: this.options.concurrency,
+              permissionChangeType: securityDiff.permissionChangeType,
+              templateDiffs: formatter.diffs,
+            }),
+          );
+        } catch (e) {
+          if (prepareResult?.changeSet?.ChangeSetName) {
+            await this.deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+          }
+          throw e;
+        }
+      }
+    }
+
+    const stackIndex = this.stackCounter++;
+    await this.ioHost.asIoHelper().defaults.info(`${chalk.bold(stack.displayName)}: deploying... [${stackIndex}/${this.options.stackCount}]`);
+    const startDeployTime = new Date().getTime();
+
+    // There is already a startDeployTime constant, but that does not work with telemetry.
+    // We should integrate the two in the future
+    const deploySpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.DEPLOY).begin({});
+    deploySpan.incCounter('resources', resourceCount);
+    this.ioHost.telemetry?.commandSpan?.incCounter('totalDeployedResources', resourceCount);
+    let error: ErrorDetails | undefined;
+    let elapsedDeployTime = 0;
+    try {
+      // The prepare result is final if the change set was empty (noOp) or
+      // the deployment method is non-executing (prepare-change-set).
+      const prepareIsFinal = prepareResult && (prepareResult.noOp || isNonExecutingChangeSetDeployment(this.options.deploymentMethod));
+      let deployResult: SuccessfulDeployStackResult | undefined = prepareIsFinal ? prepareResult : undefined;
+
+      // Start with user config for rollback,
+      // but it might change if we encounter a failed state.
+      let rollback = this.options.rollback;
+
+      // We limit the loop to 2 iterations max as defensive programming.
+      // Should not be possible to happen.
+      let iteration = 0;
+      while (!deployResult) {
+        if (++iteration > 2) {
+          throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
+        }
+
+        const r = await this.deployments.deployStack({
+          ...sharedDeployOptions,
+          // On the first iteration, execute the prepared change set.
+          // On retries (after rollback), create a new change set since the old one is gone.
+          deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(this.options.deploymentMethod)
+            ? toExecuteChangeSetDeployment(this.options.deploymentMethod)
+            : this.options.deploymentMethod,
+          rollback,
+        });
+
+        switch (r.type) {
+          case 'did-deploy-stack':
+            deployResult = r;
+            break;
+
+          case 'failpaused-need-rollback-first': {
+            const motivation = r.reason === 'replacement'
+              ? `Stack is in a paused fail state (${r.status}) and change includes a replacement which cannot be deployed with "--no-rollback"`
+              : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
+
+            if (this.options.force) {
+              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Rolling back first (--force).`);
+            } else {
+              await askUserConfirmation(
+                this.ioHost,
+                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Roll back first and then proceed with deployment`, {
+                  motivation,
+                  concurrency: this.options.concurrency,
+                }),
+              );
+            }
+
+            // Perform a rollback
+            await this.stackOperations.rollback({
+              selector: { patterns: [stack.hierarchicalId] },
+              toolkitStackName: this.options.toolkitStackName,
+              force: this.options.force,
+            });
+
+            // Go around through the 'while' loop again but switch rollback to true.
+            rollback = true;
+            break;
+          }
+
+          case 'replacement-requires-rollback': {
+            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+
+            if (this.options.force) {
+              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with regular deployment (--force).`);
+            } else {
+              await askUserConfirmation(
+                this.ioHost,
+                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
+                  concurrency: this.options.concurrency,
+                  motivation,
+                }),
+              );
+            }
+
+            // Go around through the 'while' loop again but switch rollback to true.
+            rollback = true;
+            break;
+          }
+
+          default:
+            throw new ToolkitError('UnexpectedDeployResult', `Unexpected result type from deployStack: ${JSON.stringify(r)}. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose`);
+        }
+      }
+
+      const message = deployResult.noOp
+        ? ' ✅  %s (no changes)'
+        : ' ✅  %s';
+
+      await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
+      elapsedDeployTime = new Date().getTime() - startDeployTime;
+      await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
+
+      if (Object.keys(deployResult.outputs).length > 0) {
+        await this.ioHost.asIoHelper().defaults.info('Outputs:');
+
+        this.stackOutputs[stack.stackName] = deployResult.outputs;
+      }
+
+      for (const name of Object.keys(deployResult.outputs).sort()) {
+        const value = deployResult.outputs[name];
+        await this.ioHost.asIoHelper().defaults.info(`${chalk.cyan(stack.id)}.${chalk.cyan(name)} = ${chalk.underline(chalk.cyan(value))}`);
+      }
+
+      await this.ioHost.asIoHelper().defaults.info('Stack ARN:');
+
+      await this.ioHost.asIoHelper().defaults.result(deployResult.stackArn);
+    } catch (e: any) {
+      // It has to be exactly this string because an integration test tests for
+      // "bold(stackname) failed: ResourceNotReady: <error>"
+      const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
+      const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
+      const wrappedError = new ToolkitError(code, newMessage);
+
+      error = {
+        name: cdkCliErrorName(wrappedError),
+      };
+
+      throw wrappedError;
+    } finally {
+      await deploySpan.end({ error });
+
+      if (this.options.cloudWatchLogMonitor) {
+        const foundLogGroupsResult = await findCloudWatchLogGroups(this.options.sdkProvider, asIoHelper(this.ioHost, 'deploy'), stack);
+        this.options.cloudWatchLogMonitor.addLogGroups(
+          foundLogGroupsResult.env,
+          foundLogGroupsResult.sdk,
+          foundLogGroupsResult.logGroupNames,
+        );
+      }
+    }
+  }
+
+  public async writeOutputs(outputsFile: string) {
+    fs.ensureFileSync(outputsFile);
+    await fs.writeJson(outputsFile, this.stackOutputs, {
+      spaces: 2,
+      encoding: 'utf8',
+    });
+  }
 }
 
 /**

@@ -113,8 +113,7 @@ describe('TelemetrySession', () => {
 
   test('calling end more than once results in no-op', async () => {
     // GIVEN
-    const privateSpan = (session as any).span;
-    const spanEndSpy = jest.spyOn(privateSpan, 'end');
+    const spanEndSpy = jest.spyOn(session.commandSpan!, 'end');
 
     // WHEN
     await session.end();

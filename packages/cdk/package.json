@@ -57,7 +57,7 @@
     "typescript": "5.9"
   },
   "dependencies": {
-    "aws-cdk": "^0.0.0"
+    "aws-cdk": "^2.1125.0"
   },
   "keywords": [
     "aws",
