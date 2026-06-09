@@ -1,4 +1,7 @@
-import { type Position } from 'vscode-languageserver/node';
+import * as fs from 'fs';
+import { pathToFileURL } from 'url';
+import { type Position, type Range } from 'vscode-languageserver/node';
+import type { ConstructNode } from '../core/assembly-reader';
 
 /**
  * Locates a resource definition within a synthesized CloudFormation template
@@ -27,4 +30,37 @@ export function findLogicalIdPosition(templateText: string, logicalId: string): 
 /** Escapes regex metacharacters so a literal string matches itself. */
 function escapeRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** An editor navigation target: the template file and the position to reveal. */
+export interface ResourceTarget {
+  readonly uri: string;
+  readonly range: Range;
+}
+
+/**
+ * Resolves a construct node to the location of its CFN resource in the
+ * synthesized template, suitable for an LSP "go to" navigation. Returns
+ * undefined when the node has no resolved template or logical ID, when the
+ * template can no longer be read , or when the logical ID cannot be located
+ * in the template text.
+ */
+export function resourceTarget(node: Pick<ConstructNode, 'templateFile' | 'logicalId'>): ResourceTarget | undefined {
+  if (node.templateFile === undefined || node.logicalId === undefined) {
+    return undefined;
+  }
+  let templateText: string;
+  try {
+    templateText = fs.readFileSync(node.templateFile, 'utf-8');
+  } catch {
+    return undefined;
+  }
+  const position = findLogicalIdPosition(templateText, node.logicalId);
+  if (position === undefined) {
+    return undefined;
+  }
+  return {
+    uri: pathToFileURL(node.templateFile).toString(),
+    range: { start: position, end: position },
+  };
 }
