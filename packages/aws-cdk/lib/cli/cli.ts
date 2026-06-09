@@ -14,9 +14,9 @@ import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
 import { ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { enableHandleTracking, reportLeakedHandles } from './debug-handles';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
-import { enableHandleTracking, reportLeakedHandles } from './troubleshoot';
 import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
@@ -42,6 +42,15 @@ import type { StackSelector, Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
+
+/**
+ * Grace period before the --debug handle dump fires after CLI work completes.
+ * Long enough that the normal exit path (telemetry flush, notices display,
+ * lock release) finishes first; short enough that customers seeing a hang
+ * don't wait long for the diagnostic. The timer is .unref()'d, so it never
+ * fires when Node exits cleanly within this window.
+ */
+const HANDLE_DUMP_GRACE_MS = 1000;
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
@@ -269,12 +278,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
 
     if (argv.debug) {
-      // If the process is still alive a second from now, something is keeping
-      // the event loop busy. Dump the leaked handles so the user can see why.
-      // .unref() so this timer itself doesn't keep us alive.
+      // If the process is still alive after the grace period, something is
+      // keeping the event loop busy. Dump the leaked handles so the user can
+      // see why. .unref() so this timer itself doesn't keep us alive.
       setTimeout(() => {
         void reportLeakedHandles(ioHelper);
-      }, 1000).unref();
+      }, HANDLE_DUMP_GRACE_MS).unref();
     }
   }
 

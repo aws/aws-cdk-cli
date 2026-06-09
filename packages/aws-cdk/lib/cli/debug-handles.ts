@@ -21,7 +21,7 @@ const IGNORED_TYPES = new Set([
  * from reported stack traces (the init callback is always the second frame).
  * Suffix-match because the file is `.ts` in source and `.js` after build.
  */
-const SELF_FILE_SUFFIXES = ['/troubleshoot.ts', '/troubleshoot.js'];
+const SELF_FILE_SUFFIXES = ['/debug-handles.ts', '/debug-handles.js'];
 
 /** A single frame in a captured stack trace. */
 interface StackFrame {
