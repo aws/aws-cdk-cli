@@ -1,8 +1,12 @@
 import { pathToFileURL } from 'url';
 import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
-import { type CodeLens, type Range } from 'vscode-languageserver/node';
+import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
+import { resourceTarget } from './template-locator';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
+
+/** Command the client registers to open a resource in its template. */
+export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
 
 /**
  * Build CodeLens entries for a single source file. For every construct whose
@@ -12,23 +16,37 @@ import type { SourceLocation } from '../core/source-resolver';
 export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri: string): CodeLens[] {
   const matches = [...index]
     .filter((node) => isResourceOnFile(node, fileUri))
-    .map((node) => ({
-      line: node.sourceLocation.line,
-      resource: { logicalId: node.logicalId, cfnType: node.type },
-    }));
+    .map((node) => ({ line: node.sourceLocation.line, node }));
 
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources).
-  // Empty command name = title-only lens; click does nothing for now.
   return [...groupBy(matches, (m) => m.line)].map(([line, group]) => ({
     range: lineRange(line),
-    command: { title: titleFor(group.map((m) => m.resource)), command: '' },
+    command: commandFor(group.map((m) => m.node)),
   }));
 }
 
 interface ResourceLensInfo {
   readonly logicalId: string;
   readonly cfnType: string;
+}
+
+/**
+ * Builds the lens command for the resources on one line. A single resource gets
+ * a clickable command carrying its navigation target, so the client can open
+ * the template at the resource. Multiple resources (an L2 fanning out)
+ * stay title-only until the picker is added; a single resource whose target
+ * cannot be resolved also degrades to title-only (empty command = no-op click).
+ */
+function commandFor(nodes: readonly ResourceConstruct[]): Command {
+  const title = titleFor(nodes.map((n) => ({ logicalId: n.logicalId, cfnType: n.type })));
+  if (nodes.length === 1) {
+    const target = resourceTarget(nodes[0]);
+    if (target !== undefined) {
+      return { title, command: OPEN_RESOURCE_COMMAND, arguments: [target] };
+    }
+  }
+  return { title, command: '' };
 }
 
 /** A construct that produces a CFN resource and carries a source location. */
