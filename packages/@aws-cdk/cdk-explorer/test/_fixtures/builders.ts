@@ -46,6 +46,8 @@ export interface StackSpec {
 
 export interface FlatAssemblySpec {
   readonly stacks: readonly StackSpec[];
+  /** Emit `aws:cdk:path` on template resources (default true); false simulates `--no-path-metadata`. */
+  readonly pathMetadata?: boolean;
 }
 
 export interface StageStackSpec {
@@ -88,7 +90,7 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
 
   for (const stack of spec.stacks) {
     artifacts[stack.id] = stackArtifact(stack);
-    writeTemplate(dir, stack);
+    writeTemplate(dir, stack.id, stack.resources, stack.id, spec.pathMetadata ?? true);
   }
 
   writeJson(path.join(dir, 'manifest.json'), {
@@ -135,7 +137,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
         displayName: constructPath,
         metadata: stackMetadata(stack.resources, `/${constructPath}`),
       };
-      writeTemplate(stageDir, { id: artifactId, resources: stack.resources });
+      writeTemplate(stageDir, artifactId, stack.resources, constructPath);
     }
 
     writeJson(path.join(stageDir, 'manifest.json'), {
@@ -234,7 +236,11 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
   // assembly root, holding that nested stack's resources.
   const parentResources: Record<string, unknown> = {};
   for (const r of parent.resources) {
-    parentResources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+    parentResources[r.logicalId] = {
+      Type: r.cfnType,
+      Metadata: { 'aws:cdk:path': `${parent.id}/${r.id}/Resource` },
+      Properties: {},
+    };
   }
   for (const ns of parent.nestedStacks) {
     const nestedTemplateFile = `${parent.id}${ns.id}.nested.template.json`;
@@ -245,7 +251,11 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
     };
     const nestedResources: Record<string, unknown> = {};
     for (const r of ns.resources) {
-      nestedResources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+      nestedResources[r.logicalId] = {
+        Type: r.cfnType,
+        Metadata: { 'aws:cdk:path': `${parent.id}/${ns.id}/${r.id}/Resource` },
+        Properties: {},
+      };
     }
     writeJson(path.join(dir, nestedTemplateFile), { Resources: nestedResources });
   }
@@ -417,10 +427,22 @@ function logicalIdEntry(r: ResourceSpec): Record<string, unknown> {
   return entry;
 }
 
-function writeTemplate(dir: string, stack: { id: string; resources: readonly ResourceSpec[] }): void {
-  const resources: Record<string, unknown> = {};
-  for (const r of stack.resources) {
-    resources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+function writeTemplate(
+  dir: string,
+  fileBaseId: string,
+  resources: readonly ResourceSpec[],
+  constructPathPrefix: string,
+  pathMetadata = true,
+): void {
+  const out: Record<string, unknown> = {};
+  for (const r of resources) {
+    out[r.logicalId] = {
+      Type: r.cfnType,
+      // aws:cdk:path mirrors real synth output (on by default), giving each
+      // resource its globally-unique construct path for collision-free lookup.
+      ...(pathMetadata ? { Metadata: { 'aws:cdk:path': `${constructPathPrefix}/${r.id}/Resource` } } : {}),
+      Properties: {},
+    };
   }
-  writeJson(path.join(dir, `${stack.id}.template.json`), { Resources: resources });
+  writeJson(path.join(dir, `${fileBaseId}.template.json`), { Resources: out });
 }

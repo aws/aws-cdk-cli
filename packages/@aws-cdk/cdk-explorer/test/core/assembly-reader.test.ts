@@ -303,6 +303,41 @@ describe('readAssembly resource templateFile', () => {
     expect(findNode(data.tree, 'Prod/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Prod.template.json'));
     expect(findNode(data.tree, 'Dev/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Dev.template.json'));
   });
+
+  test('resolves a parent resource and its nested-stack twin that share a logical id', () => {
+    // A NestedStack resets the logical-ID namespace, so a parent resource and a
+    // resource in its own nested stack can share an id. The globally-unique
+    // construct path (aws:cdk:path) disambiguates them.
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'Nested',
+          resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Parent/Data/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    expect(findNode(data.tree, 'Parent/Nested/Data/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentNested.nested.template.json'));
+  });
+
+  test('falls back to the per-stack logical-id map when path metadata is off', () => {
+    // --no-path-metadata strips aws:cdk:path; resolution still works via the
+    // per-stack logical-ID fallback (only the rare parent/nested collision is lost).
+    dir = buildFlatAssembly({
+      pathMetadata: false,
+      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Stack1.template.json'));
+  });
 });
 
 function findNode(nodes: readonly ConstructNode[], targetPath: string): ConstructNode | undefined {
