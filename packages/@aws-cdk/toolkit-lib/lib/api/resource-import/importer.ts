@@ -304,7 +304,7 @@ export class ResourceImporter {
    * Return the current template, with the given resources added to it
    */
   private async currentTemplateWithAdditions(additions: ImportableResource[]): Promise<any> {
-    const template = JSON.parse(JSON.stringify(await this.currentTemplate()));
+    const template = structuredClone(await this.currentTemplate());
     if (!template.Resources) {
       template.Resources = {};
     }
