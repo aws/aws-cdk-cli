@@ -28,6 +28,8 @@ describe('yargs', () => {
         versionReporting: undefined,
         ci: true,
         debug: false,
+        debugApp: false,
+        debugCli: false,
         ec2creds: undefined,
         json: false,
         lookups: true,

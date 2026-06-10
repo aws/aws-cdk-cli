@@ -95,15 +95,15 @@ function getMajorVersionUpgradeMessage(currentVersion: string): string | void {
   }
 }
 
+export function shouldDisplayVersionMessage(): boolean {
+  return !!process.stdout.isTTY && !process.env.CDK_DISABLE_VERSION_CHECK;
+}
+
 export async function displayVersionMessage(
   ioHelper: IoHelper,
   currentVersion = versionNumber(),
   versionCheckCache?: VersionCheckTTL,
 ): Promise<void> {
-  if (!process.stdout.isTTY || process.env.CDK_DISABLE_VERSION_CHECK) {
-    return;
-  }
-
   try {
     const versionMessages = await getVersionMessages(currentVersion, versionCheckCache ?? new VersionCheckTTL());
     for (const e of formatAsBanner(versionMessages)) {
