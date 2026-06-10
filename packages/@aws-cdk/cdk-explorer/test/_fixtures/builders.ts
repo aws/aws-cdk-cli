@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ArtifactMetadataEntryType, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType, Manifest, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 
 /**
  * Programmatic fixture builders. Each builder writes a minimal cdk.out/ to a
@@ -12,8 +12,14 @@ import { ArtifactMetadataEntryType, VALIDATION_REPORT_FILE } from '@aws-cdk/clou
  *   try { ... } finally { cleanupFixture(dir); }
  */
 
-/** Tracks @aws-cdk/cloud-assembly-schema's revision (currently 53). */
-const ASSEMBLY_SCHEMA_VERSION = '53.0.0';
+/** The installed cloud-assembly-schema revision, written into fixture manifests. */
+const ASSEMBLY_SCHEMA_VERSION = Manifest.version();
+
+/** aws-cdk-lib version stamped into fixture tree.json constructInfo. */
+const CONSTRUCT_INFO_VERSION = '2.245.0';
+
+/** tree.json schema version written into fixtures. */
+const TREE_SCHEMA_VERSION = 'tree-0.1';
 
 export interface ResourceSpec {
   /** Construct id under the stack (e.g. "MyBucket"). */
@@ -84,7 +90,7 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
     artifacts,
   });
   writeJson(path.join(dir, 'tree.json'), {
-    version: 'tree-0.1',
+    version: TREE_SCHEMA_VERSION,
     tree: appNode(spec.stacks.map(stackTreeNode)),
   });
   fs.writeFileSync(path.join(dir, 'cdk.out'), JSON.stringify({ version: ASSEMBLY_SCHEMA_VERSION }));
@@ -135,11 +141,11 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
     treeChildren[stage.id] = {
       id: stage.id,
       path: stage.id,
-      constructInfo: { fqn: 'aws-cdk-lib.Stage', version: '2.245.0' },
+      constructInfo: { fqn: 'aws-cdk-lib.Stage', version: CONSTRUCT_INFO_VERSION },
       children: Object.fromEntries(stage.stacks.map((s) => [s.id, {
         id: s.id,
         path: `${stage.id}/${s.id}`,
-        constructInfo: { fqn: 'aws-cdk-lib.Stack', version: '2.245.0' },
+        constructInfo: { fqn: 'aws-cdk-lib.Stack', version: CONSTRUCT_INFO_VERSION },
         children: resourcesToTreeChildren(`${stage.id}/${s.id}`, s.resources),
       }])),
     };
@@ -150,7 +156,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
     artifacts: rootArtifacts,
   });
   writeJson(path.join(rootDir, 'tree.json'), {
-    version: 'tree-0.1',
+    version: TREE_SCHEMA_VERSION,
     tree: appNode(Object.values(treeChildren)),
   });
   fs.writeFileSync(path.join(rootDir, 'cdk.out'), JSON.stringify({ version: ASSEMBLY_SCHEMA_VERSION }));
@@ -199,7 +205,7 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
     parentChildren[ns.id] = {
       id: ns.id,
       path: `${parent.id}/${ns.id}`,
-      constructInfo: { fqn: 'aws-cdk-lib.NestedStack', version: '2.245.0' },
+      constructInfo: { fqn: 'aws-cdk-lib.NestedStack', version: CONSTRUCT_INFO_VERSION },
       children: Object.fromEntries(
         ns.resources.map((r) => [r.id, resourceTreeNode(`${parent.id}/${ns.id}`, r)]),
       ),
@@ -207,11 +213,11 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
   }
 
   writeJson(path.join(dir, 'tree.json'), {
-    version: 'tree-0.1',
+    version: TREE_SCHEMA_VERSION,
     tree: appNode([{
       id: parent.id,
       path: parent.id,
-      constructInfo: { fqn: 'aws-cdk-lib.Stack', version: '2.245.0' },
+      constructInfo: { fqn: 'aws-cdk-lib.Stack', version: CONSTRUCT_INFO_VERSION },
       children: parentChildren,
     }]),
   });
@@ -237,16 +243,16 @@ export function buildNonTypeScriptAssembly(): string {
     },
   });
   writeJson(path.join(dir, 'tree.json'), {
-    version: 'tree-0.1',
+    version: TREE_SCHEMA_VERSION,
     tree: {
       id: 'App',
       path: '',
-      constructInfo: { fqn: 'aws-cdk-lib.App', version: '2.245.0' },
+      constructInfo: { fqn: 'aws-cdk-lib.App', version: CONSTRUCT_INFO_VERSION },
       children: {
         Stack1: {
           id: 'Stack1',
           path: 'Stack1',
-          constructInfo: { fqn: 'aws-cdk-lib.Stack', version: '2.245.0' },
+          constructInfo: { fqn: 'aws-cdk-lib.Stack', version: CONSTRUCT_INFO_VERSION },
         },
       },
     },
@@ -322,7 +328,7 @@ function appNode(children: readonly unknown[]): unknown {
   return {
     id: 'App',
     path: '',
-    constructInfo: { fqn: 'aws-cdk-lib.App', version: '2.245.0' },
+    constructInfo: { fqn: 'aws-cdk-lib.App', version: CONSTRUCT_INFO_VERSION },
     children: childrenMap,
   };
 }
@@ -331,7 +337,7 @@ function stackTreeNode(stack: StackSpec): unknown {
   return {
     id: stack.id,
     path: stack.id,
-    constructInfo: { fqn: 'aws-cdk-lib.Stack', version: '2.245.0' },
+    constructInfo: { fqn: 'aws-cdk-lib.Stack', version: CONSTRUCT_INFO_VERSION },
     children: Object.fromEntries(
       stack.resources.map((r) => [r.id, resourceTreeNode(stack.id, r)]),
     ),
