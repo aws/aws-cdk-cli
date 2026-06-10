@@ -7946,6 +7946,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-cdk-lib@npm:2.258.1":
+  version: 2.258.1
+  resolution: "aws-cdk-lib@npm:2.258.1"
+  dependencies:
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
+    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.5"
+    "@aws-cdk/cloud-assembly-schema": "npm:^54.0.0"
+    "@balena/dockerignore": "npm:^1.0.2"
+    case: "npm:1.6.3"
+    fs-extra: "npm:^11.3.5"
+    ignore: "npm:^5.3.2"
+    jsonschema: "npm:^1.5.0"
+    mime-types: "npm:^2.1.35"
+    minimatch: "npm:^10.2.5"
+    punycode: "npm:^2.3.1"
+    semver: "npm:^7.8.1"
+    table: "npm:^6.9.0"
+    yaml: "npm:1.10.3"
+  peerDependencies:
+    constructs: ^10.5.0
+  checksum: 10c0/8be18c3cd594963fd7773c329ff70053d44fa8257f5dd16bdfc38957d542eda395a98d6ceb1720a4f900a2f570c322f193dc7366aff2a7fb30725f0a76f703bb
+  languageName: node
+  linkType: hard
+
 "aws-cdk@npm:^0.0.0, aws-cdk@workspace:packages/aws-cdk":
   version: 0.0.0-use.local
   resolution: "aws-cdk@workspace:packages/aws-cdk"
@@ -8002,7 +8027,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     archiver: "npm:^7.0.1"
-    aws-cdk-lib: "npm:2.258.0"
+    aws-cdk-lib: "npm:2.258.1"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
