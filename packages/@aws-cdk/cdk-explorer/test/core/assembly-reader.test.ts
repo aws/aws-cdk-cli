@@ -288,6 +288,21 @@ describe('readAssembly resource templateFile', () => {
     expect(findNode(data.tree, 'Parent/MyNested/NestedQueue/Resource')!.templateFile)
       .toBe(path.join(dir!, 'ParentMyNested.nested.template.json'));
   });
+
+  test('keeps templates distinct when two stacks share a logical id (stack-relative ids)', () => {
+    // Same-shape stacks produce the SAME stack-relative logicalId in different
+    // templates; each resource must resolve to its OWN stack's template.
+    dir = buildFlatAssembly({
+      stacks: [
+        { id: 'Prod', resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }] },
+        { id: 'Dev', resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }] },
+      ],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Prod/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Prod.template.json'));
+    expect(findNode(data.tree, 'Dev/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Dev.template.json'));
+  });
 });
 
 function findNode(nodes: readonly ConstructNode[], targetPath: string): ConstructNode | undefined {

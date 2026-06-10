@@ -1,14 +1,13 @@
 import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 import { type Position, type Range } from 'vscode-languageserver/node';
-import type { ConstructNode } from '../core/assembly-reader';
 
 /**
  * Locates a resource definition within a synthesized CloudFormation template
  * and returns the 0-based position of its logical-ID key.
  *
- * A logical ID is globally unique and appears as a JSON *key* (`"<id>":`) only
- * in its own resource definition under `Resources`. Every other occurrence
+ * A logical ID is unique within its template and appears as a JSON *key*
+ * (`"<id>":`) only in its own resource definition. Every other occurrence
  * (Ref / Fn::GetAtt / DependsOn / Fn::Sub) is a string *value*, never followed
  * by a colon, so anchoring on `"<id>":` selects the definition without matching
  * references -- no JSON parse needed. Operates on synthesized (pretty-printed)
@@ -41,12 +40,12 @@ export interface ResourceTarget {
 /**
  * Resolves a construct node to the location of its CFN resource in the
  * synthesized template, suitable for an LSP "go to" navigation. Returns
- * undefined when the node has no resolved template or logical ID, when the
- * template can no longer be read , or when the logical ID cannot be located
- * in the template text.
+ * undefined when the node has no resolved template, when the template can no
+ * longer be read, or when the logical ID cannot be located in the template
+ * text.
  */
-export function resourceTarget(node: Pick<ConstructNode, 'templateFile' | 'logicalId'>): ResourceTarget | undefined {
-  if (node.templateFile === undefined || node.logicalId === undefined) {
+export function resourceTarget(node: { templateFile?: string; logicalId: string }): ResourceTarget | undefined {
+  if (node.templateFile === undefined) {
     return undefined;
   }
   let templateText: string;

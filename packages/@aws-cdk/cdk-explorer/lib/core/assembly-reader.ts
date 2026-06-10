@@ -52,14 +52,14 @@ export function readAssembly(assemblyDir: string): AssemblyReadResult {
     // One resolver per readAssembly call: caches parsed source maps across
     // constructs, scoped so a fresh synth observes any moved/edited maps.
     const sourceResolver = new SourceMapResolver();
-    const templateFiles = templateFilesByLogicalId(assembly);
+    const templateFiles = templateFilesByStack(assembly);
     const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
       ...fields,
       sourceLocation: stack
         ? sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
         : undefined,
-      templateFile: fields.logicalId !== undefined
-        ? templateFiles.get(fields.logicalId)
+      templateFile: fields.logicalId !== undefined && stack
+        ? templateFiles.get(stack.hierarchicalId)?.get(fields.logicalId)
         : undefined,
     }));
 
@@ -90,29 +90,42 @@ function loadViolations(assemblyDir: string): PolicyValidationReportJson | undef
   return JSON.parse(fs.readFileSync(reportPath, 'utf-8')) as PolicyValidationReportJson;
 }
 
+/** The slice of a CloudFormation template this reader reads. */
+interface CfnTemplate {
+  readonly Resources?: Record<string, CfnResource>;
+}
+interface CfnResource {
+  readonly Type?: string;
+  readonly Metadata?: Record<string, unknown>;
+}
+
 /**
- * Maps every CFN logical ID in the assembly to the absolute path of the
- * template that declares it, descending into CDK-managed nested stacks via the
- * `aws:asset:path` resource metadata (the same link CDK's own deploy/diff uses;
- * absent when asset metadata is disabled, in which case the nested stack is not
- * resolvable and its resources are simply omitted).
+ * For each stack, maps its CFN logical IDs to the absolute path of the template
+ * that declares them, descending into CDK-managed nested stacks via the
+ * `aws:asset:path` resource metadata (the link CDK's own deploy/diff uses;
+ * absent when asset metadata is disabled, in which case the nested stack is
+ * unresolvable and its resources are omitted). Keyed by stack hierarchicalId
+ * because logical IDs are stack-relative -- two same-shape stacks reuse the
+ * same IDs in different templates, so an assembly-wide map would collide.
  */
-function templateFilesByLogicalId(assembly: CloudAssembly): Map<string, string> {
-  const byLogicalId = new Map<string, string>();
-  const walk = (templateFile: string, template: any): void => {
-    for (const [logicalId, resource] of Object.entries<any>(template?.Resources ?? {})) {
-      byLogicalId.set(logicalId, templateFile);
-      const assetPath = resource?.Type === 'AWS::CloudFormation::Stack'
-        ? resource?.Metadata?.[ASSET_RESOURCE_METADATA_PATH_KEY]
-        : undefined;
-      if (typeof assetPath === 'string') {
-        const nestedFile = path.join(assembly.directory, assetPath);
-        walk(nestedFile, JSON.parse(fs.readFileSync(nestedFile, 'utf-8')));
-      }
-    }
-  };
+function templateFilesByStack(assembly: CloudAssembly): Map<string, Map<string, string>> {
+  const byStack = new Map<string, Map<string, string>>();
   for (const stack of assembly.stacksRecursively) {
-    walk(stack.templateFullPath, stack.template);
+    const byLogicalId = new Map<string, string>();
+    const walk = (templateFile: string, template: CfnTemplate): void => {
+      for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
+        byLogicalId.set(logicalId, templateFile);
+        const assetPath = resource.Type === 'AWS::CloudFormation::Stack'
+          ? resource.Metadata?.[ASSET_RESOURCE_METADATA_PATH_KEY]
+          : undefined;
+        if (typeof assetPath === 'string') {
+          const nestedFile = path.join(assembly.directory, assetPath);
+          walk(nestedFile, JSON.parse(fs.readFileSync(nestedFile, 'utf-8')) as CfnTemplate);
+        }
+      }
+    };
+    walk(stack.templateFullPath, stack.template as CfnTemplate);
+    byStack.set(stack.hierarchicalId, byLogicalId);
   }
-  return byLogicalId;
+  return byStack;
 }

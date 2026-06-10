@@ -71,10 +71,6 @@ describe('resourceTarget', () => {
     expect(target?.range).toEqual({ start: { line: 2, character: 4 }, end: { line: 2, character: 4 } });
   });
 
-  test('returns undefined for a node without a logical id (wrapper) -- no file read', () => {
-    expect(resourceTarget({ templateFile: '/does/not/matter.json', logicalId: undefined })).toBeUndefined();
-  });
-
   test('returns undefined for a node without a resolved templateFile', () => {
     expect(resourceTarget({ templateFile: undefined, logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
   });
