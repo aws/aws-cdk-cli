@@ -52,8 +52,8 @@ export function fullDiff(
   isImport?: boolean,
 ): types.TemplateDiff {
   // AFTER — work on clones, originals stay untouched
-  const currentCopy = JSON.parse(JSON.stringify(currentTemplate));
-  const newCopy     = JSON.parse(JSON.stringify(newTemplate));
+  const currentCopy = structuredClone(currentTemplate);
+  const newCopy     = structuredClone(newTemplate);
   normalize(currentCopy);
   normalize(newCopy);
   // use currentCopy / newCopy everywhere below instead
