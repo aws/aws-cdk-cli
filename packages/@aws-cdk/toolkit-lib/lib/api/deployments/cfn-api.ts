@@ -276,6 +276,7 @@ interface PreparedChangeSetEnv {
   cfn: ICloudFormationClient;
   bodyParameter: TemplateBodyParameter;
   exists: boolean;
+  stackExistedBefore: boolean;
   executionRoleArn: string | undefined;
   diagnoser: CloudFormationStackDiagnoser;
 }
@@ -307,7 +308,7 @@ async function prepareChangeSetEnv(
     topLevelStackHierarchicalId: options.stack.hierarchicalId,
   });
 
-  return { cfn, bodyParameter, exists, executionRoleArn, diagnoser };
+  return { cfn, bodyParameter, exists, stackExistedBefore: stack.exists, executionRoleArn, diagnoser };
 }
 
 async function uploadBodyParameterAndCreateChangeSet(
@@ -437,7 +438,7 @@ export async function createValidationChangeSet(
   ioHelper: IoHelper,
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider'>,
 ): Promise<ChangeSetReport> {
-  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+  const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = `cdk-validate-${options.uuid}`;
 
   const templateParams = TemplateParameters.fromTemplate(options.stack.template);
@@ -471,7 +472,7 @@ export async function createValidationChangeSet(
     await cleanupOldChangeset(cfn, ioHelper, changeSet.Id ?? changeSetName, changeSet.StackId ?? options.stack.stackName)
       .catch((e) => ioHelper.defaults.warn(`Failed to clean up validation change set: ${e}`));
 
-    if (!exists) {
+    if (!stackExistedBefore) {
       await cfn.deleteStack({
         StackName: changeSet.StackId ?? options.stack.stackName,
         ClientRequestToken: randomUUID(),

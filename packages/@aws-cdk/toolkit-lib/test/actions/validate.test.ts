@@ -225,6 +225,18 @@ describe('validate --online', () => {
     expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
   });
 
+  test('runs online validation by default when no options provided', async () => {
+    const spy = jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: { type: 'no-problem' },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.validate(cx);
+
+    expect(spy).toHaveBeenCalled();
+  });
+
   test('emits warning when online validation throws instead of reporting violation', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
       new Error('Access denied'),

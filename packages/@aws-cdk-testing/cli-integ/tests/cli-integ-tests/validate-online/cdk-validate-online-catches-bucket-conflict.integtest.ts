@@ -1,7 +1,7 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 
 integTest(
-  'cdk validate --no-online skips CloudFormation validation',
+  'cdk validate --online catches bucket name conflict',
   withSpecificFixture('validate-online-app', async (fixture) => {
     // Deploy a stack that owns the bucket
     await fixture.cdk(
@@ -9,16 +9,16 @@ integTest(
     );
 
     try {
-      // Validate with --no-online: the bucket name conflict should NOT be caught
+      // Now validate a stack that tries to create the same bucket name
       const output = await fixture.cdk(
-        ['--unstable=validate', 'validate', '--no-online', fixture.fullStackName('validate-online-conflicting')],
+        ['--unstable=validate', 'validate', '--online', fixture.fullStackName('validate-online-conflicting')],
         {
           allowErrExit: true,
         },
       );
 
-      expect(output).not.toContain('already exists');
-      expect(output).not.toContain('CloudFormation');
+      expect(output).toContain('CloudFormation');
+      expect(output).toContain('already exists');
     } finally {
       await fixture.cdk(['destroy', '--force', fixture.fullStackName('validate-online-deployed')]);
     }
