@@ -60,7 +60,6 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -81,6 +80,7 @@ import {
 } from '../../lib/api/deployments';
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
+import type { DestroyStackResult } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -192,9 +192,20 @@ describe('list', () => {
 
     // THEN
     expect(result).toEqual(0); // Exit code
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A-Display-Name', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-B', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A/Test-Stack-C', 'result'));
+
+    // The `list` toolkit action emits a single CDK_TOOLKIT_I2901 result message
+    // carrying the selected stacks; the CLI renders it (see formatStackList).
+    const listMsg = notifySpy.mock.calls
+      .map(call => call[0])
+      .find((m: any) => m.code === 'CDK_TOOLKIT_I2901');
+    if (!listMsg) {
+      throw new Error('expected a CDK_TOOLKIT_I2901 message to be emitted');
+    }
+    expect(listMsg.message.split('\n').sort()).toEqual([
+      'Test-Stack-A-Display-Name',
+      'Test-Stack-A/Test-Stack-C',
+      'Test-Stack-B',
+    ]);
   });
 });
 

@@ -4,21 +4,17 @@ import * as path from 'node:path';
 import type { IoHelper } from '../../api-private';
 import { cdkCacheDir } from '../../util';
 
-const INSTALLATION_ID_PATH = path.join(cdkCacheDir(), 'installation-id.json');
-
 /**
  * Get or create installation id
  */
 export async function getOrCreateInstallationId(ioHelper: IoHelper) {
-  try {
-    // Create the cache directory if it doesn't exist
-    if (!fs.existsSync(path.dirname(INSTALLATION_ID_PATH))) {
-      fs.mkdirSync(path.dirname(INSTALLATION_ID_PATH), { recursive: true });
-    }
+  // Do this quite lazily, so we can mock `cdkCacheDir` during tests
+  const installationIdPath = path.join(cdkCacheDir(), 'installation-id.json');
 
+  try {
     // Check if the installation ID file exists
-    if (fs.existsSync(INSTALLATION_ID_PATH)) {
-      const cachedId = fs.readFileSync(INSTALLATION_ID_PATH, 'utf-8').trim();
+    if (fs.existsSync(installationIdPath)) {
+      const cachedId = fs.readFileSync(installationIdPath, 'utf-8').trim();
 
       // Validate that the cached ID is a valid UUID
       const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,11 +27,12 @@ export async function getOrCreateInstallationId(ioHelper: IoHelper) {
     // Create a new installation ID
     const newId = randomUUID();
     try {
-      fs.writeFileSync(INSTALLATION_ID_PATH, newId);
+      await ensureCacheDir();
+      fs.writeFileSync(installationIdPath, newId);
     } catch (e: any) {
       // If we can't write the file, still return the generated ID
       // but log a trace message about the failure
-      await ioHelper.defaults.trace(`Failed to write installation ID to ${INSTALLATION_ID_PATH}: ${e}`);
+      await ioHelper.defaults.trace(`Failed to write installation ID to ${installationIdPath}: ${e}`);
     }
     return newId;
   } catch (e: any) {
@@ -45,3 +42,14 @@ export async function getOrCreateInstallationId(ioHelper: IoHelper) {
     return randomUUID();
   }
 }
+
+/**
+ * Make sure the cache dir exists
+ *
+ * Not part of `directories.ts` because that module is mocked in tests in order to mock the temporary directory
+ * to write to, and then I need to mock this function as well.
+ */
+export async function ensureCacheDir() {
+  await fs.promises.mkdir(cdkCacheDir(), { recursive: true });
+}
+

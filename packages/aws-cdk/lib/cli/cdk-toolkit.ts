@@ -38,7 +38,7 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import { listStacks } from '../commands/list-stacks';
+import { formatStackList } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
   appendWarningsToReadme,
@@ -958,38 +958,14 @@ export class CdkToolkit {
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    const stacks = await listStacks(this, {
-      selectors: selectors,
+    this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+
+    await this.toolkit.list(this.props.cloudExecutable, {
+      stacks: selectors.length > 0
+        ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
+        : undefined,
     });
 
-    if (options.long && options.showDeps) {
-      await printSerializedObject(this.ioHost.asIoHelper(), stacks, options.json ?? false);
-      return 0;
-    }
-
-    if (options.showDeps) {
-      const stackDeps = stacks.map(stack => ({
-        id: stack.id,
-        dependencies: stack.dependencies,
-      }));
-      await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
-      return 0;
-    }
-
-    if (options.long) {
-      const long = stacks.map(stack => ({
-        id: stack.id,
-        name: stack.name,
-        environment: stack.environment,
-      }));
-      await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
-      return 0;
-    }
-
-    // just print stack IDs
-    for (const stack of stacks) {
-      await this.ioHost.asIoHelper().defaults.result(stack.id);
-    }
     return 0; // exit-code
   }
 
