@@ -6,6 +6,17 @@ export interface ValidateOptions {
    * Select the stacks to validate
    */
   readonly stacks?: StackSelector;
+
+  /**
+   * Submit templates to CloudFormation for early validation.
+   *
+   * Creates a non-executing change set per stack and reports any
+   * early validation errors (invalid resource types, property validation, name conflicts).
+   * Requires AWS credentials.
+   *
+   * @default true
+   */
+  readonly online?: boolean;
 }
 
 /**
