@@ -3,11 +3,11 @@ import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
-import type { Context } from '@aws-cdk/toolkit-lib/lib/api';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import type { IoHelper, ActivityPrinterProps, IActivityPrinter } from '../../../lib/api-private';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoDefaultMessages } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { cdkCliErrorName } from '../telemetry/error';
@@ -104,6 +104,39 @@ export interface CliIoHostProps {
 export type TargetStream = 'stdout' | 'stderr' | 'drop';
 
 /**
+ * The result a message listener may return to influence how a message is handled.
+ *
+ * A listener can only update the message _text_; it cannot change any other
+ * field of the message (such as its `code`), which keeps the code-keyed
+ * listener registry valid.
+ */
+export interface MessageListenerResult {
+  /**
+   * Replace the text that is printed for this message.
+   *
+   * @default - the message text is left unchanged
+   */
+  readonly message?: string;
+
+  /**
+   * Skip the default processing of the message, i.e. do not write it to a stream.
+   *
+   * @default false
+   */
+  readonly preventDefault?: boolean;
+}
+
+/**
+ * A registered message listener. Its return value (if any) may update the
+ * message text and/or prevent the default processing.
+ */
+type MessageListenerFn = (msg: IoMessage<any>) => void | MessageListenerResult;
+interface MessageListener {
+  readonly once: boolean;
+  readonly fn: MessageListenerFn;
+}
+
+/**
  * A simple IO host for the CLI that writes messages to the console.
  */
 export class CliIoHost implements IIoHost {
@@ -175,6 +208,9 @@ export class CliIoHost implements IIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
+  // Message listeners, keyed by message code. See `on`/`once`/`rewrite`/`rewriteOnce`.
+  private readonly messageListeners = new Map<IoMessageCode, MessageListener[]>();
+
   private readonly autoRespond: boolean;
 
   /**
@@ -192,6 +228,10 @@ export class CliIoHost implements IIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
     this.autoRespond = props.autoRespond ?? false;
+
+    // Stack-activity messages are handled by the activity printer rather than
+    // written to a stream. This is wired up as message listeners.
+    this.routeStackActivityToPrinter();
   }
 
   public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
@@ -291,7 +331,7 @@ export class CliIoHost implements IIoHost {
     return this._progress;
   }
 
-  public get defaults() {
+  public get defaults(): IoDefaultMessages {
     return this.asIoHelper().defaults;
   }
 
@@ -325,31 +365,137 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
+   * Register a listener that is invoked for every message with the given code.
+   *
+   * The listener may return a `MessageListenerResult` to update the message
+   * text and/or prevent the default processing (writing it to a stream);
+   * returning nothing leaves the message untouched. Returns a function that
+   * removes the listener again.
+   *
+   * @example
+   * const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+   *   myCount += msg.data.stacks.length;
+   * });
+   */
+  public on<T>(code: IoMessageMaker<T>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
+    return this.addMessageListener(code.code, { once: false, fn: listener as MessageListenerFn });
+  }
+
+  /**
+   * Like `on`, but the listener is automatically removed after it has been
+   * invoked once.
+   */
+  public once<T>(code: IoMessageMaker<T>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
+    return this.addMessageListener(code.code, { once: true, fn: listener as MessageListenerFn });
+  }
+
+  /**
+   * Register a formatter that replaces the printed text of messages with the
+   * given code. This lets a caller define _how_ a toolkit message is presented
+   * without the IoHost needing to know about it.
+   *
+   * Syntactic sugar for an `on` listener that returns `{ message }`. Returns a
+   * function that removes the formatter again.
+   *
+   * @example
+   * const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) =>
+   *   serializeStructure(msg.data.stacks, true));
+   */
+  public rewrite<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string): () => void {
+    return this.on(code, (msg) => ({ message: formatter(msg) }));
+  }
+
+  /**
+   * Like `rewrite`, but the formatter is automatically removed after it has
+   * been applied once.
+   */
+  public rewriteOnce<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string): () => void {
+    return this.once(code, (msg) => ({ message: formatter(msg) }));
+  }
+
+  /**
+   * Add a listener to the registry and return a function that removes it.
+   */
+  private addMessageListener(code: IoMessageCode, listener: MessageListener): () => void {
+    const listeners = this.messageListeners.get(code) ?? [];
+    listeners.push(listener);
+    this.messageListeners.set(code, listeners);
+
+    return () => {
+      const index = listeners.indexOf(listener);
+      if (index >= 0) {
+        listeners.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Run all registered listeners for a message's code, in registration order.
+   *
+   * A listener may update the message text (which is passed on to subsequent
+   * listeners and the rest of the pipeline) and/or request that the default
+   * processing be skipped. `once` listeners are removed after they have run.
+   *
+   * Returns the (possibly text-updated) message and whether any listener
+   * prevented the default processing.
+   */
+  private applyMessageListeners(msg: IoMessage<unknown>): { message: IoMessage<unknown>; preventDefault: boolean } {
+    let current = msg;
+    let preventDefault = false;
+
+    const listeners = msg.code ? this.messageListeners.get(msg.code) : undefined;
+    if (listeners && listeners.length > 0) {
+      // Iterate over a copy so that `once` listeners can remove themselves safely.
+      for (const listener of [...listeners]) {
+        const result = listener.fn(current);
+
+        if (listener.once) {
+          const index = listeners.indexOf(listener);
+          if (index >= 0) {
+            listeners.splice(index, 1);
+          }
+        }
+
+        if (result) {
+          if (result.message !== undefined) {
+            current = { ...current, message: result.message };
+          }
+          if (result.preventDefault) {
+            preventDefault = true;
+          }
+        }
+      }
+    }
+
+    return { message: current, preventDefault };
+  }
+
+  /**
    * Notifies the host of a message.
    * The caller waits until the notification completes.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     await this.maybeEmitTelemetry(msg);
 
-    if (this.isStackActivity(msg)) {
-      if (!this.activityPrinter) {
-        this.activityPrinter = this.makeActivityPrinter();
-      }
-      this.activityPrinter.notify(msg);
+    // Run any registered listeners. A listener may update the message text
+    // and/or prevent the default processing (e.g. stack-activity messages are
+    // routed to the activity printer and not written to a stream).
+    const { message, preventDefault } = this.applyMessageListeners(msg);
+    if (preventDefault) {
       return;
     }
 
-    if (!isMessageRelevantForLevel(msg, this.logLevel)) {
+    if (!isMessageRelevantForLevel(message, this.logLevel)) {
       return;
     }
 
     if (this.corkedCounter > 0) {
-      this.corkedLoggingBuffer.push(msg);
+      this.corkedLoggingBuffer.push(message);
       return;
     }
 
-    const output = this.formatMessage(msg);
-    const stream = this.selectStream(msg);
+    const output = this.formatMessage(message);
+    const stream = this.selectStream(message);
     stream?.write(output);
   }
 
@@ -365,14 +511,25 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
-   * Detect stack activity messages so they can be send to the printer.
+   * Route stack-activity messages to the activity printer (progress bar or
+   * event list) rather than writing them to a stream.
+   *
+   * Implemented as listeners that handle the message via the printer and
+   * prevent the default processing, so the rest of the pipeline does not also
+   * emit them. The printer is created lazily on the first stack-activity message.
    */
-  private isStackActivity(msg: IoMessage<unknown>) {
-    return msg.code && [
-      'CDK_TOOLKIT_I5501',
-      'CDK_TOOLKIT_I5502',
-      'CDK_TOOLKIT_I5503',
-    ].includes(msg.code);
+  private routeStackActivityToPrinter() {
+    const route = (msg: IoMessage<unknown>): MessageListenerResult => {
+      if (!this.activityPrinter) {
+        this.activityPrinter = this.makeActivityPrinter();
+      }
+      this.activityPrinter.notify(msg);
+      return { preventDefault: true }; // handled by the printer; don't also write to a stream
+    };
+
+    this.on(IO.CDK_TOOLKIT_I5501, route);
+    this.on(IO.CDK_TOOLKIT_I5502, route);
+    this.on(IO.CDK_TOOLKIT_I5503, route);
   }
 
   /**

@@ -25,24 +25,9 @@ describe(getOrCreateInstallationId, () => {
   let mockIoHelper: IoHelper;
   let traceSpy: jest.Mock;
 
-  beforeAll(() => {
-    // Create the temp directory before any tests run
-    fs.mkdirSync(tempDir, { recursive: true });
-  });
-
   beforeEach(() => {
-    // Clean the temp directory for each test
-    if (fs.existsSync(tempDir)) {
-      const files = fs.readdirSync(tempDir);
-      for (const file of files) {
-        const filePath = path.join(tempDir, file);
-        if (fs.statSync(filePath).isDirectory()) {
-          fs.rmSync(filePath, { recursive: true, force: true });
-        } else {
-          fs.unlinkSync(filePath);
-        }
-      }
-    }
+    fs.rmSync(tempDir, { force: true, recursive: true });
+    fs.mkdirSync(tempDir, { recursive: true });
 
     // Mock randomUUID to return predictable values
     mockRandomUUID.mockReturnValue('12345678-1234-1234-1234-123456789abc');
@@ -130,7 +115,7 @@ describe(getOrCreateInstallationId, () => {
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
-  test('creates cache directory if it does not exist', async() => {
+  test('creates cache directory if it does not exist', async () => {
     // GIVEN
     // Remove the temp directory to test directory creation
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -171,24 +156,24 @@ describe(getOrCreateInstallationId, () => {
   test('handles general error gracefully and returns temporary ID', async () => {
     // GIVEN
     // Mock fs.existsSync to throw an error
-    const originalExistsSync = fs.existsSync;
-    jest.spyOn(fs, 'existsSync').mockImplementation(() => {
+    const mockExistsSync = jest.spyOn(fs, 'existsSync').mockImplementation(() => {
       throw new Error('Filesystem error');
     });
+    try {
+      // WHEN
+      const result = await getOrCreateInstallationId(mockIoHelper);
 
-    // WHEN
-    const result = await getOrCreateInstallationId(mockIoHelper);
+      // THEN
+      expect(result).toBe('12345678-1234-1234-1234-123456789abc');
+      expect(mockRandomUUID).toHaveBeenCalledTimes(1);
 
-    // THEN
-    expect(result).toBe('12345678-1234-1234-1234-123456789abc');
-    expect(mockRandomUUID).toHaveBeenCalledTimes(1);
-
-    // Should have logged a trace message about the general error
-    expect(traceSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error getting installation ID:'),
-    );
-
-    // Restore original function
-    (fs.existsSync as jest.Mock).mockImplementation(originalExistsSync);
+      // Should have logged a trace message about the general error
+      expect(traceSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error getting installation ID:'),
+      );
+    } finally {
+      // Restore original function
+      mockExistsSync.mockRestore();
+    }
   });
 });

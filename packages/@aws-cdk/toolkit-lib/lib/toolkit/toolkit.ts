@@ -1,7 +1,8 @@
 import '../private/dispose-polyfill';
+import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { FeatureFlagReportProperties, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
+import type { FeatureFlagReportProperties, PolicyValidationReportConclusion, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType, Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
@@ -79,6 +80,7 @@ import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
+import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter } from '../api/diff';
@@ -666,32 +668,102 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
+    const pluginReports: PluginReportJson[] = [];
+    let title: string | undefined;
+    const stacks = await assembly.selectStacksV2(selectStacks);
+    const selectedStackIds = new Set(stacks.hierarchicalIds);
 
-    if (!await fs.pathExists(reportPath)) {
-      const result: ValidateResult = {
-        conclusion: 'success',
-        pluginReports: [],
-      };
+    // Offline validation: read the policy validation report from the cloud assembly
+    const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
+    if (await fs.pathExists(reportPath)) {
+      const report = Manifest.loadValidationReport(reportPath);
+      title = report.title;
+
+      // Filter the report to only include violations for the selected stacks
+      const filteredReports = filterReportsByStacks(report.pluginReports, selectedStackIds);
+      pluginReports.push(...filteredReports);
+    } else if (options.online === false) {
       await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
-      return result;
     }
 
-    const report = Manifest.loadValidationReport(reportPath);
+    // Online validation: submit templates to CloudFormation for early validation
+    if (options.online ?? true) {
+      const deployments = await this.deploymentsForAction('validate');
 
-    const conclusion: PolicyValidationReportConclusion = report.pluginReports.some(
+      const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
+      if (onlineReport) {
+        pluginReports.push(onlineReport);
+      }
+    }
+
+    if (pluginReports.length === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
+    }
+
+    const conclusion: PolicyValidationReportConclusion = pluginReports.some(
       (pr) => pr.conclusion === 'failure',
     ) ? 'failure' : 'success';
 
     const result: ValidateResult = {
       conclusion,
-      title: report.title,
-      pluginReports: report.pluginReports,
+      title,
+      pluginReports,
     };
 
     await ioHelper.notify(hostMessageFromValidation(result));
 
     return result;
+  }
+
+  private async validateOnline(
+    ioHelper: IoHelper,
+    stacks: StackCollection,
+    deployments: Deployments,
+  ): Promise<PluginReportJson | undefined> {
+    const violations: PluginReportJson['violations'] = [];
+
+    for (const stack of stacks.stackArtifacts) {
+      try {
+        const report = await createValidationChangeSet(ioHelper, {
+          deployments,
+          stack,
+          parameters: {},
+          uuid: randomUUID(),
+          willExecute: false,
+          failOnError: true,
+        });
+
+        if (report.diagnosis.type === 'problem') {
+          for (const problem of report.diagnosis.problems) {
+            violations.push({
+              ruleName: problem.errorCode ?? 'CloudFormationValidation',
+              description: problem.message.replace(/\s*\(at\s+\/Resources\/[^)]+\)\s*$/, ''),
+              severity: 'fatal',
+              violatingConstructs: [{
+                constructPath: problem.sourceTrace?.constructPath ?? (problem.logicalId ? `${stack.hierarchicalId}/${problem.logicalId}` : stack.hierarchicalId),
+                cloudFormationResource: problem.logicalId ? {
+                  templatePath: `${stack.stackName}.template.json`,
+                  logicalId: problem.logicalId,
+                } : undefined,
+                stackTraces: problem.sourceTrace?.creationStackTrace ? [problem.sourceTrace.creationStackTrace.join('\n')] : undefined,
+              }],
+            });
+          }
+        }
+      } catch (e: any) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_W9602.msg(`Online validation could not be completed for stack '${stack.hierarchicalId}': ${e.message}`));
+      }
+    }
+
+    if (violations.length === 0) {
+      return undefined;
+    }
+
+    return {
+      pluginName: 'CloudFormation',
+      conclusion: 'failure',
+      violations,
+    };
   }
 
   /**
@@ -1780,4 +1852,29 @@ async function synthAndMeasure(
 
 function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
+}
+
+function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
+  return reports.map((report) => {
+    const filteredViolations = report.violations.filter((violation) => {
+      if (violation.violatingConstructs.length === 0) return true;
+      return violation.violatingConstructs.some((c) =>
+        selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+      );
+    }).map((violation) => {
+      if (violation.violatingConstructs.length === 0) return violation;
+      return {
+        ...violation,
+        violatingConstructs: violation.violatingConstructs.filter((c) =>
+          selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+        ),
+      };
+    });
+
+    return {
+      ...report,
+      violations: filteredViolations,
+      conclusion: filteredViolations.length > 0 ? report.conclusion : ('success' as const),
+    };
+  });
 }
