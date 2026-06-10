@@ -46,7 +46,7 @@ describe('codeLensesForFile', () => {
       start: { line: 11, character: 0 },
       end: { line: 11, character: 0 },
     });
-    expect(lenses[0].command?.title).toBe('Creates: AWS::S3::Bucket [logical: MyBucketF68F3FF0]');
+    expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('groups multiple resources on the same source line into one lens', () => {
@@ -75,7 +75,7 @@ describe('codeLensesForFile', () => {
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
-    expect(lenses[0].command?.title).toBe('3 resources: BucketABC, BucketPolicyDEF, KeyGHI');
+    expect(lenses[0].command?.title).toBe('Creates 3 resources: AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::KMS::Key');
   });
 
   test('emits separate lenses for resources on different lines', () => {
@@ -173,7 +173,8 @@ describe('codeLensesForFile', () => {
       const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       expect(lens.command?.arguments).toEqual([[{
-        label: 'AWS::S3::Bucket  MyBucketF68F3FF0',
+        label: 'AWS::S3::Bucket',
+        description: 'Stack1/MyBucket',
         target: {
           uri: pathToFileURL(templateFile).toString(),
           range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } },
@@ -200,8 +201,8 @@ describe('codeLensesForFile', () => {
       const uri = pathToFileURL(templateFile).toString();
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       expect(lens.command?.arguments).toEqual([[
-        { label: 'AWS::S3::Bucket  B1', target: { uri, range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } } } },
-        { label: 'AWS::S3::BucketPolicy  B2', target: { uri, range: { start: { line: 5, character: 4 }, end: { line: 5, character: 4 } } } },
+        { label: 'AWS::S3::Bucket', description: 'Stack1/B', target: { uri, range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } } } },
+        { label: 'AWS::S3::BucketPolicy', description: 'Stack1/B/Policy', target: { uri, range: { start: { line: 5, character: 4 }, end: { line: 5, character: 4 } } } },
       ]]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

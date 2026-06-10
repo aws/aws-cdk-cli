@@ -26,14 +26,14 @@ export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri:
   }));
 }
 
-interface ResourceLensInfo {
-  readonly logicalId: string;
-  readonly cfnType: string;
-}
-
-/** One selectable resource in a lens: a display label and where to open it. */
-export interface ResourceChoice {
+/**
+ * One selectable resource on a lens, shaped as a VS Code QuickPick item so the
+ * client renders it directly: `label` is the CFN type, `description` the
+ * developer-facing construct name.
+ */
+interface ResourceChoice {
   readonly label: string;
+  readonly description: string;
   readonly target: ResourceTarget;
 }
 
@@ -41,13 +41,13 @@ export interface ResourceChoice {
  * Builds the lens command for the resources on one line. The command carries an
  * array of resolvable resource choices; the client opens the only one directly
  * or shows a picker when several share a line (an L2 fanning out). Resources
- * whose target cannot be resolved are dropped, and a line where none resolve
- * stays title-only (empty command = no-op click).
+ * whose target cannot be resolved are dropped; a line where none resolve stays
+ * title-only.
  */
 function commandFor(nodes: readonly ResourceConstruct[]): Command {
-  const title = titleFor(nodes.map((n) => ({ logicalId: n.logicalId, cfnType: n.type })));
+  const title = titleFor(nodes);
   const choices = nodes
-    .map((node) => ({ label: `${node.type}  ${node.logicalId}`, target: resourceTarget(node) }))
+    .map((node) => ({ label: node.type, description: friendlyName(node.path), target: resourceTarget(node) }))
     .filter((choice): choice is ResourceChoice => choice.target !== undefined);
   if (choices.length === 0) {
     return { title, command: '' };
@@ -94,11 +94,20 @@ function lineRange(line1Based: number): Range {
   return { start: { line, character: 0 }, end: { line, character: 0 } };
 }
 
-function titleFor(resources: readonly ResourceLensInfo[]): string {
+function titleFor(resources: readonly ResourceConstruct[]): string {
   if (resources.length === 1) {
-    const r = resources[0];
-    return `Creates: ${r.cfnType} [logical: ${r.logicalId}]`;
+    return `Creates ${resources[0].type}`;
   }
-  const ids = resources.map((r) => r.logicalId).join(', ');
-  return `${resources.length} resources: ${ids}`;
+  const types = resources.map((r) => r.type).join(', ');
+  return `Creates ${resources.length} resources: ${types}`;
+}
+
+/** Developer-facing construct name: the construct path without the synthetic CfnResource leaf. */
+function friendlyName(constructPath: string): string {
+  const segments = constructPath.split('/');
+  const leaf = segments[segments.length - 1];
+  if (segments.length > 1 && (leaf === 'Resource' || leaf === 'Default')) {
+    segments.pop();
+  }
+  return segments.join('/');
 }
