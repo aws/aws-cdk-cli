@@ -296,7 +296,7 @@ export class ResourceImporter {
    */
   private async currentTemplate(): Promise<any> {
     if (!this._currentTemplate) {
-      this._currentTemplate = JSON.parse(JSON.stringify(await this.cfn.readCurrentTemplate(this.stack)));
+      this._currentTemplate = Object.freeze(structuredClone(await this.cfn.readCurrentTemplate(this.stack)));
     }
     return this._currentTemplate;
   }
