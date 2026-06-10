@@ -37,6 +37,7 @@
   "devDependencies": {
     "@aws-cdk/aws-service-spec": "^0.1.184",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
+    "@aws-cdk/private-tools": "^0.0.0",
     "@cdklabs/eslint-plugin": "^2.0.8",
     "@jest/environment": "^29.7.0",
     "@jest/globals": "^29.7.0",
@@ -57,6 +58,7 @@
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
