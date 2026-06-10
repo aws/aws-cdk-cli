@@ -150,7 +150,13 @@ function buildTemplateFileIndex(assembly: CloudAssembly): TemplateFileIndex {
           : undefined;
         if (typeof assetPath === 'string') {
           const nestedFile = path.join(assembly.directory, assetPath);
-          walk(nestedFile, JSON.parse(fs.readFileSync(nestedFile, 'utf-8')) as CfnTemplate);
+          try {
+            walk(nestedFile, JSON.parse(fs.readFileSync(nestedFile, 'utf-8')) as CfnTemplate);
+          } catch {
+            // Nested template missing or unparseable (e.g. its asset isn't
+            // staged yet in a mid-synth read). Skip the subtree -- those
+            // resources stay unresolved -- rather than failing the whole read.
+          }
         }
       }
     };

@@ -326,6 +326,48 @@ describe('readAssembly resource templateFile', () => {
       .toBe(path.join(dir!, 'ParentNested.nested.template.json'));
   });
 
+  test('resolves a resource in a doubly-nested stack to the innermost template', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [],
+        nestedStacks: [{
+          id: 'Outer',
+          resources: [{ id: 'OuterFn', logicalId: 'OuterFnABC', cfnType: 'AWS::Lambda::Function' }],
+          nestedStacks: [{
+            id: 'Inner',
+            resources: [{ id: 'InnerQueue', logicalId: 'InnerQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+          }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Parent/Outer/OuterFn/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentOuter.nested.template.json'));
+    expect(findNode(data.tree, 'Parent/Outer/Inner/InnerQueue/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentOuterInner.nested.template.json'));
+  });
+
+  test('skips an unreadable nested template instead of failing the whole read', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'TopBucket', logicalId: 'TopBucketABC', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'Nested',
+          resources: [{ id: 'NestedQueue', logicalId: 'NestedQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+        }],
+      },
+    });
+    fs.rmSync(path.join(dir, 'ParentNested.nested.template.json'));
+    // Still a success: the missing nested template degrades only its subtree.
+    const data = expectSuccess(readAssembly(dir));
+    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    expect(findNode(data.tree, 'Parent/Nested/NestedQueue/Resource')!.templateFile).toBeUndefined();
+  });
+
   test('falls back to the per-stack logical-id map when path metadata is off', () => {
     // --no-path-metadata strips aws:cdk:path; resolution still works via the
     // per-stack logical-ID fallback (only the rare parent/nested collision is lost).

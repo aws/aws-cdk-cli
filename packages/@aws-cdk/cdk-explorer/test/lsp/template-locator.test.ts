@@ -1,7 +1,9 @@
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { readAssembly, type ConstructNode } from '../../lib';
-import { findLogicalIdPosition, resourceTarget } from '../../lib/lsp/template-locator';
+import { resourceTarget } from '../../lib/lsp/template-locator';
 import { buildFlatAssembly, cleanupFixture } from '../_fixtures/builders';
 
 // A synthesized-style template where MyBucketF68F3FF0 is defined once and also
@@ -22,23 +24,6 @@ const TEMPLATE = [
   '  }',
   '}',
 ].join('\n');
-
-describe('findLogicalIdPosition', () => {
-  test('returns the 0-based position of the resource key', () => {
-    // Key sits on line index 5, opening quote at character 4 (4-space indent).
-    expect(findLogicalIdPosition(TEMPLATE, 'MyPolicy3A1B2C3D')).toEqual({ line: 5, character: 4 });
-  });
-
-  test('matches the definition key, not Ref/DependsOn occurrences of the same id', () => {
-    // MyBucketF68F3FF0 appears on lines 2 (definition), 8 (Ref) and 10 (DependsOn);
-    // only the definition is a `"<id>":` key, so line 2 must win.
-    expect(findLogicalIdPosition(TEMPLATE, 'MyBucketF68F3FF0')).toEqual({ line: 2, character: 4 });
-  });
-
-  test('returns undefined when the logical id is absent', () => {
-    expect(findLogicalIdPosition(TEMPLATE, 'NotARealId')).toBeUndefined();
-  });
-});
 
 describe('resourceTarget', () => {
   let dir: string | undefined;
@@ -84,5 +69,35 @@ describe('resourceTarget', () => {
 
   test('returns undefined (does not throw) when the template can no longer be read', () => {
     expect(resourceTarget({ templateFile: '/no/such/template.json', logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
+  });
+
+  test('resolves to the definition key, not Ref/DependsOn occurrences of the same id', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locator-'));
+    const file = path.join(dir, 'T.template.json');
+    fs.writeFileSync(file, TEMPLATE);
+    // MyBucketF68F3FF0 is defined on line 2 and also referenced (Ref line 8,
+    // DependsOn line 10); only the definition is a `"<id>":` key, so line 2 wins.
+    expect(resourceTarget({ templateFile: file, logicalId: 'MyBucketF68F3FF0' })?.range.start)
+      .toEqual({ line: 2, character: 4 });
+  });
+
+  test('does not match a logical id that is a prefix of a longer key', () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locator-'));
+    const file = path.join(dir, 'T.template.json');
+    fs.writeFileSync(file, [
+      '{',
+      '  "Resources": {',
+      '    "MyBucketF68F3FF0": {',
+      '      "Type": "AWS::S3::Bucket"',
+      '    },',
+      '    "MyBucket": {',
+      '      "Type": "AWS::S3::Bucket"',
+      '    }',
+      '  }',
+      '}',
+    ].join('\n'));
+    // The closing quote in the match key stops "MyBucket" matching "MyBucketF68F3FF0":
+    expect(resourceTarget({ templateFile: file, logicalId: 'MyBucket' })?.range.start)
+      .toEqual({ line: 5, character: 4 });
   });
 });

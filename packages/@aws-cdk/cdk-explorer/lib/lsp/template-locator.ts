@@ -9,7 +9,7 @@ import { type Position, type Range } from 'vscode-languageserver/node';
  * anchoring on the key selects the definition without a JSON parse. Assumes
  * pretty-printed templates (one key per line). Undefined if not found.
  */
-export function findLogicalIdPosition(templateText: string, logicalId: string): Position | undefined {
+function findLogicalIdPosition(templateText: string, logicalId: string): Position | undefined {
   const key = `"${logicalId}"`;
   const lines = templateText.split('\n');
   for (let line = 0; line < lines.length; line++) {
