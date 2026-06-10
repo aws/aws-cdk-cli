@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ArtifactMetadataEntryType, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from './artifacts/cloudformation-artifact';
+import { ASSET_RESOURCE_METADATA_PATH_KEY } from './assets';
 import type { CloudAssembly } from './cloud-assembly';
 
 /** Construct ids that aws-cdk-lib injects into the tree but aren't user constructs. */
@@ -20,6 +21,12 @@ export interface ConstructTreeNode {
   readonly type?: string;
   /** CFN logical ID, if this construct maps to a CFN resource. */
   readonly logicalId?: string;
+  /**
+   * Absolute path to the `*.template.json` that declares this construct's CFN
+   * resource -- the nested template for resources inside a NestedStack. Set
+   * only for CFN resources whose template is resolvable.
+   */
+  readonly templateFile?: string;
   readonly children: readonly ConstructTreeNode[];
 }
 
@@ -32,6 +39,7 @@ export interface ConstructTreeNodeFields<T extends ConstructTreeNode> {
   readonly id: string;
   readonly type?: string;
   readonly logicalId?: string;
+  readonly templateFile?: string;
   readonly children: readonly T[];
 }
 
@@ -118,9 +126,24 @@ export function buildConstructTree<T extends ConstructTreeNode>(
   if (!rawTree) return [];
 
   const stackIndex = buildStackIndex(assembly.stacksRecursively);
+  const ctx: WalkContext<T> = { assembly, stackIndex, decorate, templateCache: new Map() };
   return Object.values(rawTree.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, stackIndex, undefined, decorate));
+    .map((child) => buildNode(child, ctx, undefined, undefined, undefined));
+}
+
+/** Shared state for a single {@link buildConstructTree} walk. */
+interface WalkContext<T extends ConstructTreeNode> {
+  readonly assembly: CloudAssembly;
+  readonly stackIndex: StackMetadataIndex;
+  readonly decorate: ConstructNodeDecorator<T>;
+  /** Parsed nested templates, cached by absolute path. */
+  readonly templateCache: Map<string, CfnTemplate | undefined>;
+}
+
+/** The slice of a CloudFormation template the tree walk reads. */
+interface CfnTemplate {
+  readonly Resources?: Record<string, { readonly Type?: string; readonly Metadata?: Record<string, unknown> }>;
 }
 
 /**
@@ -163,29 +186,97 @@ function buildStackIndex(stacks: CloudFormationStackArtifact[]): StackMetadataIn
 
 function buildNode<T extends ConstructTreeNode>(
   raw: RawTreeNode,
-  stackIndex: StackMetadataIndex,
+  ctx: WalkContext<T>,
   inheritedStack: StackMetadata | undefined,
-  decorate: ConstructNodeDecorator<T>,
+  inheritedTemplateFile: string | undefined,
+  inheritedTemplate: CfnTemplate | undefined,
 ): T {
-  // When a node IS a stack, switch to that stack. Otherwise inherit the
-  // parent's: this routes NestedStack children to the parent's metadata,
-  // since aws-cdk-lib emits their entries there.
-  const owner = stackIndex.get(raw.path) ?? inheritedStack;
+  // A top-level/Stage stack node switches the active template to its own; a
+  // NestedStack subtree is switched by its parent (see nestedTemplateOf).
+  // Everything else inherits the active template.
+  const stackHere = ctx.stackIndex.get(raw.path);
+  const owner = stackHere ?? inheritedStack;
+  const templateFile = stackHere ? stackHere.stack.templateFullPath : inheritedTemplateFile;
+  const template = stackHere ? loadTemplate(stackHere.stack.templateFullPath, ctx.templateCache) : inheritedTemplate;
 
   // Metadata keys carry a leading "/", construct paths in tree.json don't.
   const entries = owner?.metadata.get('/' + raw.path) ?? [];
-
-  const logicalIdEntry = entries.find((e) => e.type === ArtifactMetadataEntryType.LOGICAL_ID);
-  const logicalId = typeof logicalIdEntry?.data === 'string' ? logicalIdEntry.data : undefined;
+  const logicalId = logicalIdFromEntries(entries);
 
   const cfnTypeRaw = raw.attributes?.[CFN_RESOURCE_TYPE_ATTRIBUTE];
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
 
   const children = Object.values(raw.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, stackIndex, owner, decorate));
+    .map((child) => {
+      // A NestedStack switches its subtree to the nested template (or to "no
+      // template" when it isn't CDK-resolvable, since its resources don't live
+      // in the parent template); every other node inherits the active template.
+      const boundary = nestedBoundary(child, raw, owner, template, ctx);
+      return boundary
+        ? buildNode(child, ctx, owner, boundary.file, boundary.template)
+        : buildNode(child, ctx, owner, templateFile, template);
+    });
 
-  return decorate({ path: raw.path, id: raw.id, type: cfnType, logicalId, children }, owner?.stack, raw.path);
+  // Only CFN resources (those with a logical ID) carry a templateFile.
+  const nodeTemplateFile = logicalId !== undefined ? templateFile : undefined;
+  return ctx.decorate(
+    { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile, children },
+    owner?.stack,
+    raw.path,
+  );
+}
+
+function logicalIdFromEntries(entries: MetadataEntry[]): string | undefined {
+  const entry = entries.find((e) => e.type === ArtifactMetadataEntryType.LOGICAL_ID);
+  return typeof entry?.data === 'string' ? entry.data : undefined;
+}
+
+/** Parses a template file (cached by absolute path); undefined when missing/unparseable. */
+function loadTemplate(absPath: string, cache: Map<string, CfnTemplate | undefined>): CfnTemplate | undefined {
+  if (cache.has(absPath)) return cache.get(absPath);
+  let template: CfnTemplate | undefined;
+  try {
+    template = JSON.parse(fs.readFileSync(absPath, 'utf-8')) as CfnTemplate;
+  } catch {
+    template = undefined; // missing/unparseable: that subtree just won't resolve a templateFile
+  }
+  cache.set(absPath, template);
+  return template;
+}
+
+/**
+ * Classifies `child` as a NestedStack boundary and resolves the nested template
+ * for its subtree. aws-cdk-lib models a NestedStack `<id>` as the construct at
+ * `<parent>/<id>` (fqn `*.NestedStack`) plus a sibling
+ * `AWS::CloudFormation::Stack` at `<parent>/<id>.NestedStack/<id>.NestedStackResource`
+ * whose `aws:asset:path` metadata points at the nested template.
+ *
+ * Returns `undefined` when `child` is not a nested stack (caller inherits the
+ * active template). For a nested stack it returns a boundary `{ file, template }`
+ * -- both populated when resolvable, or both undefined when asset metadata is
+ * off or the template can't be read, so the subtree gets NO template rather than
+ * the parent's (its resources don't live there).
+ */
+function nestedBoundary<T extends ConstructTreeNode>(
+  child: RawTreeNode,
+  parent: RawTreeNode,
+  owner: StackMetadata | undefined,
+  currentTemplate: CfnTemplate | undefined,
+  ctx: WalkContext<T>,
+): { file?: string; template?: CfnTemplate } | undefined {
+  if (!child.constructInfo?.fqn.endsWith('.NestedStack')) return undefined;
+  const resourceNode = parent.children?.[`${child.id}.NestedStack`]?.children?.[`${child.id}.NestedStackResource`];
+  const logicalId = resourceNode && owner
+    ? logicalIdFromEntries(owner.metadata.get('/' + resourceNode.path) ?? [])
+    : undefined;
+  const assetPath = logicalId !== undefined
+    ? currentTemplate?.Resources?.[logicalId]?.Metadata?.[ASSET_RESOURCE_METADATA_PATH_KEY]
+    : undefined;
+  if (typeof assetPath !== 'string') return {};
+  const file = path.join(ctx.assembly.directory, assetPath);
+  const template = loadTemplate(file, ctx.templateCache);
+  return template ? { file, template } : {};
 }
 
 function isCdkInternal(id: string): boolean {

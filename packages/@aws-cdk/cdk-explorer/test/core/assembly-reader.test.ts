@@ -368,9 +368,9 @@ describe('readAssembly resource templateFile', () => {
     expect(findNode(data.tree, 'Parent/Nested/NestedQueue/Resource')!.templateFile).toBeUndefined();
   });
 
-  test('falls back to the per-stack logical-id map when path metadata is off', () => {
-    // --no-path-metadata strips aws:cdk:path; resolution still works via the
-    // per-stack logical-ID fallback (only the rare parent/nested collision is lost).
+  test('resolves templateFile without path metadata (positional, not id-based)', () => {
+    // Resolution threads the template down the construct tree, so it works
+    // regardless of --no-path-metadata (no reliance on aws:cdk:path).
     dir = buildFlatAssembly({
       pathMetadata: false,
       stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
