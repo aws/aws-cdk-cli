@@ -1,21 +1,21 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { SourceResolver } from '../../lib/core/source-resolver';
+import { SourceMapResolver } from '../../lib/core/source-resolver';
 
 const SOURCE_MAPS_DIR = path.join(__dirname, '..', '_fixtures', 'source-maps');
 
-let resolver: SourceResolver;
+let resolver: SourceMapResolver;
 
 beforeEach(() => {
   // Fresh resolver (and cache) per test so source-map parses don't bleed between cases.
-  resolver = new SourceResolver();
+  resolver = new SourceMapResolver();
 });
 
 // NOTE: choosing WHICH metadata entry's frames to use (LOGICAL_ID.trace vs
 // aws:cdk:creationStack) is toolkit-lib's findCreationStackTrace; this resolver
 // only turns the chosen frames into a user source location.
-describe('SourceResolver.resolveFrames', () => {
+describe('SourceMapResolver.resolveFrames', () => {
   test('returns undefined for no frames', () => {
     expect(resolver.resolveFrames(undefined)).toBeUndefined();
   });

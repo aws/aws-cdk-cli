@@ -21,7 +21,7 @@ export interface SourceLocation {
  * cdk.out tree asks for the same .js.map many times, so create one resolver
  * per assembly read and reuse it for every construct.
  */
-export class SourceResolver {
+export class SourceMapResolver {
   // Parsed source maps keyed by absolute .js path; null = known to have no map.
   private readonly cache = new Map<string, TraceMap | null>();
   private readonly collectedWarnings: string[] = [];
