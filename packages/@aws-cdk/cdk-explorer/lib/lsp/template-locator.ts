@@ -3,32 +3,22 @@ import { pathToFileURL } from 'url';
 import { type Position, type Range } from 'vscode-languageserver/node';
 
 /**
- * Locates a resource definition within a synthesized CloudFormation template
- * and returns the 0-based position of its logical-ID key.
- *
- * A logical ID is unique within its template and appears as a JSON *key*
- * (`"<id>":`) only in its own resource definition. Every other occurrence
- * (Ref / Fn::GetAtt / DependsOn / Fn::Sub) is a string *value*, never followed
- * by a colon, so anchoring on `"<id>":` selects the definition without matching
- * references -- no JSON parse needed. Operates on synthesized (pretty-printed)
- * templates, where each key sits on its own line.
- *
- * @returns the position of the key's opening quote, or undefined if absent.
+ * 0-based position of a resource's logical-ID key in its synthesized template.
+ * A logical ID only appears as a `"<id>":` key in its own definition (every
+ * Ref/GetAtt/DependsOn occurrence is a string value, never followed by `:`), so
+ * anchoring on the key selects the definition without a JSON parse. Assumes
+ * pretty-printed templates (one key per line). Undefined if not found.
  */
 export function findLogicalIdPosition(templateText: string, logicalId: string): Position | undefined {
-  const keyPattern = new RegExp(`^\\s*"${escapeRegExp(logicalId)}"\\s*:`);
+  const key = `"${logicalId}"`;
   const lines = templateText.split('\n');
   for (let line = 0; line < lines.length; line++) {
-    if (keyPattern.test(lines[line])) {
-      return { line, character: lines[line].indexOf('"') };
+    const trimmed = lines[line].trimStart();
+    if (trimmed.startsWith(key) && trimmed.slice(key.length).trimStart().startsWith(':')) {
+      return { line, character: lines[line].length - trimmed.length };
     }
   }
   return undefined;
-}
-
-/** Escapes regex metacharacters so a literal string matches itself. */
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** An editor navigation target: the template file and the position to reveal. */
@@ -38,11 +28,8 @@ export interface ResourceTarget {
 }
 
 /**
- * Resolves a construct node to the location of its CFN resource in the
- * synthesized template, suitable for an LSP "go to" navigation. Returns
- * undefined when the node has no resolved template, when the template can no
- * longer be read, or when the logical ID cannot be located in the template
- * text.
+ * Resolves a construct node to its CFN resource location for an LSP "go to";
+ * undefined when not navigable (no template, unreadable, or id not found).
  */
 export function resourceTarget(node: { templateFile?: string; logicalId: string }): ResourceTarget | undefined {
   if (node.templateFile === undefined) {
