@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ArtifactMetadataEntryType, Manifest, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 
 /**
  * Programmatic fixture builders. Each builder writes a minimal cdk.out/ to a
@@ -12,8 +12,14 @@ import { ArtifactMetadataEntryType, Manifest, VALIDATION_REPORT_FILE } from '@aw
  *   try { ... } finally { cleanupFixture(dir); }
  */
 
-/** The installed cloud-assembly-schema revision, written into fixture manifests. */
-const ASSEMBLY_SCHEMA_VERSION = Manifest.version();
+/**
+ * Pinned schema revision written into fixture manifests. Intentionally a static
+ * literal (not Manifest.version()): a fixture frozen at a known revision doubles
+ * as a forward-compat test that the reader can still load older assemblies.
+ * Deriving the version would make the manifest claim "latest" while its contents
+ * stay frozen — i.e. lie about its shape if a future revision changes it.
+ */
+const ASSEMBLY_SCHEMA_VERSION = '53.0.0';
 
 /** aws-cdk-lib version stamped into fixture tree.json constructInfo. */
 const CONSTRUCT_INFO_VERSION = '2.245.0';
