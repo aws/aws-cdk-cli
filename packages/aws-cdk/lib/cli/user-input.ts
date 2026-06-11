@@ -237,7 +237,7 @@ export interface GlobalOptions {
   readonly verbose?: number;
 
   /**
-   * Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)
+   * Debug the CDK app and CLI. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis). Also reports any Node async resources still keeping the CLI process alive at exit, with the source location where each was created.
    *
    * @default - false
    */

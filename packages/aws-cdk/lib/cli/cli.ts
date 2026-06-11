@@ -14,6 +14,7 @@ import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
 import { ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
+import { enableHandleTracking, reportLeakedHandles } from './debug-handles';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
 import type { Command } from './user-configuration';
@@ -42,6 +43,15 @@ import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
+/**
+ * Grace period before the --debug handle dump fires after CLI work completes.
+ * Long enough that the normal exit path (telemetry flush, notices display,
+ * lock release) finishes first; short enough that customers seeing a hang
+ * don't wait long for the diagnostic. The timer is .unref()'d, so it never
+ * fires when Node exits cleanly within this window.
+ */
+const HANDLE_DUMP_GRACE_MS = 1000;
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
   // Measure that.
@@ -49,6 +59,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
+
+  if (argv.debug) {
+    // Start tracking async resources before any other work happens, so we can
+    // identify the ones still alive at exit time.
+    enableHandleTracking();
+  }
 
   // Handle color output settings
   // Priority: --no-color > --color > TTY detection
@@ -259,6 +275,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
+    }
+
+    if (argv.debug) {
+      // If the process is still alive after the grace period, something is
+      // keeping the event loop busy. Dump the leaked handles so the user can
+      // see why. .unref() so this timer itself doesn't keep us alive.
+      setTimeout(() => {
+        void reportLeakedHandles(ioHelper);
+      }, HANDLE_DUMP_GRACE_MS).unref();
     }
   }
 
