@@ -1,7 +1,7 @@
 import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
@@ -565,18 +565,10 @@ export class CliIoHost implements IIoHost {
       return msg.message;
     }
 
-    const hasSecurityChanges = msg.data.hasSecurityChanges;
-
-    if (this.requireDeployApproval === RequireApproval.BROADENING && hasSecurityChanges) {
-      return 'Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?';
-    }
-    if (this.requireDeployApproval === RequireApproval.ANYCHANGE && hasSecurityChanges) {
-      return 'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?';
-    }
-    if (this.requireDeployApproval === RequireApproval.ANYCHANGE && !hasSecurityChanges) {
-      return 'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?';
-    }
-    return msg.message;
+    const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
+      ? 'security-sensitive updates'
+      : 'updates';
+    return `Stack includes ${updateTypeText} and "--require-approval" is set to '${this.requireDeployApproval}'.\nDo you wish to deploy these changes?`;
   }
 
   /**

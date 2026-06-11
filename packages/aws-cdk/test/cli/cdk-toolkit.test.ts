@@ -238,7 +238,6 @@ describe('deploy', () => {
       data: expect.objectContaining({
         motivation: 'Stack includes updates',
         permissionChangeType: 'none',
-        hasSecurityChanges: false,
       }),
     }));
   });

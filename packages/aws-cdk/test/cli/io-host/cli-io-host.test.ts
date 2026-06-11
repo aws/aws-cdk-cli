@@ -998,7 +998,10 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        // The prompt appears (approval is required), with the CLI's --require-approval framing.
+        expect(mockStdout).toHaveBeenCalledWith(
+          chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+        );
         expect(response).toEqual(true);
       });
 
@@ -1034,7 +1037,6 @@ describe('CliIoHost', () => {
             message: bareMotivationMessage,
             data: {
               permissionChangeType: 'broadening',
-              hasSecurityChanges: true,
             },
             defaultResponse: true,
           });
@@ -1054,7 +1056,6 @@ describe('CliIoHost', () => {
             message: bareMotivationMessage,
             data: {
               permissionChangeType: 'broadening',
-              hasSecurityChanges: true,
             },
             defaultResponse: true,
           });
@@ -1074,7 +1075,6 @@ describe('CliIoHost', () => {
             message: bareNonSecurityMessage,
             data: {
               permissionChangeType: 'none',
-              hasSecurityChanges: false,
             },
             defaultResponse: true,
           });
