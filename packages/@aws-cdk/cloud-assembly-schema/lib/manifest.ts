@@ -14,6 +14,9 @@ import type * as integ from './integ-tests';
 // see exec.ts#createAssembly
 export const VERSION_MISMATCH: string = 'Cloud assembly schema version mismatch';
 
+/** Canonical filename of the policy-validation report emitted into a cloud assembly. */
+export const VALIDATION_REPORT_FILE = 'validation-report.json';
+
 /**
  * CLI version is created at build and release time
  *
