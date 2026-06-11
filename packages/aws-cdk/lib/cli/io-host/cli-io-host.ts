@@ -1,7 +1,7 @@
 import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
@@ -556,6 +556,22 @@ export class CliIoHost implements IIoHost {
   }
 
   /**
+   * Add the `--require-approval` flag to the deploy approval prompt.
+   */
+  private augmentDeployApprovalMessage(msg: IoRequest<any, any>): string {
+    // Library-emitted I5060 messages always carry data, but defend against
+    // partially-shaped inputs (e.g. tests, stubs) so we never crash a prompt.
+    if (!IO.CDK_TOOLKIT_I5060.is(msg) || !msg.data) {
+      return msg.message;
+    }
+
+    const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
+      ? 'security-sensitive updates'
+      : 'updates';
+    return `Stack includes ${updateTypeText} and "--require-approval" is set to '${this.requireDeployApproval}'.\nDo you wish to deploy these changes?`;
+  }
+
+  /**
    * Determines the output stream, based on message and configuration.
    */
   private selectStream(msg: IoMessage<any>): NodeJS.WriteStream | undefined {
@@ -621,13 +637,18 @@ export class CliIoHost implements IIoHost {
         return true;
       }
 
+      // The library emits I5060 with a flag-free motivation. The CLI is the
+      // layer that knows about `--require-approval` and adds it to the
+      // user-facing message before any downstream rendering.
+      const promptMessage = this.augmentDeployApprovalMessage(msg);
+
       // In --yes mode, respond for the user if we can
       if (this.autoRespond) {
         // respond with yes to all confirmations
         if (isConfirmationPrompt(msg)) {
           await this.notify({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+            message: `${chalk.cyan(promptMessage)} (auto-confirmed)`,
           });
           return true;
         }
@@ -636,7 +657,7 @@ export class CliIoHost implements IIoHost {
         if (msg.defaultResponse) {
           await this.notify({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+            message: `${chalk.cyan(promptMessage)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
           });
           return msg.defaultResponse;
         }
@@ -655,7 +676,7 @@ export class CliIoHost implements IIoHost {
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
+        const confirmed = await promptly.confirm(`${chalk.cyan(promptMessage)} (y/n)`);
         if (!confirmed) {
           throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
@@ -665,7 +686,7 @@ export class CliIoHost implements IIoHost {
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
       const desc = responseDescription ?? prompt.default;
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
+      const answer = await promptly.prompt(`${chalk.cyan(promptMessage)}${desc ? ` (${desc})` : ''}`, {
         default: prompt.default,
         trim: true,
       });
