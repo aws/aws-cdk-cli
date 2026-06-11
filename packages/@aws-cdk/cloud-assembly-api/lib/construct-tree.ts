@@ -126,15 +126,14 @@ export function buildConstructTree<T extends ConstructTreeNode>(
   if (!rawTree) return [];
 
   const stackIndex = buildStackIndex(assembly.stacksRecursively);
-  const ctx: WalkContext<T> = { assembly, stackIndex, decorate, templateCache: new Map() };
+  const ctx: WalkContext<T> = { stackIndex, decorate, templateCache: new Map() };
   return Object.values(rawTree.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, ctx, undefined, undefined, undefined));
+    .map((child) => buildNode(child, ctx, undefined, NO_TEMPLATE));
 }
 
 /** Shared state for a single {@link buildConstructTree} walk. */
 interface WalkContext<T extends ConstructTreeNode> {
-  readonly assembly: CloudAssembly;
   readonly stackIndex: StackMetadataIndex;
   readonly decorate: ConstructNodeDecorator<T>;
   /** Parsed nested templates, cached by absolute path. */
@@ -143,8 +142,25 @@ interface WalkContext<T extends ConstructTreeNode> {
 
 /** The slice of a CloudFormation template the tree walk reads. */
 interface CfnTemplate {
-  readonly Resources?: Record<string, { readonly Type?: string; readonly Metadata?: Record<string, unknown> }>;
+  readonly Resources?: Record<string, CfnResource>;
 }
+interface CfnResource {
+  readonly Type?: string;
+  readonly Metadata?: Record<string, unknown>;
+}
+
+/**
+ * The active CloudFormation template threaded down the tree walk: a resolved
+ * `{ file, template }` pair, or both `undefined` when there's no resolvable
+ * template (the root, or a nested stack that isn't CDK-resolvable). Never a
+ * partial mix.
+ */
+type TemplateScope =
+  | { readonly file: string; readonly template: CfnTemplate }
+  | { readonly file: undefined; readonly template: undefined };
+
+/** Scope for nodes with no resolvable template: the root seed and unresolvable nested stacks. */
+const NO_TEMPLATE: TemplateScope = { file: undefined, template: undefined };
 
 /**
  * Raw tree.json node. The root tree.json holds the FULL hierarchy including
@@ -155,7 +171,6 @@ interface RawTreeNode {
   readonly path: string;
   readonly children?: { [key: string]: RawTreeNode };
   readonly attributes?: { [key: string]: unknown };
-  readonly constructInfo?: { readonly fqn: string; readonly version: string };
 }
 
 /** A stack artifact plus its metadata Map, keyed (in the index) by construct path. */
@@ -188,16 +203,16 @@ function buildNode<T extends ConstructTreeNode>(
   raw: RawTreeNode,
   ctx: WalkContext<T>,
   inheritedStack: StackMetadata | undefined,
-  inheritedTemplateFile: string | undefined,
-  inheritedTemplate: CfnTemplate | undefined,
+  inherited: TemplateScope,
 ): T {
-  // A top-level/Stage stack node switches the active template to its own; a
-  // NestedStack subtree is switched by its parent (see nestedTemplateOf).
-  // Everything else inherits the active template.
   const stackHere = ctx.stackIndex.get(raw.path);
   const owner = stackHere ?? inheritedStack;
-  const templateFile = stackHere ? stackHere.stack.templateFullPath : inheritedTemplateFile;
-  const template = stackHere ? loadTemplate(stackHere.stack.templateFullPath, ctx.templateCache) : inheritedTemplate;
+  // A stack node switches to its own template via the artifact's cached getter,
+  // which throws on a missing/corrupt top-level template -- a real assembly error
+  // we surface rather than swallow. Other nodes inherit the active scope.
+  const scope: TemplateScope = stackHere
+    ? { file: stackHere.stack.templateFullPath, template: stackHere.stack.template as CfnTemplate }
+    : inherited;
 
   // Metadata keys carry a leading "/", construct paths in tree.json don't.
   const entries = owner?.metadata.get('/' + raw.path) ?? [];
@@ -206,20 +221,13 @@ function buildNode<T extends ConstructTreeNode>(
   const cfnTypeRaw = raw.attributes?.[CFN_RESOURCE_TYPE_ATTRIBUTE];
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
 
+  // A NestedStack switches its subtree to the nested scope; other nodes inherit.
   const children = Object.values(raw.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => {
-      // A NestedStack switches its subtree to the nested template (or to "no
-      // template" when it isn't CDK-resolvable, since its resources don't live
-      // in the parent template); every other node inherits the active template.
-      const boundary = nestedBoundary(child, raw, owner, template, ctx);
-      return boundary
-        ? buildNode(child, ctx, owner, boundary.file, boundary.template)
-        : buildNode(child, ctx, owner, templateFile, template);
-    });
+    .map((child) => buildNode(child, ctx, owner, nestedBoundary(child, raw, owner, scope.template, ctx) ?? scope));
 
   // Only CFN resources (those with a logical ID) carry a templateFile.
-  const nodeTemplateFile = logicalId !== undefined ? templateFile : undefined;
+  const nodeTemplateFile = logicalId !== undefined ? scope.file : undefined;
   return ctx.decorate(
     { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile, children },
     owner?.stack,
@@ -246,17 +254,16 @@ function loadTemplate(absPath: string, cache: Map<string, CfnTemplate | undefine
 }
 
 /**
- * Classifies `child` as a NestedStack boundary and resolves the nested template
- * for its subtree. aws-cdk-lib models a NestedStack `<id>` as the construct at
- * `<parent>/<id>` (fqn `*.NestedStack`) plus a sibling
- * `AWS::CloudFormation::Stack` at `<parent>/<id>.NestedStack/<id>.NestedStackResource`
- * whose `aws:asset:path` metadata points at the nested template.
+ * If `child` is a NestedStack, resolves the template scope for its subtree;
+ * otherwise returns `undefined` (caller keeps the active scope).
  *
- * Returns `undefined` when `child` is not a nested stack (caller inherits the
- * active template). For a nested stack it returns a boundary `{ file, template }`
- * -- both populated when resolvable, or both undefined when asset metadata is
- * off or the template can't be read, so the subtree gets NO template rather than
- * the parent's (its resources don't live there).
+ * Detection keys off the sibling `AWS::CloudFormation::Stack` that aws-cdk-lib
+ * emits at `<parent>/<id>.NestedStack/<id>.NestedStackResource` (whose
+ * `aws:asset:path` points at the nested template), NOT the construct's fqn -- a
+ * jsii-published NestedStack subclass has an fqn that doesn't end in
+ * ".NestedStack", but the sibling is named the same regardless. Returns
+ * NO_TEMPLATE (not the parent's) when unresolvable, since the nested stack's
+ * resources don't live in the parent template.
  */
 function nestedBoundary<T extends ConstructTreeNode>(
   child: RawTreeNode,
@@ -264,19 +271,22 @@ function nestedBoundary<T extends ConstructTreeNode>(
   owner: StackMetadata | undefined,
   currentTemplate: CfnTemplate | undefined,
   ctx: WalkContext<T>,
-): { file?: string; template?: CfnTemplate } | undefined {
-  if (!child.constructInfo?.fqn.endsWith('.NestedStack')) return undefined;
+): TemplateScope | undefined {
   const resourceNode = parent.children?.[`${child.id}.NestedStack`]?.children?.[`${child.id}.NestedStackResource`];
-  const logicalId = resourceNode && owner
-    ? logicalIdFromEntries(owner.metadata.get('/' + resourceNode.path) ?? [])
-    : undefined;
+  // No sibling -> not a nested stack. A real nested stack always lives under a
+  // stack, so `owner` is defined here; the check also narrows it.
+  if (!resourceNode || !owner) return undefined;
+
+  const logicalId = logicalIdFromEntries(owner.metadata.get('/' + resourceNode.path) ?? []);
   const assetPath = logicalId !== undefined
     ? currentTemplate?.Resources?.[logicalId]?.Metadata?.[ASSET_RESOURCE_METADATA_PATH_KEY]
     : undefined;
-  if (typeof assetPath !== 'string') return {};
-  const file = path.join(ctx.assembly.directory, assetPath);
+  if (typeof assetPath !== 'string') return NO_TEMPLATE;
+  // Asset path is relative to the OWNER stack's assembly dir (the Stage
+  // sub-assembly for staged stacks), not necessarily the root assembly.
+  const file = path.join(path.dirname(owner.stack.templateFullPath), assetPath);
   const template = loadTemplate(file, ctx.templateCache);
-  return template ? { file, template } : {};
+  return template ? { file, template } : NO_TEMPLATE;
 }
 
 function isCdkInternal(id: string): boolean {

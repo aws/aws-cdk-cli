@@ -38,11 +38,9 @@ interface ResourceChoice {
 }
 
 /**
- * Builds the lens command for the resources on one line. The command carries an
- * array of resolvable resource choices; the client opens the only one directly
- * or shows a picker when several share a line (an L2 fanning out). Resources
- * whose target cannot be resolved are dropped; a line where none resolve stays
- * title-only.
+ * Builds the lens command for one line's resources: resolvable choices the
+ * client opens directly (one) or via a picker (several). Unresolvable resources
+ * are dropped; a line where none resolve stays title-only.
  */
 function commandFor(nodes: readonly ResourceConstruct[]): Command {
   const title = titleFor(nodes);
