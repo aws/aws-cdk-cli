@@ -345,7 +345,7 @@ const repoProject = new yarn.Monorepo({
 });
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
-  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'yarn jest'),
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 

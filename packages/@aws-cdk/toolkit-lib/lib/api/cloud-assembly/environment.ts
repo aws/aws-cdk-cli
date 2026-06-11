@@ -89,7 +89,7 @@ export function synthParametersFromSettings(settings: Settings): {
     env: {
       // An environment variable instead of a context variable, so it can also
       // be accessed in framework code where we don't have access to a construct tree.
-      ...settings.get(['debug']) ? { CDK_DEBUG: 'true' } : {},
+      ...settings.get(['debugApp']) ? { CDK_DEBUG: 'true' } : {},
     },
   };
 }

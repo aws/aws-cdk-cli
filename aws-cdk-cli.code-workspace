@@ -49,7 +49,7 @@
     "files.exclude": {
       "packages": true
     },
-    "jest.jestCommandLine": "npx jest",
+    "jest.jestCommandLine": "yarn jest",
     "js/ts.tsdk.path": "<root>/node_modules/typescript/lib"
   }
 }
