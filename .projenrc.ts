@@ -1686,6 +1686,8 @@ const cdkExplorer = configureProject(
       'vscode-languageserver-textdocument@^1',
       'vscode-jsonrpc@^8',
       'express@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
@@ -1700,6 +1702,7 @@ const cdkExplorer = configureProject(
       'tsx',
       'supertest@^6',
       '@types/supertest@^6',
+      '@types/convert-source-map@^2',
     ],
     tsconfig: {
       compilerOptions: {
