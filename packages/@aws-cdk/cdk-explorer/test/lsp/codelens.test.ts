@@ -1,7 +1,10 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type { ConstructNode } from '../../lib';
-import { codeLensesForFile } from '../../lib/lsp/codelens';
+import { codeLensesForFile, OPEN_RESOURCE_COMMAND } from '../../lib/lsp/codelens';
 
 const FILE = '/p/lib/stack.ts';
 const URI = pathToFileURL(FILE).toString();
@@ -43,7 +46,7 @@ describe('codeLensesForFile', () => {
       start: { line: 11, character: 0 },
       end: { line: 11, character: 0 },
     });
-    expect(lenses[0].command?.title).toBe('Creates: AWS::S3::Bucket [logical: MyBucketF68F3FF0]');
+    expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('groups multiple resources on the same source line into one lens', () => {
@@ -72,7 +75,7 @@ describe('codeLensesForFile', () => {
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
-    expect(lenses[0].command?.title).toBe('3 resources: BucketABC, BucketPolicyDEF, KeyGHI');
+    expect(lenses[0].command?.title).toBe('Creates 3 resources: AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::KMS::Key');
   });
 
   test('emits separate lenses for resources on different lines', () => {
@@ -152,5 +155,88 @@ describe('codeLensesForFile', () => {
     })];
 
     expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
+  });
+
+  test('a single resource with a resolvable template gets a clickable openResource command', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
+    const templateFile = path.join(dir, 'Stack1.template.json');
+    fs.writeFileSync(templateFile, JSON.stringify({ Resources: { MyBucketF68F3FF0: { Type: 'AWS::S3::Bucket' } } }, null, 2));
+    try {
+      const tree = [node({
+        path: 'Stack1/MyBucket/Resource',
+        logicalId: 'MyBucketF68F3FF0',
+        type: 'AWS::S3::Bucket',
+        templateFile,
+        sourceLocation: { file: FILE, line: 12, column: 5 },
+      })];
+
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
+      expect(lens.command?.arguments).toEqual([[{
+        label: 'AWS::S3::Bucket',
+        description: 'Stack1/MyBucket',
+        target: {
+          uri: pathToFileURL(templateFile).toString(),
+          range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } },
+        },
+      }]]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a multi-resource line carries all resolvable resources as choices', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
+    const templateFile = path.join(dir, 'Stack1.template.json');
+    fs.writeFileSync(templateFile, JSON.stringify({
+      Resources: { B1: { Type: 'AWS::S3::Bucket' }, B2: { Type: 'AWS::S3::BucketPolicy' } },
+    }, null, 2));
+    try {
+      const tree = [
+        node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
+        node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
+      ];
+
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const uri = pathToFileURL(templateFile).toString();
+      expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
+      expect(lens.command?.arguments).toEqual([[
+        { label: 'AWS::S3::Bucket', description: 'Stack1/B', target: { uri, range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } } } },
+        { label: 'AWS::S3::BucketPolicy', description: 'Stack1/B/Policy', target: { uri, range: { start: { line: 5, character: 4 }, end: { line: 5, character: 4 } } } },
+      ]]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a multi-resource line with no resolvable templates stays title-only', () => {
+    const tree = [
+      node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
+      node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
+    ];
+
+    const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+    expect(lens.command?.command).toBe('');
+    expect(lens.command?.arguments).toBeUndefined();
+  });
+
+  test('a single resource whose id is missing from the template degrades to title-only', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
+    const templateFile = path.join(dir, 'Stack1.template.json');
+    fs.writeFileSync(templateFile, JSON.stringify({ Resources: { SomethingElse: { Type: 'AWS::S3::Bucket' } } }, null, 2));
+    try {
+      const tree = [node({
+        path: 'Stack1/MyBucket/Resource',
+        logicalId: 'MyBucketF68F3FF0',
+        type: 'AWS::S3::Bucket',
+        templateFile,
+        sourceLocation: { file: FILE, line: 12, column: 5 },
+      })];
+
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      expect(lens.command?.command).toBe('');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

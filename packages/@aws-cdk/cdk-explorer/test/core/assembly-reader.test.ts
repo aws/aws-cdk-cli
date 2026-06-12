@@ -5,6 +5,7 @@ import { readAssembly, type AssemblyData, type AssemblyReadResult, type Construc
 import {
   buildFlatAssembly,
   buildNestedAssembly,
+  buildNestedStackAssembly,
   buildNonTypeScriptAssembly,
   cleanupFixture,
   withMalformedValidationReport,
@@ -244,6 +245,140 @@ describe('readAssembly graceful degradation', () => {
     const stack = data.tree[0];
     expect(stack.id).toBe('Stack1');
     expect(stack.sourceLocation).toBeUndefined();
+  });
+});
+
+describe('readAssembly resource templateFile', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    cleanupFixture(dir);
+    dir = undefined;
+  });
+
+  test('sets templateFile to the resource\'s own stack template, none on wrappers', () => {
+    dir = buildFlatAssembly({
+      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Stack1.template.json'));
+    // L2 wrapper is not a CFN resource -> no template.
+    expect(findNode(data.tree, 'Stack1/MyBucket')!.templateFile).toBeUndefined();
+  });
+
+  test('resolves nested-stack resources to the nested template, not the parent', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'TopBucket', logicalId: 'TopBucketABC', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'MyNested',
+          resources: [{ id: 'NestedQueue', logicalId: 'NestedQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    // Top-level resource lives in the parent template.
+    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    // The resource inside the NestedStack lives in the nested template.
+    expect(findNode(data.tree, 'Parent/MyNested/NestedQueue/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentMyNested.nested.template.json'));
+  });
+
+  test('keeps templates distinct when two stacks share a logical id (stack-relative ids)', () => {
+    // Same-shape stacks produce the SAME stack-relative logicalId in different
+    // templates; each resource must resolve to its OWN stack's template.
+    dir = buildFlatAssembly({
+      stacks: [
+        { id: 'Prod', resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }] },
+        { id: 'Dev', resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }] },
+      ],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Prod/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Prod.template.json'));
+    expect(findNode(data.tree, 'Dev/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Dev.template.json'));
+  });
+
+  test('resolves a parent resource and its nested-stack twin that share a logical id', () => {
+    // A NestedStack resets the logical-ID namespace, so a parent resource and a
+    // resource in its own nested stack can share an id. The globally-unique
+    // construct path (aws:cdk:path) disambiguates them.
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'Nested',
+          resources: [{ id: 'Data', logicalId: 'DataX', cfnType: 'AWS::S3::Bucket' }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Parent/Data/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    expect(findNode(data.tree, 'Parent/Nested/Data/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentNested.nested.template.json'));
+  });
+
+  test('resolves a resource in a doubly-nested stack to the innermost template', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [],
+        nestedStacks: [{
+          id: 'Outer',
+          resources: [{ id: 'OuterFn', logicalId: 'OuterFnABC', cfnType: 'AWS::Lambda::Function' }],
+          nestedStacks: [{
+            id: 'Inner',
+            resources: [{ id: 'InnerQueue', logicalId: 'InnerQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+          }],
+        }],
+      },
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Parent/Outer/OuterFn/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentOuter.nested.template.json'));
+    expect(findNode(data.tree, 'Parent/Outer/Inner/InnerQueue/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'ParentOuterInner.nested.template.json'));
+  });
+
+  test('skips an unreadable nested template instead of failing the whole read', () => {
+    dir = buildNestedStackAssembly({
+      parent: {
+        id: 'Parent',
+        resources: [{ id: 'TopBucket', logicalId: 'TopBucketABC', cfnType: 'AWS::S3::Bucket' }],
+        nestedStacks: [{
+          id: 'Nested',
+          resources: [{ id: 'NestedQueue', logicalId: 'NestedQueueXYZ', cfnType: 'AWS::SQS::Queue' }],
+        }],
+      },
+    });
+    fs.rmSync(path.join(dir, 'ParentNested.nested.template.json'));
+    // Still a success: the missing nested template degrades only its subtree.
+    const data = expectSuccess(readAssembly(dir));
+    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Parent.template.json'));
+    expect(findNode(data.tree, 'Parent/Nested/NestedQueue/Resource')!.templateFile).toBeUndefined();
+  });
+
+  test('resolves templateFile without path metadata (positional, not id-based)', () => {
+    // Resolution threads the template down the construct tree, so it works
+    // regardless of --no-path-metadata (no reliance on aws:cdk:path).
+    dir = buildFlatAssembly({
+      pathMetadata: false,
+      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+    });
+    const data = expectSuccess(readAssembly(dir));
+
+    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+      .toBe(path.join(dir!, 'Stack1.template.json'));
   });
 });
 

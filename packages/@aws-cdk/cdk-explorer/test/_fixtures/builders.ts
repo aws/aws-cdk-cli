@@ -46,6 +46,8 @@ export interface StackSpec {
 
 export interface FlatAssemblySpec {
   readonly stacks: readonly StackSpec[];
+  /** Emit `aws:cdk:path` on template resources (default true); false simulates `--no-path-metadata`. */
+  readonly pathMetadata?: boolean;
 }
 
 export interface StageStackSpec {
@@ -68,6 +70,8 @@ export interface NestedStackSpec {
   readonly id: string;
   /** Resources inside the nested stack. */
   readonly resources: readonly ResourceSpec[];
+  /** Nested stacks inside this nested stack (for nested-in-nested fixtures). */
+  readonly nestedStacks?: readonly NestedStackSpec[];
 }
 
 export interface NestedStackParentSpec {
@@ -88,7 +92,7 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
 
   for (const stack of spec.stacks) {
     artifacts[stack.id] = stackArtifact(stack);
-    writeTemplate(dir, stack);
+    writeTemplate(dir, stack.id, stack.resources, stack.id, spec.pathMetadata ?? true);
   }
 
   writeJson(path.join(dir, 'manifest.json'), {
@@ -135,7 +139,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
         displayName: constructPath,
         metadata: stackMetadata(stack.resources, `/${constructPath}`),
       };
-      writeTemplate(stageDir, { id: artifactId, resources: stack.resources });
+      writeTemplate(stageDir, artifactId, stack.resources, constructPath);
     }
 
     writeJson(path.join(stageDir, 'manifest.json'), {
@@ -179,14 +183,23 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
   const dir = mkAssemblyDir('nestedstack');
   const { parent } = spec;
 
+  // All nested resources' metadata lives under the PARENT artifact, keyed by
+  // full construct path (any depth), mirroring aws-cdk-lib.
   const metadata: Record<string, unknown[]> = {};
+  const parentChildren: Record<string, unknown> = {};
+  const parentResources: Record<string, unknown> = {};
+
   for (const r of parent.resources) {
     metadata[`/${parent.id}/${r.id}/Resource`] = [logicalIdEntry(r)];
+    parentChildren[r.id] = resourceTreeNode(parent.id, r);
+    parentResources[r.logicalId] = {
+      Type: r.cfnType,
+      Metadata: { 'aws:cdk:path': `${parent.id}/${r.id}/Resource` },
+      Properties: {},
+    };
   }
   for (const ns of parent.nestedStacks) {
-    for (const r of ns.resources) {
-      metadata[`/${parent.id}/${ns.id}/${r.id}/Resource`] = [logicalIdEntry(r)];
-    }
+    emitNestedStack(dir, metadata, parentChildren, parentResources, parent.id, ns);
   }
 
   writeJson(path.join(dir, 'manifest.json'), {
@@ -202,22 +215,6 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
       },
     },
   });
-
-  const parentChildren: Record<string, unknown> = {};
-  for (const r of parent.resources) {
-    parentChildren[r.id] = resourceTreeNode(parent.id, r);
-  }
-  for (const ns of parent.nestedStacks) {
-    parentChildren[ns.id] = {
-      id: ns.id,
-      path: `${parent.id}/${ns.id}`,
-      constructInfo: { fqn: 'aws-cdk-lib.NestedStack', version: CONSTRUCT_INFO_VERSION },
-      children: Object.fromEntries(
-        ns.resources.map((r) => [r.id, resourceTreeNode(`${parent.id}/${ns.id}`, r)]),
-      ),
-    };
-  }
-
   writeJson(path.join(dir, 'tree.json'), {
     version: TREE_SCHEMA_VERSION,
     tree: appNode([{
@@ -227,9 +224,78 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
       children: parentChildren,
     }]),
   });
-  writeJson(path.join(dir, `${parent.id}.template.json`), { Resources: {} });
+  writeJson(path.join(dir, `${parent.id}.template.json`), { Resources: parentResources });
   fs.writeFileSync(path.join(dir, 'cdk.out'), JSON.stringify({ version: ASSEMBLY_SCHEMA_VERSION }));
   return dir;
+}
+
+/**
+ * Writes one nested stack's template (its resources plus an
+ * AWS::CloudFormation::Stack + aws:asset:path per child nested stack) and
+ * recurses for those children. Accumulates every resource's logical-ID
+ * metadata into the parent artifact's metadata map, keyed by full construct
+ * path. Returns the tree node and the nested template filename.
+ */
+function emitNestedStack(
+  dir: string,
+  metadata: Record<string, unknown[]>,
+  parentChildren: Record<string, unknown>,
+  parentResources: Record<string, unknown>,
+  parentPath: string,
+  ns: NestedStackSpec,
+): void {
+  const nsPath = `${parentPath}/${ns.id}`;
+  const templateFile = `${nsPath.replace(/\//g, '')}.nested.template.json`;
+  const cfnStackLogicalId = `${ns.id}NestedStackResource`;
+
+  // Parent template: the AWS::CloudFormation::Stack resource pointing at the
+  // nested template via aws:asset:path.
+  parentResources[cfnStackLogicalId] = {
+    Type: 'AWS::CloudFormation::Stack',
+    Metadata: { 'aws:asset:path': templateFile },
+    Properties: {},
+  };
+  // Tree: mirror aws-cdk-lib -- the CfnStack resource lives in a SIBLING
+  // `<id>.NestedStack` wrapper (not under the NestedStack construct), and its
+  // logical ID is emitted into the owning stack's metadata.
+  const resourcePath = `${nsPath}.NestedStack/${ns.id}.NestedStackResource`;
+  parentChildren[`${ns.id}.NestedStack`] = {
+    id: `${ns.id}.NestedStack`,
+    path: `${nsPath}.NestedStack`,
+    constructInfo: { fqn: 'constructs.Construct', version: CONSTRUCT_INFO_VERSION },
+    children: {
+      [`${ns.id}.NestedStackResource`]: {
+        id: `${ns.id}.NestedStackResource`,
+        path: resourcePath,
+        attributes: { 'aws:cdk:cloudformation:type': 'AWS::CloudFormation::Stack' },
+      },
+    },
+  };
+  metadata[`/${resourcePath}`] = [{ type: ArtifactMetadataEntryType.LOGICAL_ID, data: cfnStackLogicalId }];
+
+  // The nested stack's own construct subtree + template.
+  const nsChildren: Record<string, unknown> = {};
+  const nsResources: Record<string, unknown> = {};
+  for (const r of ns.resources) {
+    metadata[`/${nsPath}/${r.id}/Resource`] = [logicalIdEntry(r)];
+    nsChildren[r.id] = resourceTreeNode(nsPath, r);
+    nsResources[r.logicalId] = {
+      Type: r.cfnType,
+      Metadata: { 'aws:cdk:path': `${nsPath}/${r.id}/Resource` },
+      Properties: {},
+    };
+  }
+  for (const child of ns.nestedStacks ?? []) {
+    emitNestedStack(dir, metadata, nsChildren, nsResources, nsPath, child);
+  }
+  writeJson(path.join(dir, templateFile), { Resources: nsResources });
+
+  parentChildren[ns.id] = {
+    id: ns.id,
+    path: nsPath,
+    constructInfo: { fqn: 'aws-cdk-lib.NestedStack', version: CONSTRUCT_INFO_VERSION },
+    children: nsChildren,
+  };
 }
 
 /** Manifest + tree with no metadata, no traces — for non-TS app graceful-degradation tests. */
@@ -395,10 +461,22 @@ function logicalIdEntry(r: ResourceSpec): Record<string, unknown> {
   return entry;
 }
 
-function writeTemplate(dir: string, stack: { id: string; resources: readonly ResourceSpec[] }): void {
-  const resources: Record<string, unknown> = {};
-  for (const r of stack.resources) {
-    resources[r.logicalId] = { Type: r.cfnType, Properties: {} };
+function writeTemplate(
+  dir: string,
+  fileBaseId: string,
+  resources: readonly ResourceSpec[],
+  constructPathPrefix: string,
+  pathMetadata = true,
+): void {
+  const out: Record<string, unknown> = {};
+  for (const r of resources) {
+    out[r.logicalId] = {
+      Type: r.cfnType,
+      // aws:cdk:path mirrors real synth output (on by default), giving each
+      // resource its globally-unique construct path for collision-free lookup.
+      ...(pathMetadata ? { Metadata: { 'aws:cdk:path': `${constructPathPrefix}/${r.id}/Resource` } } : {}),
+      Properties: {},
+    };
   }
-  writeJson(path.join(dir, `${stack.id}.template.json`), { Resources: resources });
+  writeJson(path.join(dir, `${fileBaseId}.template.json`), { Resources: out });
 }

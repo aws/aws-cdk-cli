@@ -152,3 +152,140 @@ describe('buildConstructTree', () => {
     expect(buildConstructTree(assembly, (f) => f)).toEqual([]);
   });
 });
+
+describe('buildConstructTree -- nested stacks', () => {
+  let dir: string;
+  afterEach(() => dir && rimraf(dir));
+
+  const TREE_FILE = 'tree.json';
+
+  interface NestedOpts {
+    /** Logical ID of the bucket inside the nested stack (parent bucket is always 'ParentBucket'). */
+    readonly nestedBucketLogicalId?: string;
+    /** false simulates --no-asset-metadata: the CfnStack carries no aws:asset:path. */
+    readonly withAssetMetadata?: boolean;
+    /** false simulates a missing/unstaged asset: the nested template file isn't written. */
+    readonly writeNestedTemplate?: boolean;
+  }
+
+  /**
+   * Emits the real aws-cdk-lib NestedStack topology: a `Nested` construct, its
+   * sibling `Nested.NestedStack/Nested.NestedStackResource` AWS::CloudFormation::Stack
+   * (carrying aws:asset:path), and a bucket in both the parent and nested stacks.
+   * The `Nested` node deliberately carries a jsii fqn that does NOT end in
+   * ".NestedStack" -- so every test here also proves detection is by the sibling,
+   * not the fqn (P2b).
+   */
+  function writeNestedAssembly(opts: NestedOpts = {}): string {
+    const withAsset = opts.withAssetMetadata ?? true;
+    const writeNested = opts.writeNestedTemplate ?? true;
+    const nestedBucketLid = opts.nestedBucketLogicalId ?? 'NestedBucket';
+
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'caa-nested-'));
+
+    const nestedStackResource: Record<string, unknown> = { Type: 'AWS::CloudFormation::Stack' };
+    if (withAsset) nestedStackResource.Metadata = { 'aws:asset:path': 'nested.template.json' };
+    const parentTemplate = { Resources: { ParentBucket: { Type: 'AWS::S3::Bucket' }, NestedStackRes: nestedStackResource } };
+    const nestedTemplate = { Resources: { [nestedBucketLid]: { Type: 'AWS::S3::Bucket' } } };
+
+    const artifacts = {
+      MyStack: {
+        type: 'aws:cloudformation:stack',
+        environment: 'aws://111/us-east-1',
+        properties: { templateFile: 'template.json' },
+        metadata: {
+          '/MyStack/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'ParentBucket' }],
+          '/MyStack/Nested/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: nestedBucketLid }],
+          '/MyStack/Nested.NestedStack/Nested.NestedStackResource': [{ type: 'aws:cdk:logicalId', data: 'NestedStackRes' }],
+        },
+      },
+      Tree: { type: 'cdk:tree', properties: { file: TREE_FILE } },
+    };
+
+    const tree = {
+      version: 'tree-0.1',
+      tree: {
+        id: 'App',
+        path: '',
+        children: {
+          MyStack: {
+            id: 'MyStack',
+            path: 'MyStack',
+            children: {
+              'Bucket': {
+                id: 'Bucket',
+                path: 'MyStack/Bucket',
+                children: { Resource: { id: 'Resource', path: 'MyStack/Bucket/Resource', attributes: { 'aws:cdk:cloudformation:type': 'AWS::S3::Bucket' } } },
+              },
+              'Nested': {
+                id: 'Nested',
+                path: 'MyStack/Nested',
+                // jsii fqn intentionally NOT ending in ".NestedStack" (P2b regression).
+                constructInfo: { fqn: 'my-lib.DatabaseNestedStack', version: '1.0.0' },
+                children: {
+                  Bucket: {
+                    id: 'Bucket',
+                    path: 'MyStack/Nested/Bucket',
+                    children: { Resource: { id: 'Resource', path: 'MyStack/Nested/Bucket/Resource', attributes: { 'aws:cdk:cloudformation:type': 'AWS::S3::Bucket' } } },
+                  },
+                },
+              },
+              'Nested.NestedStack': {
+                id: 'Nested.NestedStack',
+                path: 'MyStack/Nested.NestedStack',
+                children: {
+                  'Nested.NestedStackResource': {
+                    id: 'Nested.NestedStackResource',
+                    path: 'MyStack/Nested.NestedStack/Nested.NestedStackResource',
+                    attributes: { 'aws:cdk:cloudformation:type': 'AWS::CloudFormation::Stack' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: '0.0.0', artifacts }));
+    fs.writeFileSync(path.join(dir, 'template.json'), JSON.stringify(parentTemplate));
+    if (writeNested) fs.writeFileSync(path.join(dir, 'nested.template.json'), JSON.stringify(nestedTemplate));
+    fs.writeFileSync(path.join(dir, TREE_FILE), JSON.stringify(tree));
+    return dir;
+  }
+
+  const templateFileOf = (assemblyDir: string, nodePath: string): string | undefined =>
+    ConstructIndex.fromTree(buildConstructTree(new CloudAssembly(assemblyDir), (f) => f)).byPath(nodePath)?.templateFile;
+
+  test('resolves nested resources to the nested template and parent resources to the parent template', () => {
+    const d = writeNestedAssembly();
+    expect(templateFileOf(d, 'MyStack/Bucket/Resource')).toBe(path.join(d, 'template.json'));
+    expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBe(path.join(d, 'nested.template.json'));
+  });
+
+  test('resolves parent and nested twins (same logical ID) to their own templates', () => {
+    // NestedStack resets the logical-ID namespace, so both buckets are "ParentBucket".
+    // Positional threading must still send each to its own template.
+    const d = writeNestedAssembly({ nestedBucketLogicalId: 'ParentBucket' });
+    expect(templateFileOf(d, 'MyStack/Bucket/Resource')).toBe(path.join(d, 'template.json'));
+    expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBe(path.join(d, 'nested.template.json'));
+  });
+
+  test('detects the NestedStack by its sibling resource, not the construct fqn (jsii subclass)', () => {
+    // The fixture's Nested node fqn is "my-lib.DatabaseNestedStack" (does not end in
+    // ".NestedStack"); a suffix gate would miss it and mis-inherit the parent template.
+    const d = writeNestedAssembly();
+    expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBe(path.join(d, 'nested.template.json'));
+  });
+
+  test('yields no templateFile when the nested template is missing/unreadable', () => {
+    const d = writeNestedAssembly({ writeNestedTemplate: false });
+    expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBeUndefined();
+    expect(templateFileOf(d, 'MyStack/Bucket/Resource')).toBe(path.join(d, 'template.json'));
+  });
+
+  test('yields no templateFile when asset metadata is absent (--no-asset-metadata)', () => {
+    const d = writeNestedAssembly({ withAssetMetadata: false });
+    expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBeUndefined();
+  });
+});

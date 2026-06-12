@@ -211,8 +211,7 @@ describe('LSP Server', () => {
 
     expect(lenses).toHaveLength(1);
     expect(lenses[0].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
-    expect(lenses[0].command?.title).toContain('AWS::S3::Bucket');
-    expect(lenses[0].command?.title).toContain('MyBucketABC');
+    expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('publishes nothing when assembly is not-found (pre-synth)', () => {
