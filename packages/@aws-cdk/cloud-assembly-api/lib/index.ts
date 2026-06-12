@@ -20,3 +20,4 @@ export * from './placeholders';
 export * from './environment';
 export * from './bootstrap';
 export * from './construct-tree';
+export * from './template-ranges';

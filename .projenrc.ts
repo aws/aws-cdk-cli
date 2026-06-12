@@ -582,6 +582,10 @@ const cloudAssemblyApi = configureProject(
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
     ],
     deps: [
+      // Position-aware JSON parser used to compute character ranges for template
+      // resource/property blocks. Maintained by the VS Code team, zero transitive
+      // deps, already resolved at 3.2.0 in the lockfile; stdlib JSON.parse discards offsets.
+      'jsonc-parser@3.2.0',
       'jsonschema@^1.5.0',
       'semver',
     ],
