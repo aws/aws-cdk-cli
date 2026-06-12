@@ -1,3 +1,4 @@
+import '../../../private/dispose-polyfill';
 import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import type { IoDefaultMessages } from './io-default-messages';
@@ -117,6 +118,11 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
    * `<name>_cnt` keys.
    */
   startTimer(name: string): ITimer;
+
+  /**
+   * Record a finished time with a given duration
+   */
+  addTimer(name: string, duration: number): void;
 }
 
 /**
@@ -124,6 +130,7 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
  */
 export interface ITimer {
   stop(): void;
+  [Symbol.dispose](): void;
 }
 
 /**
@@ -235,12 +242,19 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
     const t: ITimer = {
       stop: () => {
         this.openTimers.delete(t);
-        this.incCounter(`${name}_ms`, Math.floor(Date.now() - start) / 1000);
-        this.incCounter(`${name}_cnt`, 1);
+        this.addTimer(name, Math.floor(Date.now() - start));
+      },
+      [Symbol.dispose]() {
+        this.stop();
       },
     };
     this.openTimers.add(t);
     return t;
+  }
+
+  public addTimer(name: string, durationMs: number): void {
+    this.incCounter(`${name}_ms`, Math.floor(durationMs));
+    this.incCounter(`${name}_cnt`, 1);
   }
 
   private time() {

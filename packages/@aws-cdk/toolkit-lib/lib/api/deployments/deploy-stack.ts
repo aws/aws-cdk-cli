@@ -278,6 +278,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       noOp: true,
       outputs: cloudFormationStack.outputs,
       stackArn: cloudFormationStack.stackId,
+      deleteFailures: [],
     };
   } else {
     await ioHelper.defaults.debug(`${deployName}: deploying...`);
@@ -351,6 +352,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         noOp: true,
         stackArn: cloudFormationStack.stackId,
         outputs: cloudFormationStack.outputs,
+        deleteFailures: [],
       };
     }
   }
@@ -461,6 +463,7 @@ class FullCloudFormationDeployment {
         noOp: true,
         outputs: this.cloudFormationStack.outputs,
         stackArn: changeSetDescription.StackId!,
+        deleteFailures: [],
       };
     }
 
@@ -475,6 +478,7 @@ class FullCloudFormationDeployment {
         outputs: this.cloudFormationStack.outputs,
         stackArn: changeSetDescription.StackId!,
         changeSet: changeSetDescription,
+        deleteFailures: [],
       };
     }
 
@@ -632,6 +636,7 @@ class FullCloudFormationDeployment {
             noOp: true,
             outputs: this.cloudFormationStack.outputs,
             stackArn: this.cloudFormationStack.stackId,
+            deleteFailures: [],
           };
         }
         throw err;
@@ -661,6 +666,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       changeSetCreationTime: startTime,
       envResources: this.options.envResources,
+      isStackUpdate: this.update,
     });
     await monitor.start();
 
@@ -693,6 +699,7 @@ class FullCloudFormationDeployment {
       noOp: false,
       outputs: finalState.outputs,
       stackArn: finalState.stackId,
+      deleteFailures: this.update ? monitor.deleteFailures : [],
     };
   }
 

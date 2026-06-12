@@ -7,6 +7,18 @@
 
 /**
  * The top-level structure of the policy validation report file.
+ *
+ * @example
+ * import { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const report: PolicyValidationReportJson = {
+ *   version: '1.0',
+ *   pluginReports: [{
+ *     pluginName: 'my-plugin',
+ *     conclusion: 'success',
+ *     violations: [],
+ *   }],
+ * };
  */
 export interface PolicyValidationReportJson {
   /**
@@ -27,6 +39,15 @@ export interface PolicyValidationReportJson {
 
 /**
  * A report from a single validation plugin.
+ *
+ * @example
+ * import { PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const report: PluginReportJson = {
+ *   pluginName: 'my-plugin',
+ *   conclusion: 'success',
+ *   violations: [],
+ * };
  */
 export interface PluginReportJson {
   /**
@@ -77,6 +98,16 @@ export type PolicyValidationReportConclusion = 'success' | 'failure';
 
 /**
  * A single policy violation found by a validation plugin.
+ *
+ * @example
+ * import { PolicyViolationJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const violation: PolicyViolationJson = {
+ *   ruleName: 'no-public-access',
+ *   description: 'S3 bucket should not allow public access',
+ *   severity: 'error',
+ *   violatingConstructs: [{ constructPath: 'MyStack/MyBucket' }],
+ * };
  */
 export interface PolicyViolationJson {
   /**
@@ -175,6 +206,17 @@ export interface ViolatingConstructJson {
 /**
  * A violation that was acknowledged/suppressed and excluded from the
  * active violation set.
+ *
+ * @example
+ * import { SuppressedViolationJson } from '@aws-cdk/cloud-assembly-schema';
+ *
+ * const suppressed: SuppressedViolationJson = {
+ *   ruleName: 'no-public-access',
+ *   description: 'S3 bucket should not allow public access',
+ *   severity: 'warning',
+ *   violatingConstructs: [{ constructPath: 'MyStack/MyBucket' }],
+ *   acknowledgedId: 'my-plugin::no-public-access',
+ * };
  */
 export interface SuppressedViolationJson extends PolicyViolationJson {
   /**

@@ -69,6 +69,13 @@ export interface StackActivityMonitorProps {
    * @default - Bootstrap version is not reported in error messages
    */
   readonly envResources?: EnvironmentResources;
+
+  /**
+   * Whether this deployment is an update to an existing stack (as opposed to a creation).
+   *
+   * @default false
+   */
+  readonly isStackUpdate?: boolean;
 }
 
 /**
@@ -112,6 +119,7 @@ export class StackActivityMonitor {
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
   private readonly envResources?: EnvironmentResources;
+  private readonly isStackUpdate: boolean;
 
   constructor({
     cfn,
@@ -122,12 +130,14 @@ export class StackActivityMonitor {
     changeSetCreationTime,
     pollingInterval = 2_000,
     envResources,
+    isStackUpdate = false,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackDisplayName = stackNameFromArn(stackArn);
     this.cfn = cfn;
     this.envResources = envResources;
+    this.isStackUpdate = isStackUpdate;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
@@ -144,6 +154,14 @@ export class StackActivityMonitor {
     return this.poller.errors;
   }
 
+  /**
+   * Resources that received DELETE_FAILED during the stack update.
+   * CloudFormation skips these and completes the update anyway.
+   */
+  public get deleteFailures() {
+    return this.poller.deleteFailures;
+  }
+
   public async start() {
     this.monitorId = randomUUID();
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
@@ -151,6 +169,7 @@ export class StackActivityMonitor {
       stack: this.stack,
       stackName: this.stackDisplayName,
       resourcesTotal: this.progressMonitor.total,
+      isStackUpdate: this.isStackUpdate,
     }));
     this.scheduleNextTick();
     return this;

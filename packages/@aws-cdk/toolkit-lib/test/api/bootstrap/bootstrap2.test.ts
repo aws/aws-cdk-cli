@@ -73,6 +73,7 @@ describe('Bootstrapping v2', () => {
     mockDeployStack.mockResolvedValue({
       type: 'did-deploy-stack',
       noOp: false,
+      deleteFailures: [],
       outputs: {},
       stackArn: 'arn:stack',
     });
@@ -466,6 +467,7 @@ describe('Bootstrapping v2', () => {
       return Promise.resolve({
         type: 'did-deploy-stack',
         noOp: false,
+        deleteFailures: [],
         outputs: {},
         stackArn: 'arn:stack',
       });
@@ -752,6 +754,7 @@ describe('Bootstrapping v2', () => {
         return Promise.resolve({
           type: 'did-deploy-stack',
           noOp: false,
+          deleteFailures: [],
           outputs: {},
           stackArn: 'arn:stack',
         });

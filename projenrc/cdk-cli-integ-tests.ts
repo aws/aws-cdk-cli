@@ -12,32 +12,13 @@ export function fixupTestTask(project: Project, taskName = 'test'): void {
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
-/**
- * Common workflow steps
- */
-function downloadArtifactsSteps(): github.workflows.JobStep[] {
-  return [
-    github.WorkflowSteps.downloadArtifact({
-      with: {
-        name: 'build-artifact',
-        path: 'packages',
-      },
-    }),
-    github.WorkflowSteps.downloadArtifact({
-      with: {
-        name: 'script-artifact',
-        path: '.projen',
-      },
-    }),
-  ];
-}
-
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
-    uses: 'actions/setup-node@v4',
+    uses: 'actions/setup-node@v6',
     with: {
       'node-version': nodeVersion,
+      'package-manager-cache': false,
     },
   };
 }
@@ -46,7 +27,7 @@ function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string):
   return {
     name: 'Authenticate Via OIDC Role',
     id: 'creds',
-    uses: 'aws-actions/configure-aws-credentials@v4',
+    uses: 'aws-actions/configure-aws-credentials@v6',
     with: {
       'aws-region': 'us-east-1',
       'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
@@ -388,10 +369,20 @@ export class CdkCliIntegTestsWorkflow extends Component {
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
       if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
+      outputs: {
+        packagesArtifact: {
+          stepId: 'build-artifact',
+          outputName: 'artifact-id',
+        },
+        scriptsArtifact: {
+          stepId: 'script-artifact',
+          outputName: 'artifact-id',
+        },
+      },
       steps: [
         {
           name: 'Checkout',
-          uses: 'actions/checkout@v4',
+          uses: 'actions/checkout@v6',
           with: {
             // IMPORTANT! This must be `head.sha` not `head.ref`, otherwise we
             // are vulnerable to a TOCTOU attack.
@@ -430,6 +421,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         github.WorkflowSteps.uploadArtifact({
+          id: 'build-artifact',
           with: {
             name: 'build-artifact',
             path: 'packages/**/dist/js/*.tgz',
@@ -437,6 +429,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         }),
         github.WorkflowSteps.uploadArtifact({
+          id: 'script-artifact',
           with: {
             name: 'script-artifact',
             path: '.projen/*.sh',
@@ -582,21 +575,35 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       },
       steps: [
-        ...downloadArtifactsSteps(),
+        github.WorkflowSteps.downloadArtifact({
+          with: {
+            artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.packagesArtifact}}`],
+            path: 'packages',
+          },
+        }),
+        github.WorkflowSteps.downloadArtifact({
+          with: {
+            artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.scriptsArtifact}}`],
+            path: '.projen',
+          },
+        }),
         setupNodeStep('${{ matrix.node }}'),
         {
           name: 'Set up JDK 18',
           if: 'matrix.suite == \'init-java\' || matrix.suite == \'cli-integ-tests\'',
-          uses: 'actions/setup-java@v4',
+          uses: 'actions/setup-java@v5',
           with: {
             'java-version': '18',
             'distribution': 'corretto',
           },
         },
-        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         gitIdentityStep(),
         ...verdaccioSteps(),
         determineVersionsStep(),
+        // Run AWS OIDC auth after everything else, so creds are only easily accessible then.
+        // This is defense in depth. Since the workflow's ambient identify is trusted, any script at any point can assume the OIDC role.
+        // The OIDC role is designed to not be able to do anything else but vending Atmosphere creds.
+        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
           run: `npx run-suite${this.maxWorkersArg}${shardArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
@@ -606,7 +613,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Set workflow summary',
           if: 'always()',
           run: [
-            // Don't fail the glob expensaion if there are no .md files
+            // Don't fail the glob expansion if there are no .md files
             'if compgen -G "logs/md/*.md" > /dev/null; then',
             '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
             'fi',

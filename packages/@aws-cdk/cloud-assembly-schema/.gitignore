@@ -52,8 +52,9 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
-.jsii.tabl.json
-!/rosetta/default.ts-fixture
 .jsii
 tsconfig.json
+.jsii.tabl.json
+!/rosetta/default.ts-fixture
 cli-version.json
+_generated.ts-fixture

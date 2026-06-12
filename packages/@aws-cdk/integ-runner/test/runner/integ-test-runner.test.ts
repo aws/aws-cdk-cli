@@ -691,6 +691,63 @@ describe('IntegTest runIntegTests', () => {
     }));
     expect(fs.readJSONSync).toHaveBeenCalledWith(fullOutputsPath);
   });
+
+  test('fails when deploy returns deleteFailures', async () => {
+    // GIVEN
+    cdkMock.mockDeploy(jest.fn().mockResolvedValue({
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+    }));
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // THEN
+    await expect(integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+    })).rejects.toThrow(/1 resource\(s\) failed to delete during stack update/);
+  });
+
+  test('does not fail when deploy returns deleteFailures with allowDeleteFailures', async () => {
+    // GIVEN
+    cdkMock.mockDeploy(jest.fn().mockResolvedValue({
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+    }));
+
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // THEN - does not throw
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      allowDeleteFailures: true,
+    });
+  });
 });
 
 describe('IntegTest watchIntegTest', () => {
@@ -841,5 +898,128 @@ describe('IntegTest roleArn', () => {
     expect(cdkMock.mocks.destroy).toHaveBeenCalledWith(expect.objectContaining({
       roleArn: 'arn:aws:iam::123456789012:role/CliRole',
     }));
+  });
+
+  test('updateFromTags deploys each tag snapshot in sequence then current code', async () => {
+    // GIVEN - mock git checkout to succeed for both tags
+    spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: ['stdout', 'stderr'],
+      signal: null,
+    });
+
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      updateFromTags: ['v2.150.0', 'v2.151.0'],
+    });
+
+    // THEN - deploys: tag1 snapshot + tag2 snapshot + current code + assertion = 4
+    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(4);
+
+    // First two deploys use the snapshot directory (from tags)
+    expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
+      stacks: ['test-stack'],
+    }));
+    expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
+      stacks: ['test-stack'],
+    }));
+
+    // Third deploy is the current code
+    expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      app: 'node test/test-data/xxxxx.test-with-snapshot.js',
+      stacks: ['test-stack', 'new-test-stack'],
+    }));
+
+    // Git checkout was called for each tag
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'git', ['-C', expect.any(String), 'checkout', 'v2.150.0', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
+      expect.anything(),
+    );
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'git', ['-C', expect.any(String), 'checkout', 'v2.151.0', '--', 'xxxxx.test-with-snapshot.js.snapshot'],
+      expect.anything(),
+    );
+  });
+
+  test('updateFromTags fails fast if snapshot does not exist at tag', async () => {
+    // GIVEN - git checkout fails (snapshot doesn't exist at tag)
+    spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({
+      status: 1,
+      stderr: Buffer.from('error: pathspec did not match'),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: ['stdout', 'stderr'],
+      signal: null,
+    });
+    jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+
+    // THEN
+    await expect(integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      updateFromTags: ['v2.999.0'],
+    })).rejects.toThrow(/Snapshot does not exist at tag 'v2.999.0'/);
+
+    // No deploys should have been attempted
+    expect(cdkMock.mocks.deploy).not.toHaveBeenCalled();
+  });
+
+  test('updateFromTags skips normal merge-base workflow', async () => {
+    // GIVEN - mock git checkout to succeed
+    spawnSyncMock = jest.spyOn(child_process, 'spawnSync').mockReturnValue({
+      status: 0,
+      stderr: Buffer.from(''),
+      stdout: Buffer.from(''),
+      pid: 123,
+      output: ['stdout', 'stderr'],
+      signal: null,
+    });
+
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+    });
+    await integTest.runIntegTestCase({
+      testCaseName: 'xxxxx.test-with-snapshot',
+      updateFromTags: ['v2.150.0'],
+    });
+
+    // THEN - no merge-base git commands (no 'remote show origin', no 'merge-base')
+    expect(spawnSyncMock).not.toHaveBeenCalledWith(
+      'git', expect.arrayContaining(['remote', 'show', 'origin']),
+      expect.anything(),
+    );
+    expect(spawnSyncMock).not.toHaveBeenCalledWith(
+      'git', expect.arrayContaining(['merge-base']),
+      expect.anything(),
+    );
   });
 });

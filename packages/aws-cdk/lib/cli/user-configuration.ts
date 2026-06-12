@@ -44,6 +44,7 @@ export enum Command {
   DRIFT = 'drift',
   CLI_TELEMETRY = 'cli-telemetry',
   DIAGNOSE = 'diagnose',
+  VALIDATE = 'validate',
 }
 
 const BUNDLING_COMMANDS = [

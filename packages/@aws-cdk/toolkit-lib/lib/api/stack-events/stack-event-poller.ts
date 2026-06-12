@@ -1,6 +1,8 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import type { ResourceError } from './resource-errors';
 import { ResourceErrors } from './resource-errors';
+import type { ResourceDeleteFailure } from '../../toolkit/types';
 import { formatErrorMessage, isRootStackEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
@@ -152,6 +154,12 @@ export class StackEventPoller {
    */
   public readonly errors = new ResourceErrors();
 
+  /**
+   * Resources that received DELETE_FAILED during a stack update.
+   * CloudFormation skips these and completes the update anyway.
+   */
+  public readonly deleteFailures: ResourceDeleteFailure[] = [];
+
   private readonly eventIds = new Set<string>();
   private readonly nestedStackPollers: Record<string, StackEventPoller> = {};
 
@@ -194,8 +202,22 @@ export class StackEventPoller {
     this.events.push(...events);
 
     this.errors.update(...events);
+    this.updateDeleteFailures(events);
 
     return events;
+  }
+
+  private updateDeleteFailures(events: ResourceEvent[]) {
+    for (const { event } of events) {
+      if (event.ResourceStatus === ResourceStatus.DELETE_FAILED && event.ResourceType !== 'AWS::CloudFormation::Stack') {
+        this.deleteFailures.push({
+          logicalResourceId: event.LogicalResourceId ?? '',
+          physicalResourceId: event.PhysicalResourceId,
+          resourceType: event.ResourceType ?? '',
+          reason: event.ResourceStatusReason ?? '',
+        });
+      }
+    }
   }
 
   private async doPoll(): Promise<ResourceEvent[]> {
