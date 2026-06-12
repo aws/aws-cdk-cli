@@ -31,9 +31,9 @@
     "organization": true
   },
   "devDependencies": {
+    "@aws-cdk/private-tools": "^0.0.0",
     "@cdklabs/eslint-plugin": "^2.0.8",
     "@stylistic/eslint-plugin": "^3",
-    "@types/archiver": "^6.0.4",
     "@types/jest": "^29.5.14",
     "@types/mime": "^2",
     "@types/mock-fs": "^4",
@@ -45,6 +45,7 @@
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",

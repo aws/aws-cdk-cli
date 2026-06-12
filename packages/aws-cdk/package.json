@@ -88,6 +88,7 @@
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
     "@aws-cdk/cx-api": "^2",
+    "@aws-cdk/private-tools": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@aws-sdk/client-appsync": "^3",
     "@aws-sdk/client-bedrock-agentcore-control": "^3",

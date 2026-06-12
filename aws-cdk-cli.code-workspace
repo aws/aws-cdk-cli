@@ -27,6 +27,9 @@
       "path": "packages/@aws-cdk/integ-runner"
     },
     {
+      "path": "packages/@aws-cdk/private-tools"
+    },
+    {
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {

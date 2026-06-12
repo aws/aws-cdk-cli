@@ -18,6 +18,7 @@
 /.yarn/releases/* binary
 /.yarnrc.yml linguist-generated
 /jest.config.json linguist-generated
+/lib/private/tools.ts linguist-generated
 /LICENSE linguist-generated
 /package.json linguist-generated
 /test/tsconfig.json linguist-generated
