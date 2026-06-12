@@ -1686,10 +1686,13 @@ const cdkExplorer = configureProject(
       'vscode-languageserver-textdocument@^1',
       'vscode-jsonrpc@^8',
       'express@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
       '@types/express@^4',
+      '@types/convert-source-map@^2',
     ],
     tsconfig: {
       compilerOptions: {
@@ -1700,12 +1703,8 @@ const cdkExplorer = configureProject(
       jestConfig: {
         coverageThreshold: {
           statements: 80,
-          // The vscode-languageserver onExit handler unconditionally calls
-          // process.exit, which is not unit-testable and counts as one of
-          // very few functions in this small skeleton package. Lowered to
-          // 50% until the package grows; raise as more code is added.
           branches: 80,
-          functions: 50,
+          functions: 80,
           lines: 80,
         },
       },
