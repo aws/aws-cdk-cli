@@ -253,6 +253,11 @@ import {
 } from '@aws-sdk/client-ecr';
 import type {
   DescribeServicesCommandInput,
+  DescribeServicesCommandOutput,
+  DescribeTaskDefinitionCommandInput,
+  DescribeTaskDefinitionCommandOutput,
+  DescribeTasksCommandInput,
+  DescribeTasksCommandOutput,
   RegisterTaskDefinitionCommandInput,
   ListClustersCommandInput,
   ListClustersCommandOutput,
@@ -261,6 +266,9 @@ import type {
   UpdateServiceCommandOutput,
 } from '@aws-sdk/client-ecs';
 import {
+  DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  DescribeTasksCommand,
   ECSClient,
   ListClustersCommand,
   RegisterTaskDefinitionCommand,
@@ -555,6 +563,9 @@ export interface IECRClient {
 }
 
 export interface IECSClient {
+  describeServices(input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput>;
+  describeTaskDefinition(input: DescribeTaskDefinitionCommandInput): Promise<DescribeTaskDefinitionCommandOutput>;
+  describeTasks(input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput>;
   listClusters(input: ListClustersCommandInput): Promise<ListClustersCommandOutput>;
   registerTaskDefinition(input: RegisterTaskDefinitionCommandInput): Promise<RegisterTaskDefinitionCommandOutput>;
   updateService(input: UpdateServiceCommandInput): Promise<UpdateServiceCommandOutput>;
@@ -950,6 +961,12 @@ export class SDK {
   public ecs(): IECSClient {
     const client = new ECSClient(this.config);
     return {
+      describeServices: (input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput> =>
+        client.send(new DescribeServicesCommand(input)),
+      describeTaskDefinition: (input: DescribeTaskDefinitionCommandInput): Promise<DescribeTaskDefinitionCommandOutput> =>
+        client.send(new DescribeTaskDefinitionCommand(input)),
+      describeTasks: (input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput> =>
+        client.send(new DescribeTasksCommand(input)),
       listClusters: (input: ListClustersCommandInput): Promise<ListClustersCommandOutput> =>
         client.send(new ListClustersCommand(input)),
       registerTaskDefinition: (

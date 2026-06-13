@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`hostMessageFromDiagnosis change set failure with multiple errors for the same resource 1`] = `
 "❌ Stack MyStack:

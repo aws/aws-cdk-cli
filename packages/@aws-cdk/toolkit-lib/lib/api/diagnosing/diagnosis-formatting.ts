@@ -128,6 +128,19 @@ function formatResourceErrors(es: TracedResourceError[]) {
     nodeText.footer = e.sourceTrace?.creationStackTrace
       ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace)
       : [];
+
+    if (e.additionalContext) {
+      for (const ctx of e.additionalContext) {
+        const ctxNode = b.nodeText(`${p}/${ctx.source.replace(/\//g, '|')}`);
+        ctxNode.header = [`📋 ${ctx.source}:`];
+        for (const msg of ctx.messages) {
+          ctxNode.body.push(msg);
+        }
+        if (ctx.link) {
+          ctxNode.body.push(`🔗 ${ctx.link}`);
+        }
+      }
+    }
   }
   return b.render();
 }
