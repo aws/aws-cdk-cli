@@ -149,7 +149,11 @@ export class DefaultAwsClient implements IAws {
   }
 
   public async s3Client(options: ClientOptions): Promise<IS3Client> {
-    const client = new S3Client(await this.awsOptions(options));
+    const client = new S3Client({
+      ...(await this.awsOptions(options)),
+      // Allow forcing S3 path-style addressing (e.g. for custom/local endpoints).
+      forcePathStyle: process.env.CDK_S3_FORCE_PATH_STYLE ? true : undefined,
+    });
     return {
       getBucketEncryption: (
         input: GetBucketEncryptionCommandInput,
