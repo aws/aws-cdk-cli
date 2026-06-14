@@ -1,5 +1,6 @@
 import 'aws-sdk-client-mock-jest';
 
+import * as s3 from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import { mockSTS } from './mock-aws';
@@ -70,5 +71,41 @@ test('session tags are passed to fromTemporaryCredentials in awsOptions', async 
       ],
       TransitiveTagKeys: ['this', 'that'],
     },
+  });
+});
+
+describe('CDK_S3_FORCE_PATH_STYLE', () => {
+  let s3ClientSpy: jest.SpyInstance;
+  const originalValue = process.env.CDK_S3_FORCE_PATH_STYLE;
+
+  beforeEach(() => {
+    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
+  });
+
+  afterEach(() => {
+    s3ClientSpy.mockRestore();
+    if (originalValue === undefined) {
+      delete process.env.CDK_S3_FORCE_PATH_STYLE;
+    } else {
+      process.env.CDK_S3_FORCE_PATH_STYLE = originalValue;
+    }
+  });
+
+  test('forces path-style addressing on the S3 client when set', async () => {
+    process.env.CDK_S3_FORCE_PATH_STYLE = '1';
+    const aws = new DefaultAwsClient();
+
+    await aws.s3Client({ region: 'far-far-away' });
+
+    expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: true }));
+  });
+
+  test('leaves path-style addressing unset on the S3 client when not set', async () => {
+    delete process.env.CDK_S3_FORCE_PATH_STYLE;
+    const aws = new DefaultAwsClient();
+
+    await aws.s3Client({ region: 'far-far-away' });
+
+    expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: undefined }));
   });
 });

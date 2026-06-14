@@ -1068,7 +1068,11 @@ export class SDK {
   }
 
   public s3(): IS3Client {
-    const client = new S3Client(this.config);
+    const client = new S3Client({
+      ...this.config,
+      // Allow forcing S3 path-style addressing (e.g. for custom/local endpoints).
+      forcePathStyle: process.env.CDK_S3_FORCE_PATH_STYLE ? true : undefined,
+    });
     return {
       deleteObjects: (input: DeleteObjectsCommandInput): Promise<DeleteObjectsCommandOutput> =>
         client.send(new DeleteObjectsCommand({
