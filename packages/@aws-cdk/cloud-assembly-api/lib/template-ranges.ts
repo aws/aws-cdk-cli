@@ -1,4 +1,4 @@
-import { findNodeAtLocation, findNodeAtOffset, getNodePath, parseTree, type Node } from 'jsonc-parser';
+import { parse, type Pointers } from 'json-source-map';
 
 /**
  * A character-offset range into a template's text, as a half-open interval
@@ -15,23 +15,20 @@ export interface OffsetRange {
 
 /**
  * Resolves the character range of a resource's value block inside a synthesized
- * CloudFormation template. The range covers the value node `{ ... }` under
+ * CloudFormation template. The range covers the value `{ ... }` under
  * `Resources/<logicalId>`, so `JSON.parse(text.slice(start, end))` returns the
  * resource object.
  *
- * Returns `undefined` when the text cannot be parsed into a JSON tree, or when
- * `logicalId` is not a resource under `Resources`. Uses a position-aware parse
- * rather than a line scan because real templates contain literal braces and
- * escaped quotes inside string values (for example `Fn::Sub` placeholders),
- * which defeats naive brace matching.
+ * Returns `undefined` when the text is not valid JSON, or when there is no such
+ * resource.
  */
 export function resolveResourceRange(templateText: string, logicalId: string): OffsetRange | undefined {
-  const root = parseTree(templateText);
-  if (root === undefined) {
+  const pointers = parsePointers(templateText);
+  const mapping = pointers?.[`/Resources/${escapePointerSegment(logicalId)}`];
+  if (mapping === undefined) {
     return undefined;
   }
-  const blockNode = findNodeAtLocation(root, ['Resources', logicalId]);
-  return blockNode === undefined ? undefined : rangeOf(blockNode);
+  return { start: mapping.value.pos, end: mapping.valueEnd.pos };
 }
 
 /**
@@ -39,29 +36,41 @@ export function resolveResourceRange(templateText: string, logicalId: string): O
  * template's text, returns the logical id of the resource whose block contains
  * that offset, for linking a position in the template back to its construct.
  *
- * Returns `undefined` when the text cannot be parsed, or when the offset is not
+ * Returns `undefined` when the text is not valid JSON, or when the offset is not
  * inside any `Resources/<logicalId>` block (for example whitespace, the
- * top-level `Resources` key, or another top-level section).
+ * `Resources` key, or another top-level section).
  */
 export function resolveLogicalIdAtOffset(templateText: string, offset: number): string | undefined {
-  const root = parseTree(templateText);
-  if (root === undefined) {
+  const pointers = parsePointers(templateText);
+  if (pointers === undefined) {
     return undefined;
   }
-  const node = findNodeAtOffset(root, offset);
-  if (node === undefined) {
-    return undefined;
-  }
-  // The path of any node inside a resource is ['Resources', <logicalId>, ...].
-  // path[1] is always a key here; the typeof narrows getNodePath's string|number union.
-  const path = getNodePath(node);
-  if (path.length >= 2 && path[0] === 'Resources' && typeof path[1] === 'string') {
-    return path[1];
+  for (const [pointer, mapping] of Object.entries(pointers)) {
+    // Match only top-level resources (`/Resources/<id>`), not nested property
+    // pointers like `/Resources/<id>/Properties/...`.
+    const match = /^\/Resources\/([^/]+)$/.exec(pointer);
+    if (match && offset >= mapping.value.pos && offset < mapping.valueEnd.pos) {
+      return unescapePointerSegment(match[1]);
+    }
   }
   return undefined;
 }
 
-/** The character range covered by a parsed node. */
-function rangeOf(node: Node): OffsetRange {
-  return { start: node.offset, end: node.offset + node.length };
+/** Parse the template into its JSON-pointer map, or `undefined` if it is not valid JSON. */
+function parsePointers(templateText: string): Pointers | undefined {
+  try {
+    return parse(templateText).pointers;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Escape a single path segment for use in a JSON pointer. */
+function escapePointerSegment(segment: string): string {
+  return segment.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/** Reverse of `escapePointerSegment`. */
+function unescapePointerSegment(segment: string): string {
+  return segment.replace(/~1/g, '/').replace(/~0/g, '~');
 }

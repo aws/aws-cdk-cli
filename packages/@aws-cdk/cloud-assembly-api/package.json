@@ -35,6 +35,7 @@
     "@cdklabs/eslint-plugin": "^2.0.8",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
+    "@types/json-source-map": "^0.6.0",
     "@types/node": "^20",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
@@ -60,7 +61,7 @@
     "@aws-cdk/cloud-assembly-schema": "^0.0.0"
   },
   "dependencies": {
-    "jsonc-parser": "3.2.0",
+    "json-source-map": "^0.6.1",
     "jsonschema": "^1.5.0",
     "semver": "^7.8.1"
   },

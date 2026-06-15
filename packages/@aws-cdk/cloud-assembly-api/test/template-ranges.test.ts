@@ -74,15 +74,11 @@ describe('resolveResourceRange', () => {
     expect((sliceParse(block) as { Type: string }).Type).toBe('AWS::S3::Bucket');
   });
 
-  test('returns a range for lenient (trailing-comma) JSON rather than failing', () => {
-    // jsonc-parser is tolerant, so resolution does not require strict JSON; it
-    // still locates the block. (The slice is not guaranteed to be strict JSON —
-    // relevant once L3 reads half-written templates on save.)
-    const lenient = '{\n "Resources": {\n  "B": {\n   "Type": "AWS::S3::Bucket",\n  }\n }\n}';
-    const range = resolveResourceRange(lenient, 'B')!;
-    // Prove it located B specifically (not just "a range"). The lenient slice
-    // can't be strict-JSON-parsed, so match the text instead.
-    expect(lenient.slice(range.start, range.end)).toContain('AWS::S3::Bucket');
+  test('returns undefined for invalid JSON (for example a trailing comma)', () => {
+    // json-source-map is a strict parser, so a malformed template yields no
+    // range rather than a wrong one. Synthesized templates are always strict JSON.
+    const invalid = '{\n "Resources": {\n  "B": {\n   "Type": "AWS::S3::Bucket",\n  }\n }\n}';
+    expect(resolveResourceRange(invalid, 'B')).toBeUndefined();
   });
 
   test('returns undefined for an unknown logical id', () => {

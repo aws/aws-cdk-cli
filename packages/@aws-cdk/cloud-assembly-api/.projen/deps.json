@@ -18,6 +18,11 @@
       "type": "build"
     },
     {
+      "name": "@types/json-source-map",
+      "version": "^0.6.0",
+      "type": "build"
+    },
+    {
       "name": "@types/node",
       "version": "^20",
       "type": "build"
@@ -111,8 +116,8 @@
       "type": "peer"
     },
     {
-      "name": "jsonc-parser",
-      "version": "3.2.0",
+      "name": "json-source-map",
+      "version": "^0.6.1",
       "type": "runtime"
     },
     {
