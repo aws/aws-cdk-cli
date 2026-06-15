@@ -86,12 +86,13 @@ export interface NestedStackParentSpec {
 /** Build a flat assembly (stacks directly under App, no Stages). */
 export function buildFlatAssembly(spec: FlatAssemblySpec): string {
   const dir = mkAssemblyDir('flat');
+  const projectRoot = path.dirname(dir);
   const artifacts: Record<string, unknown> = {
     Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
   };
 
   for (const stack of spec.stacks) {
-    artifacts[stack.id] = stackArtifact(stack);
+    artifacts[stack.id] = stackArtifact(stack, projectRoot);
     writeTemplate(dir, stack.id, stack.resources, stack.id, spec.pathMetadata ?? true);
   }
 
@@ -110,6 +111,7 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
 /** Build a Stage-based assembly (each stage produces a nested cloud-assembly). */
 export function buildNestedAssembly(spec: NestedAssemblySpec): string {
   const rootDir = mkAssemblyDir('nested');
+  const projectRoot = path.dirname(rootDir);
   const rootArtifacts: Record<string, unknown> = {
     Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
   };
@@ -137,7 +139,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
         // displayName is the construct path; the reader keys metadata by
         // hierarchicalId, which falls back to displayName.
         displayName: constructPath,
-        metadata: stackMetadata(stack.resources, `/${constructPath}`),
+        metadata: stackMetadata(stack.resources, `/${constructPath}`, projectRoot),
       };
       writeTemplate(stageDir, artifactId, stack.resources, constructPath);
     }
@@ -181,6 +183,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
  */
 export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }): string {
   const dir = mkAssemblyDir('nestedstack');
+  const projectRoot = path.dirname(dir);
   const { parent } = spec;
 
   // All nested resources' metadata lives under the PARENT artifact, keyed by
@@ -190,7 +193,7 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
   const parentResources: Record<string, unknown> = {};
 
   for (const r of parent.resources) {
-    metadata[`/${parent.id}/${r.id}/Resource`] = [logicalIdEntry(r)];
+    metadata[`/${parent.id}/${r.id}/Resource`] = [logicalIdEntry(r, projectRoot)];
     parentChildren[r.id] = resourceTreeNode(parent.id, r);
     parentResources[r.logicalId] = {
       Type: r.cfnType,
@@ -199,7 +202,7 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
     };
   }
   for (const ns of parent.nestedStacks) {
-    emitNestedStack(dir, metadata, parentChildren, parentResources, parent.id, ns);
+    emitNestedStack(dir, metadata, parentChildren, parentResources, parent.id, ns, projectRoot);
   }
 
   writeJson(path.join(dir, 'manifest.json'), {
@@ -243,6 +246,7 @@ function emitNestedStack(
   parentResources: Record<string, unknown>,
   parentPath: string,
   ns: NestedStackSpec,
+  projectRoot: string,
 ): void {
   const nsPath = `${parentPath}/${ns.id}`;
   const templateFile = `${nsPath.replace(/\//g, '')}.nested.template.json`;
@@ -277,7 +281,7 @@ function emitNestedStack(
   const nsChildren: Record<string, unknown> = {};
   const nsResources: Record<string, unknown> = {};
   for (const r of ns.resources) {
-    metadata[`/${nsPath}/${r.id}/Resource`] = [logicalIdEntry(r)];
+    metadata[`/${nsPath}/${r.id}/Resource`] = [logicalIdEntry(r, projectRoot)];
     nsChildren[r.id] = resourceTreeNode(nsPath, r);
     nsResources[r.logicalId] = {
       Type: r.cfnType,
@@ -286,7 +290,7 @@ function emitNestedStack(
     };
   }
   for (const child of ns.nestedStacks ?? []) {
-    emitNestedStack(dir, metadata, nsChildren, nsResources, nsPath, child);
+    emitNestedStack(dir, metadata, nsChildren, nsResources, nsPath, child, projectRoot);
   }
   writeJson(path.join(dir, templateFile), { Resources: nsResources });
 
@@ -382,7 +386,10 @@ export function cleanupFixture(dir: string | undefined): void {
 // ---------- internals ----------
 
 function mkAssemblyDir(prefix: string): string {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), `cdk-explorer-${prefix}-`));
+  // realpath the temp dir so the project root (its parent) is canonical and
+  // matches source paths resolved from traces under the reader's containment
+  // check (e.g. macOS /var -> /private/var).
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `cdk-explorer-${prefix}-`)));
   return path.join(base, 'cdk.out');
 }
 
@@ -435,30 +442,45 @@ function resourceTreeNode(parentPath: string, r: ResourceSpec): unknown {
   };
 }
 
-function stackArtifact(stack: StackSpec): unknown {
+function stackArtifact(stack: StackSpec, projectRoot: string): unknown {
   return {
     type: 'aws:cloudformation:stack',
     environment: 'aws://unknown-account/unknown-region',
     properties: { templateFile: `${stack.id}.template.json` },
     displayName: stack.id,
-    metadata: stackMetadata(stack.resources, `/${stack.id}`),
+    metadata: stackMetadata(stack.resources, `/${stack.id}`, projectRoot),
   };
 }
 
-function stackMetadata(resources: readonly ResourceSpec[], pathPrefix: string): Record<string, unknown[]> {
+function stackMetadata(
+  resources: readonly ResourceSpec[],
+  pathPrefix: string,
+  projectRoot: string,
+): Record<string, unknown[]> {
   const metadata: Record<string, unknown[]> = {};
   for (const r of resources) {
-    metadata[`${pathPrefix}/${r.id}/Resource`] = [logicalIdEntry(r)];
+    metadata[`${pathPrefix}/${r.id}/Resource`] = [logicalIdEntry(r, projectRoot)];
   }
   return metadata;
 }
 
-function logicalIdEntry(r: ResourceSpec): Record<string, unknown> {
+function logicalIdEntry(r: ResourceSpec, projectRoot: string): Record<string, unknown> {
   const entry: Record<string, unknown> = { type: ArtifactMetadataEntryType.LOGICAL_ID, data: r.logicalId };
-  if (r.creationTrace && r.creationTrace.length > 0) {
-    entry.trace = [...r.creationTrace];
+  const trace = rebaseTrace(r.creationTrace, projectRoot);
+  if (trace && trace.length > 0) {
+    entry.trace = trace;
   }
   return entry;
+}
+
+/**
+ * Anchor a creation trace's source paths to the fixture's project root (the
+ * parent of cdk.out), mirroring real apps whose sources live beside cdk.out.
+ * Tests write `<PROJECT>` in a frame; the reader's containment check then
+ * accepts the resolved path instead of dropping it as out-of-project.
+ */
+function rebaseTrace(trace: readonly string[] | undefined, projectRoot: string): string[] | undefined {
+  return trace?.map((frame) => frame.replace(/<PROJECT>/g, projectRoot));
 }
 
 function writeTemplate(

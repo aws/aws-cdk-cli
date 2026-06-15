@@ -3,7 +3,7 @@ import * as path from 'path';
 import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
-import { SourceMapResolver, type SourceLocation } from './source-resolver';
+import { SourceMapResolver, isWithinRoot, type SourceLocation } from './source-resolver';
 
 /**
  * A construct from the cloud assembly, decorated with the user source location
@@ -43,11 +43,24 @@ export function readAssembly(assemblyDir: string): AssemblyReadResult {
 
   try {
     const assembly = new CloudAssembly(assemblyDir);
+    // The project root is the parent of the assembly dir: server.ts always
+    // builds it as <projectDir>/cdk.out, so dirname() recovers the project dir.
+    // (If --output support is added to relocate cdk.out, thread the IDE-provided
+    // application dir here instead.) Used to keep every file the resolver reads
+    // within the project
+    const projectRoot = path.dirname(assemblyDir);
     // One resolver per readAssembly call: caches parsed source maps across
     // constructs, scoped so a fresh synth observes any moved/edited maps.
-    const sourceResolver = new SourceMapResolver();
+    const sourceResolver = new SourceMapResolver(projectRoot);
     const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
       ...fields,
+      // templateFile comes from the manifest / a nested stack's aws:asset:path,
+      // both attacker-influenceable if cdk.out is tampered with. Drop any that
+      // escape the assembly dir so the template read in resourceTarget stays
+      // contained
+      templateFile: fields.templateFile && isWithinRoot(assemblyDir, fields.templateFile)
+        ? fields.templateFile
+        : undefined,
       sourceLocation: stack
         ? sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
         : undefined,

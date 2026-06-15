@@ -26,6 +26,16 @@ export class SourceMapResolver {
   private readonly cache = new Map<string, TraceMap | null>();
   private readonly collectedWarnings: string[] = [];
 
+  /**
+   * @param projectRoot - Absolute path to the project the assembly belongs to.
+   *   Every file this resolver reads or returns must stay within it. The paths
+   *   driving those reads come from the cloud assembly (stack-trace frames and
+   *   the source maps they point at), which are attacker-influenceable if
+   *   cdk.out is tampered with, so anything escaping the root is dropped
+   */
+  constructor(private readonly projectRoot: string) {
+  }
+
   /** Non-fatal warnings collected during resolution (e.g. an unparseable .js.map). */
   public get warnings(): readonly string[] {
     return this.collectedWarnings;
@@ -48,6 +58,9 @@ export class SourceMapResolver {
       const parsed = parseFrame(frame);
       if (!parsed) continue;
       if (!isSupportedSourceFile(parsed.file)) return undefined;
+      // The frame's file path is assembly-derived and attacker-influenceable.
+      // Never read or surface a location outside the project.
+      if (!isWithinRoot(this.projectRoot, parsed.file)) return undefined;
       return this.mapJsToOriginalSource(parsed);
     }
     return undefined;
@@ -73,6 +86,9 @@ export class SourceMapResolver {
     // map URL when building the TraceMap), with any sourceRoot applied — so it's
     // a file:// URL for local maps. Convert it back to a path.
     const file = orig.source.startsWith('file://') ? fileURLToPath(orig.source) : orig.source;
+    // `sources` comes from the .js.map, which is also assembly-derived. Keep the
+    // mapped original within the project, else fall back to the (in-root) .js.
+    if (!isWithinRoot(this.projectRoot, file)) return loc;
     return { file, line: orig.line, column: orig.column + 1 };
   }
 
@@ -107,6 +123,11 @@ export class SourceMapResolver {
         convertSourceMap.fromSource(code)
         ?? convertSourceMap.fromMapFileSource(code, (mapFile) => {
           const mapPath = path.resolve(path.dirname(jsFile), mapFile);
+          // sourceMappingURL is assembly-derived; don't read a map outside the
+          // project. The throw is caught below and surfaced as a load warning.
+          if (!isWithinRoot(this.projectRoot, mapPath)) {
+            throw new Error(`source map path escapes the project root: ${mapPath}`);
+          }
           mapUrl = pathToFileURL(mapPath).href;
           return fs.readFileSync(mapPath, 'utf-8');
         });
@@ -136,4 +157,26 @@ function parseFrame(frame: string): SourceLocation | undefined {
   const column = Number(m[3]);
   if (!Number.isFinite(line) || !Number.isFinite(column)) return undefined;
   return { file: m[1], line, column };
+}
+
+/**
+ * True when `candidate` resolves to a path inside `root` (or is `root` itself).
+ * Both are resolved to absolute, symlink-real paths first, so a file reached
+ * through a symlinked directory pointing outside `root` is rejected too. Used
+ * to keep file reads driven by (attacker-influenceable) cloud-assembly paths
+ * within the project before any read happens.
+ */
+export function isWithinRoot(root: string, candidate: string): boolean {
+  const realRoot = realOrSelf(path.resolve(root));
+  const realCandidate = realOrSelf(path.resolve(candidate));
+  return realCandidate === realRoot || realCandidate.startsWith(realRoot + path.sep);
+}
+
+/** Real path with symlinks resolved, or the resolved input if it does not exist. */
+function realOrSelf(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return p;
+  }
 }

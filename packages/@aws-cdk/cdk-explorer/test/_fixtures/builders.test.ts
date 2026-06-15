@@ -1,5 +1,6 @@
 // Sanity tests for the fixture builders. If these pass, every other test
 // that uses the builders inherits a known-good baseline.
+import * as path from 'path';
 import {
   buildFlatAssembly,
   buildNestedAssembly,
@@ -74,18 +75,19 @@ describe('fixture builders', () => {
           // so the first frame that parses is the user's call site.
           creationTrace: [
             '    ...node_modules-aws-cdk-lib...',
-            '    at new MyStack (/project/lib/my-stack.ts:12:5)',
+            '    at new MyStack (<PROJECT>/lib/my-stack.ts:12:5)',
           ],
         }],
       }],
     });
+    const projectRoot = path.dirname(dir);
 
     const result = readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     const resource = result.data.tree[0].children[0].children[0];
     expect(resource.sourceLocation).toEqual({
-      file: '/project/lib/my-stack.ts',
+      file: path.join(projectRoot, 'lib/my-stack.ts'),
       line: 12,
       column: 5,
     });
@@ -143,12 +145,13 @@ describe('fixture builders', () => {
             cfnType: 'AWS::S3::Bucket',
             creationTrace: [
               '    ...node_modules-aws-cdk-lib...',
-              '    at new MyNestedStack (/project/lib/nested.ts:7:5)',
+              '    at new MyNestedStack (<PROJECT>/lib/nested.ts:7:5)',
             ],
           }],
         }],
       },
     });
+    const projectRoot = path.dirname(dir);
 
     const result = readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
@@ -168,7 +171,7 @@ describe('fixture builders', () => {
     expect(nestedBucket.logicalId).toBe('NestedBucketBBB');
     expect(nestedBucket.type).toBe('AWS::S3::Bucket');
     expect(nestedBucket.sourceLocation).toEqual({
-      file: '/project/lib/nested.ts',
+      file: path.join(projectRoot, 'lib/nested.ts'),
       line: 7,
       column: 5,
     });
