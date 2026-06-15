@@ -1,4 +1,6 @@
-import { startAssemblyWatcher, type FileWatcher } from '../../lib/core/assembly-watcher';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
+import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
+import { startAssemblyWatcher, TREE_FILE, type FileWatcher } from '../../lib/core/assembly-watcher';
 
 type AnyListener = (...args: unknown[]) => void;
 
@@ -49,9 +51,9 @@ describe('Assembly Watcher', () => {
   test('coalesces a burst of assembly file changes into a single onChange', () => {
     const { fake, onChange } = setup();
 
-    fake.emitFile('change', '/p/cdk.out/manifest.json');
-    fake.emitFile('change', '/p/cdk.out/tree.json');
-    fake.emitFile('change', '/p/cdk.out/validation-report.json');
+    fake.emitFile('change', `/p/cdk.out/${MANIFEST_FILE}`);
+    fake.emitFile('change', `/p/cdk.out/${TREE_FILE}`);
+    fake.emitFile('change', `/p/cdk.out/${VALIDATION_REPORT_FILE}`);
     expect(onChange).not.toHaveBeenCalled();
 
     jest.advanceTimersByTime(200);
@@ -81,7 +83,7 @@ describe('Assembly Watcher', () => {
   test('reacts to nested stage assembly manifests', () => {
     const { fake, onChange } = setup();
 
-    fake.emitFile('add', '/p/cdk.out/assembly-Prod/manifest.json');
+    fake.emitFile('add', `/p/cdk.out/assembly-Prod/${MANIFEST_FILE}`);
 
     jest.advanceTimersByTime(200);
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -90,7 +92,7 @@ describe('Assembly Watcher', () => {
   test('close stops a pending onChange and closes the underlying watcher', async () => {
     const { fake, onChange, watcher } = setup();
 
-    fake.emitFile('change', '/p/cdk.out/manifest.json');
+    fake.emitFile('change', `/p/cdk.out/${MANIFEST_FILE}`);
     await watcher.close();
 
     jest.advanceTimersByTime(500);
@@ -127,7 +129,7 @@ describe('Assembly Watcher', () => {
       onError,
     });
 
-    fake.emitFile('change', '/p/cdk.out/manifest.json');
+    fake.emitFile('change', `/p/cdk.out/${MANIFEST_FILE}`);
     expect(() => jest.advanceTimersByTime(200)).not.toThrow();
 
     expect(onError).toHaveBeenCalledWith(failure);

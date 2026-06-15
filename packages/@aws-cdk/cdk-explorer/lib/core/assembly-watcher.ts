@@ -1,5 +1,15 @@
 import * as path from 'path';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
+import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
+
+/**
+ * The name of the construct tree metadata file emitted alongside the manifest.
+ * Producer (`aws-cdk-lib`) hard-codes this filename in its `TreeMetadata`
+ * synthesizer rather than importing a shared constant, so this is a
+ * consumer-side label only.
+ */
+export const TREE_FILE = 'tree.json';
 
 /**
  * Basenames whose change signals that the cloud assembly was (re)written.
@@ -8,9 +18,9 @@ import * as chokidar from 'chokidar';
  * markers) are intentionally ignored to avoid spurious refreshes.
  */
 const ASSEMBLY_SIGNAL_FILES = new Set([
-  'manifest.json',
-  'tree.json',
-  'validation-report.json',
+  MANIFEST_FILE,
+  TREE_FILE,
+  VALIDATION_REPORT_FILE,
 ]);
 
 const DEBOUNCE_MS = 200;

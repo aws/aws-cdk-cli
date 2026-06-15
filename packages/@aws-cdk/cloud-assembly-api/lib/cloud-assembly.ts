@@ -15,7 +15,7 @@ const CLOUD_ASSEMBLY_SYMBOL = Symbol.for('@aws-cdk/cx-api.CloudAssembly');
 /**
  * The name of the root manifest file of the assembly.
  */
-const MANIFEST_FILE = 'manifest.json';
+export const MANIFEST_FILE = 'manifest.json';
 
 /**
  * Represents a deployable cloud application.

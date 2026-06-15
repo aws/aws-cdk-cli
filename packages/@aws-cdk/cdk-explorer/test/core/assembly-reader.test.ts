@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { readAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../../lib';
 import {
   buildFlatAssembly,
@@ -101,7 +102,7 @@ describe('readAssembly', () => {
 
   test('returns error for malformed manifest', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-malformed-'));
-    fs.writeFileSync(path.join(tmpDir, 'manifest.json'), 'not json{{{');
+    fs.writeFileSync(path.join(tmpDir, MANIFEST_FILE), 'not json{{{');
     try {
       const result = readAssembly(tmpDir);
       expect(result.status).toBe('error');
@@ -143,7 +144,6 @@ describe('readAssembly with violations', () => {
     expect(data.violations).toBeDefined();
     expect(data.violations!.pluginReports[0].conclusion).toBe('failure');
     expect(data.violations!.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
-    expect(data.violationsError).toBeUndefined();
   });
 
   test('returns undefined violations when report file is absent', () => {
@@ -151,7 +151,6 @@ describe('readAssembly with violations', () => {
     const data = expectSuccess(readAssembly(dir));
 
     expect(data.violations).toBeUndefined();
-    expect(data.violationsError).toBeUndefined();
   });
 
   test('malformed validation report does not crash the tree read', () => {
@@ -162,7 +161,7 @@ describe('readAssembly with violations', () => {
 
     expect(data.tree).toHaveLength(1);
     expect(data.violations).toBeUndefined();
-    expect(data.violationsError).toBeTruthy();
+    expect(data.warnings.some((w) => w.includes('validation-report.json'))).toBe(true);
   });
 
   test('loads a version-less validation report (legacy aws-cdk-lib shape)', () => {
@@ -173,7 +172,6 @@ describe('readAssembly with violations', () => {
 
     expect(data.tree).toHaveLength(1);
     expect(data.violations).toBeDefined();
-    expect(data.violationsError).toBeUndefined();
   });
 });
 

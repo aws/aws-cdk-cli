@@ -125,38 +125,30 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     }
     if (result.status === 'not-found') return;
 
-    const { tree, violations, violationsError, warnings } = result.data;
+    const { tree, violations, warnings } = result.data;
     for (const warning of warnings) {
       log.warn(warning);
-    }
-    if (violationsError) {
-      log.warn(`validation-report.json failed to load: ${violationsError}`);
     }
 
     cachedIndex = ConstructIndex.fromTree(tree);
 
-    // When violations fail to load we cannot distinguish resolved violations
-    // from missing data, so preserve last-good diagnostics. The tree itself
-    // is still valid, so cachedIndex/CodeLenses do refresh below.
-    if (!violationsError) {
-      const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
+    const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
 
-      for (const drop of dropped) {
-        log.warn(`Dropped diagnostic for '${drop.ruleName}' at '${drop.constructPath}': ${drop.reason}`);
-      }
-      const nextUris = new Set(byUri.keys());
-      // Clear diagnostics for files that had violations on the previous refresh
-      // but no longer do, so resolved violations disappear from the editor.
-      for (const uri of publishedUris) {
-        if (!nextUris.has(uri)) {
-          onPublishDiagnostics(uri, []);
-        }
-      }
-      for (const [uri, diagnostics] of byUri) {
-        onPublishDiagnostics(uri, diagnostics);
-      }
-      publishedUris = nextUris;
+    for (const drop of dropped) {
+      log.warn(`Dropped diagnostic for '${drop.ruleName}' at '${drop.constructPath}': ${drop.reason}`);
     }
+    const nextUris = new Set(byUri.keys());
+    // Clear diagnostics for files that had violations on the previous refresh
+    // but no longer do, so resolved violations disappear from the editor.
+    for (const uri of publishedUris) {
+      if (!nextUris.has(uri)) {
+        onPublishDiagnostics(uri, []);
+      }
+    }
+    for (const [uri, diagnostics] of byUri) {
+      onPublishDiagnostics(uri, diagnostics);
+    }
+    publishedUris = nextUris;
 
     // New assembly data may change lens titles or positions; ask the editor to
     // re-query CodeLenses (it serves them from the now-updated cachedIndex).

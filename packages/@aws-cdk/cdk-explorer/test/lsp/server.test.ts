@@ -288,36 +288,6 @@ describe('LSP Server', () => {
     expect(client.published[1]).toEqual({ uri: violationUri, diagnostics: [] });
   });
 
-  test('preserves last-good diagnostics when a later refresh fails to load the validation report', () => {
-    const { tree, violations } = bucketViolationFixtures();
-    let call = 0;
-    const client = createTestClient({
-      readAssembly: (): AssemblyReadResult => {
-        call += 1;
-        // Second read mimics a corrupt validation-report.json: the tree still
-        // loads, but violations come back undefined with a violationsError.
-        return {
-          status: 'success',
-          data: call === 1
-            ? { warnings: [], tree, violations }
-            : { warnings: [], tree, violationsError: 'unexpected token' },
-        };
-      },
-    });
-
-    initializeClient(client, { applicationDir: '/p' });
-    expect(client.published).toHaveLength(1);
-
-    client.triggerWatcher();
-
-    // No additional diagnostics published: last-good is preserved, and the
-    // load failure is logged rather than silently wiping squiggles.
-    expect(client.published).toHaveLength(1);
-    expect(client.log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('validation-report.json failed to load'),
-    );
-  });
-
   test('requests a CodeLens refresh after a refresh when the client supports it', () => {
     const client = createTestClient({
       readAssembly: (): AssemblyReadResult => ({
