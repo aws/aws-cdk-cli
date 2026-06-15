@@ -187,6 +187,7 @@ __metadata:
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
+    chokidar: "npm:^4"
     constructs: "npm:^10.0.0"
     convert-source-map: "npm:^2"
     eslint: "npm:^9"

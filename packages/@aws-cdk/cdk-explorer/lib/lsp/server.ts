@@ -7,6 +7,7 @@ import {
 } from 'vscode-jsonrpc/node';
 import {
   createConnection,
+  CodeLensRefreshRequest,
   ProposedFeatures,
   TextDocumentSyncKind,
   type CodeLens,
@@ -26,6 +27,11 @@ import {
   type AssemblyReadResult,
   type ConstructNode,
 } from '../core/assembly-reader';
+import {
+  startAssemblyWatcher as defaultStartAssemblyWatcher,
+  type AssemblyWatcher,
+  type AssemblyWatcherOptions,
+} from '../core/assembly-watcher';
 
 export interface LspHandlerOptions {
   /** Callback invoked on `didSave` for tracked source files. */
@@ -39,6 +45,17 @@ export interface LspHandlerOptions {
   readonly logger?: LogSink;
   /** Receives diagnostics ready to be published to the editor. */
   readonly onPublishDiagnostics?: (uri: string, diagnostics: Diagnostic[]) => void;
+  /**
+   * Invoked after a refresh when new assembly data may have changed CodeLenses,
+   * to ask the editor to re-query them. Only called when the client advertised
+   * `workspace.codeLens.refreshSupport`.
+   */
+  readonly onRefreshCodeLenses?: () => void;
+  /**
+   * Starts the cdk.out watcher. Defaults to the real chokidar-backed watcher;
+   * overridden in tests to drive refreshes deterministically.
+   */
+  readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
 }
 
 export interface LspServerOptions extends LspHandlerOptions {
@@ -78,13 +95,25 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
   });
+  const onRefreshCodeLenses = options.onRefreshCodeLenses ?? (() => {
+  });
+  const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
   let shouldIgnore: (filePath: string) => boolean = () => false;
-  // Latest index from readAssembly, served to CodeLens without re-reading
-  // cdk.out. Refreshed on every onInitialized; cdk.out watcher is a future feature.
+  let assemblyWatcher: AssemblyWatcher | undefined;
+  // Latest index from readAssembly, served to CodeLens. Refreshed at startup
+  // and whenever the cdk.out watcher detects a re-synth.
   let cachedIndex: ConstructIndex<ConstructNode> = ConstructIndex.fromTree<ConstructNode>([]);
+  // URIs that currently have published diagnostics. On each refresh we publish
+  // an empty array for any URI that no longer has diagnostics, otherwise a
+  // resolved violation would leave a stale squiggle behind.
+  let publishedUris = new Set<string>();
+  // Whether the client supports a server-initiated CodeLens refresh. Captured
+  // at initialize; if false we skip the refresh request and lenses update on
+  // the editor's next natural re-query.
+  let codeLensRefreshSupported = false;
 
   function refreshFromAssembly(projectDir: string): void {
     const assemblyDir = path.join(projectDir, 'cdk.out');
@@ -106,19 +135,40 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
 
     cachedIndex = ConstructIndex.fromTree(tree);
 
-    const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
+    // When violations fail to load we cannot distinguish resolved violations
+    // from missing data, so preserve last-good diagnostics. The tree itself
+    // is still valid, so cachedIndex/CodeLenses do refresh below.
+    if (!violationsError) {
+      const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
 
-    for (const drop of dropped) {
-      log.warn(`Dropped diagnostic for '${drop.ruleName}' at '${drop.constructPath}': ${drop.reason}`);
+      for (const drop of dropped) {
+        log.warn(`Dropped diagnostic for '${drop.ruleName}' at '${drop.constructPath}': ${drop.reason}`);
+      }
+      const nextUris = new Set(byUri.keys());
+      // Clear diagnostics for files that had violations on the previous refresh
+      // but no longer do, so resolved violations disappear from the editor.
+      for (const uri of publishedUris) {
+        if (!nextUris.has(uri)) {
+          onPublishDiagnostics(uri, []);
+        }
+      }
+      for (const [uri, diagnostics] of byUri) {
+        onPublishDiagnostics(uri, diagnostics);
+      }
+      publishedUris = nextUris;
     }
-    for (const [uri, diagnostics] of byUri) {
-      onPublishDiagnostics(uri, diagnostics);
+
+    // New assembly data may change lens titles or positions; ask the editor to
+    // re-query CodeLenses (it serves them from the now-updated cachedIndex).
+    if (codeLensRefreshSupported) {
+      onRefreshCodeLenses();
     }
   }
 
   return {
     onInitialize(params) {
       applicationDir = params.initializationOptions?.applicationDir;
+      codeLensRefreshSupported = params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
       return {
         capabilities: {
           textDocumentSync: {
@@ -150,6 +200,14 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
         rootDir: projectDir,
       });
       refreshFromAssembly(projectDir);
+
+      // Watch cdk.out so any synth (an external `cdk synth`/`cdk watch`, or a
+      // future in-process synth) refreshes the editor's diagnostics and lenses.
+      assemblyWatcher = startWatcher({
+        assemblyDir: path.join(projectDir, 'cdk.out'),
+        onChange: () => refreshFromAssembly(projectDir),
+        onError: (err) => log.error(`Assembly watcher error: ${(err as Error).message}`),
+      });
     },
     onDidSaveTextDocument(params) {
       if (shutdownRequested) return;
@@ -167,6 +225,8 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     },
     onShutdown() {
       shutdownRequested = true;
+      void assemblyWatcher?.close();
+      assemblyWatcher = undefined;
     },
   };
 }
@@ -184,6 +244,9 @@ export function startServer(options: LspServerOptions): void {
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {
       void connection.sendDiagnostics({ uri, diagnostics });
+    },
+    onRefreshCodeLenses: () => {
+      void connection.sendRequest(CodeLensRefreshRequest.type);
     },
   });
 

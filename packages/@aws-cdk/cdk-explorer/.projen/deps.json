@@ -126,6 +126,11 @@
       "type": "runtime"
     },
     {
+      "name": "chokidar",
+      "version": "^4",
+      "type": "runtime"
+    },
+    {
       "name": "convert-source-map",
       "version": "^2",
       "type": "runtime"
