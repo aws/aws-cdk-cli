@@ -715,7 +715,7 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
-    zip: {
+    'zip': {
       deps: ['archiver@^7.0.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/archiver', 'jszip'],
     },
