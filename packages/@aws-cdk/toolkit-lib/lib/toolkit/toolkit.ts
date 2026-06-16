@@ -596,7 +596,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    // Not `synthAndMeasure`: `list` is a read-only query and its synth-time message
+    // would pollute stdout when the result is piped (e.g. `list --json | jq`).
+    await using assembly = await assemblyFromSource(ioHelper, cx);
 
     const stackCollection = await assembly.selectStacksV2(selectStacks);
     const stacks = stackCollection.withDependencies();
