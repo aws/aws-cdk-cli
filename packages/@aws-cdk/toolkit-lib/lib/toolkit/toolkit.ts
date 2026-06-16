@@ -347,6 +347,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
     await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
 
+    // Print the validation plugin report if present
+    const reportPath = path.join(assembly.value.directory, VALIDATION_REPORT_FILE);
+    if (await fs.pathExists(reportPath)) {
+      const report = Manifest.loadValidationReport(reportPath);
+      const selectedStackIds = new Set(stacks.hierarchicalIds);
+      const filteredReports = filterReportsByStacks(report.pluginReports, selectedStackIds);
+      const conclusion: PolicyValidationReportConclusion = filteredReports.some(
+        (pr) => pr.conclusion === 'failure',
+      ) ? 'failure' : 'success';
+      await ioHelper.notify(hostMessageFromValidation({ conclusion, title: report.title, pluginReports: filteredReports }));
+    }
+
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
     const assemblyData: AssemblyData = {

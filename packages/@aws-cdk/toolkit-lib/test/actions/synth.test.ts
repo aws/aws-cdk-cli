@@ -3,7 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import type { AssemblyBuilder } from '../../lib/api';
 import { RWLock } from '../../lib/api';
 import { Toolkit } from '../../lib/toolkit';
-import { appFixture, autoCleanOutDir, builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { appFixture, autoCleanOutDir, builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -137,6 +137,30 @@ describe('synth', () => {
     const lock = new RWLock(synthDir.dir);
     expect(await lock._currentReaders()).toEqual([]);
     expect(await lock._currentWriter()).toEqual(undefined);
+  });
+
+  test('prints validation report when validation-report.json is present', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    await toolkit.synth(cx);
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'synth',
+      code: 'CDK_TOOLKIT_I9600',
+      message: expect.stringContaining('Validation Report'),
+    }));
+  });
+
+  test('does not print validation report when no report file exists', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.synth(cx);
+
+    // THEN
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I9600',
+    }));
   });
 
   test('assembly is disposed when synth fails due to context lookup', async () => {
