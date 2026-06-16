@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
@@ -11,14 +12,18 @@ import {
   TextDocumentSyncKind,
   type CodeLens,
   type CodeLensParams,
+  type DefinitionParams,
   type DidSaveTextDocumentParams,
   type Diagnostic,
   type InitializeParams,
   type InitializeResult,
+  type Location,
 } from 'vscode-languageserver/node';
 /* eslint-disable import/no-relative-packages */
 import { codeLensesForFile } from './codelens';
 import { mapViolationsToDiagnostics } from './diagnostics';
+import { offsetAtPosition } from './positions';
+import { sourceTargetAtTemplateOffset } from './template-locator';
 import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
 import {
@@ -52,6 +57,7 @@ export interface LspHandlers {
   onInitialized(): void;
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
   onCodeLens(params: CodeLensParams): CodeLens[];
+  onDefinition(params: DefinitionParams): Location | undefined;
   onShutdown(): void;
 }
 
@@ -130,6 +136,8 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
           },
           // Lens title is computed up-front; no resolve round-trip needed.
           codeLensProvider: { resolveProvider: false },
+          // Go-to-definition from a synthesized template back to construct source.
+          definitionProvider: true,
         },
       };
     },
@@ -165,6 +173,27 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     onCodeLens(params) {
       return codeLensesForFile(cachedIndex, params.textDocument.uri);
     },
+    onDefinition(params) {
+      // Only synthesized templates link back to source, and only file: URIs are
+      // readable. Check the scheme before fileURLToPath, which throws on other
+      // schemes (untitled:, git:, diff views).
+      const uri = params.textDocument.uri;
+      if (!uri.startsWith('file:') || !uri.endsWith('.template.json')) {
+        return undefined;
+      }
+      const filePath = fileURLToPath(uri);
+      let templateText: string;
+      try {
+        templateText = fs.readFileSync(filePath, 'utf-8');
+      } catch {
+        return undefined;
+      }
+      // Offsets come from current disk text; the owner is looked up in the index
+      // built at startup. If the template was re-synthesized since, a missing
+      // match degrades to undefined rather than navigating to the wrong place.
+      const offset = offsetAtPosition(templateText, params.position);
+      return sourceTargetAtTemplateOffset(cachedIndex, filePath, templateText, offset);
+    },
     onShutdown() {
       shutdownRequested = true;
     },
@@ -191,6 +220,7 @@ export function startServer(options: LspServerOptions): void {
   connection.onInitialized(() => handlers.onInitialized());
   connection.onDidSaveTextDocument((params) => handlers.onDidSaveTextDocument(params));
   connection.onCodeLens((params) => handlers.onCodeLens(params));
+  connection.onDefinition((params) => handlers.onDefinition(params));
   connection.onShutdown(() => handlers.onShutdown());
   connection.onExit(() => process.exit(0));
 

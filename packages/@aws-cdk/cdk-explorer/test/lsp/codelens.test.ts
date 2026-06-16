@@ -16,6 +16,13 @@ const node = (overrides: Partial<ConstructNode> & { path: string }): ConstructNo
   ...overrides,
 });
 
+/** Shape of one resource choice carried in the openResource command arguments. */
+interface CommandChoice {
+  label: string;
+  description: string;
+  target: { uri: string; range: { start: unknown; end: unknown } };
+}
+
 describe('codeLensesForFile', () => {
   test('returns no lenses when tree is empty', () => {
     expect(codeLensesForFile(ConstructIndex.fromTree([]), URI)).toEqual([]);
@@ -115,8 +122,15 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toHaveLength(1);
-    expect(codeLensesForFile(ConstructIndex.fromTree(tree), OTHER_URI)).toHaveLength(1);
+    const index = ConstructIndex.fromTree(tree);
+    // Each query returns only the resource defined in that file, which proves the
+    // URI filter selects by file rather than returning everything for any query.
+    const onThisFile = codeLensesForFile(index, URI);
+    expect(onThisFile).toHaveLength(1);
+    expect(onThisFile[0].command?.title).toBe('Creates AWS::S3::Bucket');
+    const onOtherFile = codeLensesForFile(index, OTHER_URI);
+    expect(onOtherFile).toHaveLength(1);
+    expect(onOtherFile[0].command?.title).toBe('Creates AWS::SQS::Queue');
   });
 
   test('walks descendants — finds resources nested under wrappers', () => {
@@ -172,14 +186,15 @@ describe('codeLensesForFile', () => {
 
       const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
-      expect(lens.command?.arguments).toEqual([[{
+      const choices = (lens.command!.arguments as CommandChoice[][])[0];
+      expect(choices).toHaveLength(1);
+      expect(choices[0]).toMatchObject({
         label: 'AWS::S3::Bucket',
         description: 'Stack1/MyBucket',
-        target: {
-          uri: pathToFileURL(templateFile).toString(),
-          range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } },
-        },
-      }]]);
+        target: { uri: pathToFileURL(templateFile).toString() },
+      });
+      // The target carries a real (non-zero-width) block range; exact offsets are covered in template-locator.test.
+      expect(choices[0].target.range.start).not.toEqual(choices[0].target.range.end);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -200,10 +215,15 @@ describe('codeLensesForFile', () => {
       const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
       const uri = pathToFileURL(templateFile).toString();
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
-      expect(lens.command?.arguments).toEqual([[
-        { label: 'AWS::S3::Bucket', description: 'Stack1/B', target: { uri, range: { start: { line: 2, character: 4 }, end: { line: 2, character: 4 } } } },
-        { label: 'AWS::S3::BucketPolicy', description: 'Stack1/B/Policy', target: { uri, range: { start: { line: 5, character: 4 }, end: { line: 5, character: 4 } } } },
-      ]]);
+      const choices = (lens.command!.arguments as CommandChoice[][])[0];
+      expect(choices).toMatchObject([
+        { label: 'AWS::S3::Bucket', description: 'Stack1/B', target: { uri } },
+        { label: 'AWS::S3::BucketPolicy', description: 'Stack1/B/Policy', target: { uri } },
+      ]);
+      // Each carries a real span, and the two resources resolve to distinct blocks.
+      expect(choices[0].target.range.start).not.toEqual(choices[0].target.range.end);
+      expect(choices[1].target.range.start).not.toEqual(choices[1].target.range.end);
+      expect(choices[0].target.range).not.toEqual(choices[1].target.range);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
