@@ -68,12 +68,15 @@ async function investigateEcsService(
   }
 
   const taskDefInfo = await getTaskDefinitionInfo(ecs, taskDefinitionArn, debug);
+  if (!taskDefInfo) {
+    return results;
+  }
 
-  if (taskDefInfo && taskDefInfo.images.length > 0) {
+  if (taskDefInfo.images.length > 0) {
     results.push({ source: 'Container Images', messages: taskDefInfo.images });
   }
 
-  const logConfigs = taskDefInfo?.logConfigs ?? [];
+  const logConfigs = taskDefInfo.logConfigs;
 
   if (logConfigs.length === 0) {
     results.push({
