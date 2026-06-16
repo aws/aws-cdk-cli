@@ -708,11 +708,11 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
-    subprocess: {
+    'subprocess': {
       deps: ['cross-spawn@^7.0.6'],
       devDeps: ['@types/cross-spawn'],
     },
-    zip: {
+    'zip': {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
     },
