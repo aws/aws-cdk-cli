@@ -471,3 +471,131 @@ describe('LSP Server -- executeCommand', () => {
     expect(synthRunner).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('LSP Server -- auto-synth toggle', () => {
+  function createToggleClient(synthAvailable = true) {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
+    const refreshCodeLens = jest.fn();
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'not-found' }),
+      synthAvailable,
+      synthRunner,
+      onRefreshCodeLenses: refreshCodeLens,
+      startAssemblyWatcher: () => ({
+        close: async () => {
+        },
+      }),
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
+    handlers.onInitialized();
+    return { handlers, synthRunner, refreshCodeLens };
+  }
+
+  const stackTs = '/p/lib/stack.ts';
+  const stackUri = pathToFileURL(stackTs).toString();
+  const treeWithResource = [{
+    path: 'Stack1',
+    id: 'Stack1',
+    children: [{
+      path: 'Stack1/R',
+      id: 'R',
+      logicalId: 'R1',
+      type: 'AWS::S3::Bucket',
+      sourceLocation: { file: stackTs, line: 5, column: 0 },
+      children: [],
+    }],
+  }];
+
+  test('toggle round-trip: onCodeLens reflects new state after enableAutoSynth', async () => {
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'success', data: { warnings: [], tree: treeWithResource } }),
+      synthAvailable: true,
+      synthRunner: jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' }),
+      onRefreshCodeLenses: jest.fn(),
+      startAssemblyWatcher: () => ({
+        close: async () => {
+        },
+      }),
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
+    handlers.onInitialized();
+
+    // Before toggle: 2 header lenses (Synth now + Enable auto-synth)
+    const before = handlers.onCodeLens({ textDocument: { uri: stackUri } });
+    expect(before[0].command?.title).toBe('↻ Synth now');
+    expect(before[1].command?.title).toBe('▶ Enable auto-synth');
+
+    // Toggle on
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+
+    // After toggle: 1 header lens (Disable auto-synth)
+    const after = handlers.onCodeLens({ textDocument: { uri: stackUri } });
+    expect(after[0].command?.title).toBe('⏹ Disable auto-synth');
+    expect(after).toHaveLength(2); // 1 header + 1 L1
+  });
+
+  test('toggle fires onRefreshCodeLenses', async () => {
+    const { handlers, refreshCodeLens } = createToggleClient();
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+    expect(refreshCodeLens).toHaveBeenCalledTimes(1);
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.disableAutoSynth' });
+    expect(refreshCodeLens).toHaveBeenCalledTimes(2);
+  });
+
+  test('didSave does not trigger synth when synthAvailable=false even if auto-synth enabled', async () => {
+    const { handlers, synthRunner } = createToggleClient(false);
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+
+    handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(synthRunner).not.toHaveBeenCalled();
+  });
+
+  test('save-path lock-conflict is silent (no log output)', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'lock-conflict' });
+    const log = { warn: jest.fn(), error: jest.fn() };
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'not-found' }),
+      synthAvailable: true,
+      synthRunner,
+      logger: log,
+      startAssemblyWatcher: () => ({
+        close: async () => {
+        },
+      }),
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
+    handlers.onInitialized();
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+
+    handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  test('save-path error result is logged', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'error', message: 'unexpected failure' });
+    const log = { warn: jest.fn(), error: jest.fn() };
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'not-found' }),
+      synthAvailable: true,
+      synthRunner,
+      logger: log,
+      startAssemblyWatcher: () => ({
+        close: async () => {
+        },
+      }),
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
+    handlers.onInitialized();
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+
+    handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('unexpected failure'));
+  });
+});

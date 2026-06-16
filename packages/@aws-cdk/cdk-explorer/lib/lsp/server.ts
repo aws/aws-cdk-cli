@@ -322,6 +322,9 @@ export function startServer(options: LspServerOptions): void {
     new StreamMessageWriter(options.writable),
   );
 
+  // Captured from onInitialize; used to gate CodeLens refresh requests.
+  let codeLensRefreshSupported = false;
+
   const handlers = createLspHandlers({
     readAssembly: options.readAssembly,
     logger: connection.console,
@@ -329,7 +332,11 @@ export function startServer(options: LspServerOptions): void {
       void connection.sendDiagnostics({ uri, diagnostics });
     },
     onRefreshCodeLenses: () => {
-      void connection.sendRequest(CodeLensRefreshRequest.type);
+      // codeLensRefreshSupported is captured from onInitialize; gate here so
+      // the toggle and the watcher both respect the client's capability.
+      if (codeLensRefreshSupported) {
+        void connection.sendRequest(CodeLensRefreshRequest.type);
+      }
     },
     synthRunner: options.buildSynthRunner
       ? options.buildSynthRunner(connection.console)
@@ -357,7 +364,10 @@ export function startServer(options: LspServerOptions): void {
     },
   });
 
-  connection.onInitialize((params) => handlers.onInitialize(params));
+  connection.onInitialize((params) => {
+    codeLensRefreshSupported = params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
+    return handlers.onInitialize(params);
+  });
   connection.onInitialized(() => handlers.onInitialized());
   connection.onDidSaveTextDocument((params) => handlers.onDidSaveTextDocument(params));
   connection.onCodeLens((params) => handlers.onCodeLens(params));
