@@ -16,12 +16,14 @@ import {
   type DefinitionParams,
   type DidSaveTextDocumentParams,
   type Diagnostic,
+  type ExecuteCommandParams,
   type InitializeParams,
   type InitializeResult,
   type Location,
 } from 'vscode-languageserver/node';
 /* eslint-disable import/no-relative-packages */
 import { codeLensesForFile } from './codelens';
+import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
 import { offsetAtPosition } from './positions';
 import { sourceTargetAtTemplateOffset } from './template-locator';
@@ -37,6 +39,7 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import type { SynthRunResult } from '../core/synth-runner';
 
 export interface LspHandlerOptions {
   /** Callback invoked on `didSave` for tracked source files. */
@@ -61,6 +64,12 @@ export interface LspHandlerOptions {
    * overridden in tests to drive refreshes deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
+  /** Runs a synth and returns its typed outcome. Injected by main.ts; omitted in tests that don't exercise synth. */
+  readonly synthRunner?: () => Promise<SynthRunResult>;
+  /** Whether cdk.json exists and has a valid `app` key. Controls whether synthNow is available. */
+  readonly synthAvailable?: boolean;
+  /** User-facing notification sink. Injected by startServer; omitted in tests. */
+  readonly notify?: NotifySink;
 }
 
 export interface LspServerOptions extends LspHandlerOptions {
@@ -75,6 +84,7 @@ export interface LspHandlers {
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
   onCodeLens(params: CodeLensParams): CodeLens[];
   onDefinition(params: DefinitionParams): Location | undefined;
+  onExecuteCommand(params: ExecuteCommandParams): Promise<void>;
   onShutdown(): void;
 }
 
@@ -104,9 +114,19 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   const onRefreshCodeLenses = options.onRefreshCodeLenses ?? (() => {
   });
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
+  const synthAvailable = options.synthAvailable ?? false;
+  const synthRunner = options.synthRunner;
+  const notify = options.notify ?? {
+    info: () => {
+    },
+    error: () => {
+    },
+    withProgress: <T>(_msg: string, fn: () => Promise<T>) => fn(),
+  };
 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
+  let synthInFlight = false;
   let shouldIgnore: (filePath: string) => boolean = () => false;
   let assemblyWatcher: AssemblyWatcher | undefined;
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
@@ -180,6 +200,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
           codeLensProvider: { resolveProvider: false },
           // Go-to-definition from a synthesized template back to construct source.
           definitionProvider: true,
+          executeCommandProvider: { commands: [...SUPPORTED_COMMANDS] },
         },
       };
     },
@@ -244,6 +265,28 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       const offset = offsetAtPosition(templateText, params.position);
       return sourceTargetAtTemplateOffset(cachedIndex, filePath, templateText, offset);
     },
+    async onExecuteCommand(params) {
+      // Short-circuit duplicate clicks before they reach the Toolkit.
+      // Without this, a second call would still get lock-conflict from the
+      // RWLock, but only after fromCdkApp() has done setup work. This just
+      // makes the response instant for multiple synths from same LSP instance.
+      // The user message is the same either way.
+      const guardedSynth = async (): Promise<SynthRunResult> => {
+        if (synthInFlight) return { status: 'lock-conflict' };
+        synthInFlight = true;
+        try {
+          return await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+        } finally {
+          synthInFlight = false;
+        }
+      };
+      await executeCommand(params.command, params.arguments ?? [], {
+        synth: guardedSynth,
+        refresh: () => refreshFromAssembly(applicationDir ?? process.cwd()),
+        synthAvailable,
+        notify,
+      });
+    },
     onShutdown() {
       shutdownRequested = true;
       void assemblyWatcher?.close();
@@ -269,6 +312,28 @@ export function startServer(options: LspServerOptions): void {
     onRefreshCodeLenses: () => {
       void connection.sendRequest(CodeLensRefreshRequest.type);
     },
+    synthRunner: options.synthRunner,
+    synthAvailable: options.synthAvailable,
+    notify: {
+      // Route to the Output panel (connection.console) rather than popups.
+      // showMessage creates a dismissable toast that interrupts the user's
+      // workflow; console writes are visible on demand in the Output panel.
+      info: (msg) => {
+        connection.console.info(msg);
+      },
+      error: (msg) => {
+        connection.console.error(msg);
+      },
+      withProgress: async (title, fn) => {
+        const progress = await connection.window.createWorkDoneProgress();
+        progress.begin(title);
+        try {
+          return await fn();
+        } finally {
+          progress.done();
+        }
+      },
+    },
   });
 
   connection.onInitialize((params) => handlers.onInitialize(params));
@@ -276,6 +341,7 @@ export function startServer(options: LspServerOptions): void {
   connection.onDidSaveTextDocument((params) => handlers.onDidSaveTextDocument(params));
   connection.onCodeLens((params) => handlers.onCodeLens(params));
   connection.onDefinition((params) => handlers.onDefinition(params));
+  connection.onExecuteCommand((params) => handlers.onExecuteCommand(params));
   connection.onShutdown(() => handlers.onShutdown());
   connection.onExit(() => process.exit(0));
 

@@ -5,7 +5,21 @@ import { pathToFileURL } from 'url';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
+import type { SynthRunResult } from '../../lib/core/synth-runner';
+import { COMMAND_SYNTH_NOW, COMMAND_REFRESH, type NotifySink } from '../../lib/lsp/commands';
 import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
+
+function makeNotifySink(): NotifySink & { infoMessages: string[]; errorMessages: string[] } {
+  const infoMessages: string[] = [];
+  const errorMessages: string[] = [];
+  return {
+    infoMessages,
+    errorMessages,
+    info: (msg) => infoMessages.push(msg),
+    error: (msg) => errorMessages.push(msg),
+    withProgress: async (_msg, fn) => fn(),
+  };
+}
 
 interface CapturedClient {
   handlers: LspHandlers;
@@ -404,5 +418,87 @@ describe('LSP Server', () => {
         position: { line: 0, character: 0 },
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('LSP Server -- executeCommand', () => {
+  function createCommandClient(opts: Partial<LspHandlerOptions> = {}): {
+    handlers: LspHandlers;
+    notify: NotifySink & { infoMessages: string[]; errorMessages: string[] };
+  } {
+    const notify = makeNotifySink();
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'not-found' }),
+      notify,
+      ...opts,
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: {} });
+    handlers.onInitialized();
+    return { handlers, notify };
+  }
+
+  test('onInitialize advertises executeCommandProvider with supported commands', () => {
+    const { handlers } = createCommandClient();
+    const result = handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: {} });
+    expect(result.capabilities.executeCommandProvider?.commands).toEqual(
+      expect.arrayContaining([COMMAND_SYNTH_NOW, COMMAND_REFRESH]),
+    );
+  });
+
+  test('refresh command re-reads assembly without notifying', async () => {
+    let readCount = 0;
+    const { handlers, notify } = createCommandClient({
+      readAssembly: () => {
+        readCount++; return { status: 'not-found' };
+      },
+    });
+    const countBefore = readCount;
+    await handlers.onExecuteCommand({ command: COMMAND_REFRESH });
+    expect(readCount).toBeGreaterThan(countBefore);
+    expect(notify.infoMessages).toHaveLength(0);
+    expect(notify.errorMessages).toHaveLength(0);
+  });
+
+  test('synthNow without synthAvailable notifies info', async () => {
+    const { handlers, notify } = createCommandClient({ synthAvailable: false });
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    expect(notify.infoMessages.some((m) => m.includes('unavailable'))).toBe(true);
+  });
+
+  test('synthNow with success is silent', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
+    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    expect(notify.infoMessages).toHaveLength(0);
+    expect(notify.errorMessages).toHaveLength(0);
+  });
+
+  test('synthNow with app-failure notifies error', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'app-failure', message: 'compile error' });
+    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    expect(notify.errorMessages.some((m) => m.includes('compile error'))).toBe(true);
+  });
+
+  test('synthNow in-flight latch: second call coalesces as lock-conflict', async () => {
+    let resolveFirst!: () => void;
+    const firstSynthDone = new Promise<void>((res) => {
+      resolveFirst = res;
+    });
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
+      .mockImplementationOnce(() => firstSynthDone.then(() => ({ status: 'success' } as const)))
+      .mockResolvedValue({ status: 'success' });
+    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+
+    const first = handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    // second call fires while first is still in progress
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    resolveFirst();
+    await first;
+
+    // second call hit the latch → notify.info with lock-conflict message
+    expect(notify.infoMessages.some((m) => m.includes('in progress'))).toBe(true);
+    // synth runner was only called once
+    expect(synthRunner).toHaveBeenCalledTimes(1);
   });
 });
