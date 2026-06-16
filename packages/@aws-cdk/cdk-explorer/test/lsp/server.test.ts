@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import type { Diagnostic } from 'vscode-languageserver/node';
+import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
 import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
@@ -11,11 +11,18 @@ interface CapturedClient {
   handlers: LspHandlers;
   published: Array<{ uri: string; diagnostics: Diagnostic[] }>;
   log: { warn: jest.Mock; error: jest.Mock };
+  refreshCodeLens: jest.Mock;
+  watcherClosed: jest.Mock;
+  /** Fire the cdk.out watcher's onChange, as a real re-synth would. */
+  triggerWatcher: () => void;
 }
 
 function createTestClient(opts?: Partial<Pick<LspHandlerOptions, 'onSynthRequest' | 'readAssembly'>>): CapturedClient {
   const published: Array<{ uri: string; diagnostics: Diagnostic[] }> = [];
   const log = { warn: jest.fn(), error: jest.fn() };
+  const refreshCodeLens = jest.fn();
+  const watcherClosed = jest.fn();
+  let watcherOnChange: (() => void) | undefined;
   const handlers = createLspHandlers({
     onSynthRequest: opts?.onSynthRequest,
     // Default to "no assembly" so tests that don't care about diagnostics
@@ -23,18 +30,84 @@ function createTestClient(opts?: Partial<Pick<LspHandlerOptions, 'onSynthRequest
     readAssembly: opts?.readAssembly ?? (() => ({ status: 'not-found' })),
     logger: log,
     onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
+    onRefreshCodeLenses: refreshCodeLens,
+    // Inject a fake watcher so unit tests never start a real chokidar instance;
+    // capture its onChange so tests can simulate a re-synth deterministically.
+    startAssemblyWatcher: (watchOpts) => {
+      watcherOnChange = watchOpts.onChange;
+      return {
+        close: async () => {
+          watcherClosed();
+        },
+      };
+    },
   });
-  return { handlers, published, log };
+  return {
+    handlers,
+    published,
+    log,
+    refreshCodeLens,
+    watcherClosed,
+    triggerWatcher: () => watcherOnChange?.(),
+  };
 }
 
-function initializeClient(client: CapturedClient, options?: Record<string, unknown>): void {
+function initializeClient(
+  client: CapturedClient,
+  options?: Record<string, unknown>,
+  capabilities?: InitializeParams['capabilities'],
+): void {
   client.handlers.onInitialize({
     processId: null,
-    capabilities: {},
+    capabilities: capabilities ?? {},
     rootUri: null,
     initializationOptions: options ?? {},
   });
   client.handlers.onInitialized();
+}
+
+function bucketViolationFixtures() {
+  const tree = [{
+    path: 'Stack1',
+    id: 'Stack1',
+    children: [{
+      path: 'Stack1/MyBucket',
+      id: 'MyBucket',
+      children: [],
+      sourceLocation: { file: '/p/lib/stack.ts', line: 12, column: 5 },
+    }],
+  }];
+  const violations = {
+    version: '1.0.0',
+    pluginReports: [{
+      pluginName: 'test-plugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'no-public-buckets',
+        description: 'no public buckets',
+        severity: 'error',
+        violatingConstructs: [{ constructPath: 'Stack1/MyBucket' }],
+      }],
+    }],
+  };
+  return { tree, violations };
+}
+
+/**
+ * A readAssembly that reports a violation on the first read and the same tree
+ * with the violation resolved on every read after, simulating a user fixing it
+ * and re-synthing.
+ */
+function readAssemblyResolvingAfterFirst(): () => AssemblyReadResult {
+  const { tree, violations } = bucketViolationFixtures();
+  let call = 0;
+  return (): AssemblyReadResult => {
+    call += 1;
+    return {
+      status: 'success',
+      data: call === 1 ? { warnings: [], tree, violations } : { warnings: [], tree },
+    };
+  };
 }
 
 describe('LSP Server', () => {
@@ -144,35 +217,11 @@ describe('LSP Server', () => {
   });
 
   test('publishes diagnostics on initialized when assembly has violations', () => {
+    const { tree, violations } = bucketViolationFixtures();
     const client = createTestClient({
       readAssembly: () => ({
         status: 'success',
-        data: {
-          warnings: [],
-          tree: [{
-            path: 'Stack1',
-            id: 'Stack1',
-            children: [{
-              path: 'Stack1/MyBucket',
-              id: 'MyBucket',
-              children: [],
-              sourceLocation: { file: '/p/lib/stack.ts', line: 12, column: 5 },
-            }],
-          }],
-          violations: {
-            version: '1.0.0',
-            pluginReports: [{
-              pluginName: 'test-plugin',
-              conclusion: 'failure',
-              violations: [{
-                ruleName: 'no-public-buckets',
-                description: 'no public buckets',
-                severity: 'error',
-                violatingConstructs: [{ constructPath: 'Stack1/MyBucket' }],
-              }],
-            }],
-          },
-        },
+        data: { warnings: [], tree, violations },
       }),
     });
 
@@ -227,6 +276,76 @@ describe('LSP Server', () => {
     initializeClient(client, { applicationDir: '/p' });
 
     expect(client.published).toHaveLength(0);
+  });
+
+  test('clears diagnostics for a violation resolved on a later refresh', () => {
+    const client = createTestClient({ readAssembly: readAssemblyResolvingAfterFirst() });
+
+    initializeClient(client, { applicationDir: '/p' });
+    expect(client.published).toHaveLength(1);
+    const violationUri = client.published[0].uri;
+    expect(client.published[0].diagnostics).toHaveLength(1);
+
+    // Simulate a re-synth picked up by the cdk.out watcher.
+    client.triggerWatcher();
+
+    expect(client.published).toHaveLength(2);
+    expect(client.published[1]).toEqual({ uri: violationUri, diagnostics: [] });
+  });
+
+  test('requests a CodeLens refresh after a refresh when the client supports it', () => {
+    const client = createTestClient({
+      readAssembly: (): AssemblyReadResult => ({
+        status: 'success',
+        data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
+      }),
+    });
+
+    initializeClient(client, { applicationDir: '/p' }, {
+      workspace: { codeLens: { refreshSupport: true } },
+    });
+
+    expect(client.refreshCodeLens).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not request a CodeLens refresh when the client lacks refreshSupport', () => {
+    const client = createTestClient({
+      readAssembly: (): AssemblyReadResult => ({
+        status: 'success',
+        data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
+      }),
+    });
+
+    initializeClient(client, { applicationDir: '/p' });
+
+    expect(client.refreshCodeLens).not.toHaveBeenCalled();
+  });
+
+  test('a watcher-detected re-synth refreshes diagnostics and lenses', () => {
+    const client = createTestClient({ readAssembly: readAssemblyResolvingAfterFirst() });
+
+    initializeClient(client, { applicationDir: '/p' }, {
+      workspace: { codeLens: { refreshSupport: true } },
+    });
+    expect(client.published).toHaveLength(1);
+    const violationUri = client.published[0].uri;
+    expect(client.refreshCodeLens).toHaveBeenCalledTimes(1);
+
+    // Simulate a re-synth picked up by the cdk.out watcher.
+    client.triggerWatcher();
+
+    expect(client.published).toHaveLength(2);
+    expect(client.published[1]).toEqual({ uri: violationUri, diagnostics: [] });
+    expect(client.refreshCodeLens).toHaveBeenCalledTimes(2);
+  });
+
+  test('closes the cdk.out watcher on shutdown', () => {
+    const client = createTestClient();
+    initializeClient(client, { applicationDir: '/p' });
+
+    client.handlers.onShutdown();
+
+    expect(client.watcherClosed).toHaveBeenCalledTimes(1);
   });
 
   test('onDefinition resolves a template position back to construct source', () => {

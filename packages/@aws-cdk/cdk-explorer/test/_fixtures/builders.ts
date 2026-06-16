@@ -1,7 +1,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { ArtifactMetadataEntryType, VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
+import { TREE_FILE } from '../../lib/core/assembly-watcher';
 
 /**
  * Programmatic fixture builders. Each builder writes a minimal cdk.out/ to a
@@ -87,7 +89,7 @@ export interface NestedStackParentSpec {
 export function buildFlatAssembly(spec: FlatAssemblySpec): string {
   const dir = mkAssemblyDir('flat');
   const artifacts: Record<string, unknown> = {
-    Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
+    Tree: { type: 'cdk:tree', properties: { file: TREE_FILE } },
   };
 
   for (const stack of spec.stacks) {
@@ -95,11 +97,11 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
     writeTemplate(dir, stack.id, stack.resources, stack.id, spec.pathMetadata ?? true);
   }
 
-  writeJson(path.join(dir, 'manifest.json'), {
+  writeJson(path.join(dir, MANIFEST_FILE), {
     version: ASSEMBLY_SCHEMA_VERSION,
     artifacts,
   });
-  writeJson(path.join(dir, 'tree.json'), {
+  writeJson(path.join(dir, TREE_FILE), {
     version: TREE_SCHEMA_VERSION,
     tree: appNode(spec.stacks.map(stackTreeNode)),
   });
@@ -111,7 +113,7 @@ export function buildFlatAssembly(spec: FlatAssemblySpec): string {
 export function buildNestedAssembly(spec: NestedAssemblySpec): string {
   const rootDir = mkAssemblyDir('nested');
   const rootArtifacts: Record<string, unknown> = {
-    Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
+    Tree: { type: 'cdk:tree', properties: { file: TREE_FILE } },
   };
 
   const treeChildren: Record<string, unknown> = {};
@@ -142,7 +144,7 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
       writeTemplate(stageDir, artifactId, stack.resources, constructPath);
     }
 
-    writeJson(path.join(stageDir, 'manifest.json'), {
+    writeJson(path.join(stageDir, MANIFEST_FILE), {
       version: ASSEMBLY_SCHEMA_VERSION,
       artifacts: stageArtifacts,
     });
@@ -161,11 +163,11 @@ export function buildNestedAssembly(spec: NestedAssemblySpec): string {
     };
   }
 
-  writeJson(path.join(rootDir, 'manifest.json'), {
+  writeJson(path.join(rootDir, MANIFEST_FILE), {
     version: ASSEMBLY_SCHEMA_VERSION,
     artifacts: rootArtifacts,
   });
-  writeJson(path.join(rootDir, 'tree.json'), {
+  writeJson(path.join(rootDir, TREE_FILE), {
     version: TREE_SCHEMA_VERSION,
     tree: appNode(Object.values(treeChildren)),
   });
@@ -202,10 +204,10 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
     emitNestedStack(dir, metadata, parentChildren, parentResources, parent.id, ns);
   }
 
-  writeJson(path.join(dir, 'manifest.json'), {
+  writeJson(path.join(dir, MANIFEST_FILE), {
     version: ASSEMBLY_SCHEMA_VERSION,
     artifacts: {
-      Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
+      Tree: { type: 'cdk:tree', properties: { file: TREE_FILE } },
       [parent.id]: {
         type: 'aws:cloudformation:stack',
         environment: 'aws://unknown-account/unknown-region',
@@ -215,7 +217,7 @@ export function buildNestedStackAssembly(spec: { parent: NestedStackParentSpec }
       },
     },
   });
-  writeJson(path.join(dir, 'tree.json'), {
+  writeJson(path.join(dir, TREE_FILE), {
     version: TREE_SCHEMA_VERSION,
     tree: appNode([{
       id: parent.id,
@@ -301,7 +303,7 @@ function emitNestedStack(
 /** Manifest + tree with no metadata, no traces — for non-TS app graceful-degradation tests. */
 export function buildNonTypeScriptAssembly(): string {
   const dir = mkAssemblyDir('nonts');
-  writeJson(path.join(dir, 'manifest.json'), {
+  writeJson(path.join(dir, MANIFEST_FILE), {
     version: ASSEMBLY_SCHEMA_VERSION,
     artifacts: {
       Stack1: {
@@ -311,10 +313,10 @@ export function buildNonTypeScriptAssembly(): string {
         displayName: 'Stack1',
         // No metadata: non-TS apps emit no aws:cdk:logicalId entries.
       },
-      Tree: { type: 'cdk:tree', properties: { file: 'tree.json' } },
+      Tree: { type: 'cdk:tree', properties: { file: TREE_FILE } },
     },
   });
-  writeJson(path.join(dir, 'tree.json'), {
+  writeJson(path.join(dir, TREE_FILE), {
     version: TREE_SCHEMA_VERSION,
     tree: {
       id: 'App',
