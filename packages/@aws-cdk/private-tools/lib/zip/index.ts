@@ -1,20 +1,70 @@
-import { error } from 'console';
 import { createWriteStream, promises as fs } from 'fs';
 import * as path from 'path';
+import { Writable } from 'stream';
 import type { Options } from 'fast-glob';
 import { globSync } from 'fast-glob';
-import { formatErrorMessage } from './format-error';
 
+// namespace object imports won't work in the bundle for function exports
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const archiver = require('archiver');
 
-// Adapted from cdk-assets
-export async function zipDirectory(directory: string, outputFile: string): Promise<void> {
+/**
+ * Receives informational messages (e.g. retries on EPERM on Windows).
+ */
+export type EventEmitter = (x: string) => void;
+
+/**
+ * Zip the contents of a directory into the given output file.
+ *
+ * The resulting zip is deterministic: file dates are reset to a fixed
+ * epoch so equal content produces equal zip files.
+ *
+ * Follows symbolic links.
+ *
+ * @param directory    - The directory to zip.
+ * @param outputFile   - The target zip file path.
+ * @param eventEmitter - Optional sink for informational messages.
+ */
+export async function zipDirectory(
+  directory: string,
+  outputFile: string,
+  eventEmitter: EventEmitter = () => {
+  },
+): Promise<void> {
   // We write to a temporary file and rename at the last moment. This is so that if we are
   // interrupted during this process, we don't leave a half-finished file in the target location.
   const temporaryOutputFile = `${outputFile}.${randomString()}._tmp`;
   await writeZipFile(directory, temporaryOutputFile);
-  await moveIntoPlace(temporaryOutputFile, outputFile);
+  await moveIntoPlace(temporaryOutputFile, outputFile, eventEmitter);
+}
+
+/**
+ * Compress a string as a single-file zip, returning the zip buffer.
+ *
+ * The resulting zip is deterministic: the file date is reset to a fixed epoch.
+ *
+ * @see https://github.com/archiverjs/node-archiver/issues/342
+ */
+export function zipString(fileName: string, rawString: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const buffers: Buffer[] = [];
+
+    const converter = new Writable();
+    converter._write = (chunk: Buffer, _: string, callback: () => void) => {
+      buffers.push(chunk);
+      process.nextTick(callback);
+    };
+    converter.on('finish', () => resolve(Buffer.concat(buffers)));
+
+    const archive = archiver('zip');
+    archive.on('error', reject);
+    archive.pipe(converter);
+    archive.append(rawString, {
+      name: fileName,
+      date: new Date('1980-01-01T00:00:00.000Z'),
+    });
+    void archive.finalize();
+  });
 }
 
 function writeZipFile(directory: string, outputFile: string): Promise<void> {
@@ -46,11 +96,12 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
     // Append files serially to ensure file order
     for (const file of files) {
       const fullPath = path.resolve(directory, file);
-      // Exactly 2 promises
+      // There are exactly 2 promises
       // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
       const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
       archive.append(data, {
         name: file,
+        date: new Date('1980-01-01T00:00:00.000Z'), // reset dates to get the same hash for the same content
         mode: stat.mode,
       });
     }
@@ -66,7 +117,7 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
  *   file open, so retry a couple of times.
  * - This same function may be called in parallel and be interrupted at any point.
  */
-async function moveIntoPlace(source: string, target: string) {
+async function moveIntoPlace(source: string, target: string, eventEmitter: EventEmitter) {
   let delay = 100;
   let attempts = 5;
   while (true) {
@@ -78,7 +129,7 @@ async function moveIntoPlace(source: string, target: string) {
       if (e.code !== 'EPERM' || attempts-- <= 0) {
         throw e;
       }
-      error(formatErrorMessage(e));
+      eventEmitter(e.message);
       await sleep(Math.floor(Math.random() * delay));
       delay *= 2;
     }
@@ -86,9 +137,11 @@ async function moveIntoPlace(source: string, target: string) {
 }
 
 function sleep(ms: number) {
-  return new Promise(ok => setTimeout(ok, ms));
+  return new Promise((ok) => setTimeout(ok, ms));
 }
 
 function randomString() {
-  return Math.random().toString(36).replace(/[^a-z0-9]+/g, '');
+  return Math.random()
+    .toString(36)
+    .replace(/[^a-z0-9]+/g, '');
 }

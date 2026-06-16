@@ -523,6 +523,11 @@ export const IO = {
     description: 'No policy validation report found',
   }),
 
+  CDK_TOOLKIT_W9602: make.warn({
+    code: 'CDK_TOOLKIT_W9602',
+    description: 'Online validation could not be completed for a stack',
+  }),
+
   // Notices
   CDK_TOOLKIT_I0100: make.info({
     code: 'CDK_TOOLKIT_I0100',

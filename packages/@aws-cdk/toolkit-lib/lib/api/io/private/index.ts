@@ -1,5 +1,6 @@
 export * from './io-host-wrappers';
 export * from './io-helper';
+export * from './io-default-messages';
 export * from './level-priority';
 export * from './span';
 export * from './message-maker';

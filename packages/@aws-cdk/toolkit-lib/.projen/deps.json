@@ -5,6 +5,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/private-tools",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -89,6 +93,10 @@
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -338,6 +346,7 @@
     },
     {
       "name": "archiver",
+      "version": "^7.0.1",
       "type": "runtime"
     },
     {
@@ -360,6 +369,7 @@
     },
     {
       "name": "fast-glob",
+      "version": "^3.3.3",
       "type": "runtime"
     },
     {

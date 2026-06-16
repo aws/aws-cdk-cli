@@ -20,6 +20,7 @@ updates:
       - /packages/@aws-cdk/cloud-assembly-schema
       - /packages/@aws-cdk/cloudformation-diff
       - /packages/@aws-cdk/integ-runner
+      - /packages/@aws-cdk/private-tools
       - /packages/@aws-cdk/toolkit-lib
       - /packages/@aws-cdk/user-input-gen
       - /packages/@aws-cdk/yarn-cling

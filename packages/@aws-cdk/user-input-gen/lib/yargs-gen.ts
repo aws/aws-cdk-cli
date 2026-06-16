@@ -2,7 +2,7 @@ import type { IScope, Statement } from '@cdklabs/typewriter';
 import { $E, Expression, ExternalModule, FreeFunction, Module, SelectiveModuleImport, ThingSymbol, Type, TypeScriptRenderer, code, expr } from '@cdklabs/typewriter';
 import { EsLintRules } from '@cdklabs/typewriter/lib/eslint-rules';
 import * as prettier from 'prettier';
-import { lit, SOURCE_OF_TRUTH } from './util';
+import { lit, SOURCE_OF_TRUTH, kebabToCamelCase } from './util';
 import type { CliConfig, CliOption, YargsOption } from './yargs-types';
 
 // to import lodash.clonedeep properly, we would need to set esModuleInterop: true
@@ -16,6 +16,7 @@ export class CliHelpers extends ExternalModule {
   public readonly isCI = makeCallableExpr(this, 'isCI');
   public readonly shouldDisplayNotices = makeCallableExpr(this, 'shouldDisplayNotices');
   public readonly yargsNegativeAlias = makeCallableExpr(this, 'yargsNegativeAlias');
+  public readonly yargsImplies = makeCallableExpr(this, 'yargsImplies');
 }
 
 function makeCallableExpr(scope: IScope, name: string) {
@@ -141,7 +142,7 @@ function makeOptions(prefix: Expression, options: { [optionName: string]: CliOpt
       optionProps.requiresArg = true;
     }
 
-    for (const optionProp of Object.keys(optionProps).filter(opt => !['negativeAlias'].includes(opt))) {
+    for (const optionProp of Object.keys(optionProps).filter(opt => !['negativeAlias', 'implies'].includes(opt))) {
       const optionValue = (optionProps as any)[optionProp];
       if (optionValue instanceof Expression) {
         optionArgs[optionProp] = optionValue;
@@ -162,6 +163,15 @@ function makeOptions(prefix: Expression, options: { [optionName: string]: CliOpt
         type: 'boolean',
         hidden: true,
       }));
+      optionsExpr = optionsExpr.callMethod('middleware', middleware, lit(true));
+    }
+
+    // Special case for `implies`: a flag that switches on other boolean options.
+    // We add a middleware that sets the implied options to `true` when the flag is set:
+    // .middleware(yargsImplies('debug', ['debugApp', 'debugCli']), true)
+    if (theOption.implies && theOption.implies.length > 0) {
+      const impliedOptions = theOption.implies.map((implied) => kebabToCamelCase(implied));
+      const middleware = helpers.yargsImplies.call(lit(kebabToCamelCase(option)), lit(impliedOptions));
       optionsExpr = optionsExpr.callMethod('middleware', middleware, lit(true));
     }
   }

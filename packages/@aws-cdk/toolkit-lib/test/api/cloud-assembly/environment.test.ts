@@ -1,5 +1,6 @@
 import * as fs from 'fs-extra';
-import { guessExecutable } from '../../../lib/api/cloud-assembly/environment';
+import { guessExecutable, synthParametersFromSettings } from '../../../lib/api/cloud-assembly/environment';
+import { Settings } from '../../../lib/api/settings';
 
 const BOTH = 'both' as const;
 const DONTCARE = 'DONT-CARE';
@@ -29,7 +30,7 @@ test.each([
 ])('cmd=%p win=%p (stat=%p) exe=%p node=%p => %p', async (commandLine: string, isWindows: boolean, statFile: string, isExecutable: boolean | undefined, nodePath: string, expected: string) => {
   // GIVEN
   process.execPath = nodePath;
-  Object.defineProperty(process, 'platform', { value: isWindows ? 'win32' : 'linux' }) ;
+  Object.defineProperty(process, 'platform', { value: isWindows ? 'win32' : 'linux' });
   jest.spyOn(fs, 'stat').mockImplementation((p) => {
     if (p !== statFile) {
       throw new Error(`Expected a stat() call on '${statFile}' but got '${p}'`);
@@ -76,3 +77,38 @@ function explodeBoth<F extends unknown, R extends unknown[]>(input: [F, ...R]): 
 
 type NotBoth<A> = Exclude<A, 'both'>;
 type NotBothA<A extends unknown[]> = { [I in keyof A]: NotBoth<A[I]> };
+
+describe('synthParametersFromSettings sets CDK_DEBUG from debugApp', () => {
+  test('debugApp: true sets CDK_DEBUG', () => {
+    const { env } = synthParametersFromSettings(new Settings({ debugApp: true }));
+    expect(env.CDK_DEBUG).toBe('true');
+  });
+
+  test('debugApp: false does not set CDK_DEBUG', () => {
+    const { env } = synthParametersFromSettings(new Settings({ debugApp: false }));
+    expect(env.CDK_DEBUG).toBeUndefined();
+  });
+
+  test('debugCli alone does not set CDK_DEBUG', () => {
+    const { env } = synthParametersFromSettings(new Settings({ debugCli: true }));
+    expect(env.CDK_DEBUG).toBeUndefined();
+  });
+
+  test('no debug settings does not set CDK_DEBUG', () => {
+    const { env } = synthParametersFromSettings(new Settings({}));
+    expect(env.CDK_DEBUG).toBeUndefined();
+  });
+
+  test('debugApp: true sets JSII_HOST_STACK_TRACES', () => {
+    delete process.env.JSII_HOST_STACK_TRACES;
+    const { env } = synthParametersFromSettings(new Settings({ debugApp: true }));
+    expect(env.JSII_HOST_STACK_TRACES).toBe('1');
+  });
+
+  test('debugApp: true does set JSII_HOST_STACK_TRACES if already set', () => {
+    process.env.JSII_HOST_STACK_TRACES = '0';
+    const { env } = synthParametersFromSettings(new Settings({ debugApp: true }));
+    expect(Object.keys(env)).not.toContain('JSII_HOST_STACK_TRACES');
+    delete process.env.JSII_HOST_STACK_TRACES;
+  });
+});

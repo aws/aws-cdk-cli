@@ -15,6 +15,7 @@ import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
+import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -345,7 +346,7 @@ const repoProject = new yarn.Monorepo({
 });
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
-  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'yarn jest'),
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
@@ -697,6 +698,33 @@ const cliPluginContract = configureProject(
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/private-tools
+
+/**
+ * Private (unpublished) package hosting small, self-contained utilities.
+ *
+ * Non-bundled consumers cherry-pick a tool via `project.with(tools.<name>)`,
+ * which adds a re-export shim (`lib/private/tools.ts`) and bundles only our
+ * code into it at pack time. Already-bundled consumers (the CLI) take a direct
+ * dependency on the package instead.
+ *
+ * Adding a new tool: create `packages/@aws-cdk/private-tools/lib/<tool>/index.ts`
+ * (auto-discovered) and declare its dependencies in the `tools` map below.
+ */
+const tools = defineTools({
+  ...genericCdkProps({ private: true }),
+  parent: repo,
+  tools: {
+    zip: {
+      deps: ['archiver@^7.0.1', 'fast-glob@^3.3.3'],
+      devDeps: ['@types/archiver', 'jszip'],
+    },
+  },
+});
+configureProject(tools);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region @aws-cdk/cdk-assets-lib
 
 const cdkAssetsLib = configureProject(
@@ -710,8 +738,6 @@ const cdkAssetsLib = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      'archiver',
-      'fast-glob',
       'mime@^2',
       sdkDep('@aws-sdk/client-ecr'),
       sdkDep('@aws-sdk/client-s3'),
@@ -724,7 +750,6 @@ const cdkAssetsLib = configureProject(
       'picomatch',
     ],
     devDeps: [
-      '@types/archiver',
       '@types/mime@^2',
       '@types/picomatch',
       'fs-extra@^11',
@@ -764,6 +789,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.zip);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -922,7 +948,6 @@ const toolkitLib = configureProject(
       smithyDep('@smithy/shared-ini-file-loader'),
       smithyDep('@smithy/util-retry'),
       smithyDep('@smithy/util-waiter'),
-      'archiver',
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^4',
@@ -932,7 +957,6 @@ const toolkitLib = configureProject(
       'p-limit@^3',
       'semver',
       'split2',
-      'fast-glob',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -997,6 +1021,7 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.zip);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1192,6 +1217,9 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
+    // The CLI bundles all of its dependencies, so it may depend on the private
+    // `@aws-cdk/private-tools` package directly (it is inlined on bundle).
+    allowPrivateDeps: true,
     devDeps: [
       yargsGen,
       cliPluginContract,
@@ -1221,6 +1249,9 @@ const cli = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
+      // Already bundled by the CLI: depend on the private tools package
+      // directly (the bundler inlines it and dedupes its transitive deps).
+      tools,
       'archiver',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
