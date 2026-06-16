@@ -1,0 +1,72 @@
+import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
+
+/**
+ * The outcome of a single synth attempt.
+ *
+ * `success` means the assembly was written to disk (the watcher will see it).
+ * `app-failure` means the user's CDK app threw or did not compile.
+ * `lock-conflict` means another process holds `<projectDir>/cdk.out` (a `cdk
+ * synth` running in a terminal, a `cdk watch` loop, or our own previous synth
+ * not yet released). Callers should not surface this as a hard error.
+ * `error` is reserved for anything we did not classify, including failures
+ * during dispose.
+ */
+export type SynthRunResult =
+  | { status: 'success' }
+  | { status: 'app-failure'; message: string }
+  | { status: 'lock-conflict' }
+  | { status: 'error'; message: string };
+
+export interface SynthRunnerOptions {
+  /** A configured Toolkit instance (its IoHost decides where messages go). */
+  readonly toolkit: Toolkit;
+  /** Directory containing the user's `cdk.json`; also the synth working dir. */
+  readonly projectDir: string;
+  /** The `app` command from `cdk.json` (e.g. `npx ts-node bin/app.ts`). */
+  readonly app: string;
+}
+
+/**
+ * Run a one-shot synth of the user's CDK app. Writes `<projectDir>/cdk.out`
+ * via `Toolkit.synth(fromCdkApp(...))`, then immediately disposes the cached
+ * assembly so the read lock is released before the next call. Holding the
+ * cached assembly between calls would cause the next acquireWrite to throw
+ * `ConcurrentReadLock` against ourselves.
+ */
+export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
+  let cached;
+  try {
+    const cx = await options.toolkit.fromCdkApp(options.app, {
+      workingDirectory: options.projectDir,
+    });
+    cached = await options.toolkit.synth(cx);
+  } catch (err) {
+    return classify(err);
+  }
+
+  try {
+    await cached.dispose();
+  } catch (err) {
+    // Synth succeeded and `cdk.out` is on disk, but we could not release the
+    // read lock. Surface as `error` so the caller can warn the user; without
+    // a lock release the next synth from this process would self-conflict.
+    return { status: 'error', message: (err as Error).message };
+  }
+
+  return { status: 'success' };
+}
+
+function classify(err: unknown): SynthRunResult {
+  if (ToolkitError.isToolkitError(err)) {
+    // ToolkitError stores its discriminating code in `name` (the constructor's
+    // first arg overrides the default Error name), not in a `code` property.
+    if (err.name === 'ConcurrentWriteLock' || err.name === 'ConcurrentReadLock') {
+      return { status: 'lock-conflict' };
+    }
+    if (ToolkitError.isAssemblyError(err)) {
+      return { status: 'app-failure', message: err.message };
+    }
+    return { status: 'error', message: err.message };
+  }
+  return { status: 'error', message: (err as Error).message };
+}
