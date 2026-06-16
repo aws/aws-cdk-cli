@@ -1,36 +1,51 @@
 import * as s3 from '@aws-sdk/client-s3';
 import { MockSdk } from '../../_helpers/mock-sdk';
 
-describe('CDK_S3_FORCE_PATH_STYLE', () => {
+describe('S3 path-style addressing', () => {
+  const ENV_VARS = ['CDK_S3_FORCE_PATH_STYLE', 'AWS_ENDPOINT_URL_S3', 'AWS_ENDPOINT_URL'];
+  const original: Record<string, string | undefined> = {};
   let s3ClientSpy: jest.SpyInstance;
-  const originalValue = process.env.CDK_S3_FORCE_PATH_STYLE;
 
   beforeEach(() => {
+    for (const v of ENV_VARS) {
+      original[v] = process.env[v];
+      delete process.env[v];
+    }
     s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
   });
 
   afterEach(() => {
     s3ClientSpy.mockRestore();
-    if (originalValue === undefined) {
-      delete process.env.CDK_S3_FORCE_PATH_STYLE;
-    } else {
-      process.env.CDK_S3_FORCE_PATH_STYLE = originalValue;
+    for (const v of ENV_VARS) {
+      if (original[v] === undefined) {
+        delete process.env[v];
+      } else {
+        process.env[v] = original[v];
+      }
     }
   });
 
-  test('forces path-style addressing on the S3 client when set', () => {
+  // MockSdk only supplies fake credentials and region; `.s3()` is the real SDK
+  // method under test. Returns the `forcePathStyle` value it passes when
+  // constructing the underlying S3 client.
+  function forcePathStylePassedToS3Client(): boolean | undefined {
+    new MockSdk().s3();
+    return s3ClientSpy.mock.calls[0][0].forcePathStyle;
+  }
+
+  test('is forced when CDK_S3_FORCE_PATH_STYLE is set', () => {
     process.env.CDK_S3_FORCE_PATH_STYLE = '1';
 
-    new MockSdk().s3();
-
-    expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: true }));
+    expect(forcePathStylePassedToS3Client()).toBe(true);
   });
 
-  test('leaves path-style addressing unset on the S3 client when not set', () => {
-    delete process.env.CDK_S3_FORCE_PATH_STYLE;
+  test('is auto-detected for a loopback endpoint', () => {
+    process.env.AWS_ENDPOINT_URL_S3 = 'http://localhost:4566';
 
-    new MockSdk().s3();
+    expect(forcePathStylePassedToS3Client()).toBe(true);
+  });
 
-    expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: undefined }));
+  test('is left unset by default', () => {
+    expect(forcePathStylePassedToS3Client()).toBeUndefined();
   });
 });

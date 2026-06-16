@@ -74,37 +74,48 @@ test('session tags are passed to fromTemporaryCredentials in awsOptions', async 
   });
 });
 
-describe('CDK_S3_FORCE_PATH_STYLE', () => {
+describe('S3 path-style addressing', () => {
+  const ENV_VARS = ['CDK_S3_FORCE_PATH_STYLE', 'AWS_ENDPOINT_URL_S3', 'AWS_ENDPOINT_URL'];
+  const original: Record<string, string | undefined> = {};
   let s3ClientSpy: jest.SpyInstance;
-  const originalValue = process.env.CDK_S3_FORCE_PATH_STYLE;
 
   beforeEach(() => {
+    for (const v of ENV_VARS) {
+      original[v] = process.env[v];
+      delete process.env[v];
+    }
     s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
   });
 
   afterEach(() => {
     s3ClientSpy.mockRestore();
-    if (originalValue === undefined) {
-      delete process.env.CDK_S3_FORCE_PATH_STYLE;
-    } else {
-      process.env.CDK_S3_FORCE_PATH_STYLE = originalValue;
+    for (const v of ENV_VARS) {
+      if (original[v] === undefined) {
+        delete process.env[v];
+      } else {
+        process.env[v] = original[v];
+      }
     }
   });
 
-  test('forces path-style addressing on the S3 client when set', async () => {
+  test('forces path-style addressing on the S3 client when CDK_S3_FORCE_PATH_STYLE is set', async () => {
     process.env.CDK_S3_FORCE_PATH_STYLE = '1';
-    const aws = new DefaultAwsClient();
 
-    await aws.s3Client({ region: 'far-far-away' });
+    await new DefaultAwsClient().s3Client({ region: 'far-far-away' });
 
     expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: true }));
   });
 
-  test('leaves path-style addressing unset on the S3 client when not set', async () => {
-    delete process.env.CDK_S3_FORCE_PATH_STYLE;
-    const aws = new DefaultAwsClient();
+  test('auto-detects path-style addressing for a loopback endpoint', async () => {
+    process.env.AWS_ENDPOINT_URL_S3 = 'http://localhost:4566';
 
-    await aws.s3Client({ region: 'far-far-away' });
+    await new DefaultAwsClient().s3Client({ region: 'far-far-away' });
+
+    expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: true }));
+  });
+
+  test('leaves path-style addressing unset on the S3 client by default', async () => {
+    await new DefaultAwsClient().s3Client({ region: 'far-far-away' });
 
     expect(s3ClientSpy).toHaveBeenCalledWith(expect.objectContaining({ forcePathStyle: undefined }));
   });

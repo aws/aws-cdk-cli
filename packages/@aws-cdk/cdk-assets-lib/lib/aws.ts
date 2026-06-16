@@ -46,6 +46,7 @@ import type {
   ListObjectsV2CommandOutput,
   PutObjectCommandInput,
 } from './aws-types';
+import { forceS3PathStyle } from './private/tools';
 
 export type AssumeRoleAdditionalOptions = Partial<
   Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>
@@ -151,8 +152,8 @@ export class DefaultAwsClient implements IAws {
   public async s3Client(options: ClientOptions): Promise<IS3Client> {
     const client = new S3Client({
       ...(await this.awsOptions(options)),
-      // Allow forcing S3 path-style addressing (e.g. for custom/local endpoints).
-      forcePathStyle: process.env.CDK_S3_FORCE_PATH_STYLE ? true : undefined,
+      // Use path-style addressing for explicit opt-in or loopback endpoints.
+      forcePathStyle: forceS3PathStyle(),
     });
     return {
       getBucketEncryption: (

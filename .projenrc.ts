@@ -719,6 +719,9 @@ const tools = defineTools({
       deps: ['archiver@^7.0.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/archiver', 'jszip'],
     },
+    's3-path-style': {
+      deps: [],
+    },
   },
 });
 configureProject(tools);
@@ -790,6 +793,7 @@ const cdkAssetsLib = configureProject(
   }),
 );
 cdkAssetsLib.with(tools.zip);
+cdkAssetsLib.with(tools['s3-path-style']);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -1022,6 +1026,7 @@ const toolkitLib = configureProject(
 );
 fixupTestTask(toolkitLib);
 toolkitLib.with(tools.zip);
+toolkitLib.with(tools['s3-path-style']);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
