@@ -1,6 +1,8 @@
 import type { SynthRunResult } from '../../lib/core/synth-runner';
 import {
   COMMAND_SYNTH_NOW,
+  COMMAND_ENABLE_AUTO_SYNTH,
+  COMMAND_DISABLE_AUTO_SYNTH,
   executeCommand,
   type CommandHandlerOptions,
   type NotifySink,
@@ -28,17 +30,31 @@ function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
   options: CommandHandlerOptions;
   notify: CapturedNotify;
   synth: jest.Mock;
+  toggleAutoSynth: jest.Mock;
 } {
   const notify = createNotify();
   const synth = jest.fn(async () => ({ status: 'success' } as SynthRunResult));
+  const toggleAutoSynth = jest.fn();
   return {
     notify,
     synth,
-    options: { synth, synthAvailable: true, notify, ...overrides },
+    toggleAutoSynth,
+    options: { synth, synthAvailable: true, toggleAutoSynth, notify, ...overrides },
   };
 }
 
 describe('executeCommand', () => {
+  test('enableAutoSynth calls toggleAutoSynth(true)', async () => {
+    const { options, toggleAutoSynth } = makeOptions();
+    await executeCommand(COMMAND_ENABLE_AUTO_SYNTH, [], options);
+    expect(toggleAutoSynth).toHaveBeenCalledWith(true);
+  });
+
+  test('disableAutoSynth calls toggleAutoSynth(false)', async () => {
+    const { options, toggleAutoSynth } = makeOptions();
+    await executeCommand(COMMAND_DISABLE_AUTO_SYNTH, [], options);
+    expect(toggleAutoSynth).toHaveBeenCalledWith(false);
+  });
   test('synthNow shows info and skips synth when unavailable', async () => {
     const { options, notify, synth } = makeOptions({ synthAvailable: false });
 

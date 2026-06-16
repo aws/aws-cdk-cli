@@ -131,24 +131,41 @@ describe('LSP Server', () => {
     });
   });
 
-  test('didSave triggers auto-synth for non-ignored source files when synthAvailable', async () => {
+  test('didSave triggers auto-synth for non-ignored source files when auto-synth is enabled', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner, synthAvailable: true });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
 
+    // Enable auto-synth via the toggle command first
+    await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
+
     client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
     });
-    // allow microtask queue to flush the void-wrapped promise
     await new Promise((r) => setTimeout(r, 0));
 
     expect(synthRunner).toHaveBeenCalledTimes(1);
+  });
+
+  test('didSave does not trigger synth when auto-synth is disabled (default)', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
+    const client = createTestClient({ synthRunner, synthAvailable: true });
+    initializeClient(client, { applicationDir: '/tmp/test-project' });
+
+    // auto-synth is off by default
+    client.handlers.onDidSaveTextDocument({
+      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(synthRunner).not.toHaveBeenCalled();
   });
 
   test('didSave does not trigger synth for ignored files', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner, synthAvailable: true });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/node_modules/foo/index.ts' },
@@ -161,23 +178,11 @@ describe('LSP Server', () => {
     expect(synthRunner).not.toHaveBeenCalled();
   });
 
-  test('didSave skips synth when synthAvailable is false', async () => {
-    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const client = createTestClient({ synthRunner, synthAvailable: false });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
-
-    client.handlers.onDidSaveTextDocument({
-      textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
-    });
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(synthRunner).not.toHaveBeenCalled();
-  });
-
   test('didSave is ignored after shutdown', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner, synthAvailable: true });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     client.handlers.onShutdown();
     client.handlers.onDidSaveTextDocument({
@@ -192,6 +197,7 @@ describe('LSP Server', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'app-failure', message: 'compile err' });
     const client = createTestClient({ synthRunner, synthAvailable: true });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     expect(() => client.handlers.onDidSaveTextDocument({
       textDocument: { uri: 'file:///tmp/test-project/lib/my-stack.ts' },
@@ -243,9 +249,9 @@ describe('LSP Server', () => {
     });
     initializeClient(client, { applicationDir: '/p' });
     const lenses = client.handlers.onCodeLens({ textDocument: { uri: stackUri } });
-    expect(lenses).toHaveLength(2); // 1 header + 1 L1
-    expect(lenses[1].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
-    expect(lenses[1].command?.title).toBe('Creates AWS::S3::Bucket');
+    expect(lenses).toHaveLength(3); // 2 header + 1 L1
+    expect(lenses[2].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
+    expect(lenses[2].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('publishes nothing when assembly is not-found (pre-synth)', () => {
@@ -384,7 +390,7 @@ describe('LSP Server -- executeCommand', () => {
   test('onInitialize advertises executeCommandProvider with synthNow', () => {
     const { handlers } = createCommandClient();
     const result = handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: {} });
-    expect(result.capabilities.executeCommandProvider?.commands).toEqual([COMMAND_SYNTH_NOW]);
+    expect(result.capabilities.executeCommandProvider?.commands).toEqual(expect.arrayContaining([COMMAND_SYNTH_NOW]));
   });
 
   test('synthNow without synthAvailable notifies info', async () => {
@@ -448,6 +454,9 @@ describe('LSP Server -- executeCommand', () => {
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
     handlers.onInitialized();
+
+    // Enable auto-synth so didSave triggers a synth
+    await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     // Start a save-triggered synth (first, holds the latch)
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });

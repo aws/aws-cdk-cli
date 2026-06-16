@@ -146,6 +146,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
   let synthInFlight = false;
+  let autoSynthEnabled = false; // off by default; user enables via the CodeLens toggle
   let shouldIgnore: (filePath: string) => boolean = () => false;
   let assemblyWatcher: AssemblyWatcher | undefined;
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
@@ -268,14 +269,11 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       if (shutdownRequested) return;
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
-      if (!synthAvailable) return;
-      // Auto-synth on save: run the same guarded synth as the manual lens.
-      // Errors are logged to the Output panel; success is silent (the watcher
-      // picks up the cdk.out change and refreshes diagnostics).
+      if (!autoSynthEnabled || !synthAvailable) return;
       void guardedSynth().then((result) => handleSynthOnSave(result, log));
     },
     onCodeLens(params) {
-      return codeLensesForFile(cachedIndex, params.textDocument.uri);
+      return codeLensesForFile(cachedIndex, params.textDocument.uri, autoSynthEnabled);
     },
     onDefinition(params) {
       // Only synthesized templates link back to source, and only file: URIs are
@@ -302,6 +300,10 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       await executeCommand(params.command, params.arguments ?? [], {
         synth: guardedSynth,
         synthAvailable,
+        toggleAutoSynth: (enabled) => {
+          autoSynthEnabled = enabled;
+          onRefreshCodeLenses();
+        },
         notify,
       });
     },

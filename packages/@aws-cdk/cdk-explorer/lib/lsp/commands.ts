@@ -7,9 +7,11 @@ import type { SynthRunResult } from '../core/synth-runner';
  * Takes seconds — it re-executes the app.
  */
 export const COMMAND_SYNTH_NOW = 'cdk.explorer.synthNow';
+export const COMMAND_ENABLE_AUTO_SYNTH = 'cdk.explorer.enableAutoSynth';
+export const COMMAND_DISABLE_AUTO_SYNTH = 'cdk.explorer.disableAutoSynth';
 
 /** All commands this LSP advertises via `executeCommandProvider`. */
-export const SUPPORTED_COMMANDS = [COMMAND_SYNTH_NOW] as const;
+export const SUPPORTED_COMMANDS = [COMMAND_SYNTH_NOW, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_DISABLE_AUTO_SYNTH] as const;
 
 /**
  * UI sinks the dispatcher uses to communicate with the user.
@@ -35,6 +37,8 @@ export interface CommandHandlerOptions {
    * no `app` key; the synth command is then unavailable to the user.
    */
   readonly synthAvailable: boolean;
+  /** Called with the new desired state when the user toggles auto-synth. */
+  readonly toggleAutoSynth: (enabled: boolean) => void;
   /** UI sinks for messages and progress. */
   readonly notify: NotifySink;
 }
@@ -53,14 +57,29 @@ export async function executeCommand(
   _args: unknown[],
   options: CommandHandlerOptions,
 ): Promise<void> {
-  if (command !== COMMAND_SYNTH_NOW) return;
+  switch (command) {
+    case COMMAND_ENABLE_AUTO_SYNTH:
+      options.toggleAutoSynth(true);
+      return;
 
-  if (!options.synthAvailable) {
-    options.notify.info(SYNTH_UNAVAILABLE_MESSAGE);
-    return;
+    case COMMAND_DISABLE_AUTO_SYNTH:
+      options.toggleAutoSynth(false);
+      return;
+
+    case COMMAND_SYNTH_NOW:
+      if (!options.synthAvailable) {
+        options.notify.info(SYNTH_UNAVAILABLE_MESSAGE);
+        return;
+      }
+      {
+        const result = await options.notify.withProgress(PROGRESS_MESSAGE, () => options.synth());
+        handleSynthResult(result, options.notify);
+      }
+      return;
+
+    default:
+      return;
   }
-  const result = await options.notify.withProgress(PROGRESS_MESSAGE, () => options.synth());
-  handleSynthResult(result, options.notify);
 }
 
 function handleSynthResult(result: SynthRunResult, notify: NotifySink): void {

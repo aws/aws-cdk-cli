@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'url';
 import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
-import { COMMAND_SYNTH_NOW } from './commands';
+import { COMMAND_DISABLE_AUTO_SYNTH, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_SYNTH_NOW } from './commands';
 import { resourceTarget, type ResourceTarget } from './template-locator';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
@@ -14,13 +14,15 @@ export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
  * sourceLocation matches fileUri, group by line and emit one lens per line
  * summarising the CFN resources produced there.
  */
-export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri: string): CodeLens[] {
+export function codeLensesForFile(
+  index: ConstructIndex<ConstructNode>,
+  fileUri: string,
+  autoSynthEnabled: boolean,
+): CodeLens[] {
   const matches = [...index]
     .filter((node) => isResourceOnFile(node, fileUri))
     .map((node) => ({ line: node.sourceLocation.line, node }));
 
-  // Multiple resources can map to one line when an L2 construct fans out
-  // (e.g. an L2 producing a primary resource + auxiliary resources).
   const l1Lenses = [...groupBy(matches, (m) => m.line)].map(([line, group]) => ({
     range: lineRange(line),
     command: commandFor(group.map((m) => m.node)),
@@ -28,13 +30,16 @@ export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri:
 
   if (l1Lenses.length === 0) return [];
 
-  // Prepend a header lens at line 0 so users have a one-click synth surface
-  // at the top of every CDK source file that already has L1 lenses.
   const header0: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
-  return [
-    { range: header0, command: { title: '↻ Synth now', command: COMMAND_SYNTH_NOW } },
-    ...l1Lenses,
-  ];
+  // When auto-synth is off, show "Synth now" + "Enable auto-synth".
+  // When auto-synth is on, show only "Disable auto-synth" (saves handle synth).
+  const headerLenses: CodeLens[] = autoSynthEnabled
+    ? [{ range: header0, command: { title: '⏹ Disable auto-synth', command: COMMAND_DISABLE_AUTO_SYNTH } }]
+    : [
+      { range: header0, command: { title: '↻ Synth now', command: COMMAND_SYNTH_NOW } },
+      { range: header0, command: { title: '▶ Enable auto-synth', command: COMMAND_ENABLE_AUTO_SYNTH } },
+    ];
+  return [...headerLenses, ...l1Lenses];
 }
 
 /**
