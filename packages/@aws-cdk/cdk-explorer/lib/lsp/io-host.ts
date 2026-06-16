@@ -5,6 +5,11 @@ import type { RemoteConsole } from 'vscode-languageserver/node';
  * IoHost for the LSP. Routes Toolkit messages into the editor's Output
  * channel via the LSP connection's console.
  *
+ * We do NOT reuse `NonInteractiveIoHost` from toolkit-lib even though its
+ * `requestResponse` is identical: that class writes to `process.stdout` /
+ * `process.stderr`, which are the JSON-RPC transport for this process.
+ * Writing Toolkit output there would corrupt the protocol stream.
+ *
  * The LSP cannot prompt the user synchronously through `connection.console`,
  * so `requestResponse` returns each message's `defaultResponse`. This is
  * acceptable for `synth`, which has no interactive prompts.

@@ -60,6 +60,9 @@ function classify(err: unknown): SynthRunResult {
   if (ToolkitError.isToolkitError(err)) {
     // ToolkitError stores its discriminating code in `name` (the constructor's
     // first arg overrides the default Error name), not in a `code` property.
+    // These literals come from RWLock (toolkit-lib/lib/api/rwlock.ts). No
+    // named constants are exported; if upstream renames them, classification
+    // falls through to 'error' silently -- update here and in tests if so.
     if (err.name === 'ConcurrentWriteLock' || err.name === 'ConcurrentReadLock') {
       return { status: 'lock-conflict' };
     }
