@@ -231,11 +231,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   await loadPlugins(configuration.settings);
 
-  // Ensure annotations are written to the validation report and synthesis does not
-  // throw on validation errors — the CLI reads the report post-synthesis instead.
-  configuration.context.set('@aws-cdk/core:annotationsInValidationReport', true);
-  configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
-
   if ((typeof cmd) !== 'string') {
     throw new ToolkitError('InvalidArgType', `First argument should be a string. Got: ${cmd} (${typeof cmd})`);
   }
@@ -458,6 +453,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'validate':
         cliRequireUnstable(configuration, 'validate');
         ioHost.currentAction = 'validate';
+        configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           online: args.online,
