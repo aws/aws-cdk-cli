@@ -1,5 +1,9 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { pathToFileURL } from 'url';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
 import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
 
@@ -107,7 +111,7 @@ function readAssemblyResolvingAfterFirst(): () => AssemblyReadResult {
 }
 
 describe('LSP Server', () => {
-  test('responds to initialize with capabilities', () => {
+  test('initialize advertises codeLens, definition, and save-sync capabilities', () => {
     const client = createTestClient();
 
     const result = client.handlers.onInitialize({
@@ -125,6 +129,7 @@ describe('LSP Server', () => {
           save: { includeText: false },
         },
         codeLensProvider: { resolveProvider: false },
+        definitionProvider: true,
       },
     });
   });
@@ -341,5 +346,63 @@ describe('LSP Server', () => {
     client.handlers.onShutdown();
 
     expect(client.watcherClosed).toHaveBeenCalledTimes(1);
+  });
+
+  test('onDefinition resolves a template position back to construct source', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-def-'));
+    const templateFile = path.join(dir, 'Stack1.template.json');
+    const text = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
+    fs.writeFileSync(templateFile, text);
+    try {
+      const client = createTestClient({
+        readAssembly: () => ({
+          status: 'success',
+          data: {
+            tree: [{
+              path: 'Stack1/MyBucket/Resource',
+              id: 'Resource',
+              logicalId: 'MyBucket',
+              type: 'AWS::S3::Bucket',
+              templateFile,
+              sourceLocation: { file: '/p/lib/stack.ts', line: 5, column: 3 },
+              children: [],
+            }],
+            violations: [],
+            warnings: [],
+          },
+        }),
+      });
+      initializeClient(client, { applicationDir: dir });
+
+      const uri = pathToFileURL(templateFile).toString();
+      const position = TextDocument.create(uri, 'json', 0, text).positionAt(text.indexOf('AWS::S3::Bucket'));
+      const target = client.handlers.onDefinition({ textDocument: { uri }, position });
+
+      expect(target?.uri).toBe(pathToFileURL('/p/lib/stack.ts').toString());
+      expect(target?.range.start).toEqual({ line: 4, character: 2 }); // 1-based (5,3) -> 0-based
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('onDefinition returns undefined for a non-template document', () => {
+    const client = createTestClient();
+    initializeClient(client, { applicationDir: '/p' });
+    const target = client.handlers.onDefinition({
+      textDocument: { uri: pathToFileURL('/p/lib/stack.ts').toString() },
+      position: { line: 0, character: 0 },
+    });
+    expect(target).toBeUndefined();
+  });
+
+  test('onDefinition returns undefined (does not throw) for a non-file URI', () => {
+    const client = createTestClient();
+    initializeClient(client, { applicationDir: '/p' });
+    expect(
+      client.handlers.onDefinition({
+        textDocument: { uri: 'untitled:Untitled-1' },
+        position: { line: 0, character: 0 },
+      }),
+    ).toBeUndefined();
   });
 });
