@@ -83,7 +83,7 @@ async function investigateEcsService(
       source: 'CloudWatch Logs',
       messages: [
         'No CloudWatch Logs configuration found. Enable logging to see container output on failure.',
-        'Example (CDK):',
+        'Example:',
         '  taskDefinition.addContainer("app", {',
         '    // ...',
         '    logging: ecs.LogDrivers.awsLogs({ streamPrefix: "my-service" }),',
