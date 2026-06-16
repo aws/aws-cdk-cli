@@ -10,7 +10,8 @@ import type { RemoteConsole } from 'vscode-languageserver/node';
  * acceptable for `synth`, which has no interactive prompts.
  */
 export class LspIoHost implements IIoHost {
-  public constructor(private readonly console: RemoteConsole) {}
+  public constructor(private readonly console: RemoteConsole) {
+  }
 
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     switch (msg.level) {
