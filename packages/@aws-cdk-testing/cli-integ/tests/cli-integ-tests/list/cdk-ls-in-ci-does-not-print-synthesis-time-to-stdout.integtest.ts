@@ -11,7 +11,15 @@ integTest(
       modEnv: { CI: 'true' },
     });
 
-    expect(listing).toContain(fixture.fullStackName('test-1'));
-    expect(listing).not.toContain('Synthesis time');
+    const lines = listing.trim().split('\n').filter(line => line.length > 0);
+
+    // there is an actual listing (guards against an empty pass)
+    expect(lines.length).toBeGreaterThan(0);
+
+    // every line is a stack entry; a status line like "✨ Synthesis time: ..."
+    // would not carry the stack prefix, so it fails this check
+    for (const line of lines) {
+      expect(line).toContain(fixture.stackNamePrefix);
+    }
   }),
 );
