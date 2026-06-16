@@ -42,8 +42,6 @@ import {
 import type { SynthRunResult } from '../core/synth-runner';
 
 export interface LspHandlerOptions {
-  /** Callback invoked on `didSave` for tracked source files. */
-  readonly onSynthRequest?: (projectDir: string) => void;
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult;
   /**
@@ -100,13 +98,26 @@ const NOOP_LOGGER: LogSink = {
   },
 };
 
+/** Log auto-synth-on-save outcomes. Errors go to the Output panel; success is silent. */
+function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
+  switch (result.status) {
+    case 'success':
+    case 'lock-conflict':
+      return; // silent — watcher handles the update; lock means another synth is already running
+    case 'app-failure':
+      log.error(`Auto-synth failed: ${result.message}`);
+      return;
+    case 'error':
+      log.error(`Auto-synth failed unexpectedly: ${result.message}`);
+      return;
+  }
+}
+
 /**
  * Build the LSP message handlers as plain functions over closed-over state.
  * No streams, no JSON-RPC, no framework — testable in isolation.
  */
 export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers {
-  const onSynthRequest = options.onSynthRequest ?? (() => {
-  });
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
@@ -183,6 +194,21 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     }
   }
 
+  // Shared synth invocation used by both the manual CodeLens command and
+  // auto-synth-on-save. The in-flight latch prevents concurrent synths from
+  // the same LSP instance. A second call while the first is running returns
+  // lock-conflict immediately (the Toolkit's RWLock would do the same, but
+  // this short-circuits before any setup work).
+  async function guardedSynth(): Promise<SynthRunResult> {
+    if (synthInFlight) return { status: 'lock-conflict' };
+    synthInFlight = true;
+    try {
+      return await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+    } finally {
+      synthInFlight = false;
+    }
+  }
+
   return {
     onInitialize(params) {
       applicationDir = params.initializationOptions?.applicationDir;
@@ -234,12 +260,11 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       if (shutdownRequested) return;
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
-      const projectDir = applicationDir ?? process.cwd();
-      try {
-        onSynthRequest(projectDir);
-      } catch (err) {
-        log.error(`Synth request failed: ${(err as Error).message}`);
-      }
+      if (!synthAvailable) return;
+      // Auto-synth on save: run the same guarded synth as the manual lens.
+      // Errors are logged to the Output panel; success is silent (the watcher
+      // picks up the cdk.out change and refreshes diagnostics).
+      void guardedSynth().then((result) => handleSynthOnSave(result, log));
     },
     onCodeLens(params) {
       return codeLensesForFile(cachedIndex, params.textDocument.uri);
@@ -266,23 +291,8 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       return sourceTargetAtTemplateOffset(cachedIndex, filePath, templateText, offset);
     },
     async onExecuteCommand(params) {
-      // Short-circuit duplicate clicks before they reach the Toolkit.
-      // Without this, a second call would still get lock-conflict from the
-      // RWLock, but only after fromCdkApp() has done setup work. This just
-      // makes the response instant for multiple synths from same LSP instance.
-      // The user message is the same either way.
-      const guardedSynth = async (): Promise<SynthRunResult> => {
-        if (synthInFlight) return { status: 'lock-conflict' };
-        synthInFlight = true;
-        try {
-          return await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
-        } finally {
-          synthInFlight = false;
-        }
-      };
       await executeCommand(params.command, params.arguments ?? [], {
         synth: guardedSynth,
-        refresh: () => refreshFromAssembly(applicationDir ?? process.cwd()),
         synthAvailable,
         notify,
       });
@@ -303,7 +313,6 @@ export function startServer(options: LspServerOptions): void {
   );
 
   const handlers = createLspHandlers({
-    onSynthRequest: options.onSynthRequest,
     readAssembly: options.readAssembly,
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {

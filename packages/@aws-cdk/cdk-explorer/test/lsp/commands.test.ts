@@ -1,6 +1,5 @@
 import type { SynthRunResult } from '../../lib/core/synth-runner';
 import {
-  COMMAND_REFRESH,
   COMMAND_SYNTH_NOW,
   executeCommand,
   type CommandHandlerOptions,
@@ -11,7 +10,6 @@ interface CapturedNotify extends NotifySink {
   info: jest.Mock;
   error: jest.Mock;
   withProgress: jest.Mock;
-  /** All progress message strings passed to withProgress, in order. */
   progressMessages: string[];
 }
 
@@ -30,37 +28,17 @@ function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
   options: CommandHandlerOptions;
   notify: CapturedNotify;
   synth: jest.Mock;
-  refresh: jest.Mock;
 } {
   const notify = createNotify();
   const synth = jest.fn(async () => ({ status: 'success' } as SynthRunResult));
-  const refresh = jest.fn();
   return {
     notify,
     synth,
-    refresh,
-    options: {
-      synth,
-      refresh,
-      synthAvailable: true,
-      notify,
-      ...overrides,
-    },
+    options: { synth, synthAvailable: true, notify, ...overrides },
   };
 }
 
 describe('executeCommand', () => {
-  test('refresh calls refresh() and does not notify', async () => {
-    const { options, notify, refresh, synth } = makeOptions();
-
-    await executeCommand(COMMAND_REFRESH, [], options);
-
-    expect(refresh).toHaveBeenCalledTimes(1);
-    expect(synth).not.toHaveBeenCalled();
-    expect(notify.info).not.toHaveBeenCalled();
-    expect(notify.error).not.toHaveBeenCalled();
-  });
-
   test('synthNow shows info and skips synth when unavailable', async () => {
     const { options, notify, synth } = makeOptions({ synthAvailable: false });
 
@@ -116,11 +94,10 @@ describe('executeCommand', () => {
   });
 
   test('unknown commands are silently ignored', async () => {
-    const { options, notify, refresh, synth } = makeOptions();
+    const { options, notify, synth } = makeOptions();
 
     await executeCommand('cdk.explorer.bogus', [], options);
 
-    expect(refresh).not.toHaveBeenCalled();
     expect(synth).not.toHaveBeenCalled();
     expect(notify.info).not.toHaveBeenCalled();
     expect(notify.error).not.toHaveBeenCalled();

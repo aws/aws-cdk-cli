@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'url';
 import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
-import { COMMAND_REFRESH, COMMAND_SYNTH_NOW } from './commands';
+import { COMMAND_SYNTH_NOW } from './commands';
 import { resourceTarget, type ResourceTarget } from './template-locator';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
@@ -28,12 +28,11 @@ export function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri:
 
   if (l1Lenses.length === 0) return [];
 
-  // Prepend header lenses at line 0 so users have a one-click synth/refresh
-  // surface at the top of every CDK source file that already has L1 lenses.
+  // Prepend a header lens at line 0 so users have a one-click synth surface
+  // at the top of every CDK source file that already has L1 lenses.
   const header0: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
   return [
     { range: header0, command: { title: '↻ Synth now', command: COMMAND_SYNTH_NOW } },
-    { range: header0, command: { title: '↻ Refresh', command: COMMAND_REFRESH } },
     ...l1Lenses,
   ];
 }
