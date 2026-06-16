@@ -616,13 +616,11 @@ describe('non-nested stacks', () => {
     expect(exitCode).toBe(1);
   });
 
-  test('throws an error during diffs on stack with error metadata', async () => {
-    // WHEN
-    await expect(() =>
-      toolkit.diff({
-        stackNames: ['C'],
-      }),
-    ).rejects.toThrow(/Found errors/);
+  test('diff succeeds even with error metadata on stack', async () => {
+    // WHEN - no longer throws on annotation errors
+    await toolkit.diff({
+      stackNames: ['C'],
+    });
   });
 
   test('when quiet mode is enabled, stacks with no diffs should not print stack name & no differences to stdout', async () => {

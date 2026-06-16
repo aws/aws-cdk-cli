@@ -27,7 +27,7 @@ import * as fs from 'fs-extra';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import { ToolkitError } from './toolkit-error';
+import { AssemblyError, ToolkitError } from './toolkit-error';
 import type { DeployResult, DestroyResult, FeatureFlag, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
@@ -86,7 +86,7 @@ import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser'
 import { DiffFormatter } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
-import type { IIoHost, IoMessageLevel, ToolkitAction } from '../api/io';
+import type { IIoHost, ToolkitAction } from '../api/io';
 import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
@@ -345,7 +345,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
     const stacks = await assembly.value.selectStacksV2(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
-    await this.validateStacksMetadata(stacks.concat(...autoValidateStacks), ioHelper);
+    await this.validateFromReport(assembly.value.directory, stacks.concat(...autoValidateStacks), ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -526,7 +526,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
     const stackCollection = await assembly.selectStacksV2(selectStacks);
-    await this.validateStacksMetadata(stackCollection, ioHelper);
+    await this.validateFromReport(assembly.directory, stackCollection, ioHelper);
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
@@ -785,7 +785,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
     const stackCollection = await assembly.selectStacksV2(selectStacks);
-    await this.validateStacksMetadata(stackCollection, ioHelper);
+    await this.validateFromReport(stackCollection.assembly.directory, stackCollection, ioHelper);
 
     const ret: DeployResult = {
       stacks: [],
@@ -1301,7 +1301,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
-    await this.validateStacksMetadata(stacks, ioHelper);
+    await this.validateFromReport(stacks.assembly.directory, stacks, ioHelper);
 
     const ret: RollbackResult = {
       stacks: [],
@@ -1669,23 +1669,40 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   }
 
   /**
-   * Validate the stacks for errors and warnings according to the CLI's current settings
+   * Validate stacks by reading the validation report from the cloud assembly.
+   * Prints the report and throws according to the assemblyFailureAt setting.
    */
-  private async validateStacksMetadata(stacks: StackCollection, ioHost: IoHelper) {
-    const builder = (level: IoMessageLevel) => {
-      switch (level) {
-        case 'error':
-          return IO.CDK_ASSEMBLY_E9999;
-        case 'warn':
-          return IO.CDK_ASSEMBLY_W9999;
-        default:
-          return IO.CDK_ASSEMBLY_I9999;
-      }
-    };
-    await stacks.validateMetadata(
-      this.props.assemblyFailureAt,
-      async (level, msg) => ioHost.notify(builder(level).msg(`[${level} at ${msg.id}] ${msg.entry.data}`, msg)),
+  private async validateFromReport(assemblyDirectory: string, stacks: StackCollection, ioHelper: IoHelper) {
+    const failAt = this.props.assemblyFailureAt ?? 'error';
+    const reportPath = path.join(assemblyDirectory, VALIDATION_REPORT_FILE);
+    if (!await fs.pathExists(reportPath)) {
+      return;
+    }
+
+    const report = Manifest.loadValidationReport(reportPath);
+    const selectedStackIds = new Set(stacks.hierarchicalIds);
+    const filteredReports = filterReportsByStacks(report.pluginReports, selectedStackIds);
+
+    const hasErrors = filteredReports.some((pr) => pr.conclusion === 'failure');
+    const hasWarnings = filteredReports.some((pr) =>
+      pr.violations.some((v) => v.severity === 'warning'),
     );
+
+    const conclusion: PolicyValidationReportConclusion = hasErrors ? 'failure' : 'success';
+    const result: ValidateResult = { conclusion, title: report.title, pluginReports: filteredReports };
+    await ioHelper.notify(hostMessageFromValidation(result));
+
+    if (hasErrors && failAt !== 'none') {
+      const error = AssemblyError.withStacks('Found errors', stacks.stackArtifacts);
+      error.attachSynthesisErrorCode('AnnotationErrors');
+      throw error;
+    }
+
+    if (hasWarnings && failAt === 'warn') {
+      const error = AssemblyError.withStacks('Found warnings (--strict mode)', stacks.stackArtifacts);
+      error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+      throw error;
+    }
   }
 
   /**
@@ -1854,7 +1871,7 @@ function zeroTime(): ElapsedTime {
   return { asMs: 0, asSec: 0 };
 }
 
-function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
+export function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
   return reports.map((report) => {
     const filteredViolations = report.violations.filter((violation) => {
       if (violation.violatingConstructs.length === 0) return true;

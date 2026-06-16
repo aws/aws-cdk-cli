@@ -3,9 +3,10 @@ import * as path from 'node:path';
 import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import type { PluginReportJson, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
-import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { AssemblyError, PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -14,7 +15,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, hostMessageFromValidation, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   buildDestroyWorkGraph,
@@ -216,8 +217,16 @@ export class CdkToolkit {
       'validate': true,
     };
 
+    let assemblyFailureAt: 'error' | 'warn' | 'none' = 'error';
+    if (props.ignoreErrors) {
+      assemblyFailureAt = 'none';
+    }
+    if (props.strict) {
+      assemblyFailureAt = 'warn';
+    }
+
     this.toolkit = new InternalToolkit(props.sdkProvider, {
-      assemblyFailureAt: this.validateMetadataFailAt(),
+      assemblyFailureAt,
       color: true,
       emojis: true,
       ioHost: this.ioHost,
@@ -1265,7 +1274,7 @@ export class CdkToolkit {
     });
 
     this.validateStacksSelected(stacks, selector.patterns);
-    await this.validateStacks(stacks);
+    await this.validateFromReport(stacks);
 
     return stacks;
   }
@@ -1291,7 +1300,7 @@ export class CdkToolkit {
       : new StackCollection(assembly, []);
 
     this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(selectedForDiff.concat(autoValidateStacks));
+    await this.validateFromReport(selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
   }
@@ -1309,15 +1318,24 @@ export class CdkToolkit {
   }
 
   /**
-   * Validate the stacks for errors and warnings according to the CLI's current settings
+   * Validate that if a user specified a stack name there exists at least 1 stack selected
    */
-  private async validateStacks(stacks: StackCollection) {
-    const failAt = this.validateMetadataFailAt();
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.ioHost.asIoHelper(), this.props.verbose));
+  private validateStacksSelected(stacks: StackCollection, stackNames: string[]) {
+    if (stackNames.length != 0 && stacks.stackCount == 0) {
+      throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
+    }
   }
 
-  private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
-    let failAt: 'warn' | 'error' | 'none' = 'error';
+  /**
+   * Validate stacks by reading the validation report from the cloud assembly.
+   */
+  private async validateFromReport(stacks: StackCollection) {
+    const reportPath = path.join(stacks.assembly.directory, 'validation-report.json');
+    if (!await fs.pathExists(reportPath)) {
+      return;
+    }
+
+    let failAt: 'error' | 'warn' | 'none' = 'error';
     if (this.props.ignoreErrors) {
       failAt = 'none';
     }
@@ -1325,15 +1343,30 @@ export class CdkToolkit {
       failAt = 'warn';
     }
 
-    return failAt;
-  }
+    const report = Manifest.loadValidationReport(reportPath);
+    const selectedStackIds = new Set(stacks.hierarchicalIds);
+    const filteredReports = filterReportsByStacks(report.pluginReports, selectedStackIds);
 
-  /**
-   * Validate that if a user specified a stack name there exists at least 1 stack selected
-   */
-  private validateStacksSelected(stacks: StackCollection, stackNames: string[]) {
-    if (stackNames.length != 0 && stacks.stackCount == 0) {
-      throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
+    const hasErrors = filteredReports.some((pr) => pr.conclusion === 'failure');
+    const hasWarnings = filteredReports.some((pr) =>
+      pr.violations.some((v) => v.severity === 'warning'),
+    );
+
+    const conclusion: PolicyValidationReportConclusion = hasErrors ? 'failure' : 'success';
+    await this.ioHost.asIoHelper().notify(
+      hostMessageFromValidation({ conclusion, title: report.title, pluginReports: filteredReports }),
+    );
+
+    if (hasErrors && failAt !== 'none') {
+      const error = AssemblyError.withStacks('Found errors', stacks.stackArtifacts);
+      error.attachSynthesisErrorCode('AnnotationErrors');
+      throw error;
+    }
+
+    if (hasWarnings && failAt === 'warn') {
+      const error = AssemblyError.withStacks('Found warnings (--strict mode)', stacks.stackArtifacts);
+      error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+      throw error;
     }
   }
 
@@ -2084,31 +2117,6 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
   }
 }
 
-/**
- * Logger for processing stack metadata
- */
-function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
-  const makeLogger = (level: string): [logger: (m: string) => void, prefix: string] => {
-    switch (level) {
-      case 'error':
-        return [(m) => ioHelper.defaults.error(m), 'Error'];
-      case 'warn':
-        return [(m) => ioHelper.defaults.warn(m), 'Warning'];
-      default:
-        return [(m) => ioHelper.defaults.info(m), 'Info'];
-    }
-  };
-
-  return async (level, msg) => {
-    const [logFn, prefix] = makeLogger(level);
-    await logFn(`[${prefix} at ${msg.id}] ${msg.entry.data}`);
-
-    if (verbose && msg.entry.trace) {
-      logFn(`  ${msg.entry.trace.join('\n  ')}`);
-    }
-  };
-}
-
 interface WorkGraphDeploymentActionsOptions {
   readonly roleArn?: string;
   readonly force?: boolean;
@@ -2498,5 +2506,30 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
+}
+
+function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
+  return reports.map((report) => {
+    const filteredViolations = report.violations.filter((violation) => {
+      if (violation.violatingConstructs.length === 0) return true;
+      return violation.violatingConstructs.some((c) =>
+        selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+      );
+    }).map((violation) => {
+      if (violation.violatingConstructs.length === 0) return violation;
+      return {
+        ...violation,
+        violatingConstructs: violation.violatingConstructs.filter((c) =>
+          selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
+        ),
+      };
+    });
+
+    return {
+      ...report,
+      violations: filteredViolations,
+      conclusion: filteredViolations.length > 0 ? report.conclusion : ('success' as const),
+    };
+  });
 }
 

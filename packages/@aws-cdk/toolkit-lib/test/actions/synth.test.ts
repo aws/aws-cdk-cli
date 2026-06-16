@@ -110,14 +110,18 @@ describe('synth', () => {
     await realDispose();
   });
 
-  test('assembly is disposed when synth fails due to error annotations', async () => {
+  test('synth fails when validation report contains errors', async () => {
     // GIVEN
     await using synthDir = autoCleanOutDir();
 
     const builder: AssemblyBuilder = async (props) => {
       const app = new cdk.App({
         outdir: props.outdir,
-        context: props.context,
+        context: {
+          ...props.context,
+          '@aws-cdk/core:annotationsInValidationReport': true,
+          '@aws-cdk/core:failSynthOnValidationErrors': false,
+        },
       });
       const stack = new cdk.Stack(app, 'SomeStack');
 

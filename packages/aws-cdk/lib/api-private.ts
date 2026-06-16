@@ -8,3 +8,4 @@ export * from '../../@aws-cdk/toolkit-lib/lib/api/tags/private';
 export * from '../../@aws-cdk/toolkit-lib/lib/private/activity-printer';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/private/borrowed-assembly';
 export * from '../../@aws-cdk/toolkit-lib/lib/toolkit/private/count-assembly-results';
+export { hostMessageFromValidation } from '../../@aws-cdk/toolkit-lib/lib/api/validate/validate-formatting';

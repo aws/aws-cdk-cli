@@ -79,7 +79,11 @@ test('outputs of assembly are measured', async () => {
   const builder = await toolkit.fromAssemblyBuilder(async (props) => {
     const app = new cdk.App({
       outdir: props.outdir,
-      context: props.context,
+      context: {
+        ...props.context,
+        '@aws-cdk/core:annotationsInValidationReport': true,
+        '@aws-cdk/core:failSynthOnValidationErrors': false,
+      },
     });
 
     const s1 = new cdk.Stack(app, 'Stack1');
