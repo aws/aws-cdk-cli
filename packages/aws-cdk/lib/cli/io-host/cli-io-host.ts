@@ -832,6 +832,7 @@ function hotswapToEventResult(result: HotswapResult): TelemetryEvent {
     } : {}),
     counters: {
       hotswapped: result.hotswapped ? 1 : 0,
+      hotswapFallback: result.hotswapFallback ? 1 : 0,
       hotswappableChanges: result.hotswappableChanges.length,
       nonHotswappableChanges: result.nonHotswappableChanges.length,
       ...nonHotswappableResources,
