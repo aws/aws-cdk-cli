@@ -96,14 +96,19 @@ async function investigateEcsService(
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, region, stoppedTaskResult.taskIds, debug)));
   let hasLogs = false;
+  let hadLogFetchError = false;
   for (const context of logResults) {
+    if (context === null) {
+      hadLogFetchError = true;
+      continue;
+    }
     if (context) {
       results.push(context);
       hasLogs = true;
     }
   }
 
-  if (!hasLogs) {
+  if (!hasLogs && !hadLogFetchError) {
     results.push({
       source: 'CloudWatch Logs',
       messages: ['No application logs found (container may not have started). Check the stopped task reasons above for details.'],
