@@ -425,6 +425,7 @@ import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
+import { forceS3PathStyle } from '../../private/tools';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { IoHelper } from '../io/private';
@@ -1125,8 +1126,8 @@ export class SDK {
   public s3(): IS3Client {
     const client = new S3Client({
       ...this.config,
-      // Allow forcing S3 path-style addressing (e.g. for custom/local endpoints).
-      forcePathStyle: process.env.CDK_S3_FORCE_PATH_STYLE ? true : undefined,
+      // Use path-style addressing for explicit opt-in or loopback endpoints.
+      forcePathStyle: forceS3PathStyle(),
     });
     return {
       deleteObjects: (input: DeleteObjectsCommandInput): Promise<DeleteObjectsCommandOutput> =>
