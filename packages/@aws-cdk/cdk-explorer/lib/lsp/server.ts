@@ -270,7 +270,9 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
       if (!autoSynthEnabled || !synthAvailable) return;
-      void guardedSynth().then((result) => handleSynthOnSave(result, log));
+      void guardedSynth()
+        .then((result) => handleSynthOnSave(result, log))
+        .catch((err: unknown) => log.error(`Auto-synth threw unexpectedly: ${(err as Error).message}`));
     },
     onCodeLens(params) {
       return codeLensesForFile(cachedIndex, params.textDocument.uri, autoSynthEnabled);
