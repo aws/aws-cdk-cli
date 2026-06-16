@@ -486,6 +486,19 @@ describe('non-nested stacks', () => {
           template: { resource: 'D' },
         },
       ],
+      validationReport: {
+        version: '1.0.0',
+        pluginReports: [{
+          pluginName: 'Construct Annotations',
+          conclusion: 'failure',
+          violations: [{
+            ruleName: 'annotation-error',
+            description: 'this is an error',
+            severity: 'error',
+            violatingConstructs: [{ constructPath: 'C/resource' }],
+          }],
+        }],
+      },
     }, undefined, ioHost);
 
     cloudFormation = instanceMockFrom(Deployments);
@@ -616,11 +629,13 @@ describe('non-nested stacks', () => {
     expect(exitCode).toBe(1);
   });
 
-  test('diff succeeds even with error metadata on stack', async () => {
-    // WHEN - no longer throws on annotation errors
-    await toolkit.diff({
-      stackNames: ['C'],
-    });
+  test('throws an error during diffs on stack with error metadata', async () => {
+    // WHEN
+    await expect(() =>
+      toolkit.diff({
+        stackNames: ['C'],
+      }),
+    ).rejects.toThrow(/Found errors/);
   });
 
   test('when quiet mode is enabled, stacks with no diffs should not print stack name & no differences to stdout', async () => {

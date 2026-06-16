@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { type CloudAssembly, CloudAssemblyBuilder, type CloudFormationStackArtifact, type StackMetadata } from '@aws-cdk/cloud-assembly-api';
-import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType, ArtifactType, type AssetManifest, type AssetMetadataEntry, type AwsCloudFormationStackProperties, type MetadataEntry, type MissingContext, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { cxapiAssemblyWithForcedVersion } from './assembly-versions';
 import { TestIoHost } from './io-host';
 import { asIoHelper } from '../../lib/api-private';
@@ -37,6 +37,7 @@ export interface TestAssembly {
   missing?: MissingContext[];
   nestedAssemblies?: TestAssembly[];
   schemaVersion?: string;
+  validationReport?: PolicyValidationReportJson;
 }
 
 export class MockCloudExecutable extends CloudExecutable {
@@ -147,6 +148,10 @@ export function testAssembly(assembly: TestAssembly): CloudAssembly {
       addAttributes(nestedAssembly, nestedAssemblyBuilder);
       nestedAssemblyBuilder.buildAssembly();
     });
+  }
+
+  if (assembly.validationReport) {
+    fs.writeFileSync(path.join(builder.outdir, 'validation-report.json'), JSON.stringify(assembly.validationReport));
   }
 
   const asm = builder.buildAssembly();
