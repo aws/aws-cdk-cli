@@ -10,9 +10,17 @@ import type { SourceLocation } from '../core/source-resolver';
 export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
 
 /**
- * Build CodeLens entries for a single source file. For every construct whose
- * sourceLocation matches fileUri, group by line and emit one lens per line
- * summarising the CFN resources produced there.
+ * Build CodeLens entries for a single source file. Returns an empty array if
+ * no CDK resources in the index map to `fileUri`.
+ *
+ * When resources are found, two header lenses are prepended at line 0:
+ * - `autoSynthEnabled = false`: "↻ Synth now" + "▶ Enable auto-synth"
+ * - `autoSynthEnabled = true`: "⏹ Disable auto-synth" (saves trigger synth)
+ *
+ * The remaining lenses are one per source line, each summarising the CFN
+ * resources produced there (multiple L2 fan-out resources are grouped).
+ *
+ * @param autoSynthEnabled - current toggle state; controls which header lenses appear
  */
 export function codeLensesForFile(
   index: ConstructIndex<ConstructNode>,

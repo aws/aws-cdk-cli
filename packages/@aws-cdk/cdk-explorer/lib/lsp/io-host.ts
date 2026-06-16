@@ -11,8 +11,11 @@ import type { RemoteConsole } from 'vscode-languageserver/node';
  * Writing Toolkit output there would corrupt the protocol stream.
  *
  * The LSP cannot prompt the user synchronously through `connection.console`,
- * so `requestResponse` returns each message's `defaultResponse`. This is
- * acceptable for `synth`, which has no interactive prompts.
+ * so `requestResponse` returns each message's `defaultResponse`. For synth,
+ * the only reachable interactive prompt is an MFA token (when the app has
+ * context lookups, no cached `cdk.context.json`, and an MFA-protected profile).
+ * Returning the default causes an auth failure, surfaced as `app-failure` with
+ * a clear message. All other prompts are on deploy/destroy paths we don't call.
  */
 export class LspIoHost implements IIoHost {
   public constructor(private readonly console: RemoteConsole) {

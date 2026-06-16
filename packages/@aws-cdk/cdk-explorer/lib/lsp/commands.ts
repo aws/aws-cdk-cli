@@ -1,13 +1,13 @@
 import type { SynthRunResult } from '../core/synth-runner';
 
 /**
- * Runs the user's CDK app (`bin/app.ts`) via `Toolkit.synth()`, writes new
- * CloudFormation templates to `cdk.out`, then the watcher picks up the change
- * and republishes diagnostics automatically. Use when source code has changed.
- * Takes seconds — it re-executes the app.
+ * Trigger a one-shot synth of the user's CDK app. Only shown when
+ * auto-synth is disabled (saves handle synth when it is enabled).
  */
 export const COMMAND_SYNTH_NOW = 'cdk.explorer.synthNow';
+/** Enable auto-synth-on-save. Replaces "Synth now" in the header lens. */
 export const COMMAND_ENABLE_AUTO_SYNTH = 'cdk.explorer.enableAutoSynth';
+/** Disable auto-synth-on-save. Restores the "Synth now" header lens. */
 export const COMMAND_DISABLE_AUTO_SYNTH = 'cdk.explorer.disableAutoSynth';
 
 /** All commands this LSP advertises via `executeCommandProvider`. */
