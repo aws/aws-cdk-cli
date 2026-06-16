@@ -220,14 +220,14 @@ export interface HotswapResult extends Duration, HotswapDeploymentDetails {
   /**
    * Whether hotswapping happened or not.
    *
-   * `false` indicates that the deployment failed during the hotswap step or that the deployment 
+   * `false` indicates that the deployment failed during the hotswap step or that the deployment
    * could not be hotswapped and full deployment may be attempted as fallback.
    */
   readonly hotswapped: boolean;
 
   /**
    * Whether a hotswap fallback deployment is being completed
-   * 
+   *
    * `true` indicates a full deployment is being attempted
    */
   readonly hotswapFallback: boolean;
