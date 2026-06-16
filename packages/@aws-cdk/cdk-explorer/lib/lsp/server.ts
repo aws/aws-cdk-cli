@@ -20,6 +20,7 @@ import {
   type InitializeParams,
   type InitializeResult,
   type Location,
+  type RemoteConsole,
 } from 'vscode-languageserver/node';
 /* eslint-disable import/no-relative-packages */
 import { codeLensesForFile } from './codelens';
@@ -73,6 +74,13 @@ export interface LspHandlerOptions {
 export interface LspServerOptions extends LspHandlerOptions {
   readonly readable: NodeJS.ReadableStream;
   readonly writable: NodeJS.WritableStream;
+  /**
+   * Optional factory called once after the connection is established.
+   * Receives `connection.console` so the returned runner can route Toolkit
+   * IO to the editor's Output panel. Takes precedence over `synthRunner`
+   * when both are provided.
+   */
+  readonly buildSynthRunner?: (console: RemoteConsole) => (() => Promise<SynthRunResult>);
 }
 
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
@@ -321,7 +329,9 @@ export function startServer(options: LspServerOptions): void {
     onRefreshCodeLenses: () => {
       void connection.sendRequest(CodeLensRefreshRequest.type);
     },
-    synthRunner: options.synthRunner,
+    synthRunner: options.buildSynthRunner
+      ? options.buildSynthRunner(connection.console)
+      : options.synthRunner,
     synthAvailable: options.synthAvailable,
     notify: {
       // Route to the Output panel (connection.console) rather than popups.
