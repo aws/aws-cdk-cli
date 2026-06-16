@@ -5,6 +5,7 @@ import { pathToFileURL } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type { ConstructNode } from '../../lib';
 import { codeLensesForFile, OPEN_RESOURCE_COMMAND } from '../../lib/lsp/codelens';
+import { COMMAND_SYNTH_NOW, COMMAND_REFRESH } from '../../lib/lsp/commands';
 
 const FILE = '/p/lib/stack.ts';
 const URI = pathToFileURL(FILE).toString();
@@ -48,12 +49,12 @@ describe('codeLensesForFile', () => {
     })];
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
-    expect(lenses).toHaveLength(1);
-    expect(lenses[0].range).toEqual({
+    expect(lenses).toHaveLength(3); // 2 header + 1 L1
+    expect(lenses[2].range).toEqual({
       start: { line: 11, character: 0 },
       end: { line: 11, character: 0 },
     });
-    expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
+    expect(lenses[2].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('groups multiple resources on the same source line into one lens', () => {
@@ -81,8 +82,8 @@ describe('codeLensesForFile', () => {
     ];
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
-    expect(lenses).toHaveLength(1);
-    expect(lenses[0].command?.title).toBe('Creates 3 resources: AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::KMS::Key');
+    expect(lenses).toHaveLength(3); // 2 header + 1 grouped L1
+    expect(lenses[2].command?.title).toBe('Creates 3 resources: AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::KMS::Key');
   });
 
   test('emits separate lenses for resources on different lines', () => {
@@ -102,8 +103,8 @@ describe('codeLensesForFile', () => {
     ];
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
-    expect(lenses).toHaveLength(2);
-    expect(lenses.map((l) => l.range.start.line).sort((a, b) => a - b)).toEqual([9, 19]);
+    expect(lenses).toHaveLength(4); // 2 header + 2 L1
+    expect(lenses.slice(2).map((l) => l.range.start.line).sort((a, b) => a - b)).toEqual([9, 19]);
   });
 
   test('filters out resources from other files', () => {
@@ -123,14 +124,15 @@ describe('codeLensesForFile', () => {
     ];
 
     const index = ConstructIndex.fromTree(tree);
-    // Each query returns only the resource defined in that file, which proves the
-    // URI filter selects by file rather than returning everything for any query.
+    // Each query returns the 2 header lenses plus only the resource defined in
+    // that file, which proves the URI filter selects by file rather than
+    // returning everything for any query.
     const onThisFile = codeLensesForFile(index, URI);
-    expect(onThisFile).toHaveLength(1);
-    expect(onThisFile[0].command?.title).toBe('Creates AWS::S3::Bucket');
+    expect(onThisFile).toHaveLength(3); // 2 header + 1 L1
+    expect(onThisFile[2].command?.title).toBe('Creates AWS::S3::Bucket');
     const onOtherFile = codeLensesForFile(index, OTHER_URI);
-    expect(onOtherFile).toHaveLength(1);
-    expect(onOtherFile[0].command?.title).toBe('Creates AWS::SQS::Queue');
+    expect(onOtherFile).toHaveLength(3); // 2 header + 1 L1
+    expect(onOtherFile[2].command?.title).toBe('Creates AWS::SQS::Queue');
   });
 
   test('walks descendants — finds resources nested under wrappers', () => {
@@ -156,8 +158,8 @@ describe('codeLensesForFile', () => {
     ];
 
     const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
-    expect(lenses).toHaveLength(1);
-    expect(lenses[0].command?.title).toContain('AWS::S3::Bucket');
+    expect(lenses).toHaveLength(3); // 2 header + 1
+    expect(lenses[2].command?.title).toContain('AWS::S3::Bucket');
   });
 
   test('omits resources without sourceLocation (non-TS apps)', () => {
@@ -184,7 +186,7 @@ describe('codeLensesForFile', () => {
         sourceLocation: { file: FILE, line: 12, column: 5 },
       })];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[2];
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       const choices = (lens.command!.arguments as CommandChoice[][])[0];
       expect(choices).toHaveLength(1);
@@ -212,7 +214,7 @@ describe('codeLensesForFile', () => {
         node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
       ];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[2];
       const uri = pathToFileURL(templateFile).toString();
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       const choices = (lens.command!.arguments as CommandChoice[][])[0];
@@ -235,7 +237,7 @@ describe('codeLensesForFile', () => {
       node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
     ];
 
-    const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+    const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[2];
     expect(lens.command?.command).toBe('');
     expect(lens.command?.arguments).toBeUndefined();
   });
@@ -253,10 +255,30 @@ describe('codeLensesForFile', () => {
         sourceLocation: { file: FILE, line: 12, column: 5 },
       })];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[2];
       expect(lens.command?.command).toBe('');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test('header lenses appear at line 0 with synthNow and refresh commands when L1 lenses are present', () => {
+    const tree = [node({
+      path: 'Stack1/MyBucket/Resource',
+      logicalId: 'MyBucketF68F3FF0',
+      type: 'AWS::S3::Bucket',
+      sourceLocation: { file: FILE, line: 12, column: 5 },
+    })];
+
+    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
+    expect(lenses[0].range.start.line).toBe(0);
+    expect(lenses[0].command?.command).toBe(COMMAND_SYNTH_NOW);
+    expect(lenses[1].range.start.line).toBe(0);
+    expect(lenses[1].command?.command).toBe(COMMAND_REFRESH);
+  });
+
+  test('no header lenses on files with no L1 lenses', () => {
+    // File has no CDK resources → no lenses at all, including no header lenses
+    expect(codeLensesForFile(ConstructIndex.fromTree([]), URI)).toEqual([]);
   });
 });

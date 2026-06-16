@@ -1,9 +1,19 @@
 import type { SynthRunResult } from '../core/synth-runner';
 
-/** Trigger a fresh synth of the user's CDK app. */
+/**
+ * Runs the user's CDK app (`bin/app.ts`) via `Toolkit.synth()`, writes new
+ * CloudFormation templates to `cdk.out`, then the watcher picks up the change
+ * and republishes diagnostics automatically. Use when source code has changed.
+ * Takes seconds — it re-executes the app.
+ */
 export const COMMAND_SYNTH_NOW = 'cdk.explorer.synthNow';
 
-/** Re-read the existing `cdk.out` and republish diagnostics. */
+/**
+ * Re-reads whatever is already in `cdk.out` and republishes diagnostics and
+ * CodeLens. Does NOT re-execute the app. Use when `cdk.out` is already
+ * up to date (e.g. after running `cdk synth` in a terminal) but the LSP
+ * hasn't picked up the change. Fast — no app execution.
+ */
 export const COMMAND_REFRESH = 'cdk.explorer.refresh';
 
 /** All commands this LSP advertises via `executeCommandProvider`. */

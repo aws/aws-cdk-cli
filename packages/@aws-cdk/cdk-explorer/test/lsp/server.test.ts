@@ -277,9 +277,9 @@ describe('LSP Server', () => {
       textDocument: { uri: stackUri },
     });
 
-    expect(lenses).toHaveLength(1);
-    expect(lenses[0].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
-    expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
+    expect(lenses).toHaveLength(3); // 2 header + 1 L1
+    expect(lenses[2].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
+    expect(lenses[2].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
   test('publishes nothing when assembly is not-found (pre-synth)', () => {
