@@ -32,7 +32,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.8",
+    "@cdklabs/eslint-plugin": "^2.0.9",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -52,12 +52,12 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.5",
     "prettier": "^2.8",
-    "projen": "^0.99.70",
+    "projen": "^0.99.73",
     "ts-jest": "^29.4.11",
     "typescript": "5.9"
   },
   "dependencies": {
-    "aws-cdk": "^2.1125.0"
+    "aws-cdk": "^0.0.0"
   },
   "keywords": [
     "aws",
