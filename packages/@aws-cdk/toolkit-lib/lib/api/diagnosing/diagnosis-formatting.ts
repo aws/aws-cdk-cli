@@ -1,4 +1,4 @@
-import { sideBySide, wrapText } from './tree-builder';
+import { sideBySide, wrapText } from './format-utils';
 import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { sortByKey } from '../../util';

@@ -119,22 +119,15 @@ async function investigateEcsService(
     return results;
   }
 
+  // `logConfigs` has one entry per container in the task definition that uses the awslogs
+  // driver — a handful at most — so this fan-out is bounded by the task shape and needs no
+  // explicit concurrency limit.
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   const logResults = await Promise.all(logConfigs.map(cfg => fetchRecentLogs(cwl, cfg, region, stoppedTaskResult.taskIds, debug)));
-  let hasLogs = false;
-  let hadLogFetchError = false;
-  for (const context of logResults) {
-    if (context === null) {
-      hadLogFetchError = true;
-      continue;
-    }
-    if (context) {
-      results.push(context);
-      hasLogs = true;
-    }
-  }
+  const logContexts = logResults.filter((c): c is AdditionalDiagnosticContext => c !== undefined);
 
-  if (!hasLogs && !hadLogFetchError) {
+  results.push(...logContexts);
+  if (logContexts.length === 0) {
     results.push({
       source: 'CloudWatch Logs',
       messages: ['No CloudWatch Logs found.'],
