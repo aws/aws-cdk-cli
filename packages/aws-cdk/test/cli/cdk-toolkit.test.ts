@@ -207,6 +207,35 @@ describe('list', () => {
       'Test-Stack-B',
     ]);
   });
+
+  test('with --json, suppresses the synthesis-time line so stdout stays machine-parsable', async () => {
+    // `cdk ls --json` stdout is a machine-readable contract; the "Synthesis time" line
+    // (CDK_TOOLKIT_I1000) must not be written (in CI mode non-error output goes to stdout).
+    const toolkit = defaultToolkitSetup();
+    const onceSpy = jest.spyOn(ioHost, 'once');
+
+    // WHEN
+    await toolkit.list([], { json: true });
+
+    // THEN - a one-shot suppressor for I1000 was registered that prevents default handling.
+    const i1000Call = onceSpy.mock.calls.find(([code]) => (code as any)?.code === 'CDK_TOOLKIT_I1000');
+    expect(i1000Call).toBeDefined();
+    const listener = i1000Call![1] as (msg: any) => any;
+    expect(listener({ code: 'CDK_TOOLKIT_I1000' })).toEqual({ preventDefault: true });
+  });
+
+  test('without --json, does not suppress the synthesis-time line', async () => {
+    // Plain `cdk ls` is not a machine-readable contract, so the line is left alone.
+    const toolkit = defaultToolkitSetup();
+    const onceSpy = jest.spyOn(ioHost, 'once');
+
+    // WHEN
+    await toolkit.list([]);
+
+    // THEN
+    const i1000Call = onceSpy.mock.calls.find(([code]) => (code as any)?.code === 'CDK_TOOLKIT_I1000');
+    expect(i1000Call).toBeUndefined();
+  });
 });
 
 describe('deploy', () => {

@@ -960,6 +960,11 @@ export class CdkToolkit {
   ): Promise<number> {
     this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
+    // With `--json`, stdout must stay machine-parsable, so suppress the synth-time line (I1000).
+    if (options.json) {
+      this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+    }
+
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0
         ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
