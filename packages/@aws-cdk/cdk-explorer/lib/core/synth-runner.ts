@@ -57,19 +57,11 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
 }
 
 function classify(err: unknown): SynthRunResult {
-  if (ToolkitError.isToolkitError(err)) {
-    // ToolkitError stores its discriminating code in `name` (the constructor's
-    // first arg overrides the default Error name), not in a `code` property.
-    // These literals come from RWLock (toolkit-lib/lib/api/rwlock.ts). No
-    // named constants are exported; if upstream renames them, classification
-    // falls through to 'error' silently -- update here and in tests if so.
-    if (err.name === 'ConcurrentWriteLock' || err.name === 'ConcurrentReadLock') {
-      return { status: 'lock-conflict' };
-    }
-    if (ToolkitError.isAssemblyError(err)) {
-      return { status: 'app-failure', message: err.message };
-    }
-    return { status: 'error', message: err.message };
+  if (ToolkitError.isLockError(err)) {
+    return { status: 'lock-conflict' };
+  }
+  if (ToolkitError.isAssemblyError(err)) {
+    return { status: 'app-failure', message: err.message };
   }
   return { status: 'error', message: (err as Error).message };
 }

@@ -6,6 +6,7 @@ const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
+const LOCK_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.LockError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -37,6 +38,13 @@ export class ToolkitError extends Error {
    */
   public static isAssemblyError(x: any): x is AssemblyError {
     return ToolkitError.isToolkitError(x) && ASSEMBLY_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of LockError.
+   */
+  public static isLockError(x: any): x is LockError {
+    return ToolkitError.isToolkitError(x) && LOCK_ERROR_SYMBOL in x;
   }
 
   /**
@@ -92,6 +100,23 @@ export class AuthenticationError extends ToolkitError {
     super(errorCode, message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
     Object.defineProperty(this, AUTHENTICATION_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents a failure to acquire the read/write lock on the cloud assembly
+ * output directory, because another CLI is reading from or writing to it.
+ */
+export class LockError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(errorCode: string, message: string) {
+    super(errorCode, message, 'lock');
+    Object.setPrototypeOf(this, LockError.prototype);
+    Object.defineProperty(this, LOCK_ERROR_SYMBOL, { value: true });
   }
 }
 

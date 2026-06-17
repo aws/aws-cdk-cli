@@ -1,4 +1,4 @@
-import { AssemblyError, AuthenticationError, ContextProviderError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { AssemblyError, AuthenticationError, ContextProviderError, LockError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 describe('toolkit error', () => {
   let toolkitError = new ToolkitError('TestError', 'Test toolkit error');
@@ -8,6 +8,7 @@ describe('toolkit error', () => {
   let assemblyError = AssemblyError.withStacks('Test authentication error', []);
   let assemblyCauseError = AssemblyError.withCause('Test authentication error', new Error('other error'));
   let noResultsError = new NoResultsFoundError('Test no results error');
+  let lockError = new LockError('ConcurrentWriteLock', 'Test lock error');
 
   test('types are correctly assigned', async () => {
     expect(toolkitError.type).toBe('toolkit');
@@ -16,6 +17,7 @@ describe('toolkit error', () => {
     expect(assemblyCauseError.type).toBe('assembly');
     expect(contextProviderError.type).toBe('context-provider');
     expect(noResultsError.type).toBe('context-provider');
+    expect(lockError.type).toBe('lock');
   });
 
   test('isToolkitError works', () => {
@@ -38,6 +40,14 @@ describe('toolkit error', () => {
 
     expect(ToolkitError.isAuthenticationError(toolkitError)).toBe(false);
     expect(ToolkitError.isAuthenticationError(authError)).toBe(true);
+  });
+
+  test('isLockError works', () => {
+    expect(lockError.source).toBe('user');
+
+    expect(ToolkitError.isLockError(lockError)).toBe(true);
+    expect(ToolkitError.isLockError(toolkitError)).toBe(false);
+    expect(ToolkitError.isLockError(authError)).toBe(false);
   });
 
   describe('isAssemblyError works', () => {

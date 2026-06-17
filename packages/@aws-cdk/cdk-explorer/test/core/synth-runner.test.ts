@@ -1,4 +1,4 @@
-import { AssemblyError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
+import { AssemblyError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
 
 interface FakeCachedAssembly {
@@ -59,7 +59,7 @@ describe('runSynth', () => {
 
   test('classifies ConcurrentWriteLock as lock-conflict', async () => {
     const { toolkit } = makeToolkit({
-      synthThrow: new ToolkitError('ConcurrentWriteLock', 'another CLI synthing'),
+      synthThrow: new LockError('ConcurrentWriteLock', 'another CLI synthing'),
     });
 
     const result = await run(toolkit);
@@ -69,7 +69,7 @@ describe('runSynth', () => {
 
   test('classifies ConcurrentReadLock as lock-conflict', async () => {
     const { toolkit } = makeToolkit({
-      synthThrow: new ToolkitError('ConcurrentReadLock', 'another CLI reading'),
+      synthThrow: new LockError('ConcurrentReadLock', 'another CLI reading'),
     });
 
     const result = await run(toolkit);
