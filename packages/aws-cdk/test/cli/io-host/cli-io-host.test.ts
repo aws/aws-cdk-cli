@@ -646,6 +646,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { logicalId: 'C' } }],
           stack: {},
@@ -660,6 +661,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           hotswapped: 1,
+          hotswapFallback: 0,
           hotswappableChanges: 2,
           nonHotswappableChanges: 1,
         },
@@ -679,6 +681,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 200,
           hotswapped: false,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }],
           nonHotswappableChanges: [],
           stack: {},
@@ -697,6 +700,7 @@ describe('CliIoHost', () => {
         }),
         counters: {
           hotswapped: 0,
+          hotswapFallback: 0,
           hotswappableChanges: 1,
           nonHotswappableChanges: 0,
         },
@@ -713,6 +717,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', rejectedProperties: ['Name', 'Id'], logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
           stack: {},
@@ -727,6 +732,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           'hotswapped': 1,
+          'hotswapFallback': 0,
           'hotswappableChanges': 2,
           'nonHotswappableChanges': 3,
           'hotswapFallback:someResource': 1,
@@ -736,6 +742,79 @@ describe('CliIoHost', () => {
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
         error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on failed HOTSWAP event with nonHotswappable resources and fallback enabled', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 2,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with fallback enabled and a failed CloudFormation deployment', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 200,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+          error: new Error('Failed to deploy'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 200,
+        error: expect.objectContaining({
+          name: 'UnknownError',
+        }),
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 1,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
       }));
     });
   });
