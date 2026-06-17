@@ -258,6 +258,8 @@ import type {
   DescribeTaskDefinitionCommandOutput,
   DescribeTasksCommandInput,
   DescribeTasksCommandOutput,
+  ListTasksCommandInput,
+  ListTasksCommandOutput,
   RegisterTaskDefinitionCommandInput,
   ListClustersCommandInput,
   ListClustersCommandOutput,
@@ -271,6 +273,7 @@ import {
   DescribeTasksCommand,
   ECSClient,
   ListClustersCommand,
+  ListTasksCommand,
   RegisterTaskDefinitionCommand,
   UpdateServiceCommand,
   waitUntilServicesStable,
@@ -566,6 +569,7 @@ export interface IECSClient {
   describeServices(input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput>;
   describeTaskDefinition(input: DescribeTaskDefinitionCommandInput): Promise<DescribeTaskDefinitionCommandOutput>;
   describeTasks(input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput>;
+  listTasks(input: ListTasksCommandInput): Promise<ListTasksCommandOutput>;
   listClusters(input: ListClustersCommandInput): Promise<ListClustersCommandOutput>;
   registerTaskDefinition(input: RegisterTaskDefinitionCommandInput): Promise<RegisterTaskDefinitionCommandOutput>;
   updateService(input: UpdateServiceCommandInput): Promise<UpdateServiceCommandOutput>;
@@ -967,6 +971,8 @@ export class SDK {
         client.send(new DescribeTaskDefinitionCommand(input)),
       describeTasks: (input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput> =>
         client.send(new DescribeTasksCommand(input)),
+      listTasks: (input: ListTasksCommandInput): Promise<ListTasksCommandOutput> =>
+        client.send(new ListTasksCommand(input)),
       listClusters: (input: ListClustersCommandInput): Promise<ListClustersCommandOutput> =>
         client.send(new ListClustersCommand(input)),
       registerTaskDefinition: (

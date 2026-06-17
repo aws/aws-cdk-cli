@@ -97,7 +97,7 @@ export interface TracedResourceError {
 
 export interface AdditionalDiagnosticContext {
   /**
-   * A short description of where this context came from
+   * A short structured identifier of where this context came from.
    *
    * @example "CloudWatch Logs (log-group-name)"
    */
@@ -112,4 +112,11 @@ export interface AdditionalDiagnosticContext {
    * An optional console deep link for further investigation
    */
   readonly link?: string;
+
+  /**
+   * An optional short leader word rendered before the link, e.g. "Tasks" or "Logs".
+   *
+   * Helps distinguish multiple links on a single resource.
+   */
+  readonly linkLabel?: string;
 }

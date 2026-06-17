@@ -49,10 +49,27 @@ export type SdkProvider = () => Promise<SDK>;
  * This class works at the CloudFormation level, and does not deal with tracing
  * CloudFormation errors to construct code sources yet.
  */
+/**
+ * Options that affect how a diagnosis is performed.
+ */
+export interface DiagnoseOptions {
+  /**
+   * Whether CloudFormation rollback is enabled for this deployment.
+   *
+   * When rollback is enabled, failed resources are torn down before we can
+   * inspect their runtime state (e.g. ECS tasks), so the investigation degrades
+   * to durable sources and may suggest re-running with `--no-rollback`.
+   *
+   * @default true
+   */
+  readonly rollbackEnabled?: boolean;
+}
+
 export class CloudFormationStackDiagnoser {
   private readonly cfn: ICloudFormationClient;
   private parentStackLogicalIds: string[];
   private _additionalExplorationSdkPromise?: Promise<SDK | undefined>;
+  private rollbackEnabled = true;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
@@ -105,7 +122,13 @@ export class CloudFormationStackDiagnoser {
   /**
    * Diagnose potential problems with the change set
    */
-  public async diagnoseFromErrorCollection(errors: ResourceErrors, stack: Stack, allowFallback = true): Promise<StackDiagnosis> {
+  public async diagnoseFromErrorCollection(
+    errors: ResourceErrors,
+    stack: Stack,
+    allowFallback = true,
+    options: DiagnoseOptions = {},
+  ): Promise<StackDiagnosis> {
+    this.rollbackEnabled = options.rollbackEnabled ?? true;
     if (errors.isEmpty()) {
       if (allowFallback) {
         // The monitor may not have seen failure events yet (race condition).
@@ -145,7 +168,7 @@ export class CloudFormationStackDiagnoser {
     // which is the thing we care about.
     await poller.poll();
 
-    return this.diagnoseFromErrorCollection(poller.errors, stack, false);
+    return this.diagnoseFromErrorCollection(poller.errors, stack, false, { rollbackEnabled: this.rollbackEnabled });
   }
 
   private async _diagnoseChangeSetFailureFromStackName(stack: Stack): Promise<StackDiagnosis> {
@@ -288,7 +311,9 @@ export class CloudFormationStackDiagnoser {
       return [];
     }
     try {
-      return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg));
+      return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg), {
+        rollbackEnabled: this.rollbackEnabled,
+      });
     } catch (e: any) {
       await this.props.ioHelper.defaults.debug(`Resource investigation failed: ${e.message}`);
       return [];

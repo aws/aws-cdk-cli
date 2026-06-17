@@ -3,6 +3,7 @@ import {
   DescribeServicesCommand,
   DescribeTaskDefinitionCommand,
   DescribeTasksCommand,
+  ListTasksCommand,
 } from '@aws-sdk/client-ecs';
 import { investigateResource, parseEcsServiceIdentifier } from '../../../lib/api/diagnosing/resource-investigation';
 import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
@@ -78,6 +79,34 @@ describe('investigateResource for AWS::ECS::Service', () => {
     expect(result).toEqual([]);
   });
 
+  test('suggests --no-rollback when the service is gone and rollback was enabled', async () => {
+    mockECSClient.on(DescribeServicesCommand).resolves({ services: [] });
+
+    const result = await investigateResource(
+      ecsServiceError('my-cluster/my-service'),
+      sdk,
+      debug,
+      { rollbackEnabled: true },
+    );
+
+    const ctx = result.find(c => c.source === 'ECS Service');
+    expect(ctx).toBeDefined();
+    expect(ctx!.messages.join('\n')).toMatch(/--no-rollback/);
+  });
+
+  test('does not suggest --no-rollback when rollback was already disabled', async () => {
+    mockECSClient.on(DescribeServicesCommand).resolves({ services: [] });
+
+    const result = await investigateResource(
+      ecsServiceError('my-cluster/my-service'),
+      sdk,
+      debug,
+      { rollbackEnabled: false },
+    );
+
+    expect(result).toEqual([]);
+  });
+
   test('returns empty when investigation is not supported for the resource type', async () => {
     const err: ResourceError = {
       ...ecsServiceError('foo'),
@@ -92,11 +121,11 @@ describe('investigateResource for AWS::ECS::Service', () => {
       services: [{
         serviceName: 'my-service',
         taskDefinition: 'arn:aws:ecs:us-east-1:123456789012:task-definition/my-task:5',
-        events: [
-          { message: '(service my-service) (task abc12345-aaaa-bbbb-cccc-1111deadbeef) stopped' },
-          { message: '(service my-service) has reached a steady state' },
-        ],
+        events: [],
       }],
+    });
+    mockECSClient.on(ListTasksCommand).resolves({
+      taskArns: ['arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc12345aaaabbbbcccc1111deadbeef'],
     });
     mockECSClient.on(DescribeTasksCommand).resolves({
       tasks: [{
@@ -118,7 +147,7 @@ describe('investigateResource for AWS::ECS::Service', () => {
 
     expect(mockECSClient).toHaveReceivedCommandWith(DescribeTasksCommand, {
       cluster: 'my-cluster',
-      tasks: ['abc12345-aaaa-bbbb-cccc-1111deadbeef'],
+      tasks: ['abc12345aaaabbbbcccc1111deadbeef'],
     });
 
     const stopped = result.find(c => c.source === 'ECS Stopped Tasks');
@@ -131,21 +160,16 @@ describe('investigateResource for AWS::ECS::Service', () => {
     expect(stopped!.link).toContain('clusters/my-cluster/services/my-service');
   });
 
-  test('only extracts task IDs from failure events, not healthy lifecycle events', async () => {
-    // A healthy "has started" event for one task precedes a "stopped" event for a different task.
-    // The healthy task's ID must NOT be looked up via describeTasks; only the failed one.
-    const healthyTaskId = 'aaaaaaaa-1111-2222-3333-444444444444';
-    const failedTaskId = 'ffffffff-9999-8888-7777-666666666666';
-
+  test('scopes the stopped-task lookup to the service', async () => {
     mockECSClient.on(DescribeServicesCommand).resolves({
       services: [{
         serviceName: 'my-service',
         taskDefinition: 'arn:aws:ecs:us-east-1:123456789012:task-definition/my-task:5',
-        events: [
-          { message: `(service my-service) (task ${healthyTaskId}) has started 1 tasks` },
-          { message: `(service my-service) (task ${failedTaskId}) stopped` },
-        ],
+        events: [],
       }],
+    });
+    mockECSClient.on(ListTasksCommand).resolves({
+      taskArns: ['arn:aws:ecs:us-east-1:123456789012:task/my-cluster/ffffffff99998888'],
     });
     mockECSClient.on(DescribeTasksCommand).resolves({
       tasks: [{ stoppedReason: 'Essential container exited', containers: [] }],
@@ -160,15 +184,82 @@ describe('investigateResource for AWS::ECS::Service', () => {
       debug,
     );
 
-    expect(mockECSClient).toHaveReceivedCommandTimes(DescribeTasksCommand, 1);
+    expect(mockECSClient).toHaveReceivedCommandWith(ListTasksCommand, {
+      cluster: 'my-cluster',
+      serviceName: 'my-service',
+      desiredStatus: 'STOPPED',
+    });
     expect(mockECSClient).toHaveReceivedCommandWith(DescribeTasksCommand, {
       cluster: 'my-cluster',
-      tasks: [failedTaskId],
+      tasks: ['ffffffff99998888'],
     });
-    expect(mockECSClient).not.toHaveReceivedCommandWith(DescribeTasksCommand, {
+  });
+
+  test('falls back to listing the cluster when the service-scoped lookup is empty', async () => {
+    mockECSClient.on(DescribeServicesCommand).resolves({
+      services: [{
+        serviceName: 'my-service',
+        taskDefinition: 'arn:aws:ecs:us-east-1:123456789012:task-definition/my-task:5',
+        events: [],
+      }],
+    });
+    // First (service-scoped) listTasks call returns nothing; the second (cluster-wide)
+    // fallback call returns the stopped task. Sequenced with resolvesOnce so the fallback
+    // path is genuinely required — partial input matchers would overlap and let the first
+    // call satisfy the cluster-wide mock, masking a removed fallback.
+    mockECSClient.on(ListTasksCommand)
+      .resolvesOnce({ taskArns: [] })
+      .resolves({ taskArns: ['arn:aws:ecs:us-east-1:123456789012:task/my-cluster/clusterwidetask01'] });
+    mockECSClient.on(DescribeTasksCommand).resolves({
+      tasks: [{ stoppedReason: 'Essential container exited', containers: [] }],
+    });
+    mockECSClient.on(DescribeTaskDefinitionCommand).resolves({
+      taskDefinition: { containerDefinitions: [] },
+    });
+
+    const result = await investigateResource(ecsServiceError('my-cluster/my-service'), sdk, debug);
+
+    // The service-scoped call must have happened first...
+    expect(mockECSClient).toHaveReceivedCommandWith(ListTasksCommand, {
       cluster: 'my-cluster',
-      tasks: [healthyTaskId],
+      serviceName: 'my-service',
+      desiredStatus: 'STOPPED',
     });
+    // ...and a cluster-wide fallback call (no serviceName) must have followed.
+    expect(mockECSClient).toHaveReceivedCommandTimes(ListTasksCommand, 2);
+    // ...resolving to the cluster-wide task.
+    expect(mockECSClient).toHaveReceivedCommandWith(DescribeTasksCommand, {
+      cluster: 'my-cluster',
+      tasks: ['clusterwidetask01'],
+    });
+    expect(result.find(c => c.source === 'ECS Stopped Tasks')).toBeDefined();
+  });
+
+  test('falls back to a service failure event when no stopped tasks are retained', async () => {
+    // The failure mode from the live runs: the only filter-matching event has no task ID,
+    // and listTasks returns nothing (tasks aged out / drained). We should still surface the
+    // service event rather than an empty block.
+    mockECSClient.on(DescribeServicesCommand).resolves({
+      services: [{
+        serviceName: 'my-service',
+        taskDefinition: 'arn:aws:ecs:us-east-1:123456789012:task-definition/my-task:5',
+        events: [
+          { message: '(service my-service) deployment failed: tasks failed to start.' },
+        ],
+      }],
+    });
+    mockECSClient.on(ListTasksCommand).resolves({ taskArns: [] });
+    mockECSClient.on(DescribeTaskDefinitionCommand).resolves({
+      taskDefinition: { containerDefinitions: [] },
+    });
+
+    const result = await investigateResource(ecsServiceError('my-cluster/my-service'), sdk, debug);
+
+    const stopped = result.find(c => c.source === 'ECS Stopped Tasks');
+    expect(stopped).toBeDefined();
+    expect(stopped!.messages).toEqual(['(service my-service) deployment failed: tasks failed to start.']);
+    // describeTasks must not be called when there are no task IDs.
+    expect(mockECSClient).not.toHaveReceivedCommand(DescribeTasksCommand);
   });
 
   test('falls back to the no-log-config message when task def has no awslogs driver', async () => {
@@ -195,9 +286,6 @@ describe('investigateResource for AWS::ECS::Service', () => {
     const cwl = result.find(c => c.source === 'CloudWatch Logs');
     expect(cwl).toBeDefined();
     expect(cwl!.messages[0]).toMatch(/No CloudWatch Logs configuration/);
-
-    const images = result.find(c => c.source === 'Container Images');
-    expect(images?.messages).toEqual(['app: public.ecr.aws/example/app:latest']);
   });
 
   test('caps logs at MAX_LOG_LINES and prepends an omission marker', async () => {
@@ -296,6 +384,6 @@ describe('investigateResource for AWS::ECS::Service', () => {
       debug,
     );
     const cwl = result.find(c => c.source === 'CloudWatch Logs');
-    expect(cwl?.messages[0]).toMatch(/No application logs found/);
+    expect(cwl?.messages[0]).toMatch(/No CloudWatch Logs found/);
   });
 });

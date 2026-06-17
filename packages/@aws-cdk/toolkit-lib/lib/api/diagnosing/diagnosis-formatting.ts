@@ -1,4 +1,4 @@
-import { sideBySide, TreeBuilder, wrapText } from './tree-builder';
+import { sideBySide, wrapText } from './tree-builder';
 import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { sortByKey } from '../../util';
@@ -114,35 +114,70 @@ function formatDiagnosisErrorStack(stack: DiagnosedStack, m: Extract<StackDiagno
   return `⚠️ Could not diagnose stack ${stack.stackName}: ${m.message}`;
 }
 
-function formatResourceErrors(es: TracedResourceError[]) {
+/**
+ * Render the resource errors as a flat list of labeled blocks (one per failed resource),
+ * in the same style as policy validation reporting.
+ *
+ * Each block is the resource location header, the error message, an optional source
+ * location, and any additional diagnostic context (e.g. ECS stopped-task reasons,
+ * CloudWatch logs) rendered as indented sub-sections. Blocks are separated by a blank
+ * line.
+ */
+function formatResourceErrors(es: TracedResourceError[]): string {
   sortByKey(es, (e) => [locateResourceError(e)]);
 
-  const b = new TreeBuilder('');
+  // Group by resource location so multiple errors for the same resource render as a single
+  // block.
+  const byLocation = new Map<string, TracedResourceError[]>();
   for (const e of es) {
-    const p = locateResourceError(e);
-    const lastPart = p.split('/').slice(-1)[0];
+    const key = locateResourceError(e);
+    (byLocation.get(key) ?? byLocation.set(key, []).get(key)!).push(e);
+  }
 
-    const nodeText = b.nodeText(p);
-    nodeText.header = [`${lastPart}  ${addendum(' ', e.resourceType, e.logicalId)}`.trim()];
-    nodeText.body.push(...sideBySide(['🛑'], ' ', wrapText(120, e.message)));
-    nodeText.footer = e.sourceTrace?.creationStackTrace
-      ? sideBySide(['Source Location:'], ' ', e.sourceTrace?.creationStackTrace)
-      : [];
+  const blocks = [...byLocation.values()].map((group) => formatResourceErrorBlock(group));
+  return blocks.join('\n\n');
+}
 
-    if (e.additionalContext) {
-      for (const ctx of e.additionalContext) {
-        const ctxNode = b.nodeText(`${p}/${ctx.source.replace(/\//g, '|')}`);
-        ctxNode.header = [`📋 ${ctx.source}:`];
-        for (const msg of ctx.messages) {
-          ctxNode.body.push(msg);
-        }
-        if (ctx.link) {
-          ctxNode.body.push(`🔗 ${ctx.link}`);
-        }
+const CONTEXT_INDENT = '   ';
+
+/**
+ * Render one resource's worth of errors as a labeled block: a single location header, an
+ * indented line per error message, an optional source location, and any additional
+ * diagnostic context (e.g. ECS stopped-task reasons, CloudWatch logs) as indented lines.
+ *
+ * The context messages are self-describing
+ * (e.g. "Task stopped: ..."). Links are prefixed with a short leader word
+ * (e.g. "Tasks:", "Logs:") to distinguish them when more than one is present.
+ */
+function formatResourceErrorBlock(group: TracedResourceError[]): string {
+  const first = group[0];
+  const lines: string[] = [];
+
+  lines.push(`${locateResourceError(first)}  ${addendum(' ', first.resourceType, first.logicalId)}`.trim());
+
+  for (const e of group) {
+    lines.push(...sideBySide(['  '], '', wrapText(120, e.message)));
+  }
+
+  const sourceTrace = group.find((e) => e.sourceTrace?.creationStackTrace)?.sourceTrace;
+  if (sourceTrace?.creationStackTrace) {
+    lines.push(...sideBySide(['Source Location:'], ' ', sourceTrace.creationStackTrace));
+  }
+
+  for (const e of group) {
+    for (const ctx of e.additionalContext ?? []) {
+      lines.push('');
+      for (const msg of ctx.messages) {
+        lines.push(`${CONTEXT_INDENT}${msg}`);
+      }
+      if (ctx.link) {
+        const leader = ctx.linkLabel ? `${ctx.linkLabel}: ` : '';
+        lines.push(`${CONTEXT_INDENT}${leader}${ctx.link}`);
       }
     }
   }
-  return b.render();
+
+  return lines.join('\n');
 }
 
 /**

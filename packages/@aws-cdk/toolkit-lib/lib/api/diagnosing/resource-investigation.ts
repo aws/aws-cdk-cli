@@ -11,6 +11,22 @@ import type { ResourceError } from '../stack-events/resource-errors';
 const MAX_LOG_LINES = 50;
 
 /**
+ * Options that influence how a resource is investigated.
+ */
+export interface InvestigateOptions {
+  /**
+   * Whether CloudFormation rollback is enabled for this deployment.
+   *
+   * When rollback is enabled, a failed resource is torn down before we can
+   * inspect its runtime state, so we may suggest re-running with `--no-rollback`
+   * to retain that detail.
+   *
+   * @default true
+   */
+  readonly rollbackEnabled?: boolean;
+}
+
+/**
  * Investigate a failed resource using AWS service APIs to gather additional root cause context.
  *
  * Returns additional diagnostic context (e.g. log lines) or an empty array if
@@ -20,10 +36,11 @@ export async function investigateResource(
   err: ResourceError,
   sdk: SDK,
   debug: (msg: string) => Promise<void>,
+  options: InvestigateOptions = {},
 ): Promise<AdditionalDiagnosticContext[]> {
   switch (err.resourceType) {
     case 'AWS::ECS::Service':
-      return investigateEcsService(err, sdk, debug);
+      return investigateEcsService(err, sdk, debug, options);
     default:
       return [];
   }
@@ -33,6 +50,7 @@ async function investigateEcsService(
   err: ResourceError,
   sdk: SDK,
   debug: (msg: string) => Promise<void>,
+  options: InvestigateOptions,
 ): Promise<AdditionalDiagnosticContext[]> {
   const physicalId = err.physicalId;
   if (!physicalId) {
@@ -52,6 +70,18 @@ async function investigateEcsService(
 
   const service = await describeService(ecs, cluster, serviceName, debug);
   if (!service) {
+    // The service is gone. The most common reason is that CloudFormation rolled the
+    // deployment back and deleted it, taking the task/runtime detail with it. If rollback
+    // was enabled, point the user at the flag that would have retained that detail.
+    if (options.rollbackEnabled) {
+      return [{
+        source: 'ECS Service',
+        messages: [
+          'The service and its tasks were removed during rollback, so container-level failure detail is unavailable.',
+          'Re-run the deployment with `--no-rollback` to retain the failed tasks and see why they stopped.',
+        ],
+      }];
+    }
     return [];
   }
 
@@ -70,10 +100,6 @@ async function investigateEcsService(
   const taskDefInfo = await getTaskDefinitionInfo(ecs, taskDefinitionArn, debug);
   if (!taskDefInfo) {
     return results;
-  }
-
-  if (taskDefInfo.images.length > 0) {
-    results.push({ source: 'Container Images', messages: taskDefInfo.images });
   }
 
   const logConfigs = taskDefInfo.logConfigs;
@@ -111,7 +137,7 @@ async function investigateEcsService(
   if (!hasLogs && !hadLogFetchError) {
     results.push({
       source: 'CloudWatch Logs',
-      messages: ['No application logs found (container may not have started). Check the stopped task reasons above for details.'],
+      messages: ['No CloudWatch Logs found.'],
     });
   }
 
@@ -179,26 +205,13 @@ async function getStoppedTaskReasons(
   debug: (msg: string) => Promise<void>,
 ): Promise<StoppedTaskResult> {
   try {
-    const failureEvents = (service.events ?? [])
-      .filter(e => e.message?.includes('stopped') || e.message?.includes('failed') || e.message?.includes('unhealthy'))
-      .slice(0, 5);
-
-    if (failureEvents.length === 0) {
-      return { taskIds: [] };
-    }
-
-    const taskIds = failureEvents
-      .map(e => {
-        const match = e.message?.match(/task ([a-f0-9-]+)/);
-        return match ? match[1] : undefined;
-      })
-      .filter((id): id is string => id != null)
-      .slice(0, 3);
+    // Ask ECS for the service's stopped tasks. The IDs we need live in "has started 1 tasks: (task <id>)" events
+    const taskIds = await listStoppedTaskIds(ecs, cluster, serviceName, debug);
 
     const messages: string[] = [];
 
     if (taskIds.length > 0) {
-      // Show details from the most recently failed task only
+      // Show details from the most recently stopped task only.
       const tasksResp = await ecs.describeTasks({ cluster, tasks: [taskIds[0]] });
       const task = tasksResp.tasks?.[0];
       if (task) {
@@ -219,13 +232,13 @@ async function getStoppedTaskReasons(
       }
     }
 
+    // Fall back to the most relevant service event if we couldn't get a task-level reason
+    // (e.g. tasks already aged out, or no stopped tasks retained).
     if (messages.length === 0) {
-      const firstEvent = failureEvents[0];
-      if (firstEvent?.message) {
-        messages.push(firstEvent.message);
-      }
-      if (failureEvents.length > 1) {
-        messages.push(`(${failureEvents.length - 1} other failure event(s) not shown)`);
+      const failureEvent = (service.events ?? [])
+        .find(e => e.message?.includes('stopped') || e.message?.includes('failed') || e.message?.includes('unhealthy'));
+      if (failureEvent?.message) {
+        messages.push(failureEvent.message);
       }
     }
 
@@ -238,6 +251,7 @@ async function getStoppedTaskReasons(
         source: 'ECS Stopped Tasks',
         messages,
         link: ecsStoppedTasksConsoleUrl(region, cluster ?? 'default', serviceName),
+        linkLabel: 'Tasks',
       },
       taskIds,
     };
@@ -245,6 +259,44 @@ async function getStoppedTaskReasons(
     await debug(`ECS investigation: failed to get stopped task reasons: ${e.message}`);
     return { taskIds: [] };
   }
+}
+
+/**
+ * Maximum number of stopped task IDs to consider. We only render detail for the most
+ * recent one, but keep a few so we can report how many others failed.
+ */
+const MAX_STOPPED_TASKS = 3;
+
+/**
+ * List the bare task IDs of the service's stopped tasks, newest first.
+ *
+ * Prefers scoping by service name; if that yields nothing (some ECS API versions only
+ * apply the service filter to running tasks), falls back to listing the cluster's stopped
+ * tasks. Returns an empty array if none are retained (e.g. they aged out, or rollback
+ * already drained the cluster).
+ */
+async function listStoppedTaskIds(
+  ecs: IECSClient,
+  cluster: string | undefined,
+  serviceName: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<string[]> {
+  const toIds = (arns: string[] | undefined) => (arns ?? []).map(arn => arn.split('/').pop()).filter((id): id is string => !!id);
+
+  let arns: string[] | undefined;
+  try {
+    const byService = await ecs.listTasks({ cluster, serviceName, desiredStatus: 'STOPPED' });
+    arns = byService.taskArns;
+    if (!arns || arns.length === 0) {
+      const byCluster = await ecs.listTasks({ cluster, desiredStatus: 'STOPPED' });
+      arns = byCluster.taskArns;
+    }
+  } catch (e: any) {
+    await debug(`ECS investigation: failed to list stopped tasks: ${e.message}`);
+    return [];
+  }
+
+  return toIds(arns).slice(0, MAX_STOPPED_TASKS);
 }
 
 interface AwsLogsConfig {
@@ -255,7 +307,6 @@ interface AwsLogsConfig {
 
 interface TaskDefinitionInfo {
   logConfigs: AwsLogsConfig[];
-  images: string[];
 }
 
 async function getTaskDefinitionInfo(
@@ -267,11 +318,7 @@ async function getTaskDefinitionInfo(
     const resp = await ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn });
     const containers = resp.taskDefinition?.containerDefinitions ?? [];
     const logConfigs: AwsLogsConfig[] = [];
-    const images: string[] = [];
     for (const container of containers) {
-      if (container.image) {
-        images.push(`${container.name}: ${container.image}`);
-      }
       const logConfig = container.logConfiguration;
       if (logConfig?.logDriver === 'awslogs') {
         const logGroup = logConfig.options?.['awslogs-group'];
@@ -284,7 +331,7 @@ async function getTaskDefinitionInfo(
         }
       }
     }
-    return { logConfigs, images };
+    return { logConfigs };
   } catch (e: any) {
     await debug(`ECS investigation: failed to describe task definition: ${e.message}`);
     return undefined;
@@ -343,6 +390,7 @@ async function fetchRecentLogs(
       source,
       messages,
       link: cloudWatchLogsConsoleUrl(region, logConfig.logGroup),
+      linkLabel: 'Logs',
     };
   } catch (e: any) {
     await debug(`ECS investigation: failed to fetch logs from ${logConfig.logGroup}: ${e.message}`);
