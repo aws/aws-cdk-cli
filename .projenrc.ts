@@ -1723,7 +1723,6 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
           'dependency-type': 'production',
         }],
         'ignore': repoProject.subprojects
-          .filter((p): p is yarn.TypeScriptWorkspace => p instanceof yarn.TypeScriptWorkspace)
           .map(p => ({ 'dependency-name': p.name }))
           .sort((a, b) => a['dependency-name'].localeCompare(b['dependency-name'])),
         'directories': ['/', ...repoProject.node.children
