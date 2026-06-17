@@ -73,7 +73,18 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)',
+      desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.',
+    })
+    .middleware(helpers.yargsImplies('debug', ['debugApp', 'debugCli']), true)
+    .option('debug-app', {
+      default: false,
+      type: 'boolean',
+      desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.',
+    })
+    .option('debug-cli', {
+      default: false,
+      type: 'boolean',
+      desc: 'Debug the CDK CLI itself.',
     })
     .option('profile', {
       default: undefined,
@@ -621,6 +632,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
         }),
+    )
+    .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
+      yargs.option('online', {
+        default: true,
+        type: 'boolean',
+        desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
+      }),
     )
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
       yargs

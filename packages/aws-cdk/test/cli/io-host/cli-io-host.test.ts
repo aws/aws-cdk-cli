@@ -5,6 +5,7 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
+import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
@@ -147,6 +148,205 @@ describe('CliIoHost', () => {
       // THEN
       expect(mockStdout).not.toHaveBeenCalled();
       expect(mockStderr).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('message listeners', () => {
+    const disposers: Array<() => void> = [];
+
+    function track(dispose: () => void) {
+      disposers.push(dispose);
+      return dispose;
+    }
+
+    function listMessage(message = 'Stack-A\nStack-B'): IoMessage<unknown> {
+      return plainMessage({
+        time: new Date(),
+        level: 'result',
+        action: 'list',
+        code: 'CDK_TOOLKIT_I2901',
+        message,
+      });
+    }
+
+    beforeEach(() => {
+      ioHost.isTTY = false;
+    });
+
+    afterEach(() => {
+      // Remove any listeners that did not remove themselves, to avoid leaking
+      // into other tests that share the singleton io host.
+      while (disposers.length > 0) {
+        disposers.pop()!();
+      }
+    });
+
+    test('on() invokes the observer for every matching message without changing output', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('first'));
+      await ioHost.notify(listMessage('second'));
+
+      // observer saw both, output is unchanged
+      expect(observed).toEqual(['first', 'second']);
+      expect(mockStdout).toHaveBeenCalledWith('first\n');
+      expect(mockStdout).toHaveBeenCalledWith('second\n');
+    });
+
+    test('once() invokes the observer only for the first matching message', async () => {
+      const observed: string[] = [];
+      track(ioHost.once(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('first'));
+      await ioHost.notify(listMessage('second'));
+
+      expect(observed).toEqual(['first']);
+    });
+
+    test('rewrite() replaces the printed text for every matching message', async () => {
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+
+      await ioHost.notify(listMessage('first'));
+      await ioHost.notify(listMessage('second'));
+
+      expect(mockStdout).toHaveBeenCalledWith('rewritten:first\n');
+      expect(mockStdout).toHaveBeenCalledWith('rewritten:second\n');
+    });
+
+    test('rewriteOnce() replaces the text of only the first matching message', async () => {
+      track(ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+
+      await ioHost.notify(listMessage('first'));
+      await ioHost.notify(listMessage('second'));
+
+      expect(mockStdout).toHaveBeenCalledWith('rewritten:first\n');
+      expect(mockStdout).toHaveBeenCalledWith('second\n');
+    });
+
+    test('the returned dispose function removes the listener', async () => {
+      const observed: string[] = [];
+      const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      });
+
+      await ioHost.notify(listMessage('before'));
+      dispose();
+      await ioHost.notify(listMessage('after'));
+
+      expect(observed).toEqual(['before']);
+    });
+
+    test('listeners only fire for the registered message code', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'unrelated',
+      }));
+
+      expect(observed).toEqual([]);
+    });
+
+    test('listeners receive the typed message payload', async () => {
+      let seenIds: string[] = [];
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => {
+        seenIds = msg.data.stacks.map(s => s.id);
+        return seenIds.join(', ');
+      }));
+
+      await ioHost.notify({
+        ...listMessage(),
+        data: { stacks: [{ id: 'Stack-A' }, { id: 'Stack-B' }] as any },
+      });
+
+      expect(seenIds).toEqual(['Stack-A', 'Stack-B']);
+      expect(mockStdout).toHaveBeenCalledWith('Stack-A, Stack-B\n');
+    });
+
+    test('on() updates the printed text when it returns { message }', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => ({ message: `updated:${msg.message}` })));
+
+      await ioHost.notify(listMessage('hello'));
+
+      expect(mockStdout).toHaveBeenCalledWith('updated:hello\n');
+    });
+
+    test('on() prevents the default processing when it returns { preventDefault: true }', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true })));
+
+      await ioHost.notify(listMessage('suppressed'));
+
+      // default processing skipped: never written to any stream
+      expect(mockStdout).not.toHaveBeenCalled();
+      expect(mockStderr).not.toHaveBeenCalled();
+    });
+
+    test('disposing a listener twice is a no-op', async () => {
+      const observed: string[] = [];
+      const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      });
+
+      dispose();
+      dispose();
+      await ioHost.notify(listMessage('after'));
+
+      expect(observed).toEqual([]);
+    });
+  });
+
+  describe('stack activity routing', () => {
+    function activityMessage(code: string, message = 'raw activity text'): IoMessage<unknown> {
+      return plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: code as any,
+        message,
+      });
+    }
+
+    beforeEach(() => {
+      // Force the lazy-creation path for each test.
+      (ioHost as any).activityPrinter = undefined;
+    });
+
+    test('routes a stack-activity message to the activity printer and consumes it', async () => {
+      const fakePrinter = { notify: jest.fn() };
+      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
+
+      const msg = activityMessage('CDK_TOOLKIT_I5502');
+      await ioHost.notify(msg);
+
+      // lazily created the printer and forwarded the message to it
+      expect(makeSpy).toHaveBeenCalledTimes(1);
+      expect(fakePrinter.notify).toHaveBeenCalledWith(msg);
+      // consumed: the raw message is not also written to a stream
+      expect(mockStdout).not.toHaveBeenCalled();
+      expect(mockStderr).not.toHaveBeenCalled();
+    });
+
+    test('reuses an existing activity printer for subsequent messages', async () => {
+      const fakePrinter = { notify: jest.fn() };
+      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
+
+      await ioHost.notify(activityMessage('CDK_TOOLKIT_I5501', 'start'));
+      await ioHost.notify(activityMessage('CDK_TOOLKIT_I5503', 'stop'));
+
+      // created once, then reused
+      expect(makeSpy).toHaveBeenCalledTimes(1);
+      expect(fakePrinter.notify).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -446,6 +646,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { logicalId: 'C' } }],
           stack: {},
@@ -460,6 +661,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           hotswapped: 1,
+          hotswapFallback: 0,
           hotswappableChanges: 2,
           nonHotswappableChanges: 1,
         },
@@ -479,6 +681,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 200,
           hotswapped: false,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }],
           nonHotswappableChanges: [],
           stack: {},
@@ -497,6 +700,7 @@ describe('CliIoHost', () => {
         }),
         counters: {
           hotswapped: 0,
+          hotswapFallback: 0,
           hotswappableChanges: 1,
           nonHotswappableChanges: 0,
         },
@@ -513,6 +717,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', rejectedProperties: ['Name', 'Id'], logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
           stack: {},
@@ -527,6 +732,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           'hotswapped': 1,
+          'hotswapFallback': 0,
           'hotswappableChanges': 2,
           'nonHotswappableChanges': 3,
           'hotswapFallback:someResource': 1,
@@ -536,6 +742,79 @@ describe('CliIoHost', () => {
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
         error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on failed HOTSWAP event with nonHotswappable resources and fallback enabled', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 2,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with fallback enabled and a failed CloudFormation deployment', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 200,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+          error: new Error('Failed to deploy'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 200,
+        error: expect.objectContaining({
+          name: 'UnknownError',
+        }),
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 1,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
       }));
     });
   });

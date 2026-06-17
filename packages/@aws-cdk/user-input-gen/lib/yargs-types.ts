@@ -31,6 +31,15 @@ export interface YargsOption {
 
 export interface CliOption extends Omit<YargsOption, 'nargs' | 'hidden'> {
   negativeAlias?: string;
+
+  /**
+   * Other (boolean) options that are switched on to `true` when this option is set.
+   *
+   * Implemented as a yargs middleware that runs before validation. Use kebab-case
+   * option names (e.g. `['debug-app', 'debug-cli']`); they are converted to the
+   * camelCase argv keys for you.
+   */
+  implies?: string[];
 }
 
 export interface Middleware {

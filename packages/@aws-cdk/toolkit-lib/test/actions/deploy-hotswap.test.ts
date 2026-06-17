@@ -9,6 +9,7 @@ let mockDeployStack = jest.fn().mockResolvedValue({
   stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
   outputs: {},
   noOp: false,
+  deleteFailures: [],
 });
 
 jest.mock('../../lib/api/deployments', () => {

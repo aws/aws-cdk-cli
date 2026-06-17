@@ -6,7 +6,7 @@ import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
-import { displayVersionMessage } from './display-version';
+import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -43,6 +43,10 @@ import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
+  // This is the very first code that runs, but libraries have been loaded already and that also costs time.
+  // Measure that.
+  const libraryLoadTime = performance.now();
+
   const argv = await parseCommandLineArguments(args);
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
@@ -84,12 +88,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
-  // If users request debug information (which switches on CDK_DEBUG=1 to get the
-  // CDK app to emit more information), they probably are troubleshooting and we've
-  // historically decided they then want more logging from the CLI as well.
-  // There is currently no way to get the CDK to emit tracing information that
-  // does not cause the CLI to barf logs to the console.
-  setSdkTracing(argv.debug || argv.verbose > 2);
+  // CLI debugging (and the highest verbosity, `-vvv`) turns on verbose AWS SDK tracing.
+  setSdkTracing(Boolean(argv.debugCli) || argv.verbose > 2);
 
   try {
     await checkForPlatformWarnings(ioHelper);
@@ -121,11 +121,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context);
+    await ioHost.startTelemetry(argv, configuration.context, proxyAgent);
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
 
+  ioHost.telemetry?.attachLoadTime(libraryLoadTime);
   ioHost.telemetry?.attachLanguage(await guessLanguage(process.cwd()));
   ioHost.telemetry?.attachAgent(guessAgent());
 
@@ -241,7 +242,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await displayVersionMessage(ioHelper);
+    if (shouldDisplayVersionMessage()) {
+      await displayVersionMessage(ioHelper);
+    }
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -292,6 +295,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       sdkProvider,
     });
 
+    ioHost.telemetry?.markOperationStart();
+
     switch (command) {
       case 'context':
         ioHost.currentAction = 'context';
@@ -316,6 +321,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'doctor';
         return doctor({
           ioHelper,
+          settings: configuration.settings,
         });
 
       case 'ls':
@@ -442,6 +448,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+        });
+
+      case 'validate':
+        cliRequireUnstable(configuration, 'validate');
+        ioHost.currentAction = 'validate';
+        configuration.context.set('@aws-cdk/core:failSynthOnValidationErrors', false);
+        return cli.validate({
+          stacks: specificStacksOrAllRecursively(args.STACKS),
+          online: args.online,
         });
 
       case 'diagnose':

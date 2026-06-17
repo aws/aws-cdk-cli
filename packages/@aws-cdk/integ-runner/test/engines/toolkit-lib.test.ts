@@ -26,7 +26,7 @@ describe('ToolkitLibRunnerEngine', () => {
       synth: jest.fn(),
       fromCdkApp: jest.fn(),
       list: jest.fn(),
-      deploy: jest.fn(),
+      deploy: jest.fn().mockResolvedValue({ stacks: [] }),
       watch: jest.fn(),
       destroy: jest.fn(),
     } as any;

@@ -29,6 +29,7 @@ beforeEach(() => {
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
+    deleteFailures: [],
   });
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',

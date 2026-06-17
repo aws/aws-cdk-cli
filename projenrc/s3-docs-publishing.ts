@@ -1,5 +1,6 @@
 import type { Monorepo, TypeScriptWorkspace } from 'cdklabs-projen-project-types/lib/yarn';
 import { Component, github } from 'projen';
+import { runAfterPublish } from './util';
 
 export enum DocType {
   /**
@@ -76,7 +77,7 @@ export class S3DocsPublishing extends Component {
       environment: 'releasing', // <-- this has the configuration
       needs: [`${safeName}_release_npm`],
       runsOn: ['ubuntu-latest'],
-      if: '${{ !inputs.dry_run }}',
+      if: runAfterPublish(`${safeName}_release_npm`),
       permissions: {
         idToken: github.workflows.JobPermission.WRITE,
         contents: github.workflows.JobPermission.READ,

@@ -60,7 +60,6 @@ import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -81,6 +80,7 @@ import {
 } from '../../lib/api/deployments';
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
+import type { DestroyStackResult } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -123,6 +123,7 @@ beforeEach(async () => {
     outputs: {},
     type: 'did-deploy-stack',
     stackArn: 'fake-arn',
+    deleteFailures: [],
   });
 
   cloudExecutable = await MockCloudExecutable.create({
@@ -191,9 +192,20 @@ describe('list', () => {
 
     // THEN
     expect(result).toEqual(0); // Exit code
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A-Display-Name', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-B', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A/Test-Stack-C', 'result'));
+
+    // The `list` toolkit action emits a single CDK_TOOLKIT_I2901 result message
+    // carrying the selected stacks; the CLI renders it (see formatStackList).
+    const listMsg = notifySpy.mock.calls
+      .map(call => call[0])
+      .find((m: any) => m.code === 'CDK_TOOLKIT_I2901');
+    if (!listMsg) {
+      throw new Error('expected a CDK_TOOLKIT_I2901 message to be emitted');
+    }
+    expect(listMsg.message.split('\n').sort()).toEqual([
+      'Test-Stack-A-Display-Name',
+      'Test-Stack-A/Test-Stack-C',
+      'Test-Stack-B',
+    ]);
   });
 });
 
@@ -239,6 +251,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       mockCfnDeployments.deployStack.mockResolvedValue({
@@ -246,6 +259,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -287,6 +301,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       mockCfnDeployments.deployStack.mockResolvedValue({
@@ -294,6 +309,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -335,6 +351,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -370,6 +387,7 @@ describe('deploy', () => {
         noOp: true,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -400,6 +418,7 @@ describe('deploy', () => {
         noOp: true,
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -438,6 +457,7 @@ describe('deploy', () => {
         noOp: true,
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -473,6 +493,7 @@ describe('deploy', () => {
         noOp: true,
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
       });
 
       const outputsFile = path.join(os.tmpdir(), `cdk-outputs-${Date.now()}.json`);
@@ -512,6 +533,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
       });
 
@@ -548,6 +570,7 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
 
@@ -580,12 +603,13 @@ describe('deploy', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stackArn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       // First deploy: needs rollback. Second deploy: succeeds.
       mockCfnDeployments.deployStack
         .mockResolvedValueOnce({ type: 'failpaused-need-rollback-first', status: 'UPDATE_ROLLBACK_FAILED', reason: 'not-norollback' })
-        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn' });
+        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn', deleteFailures: [] });
       mockCfnDeployments.rollbackStack.mockResolvedValue({ success: true, stackArn: 'stackArn' });
 
       // Auto-confirm rollback prompt
@@ -677,6 +701,7 @@ describe('deploy', () => {
           noOp: false,
           outputs: {},
           stackArn: 'stackArn',
+          deleteFailures: [],
           stackArtifact: instanceMockFrom(cxapi.CloudFormationStackArtifact),
         }),
       );
@@ -2401,6 +2426,7 @@ describe('rollback', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stack:arn',
+        deleteFailures: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       })
       // Second call: execute-change-set returns the test's expected result
@@ -2411,6 +2437,7 @@ describe('rollback', () => {
         noOp: false,
         outputs: {},
         stackArn: 'stack:arn',
+        deleteFailures: [],
       });
 
     // respond with yes
@@ -2632,6 +2659,7 @@ class FakeCloudFormation extends Deployments {
       noOp: false,
       outputs: { StackName: options.stack.stackName },
       stackArtifact: options.stack,
+      deleteFailures: [],
     });
   }
 

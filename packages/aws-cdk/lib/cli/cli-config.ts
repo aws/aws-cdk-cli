@@ -29,7 +29,9 @@ export async function makeConfig(): Promise<CliConfig> {
       'ignore-errors': { type: 'boolean', default: false, desc: 'Ignores synthesis errors, which will likely produce an invalid output' },
       'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
-      'debug': { type: 'boolean', desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)', default: false },
+      'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
+      'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
+      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself.' },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
@@ -216,6 +218,16 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
           'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
+        },
+        arg: {
+          name: 'STACKS',
+          variadic: true,
+        },
+      },
+      'validate': {
+        description: 'Validate synthesized CloudFormation templates against policy rules',
+        options: {
+          online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
         },
         arg: {
           name: 'STACKS',

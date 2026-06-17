@@ -1,5 +1,6 @@
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { ResourceDeleteFailure } from '../../toolkit/types';
 
 export type DeployStackResult =
   | SuccessfulDeployStackResult
@@ -19,6 +20,12 @@ export interface SuccessfulDeployStackResult {
    * Populated when using `change-set` deployment method with `execute: false`.
    */
   readonly changeSet?: DescribeChangeSetCommandOutput;
+
+  /**
+   * Resources that CloudFormation failed to delete during the stack update.
+   * Non-empty only for stack updates where CFN skipped deletion failures.
+   */
+  readonly deleteFailures: ResourceDeleteFailure[];
 }
 
 /** The stack is currently in a failpaused state, and needs to be rolled back before the deployment */

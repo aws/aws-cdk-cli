@@ -215,6 +215,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/private-tools",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/toolkit-lib",
       "type": "runtime"
     },

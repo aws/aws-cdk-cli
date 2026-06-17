@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '../../lib';
 
 // Sometimes, due to our own use of bundled dependencies, NPM will fail if a customer declares
@@ -9,7 +10,8 @@ integTest('using aws-cdk-lib as a bundled dependency', withTemporaryDirectory(wi
 
   await shell.shell(['npm', 'init', '-y']);
 
-  const packageJson = JSON.parse(await fs.readFile('package.json', 'utf-8'));
+  const packageJsonPath = path.join(context.integTestDir, 'package.json');
+  const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 
   packageJson.dependencies = {
     ...packageJson.dependencies,
@@ -17,7 +19,7 @@ integTest('using aws-cdk-lib as a bundled dependency', withTemporaryDirectory(wi
   };
   packageJson.bundleDependencies = ['aws-cdk-lib'];
 
-  await fs.writeFile('package.json', JSON.stringify(packageJson, undefined, 2), 'utf-8');
+  await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, undefined, 2), 'utf-8');
 
   await shell.shell(['npm', 'install']);
 })));

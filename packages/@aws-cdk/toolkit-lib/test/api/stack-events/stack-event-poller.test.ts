@@ -121,4 +121,96 @@ describe('poll', () => {
 
     await expect(poller.poll()).rejects.toThrow('Something else went wrong');
   });
+
+  test('collects DELETE_FAILED events into deleteFailures', async () => {
+    const deployTime = Date.now();
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolves({
+      StackEvents: [
+        {
+          Timestamp: new Date(deployTime + 3000),
+          EventId: 'event-3',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyBucket',
+          PhysicalResourceId: 'my-bucket-12345',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'DELETE_FAILED',
+          ResourceStatusReason: 'The bucket is not empty',
+        },
+        {
+          Timestamp: new Date(deployTime + 2000),
+          EventId: 'event-2',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyFunction',
+          ResourceType: 'AWS::Lambda::Function',
+          ResourceStatus: 'DELETE_COMPLETE',
+        },
+        {
+          Timestamp: new Date(deployTime + 1000),
+          EventId: 'event-1',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyTable',
+          PhysicalResourceId: 'my-table',
+          ResourceType: 'AWS::DynamoDB::Table',
+          ResourceStatus: 'DELETE_FAILED',
+          ResourceStatusReason: 'Table has deletion protection enabled',
+        },
+      ],
+    });
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn: 'stack-id',
+      initialPollRange: PollRange.sinceTimestamp(deployTime),
+    });
+
+    await poller.poll();
+
+    expect(poller.deleteFailures).toEqual([
+      {
+        logicalResourceId: 'MyTable',
+        physicalResourceId: 'my-table',
+        resourceType: 'AWS::DynamoDB::Table',
+        reason: 'Table has deletion protection enabled',
+      },
+      {
+        logicalResourceId: 'MyBucket',
+        physicalResourceId: 'my-bucket-12345',
+        resourceType: 'AWS::S3::Bucket',
+        reason: 'The bucket is not empty',
+      },
+    ]);
+  });
+
+  test('does not include AWS::CloudFormation::Stack DELETE_FAILED in deleteFailures', async () => {
+    const deployTime = Date.now();
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolves({
+      StackEvents: [
+        {
+          Timestamp: new Date(deployTime + 1000),
+          EventId: 'event-1',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'NestedStack',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          ResourceStatus: 'DELETE_FAILED',
+          ResourceStatusReason: 'Nested stack failed',
+        },
+      ],
+    });
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn: 'stack-id',
+      initialPollRange: PollRange.sinceTimestamp(deployTime),
+    });
+
+    await poller.poll();
+
+    expect(poller.deleteFailures).toEqual([]);
+  });
 });

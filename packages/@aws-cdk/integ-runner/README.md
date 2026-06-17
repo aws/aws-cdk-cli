@@ -79,6 +79,9 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
   Read the list of tests from this file
 - `--disable-update-workflow` (default=`false`)
   If this is set to `true` then the [update workflow](#update-workflow) will be disabled
+- `--update-from-tags`
+  Deploy snapshots from the given git tags in sequence before deploying the current code.
+  Implies `--force`. See [Update From Tags](#update-from-tags) for details.
 - `--app`
   The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".
 
@@ -224,6 +227,14 @@ By default, integration tests are run with the "update workflow" enabled. This c
 If an existing snapshot is being updated, the integration test runner will first deploy the existing snapshot and then perform a stack update
 with the new changes. This is to test for cases where an update would cause a breaking change only on a stack update.
 
+> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works 
+> with **environment-agnostic** snapshots. A snapshot is environment-agnostic when its templates do
+> not embed specific account IDs or regions. Tests that use context lookups (e.g., VPC or AZ
+> providers) store dummy resolved values in their snapshots — these are fine for diffing but can
+> only be deployed if the snapshot doesn't hardcode real environment-specific values. If your test
+> declares a specific `env: { account, region }`, its snapshot is not portable and the update
+> workflow will not work reliably.
+
 The `integ-runner` will also attempt to warn you if you are making any destructive changes with a message like:
 
 ```bash
@@ -247,6 +258,31 @@ integ-runner --update-on-failed --disable-update-workflow integ.new-test.js
 ```
 
 This is because for a new test we do not need to test the update workflow (there is nothing to update).
+
+##### Update From Tags
+
+Use `--update-from-tags` to verify that a stack can be safely updated through a sequence of specific versions. This is primarily useful for on-call engineers validating that a fix is safe for customers who are currently on a broken version.
+
+```bash
+integ-runner --update-from-tags v2.150.0,v2.151.0 --update-on-failed integ.my-stack.js
+```
+
+This will:
+
+1. Check out the snapshot at tag `v2.150.0` and deploy it (fresh stack creation)
+2. Check out the snapshot at tag `v2.151.0` and deploy it (stack update)
+3. Deploy the current code (final stack update)
+4. If successful, update the snapshot
+
+The typical use case is regression verification: version N was good, N+1 introduced a regression, and you have a fix on the current branch. Running with `--update-from-tags vN,vN+1` proves that customers on N+1 can safely move to the fix.
+
+Notes:
+
+- `--update-from-tags` implies `--force` — all matched tests are deployed regardless of snapshot comparison results.
+- The runner fails fast if a snapshot does not exist at any of the specified tags.
+- `allowDestroy` checks apply at every transition, not just the final one.
+- Cannot be used together with `--no-update-workflow`.
+- When `--update-from-tags` is provided, the normal merge-base update workflow is skipped.
 
 ### watch
 

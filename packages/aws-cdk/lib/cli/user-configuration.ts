@@ -43,6 +43,7 @@ export enum Command {
   DRIFT = 'drift',
   CLI_TELEMETRY = 'cli-telemetry',
   DIAGNOSE = 'diagnose',
+  VALIDATE = 'validate',
 }
 
 const BUNDLING_COMMANDS = [
@@ -175,11 +176,19 @@ export class Configuration {
     this.context = new Context(...contextSources);
 
     // Build settings from what's left
-    this.settings = this.defaultConfig
+    const mergedSettings = this.defaultConfig
       .merge(userConfig)
       .merge(this.projectConfig)
-      .merge(this.commandLineArguments)
-      .makeReadOnly();
+      .merge(this.commandLineArguments);
+
+    // Backwards compatibility: a `debug: true` in a config file (cdk.json / ~/.cdk.json)
+    // implies both debug targets, mirroring the `--debug` CLI flag.
+    if (mergedSettings.get(['debug'])) {
+      mergedSettings.set(['debugApp'], true);
+      mergedSettings.set(['debugCli'], true);
+    }
+
+    this.settings = mergedSettings.makeReadOnly();
 
     await this.ioHelper.defaults.debug('merged settings:', this.settings.all);
 
@@ -303,7 +312,11 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     build: argv.build,
     caBundlePath: argv.caBundlePath,
     context,
-    debug: argv.debug,
+    // The `--debug` implication (both debug targets) is resolved during argument
+    // parsing, so here we only read the resolved per-target flags.
+    debugApp: argv.debugApp,
+    debugCli: argv.debugCli,
+    verbose: argv.verbose,
     tags,
     language: argv.language,
     pathMetadata: argv.pathMetadata,

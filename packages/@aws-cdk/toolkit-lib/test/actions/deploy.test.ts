@@ -21,6 +21,7 @@ beforeEach(() => {
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
+    deleteFailures: [],
   });
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
@@ -130,6 +131,7 @@ IAM Statement Changes
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: false,
+        deleteFailures: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: DEFAULT_DEPLOY_CHANGE_SET_NAME, $metadata: {} } as any,
@@ -139,6 +141,7 @@ IAM Statement Changes
         .mockResolvedValueOnce({
           type: 'did-deploy-stack',
           noOp: false,
+          deleteFailures: [],
           outputs: {},
           stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         });
@@ -179,6 +182,7 @@ IAM Statement Changes
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: true,
+        deleteFailures: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -199,6 +203,7 @@ IAM Statement Changes
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: true,
+        deleteFailures: [],
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -222,6 +227,7 @@ IAM Statement Changes
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: true,
+        deleteFailures: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -246,6 +252,7 @@ IAM Statement Changes
       jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: false,
+        deleteFailures: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} } as any,
@@ -438,6 +445,7 @@ IAM Statement Changes
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
+            deleteFailures: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -467,6 +475,7 @@ IAM Statement Changes
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
+            deleteFailures: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -494,6 +503,7 @@ IAM Statement Changes
         OutputKey2: 'OutputValue2',
       },
       noOp: false,
+      deleteFailures: [],
     });
 
     // WHEN
@@ -517,6 +527,7 @@ IAM Statement Changes
             OutputKey1: 'OutputValue1',
             OutputKey2: 'OutputValue2',
           },
+          deleteFailures: [],
         },
         {
           stackName: 'Stack2',
@@ -533,6 +544,7 @@ IAM Statement Changes
             OutputKey2: 'OutputValue2',
             // omg
           },
+          deleteFailures: [],
         },
       ],
     });
@@ -548,6 +560,7 @@ IAM Statement Changes
         OutputKey2: 'OutputValue2',
       },
       noOp: false,
+      deleteFailures: [],
     });
 
     // WHEN
@@ -562,6 +575,40 @@ IAM Statement Changes
         }),
       ],
     });
+  });
+
+  test('deploy result includes deleteFailures from the deployment', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {},
+      noOp: false,
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    for (const stack of result.stacks) {
+      expect(stack.deleteFailures).toEqual([
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ]);
+    }
   });
 
   test('action disposes of assembly produced by source', async () => {

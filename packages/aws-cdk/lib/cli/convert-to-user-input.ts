@@ -20,6 +20,8 @@ export function convertYargsToUserInput(args: any): UserInput {
     json: args.json,
     verbose: args.verbose,
     debug: args.debug,
+    debugApp: args.debugApp,
+    debugCli: args.debugCli,
     profile: args.profile,
     region: args.region,
     proxy: args.proxy,
@@ -147,6 +149,13 @@ export function convertYargsToUserInput(args: any): UserInput {
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
         revertDrift: args.revertDrift,
+        STACKS: args.STACKS,
+      };
+      break;
+
+    case 'validate':
+      commandOptions = {
+        online: args.online,
         STACKS: args.STACKS,
       };
       break;
@@ -364,6 +373,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     json: config.json,
     verbose: config.verbose,
     debug: config.debug,
+    debugApp: config.debugApp,
+    debugCli: config.debugCli,
     profile: config.profile,
     region: config.region,
     proxy: config.proxy,
@@ -466,6 +477,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
+  };
+  const validateOptions = {
+    online: config.validate?.online,
   };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
@@ -590,6 +604,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     gc: gcOptions,
     flags: flagsOptions,
     deploy: deployOptions,
+    validate: validateOptions,
     diagnose: diagnoseOptions,
     rollback: rollbackOptions,
     publishAssets: publishAssetsOptions,

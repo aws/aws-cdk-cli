@@ -146,6 +146,7 @@ export async function tryHotswapDeployment(
       noOp: result.hotswappableChanges.length === 0,
       stackArn: cloudFormationStack.stackId,
       outputs: cloudFormationStack.outputs,
+      deleteFailures: [],
     };
   }
 
@@ -212,6 +213,7 @@ async function hotswapDeployment(
         stack,
         mode: hotswapMode,
         hotswapped: false,
+        hotswapFallback: true,
         hotswappableChanges,
         nonHotswappableChanges,
       };
@@ -232,6 +234,7 @@ async function hotswapDeployment(
     stack,
     mode: hotswapMode,
     hotswapped: !error,
+    hotswapFallback: false,
     hotswappableChanges,
     nonHotswappableChanges,
     error,

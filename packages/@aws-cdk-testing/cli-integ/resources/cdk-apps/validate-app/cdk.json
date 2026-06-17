@@ -1,0 +1,8 @@
+{
+  "app": "node app.js",
+  "versionReporting": false,
+  "context": {
+    "@aws-cdk/core:failSynthOnValidationErrors": false,
+    "@aws-cdk/core:annotationsInValidationReport": true
+  }
+}
