@@ -47,13 +47,9 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
   try {
     await cached.dispose();
   } catch (err) {
-    // Synth succeeded and `cdk.out` is on disk, but we could not release the
-    // read lock. Surface as `error` so the caller can warn the user; without
-    // a lock release the next synth from this process would self-conflict.
-    // NOTE: if this happens, subsequent synths from the same process will see
-    // their own stale reader and return `lock-conflict` ("another synth in
-    // progress"), which is misleading — the conflict is permanent for this
-    // LSP session. Users must restart the LSP to recover.
+    // Releases the read lock synth() left on the assembly. Failure is rare (an
+    // fs error deleting the lock file); report it as `error` so the next synth
+    // does not silently self-conflict on the stale reader.
     return { status: 'error', message: (err as Error).message };
   }
 
