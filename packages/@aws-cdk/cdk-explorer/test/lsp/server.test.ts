@@ -39,7 +39,6 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
   const handlers = createLspHandlers({
     readAssembly: opts?.readAssembly ?? (() => ({ status: 'not-found' })),
     synthRunner: opts?.synthRunner,
-    synthAvailable: opts?.synthAvailable,
     notify: opts?.notify,
     logger: log,
     onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
@@ -133,7 +132,7 @@ describe('LSP Server', () => {
 
   test('didSave triggers auto-synth for non-ignored source files when auto-synth is enabled', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const client = createTestClient({ synthRunner, synthAvailable: true });
+    const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
 
     // Enable auto-synth via the toggle command first
@@ -149,7 +148,7 @@ describe('LSP Server', () => {
 
   test('didSave does not trigger synth when auto-synth is disabled (default)', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const client = createTestClient({ synthRunner, synthAvailable: true });
+    const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
 
     // auto-synth is off by default
@@ -163,7 +162,7 @@ describe('LSP Server', () => {
 
   test('didSave does not trigger synth for ignored files', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const client = createTestClient({ synthRunner, synthAvailable: true });
+    const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
@@ -180,7 +179,7 @@ describe('LSP Server', () => {
 
   test('didSave is ignored after shutdown', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const client = createTestClient({ synthRunner, synthAvailable: true });
+    const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
@@ -195,7 +194,7 @@ describe('LSP Server', () => {
 
   test('auto-synth app-failure logs to output panel without throwing', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'app-failure', message: 'compile err' });
-    const client = createTestClient({ synthRunner, synthAvailable: true });
+    const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
@@ -394,14 +393,14 @@ describe('LSP Server -- executeCommand', () => {
   });
 
   test('synthNow without synthAvailable notifies info', async () => {
-    const { handlers, notify } = createCommandClient({ synthAvailable: false });
+    const { handlers, notify } = createCommandClient();
     await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     expect(notify.infoMessages.some((m) => m.includes('unavailable'))).toBe(true);
   });
 
   test('synthNow with success is silent', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
-    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+    const { handlers, notify } = createCommandClient({ synthRunner });
     await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     expect(notify.infoMessages).toHaveLength(0);
     expect(notify.errorMessages).toHaveLength(0);
@@ -409,7 +408,7 @@ describe('LSP Server -- executeCommand', () => {
 
   test('synthNow with app-failure notifies error', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'app-failure', message: 'compile error' });
-    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+    const { handlers, notify } = createCommandClient({ synthRunner });
     await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     expect(notify.errorMessages.some((m) => m.includes('compile error'))).toBe(true);
   });
@@ -422,7 +421,7 @@ describe('LSP Server -- executeCommand', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
       .mockImplementationOnce(() => firstSynthDone.then(() => ({ status: 'success' } as const)))
       .mockResolvedValue({ status: 'success' });
-    const { handlers, notify } = createCommandClient({ synthAvailable: true, synthRunner });
+    const { handlers, notify } = createCommandClient({ synthRunner });
 
     const first = handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
@@ -444,7 +443,6 @@ describe('LSP Server -- executeCommand', () => {
     const notify = makeNotifySink();
     const handlers = createLspHandlers({
       readAssembly: () => ({ status: 'not-found' }),
-      synthAvailable: true,
       synthRunner,
       notify,
       startAssemblyWatcher: () => ({
@@ -474,12 +472,15 @@ describe('LSP Server -- executeCommand', () => {
 
 describe('LSP Server -- auto-synth toggle', () => {
   function createToggleClient(synthAvailable = true) {
-    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
+    const synthRunner = synthAvailable
+      ? jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' })
+      : undefined;
+    const log = { warn: jest.fn(), error: jest.fn() };
     const refreshCodeLens = jest.fn();
     const handlers = createLspHandlers({
       readAssembly: () => ({ status: 'not-found' }),
-      synthAvailable,
       synthRunner,
+      logger: log,
       onRefreshCodeLenses: refreshCodeLens,
       startAssemblyWatcher: () => ({
         close: async () => {
@@ -488,7 +489,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
     handlers.onInitialized();
-    return { handlers, synthRunner, refreshCodeLens };
+    return { handlers, synthRunner, refreshCodeLens, log };
   }
 
   const stackTs = '/p/lib/stack.ts';
@@ -509,7 +510,6 @@ describe('LSP Server -- auto-synth toggle', () => {
   test('toggle round-trip: onCodeLens reflects new state after enableAutoSynth', async () => {
     const handlers = createLspHandlers({
       readAssembly: () => ({ status: 'success', data: { warnings: [], tree: treeWithResource } }),
-      synthAvailable: true,
       synthRunner: jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' }),
       onRefreshCodeLenses: jest.fn(),
       startAssemblyWatcher: () => ({
@@ -542,14 +542,16 @@ describe('LSP Server -- auto-synth toggle', () => {
     expect(refreshCodeLens).toHaveBeenCalledTimes(2);
   });
 
-  test('didSave does not trigger synth when synthAvailable=false even if auto-synth enabled', async () => {
-    const { handlers, synthRunner } = createToggleClient(false);
+  test('didSave does not trigger synth when synth is unavailable (no runner) even if auto-synth enabled', async () => {
+    const { handlers, log } = createToggleClient(false);
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(synthRunner).not.toHaveBeenCalled();
+    // No runner means the availability gate returns early; we never reach
+    // guardedSynth's "No synth runner configured" path, so nothing is logged.
+    expect(log.error).not.toHaveBeenCalled();
   });
 
   test('save-path lock-conflict is silent (no log output)', async () => {
@@ -557,7 +559,6 @@ describe('LSP Server -- auto-synth toggle', () => {
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
       readAssembly: () => ({ status: 'not-found' }),
-      synthAvailable: true,
       synthRunner,
       logger: log,
       startAssemblyWatcher: () => ({
@@ -581,7 +582,6 @@ describe('LSP Server -- auto-synth toggle', () => {
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
       readAssembly: () => ({ status: 'not-found' }),
-      synthAvailable: true,
       synthRunner,
       logger: log,
       startAssemblyWatcher: () => ({

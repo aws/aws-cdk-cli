@@ -11,7 +11,6 @@ try {
   startServer({
     readable: process.stdin,
     writable: process.stdout,
-    synthAvailable: config.app !== undefined,
     // buildSynthRunner is called once after the LSP connection is established,
     // so LspIoHost can receive a real connection.console to route Toolkit
     // output to the editor's Output panel.

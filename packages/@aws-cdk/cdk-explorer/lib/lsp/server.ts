@@ -63,22 +63,24 @@ export interface LspHandlerOptions {
    * overridden in tests to drive refreshes deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
-  /** Runs a synth and returns its typed outcome. Injected by main.ts; omitted in tests that don't exercise synth. */
+  /**
+   * Runs a synth and returns its typed outcome. Injected by startServer (built
+   * from `buildSynthRunner`); omitted in tests that don't exercise synth. Its
+   * presence is the single source of truth for whether synth is available:
+   * `cdk.json` having an `app` is exactly what causes a runner to be built.
+   */
   readonly synthRunner?: () => Promise<SynthRunResult>;
-  /** Whether cdk.json exists and has a valid `app` key. Controls whether synthNow is available. */
-  readonly synthAvailable?: boolean;
   /** User-facing notification sink. Injected by startServer; omitted in tests. */
   readonly notify?: NotifySink;
 }
 
-export interface LspServerOptions extends LspHandlerOptions {
+export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
   readonly writable: NodeJS.WritableStream;
   /**
-   * Optional factory called once after the connection is established.
-   * Receives `connection.console` so the returned runner can route Toolkit
-   * IO to the editor's Output panel. Takes precedence over `synthRunner`
-   * when both are provided.
+   * Factory for the synth runner, invoked once in `startServer` when
+   * `connection.console` first exists. The console-free core
+   * (`createLspHandlers`) consumes the built `synthRunner` it returns.
    */
   readonly buildSynthRunner?: (console: RemoteConsole) => (() => Promise<SynthRunResult>);
 }
@@ -133,8 +135,8 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   const onRefreshCodeLenses = options.onRefreshCodeLenses ?? (() => {
   });
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
-  const synthAvailable = options.synthAvailable ?? false;
   const synthRunner = options.synthRunner;
+  const synthAvailable = synthRunner !== undefined;
   const notify = options.notify ?? {
     info: () => {
     },
@@ -328,7 +330,6 @@ export function startServer(options: LspServerOptions): void {
   let codeLensRefreshSupported = false;
 
   const handlers = createLspHandlers({
-    readAssembly: options.readAssembly,
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {
       void connection.sendDiagnostics({ uri, diagnostics });
@@ -340,10 +341,7 @@ export function startServer(options: LspServerOptions): void {
         void connection.sendRequest(CodeLensRefreshRequest.type);
       }
     },
-    synthRunner: options.buildSynthRunner
-      ? options.buildSynthRunner(connection.console)
-      : options.synthRunner,
-    synthAvailable: options.synthAvailable,
+    synthRunner: options.buildSynthRunner?.(connection.console),
     notify: {
       // Route to the Output panel (connection.console) rather than popups.
       // showMessage creates a dismissable toast that interrupts the user's
