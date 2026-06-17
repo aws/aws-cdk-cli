@@ -11,10 +11,10 @@ try {
   startServer({
     readable: process.stdin,
     writable: process.stdout,
-    // buildSynthRunner is called once after the LSP connection is established,
-    // so LspIoHost can receive a real connection.console to route Toolkit
-    // output to the editor's Output panel.
-    buildSynthRunner: config.app !== undefined ? (console) => {
+    // synthRunnerFactory: startServer invokes it once, after the LSP connection
+    // exists, so the runner it returns can route Toolkit output to the editor's
+    // Output panel via connection.console. Built only when cdk.json has an `app`.
+    synthRunnerFactory: config.app !== undefined ? (console) => {
       const toolkit = new Toolkit({ ioHost: new LspIoHost(console) });
       return () => runSynth({ toolkit, projectDir, app: config.app! });
     } : undefined,

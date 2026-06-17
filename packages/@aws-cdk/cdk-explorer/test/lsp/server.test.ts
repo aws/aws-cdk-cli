@@ -413,7 +413,7 @@ describe('LSP Server -- executeCommand', () => {
     expect(notify.errorMessages.some((m) => m.includes('compile error'))).toBe(true);
   });
 
-  test('synthNow in-flight latch: second call coalesces as lock-conflict', async () => {
+  test('synthNow in-flight latch: second concurrent call is suppressed as lock-conflict', async () => {
     let resolveFirst!: () => void;
     const firstSynthDone = new Promise<void>((res) => {
       resolveFirst = res;

@@ -65,7 +65,7 @@ export interface LspHandlerOptions {
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
   /**
    * Runs a synth and returns its typed outcome. Injected by startServer (built
-   * from `buildSynthRunner`); omitted in tests that don't exercise synth. Its
+   * from `synthRunnerFactory`); omitted in tests that don't exercise synth. Its
    * presence is the single source of truth for whether synth is available:
    * `cdk.json` having an `app` is exactly what causes a runner to be built.
    */
@@ -73,6 +73,9 @@ export interface LspHandlerOptions {
   /** User-facing notification sink. Injected by startServer; omitted in tests. */
   readonly notify?: NotifySink;
 }
+
+/** Builds the synth runner once `connection.console` is available (in startServer). */
+export type SynthRunnerFactory = (console: RemoteConsole) => (() => Promise<SynthRunResult>);
 
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
@@ -82,7 +85,7 @@ export interface LspServerOptions {
    * `connection.console` first exists. The console-free core
    * (`createLspHandlers`) consumes the built `synthRunner` it returns.
    */
-  readonly buildSynthRunner?: (console: RemoteConsole) => (() => Promise<SynthRunResult>);
+  readonly synthRunnerFactory?: SynthRunnerFactory;
 }
 
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
@@ -206,10 +209,10 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   }
 
   // Shared synth invocation used by both the manual CodeLens command and
-  // auto-synth-on-save. The in-flight latch prevents concurrent synths from
-  // the same LSP instance. A second call while the first is running returns
-  // lock-conflict immediately (the Toolkit's RWLock would do the same, but
-  // this short-circuits before any setup work).
+  // auto-synth-on-save. The in-flight latch suppresses overlapping synths from
+  // the same LSP instance: a second call while the first is running is dropped
+  // (not queued) and returns lock-conflict immediately. The Toolkit's RWLock
+  // would reject it anyway, but this short-circuits before any setup work.
   async function guardedSynth(): Promise<SynthRunResult> {
     if (synthInFlight) return { status: 'lock-conflict' };
     synthInFlight = true;
@@ -341,7 +344,7 @@ export function startServer(options: LspServerOptions): void {
         void connection.sendRequest(CodeLensRefreshRequest.type);
       }
     },
-    synthRunner: options.buildSynthRunner?.(connection.console),
+    synthRunner: options.synthRunnerFactory?.(connection.console),
     notify: {
       // Route to the Output panel (connection.console) rather than popups.
       // showMessage creates a dismissable toast that interrupts the user's
