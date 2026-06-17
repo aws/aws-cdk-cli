@@ -960,6 +960,11 @@ export class CdkToolkit {
   ): Promise<number> {
     this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
+    // `list` is a read-only query whose stdout is commonly piped (e.g. `list --json | jq`).
+    // Synthesis still runs and is measured, but the "Synthesis time" line (I1000) must not
+    // be printed, since in CI mode non-error output goes to stdout and would corrupt the listing.
+    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0
         ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }

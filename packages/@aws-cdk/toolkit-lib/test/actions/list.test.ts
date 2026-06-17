@@ -488,22 +488,6 @@ describe('list', () => {
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
   });
-
-  test('does not emit a synthesis-time message', async () => {
-    // list is a read-only query; the synth-time message (CDK_TOOLKIT_I1000) must
-    // not be emitted, so that machine-readable output (e.g. `list --json`) stays clean.
-    const cx = new TestCloudAssemblySource({
-      stacks: [MOCK_STACK_A, MOCK_STACK_B, MOCK_STACK_C],
-    });
-
-    // WHEN
-    await toolkit.list(cx);
-
-    // THEN
-    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
-      code: 'CDK_TOOLKIT_I1000',
-    }));
-  });
 });
 
 const MOCK_STACK_A: TestStackArtifact = {

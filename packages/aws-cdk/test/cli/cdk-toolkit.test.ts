@@ -207,6 +207,23 @@ describe('list', () => {
       'Test-Stack-B',
     ]);
   });
+
+  test('registers an I1000 suppressor so the synthesis-time line is not written', async () => {
+    // `list` synthesizes (and is measured) like any other command, but the
+    // "Synthesis time" line (CDK_TOOLKIT_I1000) must not be written: in CI mode
+    // non-error output goes to stdout, and `cdk ls` stdout is commonly piped.
+    const toolkit = defaultToolkitSetup();
+    const onceSpy = jest.spyOn(ioHost, 'once');
+
+    // WHEN
+    await toolkit.list([]);
+
+    // THEN - a one-shot suppressor for I1000 was registered that prevents default handling.
+    const i1000Call = onceSpy.mock.calls.find(([code]) => (code as any)?.code === 'CDK_TOOLKIT_I1000');
+    expect(i1000Call).toBeDefined();
+    const listener = i1000Call![1] as (msg: any) => any;
+    expect(listener({ code: 'CDK_TOOLKIT_I1000' })).toEqual({ preventDefault: true });
+  });
 });
 
 describe('deploy', () => {
