@@ -56,5 +56,6 @@ describe('LspIoHost', () => {
     const result = await host.requestResponse(request);
 
     expect(result).toBe('default-token');
+    expect(console.info).toHaveBeenCalledWith(expect.stringContaining('default-token'));
   });
 });

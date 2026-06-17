@@ -40,6 +40,7 @@ export class LspIoHost implements IIoHost {
 
   public async requestResponse<T>(msg: IoRequest<unknown, T>): Promise<T> {
     await this.notify(msg);
+    this.console.info(`Auto-answered with default response: ${JSON.stringify(msg.defaultResponse)}`);
     return msg.defaultResponse;
   }
 }
