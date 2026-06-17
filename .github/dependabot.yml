@@ -19,6 +19,7 @@ updates:
       - dependency-name: "@aws-cdk/cloud-assembly-schema"
       - dependency-name: "@aws-cdk/cloudformation-diff"
       - dependency-name: "@aws-cdk/integ-runner"
+      - dependency-name: "@aws-cdk/private-tools"
       - dependency-name: "@aws-cdk/toolkit-lib"
       - dependency-name: "@aws-cdk/user-input-gen"
       - dependency-name: "@aws-cdk/yarn-cling"
