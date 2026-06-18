@@ -65,7 +65,7 @@ describe('constructs version', () => {
     expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
-  cliTest('can specify project name with --name option', async (workDir) => {
+  cliTest('can specify project name with --project-name option', async (workDir) => {
     await cliInit({
       ioHelper,
       type: 'app',
