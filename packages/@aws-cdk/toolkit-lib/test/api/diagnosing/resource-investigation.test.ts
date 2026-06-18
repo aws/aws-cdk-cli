@@ -1,3 +1,4 @@
+import { DescribeStackResourcesCommand, GetTemplateCommand } from '@aws-sdk/client-cloudformation';
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import {
   DescribeServicesCommand,
@@ -5,11 +6,20 @@ import {
   DescribeTasksCommand,
   ListTasksCommand,
 } from '@aws-sdk/client-ecs';
-import { investigateResource, parseEcsServiceIdentifier } from '../../../lib/api/diagnosing/resource-investigation';
+import { GetFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
+import {
+  extractLogStreamName,
+  functionNameFromArnOrName,
+  investigateResource,
+  parseEcsServiceIdentifier,
+  serviceTokenReferencedLogicalId,
+} from '../../../lib/api/diagnosing/resource-investigation';
 import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
 import {
+  mockCloudFormationClient,
   mockCloudWatchClient,
   mockECSClient,
+  mockLambdaClient,
   MockSdk,
   restoreSdkMocksToDefault,
 } from '../../_helpers/mock-sdk';
@@ -385,5 +395,231 @@ describe('investigateResource for AWS::ECS::Service', () => {
     );
     const cwl = result.find(c => c.source === 'CloudWatch Logs');
     expect(cwl?.messages[0]).toMatch(/No CloudWatch Logs found/);
+  });
+});
+
+describe('serviceTokenReferencedLogicalId', () => {
+  test('extracts the logical ID from an Fn::GetAtt', () => {
+    expect(serviceTokenReferencedLogicalId({ 'Fn::GetAtt': ['MyFn', 'Arn'] })).toEqual('MyFn');
+  });
+
+  test('extracts the logical ID from a Ref', () => {
+    expect(serviceTokenReferencedLogicalId({ Ref: 'MyFn' })).toEqual('MyFn');
+  });
+
+  test('returns undefined for a literal string', () => {
+    expect(serviceTokenReferencedLogicalId('arn:aws:lambda:us-east-1:123456789012:function:my-fn')).toBeUndefined();
+  });
+
+  test('returns undefined for an unrecognized object', () => {
+    expect(serviceTokenReferencedLogicalId({ 'Fn::Sub': 'x' })).toBeUndefined();
+  });
+});
+
+describe('functionNameFromArnOrName', () => {
+  test('parses the name from a function ARN', () => {
+    expect(functionNameFromArnOrName('arn:aws:lambda:us-east-1:123456789012:function:my-fn')).toEqual('my-fn');
+  });
+
+  test('parses the name from a function ARN with version suffix', () => {
+    expect(functionNameFromArnOrName('arn:aws:lambda:us-east-1:123456789012:function:my-fn:42')).toEqual('my-fn');
+  });
+
+  test('handles non-aws partitions', () => {
+    expect(functionNameFromArnOrName('arn:aws-cn:lambda:cn-north-1:123456789012:function:my-fn')).toEqual('my-fn');
+  });
+
+  test('passes through a bare function name', () => {
+    expect(functionNameFromArnOrName('my-fn')).toEqual('my-fn');
+  });
+
+  test('returns undefined for a non-lambda ARN', () => {
+    expect(functionNameFromArnOrName('arn:aws:sns:us-east-1:123456789012:my-topic')).toBeUndefined();
+  });
+});
+
+describe('extractLogStreamName', () => {
+  test('extracts the cfn-response stream from the failure reason', () => {
+    expect(extractLogStreamName('See the details in CloudWatch Log Stream: 2026/06/15/[$LATEST]abc123'))
+      .toEqual('2026/06/15/[$LATEST]abc123');
+  });
+
+  test('returns undefined when no stream is present', () => {
+    expect(extractLogStreamName('Some other failure reason')).toBeUndefined();
+  });
+
+  test('returns undefined for an undefined message', () => {
+    expect(extractLogStreamName(undefined)).toBeUndefined();
+  });
+});
+
+describe('investigateResource for custom resources', () => {
+  const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/abc';
+
+  function customResourceError(overrides: Partial<ResourceError> = {}): ResourceError {
+    return {
+      stackArn: STACK_ARN,
+      parentStackLogicalIds: [],
+      logicalId: 'MyCustomResource',
+      resourceType: 'Custom::MyThing',
+      message: 'See the details in CloudWatch Log Stream: 2026/06/15/[$LATEST]streamabc',
+      ...overrides,
+    };
+  }
+
+  function templateWith(serviceToken: any): string {
+    return JSON.stringify({
+      Resources: {
+        MyCustomResource: { Type: 'Custom::MyThing', Properties: { ServiceToken: serviceToken } },
+      },
+    });
+  }
+
+  test('resolves a literal-ARN ServiceToken and fetches the failing stream from the convention group', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'Traceback: KeyError "Foo"' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockCloudWatchClient).toHaveReceivedCommandWith(FilterLogEventsCommand, {
+      logGroupName: '/aws/lambda/my-cr-fn',
+      logStreamNames: ['2026/06/15/[$LATEST]streamabc'],
+    });
+    // Convention group had events, so we must NOT have called getFunctionConfiguration.
+    expect(mockLambdaClient).not.toHaveReceivedCommand(GetFunctionConfigurationCommand);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs).toBeDefined();
+    expect(logs!.messages).toEqual(['Traceback: KeyError "Foo"']);
+    expect(logs!.linkLabel).toEqual('Logs');
+    expect(logs!.link).toContain('logsV2:log-groups');
+  });
+
+  test('resolves an Fn::GetAtt ServiceToken via describeStackResources', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith({ 'Fn::GetAtt': ['ProviderFn', 'Arn'] }),
+    });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{
+        LogicalResourceId: 'ProviderFn',
+        PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:provider-fn',
+      } as any],
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'log line' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeStackResourcesCommand, {
+      StackName: STACK_ARN,
+      LogicalResourceId: 'ProviderFn',
+    });
+    expect(mockCloudWatchClient).toHaveReceivedCommandWith(FilterLogEventsCommand, { logGroupName: '/aws/lambda/provider-fn' });
+    expect(result.find(c => c.source === 'Custom Resource Lambda Logs')).toBeDefined();
+  });
+
+  test('resolves a Ref ServiceToken via describeStackResources', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: templateWith({ Ref: 'ProviderFn' }) });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{
+        LogicalResourceId: 'ProviderFn',
+        PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:ref-fn',
+      } as any],
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'x' }] });
+
+    await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeStackResourcesCommand, {
+      StackName: STACK_ARN,
+      LogicalResourceId: 'ProviderFn',
+    });
+  });
+
+  test('falls back to the LoggingConfig log group when the convention group is empty', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    // Convention group empty; custom group has the logs.
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/aws/lambda/my-cr-fn' }).resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/custom/log/group' }).resolves({ events: [{ message: 'custom group line' }] });
+    mockLambdaClient.on(GetFunctionConfigurationCommand).resolves({ LoggingConfig: { LogGroup: '/custom/log/group' } });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockLambdaClient).toHaveReceivedCommandWith(GetFunctionConfigurationCommand, { FunctionName: 'my-cr-fn' });
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages).toEqual(['custom group line']);
+    expect(logs!.link).toContain('$252Fcustom'); // double-encoded /custom...
+  });
+
+  test('bounds the log query to a window around the failure timestamp', async () => {
+    const failureTime = new Date('2026-06-15T12:00:00.000Z');
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'rollback failure' }] });
+
+    await investigateResource(customResourceError({ timestamp: failureTime }), sdk, debug);
+
+    expect(mockCloudWatchClient).toHaveReceivedCommandWith(FilterLogEventsCommand, {
+      logGroupName: '/aws/lambda/my-cr-fn',
+      startTime: failureTime.valueOf() - 2 * 60 * 1000,
+      endTime: failureTime.valueOf() + 15 * 60 * 1000,
+    });
+  });
+
+  test('handles AWS::CloudFormation::CustomResource type', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          MyCustomResource: {
+            Type: 'AWS::CloudFormation::CustomResource',
+            Properties: { ServiceToken: 'arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn' },
+          },
+        },
+      }),
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'x' }] });
+
+    const result = await investigateResource(
+      customResourceError({ resourceType: 'AWS::CloudFormation::CustomResource' }), sdk, debug,
+    );
+    expect(result.find(c => c.source === 'Custom Resource Lambda Logs')).toBeDefined();
+  });
+
+  test('emits a no-logs context when no events are found in either group', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [] });
+    mockLambdaClient.on(GetFunctionConfigurationCommand).resolves({}); // no custom group
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages[0]).toMatch(/No log events found/);
+  });
+
+  test('returns empty when the resource has no ServiceToken', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({ Resources: { MyCustomResource: { Type: 'Custom::MyThing', Properties: {} } } }),
+    });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty when the ServiceToken is not a Lambda', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:sns:us-east-1:123456789012:my-topic'),
+    });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty when no logical ID is available', async () => {
+    const result = await investigateResource(customResourceError({ logicalId: undefined }), sdk, debug);
+    expect(result).toEqual([]);
   });
 });

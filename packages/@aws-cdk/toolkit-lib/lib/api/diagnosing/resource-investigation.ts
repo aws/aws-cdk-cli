@@ -1,5 +1,6 @@
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
-import type { ICloudWatchLogsClient, IECSClient, SDK } from '../aws-auth/sdk';
+import { deserializeStructure } from '../../util';
+import type { ICloudFormationClient, ICloudWatchLogsClient, IECSClient, ILambdaClient, SDK } from '../aws-auth/sdk';
 import type { ResourceError } from '../stack-events/resource-errors';
 
 /**
@@ -38,12 +39,14 @@ export async function investigateResource(
   debug: (msg: string) => Promise<void>,
   options: InvestigateOptions = {},
 ): Promise<AdditionalDiagnosticContext[]> {
-  switch (err.resourceType) {
-    case 'AWS::ECS::Service':
-      return investigateEcsService(err, sdk, debug, options);
-    default:
-      return [];
+  const resourceType = err.resourceType ?? '';
+  if (resourceType === 'AWS::ECS::Service') {
+    return investigateEcsService(err, sdk, debug, options);
   }
+  if (resourceType === 'AWS::CloudFormation::CustomResource' || resourceType.startsWith('Custom::')) {
+    return investigateCustomResource(err, sdk, debug);
+  }
+  return [];
 }
 
 async function investigateEcsService(
@@ -387,6 +390,277 @@ async function fetchRecentLogs(
     };
   } catch (e: any) {
     await debug(`ECS investigation: failed to fetch logs from ${logConfig.logGroup}: ${e.message}`);
+    return undefined;
+  }
+}
+
+/**
+ * How far before/after the failure event to search CloudWatch Logs when we have a timestamp.
+ *
+ * The pre-window absorbs minor clock skew; the post-window covers output the function
+ * emits while it runs after the CloudFormation event was recorded.
+ */
+const LOG_WINDOW_BEFORE_MS = 2 * 60 * 1000;
+const LOG_WINDOW_AFTER_MS = 15 * 60 * 1000;
+
+/** Fallback look-back when no failure timestamp is available (matches the ECS path). */
+const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * Investigate a failed custom resource by surfacing its backing Lambda's CloudWatch logs.
+ *
+ * The CloudFormation event does not name the backing function — only the resource's
+ * `ServiceToken` (in the template) does. We resolve that to a function name, derive the
+ * log group (the `/aws/lambda/<fn>` convention, confirmed via the function's LoggingConfig
+ * only if the convention turns up empty), and fetch the relevant log lines.
+ *
+ * When the handler uses the cfn-response library, the failing log stream name is embedded
+ * in the status reason ("See the details in CloudWatch Log Stream: <name>"), so we can
+ * target that exact invocation.
+ */
+async function investigateCustomResource(
+  err: ResourceError,
+  sdk: SDK,
+  debug: (msg: string) => Promise<void>,
+): Promise<AdditionalDiagnosticContext[]> {
+  if (!err.logicalId) {
+    await debug('Custom resource investigation: no logical ID available');
+    return [];
+  }
+  const stackName = err.stackArn;
+  if (!stackName) {
+    await debug('Custom resource investigation: no stack ARN available');
+    return [];
+  }
+
+  const cfn = sdk.cloudFormation();
+  const lambda = sdk.lambda();
+  const cwl = sdk.cloudWatchLogs();
+  const region = sdk.currentRegion;
+
+  const serviceToken = await getCustomResourceServiceToken(cfn, stackName, err.logicalId, debug);
+  if (serviceToken === undefined) {
+    return [];
+  }
+
+  const functionName = await resolveServiceTokenToFunctionName(cfn, stackName, serviceToken, debug);
+  if (!functionName) {
+    await debug('Custom resource investigation: could not resolve ServiceToken to a Lambda function');
+    return [];
+  }
+
+  // The cfn-response library writes the failing log stream name into the status reason
+  // (and uses it as the default physical ID). Targeting it gives the exact invocation.
+  const streamName = extractLogStreamName(err.message) ?? logStreamNameFromPhysicalId(err.physicalId);
+
+  return fetchCustomResourceLogs(cwl, lambda, functionName, streamName, err.timestamp, region, debug);
+}
+
+/**
+ * Read the failed custom resource's `ServiceToken` property from the stack's original template.
+ *
+ * Returns `undefined` if the template can't be read or the resource/property is missing.
+ */
+async function getCustomResourceServiceToken(
+  cfn: ICloudFormationClient,
+  stackName: string,
+  logicalId: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<any | undefined> {
+  try {
+    const resp = await cfn.getTemplate({ StackName: stackName });
+    if (!resp.TemplateBody) {
+      await debug('Custom resource investigation: empty template body');
+      return undefined;
+    }
+    const template = deserializeStructure(resp.TemplateBody);
+    const serviceToken = template?.Resources?.[logicalId]?.Properties?.ServiceToken;
+    if (serviceToken === undefined) {
+      await debug(`Custom resource investigation: no ServiceToken on resource "${logicalId}"`);
+    }
+    return serviceToken;
+  } catch (e: any) {
+    await debug(`Custom resource investigation: failed to read template: ${e.message}`);
+    return undefined;
+  }
+}
+
+/**
+ * Resolve a `ServiceToken` value (a literal ARN, an `Fn::GetAtt`, or a `Ref`) to a Lambda
+ * function name. Intrinsics are resolved to a physical ID via `describeStackResources`.
+ */
+async function resolveServiceTokenToFunctionName(
+  cfn: ICloudFormationClient,
+  stackName: string,
+  serviceToken: any,
+  debug: (msg: string) => Promise<void>,
+): Promise<string | undefined> {
+  const referencedLogicalId = serviceTokenReferencedLogicalId(serviceToken);
+  if (referencedLogicalId) {
+    try {
+      const resp = await cfn.describeStackResources({ StackName: stackName, LogicalResourceId: referencedLogicalId });
+      const physicalId = resp.StackResources?.[0]?.PhysicalResourceId;
+      return physicalId ? functionNameFromArnOrName(physicalId) : undefined;
+    } catch (e: any) {
+      await debug(`Custom resource investigation: failed to resolve ServiceToken reference "${referencedLogicalId}": ${e.message}`);
+      return undefined;
+    }
+  }
+
+  if (typeof serviceToken === 'string') {
+    return functionNameFromArnOrName(serviceToken);
+  }
+
+  await debug('Custom resource investigation: unsupported ServiceToken shape');
+  return undefined;
+}
+
+/**
+ * If a ServiceToken is an `Fn::GetAtt` or `Ref` intrinsic, return the referenced logical ID.
+ */
+export function serviceTokenReferencedLogicalId(serviceToken: any): string | undefined {
+  if (!serviceToken || typeof serviceToken !== 'object') {
+    return undefined;
+  }
+  const getAtt = serviceToken['Fn::GetAtt'];
+  if (Array.isArray(getAtt) && typeof getAtt[0] === 'string') {
+    return getAtt[0];
+  }
+  if (typeof serviceToken.Ref === 'string') {
+    return serviceToken.Ref;
+  }
+  return undefined;
+}
+
+/**
+ * Extract a Lambda function name from a function ARN or a bare name.
+ *
+ * Returns `undefined` for non-Lambda ARNs (e.g. an SNS-topic ServiceToken).
+ */
+export function functionNameFromArnOrName(arnOrName: string): string | undefined {
+  const arnMatch = arnOrName.match(/^arn:[^:]+:lambda:[^:]*:[^:]*:function:([^:]+)/);
+  if (arnMatch) {
+    return arnMatch[1];
+  }
+  if (arnOrName.startsWith('arn:')) {
+    return undefined;
+  }
+  return arnOrName || undefined;
+}
+
+/**
+ * Extract the log stream name out of a cfn-response failure reason
+ * ("See the details in CloudWatch Log Stream: <name>").
+ */
+export function extractLogStreamName(message: string | undefined): string | undefined {
+  const match = message?.match(/CloudWatch Log Stream:\s*(\S+)/);
+  return match ? match[1] : undefined;
+}
+
+/**
+ * cfn-response defaults the physical ID to the log stream name. Use it only when it looks
+ * like a Lambda log stream (`YYYY/MM/DD/...`), so a user-provided physical ID isn't mistaken
+ * for one.
+ */
+function logStreamNameFromPhysicalId(physicalId: string | undefined): string | undefined {
+  return physicalId && /^\d{4}\/\d{2}\/\d{2}\/.+/.test(physicalId) ? physicalId : undefined;
+}
+
+async function fetchCustomResourceLogs(
+  cwl: ICloudWatchLogsClient,
+  lambda: ILambdaClient,
+  functionName: string,
+  streamName: string | undefined,
+  timestamp: Date | undefined,
+  region: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<AdditionalDiagnosticContext[]> {
+  const failureTime = timestamp?.valueOf();
+  const startTime = failureTime !== undefined ? failureTime - LOG_WINDOW_BEFORE_MS : Date.now() - FALLBACK_LOG_WINDOW_MS;
+  const endTime = failureTime !== undefined ? failureTime + LOG_WINDOW_AFTER_MS : undefined;
+
+  // Convention first; only pay for getFunctionConfiguration if the convention group is empty.
+  const conventionGroup = `/aws/lambda/${functionName}`;
+  let messages = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
+  let logGroup = conventionGroup;
+
+  if (messages === undefined) {
+    const configuredGroup = await configuredLogGroup(lambda, functionName, debug);
+    if (configuredGroup && configuredGroup !== conventionGroup) {
+      const fromConfigured = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
+      if (fromConfigured !== undefined) {
+        messages = fromConfigured;
+        logGroup = configuredGroup;
+      }
+    }
+  }
+
+  if (messages === undefined) {
+    return [{
+      source: 'Custom Resource Lambda Logs',
+      messages: ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'],
+      link: cloudWatchLogsConsoleUrl(region, logGroup),
+      linkLabel: 'Logs',
+    }];
+  }
+
+  return [{
+    source: 'Custom Resource Lambda Logs',
+    messages,
+    link: cloudWatchLogsConsoleUrl(region, logGroup),
+    linkLabel: 'Logs',
+  }];
+}
+
+/**
+ * Fetch and trim recent log lines from a group. Returns `undefined` when the group has no
+ * events in the window (so the caller can try a different group).
+ */
+async function fetchLogLines(
+  cwl: ICloudWatchLogsClient,
+  logGroup: string,
+  streamName: string | undefined,
+  startTime: number,
+  endTime: number | undefined,
+  debug: (msg: string) => Promise<void>,
+): Promise<string[] | undefined> {
+  try {
+    const resp = await cwl.filterLogEvents({
+      logGroupName: logGroup,
+      startTime,
+      ...(endTime !== undefined ? { endTime } : {}),
+      limit: 1000,
+      ...(streamName ? { logStreamNames: [streamName] } : {}),
+    });
+    const events = resp.events ?? [];
+    if (events.length === 0) {
+      await debug(`Custom resource investigation: no log events in ${logGroup}${streamName ? ` (stream: ${streamName})` : ''}`);
+      return undefined;
+    }
+    const allMessages = events.map(e => e.message?.trimEnd()).filter((m): m is string => m != null);
+    const messages = allMessages.slice(-MAX_LOG_LINES);
+    const omitted = allMessages.length - messages.length;
+    if (omitted > 0) {
+      messages.unshift(`... (${omitted} earlier lines omitted)`);
+    }
+    return messages;
+  } catch (e: any) {
+    await debug(`Custom resource investigation: failed to fetch logs from ${logGroup}: ${e.message}`);
+    return undefined;
+  }
+}
+
+/** Read the function's configured (advanced-logging) log group, if any. */
+async function configuredLogGroup(
+  lambda: ILambdaClient,
+  functionName: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<string | undefined> {
+  try {
+    const resp = await lambda.getFunctionConfiguration({ FunctionName: functionName });
+    return resp.LoggingConfig?.LogGroup;
+  } catch (e: any) {
+    await debug(`Custom resource investigation: failed to read function configuration: ${e.message}`);
     return undefined;
   }
 }
