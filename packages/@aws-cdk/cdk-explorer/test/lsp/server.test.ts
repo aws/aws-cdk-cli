@@ -599,3 +599,65 @@ describe('LSP Server -- auto-synth toggle', () => {
     expect(log.error).toHaveBeenCalledWith(expect.stringContaining('unexpected failure'));
   });
 });
+
+describe('LSP Server -- synth-failure diagnostics', () => {
+  test('app-failure publishes a diagnostic on the failing source file', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({
+      status: 'app-failure',
+      message: 'Subprocess exited with error 1',
+      details: 'lib/stack.ts:12:5 - error TS2322: nope',
+    });
+    const client = createTestClient({ synthRunner });
+    initializeClient(client, { applicationDir: '/p' });
+
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    const onFile = client.published.find((p) => p.uri === pathToFileURL('/p/lib/stack.ts').toString());
+    expect(onFile?.diagnostics).toHaveLength(1);
+    expect(onFile?.diagnostics[0].message).toContain('TS2322');
+  });
+
+  test('publishes a diagnostic per failing file', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({
+      status: 'app-failure',
+      message: 'm',
+      details: 'lib/stack.ts(1,1): error TS1000: a\nbin/app.ts(2,2): error TS1001: b',
+    });
+    const client = createTestClient({ synthRunner });
+    initializeClient(client, { applicationDir: '/p' });
+
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    expect(client.published.find((p) => p.uri === pathToFileURL('/p/lib/stack.ts').toString())?.diagnostics).toHaveLength(1);
+    expect(client.published.find((p) => p.uri === pathToFileURL('/p/bin/app.ts').toString())?.diagnostics).toHaveLength(1);
+  });
+
+  test('app-failure without a parseable location falls back to cdk.json', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({
+      status: 'app-failure',
+      message: 'context needed',
+    });
+    const client = createTestClient({ synthRunner });
+    initializeClient(client, { applicationDir: '/p' });
+
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    const onCdkJson = client.published.find((p) => p.uri === pathToFileURL('/p/cdk.json').toString());
+    expect(onCdkJson?.diagnostics[0].message).toBe('context needed');
+  });
+
+  test('a successful synth clears a prior synth-failure diagnostic', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
+      .mockResolvedValueOnce({ status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' })
+      .mockResolvedValueOnce({ status: 'success' });
+    const client = createTestClient({ synthRunner });
+    initializeClient(client, { applicationDir: '/p' });
+
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    const uri = pathToFileURL('/p/lib/stack.ts').toString();
+    const entriesForFile = client.published.filter((p) => p.uri === uri);
+    expect(entriesForFile[entriesForFile.length - 1].diagnostics).toEqual([]);
+  });
+});

@@ -13,7 +13,7 @@ import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
  */
 export type SynthRunResult =
   | { status: 'success' }
-  | { status: 'app-failure'; message: string }
+  | { status: 'app-failure'; message: string; details?: string }
   | { status: 'lock-conflict' }
   | { status: 'error'; message: string };
 
@@ -69,7 +69,8 @@ function classify(err: unknown): SynthRunResult {
     };
   }
   if (ToolkitError.isAssemblyError(err)) {
-    return { status: 'app-failure', message: err.message };
+    // details = captured subprocess stderr (file:line:col), used for diagnostics.
+    return { status: 'app-failure', message: err.message, details: (err.cause as Error | undefined)?.message };
   }
   return { status: 'error', message: (err as Error).message };
 }

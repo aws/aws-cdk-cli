@@ -27,6 +27,7 @@ import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
 import { offsetAtPosition } from './positions';
+import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
 import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
@@ -151,6 +152,8 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
   let synthInFlight = false;
+  // URIs (source files, or cdk.json) currently showing synth-failure diagnostics.
+  let synthFailureUris = new Set<string>();
   let autoSynthEnabled = false; // off by default; user enables via the CodeLens toggle
   let shouldIgnore: (filePath: string) => boolean = () => false;
   let assemblyWatcher: AssemblyWatcher | undefined;
@@ -217,10 +220,39 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     if (synthInFlight) return { status: 'lock-conflict' };
     synthInFlight = true;
     try {
-      return await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+      const result = await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+      publishSynthDiagnostics(result);
+      return result;
     } finally {
       synthInFlight = false;
     }
+  }
+
+  // Publish diagnostics for a failed synth (one per failing source file, or
+  // cdk.json as a fallback) and clear them once a synth succeeds. The cdk.out
+  // watcher owns violation diagnostics; this only manages synth-failure ones.
+  function publishSynthDiagnostics(result: SynthRunResult): void {
+    if (result.status === 'success') {
+      clearSynthFailures();
+      return;
+    }
+    const failures = synthFailureDiagnostics(result, applicationDir ?? process.cwd());
+    if (failures.length === 0) return; // lock-conflict / error: leave any existing diagnostic
+    const nextUris = new Set(failures.map((f) => f.uri));
+    for (const uri of synthFailureUris) {
+      if (!nextUris.has(uri)) onPublishDiagnostics(uri, []);
+    }
+    for (const f of failures) {
+      onPublishDiagnostics(f.uri, f.diagnostics);
+    }
+    synthFailureUris = nextUris;
+  }
+
+  function clearSynthFailures(): void {
+    for (const uri of synthFailureUris) {
+      onPublishDiagnostics(uri, []);
+    }
+    synthFailureUris = new Set();
   }
 
   return {

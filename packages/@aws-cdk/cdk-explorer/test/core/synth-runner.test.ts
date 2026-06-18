@@ -54,7 +54,7 @@ describe('runSynth', () => {
 
     const result = await run(toolkit);
 
-    expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('Assembly builder failed') });
+    expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('Assembly builder failed'), details: 'TypeError: foo' });
   });
 
   test('classifies ConcurrentWriteLock as lock-conflict', async () => {
