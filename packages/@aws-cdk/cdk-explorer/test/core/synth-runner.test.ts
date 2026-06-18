@@ -1,4 +1,4 @@
-import { AssemblyError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
+import { AssemblyError, ContextLookupsDisabledError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
 
 interface FakeCachedAssembly {
@@ -43,7 +43,7 @@ describe('runSynth', () => {
     const result = await run(toolkit);
 
     expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith('npx ts-node bin/app.ts', { workingDirectory: '/p' });
+    expect(toolkit.fromCdkApp).toHaveBeenCalledWith('npx ts-node bin/app.ts', { workingDirectory: '/p', lookups: false });
     expect(cached.dispose).toHaveBeenCalledTimes(1);
   });
 
@@ -75,6 +75,16 @@ describe('runSynth', () => {
     const result = await run(toolkit);
 
     expect(result).toEqual({ status: 'lock-conflict' });
+  });
+
+  test('classifies ContextLookupsDisabledError as app-failure with the error message', async () => {
+    const { toolkit } = makeToolkit({
+      synthThrow: new ContextLookupsDisabledError('Context lookups have been disabled. Run cdk synth in a terminal.'),
+    });
+
+    const result = await run(toolkit);
+
+    expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('cdk.context.json') });
   });
 
   test('classifies an unknown ToolkitError as error', async () => {

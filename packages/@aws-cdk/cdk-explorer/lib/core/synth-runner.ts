@@ -4,7 +4,7 @@ import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
  * The outcome of a single synth attempt.
  *
  * `success` means the assembly was written to disk (the watcher will see it).
- * `app-failure` means the user's CDK app threw or did not compile.
+ * `app-failure` means the user's CDK app threw, did not compile, or needs uncached context lookups.
  * `lock-conflict` means another process holds `<projectDir>/cdk.out` (a `cdk
  * synth` running in a terminal, a `cdk watch` loop, or our own previous synth
  * not yet released). Callers should not surface this as a hard error.
@@ -38,6 +38,7 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
   try {
     const cx = await options.toolkit.fromCdkApp(options.app, {
       workingDirectory: options.projectDir,
+      lookups: false,
     });
     cached = await options.toolkit.synth(cx);
   } catch (err) {
@@ -59,6 +60,13 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
 function classify(err: unknown): SynthRunResult {
   if (ToolkitError.isLockError(err)) {
     return { status: 'lock-conflict' };
+  }
+  if (ToolkitError.isContextLookupsDisabledError(err)) {
+    return {
+      status: 'app-failure',
+      message: 'This app needs context lookups that are not in cdk.context.json. '
+        + 'Run `cdk synth` in a terminal (with AWS credentials) to populate it, then retry.',
+    };
   }
   if (ToolkitError.isAssemblyError(err)) {
     return { status: 'app-failure', message: err.message };

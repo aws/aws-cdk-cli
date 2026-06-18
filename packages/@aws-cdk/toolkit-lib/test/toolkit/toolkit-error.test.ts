@@ -1,4 +1,4 @@
-import { AssemblyError, AuthenticationError, ContextProviderError, LockError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { AssemblyError, AuthenticationError, ContextLookupsDisabledError, ContextProviderError, LockError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 describe('toolkit error', () => {
   let toolkitError = new ToolkitError('TestError', 'Test toolkit error');
@@ -9,6 +9,7 @@ describe('toolkit error', () => {
   let assemblyCauseError = AssemblyError.withCause('Test authentication error', new Error('other error'));
   let noResultsError = new NoResultsFoundError('Test no results error');
   let lockError = new LockError('ConcurrentWriteLock', 'Test lock error');
+  let contextLookupsDisabledError = new ContextLookupsDisabledError('Test context lookups disabled error');
 
   test('types are correctly assigned', async () => {
     expect(toolkitError.type).toBe('toolkit');
@@ -48,6 +49,14 @@ describe('toolkit error', () => {
     expect(ToolkitError.isLockError(lockError)).toBe(true);
     expect(ToolkitError.isLockError(toolkitError)).toBe(false);
     expect(ToolkitError.isLockError(authError)).toBe(false);
+  });
+
+  test('isContextLookupsDisabledError works', () => {
+    expect(contextLookupsDisabledError.source).toBe('user');
+
+    expect(ToolkitError.isContextLookupsDisabledError(contextLookupsDisabledError)).toBe(true);
+    expect(ToolkitError.isContextLookupsDisabledError(toolkitError)).toBe(false);
+    expect(ToolkitError.isContextLookupsDisabledError(lockError)).toBe(false);
   });
 
   describe('isAssemblyError works', () => {
