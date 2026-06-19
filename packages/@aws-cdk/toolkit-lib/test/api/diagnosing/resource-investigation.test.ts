@@ -475,6 +475,55 @@ describe('investigateResource for custom resources', () => {
     });
   }
 
+  test('reads the configured log group from the template without a live function call (rollback-proof)', async () => {
+    // ServiceToken is a GetAtt to a function defined in this stack whose LoggingConfig.LogGroup
+    // is a literal. The function may be deleted by rollback, so we must NOT need getFunctionConfiguration.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          MyCustomResource: { Type: 'Custom::MyThing', Properties: { ServiceToken: { 'Fn::GetAtt': ['ProviderFn', 'Arn'] } } },
+          ProviderFn: { Type: 'AWS::Lambda::Function', Properties: { LoggingConfig: { LogGroup: '/custom/grp' } } },
+        },
+      }),
+    });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{ LogicalResourceId: 'ProviderFn', PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:provider-fn' } as any],
+    });
+    // Convention group empty; the configured group (from template) has the logs.
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/aws/lambda/provider-fn' }).resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/custom/grp' }).resolves({ events: [{ message: 'configured group line' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    // The whole point: log group came from the template, so no live function call was needed.
+    expect(mockLambdaClient).not.toHaveReceivedCommand(GetFunctionConfigurationCommand);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages).toEqual(['Logs from /custom/grp:', 'configured group line']);
+  });
+
+  test('resolves a template LoggingConfig.LogGroup given as a Ref to a log-group resource', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          MyCustomResource: { Type: 'Custom::MyThing', Properties: { ServiceToken: { 'Fn::GetAtt': ['ProviderFn', 'Arn'] } } },
+          ProviderFn: { Type: 'AWS::Lambda::Function', Properties: { LoggingConfig: { LogGroup: { Ref: 'FnLogs' } } } },
+          FnLogs: { Type: 'AWS::Logs::LogGroup', Properties: { LogGroupName: '/explicit/group/name' } },
+        },
+      }),
+    });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{ LogicalResourceId: 'ProviderFn', PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:provider-fn' } as any],
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/aws/lambda/provider-fn' }).resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/explicit/group/name' }).resolves({ events: [{ message: 'x' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockLambdaClient).not.toHaveReceivedCommand(GetFunctionConfigurationCommand);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages[0]).toEqual('Logs from /explicit/group/name:');
+  });
+
   test('resolves a literal-ARN ServiceToken and fetches the failing stream from the convention group', async () => {
     mockCloudFormationClient.on(GetTemplateCommand).resolves({
       TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),

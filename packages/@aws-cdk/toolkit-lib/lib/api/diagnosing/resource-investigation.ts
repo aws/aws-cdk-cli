@@ -449,33 +449,44 @@ async function investigateCustomResource(
   const cwl = sdk.cloudWatchLogs();
   const region = sdk.currentRegion;
 
-  const serviceToken = await getCustomResourceServiceToken(cfn, stackName, err.logicalId, debug);
-  if (serviceToken === undefined) {
+  // Fetch the template once: it carries both the ServiceToken and (for functions defined in
+  // this stack) the backing function's LoggingConfig. The template survives rollback even
+  // when the function itself is deleted, so it's the most reliable source for the log group.
+  const template = await getStackTemplate(cfn, stackName, debug);
+  if (!template) {
     return [];
   }
 
-  const functionName = await resolveServiceTokenToFunctionName(cfn, stackName, serviceToken, debug);
+  const serviceToken = template.Resources?.[err.logicalId]?.Properties?.ServiceToken;
+  if (serviceToken === undefined) {
+    await debug(`Custom resource investigation: no ServiceToken on resource "${err.logicalId}"`);
+    return [];
+  }
+
+  const referencedLogicalId = serviceTokenReferencedLogicalId(serviceToken);
+  const functionName = await resolveServiceTokenToFunctionName(cfn, stackName, serviceToken, referencedLogicalId, debug);
   if (!functionName) {
     await debug('Custom resource investigation: could not resolve ServiceToken to a Lambda function');
     return [];
   }
 
+  // Prefer the function's configured log group as read from the template (rollback-proof).
+  // Only resolvable when the function is defined in this stack (ServiceToken is a Ref/GetAtt).
+  const templateLogGroup = referencedLogicalId ? configuredLogGroupFromTemplate(template, referencedLogicalId) : undefined;
+
   // The cfn-response library writes the failing log stream name into the status reason
   // (and uses it as the default physical ID). Targeting it gives the exact invocation.
   const streamName = extractLogStreamName(err.message) ?? logStreamNameFromPhysicalId(err.physicalId);
 
-  return fetchCustomResourceLogs(cwl, lambda, functionName, streamName, err.timestamp, region, debug);
+  return fetchCustomResourceLogs(cwl, lambda, functionName, templateLogGroup, streamName, err.timestamp, region, debug);
 }
 
 /**
- * Read the failed custom resource's `ServiceToken` property from the stack's original template.
- *
- * Returns `undefined` if the template can't be read or the resource/property is missing.
+ * Fetch and parse the stack's (original) template. Returns `undefined` if it can't be read.
  */
-async function getCustomResourceServiceToken(
+async function getStackTemplate(
   cfn: ICloudFormationClient,
   stackName: string,
-  logicalId: string,
   debug: (msg: string) => Promise<void>,
 ): Promise<any | undefined> {
   try {
@@ -484,16 +495,34 @@ async function getCustomResourceServiceToken(
       await debug('Custom resource investigation: empty template body');
       return undefined;
     }
-    const template = deserializeStructure(resp.TemplateBody);
-    const serviceToken = template?.Resources?.[logicalId]?.Properties?.ServiceToken;
-    if (serviceToken === undefined) {
-      await debug(`Custom resource investigation: no ServiceToken on resource "${logicalId}"`);
-    }
-    return serviceToken;
+    return deserializeStructure(resp.TemplateBody);
   } catch (e: any) {
     await debug(`Custom resource investigation: failed to read template: ${e.message}`);
     return undefined;
   }
+}
+
+/**
+ * Read a backing Lambda's configured log group from the template, if it can be determined
+ * without a live API call.
+ *
+ * Handles a literal `LoggingConfig.LogGroup`, and the common CDK shape where it is a `Ref`
+ * to an `AWS::Logs::LogGroup` resource with a literal `LogGroupName`. Returns `undefined`
+ * for unresolvable intrinsics (caller falls back to the live function configuration).
+ */
+function configuredLogGroupFromTemplate(template: any, functionLogicalId: string): string | undefined {
+  const logGroup = template.Resources?.[functionLogicalId]?.Properties?.LoggingConfig?.LogGroup;
+  if (typeof logGroup === 'string') {
+    return logGroup;
+  }
+  if (logGroup && typeof logGroup === 'object' && typeof logGroup.Ref === 'string') {
+    const referenced = template.Resources?.[logGroup.Ref];
+    const name = referenced?.Properties?.LogGroupName;
+    if (typeof name === 'string') {
+      return name;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -504,9 +533,9 @@ async function resolveServiceTokenToFunctionName(
   cfn: ICloudFormationClient,
   stackName: string,
   serviceToken: any,
+  referencedLogicalId: string | undefined,
   debug: (msg: string) => Promise<void>,
 ): Promise<string | undefined> {
-  const referencedLogicalId = serviceTokenReferencedLogicalId(serviceToken);
   if (referencedLogicalId) {
     try {
       const resp = await cfn.describeStackResources({ StackName: stackName, LogicalResourceId: referencedLogicalId });
@@ -586,6 +615,7 @@ async function fetchCustomResourceLogs(
   cwl: ICloudWatchLogsClient,
   lambda: ILambdaClient,
   functionName: string,
+  templateLogGroup: string | undefined,
   streamName: string | undefined,
   timestamp: Date | undefined,
   region: string,
@@ -595,7 +625,7 @@ async function fetchCustomResourceLogs(
   const startTime = failureTime !== undefined ? failureTime - LOG_WINDOW_BEFORE_MS : Date.now() - FALLBACK_LOG_WINDOW_MS;
   const endTime = failureTime !== undefined ? failureTime + LOG_WINDOW_AFTER_MS : undefined;
 
-  // Convention first; only pay for getFunctionConfiguration if the convention group is empty.
+  // Convention first; only pay for the configured group if the convention group is empty.
   const conventionGroup = `/aws/lambda/${functionName}`;
   let messages = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
   // The group we point the user at. Once we learn the function's configured log group, prefer
@@ -604,7 +634,10 @@ async function fetchCustomResourceLogs(
   let logGroup = conventionGroup;
 
   if (messages === undefined) {
-    const configuredGroup = await configuredLogGroup(lambda, functionName, debug);
+    // Prefer the template-derived group (rollback-proof); fall back to the live function
+    // configuration only when the template couldn't tell us (e.g. unresolvable intrinsic, or
+    // the function is defined outside this stack).
+    const configuredGroup = templateLogGroup ?? await configuredLogGroup(lambda, functionName, debug);
     if (configuredGroup && configuredGroup !== conventionGroup) {
       logGroup = configuredGroup;
       messages = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
