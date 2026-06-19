@@ -12,6 +12,7 @@ import {
   functionNameFromArnOrName,
   investigateResource,
   parseEcsServiceIdentifier,
+  parseLambdaLogEvents,
   serviceTokenReferencedLogicalId,
 } from '../../../lib/api/diagnosing/resource-investigation';
 import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
@@ -450,6 +451,92 @@ describe('extractLogStreamName', () => {
 
   test('returns undefined for an undefined message', () => {
     expect(extractLogStreamName(undefined)).toBeUndefined();
+  });
+});
+
+describe('parseLambdaLogEvents', () => {
+  const msgs = (events: Array<{ message?: string }>) => parseLambdaLogEvents(events).map(e => e.message);
+
+  test('strips the timestamp/requestId prefix from text-format lines and aligns the level', () => {
+    expect(msgs([
+      { message: '2026-06-19T18:25:11.112Z\treq-1\tERROR\tBoom: it failed' },
+      { message: '2026-06-19T18:25:11.113Z\treq-1\tINFO\tall good' },
+    ])).toEqual([
+      'ERROR Boom: it failed',
+      'INFO  all good',
+    ]);
+  });
+
+  test('drops Lambda platform boilerplate (INIT_START/START/END/REPORT)', () => {
+    expect(msgs([
+      { message: 'INIT_START Runtime Version: nodejs:20.v101' },
+      { message: 'START RequestId: req-1 Version: $LATEST' },
+      { message: '2026-06-19T18:25:11.112Z\treq-1\tERROR\tthe real error' },
+      { message: 'END RequestId: req-1' },
+      { message: 'REPORT RequestId: req-1\tDuration: 1009 ms' },
+    ])).toEqual(['ERROR the real error']);
+  });
+
+  test('keeps INFO-level application output (failure detail often rides in INFO)', () => {
+    // The cfn-response failure body is logged at INFO; it must survive.
+    const out = msgs([
+      { message: '2026-06-19T18:25:11.113Z\treq-1\tINFO\tResponse body: {"Status":"FAILED","Data":{"error":"x"}}' },
+    ]);
+    expect(out).toEqual(['INFO  Response body: {"Status":"FAILED","Data":{"error":"x"}}']);
+  });
+
+  test('normalizes JSON-format events to LEVEL + message', () => {
+    expect(msgs([
+      { message: '{"timestamp":"2026-06-19T18:25:11.112Z","level":"ERROR","requestId":"req-1","message":"Boom: it failed"}' },
+      { message: '{"level":"INFO","message":"all good"}' },
+    ])).toEqual([
+      'ERROR Boom: it failed',
+      'INFO  all good',
+    ]);
+  });
+
+  test('drops JSON platform events', () => {
+    expect(msgs([
+      { message: '{"time":"2026-06-19T18:25:11Z","type":"platform.report","record":{"metrics":{"maxMemoryUsedMB":74}}}' },
+      { message: '{"level":"ERROR","message":"kept"}' },
+    ])).toEqual(['ERROR kept']);
+  });
+
+  test('renders a JSON error envelope with stack trace', () => {
+    expect(msgs([
+      { message: '{"level":"ERROR","errorMessage":"KeyError: foo","stackTrace":["  at a","  at b"]}' },
+    ])).toEqual(['ERROR KeyError: foo\n  at a\n  at b']);
+  });
+
+  test('passes through malformed JSON verbatim', () => {
+    expect(msgs([{ message: '{not valid json' }])).toEqual(['{not valid json']);
+  });
+
+  test('passes through plain/unstructured lines verbatim', () => {
+    expect(msgs([
+      { message: 'a plain stdout line with no structure' },
+      { message: '  at SomeStackFrame (file.js:1:2)' },
+    ])).toEqual([
+      'a plain stdout line with no structure',
+      '  at SomeStackFrame (file.js:1:2)',
+    ]);
+  });
+
+  test('handles a mixed batch of text, JSON, platform, and plain lines', () => {
+    expect(msgs([
+      { message: 'START RequestId: req-1 Version: $LATEST' },
+      { message: '2026-06-19T18:25:11.112Z\treq-1\tWARN\ttext line' },
+      { message: '{"level":"ERROR","message":"json line"}' },
+      { message: 'bare line' },
+    ])).toEqual([
+      'WARN  text line',
+      'ERROR json line',
+      'bare line',
+    ]);
+  });
+
+  test('skips events with no message', () => {
+    expect(msgs([{ message: undefined }, { message: 'kept' }])).toEqual(['kept']);
   });
 });
 

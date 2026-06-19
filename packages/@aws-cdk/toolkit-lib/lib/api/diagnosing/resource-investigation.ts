@@ -35,6 +35,120 @@ function trimToRecentLines(events: Array<{ message?: string }>): string[] {
 }
 
 /**
+ * Lambda platform log lines (text format) that carry no application signal.
+ */
+const LAMBDA_PLATFORM_LINE = /^(INIT_START|START RequestId:|END RequestId:|REPORT RequestId:)/;
+
+/**
+ * Normalize Lambda CloudWatch log events into readable lines.
+ *
+ * Lambda emits logs in one of two formats (per the function's `LoggingConfig.LogFormat`):
+ * - **Text**: `<timestamp>\t<requestId>\t<LEVEL>\t<message>`, plus platform lines.
+ * - **JSON**: one JSON object per event (`{ timestamp, level, message, ... }`).
+ *
+ * For both we surface `LEVEL  message` (or just the message when there's no level), strip the
+ * redundant per-line timestamp/requestId (it's all one invocation), and drop pure platform
+ * boilerplate. We never drop application output — failure detail is often logged at INFO
+ * (e.g. the cfn-response "Response body" line). Anything we don't recognize passes through
+ * verbatim, and the full logs remain available via the console link.
+ *
+ * This is Lambda-specific; it is not applied to ECS logs, which are arbitrary container output.
+ */
+export function parseLambdaLogEvents(events: Array<{ message?: string }>): Array<{ message: string }> {
+  const out: Array<{ message: string }> = [];
+  for (const e of events) {
+    const raw = e.message;
+    if (raw == null) {
+      continue;
+    }
+    const normalized = normalizeLambdaLine(raw);
+    if (normalized !== undefined) {
+      out.push({ message: normalized });
+    }
+  }
+  return out;
+}
+
+/**
+ * Normalize a single Lambda log line. Returns `undefined` to drop the line (platform noise),
+ * or the cleaned-up text to keep.
+ */
+function normalizeLambdaLine(raw: string): string | undefined {
+  const trimmed = raw.trimEnd();
+
+  // JSON-format event: { timestamp, level, message, ... } (one object per line).
+  const jsonResult = normalizeJsonLogLine(trimmed);
+  if (jsonResult !== undefined) {
+    return jsonResult || undefined;
+  }
+
+  // Text-format platform boilerplate: drop.
+  if (LAMBDA_PLATFORM_LINE.test(trimmed)) {
+    return undefined;
+  }
+
+  // Text-format app line: `<ISO timestamp>\t<requestId>\t<LEVEL>\t<message>`.
+  // Strip the timestamp + requestId prefix; keep `LEVEL message` (or the rest verbatim).
+  const parts = trimmed.split('\t');
+  if (parts.length >= 4 && /^\d{4}-\d{2}-\d{2}T/.test(parts[0])) {
+    const level = parts[2];
+    const message = parts.slice(3).join('\t');
+    return formatLeveledLine(level, message);
+  }
+
+  // Unrecognized (continuation line, plain stdout, etc.) — keep verbatim.
+  return trimmed;
+}
+
+/**
+ * If `line` is a JSON-format Lambda log object, render it as `LEVEL<tab>message`
+ * (or just the message when there's no level). Returns `undefined` when it isn't JSON.
+ *
+ * Drops JSON platform events (`type`/`record` envelopes for `platform.*`), which carry no
+ * application signal.
+ */
+function normalizeJsonLogLine(line: string): string | undefined {
+  if (!line.startsWith('{')) {
+    return undefined;
+  }
+  let obj: any;
+  try {
+    obj = JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+  if (!obj || typeof obj !== 'object') {
+    return undefined;
+  }
+
+  // Platform events (e.g. { type: 'platform.report', record: {...} }) — drop.
+  if (typeof obj.type === 'string' && obj.type.startsWith('platform.')) {
+    return '';
+  }
+
+  const level = typeof obj.level === 'string' ? obj.level : undefined;
+  // Lambda uses `message`; a thrown error envelope uses `errorMessage` (+ optional stackTrace).
+  let message: string;
+  if (typeof obj.message === 'string') {
+    message = obj.message;
+  } else if (typeof obj.errorMessage === 'string') {
+    message = Array.isArray(obj.stackTrace) ? [obj.errorMessage, ...obj.stackTrace].join('\n') : obj.errorMessage;
+  } else {
+    // JSON, but not a shape we recognize — render compactly rather than dropping signal.
+    message = line;
+  }
+  return level ? formatLeveledLine(level, message) : message;
+}
+
+/**
+ * Render a log level and message as `LEVEL  message`, padding the level to a fixed width so
+ * lines align in the terminal. Multi-line messages keep their internal newlines.
+ */
+function formatLeveledLine(level: string, message: string): string {
+  return `${level.padEnd(5)} ${message}`;
+}
+
+/**
  * Options that influence how a resource is investigated.
  */
 export interface InvestigateOptions {
@@ -732,7 +846,9 @@ async function filterLogLines(
       await debug(`Custom resource investigation: no log events in ${logGroup}${streamName ? ` (stream: ${streamName})` : ''}`);
       return undefined;
     }
-    return trimToRecentLines(events);
+    // Lambda log events have a known structure (text- or JSON-format), unlike raw ECS
+    // container output, so we normalize them into readable lines before trimming.
+    return trimToRecentLines(parseLambdaLogEvents(events));
   } catch (e: any) {
     await debug(`Custom resource investigation: failed to fetch logs from ${logGroup}: ${e.message}`);
     return undefined;
