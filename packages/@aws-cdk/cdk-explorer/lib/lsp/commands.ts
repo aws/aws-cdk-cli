@@ -32,11 +32,6 @@ export interface NotifySink {
 export interface CommandHandlerOptions {
   /** Invokes a single synth. Resolves with the typed outcome; never rejects. */
   readonly synth: () => Promise<SynthRunResult>;
-  /**
-   * Whether `synth` can be invoked. False when `cdk.json` is missing or has
-   * no `app` key; the synth command is then unavailable to the user.
-   */
-  readonly synthAvailable: boolean;
   /** Called with the new desired state when the user toggles auto-synth. */
   readonly toggleAutoSynth: (enabled: boolean) => void;
   /** UI sinks for messages and progress. */
@@ -67,10 +62,6 @@ export async function executeCommand(
       return;
 
     case COMMAND_SYNTH_NOW:
-      if (!options.synthAvailable) {
-        options.notify.info(SYNTH_UNAVAILABLE_MESSAGE);
-        return;
-      }
       {
         const result = await options.notify.withProgress(PROGRESS_MESSAGE, () => options.synth());
         handleSynthResult(result, options.notify);
@@ -92,6 +83,9 @@ function handleSynthResult(result: SynthRunResult, notify: NotifySink): void {
       return;
     case 'lock-conflict':
       notify.info(LOCK_CONFLICT_MESSAGE);
+      return;
+    case 'unavailable':
+      notify.info(SYNTH_UNAVAILABLE_MESSAGE);
       return;
     case 'error':
       notify.error(`CDK synth failed unexpectedly: ${result.message}`);

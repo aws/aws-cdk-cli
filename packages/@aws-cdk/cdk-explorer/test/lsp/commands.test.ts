@@ -39,7 +39,7 @@ function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
     notify,
     synth,
     toggleAutoSynth,
-    options: { synth, synthAvailable: true, toggleAutoSynth, notify, ...overrides },
+    options: { synth, toggleAutoSynth, notify, ...overrides },
   };
 }
 
@@ -55,12 +55,13 @@ describe('executeCommand', () => {
     await executeCommand(COMMAND_DISABLE_AUTO_SYNTH, [], options);
     expect(toggleAutoSynth).toHaveBeenCalledWith(false);
   });
-  test('synthNow shows info and skips synth when unavailable', async () => {
-    const { options, notify, synth } = makeOptions({ synthAvailable: false });
+  test('synthNow surfaces an unavailable result as an info notification', async () => {
+    const synth = jest.fn(async () => ({ status: 'unavailable' } as SynthRunResult));
+    const { options, notify } = makeOptions({ synth });
 
     await executeCommand(COMMAND_SYNTH_NOW, [], options);
 
-    expect(synth).not.toHaveBeenCalled();
+    expect(synth).toHaveBeenCalledTimes(1);
     expect(notify.info).toHaveBeenCalledWith(expect.stringContaining('cdk.json'));
     expect(notify.error).not.toHaveBeenCalled();
   });

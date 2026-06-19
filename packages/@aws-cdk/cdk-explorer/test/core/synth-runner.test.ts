@@ -1,5 +1,10 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { AssemblyError, ContextLookupsDisabledError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
+
+const APP = 'npx ts-node bin/app.ts';
 
 interface FakeCachedAssembly {
   dispose: jest.Mock;
@@ -28,23 +33,60 @@ function makeToolkit(opts: {
   return { toolkit, cached };
 }
 
-function run(toolkit: FakeToolkit) {
-  return runSynth({
-    toolkit: toolkit as unknown as Toolkit,
-    projectDir: '/p',
-    app: 'npx ts-node bin/app.ts',
-  });
+const tempDirs: string[] = [];
+
+// Create a throwaway project dir. Pass an object to write its cdk.json
+// (`{ app }` for a configured app, `{}` for a cdk.json with no app), or
+// `undefined` for no cdk.json at all. runSynth reads the app from this on disk.
+function makeProjectDir(cdkJson?: Record<string, unknown>): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-synth-'));
+  tempDirs.push(dir);
+  if (cdkJson !== undefined) {
+    fs.writeFileSync(path.join(dir, 'cdk.json'), JSON.stringify(cdkJson));
+  }
+  return dir;
+}
+
+afterAll(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function run(toolkit: FakeToolkit, projectDir: string) {
+  return runSynth({ toolkit: toolkit as unknown as Toolkit, projectDir });
 }
 
 describe('runSynth', () => {
-  test('returns success and disposes the cached assembly', async () => {
+  test('reads the app from cdk.json, returns success, and disposes the cached assembly', async () => {
     const { toolkit, cached } = makeToolkit({});
+    const projectDir = makeProjectDir({ app: APP });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith('npx ts-node bin/app.ts', { workingDirectory: '/p', lookups: false });
+    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, { workingDirectory: projectDir, lookups: false });
     expect(cached.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns unavailable (without invoking the toolkit) when cdk.json has no app', async () => {
+    const { toolkit } = makeToolkit({});
+    const projectDir = makeProjectDir({});
+
+    const result = await run(toolkit, projectDir);
+
+    expect(result).toEqual({ status: 'unavailable' });
+    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
+  });
+
+  test('returns unavailable when cdk.json is missing entirely', async () => {
+    const { toolkit } = makeToolkit({});
+    const projectDir = makeProjectDir(undefined);
+
+    const result = await run(toolkit, projectDir);
+
+    expect(result).toEqual({ status: 'unavailable' });
+    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
   });
 
   test('classifies AssemblyError as app-failure with the error message', async () => {
@@ -52,7 +94,7 @@ describe('runSynth', () => {
       synthThrow: AssemblyError.withCause('Assembly builder failed', new Error('TypeError: foo')),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('Assembly builder failed'), details: 'TypeError: foo' });
   });
@@ -62,7 +104,7 @@ describe('runSynth', () => {
       synthThrow: new LockError('ConcurrentWriteLock', 'another CLI synthing'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'lock-conflict' });
   });
@@ -72,7 +114,7 @@ describe('runSynth', () => {
       synthThrow: new LockError('ConcurrentReadLock', 'another CLI reading'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'lock-conflict' });
   });
@@ -82,7 +124,7 @@ describe('runSynth', () => {
       synthThrow: new ContextLookupsDisabledError('Context lookups have been disabled. Run cdk synth in a terminal.'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('cdk.context.json') });
   });
@@ -92,7 +134,7 @@ describe('runSynth', () => {
       synthThrow: new ToolkitError('SomeUnexpected', 'unexpected'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'error', message: 'unexpected' });
   });
@@ -102,7 +144,7 @@ describe('runSynth', () => {
       synthThrow: new Error('disk full'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'error', message: 'disk full' });
   });
@@ -112,7 +154,7 @@ describe('runSynth', () => {
       disposeThrow: new Error('lock release failed'),
     });
 
-    const result = await run(toolkit);
+    const result = await run(toolkit, makeProjectDir({ app: APP }));
 
     expect(result).toEqual({ status: 'error', message: 'lock release failed' });
     expect(cached.dispose).toHaveBeenCalledTimes(1);

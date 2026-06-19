@@ -65,18 +65,19 @@ export interface LspHandlerOptions {
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
   /**
-   * Runs a synth and returns its typed outcome. Injected by startServer (built
-   * from `synthRunnerFactory`); omitted in tests that don't exercise synth. Its
-   * presence is the single source of truth for whether synth is available:
-   * `cdk.json` having an `app` is exactly what causes a runner to be built.
+   * Runs a synth of the project at the given root and returns its typed outcome.
+   * Injected by startServer (built from `synthRunnerFactory`); omitted in tests
+   * that don't exercise synth. The runner reads `cdk.json` under the passed root
+   * on each call and returns `unavailable` when there is no `app`, so
+   * availability is decided per synth, not cached here.
    */
-  readonly synthRunner?: () => Promise<SynthRunResult>;
+  readonly synthRunner?: (projectDir: string) => Promise<SynthRunResult>;
   /** User-facing notification sink. Injected by startServer; omitted in tests. */
   readonly notify?: NotifySink;
 }
 
 /** Builds the synth runner once `connection.console` is available (in startServer). */
-export type SynthRunnerFactory = (console: RemoteConsole) => (() => Promise<SynthRunResult>);
+export type SynthRunnerFactory = (console: RemoteConsole) => ((projectDir: string) => Promise<SynthRunResult>);
 
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
@@ -117,7 +118,8 @@ function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
   switch (result.status) {
     case 'success':
     case 'lock-conflict':
-      return; // silent — watcher handles the update; lock means another synth is already running
+    case 'unavailable':
+      return; // silent — watcher handles updates; lock = another synth running; unavailable = no app
     case 'app-failure':
       log.error(`Auto-synth failed: ${result.message}`);
       return;
@@ -140,7 +142,6 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   });
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
   const synthRunner = options.synthRunner;
-  const synthAvailable = synthRunner !== undefined;
   const notify = options.notify ?? {
     info: () => {
     },
@@ -168,6 +169,14 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   // at initialize; if false we skip the refresh request and lenses update on
   // the editor's next natural re-query.
   let codeLensRefreshSupported = false;
+
+  // Single source of truth for the project root: the directory the client opened
+  // (applicationDir from initialize), falling back to cwd for non-IDE callers.
+  // Every consumer (assembly read, watcher, synth, diagnostics) reads this so
+  // they never disagree about which project is being operated on.
+  function currentProjectDir(): string {
+    return applicationDir ?? process.cwd();
+  }
 
   function refreshFromAssembly(projectDir: string): void {
     const assemblyDir = path.join(projectDir, 'cdk.out');
@@ -220,7 +229,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     if (synthInFlight) return { status: 'lock-conflict' };
     synthInFlight = true;
     try {
-      const result = await (synthRunner ? synthRunner() : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+      const result = await (synthRunner ? synthRunner(currentProjectDir()) : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
       publishSynthDiagnostics(result);
       return result;
     } finally {
@@ -232,11 +241,13 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   // cdk.json as a fallback) and clear them once a synth succeeds. The cdk.out
   // watcher owns violation diagnostics; this only manages synth-failure ones.
   function publishSynthDiagnostics(result: SynthRunResult): void {
-    if (result.status === 'success') {
+    // A successful synth resolves all failures; 'unavailable' means there is no
+    // app to fail, so any prior synth-failure diagnostics no longer apply.
+    if (result.status === 'success' || result.status === 'unavailable') {
       clearSynthFailures();
       return;
     }
-    const failures = synthFailureDiagnostics(result, applicationDir ?? process.cwd());
+    const failures = synthFailureDiagnostics(result, currentProjectDir());
     if (failures.length === 0) return; // lock-conflict / error: leave any existing diagnostic
     const nextUris = new Set(failures.map((f) => f.uri));
     for (const uri of synthFailureUris) {
@@ -277,7 +288,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       };
     },
     onInitialized() {
-      const projectDir = applicationDir ?? process.cwd();
+      const projectDir = currentProjectDir();
       // Same exclusion logic as toolkit-lib's watch():
       // WATCH_EXCLUDE_DEFAULTS covers common non-source dirs, then we add cdk.out
       // (our own output) and dotfiles (editor configs, .git, etc.)
@@ -306,7 +317,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       if (shutdownRequested) return;
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
-      if (!autoSynthEnabled || !synthAvailable) return;
+      if (!autoSynthEnabled) return;
       void guardedSynth()
         .then((result) => handleSynthOnSave(result, log))
         .catch((err: unknown) => log.error(`Auto-synth threw unexpectedly: ${(err as Error).message}`));
@@ -338,7 +349,6 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     async onExecuteCommand(params) {
       await executeCommand(params.command, params.arguments ?? [], {
         synth: guardedSynth,
-        synthAvailable,
         toggleAutoSynth: (enabled) => {
           autoSynthEnabled = enabled;
           onRefreshCodeLenses();

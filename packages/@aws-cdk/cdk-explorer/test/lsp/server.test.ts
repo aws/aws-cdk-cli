@@ -392,8 +392,9 @@ describe('LSP Server -- executeCommand', () => {
     expect(result.capabilities.executeCommandProvider?.commands).toEqual(expect.arrayContaining([COMMAND_SYNTH_NOW]));
   });
 
-  test('synthNow without synthAvailable notifies info', async () => {
-    const { handlers, notify } = createCommandClient();
+  test('synthNow with no app surfaces an unavailable info message', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, [string]>().mockResolvedValue({ status: 'unavailable' });
+    const { handlers, notify } = createCommandClient({ synthRunner });
     await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     expect(notify.infoMessages.some((m) => m.includes('unavailable'))).toBe(true);
   });
@@ -542,16 +543,30 @@ describe('LSP Server -- auto-synth toggle', () => {
     expect(refreshCodeLens).toHaveBeenCalledTimes(2);
   });
 
-  test('didSave does not trigger synth when synth is unavailable (no runner) even if auto-synth enabled', async () => {
-    const { handlers, log } = createToggleClient(false);
+  test('save-path unavailable result is silent (no log output)', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, [string]>().mockResolvedValue({ status: 'unavailable' });
+    const log = { warn: jest.fn(), error: jest.fn() };
+    const handlers = createLspHandlers({
+      readAssembly: () => ({ status: 'not-found' }),
+      synthRunner,
+      logger: log,
+      startAssemblyWatcher: () => ({
+        close: async () => {
+        },
+      }),
+    });
+    handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
+    handlers.onInitialized();
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
     await new Promise((r) => setTimeout(r, 0));
 
-    // No runner means the availability gate returns early; we never reach
-    // guardedSynth's "No synth runner configured" path, so nothing is logged.
+    // With no app the runner returns 'unavailable', a silent no-op on the save
+    // path: there is no app to synth, so nothing is reported.
+    expect(synthRunner).toHaveBeenCalledTimes(1);
     expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
   test('save-path lock-conflict is silent (no log output)', async () => {
@@ -650,6 +665,21 @@ describe('LSP Server -- synth-failure diagnostics', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
       .mockResolvedValueOnce({ status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' })
       .mockResolvedValueOnce({ status: 'success' });
+    const client = createTestClient({ synthRunner });
+    initializeClient(client, { applicationDir: '/p' });
+
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    const uri = pathToFileURL('/p/lib/stack.ts').toString();
+    const entriesForFile = client.published.filter((p) => p.uri === uri);
+    expect(entriesForFile[entriesForFile.length - 1].diagnostics).toEqual([]);
+  });
+
+  test('an unavailable result clears a prior synth-failure diagnostic', async () => {
+    const synthRunner = jest.fn<Promise<SynthRunResult>, [string]>()
+      .mockResolvedValueOnce({ status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' })
+      .mockResolvedValueOnce({ status: 'unavailable' });
     const client = createTestClient({ synthRunner });
     initializeClient(client, { applicationDir: '/p' });
 

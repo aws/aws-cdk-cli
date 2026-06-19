@@ -1,23 +1,21 @@
 import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { LspIoHost } from './io-host';
 import { startServer } from './server';
-import { readCdkConfig } from '../core/cdk-config';
 import { runSynth } from '../core/synth-runner';
 
 try {
-  const projectDir = process.cwd();
-  const config = readCdkConfig(projectDir);
-
   startServer({
     readable: process.stdin,
     writable: process.stdout,
     // synthRunnerFactory: startServer invokes it once, after the LSP connection
     // exists, so the runner it returns can route Toolkit output to the editor's
-    // Output panel via connection.console. Built only when cdk.json has an `app`.
-    synthRunnerFactory: config.app !== undefined ? (console) => {
+    // Output panel via connection.console. The handler passes the resolved
+    // project root on each call; the runner reads that project's cdk.json `app`
+    // per synth, so it is always built and "no app" is reported per call.
+    synthRunnerFactory: (console) => {
       const toolkit = new Toolkit({ ioHost: new LspIoHost(console) });
-      return () => runSynth({ toolkit, projectDir, app: config.app! });
-    } : undefined,
+      return (projectDir) => runSynth({ toolkit, projectDir });
+    },
   });
 } catch (err) {
   const e = err as Error;

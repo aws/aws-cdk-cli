@@ -1,4 +1,5 @@
 import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
+import { readCdkConfig } from './cdk-config';
 
 /**
  * The outcome of a single synth attempt.
@@ -8,6 +9,9 @@ import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
  * `lock-conflict` means another process holds `<projectDir>/cdk.out` (a `cdk
  * synth` running in a terminal, a `cdk watch` loop, or our own previous synth
  * not yet released). Callers should not surface this as a hard error.
+ * `unavailable` means `cdk.json` is missing or has no `app` key, so there is
+ * nothing to synth. Read fresh on every call, so adding an `app` later is
+ * picked up without restarting the LSP.
  * `error` is reserved for anything we did not classify, including failures
  * during dispose.
  */
@@ -15,6 +19,7 @@ export type SynthRunResult =
   | { status: 'success' }
   | { status: 'app-failure'; message: string; details?: string }
   | { status: 'lock-conflict' }
+  | { status: 'unavailable' }
   | { status: 'error'; message: string };
 
 export interface SynthRunnerOptions {
@@ -22,8 +27,6 @@ export interface SynthRunnerOptions {
   readonly toolkit: Toolkit;
   /** Directory containing the user's `cdk.json`; also the synth working dir. */
   readonly projectDir: string;
-  /** The `app` command from `cdk.json` (e.g. `npx ts-node bin/app.ts`). */
-  readonly app: string;
 }
 
 /**
@@ -32,11 +35,17 @@ export interface SynthRunnerOptions {
  * assembly so the read lock is released before the next call. Holding the
  * cached assembly between calls would cause the next acquireWrite to throw
  * `ConcurrentReadLock` against ourselves.
+ *
+ * The `app` command is read from `cdk.json` on every call, not cached, so an
+ * edited command or a newly added `app` takes effect on the next synth.
  */
 export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
+  const app = readCdkConfig(options.projectDir).app;
+  if (app === undefined) return { status: 'unavailable' };
+
   let cached;
   try {
-    const cx = await options.toolkit.fromCdkApp(options.app, {
+    const cx = await options.toolkit.fromCdkApp(app, {
       workingDirectory: options.projectDir,
       lookups: false,
     });
