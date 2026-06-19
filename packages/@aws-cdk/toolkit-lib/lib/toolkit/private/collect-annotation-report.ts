@@ -49,7 +49,7 @@ export function collectAnnotationReport(stacks: StackCollection): cxschema.Plugi
       }
 
       violation.violatingConstructs.push({
-        constructPath: entry.id,
+        constructPath: entry.id.replace(/^\//, ''), // remove leading slash
 
         // TODO: see if this information can be obtained from tree.json
         // cloudFormationResource
