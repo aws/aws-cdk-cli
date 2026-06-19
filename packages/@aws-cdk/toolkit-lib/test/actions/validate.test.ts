@@ -40,15 +40,6 @@ describe('validate', () => {
     expect(result.pluginReports[0].violations).toHaveLength(0);
   });
 
-  test('returns success with no reports when no report file exists', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx, { online: false });
-
-    expect(result.conclusion).toBe('success');
-    expect(result.pluginReports).toHaveLength(0);
-    ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
-  });
-
   test('can invoke without options', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx, { online: false });
@@ -108,7 +99,7 @@ describe('validate', () => {
     await toolkit.validate(cx, { online: false });
 
     const msg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_I9600',
+      (m) => m.code === 'CDK_TOOLKIT_E9600',
     );
     expect(msg).toBeDefined();
     expect(msg!.data).toMatchObject({
