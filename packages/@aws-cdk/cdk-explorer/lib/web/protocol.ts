@@ -53,6 +53,12 @@ export interface WebConstructNode {
    */
   readonly templateFile?: string;
   readonly sourceLocation?: WebSourceLocation;
+  /**
+   * Highest-severity policy-violation label affecting this construct. A folded
+   * default child's violations count toward its parent. Absent when the
+   * construct has no violation. Used to flag the node in the tree.
+   */
+  readonly highestSeverity?: string;
   readonly children: readonly WebConstructNode[];
 }
 
@@ -73,7 +79,8 @@ export type WebViolationSeverity = 'fatal' | 'error' | 'warning' | 'info' | 'cus
 
 /**
  * A single construct that triggered a violation, joined to construct-tree data
- * so the panel can navigate to the resource and its source.
+ * (resolved source location and template file) so a future navigation feature
+ * can link to the resource and its source.
  */
 export interface WebViolationOccurrence {
   /** Construct path of the offending construct, e.g. "MyStack/MyBucket". */

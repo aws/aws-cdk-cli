@@ -2,15 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type { PolicyValidationReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
-import { type Router, type Express } from 'express';
+import { type Router, type Express, type Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 import type { DirEntry, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
 import { resolveWithinRoot } from './safe-path';
-import { readAssembly as defaultReadAssembly, type AssemblyReadResult, type ConstructNode } from '../core/assembly-reader';
+import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
+import { readAssembly as defaultReadAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
 
-/** Largest file the viewer will return inline, to avoid streaming huge artifacts. */
+/** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 export interface ApiOptions {
@@ -85,32 +86,21 @@ export function createApiRouter(options: ApiOptions): Router {
   });
 
   router.get('/tree', (_req, res) => {
-    const result = readAssembly(assemblyDir);
-    if (result.status === 'not-found') {
-      const body: TreeResponse = { status: 'not-synthesized' };
-      return res.json(body);
-    }
-    if (result.status === 'error') {
-      return res.status(500).json({ error: result.message });
-    }
-    const tree = result.data.tree.map((node) => toWebNode(collapseDefaultChildren(node), assemblyDir, appDir));
-    const body: TreeResponse = { status: 'ok', tree, warnings: result.data.warnings };
-    return res.json(body);
+    withAssembly(readAssembly(assemblyDir), res, (data) => {
+      const severityByPath = highestSeverityByPath(data.violations);
+      const tree = data.tree.map((node) => toWebNode(node, severityByPath, assemblyDir, appDir));
+      const body: TreeResponse = { status: 'ok', tree, warnings: data.warnings };
+      res.json(body);
+    });
   });
 
   router.get('/policy-validation', (_req, res) => {
-    const result = readAssembly(assemblyDir);
-    if (result.status === 'not-found') {
-      const body: ViolationsResponse = { status: 'not-synthesized' };
-      return res.json(body);
-    }
-    if (result.status === 'error') {
-      return res.status(500).json({ error: result.message });
-    }
-    const index = ConstructIndex.fromTree(result.data.tree);
-    const violations = normalizeViolations(result.data.violations, index, assemblyDir, appDir);
-    const body: ViolationsResponse = { status: 'ok', violations, reportError: result.data.violationsError };
-    return res.json(body);
+    withAssembly(readAssembly(assemblyDir), res, (data) => {
+      const index = ConstructIndex.fromTree(data.tree);
+      const violations = normalizeViolations(data.violations, index, assemblyDir, appDir);
+      const body: ViolationsResponse = { status: 'ok', violations, reportError: data.violationsError };
+      res.json(body);
+    });
   });
 
   return router;
@@ -121,54 +111,102 @@ export function registerApi(app: Express, options: ApiOptions): void {
 }
 
 /**
- * Map a core construct node to its wire form. Absolute filesystem paths are
- * relativized to roots the client can resolve: `templateFile` to the cloud
- * assembly directory, `sourceLocation.file` to the app directory. A source
- * location that resolves outside the app directory is dropped, since
- * `/api/file` cannot serve it. Recurses over children.
+ * Read the cloud assembly and send the shared not-synthesized / error responses,
+ * invoking `onReady` with the assembly data only on success.
  */
-export function toWebNode(node: ConstructNode, assemblyDir: string, appDir: string): WebConstructNode {
-  return {
-    path: node.path,
-    id: node.id,
-    type: node.type,
-    logicalId: node.logicalId,
-    templateFile: node.templateFile ? toPosix(path.relative(assemblyDir, node.templateFile)) : undefined,
-    sourceLocation: toWebSourceLocation(node.sourceLocation, appDir),
-    children: node.children.map((child) => toWebNode(child, assemblyDir, appDir)),
-  };
+function withAssembly(
+  result: AssemblyReadResult,
+  res: Response,
+  onReady: (data: AssemblyData) => void,
+): void {
+  if (result.status === 'not-found') {
+    res.json({ status: 'not-synthesized' });
+    return;
+  }
+  if (result.status === 'error') {
+    res.status(500).json({ error: result.message });
+    return;
+  }
+  onReady(result.data);
 }
 
 /** Ids CDK gives a construct's synthetic default child (the L1 resource it wraps). */
 const DEFAULT_CHILD_IDS = new Set(['Resource', 'Default']);
 
 /**
- * Fold each construct's synthetic default child (the leaf L1 resource CDK names
- * "Resource" or "Default") up into its parent, so an L2 like `ItemsTable` shows
- * its CFN type directly instead of nesting a redundant `Resource` leaf. The
- * parent absorbs the child's CFN identity (type, logicalId, templateFile) and
- * the child is dropped. Only a leaf default child carrying a CFN type collapses,
- * so resources that nest further children are left intact. Recurses depth-first.
- *
- * Display-only: violation joining still keys off the full (uncollapsed) tree,
- * whose construct paths end in ".../Resource".
+ * Map a core construct node to its wire form, owning every transform the
+ * displayed tree needs:
+ * - Relativizes paths the client can't resolve (`templateFile` to the cloud
+ *   assembly, `sourceLocation.file` to the app dir; a source location outside
+ *   the app dir is dropped, since `/api/file` cannot serve it).
+ * - Folds a synthetic default child (the leaf L1 resource CDK names "Resource"
+ *   or "Default", carrying a CFN type) up into its parent, so an L2 like
+ *   `ItemsTable` shows its CFN type directly instead of nesting a redundant
+ *   leaf. Only a leaf default child with a type collapses; a resource that
+ *   nests further children is left intact.
+ * - Annotates each node with the highest severity of any violation on it,
+ *   folding an absorbed default child's severity into the parent so the dot
+ *   tracks the displayed node. Because the join happens here, the client never
+ *   re-derives the collapse rule.
+ * Recurses depth-first.
  */
-export function collapseDefaultChildren(node: ConstructNode): ConstructNode {
-  const children = node.children.map(collapseDefaultChildren);
+export function toWebNode(
+  node: ConstructNode,
+  severityByPath: ReadonlyMap<string, string>,
+  assemblyDir: string,
+  appDir: string,
+): WebConstructNode {
+  const children = node.children.map((child) => toWebNode(child, severityByPath, assemblyDir, appDir));
+  const ownSeverity = severityByPath.get(node.path);
   const defaultChild = children.find(
     (child) => DEFAULT_CHILD_IDS.has(child.id) && child.children.length === 0 && child.type !== undefined,
   );
   if (!defaultChild) {
-    return { ...node, children };
+    return {
+      path: node.path,
+      id: node.id,
+      type: node.type,
+      logicalId: node.logicalId,
+      templateFile: node.templateFile ? toPosix(path.relative(assemblyDir, node.templateFile)) : undefined,
+      sourceLocation: toWebSourceLocation(node.sourceLocation, appDir),
+      highestSeverity: ownSeverity,
+      children,
+    };
   }
   return {
-    ...node,
+    path: node.path,
+    id: node.id,
     type: defaultChild.type,
     logicalId: defaultChild.logicalId,
     templateFile: defaultChild.templateFile,
-    sourceLocation: node.sourceLocation ?? defaultChild.sourceLocation,
+    sourceLocation: toWebSourceLocation(node.sourceLocation, appDir) ?? defaultChild.sourceLocation,
+    highestSeverity: moreSevere(ownSeverity, defaultChild.highestSeverity),
     children: children.filter((child) => child !== defaultChild),
   };
+}
+
+/** Build a construct-path to highest-severity-label map from a (raw) validation report. */
+function highestSeverityByPath(report: PolicyValidationReportJson | undefined): Map<string, string> {
+  const byPath = new Map<string, string>();
+  for (const plugin of report?.pluginReports ?? []) {
+    for (const violation of plugin.violations ?? []) {
+      const label = displaySeverity(classifyReportSeverity(violation.severity, violation.customSeverity));
+      for (const vc of violation.violatingConstructs ?? []) {
+        const existing = byPath.get(vc.constructPath);
+        if (existing === undefined || severityRank(label) < severityRank(existing)) {
+          byPath.set(vc.constructPath, label);
+        }
+      }
+    }
+  }
+  return byPath;
+}
+
+/** The more severe of two severity labels (lower rank = more severe); undefined loses to any defined label. */
+function moreSevere(a: string | undefined, b: string | undefined): string | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return severityRank(a) <= severityRank(b) ? a : b;
 }
 
 /** Relativize a source location to the app dir, dropping any that escape it. */
@@ -181,10 +219,10 @@ function toWebSourceLocation(loc: SourceLocation | undefined, appDir: string): W
 
 /**
  * Normalize a policy-validation report into the SPA's flat violation model.
- * Each violating construct is joined to the construct tree (by path) so the
- * panel can navigate to the resource and its source: the resolved
- * `sourceLocation` and `cdk.out`-relative `templateFile` come from the tree
- * node when present, falling back to the report's own resource fields.
+ * Each violating construct is joined to the construct tree (by path): the
+ * resolved `sourceLocation` and `cdk.out`-relative `templateFile` come from the
+ * tree node when present, falling back to the report's own resource fields.
+ * These carry the data a future navigation feature would link from.
  */
 export function normalizeViolations(
   report: PolicyValidationReportJson | undefined,
@@ -193,14 +231,13 @@ export function normalizeViolations(
   appDir: string,
 ): WebViolation[] {
   return (report?.pluginReports ?? []).flatMap((plugin) =>
-    plugin.violations.map((violation) => ({
+    (plugin.violations ?? []).map((violation) => ({
       ruleName: violation.ruleName,
       description: violation.description,
-      severity: violation.severity,
-      customSeverity: violation.customSeverity,
+      ...classifyReportSeverity(violation.severity, violation.customSeverity),
       source: plugin.pluginName,
       suggestedFix: violation.suggestedFix,
-      occurrences: violation.violatingConstructs.map((vc) => toOccurrence(vc, index, assemblyDir, appDir)),
+      occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index, assemblyDir, appDir)),
     })));
 }
 

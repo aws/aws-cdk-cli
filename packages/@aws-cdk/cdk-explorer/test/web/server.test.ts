@@ -64,4 +64,11 @@ describe('Web Server', () => {
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
     expect((await res.json()).error).toBeDefined();
   });
+
+  test('serves the SPA index with Cache-Control: no-store so a rebuilt bundle is not served stale', async () => {
+    server = await startWebServer();
+    const res = await fetch(`${server.url}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
 });
