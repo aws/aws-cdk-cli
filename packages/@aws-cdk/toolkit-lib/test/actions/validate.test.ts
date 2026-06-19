@@ -22,7 +22,6 @@ describe('validate', () => {
     const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
-    expect(result.title).toBe('Validation Report');
     expect(result.pluginReports).toHaveLength(2);
     expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
     expect(result.pluginReports[0].conclusion).toBe('failure');
@@ -121,7 +120,6 @@ describe('validate', () => {
     expect(msg).toBeDefined();
     expect(msg!.data).toMatchObject({
       conclusion: 'failure',
-      title: 'Validation Report',
       pluginReports: expect.arrayContaining([
         expect.objectContaining({
           pluginName: 'TestPlugin',

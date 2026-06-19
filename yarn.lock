@@ -223,18 +223,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@aws-cdk/cloud-assembly-api@npm:^2.2.2":
-  version: 2.2.2
-  resolution: "@aws-cdk/cloud-assembly-api@npm:2.2.2"
-  dependencies:
-    jsonschema: "npm:~1.4.1"
-    semver: "npm:^7.7.4"
-  peerDependencies:
-    "@aws-cdk/cloud-assembly-schema": ">=53.15.0"
-  checksum: 10c0/cc5e7edd13d9d7e4ad7878c16f85a1a15c68e9ec51b71ad4a4c884ef0b3ed28fc25dc0627f0c226d65615cc6011ca02de94401862b650a996f8ccdff651e4d44
-  languageName: node
-  linkType: hard
-
 "@aws-cdk/cloud-assembly-api@npm:^2.2.5":
   version: 2.2.5
   resolution: "@aws-cdk/cloud-assembly-api@npm:2.2.5"
@@ -338,15 +326,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@aws-cdk/cx-api@npm:^2":
-  version: 2.251.0
-  resolution: "@aws-cdk/cx-api@npm:2.251.0"
+"@aws-cdk/cx-api@npm:^2.260.0":
+  version: 2.260.0
+  resolution: "@aws-cdk/cx-api@npm:2.260.0"
   dependencies:
-    "@aws-cdk/cloud-assembly-api": "npm:^2.2.2"
-    semver: "npm:^7.7.4"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.5"
+    semver: "npm:^7.8.1"
   peerDependencies:
-    "@aws-cdk/cloud-assembly-schema": ">=53.18.0"
-  checksum: 10c0/480af47d19353bb6f5d52e1ea1e8f6179fed7039ff614f05a6c4f57668c054a00332cb5d02ecf39f7847140f41ecae69db594c4afce9749949f9fafdd79684fa
+    "@aws-cdk/cloud-assembly-schema": ">=53.25.0"
+  checksum: 10c0/cd4ebf070a8ce066c030fcc526074911c1b29494280cc7c4e3c19640c8d168e2a553f9c3cd2d5c7d03b611bfad7c3b920418aeb6f51b869208360e4a3119d383
   languageName: node
   linkType: hard
 
@@ -465,7 +453,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/cloudformation-diff": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2"
+    "@aws-cdk/cx-api": "npm:^2.260.0"
     "@aws-cdk/private-tools": "npm:^0.0.0"
     "@aws-sdk/client-appsync": "npm:^3"
     "@aws-sdk/client-bedrock-agentcore-control": "npm:^3"
@@ -8104,7 +8092,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/cloudformation-diff": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2"
+    "@aws-cdk/cx-api": "npm:^2.260.0"
     "@aws-cdk/private-tools": "npm:^0.0.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-cdk/user-input-gen": "npm:^0.0.0"
@@ -13630,13 +13618,6 @@ __metadata:
   version: 1.5.0
   resolution: "jsonschema@npm:1.5.0"
   checksum: 10c0/c24ddb8d741f02efc0da3ad9b597a275f6b595062903d3edbfaa535c3f9c4c98613df68da5cb6635ed9aeab30d658986fea61d7662fc5b2b92840d5a1e21235e
-  languageName: node
-  linkType: hard
-
-"jsonschema@npm:~1.4.1":
-  version: 1.4.1
-  resolution: "jsonschema@npm:1.4.1"
-  checksum: 10c0/c3422d3fc7d33ff7234a806ffa909bb6fb5d1cd664bea229c64a1785dc04cbccd5fc76cf547c6ab6dd7881dbcaf3540a6a9f925a5956c61a9cd3e23a3c1796ef
   languageName: node
   linkType: hard
 
