@@ -91,7 +91,7 @@ export async function throwIfValidationFailures(
   switch (failAt) {
     case 'error':
       if (conclusion === 'failure') {
-        const error = AssemblyError.withStacks('Found errors', stacks.stackArtifacts);
+        const error = AssemblyError.withStacks('Synthesis finished with errors', stacks.stackArtifacts);
         error.attachSynthesisErrorCode('AnnotationErrors');
         throw error;
       }
@@ -99,7 +99,7 @@ export async function throwIfValidationFailures(
     case 'warn':
       // if we're failing at 'warn', then both warnings and errors cause failure, so the initial conclusion is correct
       if (conclusion === 'failure' || hasWarnings(pluginReports)) {
-        const error = AssemblyError.withStacks('Found warnings (--strict mode)', stacks.stackArtifacts);
+        const error = AssemblyError.withStacks('Synthesis finished with warnings (--strict mode)', stacks.stackArtifacts);
         error.attachSynthesisErrorCode('StrictAnnotationWarnings');
         throw error;
       }
