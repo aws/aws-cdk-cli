@@ -87,7 +87,7 @@
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
-    "@aws-cdk/cx-api": "^2.260.0",
+    "@aws-cdk/cx-api": "^2",
     "@aws-cdk/private-tools": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@aws-sdk/client-appsync": "^3",

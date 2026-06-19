@@ -326,7 +326,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@aws-cdk/cx-api@npm:^2.260.0":
+"@aws-cdk/cx-api@npm:^2":
   version: 2.260.0
   resolution: "@aws-cdk/cx-api@npm:2.260.0"
   dependencies:
@@ -453,7 +453,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/cloudformation-diff": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2.260.0"
+    "@aws-cdk/cx-api": "npm:^2"
     "@aws-cdk/private-tools": "npm:^0.0.0"
     "@aws-sdk/client-appsync": "npm:^3"
     "@aws-sdk/client-bedrock-agentcore-control": "npm:^3"
@@ -8092,7 +8092,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/cloudformation-diff": "npm:^0.0.0"
-    "@aws-cdk/cx-api": "npm:^2.260.0"
+    "@aws-cdk/cx-api": "npm:^2"
     "@aws-cdk/private-tools": "npm:^0.0.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-cdk/user-input-gen": "npm:^0.0.0"

@@ -1,13 +1,14 @@
+import * as path from 'path';
+import type { PluginReportJson, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
+import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
-import { Manifest, PluginReportJson, PolicyValidationReportConclusion } from "@aws-cdk/cloud-assembly-schema";
-import * as path from "path";
-import { StackCollection } from "../../api/cloud-assembly/stack-collection";
-import { collectAnnotationReport } from "./collect-annotation-report";
-import { MinimumSeverity } from '../types';
-import { IoHelper } from '../../api/io/private/io-helper';
-import { ValidateResult } from '../../actions/validate';
+import { collectAnnotationReport } from './collect-annotation-report';
+import type { ValidateResult } from '../../actions/validate';
+import type { StackCollection } from '../../api/cloud-assembly/stack-collection';
+import type { IoHelper } from '../../api/io/private/io-helper';
 import { hostMessageFromValidation } from '../../api/validate/validate-formatting';
 import { AssemblyError } from '../toolkit-error';
+import type { MinimumSeverity } from '../types';
 
 const VALIDATION_REPORT_FILE = 'validation-report.json';
 
@@ -34,7 +35,7 @@ interface AssemblyLike {
  *
  * Returns whether an explicit report file was found or not.
  */
-export async function obtainUnifiedValidationReport(assembly: AssemblyLike, stacks: StackCollection): Promise<PluginReportJson[]>  {
+export async function obtainUnifiedValidationReport(assembly: AssemblyLike, stacks: StackCollection): Promise<PluginReportJson[]> {
   const ret: PluginReportJson[] = [];
 
   const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
@@ -72,7 +73,12 @@ export function combineConclusions(reports: PluginReportJson[]): PolicyValidatio
  *
  * Validation failed if there are any plugin reports with a failure conclusion, or if there are any warnings and the assembly is in strict mode.
  */
-export async function throwIfValidationFailures(assembly: AssemblyLike, stacks: StackCollection, failAt: MinimumSeverity, ioHelper: IoHelper): Promise<void> {
+export async function throwIfValidationFailures(
+  assembly: AssemblyLike,
+  stacks: StackCollection,
+  failAt: MinimumSeverity,
+  ioHelper: IoHelper,
+): Promise<void> {
   const pluginReports = await obtainUnifiedValidationReport(assembly, stacks);
   if (pluginReports.length === 0) {
     return;
@@ -81,7 +87,6 @@ export async function throwIfValidationFailures(assembly: AssemblyLike, stacks: 
   const conclusion = combineConclusions(pluginReports);
   const result: ValidateResult = { conclusion, pluginReports };
   await ioHelper.notify(hostMessageFromValidation(result));
-
 
   switch (failAt) {
     case 'error':

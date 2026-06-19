@@ -1,7 +1,6 @@
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { StackCollection } from '../../api/cloud-assembly/stack-collection';
-import { PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
+import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
+import type { StackCollection } from '../../api/cloud-assembly/stack-collection';
 
 const ANNOTATION_PLUGIN_NAME = 'Construct Annotations';
 
@@ -13,7 +12,7 @@ const ANNOTATION_PLUGIN_NAME = 'Construct Annotations';
  * Effectively the same as what happens here:
  * <https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk-lib/core/lib/private/collect-annotation-report.ts>
  */
-export function collectAnnotationReport(stacks: StackCollection): PluginReportJson {
+export function collectAnnotationReport(stacks: StackCollection): cxschema.PluginReportJson {
   // The return type requires that we combine violations by rule, so we have to group them first here.
   const ruleMap = new Map<string, cxschema.PolicyViolationJson>();
 
