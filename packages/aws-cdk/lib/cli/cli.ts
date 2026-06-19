@@ -6,6 +6,7 @@ import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import { enableHandleTracking, reportLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -42,12 +43,23 @@ import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
+// Grace period before the --debug-cli handle dump fires. unref'd, so it never
+// fires when Node exits cleanly within this window.
+const HANDLE_DUMP_GRACE_MS = 1000;
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
   // Measure that.
   const libraryLoadTime = performance.now();
 
   const argv = await parseCommandLineArguments(args);
+
+  if (argv.debugCli) {
+    // Start tracking async resources as early as possible, so we can identify
+    // the ones still alive at exit time.
+    enableHandleTracking();
+  }
+
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
@@ -257,6 +269,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       });
     } else if (shouldDisplayNotices && cmd !== 'version') {
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
+    }
+
+    if (argv.debugCli) {
+      // If the process is still alive after the grace period, something is
+      // keeping the event loop busy. Dump the leaked handles so the user can
+      // see why. .unref() so this timer itself doesn't keep us alive.
+      setTimeout(() => {
+        void reportLeakedHandles(ioHelper);
+      }, HANDLE_DUMP_GRACE_MS).unref();
     }
   }
 
