@@ -523,8 +523,13 @@ export function serviceTokenReferencedLogicalId(serviceToken: any): string | und
     return undefined;
   }
   const getAtt = serviceToken['Fn::GetAtt'];
+  // Array form (JSON / CDK output): ["LogicalId", "Arn"].
   if (Array.isArray(getAtt) && typeof getAtt[0] === 'string') {
     return getAtt[0];
+  }
+  // String short-form (how YAML `!GetAtt LogicalId.Arn` deserializes): "LogicalId.Attr".
+  if (typeof getAtt === 'string') {
+    return getAtt.split('.')[0] || undefined;
   }
   if (typeof serviceToken.Ref === 'string') {
     return serviceToken.Ref;
@@ -582,31 +587,22 @@ async function fetchCustomResourceLogs(
   // Convention first; only pay for getFunctionConfiguration if the convention group is empty.
   const conventionGroup = `/aws/lambda/${functionName}`;
   let messages = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
+  // The group we point the user at. Once we learn the function's configured log group, prefer
+  // it for the link even if it too is empty — it's where the function actually logs, whereas
+  // the convention group may not exist for advanced-logging functions.
   let logGroup = conventionGroup;
 
   if (messages === undefined) {
     const configuredGroup = await configuredLogGroup(lambda, functionName, debug);
     if (configuredGroup && configuredGroup !== conventionGroup) {
-      const fromConfigured = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
-      if (fromConfigured !== undefined) {
-        messages = fromConfigured;
-        logGroup = configuredGroup;
-      }
+      logGroup = configuredGroup;
+      messages = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
     }
-  }
-
-  if (messages === undefined) {
-    return [{
-      source: 'Custom Resource Lambda Logs',
-      messages: ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'],
-      link: cloudWatchLogsConsoleUrl(region, logGroup),
-      linkLabel: 'Logs',
-    }];
   }
 
   return [{
     source: 'Custom Resource Lambda Logs',
-    messages,
+    messages: messages ?? ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'],
     link: cloudWatchLogsConsoleUrl(region, logGroup),
     linkLabel: 'Logs',
   }];
@@ -617,6 +613,27 @@ async function fetchCustomResourceLogs(
  * events in the window (so the caller can try a different group).
  */
 async function fetchLogLines(
+  cwl: ICloudWatchLogsClient,
+  logGroup: string,
+  streamName: string | undefined,
+  startTime: number,
+  endTime: number | undefined,
+  debug: (msg: string) => Promise<void>,
+): Promise<string[] | undefined> {
+  // Try the targeted stream first (most relevant), but the cfn-response stream name can be
+  // stale on update/rollback failures (it's pinned to the original create invocation). If
+  // the targeted query finds nothing, fall back to a group-wide scan over the time window so
+  // a stale stream can't hide the actual failing invocation's logs.
+  if (streamName) {
+    const targeted = await filterLogLines(cwl, logGroup, streamName, startTime, endTime, debug);
+    if (targeted !== undefined) {
+      return targeted;
+    }
+  }
+  return filterLogLines(cwl, logGroup, undefined, startTime, endTime, debug);
+}
+
+async function filterLogLines(
   cwl: ICloudWatchLogsClient,
   logGroup: string,
   streamName: string | undefined,

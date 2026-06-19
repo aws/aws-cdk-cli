@@ -622,4 +622,71 @@ describe('investigateResource for custom resources', () => {
     const result = await investigateResource(customResourceError({ logicalId: undefined }), sdk, debug);
     expect(result).toEqual([]);
   });
+
+  test('resolves a YAML string-form Fn::GetAtt ServiceToken', async () => {
+    // YAML `!GetAtt ProviderFn.Arn` deserializes to { 'Fn::GetAtt': 'ProviderFn.Arn' } (a string).
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith({ 'Fn::GetAtt': 'ProviderFn.Arn' }),
+    });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{
+        LogicalResourceId: 'ProviderFn',
+        PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:yaml-fn',
+      } as any],
+    });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'x' }] });
+
+    await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeStackResourcesCommand, {
+      StackName: STACK_ARN,
+      LogicalResourceId: 'ProviderFn',
+    });
+    expect(mockCloudWatchClient).toHaveReceivedCommandWith(FilterLogEventsCommand, { logGroupName: '/aws/lambda/yaml-fn' });
+  });
+
+  test('falls back to a group-wide scan when the targeted stream has no events (stale stream)', async () => {
+    // Stream-scoped query returns nothing (e.g. stale create-time stream on an update failure);
+    // the un-scoped group scan finds the actual failing invocation's logs.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    // Call 1 (targeted stream) returns nothing; call 2 (un-scoped group scan) finds the logs.
+    // Sequenced with resolvesOnce so the fallback path is genuinely required (partial input
+    // matchers would overlap and let the targeted call satisfy the group-scan mock).
+    mockCloudWatchClient.on(FilterLogEventsCommand)
+      .resolvesOnce({ events: [] })
+      .resolves({ events: [{ message: 'actual failure on update' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages).toEqual(['actual failure on update']);
+    // It must have tried the targeted stream first...
+    expect(mockCloudWatchClient).toHaveReceivedNthCommandWith(1, FilterLogEventsCommand, {
+      logGroupName: '/aws/lambda/my-cr-fn',
+      logStreamNames: ['2026/06/15/[$LATEST]streamabc'],
+    });
+    // ...then a second, un-scoped group scan (no logStreamNames).
+    expect(mockCloudWatchClient).toHaveReceivedCommandTimes(FilterLogEventsCommand, 2);
+    const secondCall = mockCloudWatchClient.commandCalls(FilterLogEventsCommand)[1].args[0].input as any;
+    expect(secondCall.logStreamNames).toBeUndefined();
+  });
+
+  test('links to the configured log group (not the convention group) when both are empty', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    // Every filterLogEvents (convention + configured, targeted + scan) returns empty.
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [] });
+    mockLambdaClient.on(GetFunctionConfigurationCommand).resolves({ LoggingConfig: { LogGroup: '/custom/log/group' } });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages[0]).toMatch(/No log events found/);
+    // The link must point at the configured group, where the function actually logs.
+    expect(logs!.link).toContain('$252Fcustom$252Flog$252Fgroup');
+    expect(logs!.link).not.toContain('my-cr-fn');
+  });
 });
