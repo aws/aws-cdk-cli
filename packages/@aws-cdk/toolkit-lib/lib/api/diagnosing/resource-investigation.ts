@@ -611,9 +611,14 @@ async function fetchCustomResourceLogs(
     }
   }
 
+  // Lead with the log group so the user can tell which function these logs belong to
+  // (the formatter renders messages but not `source`, and the link is URL-encoded).
+  const header = `Logs from ${logGroup}:`;
+  const body = messages ?? ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'];
+
   return [{
     source: 'Custom Resource Lambda Logs',
-    messages: messages ?? ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'],
+    messages: [header, ...body],
     link: cloudWatchLogsConsoleUrl(region, logGroup),
     linkLabel: 'Logs',
   }];

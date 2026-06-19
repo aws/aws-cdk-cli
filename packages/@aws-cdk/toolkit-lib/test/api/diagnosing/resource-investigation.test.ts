@@ -491,7 +491,7 @@ describe('investigateResource for custom resources', () => {
     expect(mockLambdaClient).not.toHaveReceivedCommand(GetFunctionConfigurationCommand);
     const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
     expect(logs).toBeDefined();
-    expect(logs!.messages).toEqual(['Traceback: KeyError "Foo"']);
+    expect(logs!.messages).toEqual(['Logs from /aws/lambda/my-cr-fn:', 'Traceback: KeyError "Foo"']);
     expect(logs!.linkLabel).toEqual('Logs');
     expect(logs!.link).toContain('logsV2:log-groups');
   });
@@ -549,7 +549,7 @@ describe('investigateResource for custom resources', () => {
 
     expect(mockLambdaClient).toHaveReceivedCommandWith(GetFunctionConfigurationCommand, { FunctionName: 'my-cr-fn' });
     const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
-    expect(logs!.messages).toEqual(['custom group line']);
+    expect(logs!.messages).toEqual(['Logs from /custom/log/group:', 'custom group line']);
     expect(logs!.link).toContain('$252Fcustom'); // double-encoded /custom...
   });
 
@@ -597,7 +597,7 @@ describe('investigateResource for custom resources', () => {
 
     const result = await investigateResource(customResourceError(), sdk, debug);
     const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
-    expect(logs!.messages[0]).toMatch(/No log events found/);
+    expect(logs!.messages.join('\n')).toMatch(/No log events found/);
   });
 
   test('returns empty when the resource has no ServiceToken', async () => {
@@ -661,7 +661,7 @@ describe('investigateResource for custom resources', () => {
     const result = await investigateResource(customResourceError(), sdk, debug);
 
     const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
-    expect(logs!.messages).toEqual(['actual failure on update']);
+    expect(logs!.messages).toEqual(['Logs from /aws/lambda/my-cr-fn:', 'actual failure on update']);
     // It must have tried the targeted stream first...
     expect(mockCloudWatchClient).toHaveReceivedNthCommandWith(1, FilterLogEventsCommand, {
       logGroupName: '/aws/lambda/my-cr-fn',
@@ -684,8 +684,9 @@ describe('investigateResource for custom resources', () => {
     const result = await investigateResource(customResourceError(), sdk, debug);
 
     const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
-    expect(logs!.messages[0]).toMatch(/No log events found/);
-    // The link must point at the configured group, where the function actually logs.
+    expect(logs!.messages.join('\n')).toMatch(/No log events found/);
+    // The header and link must point at the configured group, where the function actually logs.
+    expect(logs!.messages[0]).toEqual('Logs from /custom/log/group:');
     expect(logs!.link).toContain('$252Fcustom$252Flog$252Fgroup');
     expect(logs!.link).not.toContain('my-cr-fn');
   });
