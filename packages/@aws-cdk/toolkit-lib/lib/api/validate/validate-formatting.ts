@@ -34,22 +34,21 @@ export function formatValidationReports(fileRoot: string, reports: PluginReportJ
   ];
 }
 
-function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolation[] {
-  const result: FlattenedViolation[] = [];
-
-  for (const report of pluginReports) {
+function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
+  return reports.flatMap((report) => {
     const pluginName = report.pluginName;
-
-    for (const violation of report.violations) {
-      const severity = normalizeSeverity(violation.severity, violation.customSeverity);
-
-      for (const construct of violation.violatingConstructs) {
-        result.push({ severity, description: violation.description, ruleName: violation.ruleName, pluginName, construct });
-      }
-    }
-  }
-
-  return result;
+    return report.violations.flatMap((violation) => {
+      return violation.violatingConstructs.map((construct) => ({
+        severity: normalizeSeverity(violation.severity),
+        description: violation.description,
+        ruleName: violation.ruleName,
+        pluginName,
+        construct,
+        suggestedFix: violation.suggestedFix,
+        ruleMetadata: violation.ruleMetadata,
+      }));
+    });
+  });
 }
 
 function normalizeSeverity(severity: PolicyViolationSeverity, customSeverity?: string): string {
