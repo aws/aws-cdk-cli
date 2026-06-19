@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildConstructTree, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
+import { buildConstructTreeAsync, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
 import { SourceMapResolver, isWithinRoot, type SourceLocation } from './source-resolver';
@@ -33,9 +33,9 @@ export type AssemblyReadResult =
 /**
  * Decorates the cloud assembly's construct tree with the source location of
  * each node and attaches any policy-validation violations. Tree construction
- * (tree.json + stack-metadata join) is delegated to buildConstructTree.
+ * (tree.json + stack-metadata join) is delegated to buildConstructTreeAsync.
  */
-export function readAssembly(assemblyDir: string): AssemblyReadResult {
+export async function readAssembly(assemblyDir: string): Promise<AssemblyReadResult> {
   const manifestPath = path.join(assemblyDir, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
     return { status: 'not-found' };
@@ -52,17 +52,17 @@ export function readAssembly(assemblyDir: string): AssemblyReadResult {
     // One resolver per readAssembly call: caches parsed source maps across
     // constructs, scoped so a fresh synth observes any moved/edited maps.
     const sourceResolver = new SourceMapResolver(projectRoot);
-    const tree = buildConstructTree<ConstructNode>(assembly, (fields, stack, constructPath) => ({
+    const tree = await buildConstructTreeAsync<ConstructNode>(assembly, async (fields, stack, constructPath) => ({
       ...fields,
       // templateFile comes from the manifest / a nested stack's aws:asset:path,
       // both attacker-influenceable if cdk.out is tampered with. Drop any that
       // escape the assembly dir so the template read in resourceTarget stays
       // contained
-      templateFile: fields.templateFile && isWithinRoot(assemblyDir, fields.templateFile)
+      templateFile: fields.templateFile && (await isWithinRoot(assemblyDir, fields.templateFile))
         ? fields.templateFile
         : undefined,
       sourceLocation: stack
-        ? sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
+        ? await sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
         : undefined,
     }));
 

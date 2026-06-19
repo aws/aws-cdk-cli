@@ -20,7 +20,7 @@ describe('fixture builders', () => {
     dir = undefined;
   });
 
-  test('buildFlatAssembly produces a readAssembly-compatible directory', () => {
+  test('buildFlatAssembly produces a readAssembly-compatible directory', async () => {
     dir = buildFlatAssembly({
       stacks: [{
         id: 'Stack1',
@@ -32,14 +32,14 @@ describe('fixture builders', () => {
       }],
     });
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error(`expected success, got ${result.status}: ${(result as any).message ?? ''}`);
 
     expect(result.data.tree).toHaveLength(1);
     expect(result.data.tree[0].id).toBe('Stack1');
   });
 
-  test('buildFlatAssembly attaches logicalId and cfnType correctly', () => {
+  test('buildFlatAssembly attaches logicalId and cfnType correctly', async () => {
     dir = buildFlatAssembly({
       stacks: [{
         id: 'Stack1',
@@ -51,7 +51,7 @@ describe('fixture builders', () => {
       }],
     });
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     const resource = result.data.tree[0].children[0].children[0];
@@ -62,7 +62,7 @@ describe('fixture builders', () => {
     expect(resource.sourceLocation).toBeUndefined();
   });
 
-  test('buildFlatAssembly with creationTrace exposes sourceLocation', () => {
+  test('buildFlatAssembly with creationTrace exposes sourceLocation', async () => {
     dir = buildFlatAssembly({
       stacks: [{
         id: 'Stack1',
@@ -82,7 +82,7 @@ describe('fixture builders', () => {
     });
     const projectRoot = path.dirname(dir);
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     const resource = result.data.tree[0].children[0].children[0];
@@ -93,7 +93,7 @@ describe('fixture builders', () => {
     });
   });
 
-  test('buildNestedAssembly produces a Stage-based assembly with correct tree', () => {
+  test('buildNestedAssembly produces a Stage-based assembly with correct tree', async () => {
     dir = buildNestedAssembly({
       stages: [{
         id: 'Prod',
@@ -108,7 +108,7 @@ describe('fixture builders', () => {
       }],
     });
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     expect(result.data.tree).toHaveLength(1);
@@ -125,7 +125,7 @@ describe('fixture builders', () => {
     expect(resource.type).toBe('AWS::S3::Bucket');
   });
 
-  test('buildNestedStackAssembly enriches resources INSIDE a NestedStack via parent metadata', () => {
+  test('buildNestedStackAssembly enriches resources INSIDE a NestedStack via parent metadata', async () => {
     // aws-cdk-lib emits nested-stack-internal metadata into the parent's
     // artifact metadata. Verifies buildNode's metadata inheritance handles
     // this with no separate walker.
@@ -153,7 +153,7 @@ describe('fixture builders', () => {
     });
     const projectRoot = path.dirname(dir);
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     const parent = result.data.tree[0];
@@ -177,10 +177,10 @@ describe('fixture builders', () => {
     });
   });
 
-  test('buildNonTypeScriptAssembly returns success without crashing', () => {
+  test('buildNonTypeScriptAssembly returns success without crashing', async () => {
     dir = buildNonTypeScriptAssembly();
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     expect(result.data.tree).toHaveLength(1);
@@ -190,13 +190,13 @@ describe('fixture builders', () => {
     expect(stack.sourceLocation).toBeUndefined();
   });
 
-  test('withMalformedValidationReport surfaces the error without breaking the tree', () => {
+  test('withMalformedValidationReport surfaces the error without breaking the tree', async () => {
     dir = buildFlatAssembly({
       stacks: [{ id: 'Stack1', resources: [] }],
     });
     withMalformedValidationReport(dir);
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     expect(result.data.tree).toHaveLength(1);
@@ -204,7 +204,7 @@ describe('fixture builders', () => {
     expect(result.data.violationsError).toBeTruthy();
   });
 
-  test('withValidationReport produces a parseable report', () => {
+  test('withValidationReport produces a parseable report', async () => {
     dir = buildFlatAssembly({
       stacks: [{ id: 'Stack1', resources: [] }],
     });
@@ -221,7 +221,7 @@ describe('fixture builders', () => {
       }],
     });
 
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
     expect(result.data.violationsError).toBeUndefined();

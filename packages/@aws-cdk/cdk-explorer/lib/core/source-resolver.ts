@@ -47,7 +47,7 @@ export class SourceMapResolver {
    * there's no trace (non-TS apps) or every frame is a skip-placeholder
    * (framework-only call sites).
    */
-  public resolveFrames(frames: readonly string[] | undefined): SourceLocation | undefined {
+  public async resolveFrames(frames: readonly string[] | undefined): Promise<SourceLocation | undefined> {
     if (!frames) return undefined;
 
     // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
@@ -60,7 +60,7 @@ export class SourceMapResolver {
       if (!isSupportedSourceFile(parsed.file)) return undefined;
       // The frame's file path is assembly-derived and attacker-influenceable.
       // Never read or surface a location outside the project.
-      if (!isWithinRoot(this.projectRoot, parsed.file)) return undefined;
+      if (!(await isWithinRoot(this.projectRoot, parsed.file))) return undefined;
       return this.mapJsToOriginalSource(parsed);
     }
     return undefined;
@@ -70,12 +70,12 @@ export class SourceMapResolver {
    * Map a .js location to its original .ts via a sibling .js.map. Returns the
    * input location unchanged when it isn't a .js file or has no usable map.
    */
-  private mapJsToOriginalSource(loc: SourceLocation): SourceLocation {
+  private async mapJsToOriginalSource(loc: SourceLocation): Promise<SourceLocation> {
     // Input is allow-listed to .ts/.tsx/.js by resolveFrames; .ts/.tsx are
     // already source-space, only .js needs mapping back to its original.
     if (!loc.file.endsWith('.js')) return loc;
 
-    const tracer = this.loadTraceMap(loc.file);
+    const tracer = await this.loadTraceMap(loc.file);
     if (!tracer) return loc;
 
     // trace-mapping uses 0-based columns, stack frames are 1-based.
@@ -88,15 +88,15 @@ export class SourceMapResolver {
     const file = orig.source.startsWith('file://') ? fileURLToPath(orig.source) : orig.source;
     // `sources` comes from the .js.map, which is also assembly-derived. Keep the
     // mapped original within the project, else fall back to the (in-root) .js.
-    if (!isWithinRoot(this.projectRoot, file)) return loc;
+    if (!(await isWithinRoot(this.projectRoot, file))) return loc;
     return { file, line: orig.line, column: orig.column + 1 };
   }
 
-  private loadTraceMap(jsFile: string): TraceMap | null {
+  private async loadTraceMap(jsFile: string): Promise<TraceMap | null> {
     const cached = this.cache.get(jsFile);
     if (cached !== undefined) return cached;
 
-    const tracer = this.readSourceMap(jsFile);
+    const tracer = await this.readSourceMap(jsFile);
     this.cache.set(jsFile, tracer);
     return tracer;
   }
@@ -107,10 +107,10 @@ export class SourceMapResolver {
    * any filename (resolved relative to the .js). Returns null when the file has
    * no map; warns when a referenced map exists but can't be read or parsed.
    */
-  private readSourceMap(jsFile: string): TraceMap | null {
+  private async readSourceMap(jsFile: string): Promise<TraceMap | null> {
     let code: string;
     try {
-      code = fs.readFileSync(jsFile, 'utf-8');
+      code = await fs.promises.readFile(jsFile, 'utf-8');
     } catch {
       return null; // .js not present/readable -> treat as "no map"
     }
@@ -121,16 +121,16 @@ export class SourceMapResolver {
       let mapUrl = pathToFileURL(jsFile).href;
       const converter =
         convertSourceMap.fromSource(code)
-        ?? convertSourceMap.fromMapFileSource(code, (mapFile) => {
+        ?? (await convertSourceMap.fromMapFileSource(code, async (mapFile) => {
           const mapPath = path.resolve(path.dirname(jsFile), mapFile);
           // sourceMappingURL is assembly-derived; don't read a map outside the
           // project. The throw is caught below and surfaced as a load warning.
-          if (!isWithinRoot(this.projectRoot, mapPath)) {
+          if (!(await isWithinRoot(this.projectRoot, mapPath))) {
             throw new Error(`source map path escapes the project root: ${mapPath}`);
           }
           mapUrl = pathToFileURL(mapPath).href;
-          return fs.readFileSync(mapPath, 'utf-8');
-        });
+          return fs.promises.readFile(mapPath, 'utf-8');
+        }));
       return converter ? new TraceMap(converter.toObject(), mapUrl) : null;
     } catch (err) {
       // A map was referenced but couldn't be read/parsed. Surface it once
@@ -166,16 +166,16 @@ function parseFrame(frame: string): SourceLocation | undefined {
  * to keep file reads driven by (attacker-influenceable) cloud-assembly paths
  * within the project before any read happens.
  */
-export function isWithinRoot(root: string, candidate: string): boolean {
-  const realRoot = realOrSelf(path.resolve(root));
-  const realCandidate = realOrSelf(path.resolve(candidate));
+export async function isWithinRoot(root: string, candidate: string): Promise<boolean> {
+  const realRoot = await realOrSelf(path.resolve(root));
+  const realCandidate = await realOrSelf(path.resolve(candidate));
   return realCandidate === realRoot || realCandidate.startsWith(realRoot + path.sep);
 }
 
 /** Real path with symlinks resolved, or the resolved input if it does not exist. */
-function realOrSelf(p: string): string {
+async function realOrSelf(p: string): Promise<string> {
   try {
-    return fs.realpathSync(p);
+    return await fs.promises.realpath(p);
   } catch {
     return p;
   }
