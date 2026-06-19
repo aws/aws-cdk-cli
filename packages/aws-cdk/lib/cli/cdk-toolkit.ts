@@ -14,7 +14,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   buildDestroyWorkGraph,
@@ -585,6 +585,9 @@ export class CdkToolkit {
    * Validate synthesized templates against policy rules
    */
   public async validate(options: ValidateOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const result = await this.toolkit.validate(this.props.cloudExecutable, options);
     return result.conclusion === 'failure' ? 1 : 0;
   }
@@ -593,6 +596,9 @@ export class CdkToolkit {
    * Diagnose errors
    */
   public async diagnose(options: DiagnoseOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const results = await this.toolkit.diagnose(this.props.cloudExecutable, options);
 
     if (results.stacks.some(s => s.result.type !== 'no-problem')) {
@@ -1270,7 +1276,7 @@ export class CdkToolkit {
     });
 
     this.validateStacksSelected(stacks, selector.patterns);
-    await this.validateStacks(stacks);
+    await this.validateStacks(assembly, stacks);
 
     return stacks;
   }
@@ -1296,7 +1302,7 @@ export class CdkToolkit {
       : new StackCollection(assembly, []);
 
     this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(selectedForDiff.concat(autoValidateStacks));
+    await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
   }
@@ -1316,9 +1322,9 @@ export class CdkToolkit {
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(stacks: StackCollection) {
+  private async validateStacks(assembly: CloudAssembly, stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.ioHost.asIoHelper(), this.props.verbose));
+    await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
   }
 
   private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
@@ -2087,31 +2093,6 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
   if (numUnconfigured > 0) {
     await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }
-}
-
-/**
- * Logger for processing stack metadata
- */
-function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
-  const makeLogger = (level: string): [logger: (m: string) => void, prefix: string] => {
-    switch (level) {
-      case 'error':
-        return [(m) => ioHelper.defaults.error(m), 'Error'];
-      case 'warn':
-        return [(m) => ioHelper.defaults.warn(m), 'Warning'];
-      default:
-        return [(m) => ioHelper.defaults.info(m), 'Info'];
-    }
-  };
-
-  return async (level, msg) => {
-    const [logFn, prefix] = makeLogger(level);
-    await logFn(`[${prefix} at ${msg.id}] ${msg.entry.data}`);
-
-    if (verbose && msg.entry.trace) {
-      logFn(`  ${msg.entry.trace.join('\n  ')}`);
-    }
-  };
 }
 
 interface WorkGraphDeploymentActionsOptions {

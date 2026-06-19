@@ -463,11 +463,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         cliRequireUnstable(configuration, 'diagnose');
         ioHost.currentAction = 'diagnose';
 
-        // Implicitly switch 'debug' mode to true, that is going to be most useful.
-        configuration.settings.temporarilyMutable((settings) => {
-          settings.set(['debug'], true);
-        });
-
         return cli.diagnose({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           concurrency: args.concurrency,
