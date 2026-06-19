@@ -13,7 +13,7 @@ export function hostMessageFromValidation(fileRoot: string, result: ValidateResu
 }
 
 export function formatValidateResult(fileRoot: string, result: ValidateResult): string {
-  return formatValidationReports(fileRoot, result.pluginReports).join('\n\n')
+  return formatValidationReports(fileRoot, result.pluginReports).join('\n\n');
 }
 
 export function formatValidationReports(fileRoot: string, reports: PluginReportJson[]): string[] {
