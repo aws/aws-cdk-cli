@@ -1,6 +1,7 @@
 import { once } from 'node:events';
 import * as net from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
+import * as chalk from 'chalk';
 import { enableHandleTracking, reportLeakedHandles, resetHandleTracking } from '../../lib/cli/debug-handles';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -31,7 +32,9 @@ test('reports a leaked timer with its type, plain-language description, and crea
 
   const lines = reportedLines();
   expect(lines[0]).toMatch(/^\d+ handle\(s\) still keeping the CLI process alive:$/);
-  expect(lines).toContainEqual('# Timeout (timer from setTimeout or setInterval)');
+  // The type heading is emitted via chalk.bold, so match it the same way to stay
+  // independent of whether color is active in the test environment.
+  expect(lines).toContainEqual(chalk.bold('# Timeout (timer from setTimeout or setInterval)'));
   // A creation site is reported as `file:line`. Which frame ends up on top of the
   // stack depends on the async call path, so we assert the shape, not the file.
   expect(lines.some((l) => /^ {2}created at .+:\d+$/.test(l))).toBe(true);
