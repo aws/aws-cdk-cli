@@ -695,7 +695,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (reports.length === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
     } else {
-      await ioHelper.notify(hostMessageFromValidation(result));
+      await ioHelper.notify(hostMessageFromValidation(process.cwd(), result));
     }
 
     return result;

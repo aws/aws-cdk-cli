@@ -86,7 +86,7 @@ export async function throwIfValidationFailures(
 
   const conclusion = combineConclusions(pluginReports);
   const result: ValidateResult = { conclusion, pluginReports };
-  await ioHelper.notify(hostMessageFromValidation(result));
+  await ioHelper.notify(hostMessageFromValidation(process.cwd(), result));
 
   switch (failAt) {
     case 'error':

@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { PluginReportJson, PolicyViolationJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import type { PluginReportJson, PolicyViolationJson, PolicyViolationSeverity, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import * as chalk from 'chalk';
 import type { ValidateResult } from '../../actions/validate';
 import type { ActionLessMessage } from '../io/private';
@@ -41,7 +41,7 @@ function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolatio
     const pluginName = report.pluginName;
 
     for (const violation of report.violations) {
-      const severity = normalizeSeverity(violation.severity);
+      const severity = normalizeSeverity(violation.severity, violation.customSeverity);
 
       for (const construct of violation.violatingConstructs) {
         result.push({ severity, description: violation.description, ruleName: violation.ruleName, pluginName, construct });
@@ -52,15 +52,16 @@ function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolatio
   return result;
 }
 
-function normalizeSeverity(severity: string | undefined): string {
-  if (!severity) return 'Warning';
-  const lower = severity.toLowerCase();
-  if (lower === 'fatal') return 'Fatal';
-  if (lower === 'error') return 'Error';
-  if (lower === 'warning') return 'Warning';
-  if (lower === 'info') return 'Info';
-  const safe = sanitize(severity);
-  return safe.charAt(0).toUpperCase() + safe.slice(1);
+function normalizeSeverity(severity: PolicyViolationSeverity, customSeverity?: string): string {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+    case 'warning':
+    case 'info':
+      return severity.toUpperCase();
+    case 'custom':
+      return customSeverity ?? 'INFO';
+  }
 }
 
 function formatViolationBlock(fileRoot: string, v: FlattenedViolation): string {

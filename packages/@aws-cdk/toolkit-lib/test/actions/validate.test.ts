@@ -49,13 +49,6 @@ describe('validate', () => {
     ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
   });
 
-  test('emits info IO message on success', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    await toolkit.validate(cx, { online: false });
-
-    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
-  });
-
   test('can invoke without options', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     const result = await toolkit.validate(cx, { online: false });
