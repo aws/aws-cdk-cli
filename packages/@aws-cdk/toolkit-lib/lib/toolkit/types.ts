@@ -160,3 +160,5 @@ export interface FeatureFlag {
   readonly explanation?: string;
   readonly unconfiguredBehavesLike?: { v2?: any };
 }
+
+export type MinimumSeverity = 'error' | 'warn' | 'none';
