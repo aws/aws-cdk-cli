@@ -524,6 +524,34 @@ describe('investigateResource for custom resources', () => {
     expect(logs!.messages[0]).toEqual('Logs from /explicit/group/name:');
   });
 
+  test('resolves a Ref log group with no explicit name via describeStackResources (CDK default)', async () => {
+    // The common CDK case: the AWS::Logs::LogGroup has no LogGroupName, so CloudFormation
+    // generates the physical name. We must resolve it via describeStackResources (which still
+    // returns the RETAINed group after rollback), not give up.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          MyCustomResource: { Type: 'Custom::MyThing', Properties: { ServiceToken: { 'Fn::GetAtt': ['ProviderFn', 'Arn'] } } },
+          ProviderFn: { Type: 'AWS::Lambda::Function', Properties: { LoggingConfig: { LogGroup: { Ref: 'FnLogs' } } } },
+          FnLogs: { Type: 'AWS::Logs::LogGroup', Properties: { RetentionInDays: 7 } }, // no LogGroupName
+        },
+      }),
+    });
+    // ServiceToken's ProviderFn and the log group's FnLogs are resolved by logical ID.
+    mockCloudFormationClient.on(DescribeStackResourcesCommand, { StackName: STACK_ARN, LogicalResourceId: 'ProviderFn' })
+      .resolves({ StackResources: [{ LogicalResourceId: 'ProviderFn', PhysicalResourceId: 'arn:aws:lambda:us-east-1:123456789012:function:provider-fn' } as any] });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand, { StackName: STACK_ARN, LogicalResourceId: 'FnLogs' })
+      .resolves({ StackResources: [{ LogicalResourceId: 'FnLogs', PhysicalResourceId: 'MyStack-FnLogs-GENERATED123' } as any] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: '/aws/lambda/provider-fn' }).resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: 'MyStack-FnLogs-GENERATED123' }).resolves({ events: [{ message: 'advanced logging line' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockLambdaClient).not.toHaveReceivedCommand(GetFunctionConfigurationCommand);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    expect(logs!.messages).toEqual(['Logs from MyStack-FnLogs-GENERATED123:', 'advanced logging line']);
+  });
+
   test('resolves a literal-ARN ServiceToken and fetches the failing stream from the convention group', async () => {
     mockCloudFormationClient.on(GetTemplateCommand).resolves({
       TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),

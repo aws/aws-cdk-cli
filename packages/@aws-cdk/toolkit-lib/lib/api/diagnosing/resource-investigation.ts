@@ -470,9 +470,11 @@ async function investigateCustomResource(
     return [];
   }
 
-  // Prefer the function's configured log group as read from the template (rollback-proof).
+  // Prefer the function's configured log group as derived from the template (rollback-proof).
   // Only resolvable when the function is defined in this stack (ServiceToken is a Ref/GetAtt).
-  const templateLogGroup = referencedLogicalId ? configuredLogGroupFromTemplate(template, referencedLogicalId) : undefined;
+  const templateLogGroup = referencedLogicalId
+    ? await resolveConfiguredLogGroup(cfn, stackName, template, referencedLogicalId, debug)
+    : undefined;
 
   // The cfn-response library writes the failing log stream name into the status reason
   // (and uses it as the default physical ID). Targeting it gives the exact invocation.
@@ -503,14 +505,26 @@ async function getStackTemplate(
 }
 
 /**
- * Read a backing Lambda's configured log group from the template, if it can be determined
- * without a live API call.
+ * Resolve the backing Lambda's configured log group from the template.
  *
- * Handles a literal `LoggingConfig.LogGroup`, and the common CDK shape where it is a `Ref`
- * to an `AWS::Logs::LogGroup` resource with a literal `LogGroupName`. Returns `undefined`
- * for unresolvable intrinsics (caller falls back to the live function configuration).
+ * The template survives rollback (when the live function may not), so it is the preferred
+ * source. Handles the function's `LoggingConfig.LogGroup` as:
+ * - a literal string (returned directly);
+ * - a `Ref` to an `AWS::Logs::LogGroup` with a literal `LogGroupName` (returned directly);
+ * - a `Ref` to an `AWS::Logs::LogGroup` whose name CloudFormation generates (the common CDK
+ *   case) — resolved to its physical name via `describeStackResources`, which still returns
+ *   RETAINed/orphaned resources after a rollback.
+ *
+ * Returns `undefined` when there is no configured log group or it can't be resolved
+ * (caller then falls back to the live function configuration).
  */
-function configuredLogGroupFromTemplate(template: any, functionLogicalId: string): string | undefined {
+async function resolveConfiguredLogGroup(
+  cfn: ICloudFormationClient,
+  stackName: string,
+  template: any,
+  functionLogicalId: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<string | undefined> {
   const logGroup = template.Resources?.[functionLogicalId]?.Properties?.LoggingConfig?.LogGroup;
   if (typeof logGroup === 'string') {
     return logGroup;
@@ -521,8 +535,29 @@ function configuredLogGroupFromTemplate(template: any, functionLogicalId: string
     if (typeof name === 'string') {
       return name;
     }
+    // No explicit name (CloudFormation generates it) — resolve the log-group resource's
+    // physical name, which is the log group name.
+    return resolvePhysicalId(cfn, stackName, logGroup.Ref, debug);
   }
   return undefined;
+}
+
+/**
+ * Resolve a resource's physical ID by logical ID. Returns `undefined` on failure.
+ */
+async function resolvePhysicalId(
+  cfn: ICloudFormationClient,
+  stackName: string,
+  logicalId: string,
+  debug: (msg: string) => Promise<void>,
+): Promise<string | undefined> {
+  try {
+    const resp = await cfn.describeStackResources({ StackName: stackName, LogicalResourceId: logicalId });
+    return resp.StackResources?.[0]?.PhysicalResourceId;
+  } catch (e: any) {
+    await debug(`Custom resource investigation: failed to resolve physical ID for "${logicalId}": ${e.message}`);
+    return undefined;
+  }
 }
 
 /**
@@ -537,14 +572,8 @@ async function resolveServiceTokenToFunctionName(
   debug: (msg: string) => Promise<void>,
 ): Promise<string | undefined> {
   if (referencedLogicalId) {
-    try {
-      const resp = await cfn.describeStackResources({ StackName: stackName, LogicalResourceId: referencedLogicalId });
-      const physicalId = resp.StackResources?.[0]?.PhysicalResourceId;
-      return physicalId ? functionNameFromArnOrName(physicalId) : undefined;
-    } catch (e: any) {
-      await debug(`Custom resource investigation: failed to resolve ServiceToken reference "${referencedLogicalId}": ${e.message}`);
-      return undefined;
-    }
+    const physicalId = await resolvePhysicalId(cfn, stackName, referencedLogicalId, debug);
+    return physicalId ? functionNameFromArnOrName(physicalId) : undefined;
   }
 
   if (typeof serviceToken === 'string') {
