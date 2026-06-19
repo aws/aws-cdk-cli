@@ -229,7 +229,7 @@ describe('StackCollection', () => {
 
       // THEN
       expect(selected.stackCount).toBe(1);
-      await expect(async () => selected.validateMetadata()).rejects.toThrow(/Found errors/);
+      await expect(async () => selected.validateMetadata()).rejects.toThrow(/Synthesis finished with errors/);
     });
 
     test('do throw when selecting stack with warnings and we are on strict mode', async () => {
@@ -243,7 +243,7 @@ describe('StackCollection', () => {
 
       // THEN
       expect(selected.stackCount).toBe(1);
-      await expect(async () => selected.validateMetadata('warn')).rejects.toThrow(/Found warnings/);
+      await expect(async () => selected.validateMetadata('warn')).rejects.toThrow(/Synthesis finished with warnings/);
     });
   });
 });
