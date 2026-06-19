@@ -74,6 +74,7 @@ describe('Bootstrapping v2', () => {
       type: 'did-deploy-stack',
       noOp: false,
       deleteFailures: [],
+      stabilizingResources: [],
       outputs: {},
       stackArn: 'arn:stack',
     });
@@ -468,6 +469,7 @@ describe('Bootstrapping v2', () => {
         type: 'did-deploy-stack',
         noOp: false,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:stack',
       });
@@ -755,6 +757,7 @@ describe('Bootstrapping v2', () => {
           type: 'did-deploy-stack',
           noOp: false,
           deleteFailures: [],
+          stabilizingResources: [],
           outputs: {},
           stackArn: 'arn:stack',
         });

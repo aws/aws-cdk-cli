@@ -330,6 +330,10 @@ export const IO = {
     code: 'CDK_TOOLKIT_I5901',
     description: 'Generic deployment success messages',
   }),
+  CDK_TOOLKIT_W5902: make.warn({
+    code: 'CDK_TOOLKIT_W5902',
+    description: 'Express Mode deployment completed with resources still stabilizing',
+  }),
   CDK_TOOLKIT_W5400: make.warn({
     code: 'CDK_TOOLKIT_W5400',
     description: 'Hotswap disclosure message',

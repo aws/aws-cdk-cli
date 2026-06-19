@@ -545,6 +545,7 @@ export class CdkToolkit {
       extraUserAgent: options.extraUserAgent,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
+      express: options.express,
     });
 
     const startDeployTime = Date.now();
@@ -1711,6 +1712,11 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Whether to use CloudFormation express mode for the current deployment
+   */
+  readonly express?: boolean;
 }
 
 export interface RollbackOptions {
@@ -1822,6 +1828,11 @@ export interface DestroyOptions {
    * Maximum number of simultaneous destroys (dependency permitting) to execute.
    */
   concurrency?: number;
+
+  /**
+   * Whether to use CloudFormation express mode to delete the stack(s)
+   */
+  express?: boolean;
 }
 
 /**
@@ -2108,6 +2119,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly concurrency: number;
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
+  readonly express?: boolean;
 }
 
 /**
@@ -2263,6 +2275,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       notificationArns,
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
+      express: this.options.express,
     };
 
     // When using change-set method, always create the change set upfront.
@@ -2427,6 +2440,17 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
       elapsedDeployTime = new Date().getTime() - startDeployTime;
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
+
+      if (deployResult.stabilizingResources.length > 0 && this.options.express) {
+        const maxNamed = 5;
+        const names = deployResult.stabilizingResources.map((r) => r.logicalResourceId);
+        const shown = names.slice(0, maxNamed).join(', ');
+        const remaining = names.length - maxNamed;
+        const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
+        await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W5902.msg(
+          chalk.yellow(`⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`),
+        ));
+      }
 
       if (Object.keys(deployResult.outputs).length > 0) {
         await this.ioHost.asIoHelper().defaults.info('Outputs:');

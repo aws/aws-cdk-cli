@@ -116,6 +116,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5900` | Deployment results on success | `result` | {@link SuccessfulDeployStackResult} |
 | `CDK_TOOLKIT_I5901` | Generic deployment success messages | `info` | n/a |
+| `CDK_TOOLKIT_W5902` | Express Mode deployment completed with resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_W5400` | Hotswap disclosure message | `warn` | n/a |
 | `CDK_TOOLKIT_E5001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E5500` | Stack Monitoring error | `error` | {@link ErrorPayload} |

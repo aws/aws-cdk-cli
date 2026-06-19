@@ -995,6 +995,13 @@ export interface DeployOptions {
   readonly revertDrift?: boolean;
 
   /**
+   * Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
+
+  /**
    * Positional argument for deploy
    */
   readonly STACKS?: Array<string>;
@@ -1363,6 +1370,13 @@ export interface DestroyOptions {
    * @default - 1
    */
   readonly concurrency?: number;
+
+  /**
+   * Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
 
   /**
    * Positional argument for destroy

@@ -883,6 +883,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         notificationArns,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
+        express: options.express,
       };
 
       // When using change-set method, always create the change set upfront.
@@ -1031,6 +1032,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green('\n' + message), deployResult));
         deployDuration = await deploySpan.timing(IO.CDK_TOOLKIT_I5000);
+
+        if (deployResult.stabilizingResources.length > 0 && options.express) {
+          const maxNamed = 5;
+          const names = deployResult.stabilizingResources.map((r) => r.logicalResourceId);
+          const shown = names.slice(0, maxNamed).join(', ');
+          const remaining = names.length - maxNamed;
+          const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
+          await ioHelper.notify(IO.CDK_TOOLKIT_W5902.msg(
+            chalk.yellow(`⚠️ Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}`),
+          ));
+        }
 
         if (Object.keys(deployResult.outputs).length > 0) {
           const buffer = ['Outputs:'];
@@ -1638,6 +1650,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
+            express: options.express,
           });
 
           ret.stacks.push({

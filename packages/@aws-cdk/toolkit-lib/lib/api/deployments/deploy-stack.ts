@@ -195,6 +195,11 @@ export interface DeployStackOptions {
    * The class that diagnoses CloudFormation errors
    */
   readonly diagnoser: CloudFormationStackDiagnoser;
+
+  /**
+   * Whether to use express mode to deploy
+   */
+  readonly express?: boolean;
 }
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
@@ -279,6 +284,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       outputs: cloudFormationStack.outputs,
       stackArn: cloudFormationStack.stackId,
       deleteFailures: [],
+      stabilizingResources: [],
     };
   } else {
     await ioHelper.defaults.debug(`${deployName}: deploying...`);
@@ -346,6 +352,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       await ioHelper.defaults.info('Falling back to doing a full deployment');
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
+      options = { ...options, express: true };
     } else {
       return {
         type: 'did-deploy-stack',
@@ -353,6 +360,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         stackArn: cloudFormationStack.stackId,
         outputs: cloudFormationStack.outputs,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
   }
@@ -464,6 +472,7 @@ class FullCloudFormationDeployment {
         outputs: this.cloudFormationStack.outputs,
         stackArn: changeSetDescription.StackId!,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
 
@@ -479,6 +488,7 @@ class FullCloudFormationDeployment {
         stackArn: changeSetDescription.StackId!,
         changeSet: changeSetDescription,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
 
@@ -544,6 +554,10 @@ class FullCloudFormationDeployment {
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
       ...this.commonPrepareOptions(),
+      DeploymentConfig: {
+        Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
+        ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+      },
     });
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
@@ -624,6 +638,10 @@ class FullCloudFormationDeployment {
         const stack = await this.cfn.updateStack({
           StackName: this.stackName,
           ClientRequestToken: `update${this.uuid}`,
+          DeploymentConfig: {
+            Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
+            ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+          },
           ...this.commonPrepareOptions(),
           ...this.commonExecuteOptions(),
         });
@@ -637,6 +655,7 @@ class FullCloudFormationDeployment {
             outputs: this.cloudFormationStack.outputs,
             stackArn: this.cloudFormationStack.stackId,
             deleteFailures: [],
+            stabilizingResources: [],
           };
         }
         throw err;
@@ -648,6 +667,10 @@ class FullCloudFormationDeployment {
       const stack = await this.cfn.createStack({
         StackName: this.stackName,
         ClientRequestToken: `create${this.uuid}`,
+        DeploymentConfig: {
+          Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
+          ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+        },
         ...(terminationProtection ? { EnableTerminationProtection: true } : undefined),
         ...this.commonPrepareOptions(),
         ...this.commonExecuteOptions(),
@@ -702,6 +725,7 @@ class FullCloudFormationDeployment {
       outputs: finalState.outputs,
       stackArn: finalState.stackId,
       deleteFailures: this.update ? monitor.deleteFailures : [],
+      stabilizingResources: monitor.stabilizingResources,
     };
   }
 
@@ -745,6 +769,7 @@ export interface DestroyStackOptions {
   sdk: SDK;
   roleArn?: string;
   deployName?: string;
+  express?: boolean;
 }
 
 export interface DestroyStackResult {
@@ -774,7 +799,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
   await monitor.start();
 
   try {
-    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID() });
+    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID(), DeploymentConfig: { Mode: options.express ? 'EXPRESS' : 'STANDARD' } });
     const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');

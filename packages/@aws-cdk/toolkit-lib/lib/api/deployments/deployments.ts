@@ -150,6 +150,11 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   */
+  readonly express?: boolean;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -258,6 +263,7 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
+  express?: boolean;
 }
 
 export interface StackExistsOptions {
@@ -418,6 +424,7 @@ export class Deployments {
         topLevelStackHierarchicalId: options.stack.hierarchicalId,
         additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
       }),
+      express: options.express,
     }, this.ioHelper);
   }
 
@@ -643,6 +650,7 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
+      express: options.express,
     }, this.ioHelper);
   }
 

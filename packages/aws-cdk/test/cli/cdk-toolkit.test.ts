@@ -132,6 +132,7 @@ beforeEach(async () => {
     type: 'did-deploy-stack',
     stackArn: 'fake-arn',
     deleteFailures: [],
+    stabilizingResources: [],
   });
 
   cloudExecutable = await MockCloudExecutable.create({
@@ -293,6 +294,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       mockCfnDeployments.deployStack.mockResolvedValue({
@@ -301,6 +303,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -343,6 +346,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       mockCfnDeployments.deployStack.mockResolvedValue({
@@ -351,6 +355,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -393,6 +398,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -419,6 +425,117 @@ describe('deploy', () => {
       );
     });
 
+    test('passes express flag through to deployStack', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+        express: true,
+      });
+
+      // THEN
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          express: true,
+        }),
+      );
+    });
+
+    test('warns about resources still stabilizing in Express Mode', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+        express: true,
+      });
+
+      // THEN
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+        message: expect.stringContaining('still stabilizing: MyBucket'),
+      }));
+    });
+
+    test('does not warn about stabilizing resources when not in Express Mode', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN
+      expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+      }));
+    });
+
     test('skips deploy when prepare returns noOp', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);
@@ -429,6 +546,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -460,6 +578,7 @@ describe('deploy', () => {
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -499,6 +618,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const cdkToolkit = new CdkToolkit({
@@ -535,6 +655,7 @@ describe('deploy', () => {
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
       const outputsFile = path.join(os.tmpdir(), `cdk-outputs-${Date.now()}.json`);
@@ -575,6 +696,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
       });
 
@@ -612,6 +734,7 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
 
@@ -645,12 +768,13 @@ describe('deploy', () => {
         outputs: {},
         stackArn: 'stackArn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       });
       // First deploy: needs rollback. Second deploy: succeeds.
       mockCfnDeployments.deployStack
         .mockResolvedValueOnce({ type: 'failpaused-need-rollback-first', status: 'UPDATE_ROLLBACK_FAILED', reason: 'not-norollback' })
-        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn', deleteFailures: [] });
+        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn', deleteFailures: [], stabilizingResources: [] });
       mockCfnDeployments.rollbackStack.mockResolvedValue({ success: true, stackArn: 'stackArn' });
 
       // Auto-confirm rollback prompt
@@ -743,6 +867,7 @@ describe('deploy', () => {
           outputs: {},
           stackArn: 'stackArn',
           deleteFailures: [],
+          stabilizingResources: [],
           stackArtifact: instanceMockFrom(cxapi.CloudFormationStackArtifact),
         }),
       );
@@ -1741,6 +1866,107 @@ describe('deploy', () => {
   });
 });
 
+describe('destroy', () => {
+  test('destroy correct stack', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    expect(() => {
+      return toolkit.destroy({
+        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
+        exclusively: true,
+        force: true,
+        fromDeploy: true,
+      });
+    }).resolves;
+  });
+
+  test('passes express flag through to destroyStack', async () => {
+    // GIVEN
+    const mockCfnDeployments = instanceMockFrom(Deployments);
+    mockCfnDeployments.destroyStack.mockResolvedValue({});
+
+    const cdkToolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: mockCfnDeployments,
+    });
+
+    // WHEN
+    await cdkToolkit.destroy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    // THEN
+    expect(mockCfnDeployments.destroyStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        express: true,
+      }),
+    );
+  });
+
+  test('destroy with concurrency', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.destroy({
+      selector: { patterns: ['*'] },
+      exclusively: false,
+      force: true,
+      concurrency: 5,
+    });
+  });
+
+  test('destroy respects dependency order with concurrency', async () => {
+    const stackC: TestStackArtifact = {
+      stackName: 'Test-Stack-C',
+      template: { Resources: { TemplateName: 'Test-Stack-C' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+    };
+    const stackD: TestStackArtifact = {
+      stackName: 'Test-Stack-D',
+      template: { Resources: { TemplateName: 'Test-Stack-D' } },
+      env: 'aws://123456789012/bermuda-triangle-1',
+      depends: [stackC.stackName],
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [stackC, stackD],
+    });
+
+    const destroyOrder: string[] = [];
+    const fakeDeployments = new FakeCloudFormation({
+      'Test-Stack-C': { Baz: 'Zinga!' },
+      'Test-Stack-D': { Baz: 'Zinga!' },
+    });
+    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
+    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
+      destroyOrder.push(options.stack.stackName);
+      return originalDestroyStack(options);
+    };
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: fakeDeployments,
+    });
+
+    await toolkit.destroy({
+      selector: { allTopLevel: true, patterns: [] },
+      exclusively: false,
+      force: true,
+      concurrency: 10,
+    });
+
+    // stackD depends on stackC, so D must be destroyed before C
+    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
+  });
+});
+
 describe('watch', () => {
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
@@ -2396,6 +2622,7 @@ describe('rollback', () => {
         outputs: {},
         stackArn: 'stack:arn',
         deleteFailures: [],
+        stabilizingResources: [],
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
       })
       // Second call: execute-change-set returns the test's expected result
@@ -2407,6 +2634,7 @@ describe('rollback', () => {
         outputs: {},
         stackArn: 'stack:arn',
         deleteFailures: [],
+        stabilizingResources: [],
       });
 
     // respond with yes
@@ -2629,6 +2857,7 @@ class FakeCloudFormation extends Deployments {
       outputs: { StackName: options.stack.stackName },
       stackArtifact: options.stack,
       deleteFailures: [],
+      stabilizingResources: [],
     });
   }
 

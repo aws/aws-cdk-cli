@@ -86,6 +86,7 @@ export class BootstrapStack {
         outputs: {},
         stackArn: this.currentToolkitInfo.bootstrapStack.stackId,
         deleteFailures: [],
+        stabilizingResources: [],
       } satisfies SuccessfulDeployStackResult;
 
       // Validate that the bootstrap stack we're trying to replace is from the same variant as the one we're trying to deploy

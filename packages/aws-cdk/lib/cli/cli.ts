@@ -448,6 +448,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+          express: args.express,
         });
 
       case 'validate':
@@ -544,6 +545,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           force: args.force,
           roleArn: args.roleArn,
           concurrency: args.concurrency,
+          express: args.express,
         });
 
       case 'gc':

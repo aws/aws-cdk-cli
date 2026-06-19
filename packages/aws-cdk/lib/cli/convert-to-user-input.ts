@@ -149,6 +149,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
         revertDrift: args.revertDrift,
+        express: args.express,
         STACKS: args.STACKS,
       };
       break;
@@ -229,6 +230,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         force: args.force,
         concurrency: args.concurrency,
+        express: args.express,
         STACKS: args.STACKS,
       };
       break;
@@ -477,6 +479,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
+    express: config.deploy?.express,
   };
   const validateOptions = {
     online: config.validate?.online,
@@ -529,6 +532,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.destroy?.exclusively,
     force: config.destroy?.force,
     concurrency: config.destroy?.concurrency,
+    express: config.destroy?.express,
   };
   const diffOptions = {
     exclusively: config.diff?.exclusively,

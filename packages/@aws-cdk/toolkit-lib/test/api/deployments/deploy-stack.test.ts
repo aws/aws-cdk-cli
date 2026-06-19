@@ -2,9 +2,11 @@ import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
+  CreateStackCommandInput,
   ExecuteChangeSetCommandInput,
   Stack,
   Change,
+  UpdateStackCommandInput,
 } from '@aws-sdk/client-cloudformation';
 import {
   ChangeSetStatus,
@@ -250,7 +252,8 @@ test('prints revert-drift recommendation on successful hotswap deployment', asyn
     noOp: false,
     stackArn: 'arn:stack',
     outputs: {},
-    deleteFailures: [],
+    deleteFailures: [], 
+    stabilizingResources: [],
   });
 
   // WHEN
@@ -274,7 +277,7 @@ describe('hotswap template cache', () => {
     // GIVEN
     (tryHotswapDeployment as jest.Mock).mockImplementation(async () => {
       await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {});
-      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [] };
+      return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [], stabilizingResources: [] };
     });
 
     // WHEN
@@ -1324,6 +1327,151 @@ describe('revert-drift', () => {
     });
     const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
     expect(calls[0].args[0].input.IncludeNestedStacks).toBeUndefined();
+  });
+});
+
+describe('express mode', () => {
+  test('passes EXPRESS mode in DeploymentConfig when creating a new stack via change-set', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set' },
+      express: true,
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+      }),
+    } as CreateChangeSetCommandInput);
+  });
+
+  test('passes STANDARD mode in DeploymentConfig by default', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set' },
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'STANDARD',
+      }),
+    } as CreateChangeSetCommandInput);
+  });
+
+  test('passes EXPRESS mode in DeploymentConfig when creating a stack via method=direct', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'direct' },
+      express: true,
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateStackCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+      }),
+    } as CreateStackCommandInput);
+  });
+
+  test('passes EXPRESS mode in DeploymentConfig when updating an existing stack via method=direct', async () => {
+    // GIVEN
+    givenStackExists();
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'direct' },
+      express: true,
+      forceDeployment: true,
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(UpdateStackCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+      }),
+    } as UpdateStackCommandInput);
+  });
+
+  test('express mode with rollback=true passes DisableRollback: false', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'direct' },
+      express: true,
+      rollback: true,
+    });
+
+    // THEN
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateStackCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+        DisableRollback: false,
+      }),
+    } as CreateStackCommandInput);
+  });
+
+  test('express mode without rollback does not pass DisableRollback', async () => {
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'direct' },
+      express: true,
+    });
+
+    // THEN
+    const calls = mockCloudFormationClient.commandCalls(CreateStackCommand);
+    expect(calls[0].args[0].input.DeploymentConfig).toEqual({
+      Mode: 'EXPRESS',
+    });
+  });
+
+  test('hotswap fallback enables express mode automatically', async () => {
+    // GIVEN - hotswap returns undefined (failure), triggering fallback
+    (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    });
+
+    // THEN - the fallback change-set deployment uses express mode
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+      }),
+    } as CreateChangeSetCommandInput);
+  });
+
+  test('hotswap fallback with method=direct enables express mode automatically', async () => {
+    // GIVEN - hotswap returns undefined (failure), triggering fallback
+    (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
+
+    // WHEN
+    await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'hotswap', fallback: { method: 'direct' } },
+    });
+
+    // THEN - the fallback direct deployment uses express mode
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateStackCommand, {
+      ...expect.anything,
+      DeploymentConfig: expect.objectContaining({
+        Mode: 'EXPRESS',
+      }),
+    } as CreateStackCommandInput);
   });
 });
 

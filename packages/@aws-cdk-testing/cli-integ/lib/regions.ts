@@ -52,6 +52,20 @@ export const STACK_REFACTORING_REGIONS = allBut([
 ]);
 
 /**
+ * Regions that support CloudFormation Express Mode deployments.
+ *
+ * Express Mode is currently limited to a subset of regions. If it becomes
+ * generally available, this can be switched to `allBut([...])` or removed.
+ */
+export const EXPRESS_MODE_REGIONS = [
+  'us-east-1',
+  'us-east-2',
+  'us-west-1',
+  'us-west-2',
+  'eu-central-1',
+];
+
+/**
  * Regions that don't support AWS::Bedrock::Agent
  */
 export const BEDROCK_AGENT_REGIONS = allBut([

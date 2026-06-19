@@ -631,6 +631,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default',
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
@@ -869,6 +874,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'number',
           desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.',
           requiresArg: true,
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default',
         }),
     )
     .command(

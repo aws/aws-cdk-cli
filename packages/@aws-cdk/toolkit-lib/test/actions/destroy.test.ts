@@ -94,6 +94,20 @@ describe('destroy', () => {
     expect(mockDestroyStack).toHaveBeenCalledTimes(2);
   });
 
+  test('express option is passed in', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      express: true,
+    });
+
+    // THEN
+    expect(mockDestroyStack).toHaveBeenCalledWith(expect.objectContaining({
+      express: true,
+    }));
+  });
+
   test('action disposes of assembly produced by source', async () => {
     // GIVEN
     const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);

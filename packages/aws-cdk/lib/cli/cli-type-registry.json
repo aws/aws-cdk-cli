@@ -597,6 +597,11 @@
           "type": "boolean",
           "desc": "Create a drift-aware change set that brings actual resource states in line with template definitions",
           "default": false
+        },
+        "express": {
+          "type": "boolean",
+          "desc": "Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default",
+          "default": false
         }
       },
       "arg": {
@@ -855,6 +860,11 @@
           "desc": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
           "default": 1,
           "requiresArg": true
+        },
+        "express": {
+          "type": "boolean",
+          "desc": "Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default",
+          "default": false
         }
       }
     },
