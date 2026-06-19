@@ -686,14 +686,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       }
     }
 
+    const hasAnyViolations = reports.some(report => report.violations && report.violations.length > 0);
+
     const result: ValidateResult = {
       conclusion: combineConclusions(reports),
       title: undefined,
       pluginReports: reports,
     };
 
-    if (reports.length === 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_I9601.msg('No validation plugins configured. Add a plugin to your CDK app to enable validation.'));
+    if (!hasAnyViolations) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_I9600.msg('Validation did not find any problems.', result));
     } else {
       await ioHelper.notify(hostMessageFromValidation(process.cwd(), result));
     }

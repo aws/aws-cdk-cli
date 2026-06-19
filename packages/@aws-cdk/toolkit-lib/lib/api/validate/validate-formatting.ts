@@ -9,7 +9,7 @@ export function hostMessageFromValidation(fileRoot: string, result: ValidateResu
   // Always emit at info level so the CLI IoHost doesn't wrap the entire output
   // in a single color. The formatter handles per-severity coloring internally.
   // Consumers detect failure via the structured `data.conclusion` field or exit code.
-  return IO.CDK_TOOLKIT_I9600.msg(formatValidateResult(fileRoot, result), result);
+  return IO.CDK_TOOLKIT_E9600.msg(formatValidateResult(fileRoot, result), result);
 }
 
 export function formatValidateResult(fileRoot: string, result: ValidateResult): string {

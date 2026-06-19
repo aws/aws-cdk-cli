@@ -7,6 +7,6 @@ integTest(
       ['--unstable=validate', 'validate', fixture.fullStackName('validate-passing')],
     );
 
-    expect(output).toContain('Policy validation passed. No problems found.');
+    expect(output).toContain('Validation did not find any problems.');
   }),
 );
