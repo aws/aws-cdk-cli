@@ -66,7 +66,7 @@ function ViolationItem({ violation }: { readonly violation: WebViolation }): JSX
   );
 }
 
-function severityStyle(severity: string | undefined): React.CSSProperties {
+function severityStyle(severity: string): React.CSSProperties {
   return { color: severityHexColor(severity), fontWeight: 700 };
 }
 

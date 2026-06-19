@@ -27,8 +27,8 @@ export function classifyReportSeverity(
 }
 
 /** Lower-cased severity so 'Error'/'ERROR'/'error' all match (mirroring cdk validate). */
-function normalize(severity: string | undefined): string {
-  return (severity ?? '').toLowerCase();
+function normalize(severity: string): string {
+  return severity.toLowerCase();
 }
 
 /**
@@ -47,7 +47,7 @@ const SEVERITY_RANK: Record<string, number> = { fatal: 0, error: 1, warning: 2, 
  * labels rank just after `info`, matching cdk validate's handling of unknown
  * severities.
  */
-export function severityRank(severity: string | undefined): number {
+export function severityRank(severity: string): number {
   return SEVERITY_RANK[normalize(severity)] ?? 4;
 }
 
@@ -62,6 +62,6 @@ const SEVERITY_HEX: Record<string, string> = {
  * Text color for a severity label, mirroring cdk validate (fatal red, error
  * orange, warning amber, info blue); custom and unrecognized labels render gray.
  */
-export function severityHexColor(severity: string | undefined): string {
+export function severityHexColor(severity: string): string {
   return SEVERITY_HEX[normalize(severity)] ?? '#5f6b7a';
 }
