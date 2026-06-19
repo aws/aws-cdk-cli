@@ -11,6 +11,29 @@ import type { ResourceError } from '../stack-events/resource-errors';
  */
 const MAX_LOG_LINES = 50;
 
+/** Fallback look-back when no failure timestamp is available. */
+const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * Turn raw CloudWatch log event messages into the trimmed lines we render.
+ *
+ * Keeps only the most recent {@link MAX_LOG_LINES} (newer output is more useful for
+ * diagnosis) and prepends an "N earlier lines omitted" marker when truncation happened.
+ * This is the single truncation point shared by all CloudWatch contexts — the formatter
+ * renders the result verbatim.
+ */
+function trimToRecentLines(events: Array<{ message?: string }>): string[] {
+  const allMessages = events
+    .map(e => e.message?.trimEnd())
+    .filter((m): m is string => m != null);
+  const messages = allMessages.slice(-MAX_LOG_LINES);
+  const omitted = allMessages.length - messages.length;
+  if (omitted > 0) {
+    messages.unshift(`... (${omitted} earlier lines omitted)`);
+  }
+  return messages;
+}
+
 /**
  * Options that influence how a resource is investigated.
  */
@@ -350,7 +373,7 @@ async function fetchRecentLogs(
 
     const resp = await cwl.filterLogEvents({
       logGroupName: logConfig.logGroup,
-      startTime: Date.now() - 30 * 60 * 1000,
+      startTime: Date.now() - FALLBACK_LOG_WINDOW_MS,
       limit: 1000,
       ...(targetStream
         ? { logStreamNames: [targetStream] }
@@ -363,16 +386,7 @@ async function fetchRecentLogs(
       return undefined;
     }
 
-    // Keep the most recent lines (newer output is more useful for diagnosis).
-    // This is the only truncation point — the formatter renders these verbatim.
-    const allMessages = events
-      .map(e => e.message?.trimEnd())
-      .filter((m): m is string => m != null);
-    const messages: string[] = allMessages.slice(-MAX_LOG_LINES);
-    const omitted = allMessages.length - messages.length;
-    if (omitted > 0) {
-      messages.unshift(`... (${omitted} earlier lines omitted)`);
-    }
+    const messages = trimToRecentLines(events);
 
     if (taskIds.length > 1) {
       messages.push(`(showing logs from last failed task; ${taskIds.length - 1} other failed task(s) available in console)`);
@@ -402,9 +416,6 @@ async function fetchRecentLogs(
  */
 const LOG_WINDOW_BEFORE_MS = 2 * 60 * 1000;
 const LOG_WINDOW_AFTER_MS = 15 * 60 * 1000;
-
-/** Fallback look-back when no failure timestamp is available (matches the ECS path). */
-const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
 
 /**
  * Investigate a failed custom resource by surfacing its backing Lambda's CloudWatch logs.
@@ -654,13 +665,7 @@ async function filterLogLines(
       await debug(`Custom resource investigation: no log events in ${logGroup}${streamName ? ` (stream: ${streamName})` : ''}`);
       return undefined;
     }
-    const allMessages = events.map(e => e.message?.trimEnd()).filter((m): m is string => m != null);
-    const messages = allMessages.slice(-MAX_LOG_LINES);
-    const omitted = allMessages.length - messages.length;
-    if (omitted > 0) {
-      messages.unshift(`... (${omitted} earlier lines omitted)`);
-    }
-    return messages;
+    return trimToRecentLines(events);
   } catch (e: any) {
     await debug(`Custom resource investigation: failed to fetch logs from ${logGroup}: ${e.message}`);
     return undefined;
