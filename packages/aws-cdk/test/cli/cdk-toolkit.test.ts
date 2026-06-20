@@ -1883,7 +1883,7 @@ describe('destroy', () => {
   test('passes express flag through to destroyStack', async () => {
     // GIVEN
     const mockCfnDeployments = instanceMockFrom(Deployments);
-    mockCfnDeployments.destroyStack.mockResolvedValue({});
+    mockCfnDeployments.destroyStack.mockResolvedValue({ stabilizingResources: [] });
 
     const cdkToolkit = new CdkToolkit({
       ioHost,
@@ -1907,6 +1907,70 @@ describe('destroy', () => {
         express: true,
       }),
     );
+  });
+
+  test('warns about resources still tearing down in Express Mode', async () => {
+    // GIVEN
+    const mockCfnDeployments = instanceMockFrom(Deployments);
+    mockCfnDeployments.destroyStack.mockResolvedValue({
+      stackArn: 'arn',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    const cdkToolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: mockCfnDeployments,
+    });
+
+    // WHEN
+    await cdkToolkit.destroy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    // THEN
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
+      message: expect.stringContaining('still tearing down: MyBucket'),
+    }));
+  });
+
+  test('does not warn about tearing down resources when not in Express Mode', async () => {
+    // GIVEN
+    const mockCfnDeployments = instanceMockFrom(Deployments);
+    mockCfnDeployments.destroyStack.mockResolvedValue({
+      stackArn: 'arn',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    const cdkToolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: mockCfnDeployments,
+    });
+
+    // WHEN
+    await cdkToolkit.destroy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      force: true,
+    });
+
+    // THEN
+    expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
+    }));
   });
 
   test('destroy with concurrency', async () => {
@@ -2870,7 +2934,7 @@ class FakeCloudFormation extends Deployments {
 
   public destroyStack(options: DestroyStackOptions): Promise<DestroyStackResult> {
     expect(options.stack).toBeDefined();
-    return Promise.resolve({ stackArn: 'arn' });
+    return Promise.resolve({ stackArn: 'arn', stabilizingResources: [] });
   }
 
   public readCurrentTemplate(stack: cxapi.CloudFormationStackArtifact): Promise<Template> {

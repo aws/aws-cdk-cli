@@ -29,6 +29,7 @@ import type { DeployStackResult, SuccessfulDeployStackResult } from './deploymen
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, ExecuteChangeSetDeployment } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
+import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
@@ -780,6 +781,14 @@ export interface DestroyStackResult {
    * but this value will be undefined.
    */
   readonly stackArn?: string;
+
+  /**
+   * Resources that reported deletion as complete but are still tearing down.
+   *
+   * Non-empty only for Express Mode deletions, where CloudFormation reports a
+   * resource as `DELETE_COMPLETE` while it continues tearing down asynchronously.
+   */
+  readonly stabilizingResources: StabilizingResource[];
 }
 
 export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHelper): Promise<DestroyStackResult> {
@@ -788,7 +797,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
 
   const currentStack = await CloudFormationStack.lookup(cfn, deployName);
   if (!currentStack.exists) {
-    return {};
+    return { stabilizingResources: [] };
   }
   const monitor = new StackActivityMonitor({
     cfn,
@@ -805,7 +814,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }
 
-    return { stackArn: currentStack.stackId };
+    return { stackArn: currentStack.stackId, stabilizingResources: monitor.stabilizingResources };
   } catch (e: any) {
     throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages), monitor.errors.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {

@@ -130,6 +130,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
 | `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
+| `CDK_TOOLKIT_W7902` | Express Mode deletion completed with resources still tearing down | `warn` | n/a |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |

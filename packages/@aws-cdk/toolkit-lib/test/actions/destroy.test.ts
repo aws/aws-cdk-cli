@@ -17,7 +17,7 @@ beforeEach(() => {
   ioHost.requestSpy.mockClear();
   jest.clearAllMocks();
 
-  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({});
+  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({ stabilizingResources: [] });
 });
 
 describe('destroy', () => {
@@ -59,6 +59,48 @@ describe('destroy', () => {
       action: 'destroy',
       level: 'result',
       message: expect.stringContaining(`${chalk.blue('Stack1')}${chalk.green(': destroyed')}`),
+    }));
+  });
+
+  test('warns about resources still tearing down in Express Mode', async () => {
+    // GIVEN
+    mockDestroyStack.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      express: true,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
+      message: expect.stringContaining('still tearing down: MyBucket'),
+    }));
+  });
+
+  test('does not warn about tearing down resources when not in Express Mode', async () => {
+    // GIVEN
+    mockDestroyStack.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.destroy(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
+
+    // THEN
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
     }));
   });
 

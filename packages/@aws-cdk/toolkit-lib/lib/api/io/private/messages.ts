@@ -404,6 +404,11 @@ export const IO = {
     interface: 'cxapi.CloudFormationStackArtifact',
   }),
 
+  CDK_TOOLKIT_W7902: make.warn({
+    code: 'CDK_TOOLKIT_W7902',
+    description: 'Express Mode deletion completed with resources still tearing down',
+  }),
+
   CDK_TOOLKIT_E7010: make.error({
     code: 'CDK_TOOLKIT_E7010',
     description: 'Action was aborted due to negative confirmation of request',

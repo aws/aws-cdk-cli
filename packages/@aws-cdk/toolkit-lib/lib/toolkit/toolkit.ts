@@ -1040,7 +1040,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           const remaining = names.length - maxNamed;
           const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
           await ioHelper.notify(IO.CDK_TOOLKIT_W5902.msg(
-            chalk.yellow(`⚠️ Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}`),
+            chalk.yellow(`⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`),
           ));
         }
 
@@ -1664,6 +1664,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           });
 
           await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
+
+          if (result.stabilizingResources.length > 0 && options.express) {
+            const maxNamed = 5;
+            const names = result.stabilizingResources.map((r) => r.logicalResourceId);
+            const shown = names.slice(0, maxNamed).join(', ');
+            const remaining = names.length - maxNamed;
+            const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
+            await ioHelper.notify(IO.CDK_TOOLKIT_W7902.msg(
+              chalk.yellow(`⚠️  Stack deleted using Express Mode. Resources still tearing down: ${resourceList}\n`),
+            ));
+          }
+
           await singleDestroySpan.end();
         } catch (e: any) {
           await ioHelper.notify(IO.CDK_TOOLKIT_E7900.msg(`\n ❌  ${chalk.blue(stack.displayName)}: ${action} failed ${e}`, { error: e }));
