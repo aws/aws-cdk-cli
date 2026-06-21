@@ -42,7 +42,7 @@ const fakeChokidarWatch = {
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get ignoredFn(): (path: string) => boolean {
+  get ignoredFn(): (path: string, stats?: Stats) => boolean {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
     // the ignored function is a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
@@ -50,8 +50,16 @@ const fakeChokidarWatch = {
   },
 };
 
+// Chokidar v4 invokes the `ignored` callback with the file system stats of the
+// entry being considered, which the matcher uses to distinguish files from
+// directories (a directory is traversed even when it doesn't itself match a
+// file glob, so nested matching files can be discovered).
+const FILE = { isFile: () => true, isDirectory: () => false } as unknown as Stats;
+const DIR = { isFile: () => false, isDirectory: () => true } as unknown as Stats;
+
 jest.setTimeout(30_000);
 
+import type { Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
@@ -1843,9 +1851,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(false); // included - not ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(false); // included - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // not included - ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(false); // included - not ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(false); // included - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // not included - ignored
   });
 
   test("allows providing an array of strings in 'watch.include'", async () => {
@@ -1862,9 +1870,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(false); // matches first pattern - not ignored
-    expect(ignoredFn('nested/my-dir2/file.ts')).toBe(false); // matches second pattern - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // matches neither - ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(false); // matches first pattern - not ignored
+    expect(ignoredFn('nested/my-dir2/file.ts', FILE)).toBe(false); // matches second pattern - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // matches neither - ignored
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1880,11 +1888,11 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('cdk.out/stack.template.json')).toBe(true); // output dir - ignored
-    expect(ignoredFn('.hidden')).toBe(true); // dot file - ignored
-    expect(ignoredFn('.git/config')).toBe(true); // dot directory - ignored
-    expect(ignoredFn('node_modules/package/index.js')).toBe(true); // node_modules - ignored
-    expect(ignoredFn('src/app.ts')).toBe(false); // regular file - not ignored
+    expect(ignoredFn('cdk.out/stack.template.json', FILE)).toBe(true); // output dir - ignored
+    expect(ignoredFn('.hidden', FILE)).toBe(true); // dot file - ignored
+    expect(ignoredFn('.git/config', FILE)).toBe(true); // dot directory - ignored
+    expect(ignoredFn('node_modules/package/index.js', FILE)).toBe(true); // node_modules - ignored
+    expect(ignoredFn('src/app.ts', FILE)).toBe(false); // regular file - not ignored
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1901,9 +1909,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(true); // excluded - ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(true); // excluded - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // not excluded - not ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(true); // excluded - ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(true); // excluded - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // not excluded - not ignored
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1920,10 +1928,10 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('my-dir1/file.ts')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('nested/my-dir2')).toBe(true); // matches second exclude - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // matches neither exclude - not ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('my-dir1/file.ts', FILE)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('nested/my-dir2', DIR)).toBe(true); // matches second exclude - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // matches neither exclude - not ignored
   });
 
   test('allows watching with deploy concurrency', async () => {
