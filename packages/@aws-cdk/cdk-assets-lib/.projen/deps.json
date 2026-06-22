@@ -199,11 +199,6 @@
       "type": "runtime"
     },
     {
-      "name": "archiver",
-      "version": "^7.0.1",
-      "type": "runtime"
-    },
-    {
       "name": "fast-glob",
       "version": "^3.3.3",
       "type": "runtime"
@@ -215,6 +210,11 @@
     },
     {
       "name": "picomatch",
+      "type": "runtime"
+    },
+    {
+      "name": "yazl",
+      "version": "^3.3.1",
       "type": "runtime"
     }
   ],

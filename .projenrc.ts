@@ -716,8 +716,8 @@ const tools = defineTools({
   parent: repo,
   tools: {
     zip: {
-      deps: ['archiver@^7.0.1', 'fast-glob@^3.3.3'],
-      devDeps: ['@types/archiver', 'jszip'],
+      deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
+      devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
     },
   },
 });
@@ -1223,7 +1223,7 @@ const cli = configureProject(
     devDeps: [
       yargsGen,
       cliPluginContract,
-      '@types/archiver',
+      '@types/yazl',
       '@types/fs-extra@^11',
       '@types/mockery',
       '@types/picomatch',
@@ -1252,7 +1252,7 @@ const cli = configureProject(
       // Already bundled by the CLI: depend on the private tools package
       // directly (the bundler inlines it and dedupes its transitive deps).
       tools,
-      'archiver',
+      'yazl',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDep('@aws-sdk/client-cloudformation'),
