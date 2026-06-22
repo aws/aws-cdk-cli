@@ -1,4 +1,4 @@
-import type { IntegRunnerOptions } from './runner-base';
+import type { CdkIntegHelperOptions } from './cdk-integ-helper';
 import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
 
 /**
@@ -6,7 +6,7 @@ import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
  *
  * Only the toolkit-lib engine is supported.
  */
-export function makeEngine(options: IntegRunnerOptions): ToolkitLibRunnerEngine {
+export function makeEngine(options: CdkIntegHelperOptions): ToolkitLibRunnerEngine {
   return new ToolkitLibRunnerEngine({
     workingDirectory: options.test.directory,
     showOutput: options.showOutput,
