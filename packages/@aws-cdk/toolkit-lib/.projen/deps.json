@@ -345,11 +345,6 @@
       "type": "runtime"
     },
     {
-      "name": "archiver",
-      "version": "^7.0.1",
-      "type": "runtime"
-    },
-    {
       "name": "cdk-from-cfn",
       "type": "runtime"
     },
@@ -402,6 +397,11 @@
     {
       "name": "yaml",
       "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "yazl",
+      "version": "^3.3.1",
       "type": "runtime"
     }
   ],

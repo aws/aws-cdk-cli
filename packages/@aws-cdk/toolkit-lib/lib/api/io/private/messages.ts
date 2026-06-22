@@ -508,7 +508,7 @@ export const IO = {
   // validate (96xx)
   CDK_TOOLKIT_I9600: make.info<ValidateResult>({
     code: 'CDK_TOOLKIT_I9600',
-    description: 'Policy validation passed',
+    description: 'Validation did not find any problems',
     interface: 'ValidateResult',
   }),
 

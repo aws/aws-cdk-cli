@@ -131,7 +131,7 @@ describe('synth', () => {
     });
 
     // WHEN
-    await expect(toolkit.synth(cx)).rejects.toThrow(/Found errors/);
+    await expect(toolkit.synth(cx)).rejects.toThrow(/Synthesis finished with errors/);
 
     // There should not be a lock remaining in the given output directory
     const lock = new RWLock(synthDir.dir);

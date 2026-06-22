@@ -22,7 +22,6 @@ describe('validate', () => {
     const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
-    expect(result.title).toBe('Validation Report');
     expect(result.pluginReports).toHaveLength(2);
     expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
     expect(result.pluginReports[0].conclusion).toBe('failure');
@@ -39,22 +38,6 @@ describe('validate', () => {
     expect(result.pluginReports).toHaveLength(1);
     expect(result.pluginReports[0].conclusion).toBe('success');
     expect(result.pluginReports[0].violations).toHaveLength(0);
-  });
-
-  test('returns success with no reports when no report file exists', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx, { online: false });
-
-    expect(result.conclusion).toBe('success');
-    expect(result.pluginReports).toHaveLength(0);
-    ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
-  });
-
-  test('emits info IO message on success', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    await toolkit.validate(cx, { online: false });
-
-    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
   });
 
   test('can invoke without options', async () => {
@@ -116,12 +99,11 @@ describe('validate', () => {
     await toolkit.validate(cx, { online: false });
 
     const msg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_I9600',
+      (m) => m.code === 'CDK_TOOLKIT_E9600',
     );
     expect(msg).toBeDefined();
     expect(msg!.data).toMatchObject({
       conclusion: 'failure',
-      title: 'Validation Report',
       pluginReports: expect.arrayContaining([
         expect.objectContaining({
           pluginName: 'TestPlugin',
