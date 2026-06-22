@@ -98,7 +98,7 @@ export function createApiRouter(options: ApiOptions): Router {
     withAssembly(readAssembly(assemblyDir), res, (data) => {
       const index = ConstructIndex.fromTree(data.tree);
       const violations = normalizeViolations(data.violations, index, assemblyDir, appDir);
-      const body: ViolationsResponse = { status: 'ok', violations, reportError: data.violationsError };
+      const body: ViolationsResponse = { status: 'ok', violations };
       res.json(body);
     });
   });

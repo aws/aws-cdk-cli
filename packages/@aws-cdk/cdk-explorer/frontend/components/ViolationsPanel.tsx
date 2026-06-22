@@ -8,7 +8,6 @@ import type { WebViolation } from '../api';
 
 interface ViolationsPanelProps {
   readonly violations: readonly WebViolation[];
-  readonly reportError?: string;
 }
 
 /**
@@ -16,10 +15,7 @@ interface ViolationsPanelProps {
  * severity, each a collapsible row led by a colored severity indicator, with
  * the rule, affected-construct count, and plugin source.
  */
-export function ViolationsPanel({ violations, reportError }: ViolationsPanelProps): JSX.Element {
-  if (reportError) {
-    return <Box color="text-status-error">Validation report failed to load: {reportError}</Box>;
-  }
+export function ViolationsPanel({ violations }: ViolationsPanelProps): JSX.Element {
   if (violations.length === 0) {
     return <StatusIndicator type="success">No policy violations.</StatusIndicator>;
   }

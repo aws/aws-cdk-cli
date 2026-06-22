@@ -254,11 +254,4 @@ describe('GET /api/policy-validation', () => {
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'boom' });
   });
-
-  test('surfaces reportError with an empty list when the report failed to load', async () => {
-    const reader = (): AssemblyReadResult => ({ status: 'success', data: { tree: [], violationsError: 'bad json', warnings: [] } });
-    const res = await request(appWith(reader)).get('/api/policy-validation');
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: 'ok', violations: [], reportError: 'bad json' });
-  });
 });

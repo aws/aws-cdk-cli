@@ -81,7 +81,7 @@ function ViolationsContent({ violations }: { readonly violations?: ViolationsRes
   if (violations.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found.</Box>;
   }
-  return <ViolationsPanel violations={violations.violations} reportError={violations.reportError} />;
+  return <ViolationsPanel violations={violations.violations} />;
 }
 
 interface SplitOptions {

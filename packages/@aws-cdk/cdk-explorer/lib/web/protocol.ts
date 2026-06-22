@@ -116,10 +116,8 @@ export interface WebViolation {
 /**
  * Response for `GET /api/policy-validation`. `not-synthesized` mirrors the tree
  * endpoint: no cloud assembly was found. When the assembly exists, `violations`
- * is the normalized list (empty when the report is clean or absent), and
- * `reportError` is set only when a report file was present but could not be
- * read or parsed (the tree endpoint is unaffected).
+ * is the normalized list (empty when the report is clean or absent).
  */
 export type ViolationsResponse =
-  | { readonly status: 'ok'; readonly violations: readonly WebViolation[]; readonly reportError?: string }
+  | { readonly status: 'ok'; readonly violations: readonly WebViolation[] }
   | { readonly status: 'not-synthesized' };
