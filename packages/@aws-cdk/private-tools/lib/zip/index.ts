@@ -1,12 +1,14 @@
 import { createWriteStream, promises as fs } from 'fs';
 import * as path from 'path';
-import { Writable } from 'stream';
 import type { Options } from 'fast-glob';
 import { globSync } from 'fast-glob';
+import { ZipFile } from 'yazl';
 
-// namespace object imports won't work in the bundle for function exports
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const archiver = require('archiver');
+/**
+ * Fixed epoch used for every entry so that equal content yields an equal
+ * zip (deterministic output, stable content hash).
+ */
+const EPOCH = new Date('1980-01-01T00:00:00.000Z');
 
 /**
  * Receives informational messages (e.g. retries on EPERM on Windows).
@@ -49,21 +51,15 @@ export function zipString(fileName: string, rawString: string): Promise<Buffer> 
   return new Promise((resolve, reject) => {
     const buffers: Buffer[] = [];
 
-    const converter = new Writable();
-    converter._write = (chunk: Buffer, _: string, callback: () => void) => {
-      buffers.push(chunk);
-      process.nextTick(callback);
-    };
-    converter.on('finish', () => resolve(Buffer.concat(buffers)));
+    const zip = new ZipFile();
+    zip.outputStream.on('data', (chunk: Buffer) => buffers.push(chunk));
+    zip.outputStream.on('error', reject);
+    zip.outputStream.on('end', () => resolve(Buffer.concat(buffers)));
 
-    const archive = archiver('zip');
-    archive.on('error', reject);
-    archive.pipe(converter);
-    archive.append(rawString, {
-      name: fileName,
-      date: new Date('1980-01-01T00:00:00.000Z'),
+    zip.addBuffer(Buffer.from(rawString), fileName, {
+      mtime: EPOCH, // reset date to get the same hash for the same content
     });
-    void archive.finalize();
+    zip.end();
   });
 }
 
@@ -80,18 +76,15 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
     };
     const files = globSync('**', globOptions); // The output here is already sorted
 
+    const zip = new ZipFile();
+    zip.outputStream.on('error', fail);
+
     const output = createWriteStream(outputFile);
-
-    const archive = archiver('zip');
-    archive.on('warning', fail);
-    archive.on('error', fail);
-
-    // archive has been finalized and the output file descriptor has closed, resolve promise
-    // this has to be done before calling `finalize` since the events may fire immediately after.
-    // see https://www.npmjs.com/package/archiver
+    output.on('error', fail);
+    // resolve once the output file descriptor has closed
     output.once('close', ok);
 
-    archive.pipe(output);
+    zip.outputStream.pipe(output);
 
     // Append files serially to ensure file order
     for (const file of files) {
@@ -99,14 +92,13 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
       // There are exactly 2 promises
       // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
       const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
-      archive.append(data, {
-        name: file,
-        date: new Date('1980-01-01T00:00:00.000Z'), // reset dates to get the same hash for the same content
+      zip.addBuffer(data, file, {
+        mtime: EPOCH, // reset dates to get the same hash for the same content
         mode: stat.mode,
       });
     }
 
-    await archive.finalize();
+    zip.end();
   });
 }
 
