@@ -10,16 +10,16 @@
       "type": "build"
     },
     {
-      "name": "@types/archiver",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },
     {
       "name": "@types/node",
       "version": "^20",
+      "type": "build"
+    },
+    {
+      "name": "@types/yazl",
       "type": "build"
     },
     {
@@ -102,13 +102,13 @@
       "type": "build"
     },
     {
-      "name": "archiver",
-      "version": "^7.0.1",
+      "name": "fast-glob",
+      "version": "^3.3.3",
       "type": "runtime"
     },
     {
-      "name": "fast-glob",
-      "version": "^3.3.3",
+      "name": "yazl",
+      "version": "^3.3.1",
       "type": "runtime"
     }
   ],

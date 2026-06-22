@@ -28,7 +28,6 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
-      "archiver",
       "fs-extra",
       "jest",
       "mockery",
@@ -37,7 +36,8 @@
       "promptly",
       "semver",
       "sinon",
-      "yargs"
+      "yargs",
+      "yazl"
     ],
     "incremental": true,
     "skipLibCheck": true,

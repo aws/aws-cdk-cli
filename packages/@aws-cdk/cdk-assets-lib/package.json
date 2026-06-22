@@ -77,10 +77,10 @@
     "@aws-sdk/lib-storage": "^3",
     "@smithy/config-resolver": "^4",
     "@smithy/node-config-provider": "^4",
-    "archiver": "^7.0.1",
     "fast-glob": "^3.3.3",
     "mime": "^2",
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.4",
+    "yazl": "^3.3.1"
   },
   "keywords": [
     "aws",

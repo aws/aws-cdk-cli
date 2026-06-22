@@ -25,9 +25,9 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
-      "archiver",
       "jest",
-      "node"
+      "node",
+      "yazl"
     ],
     "incremental": true,
     "skipLibCheck": true,
