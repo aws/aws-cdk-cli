@@ -73,8 +73,8 @@ export interface LspHandlers {
   onInitialize(params: InitializeParams): InitializeResult;
   onInitialized(): void;
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
-  onCodeLens(params: CodeLensParams): CodeLens[];
-  onDefinition(params: DefinitionParams): Location | undefined;
+  onCodeLens(params: CodeLensParams): Promise<CodeLens[]>;
+  onDefinition(params: DefinitionParams): Promise<Location | undefined>;
   onShutdown(): void;
 }
 
@@ -223,7 +223,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     onCodeLens(params) {
       return codeLensesForFile(cachedIndex, params.textDocument.uri);
     },
-    onDefinition(params) {
+    async onDefinition(params) {
       // Only synthesized templates link back to source, and only file: URIs are
       // readable. Check the scheme before fileURLToPath, which throws on other
       // schemes (untitled:, git:, diff views).
@@ -234,7 +234,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       const filePath = fileURLToPath(uri);
       let templateText: string;
       try {
-        templateText = fs.readFileSync(filePath, 'utf-8');
+        templateText = await fs.promises.readFile(filePath, 'utf-8');
       } catch {
         return undefined;
       }

@@ -24,11 +24,11 @@ interface CommandChoice {
 }
 
 describe('codeLensesForFile', () => {
-  test('returns no lenses when tree is empty', () => {
-    expect(codeLensesForFile(ConstructIndex.fromTree([]), URI)).toEqual([]);
+  test('returns no lenses when tree is empty', async () => {
+    expect(await codeLensesForFile(ConstructIndex.fromTree([]), URI)).toEqual([]);
   });
 
-  test('returns no lenses for non-resource wrapper nodes (no logicalId)', () => {
+  test('returns no lenses for non-resource wrapper nodes (no logicalId)', async () => {
     // L2 wrapper: has sourceLocation but no logicalId/cfnType — they live on
     // its `Resource` child. Wrappers shouldn't get their own lens.
     const tree = [node({
@@ -36,10 +36,10 @@ describe('codeLensesForFile', () => {
       sourceLocation: { file: FILE, line: 12, column: 5 },
       // logicalId/type intentionally omitted
     })];
-    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
+    expect(await codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
   });
 
-  test('emits one lens per resource on its source line', () => {
+  test('emits one lens per resource on its source line', async () => {
     const tree = [node({
       path: 'Stack1/MyBucket/Resource',
       logicalId: 'MyBucketF68F3FF0',
@@ -47,7 +47,7 @@ describe('codeLensesForFile', () => {
       sourceLocation: { file: FILE, line: 12, column: 5 },
     })];
 
-    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
+    const lenses = await codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].range).toEqual({
       start: { line: 11, character: 0 },
@@ -56,7 +56,7 @@ describe('codeLensesForFile', () => {
     expect(lenses[0].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
-  test('groups multiple resources on the same source line into one lens', () => {
+  test('groups multiple resources on the same source line into one lens', async () => {
     // L2 like Bucket can produce Bucket + BucketPolicy + Key, all anchored
     // to the same `new s3.Bucket(...)` line. One lens, listing all.
     const tree = [
@@ -80,12 +80,12 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
+    const lenses = await codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].command?.title).toBe('Creates 3 resources: AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::KMS::Key');
   });
 
-  test('emits separate lenses for resources on different lines', () => {
+  test('emits separate lenses for resources on different lines', async () => {
     const tree = [
       node({
         path: 'Stack1/A',
@@ -101,12 +101,12 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
+    const lenses = await codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(2);
     expect(lenses.map((l) => l.range.start.line).sort((a, b) => a - b)).toEqual([9, 19]);
   });
 
-  test('filters out resources from other files', () => {
+  test('filters out resources from other files', async () => {
     const tree = [
       node({
         path: 'Stack1/A',
@@ -125,15 +125,15 @@ describe('codeLensesForFile', () => {
     const index = ConstructIndex.fromTree(tree);
     // Each query returns only the resource defined in that file, which proves the
     // URI filter selects by file rather than returning everything for any query.
-    const onThisFile = codeLensesForFile(index, URI);
+    const onThisFile = await codeLensesForFile(index, URI);
     expect(onThisFile).toHaveLength(1);
     expect(onThisFile[0].command?.title).toBe('Creates AWS::S3::Bucket');
-    const onOtherFile = codeLensesForFile(index, OTHER_URI);
+    const onOtherFile = await codeLensesForFile(index, OTHER_URI);
     expect(onOtherFile).toHaveLength(1);
     expect(onOtherFile[0].command?.title).toBe('Creates AWS::SQS::Queue');
   });
 
-  test('walks descendants — finds resources nested under wrappers', () => {
+  test('walks descendants — finds resources nested under wrappers', async () => {
     const tree = [
       node({
         path: 'Stack1',
@@ -155,12 +155,12 @@ describe('codeLensesForFile', () => {
       }),
     ];
 
-    const lenses = codeLensesForFile(ConstructIndex.fromTree(tree), URI);
+    const lenses = await codeLensesForFile(ConstructIndex.fromTree(tree), URI);
     expect(lenses).toHaveLength(1);
     expect(lenses[0].command?.title).toContain('AWS::S3::Bucket');
   });
 
-  test('omits resources without sourceLocation (non-TS apps)', () => {
+  test('omits resources without sourceLocation (non-TS apps)', async () => {
     const tree = [node({
       path: 'Stack1/MyBucket/Resource',
       logicalId: 'MyBucketF68F3FF0',
@@ -168,10 +168,10 @@ describe('codeLensesForFile', () => {
       // sourceLocation omitted — non-TS app
     })];
 
-    expect(codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
+    expect(await codeLensesForFile(ConstructIndex.fromTree(tree), URI)).toEqual([]);
   });
 
-  test('a single resource with a resolvable template gets a clickable openResource command', () => {
+  test('a single resource with a resolvable template gets a clickable openResource command', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
     const templateFile = path.join(dir, 'Stack1.template.json');
     fs.writeFileSync(templateFile, JSON.stringify({ Resources: { MyBucketF68F3FF0: { Type: 'AWS::S3::Bucket' } } }, null, 2));
@@ -184,7 +184,7 @@ describe('codeLensesForFile', () => {
         sourceLocation: { file: FILE, line: 12, column: 5 },
       })];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = (await codeLensesForFile(ConstructIndex.fromTree(tree), URI))[0];
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       const choices = (lens.command!.arguments as CommandChoice[][])[0];
       expect(choices).toHaveLength(1);
@@ -200,7 +200,7 @@ describe('codeLensesForFile', () => {
     }
   });
 
-  test('a multi-resource line carries all resolvable resources as choices', () => {
+  test('a multi-resource line carries all resolvable resources as choices', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
     const templateFile = path.join(dir, 'Stack1.template.json');
     fs.writeFileSync(templateFile, JSON.stringify({
@@ -212,7 +212,7 @@ describe('codeLensesForFile', () => {
         node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile, sourceLocation: { file: FILE, line: 12, column: 5 } }),
       ];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = (await codeLensesForFile(ConstructIndex.fromTree(tree), URI))[0];
       const uri = pathToFileURL(templateFile).toString();
       expect(lens.command?.command).toBe(OPEN_RESOURCE_COMMAND);
       const choices = (lens.command!.arguments as CommandChoice[][])[0];
@@ -229,18 +229,18 @@ describe('codeLensesForFile', () => {
     }
   });
 
-  test('a multi-resource line with no resolvable templates stays title-only', () => {
+  test('a multi-resource line with no resolvable templates stays title-only', async () => {
     const tree = [
       node({ path: 'Stack1/B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
       node({ path: 'Stack1/B/Policy', logicalId: 'B2', type: 'AWS::S3::BucketPolicy', templateFile: '/no/such.json', sourceLocation: { file: FILE, line: 12, column: 5 } }),
     ];
 
-    const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+    const lens = (await codeLensesForFile(ConstructIndex.fromTree(tree), URI))[0];
     expect(lens.command?.command).toBe('');
     expect(lens.command?.arguments).toBeUndefined();
   });
 
-  test('a single resource whose id is missing from the template degrades to title-only', () => {
+  test('a single resource whose id is missing from the template degrades to title-only', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codelens-'));
     const templateFile = path.join(dir, 'Stack1.template.json');
     fs.writeFileSync(templateFile, JSON.stringify({ Resources: { SomethingElse: { Type: 'AWS::S3::Bucket' } } }, null, 2));
@@ -253,7 +253,7 @@ describe('codeLensesForFile', () => {
         sourceLocation: { file: FILE, line: 12, column: 5 },
       })];
 
-      const lens = codeLensesForFile(ConstructIndex.fromTree(tree), URI)[0];
+      const lens = (await codeLensesForFile(ConstructIndex.fromTree(tree), URI))[0];
       expect(lens.command?.command).toBe('');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

@@ -232,7 +232,7 @@ describe('LSP Server', () => {
     expect(client.published[0].diagnostics).toHaveLength(1);
   });
 
-  test('responds to codeLens with resources for the requested file', () => {
+  test('responds to codeLens with resources for the requested file', async () => {
     const stackTs = '/p/lib/stack.ts';
     const stackUri = pathToFileURL(stackTs).toString();
 
@@ -259,7 +259,7 @@ describe('LSP Server', () => {
 
     initializeClient(client, { applicationDir: '/p' });
 
-    const lenses = client.handlers.onCodeLens({
+    const lenses = await client.handlers.onCodeLens({
       textDocument: { uri: stackUri },
     });
 
@@ -348,7 +348,7 @@ describe('LSP Server', () => {
     expect(client.watcherClosed).toHaveBeenCalledTimes(1);
   });
 
-  test('onDefinition resolves a template position back to construct source', () => {
+  test('onDefinition resolves a template position back to construct source', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-def-'));
     const templateFile = path.join(dir, 'Stack1.template.json');
     const text = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
@@ -376,7 +376,7 @@ describe('LSP Server', () => {
 
       const uri = pathToFileURL(templateFile).toString();
       const position = TextDocument.create(uri, 'json', 0, text).positionAt(text.indexOf('AWS::S3::Bucket'));
-      const target = client.handlers.onDefinition({ textDocument: { uri }, position });
+      const target = await client.handlers.onDefinition({ textDocument: { uri }, position });
 
       expect(target?.uri).toBe(pathToFileURL('/p/lib/stack.ts').toString());
       expect(target?.range.start).toEqual({ line: 4, character: 2 }); // 1-based (5,3) -> 0-based
@@ -385,21 +385,21 @@ describe('LSP Server', () => {
     }
   });
 
-  test('onDefinition returns undefined for a non-template document', () => {
+  test('onDefinition returns undefined for a non-template document', async () => {
     const client = createTestClient();
     initializeClient(client, { applicationDir: '/p' });
-    const target = client.handlers.onDefinition({
+    const target = await client.handlers.onDefinition({
       textDocument: { uri: pathToFileURL('/p/lib/stack.ts').toString() },
       position: { line: 0, character: 0 },
     });
     expect(target).toBeUndefined();
   });
 
-  test('onDefinition returns undefined (does not throw) for a non-file URI', () => {
+  test('onDefinition returns undefined (does not throw) for a non-file URI', async () => {
     const client = createTestClient();
     initializeClient(client, { applicationDir: '/p' });
     expect(
-      client.handlers.onDefinition({
+      await client.handlers.onDefinition({
         textDocument: { uri: 'untitled:Untitled-1' },
         position: { line: 0, character: 0 },
       }),
