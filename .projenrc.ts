@@ -1712,6 +1712,10 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
 
+// for PRs resolving security alerts we accept a shorter cooldown
+// given those are normally patch versions on top of already "cold" versions.
+const dependabotSecurityCooldown = 3;
+
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
     version: 2,
@@ -1719,6 +1723,9 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
       {
         'package-ecosystem': 'npm',
         'schedule': { interval: 'daily' },
+        'cooldown': {
+          'default-days': dependabotSecurityCooldown,
+        },
         // disable version updates, leaving only security updates.
         // see https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-security-updates#overriding-the-default-behavior-with-a-configuration-file
         'open-pull-requests-limit': 0,

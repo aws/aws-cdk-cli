@@ -5,6 +5,8 @@ updates:
   - package-ecosystem: npm
     schedule:
       interval: daily
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 0
     labels:
       - auto-approve
