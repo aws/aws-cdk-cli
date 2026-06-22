@@ -717,7 +717,7 @@ const tools = defineTools({
   tools: {
     zip: {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
-      devDeps: ['@types/yazl', 'jszip'],
+      devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
     },
   },
 });
@@ -1703,10 +1703,18 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects.
 
-// We prefer the projen updates, but Dependabot acts as a fallback in case
-// they get blocked. Dependabot also handles emergent security updates.
-// Because of that, we configure Dependabot cooldowns to a week.
+// We also want daily dependabot PRs in case they resolve
+// security alerts - and those need to be auto-approved as well.
+
+// configure a cooldown period so we don't grab fresh package versions
+// that haven't been battletested for security vulnurabilities yet.
+// note that for PRs that FIX a security alert, we skip the cooldown
+// since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
+
+// for PRs resolving security alerts we accept a shorter cooldown
+// given those are normally patch versions on top of already "cold" versions.
+const dependabotSecurityCooldown = 3;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
@@ -1714,14 +1722,14 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
-        'schedule': { interval: 'weekly' },
+        'schedule': { interval: 'daily' },
         'cooldown': {
-          'default-days': dependabotCooldown,
+          'default-days': dependabotSecurityCooldown,
         },
+        // disable version updates, leaving only security updates.
+        // see https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-security-updates#overriding-the-default-behavior-with-a-configuration-file
+        'open-pull-requests-limit': 0,
         'labels': ['auto-approve'],
-        'allow': [{
-          'dependency-type': 'production',
-        }],
         'ignore': repoProject.subprojects
           .map(p => ({ 'dependency-name': p.name }))
           .sort((a, b) => a['dependency-name'].localeCompare(b['dependency-name'])),

@@ -186,6 +186,7 @@ describe('IntegTest runSnapshotTests', () => {
         }),
         integOutDir: 'does/not/exist',
       });
+      integTest.dontCareAboutLegacyLookupsForTests();
 
       // THEN
       expect(await integTest.actualTests()).toEqual(expect.objectContaining({
@@ -208,6 +209,7 @@ describe('IntegTest runSnapshotTests', () => {
         }),
         integOutDir: 'does/not/exist',
       });
+      integTest.dontCareAboutLegacyLookupsForTests();
 
       // THEN
       expect(await integTest.actualTests()).toEqual(expect.objectContaining({

@@ -1,0 +1,5 @@
+{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"request","action":"none","level":"info","code":"CDK_TOOLKIT_I7010","message":"Are you sure you want to delete: Test-Stack-B","response":true}
+{"seq":3,"type":"notify","action":"none","level":"info","code":null,"message":"Test-Stack-B: destroying... [1/1]"}
+{"seq":4,"type":"notify","action":"none","level":"info","code":null,"message":"\n ✅  Test-Stack-B: destroyed"}

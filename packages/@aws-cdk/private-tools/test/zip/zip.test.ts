@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as jszip from 'jszip';
+import * as timezoneMock from 'timezone-mock';
 import { zipDirectory, zipString } from '../../lib/zip';
 
 const exec = promisify(_exec);
@@ -151,5 +152,54 @@ describe('zipString', () => {
     const a = await zipString('f.txt', 'same');
     const b = await zipString('f.txt', 'same');
     expect(contentHash(a)).toEqual(contentHash(b));
+  });
+});
+
+describe('timezone independence (regression)', () => {
+  // Regression guard: the produced archive must be byte-for-byte identical and
+  // its entry dates must reset to the fixed epoch regardless of the machine's
+  // timezone. A previous implementation derived the entry timestamp from a UTC
+  // instant, which yazl re-encodes using *local* time components, so archives
+  // built in a non-UTC timezone (e.g. Australia/Adelaide, +09:30) came out with
+  // shifted timestamps and different bytes — breaking cross-machine asset
+  // hashing.
+  //
+  // `timezone-mock` patches the global `Date` to simulate a zone. Because the
+  // epoch is built lazily inside `zipString`, simulating the zone around the
+  // call is enough — no module reloading is needed (and reloading would crash
+  // yazl, which builds out-of-range `Date`s at module load that timezone-mock
+  // rejects). Jest fake timers cannot be used here: they mock the clock, not
+  // the timezone offset.
+  afterEach(() => {
+    timezoneMock.unregister();
+  });
+
+  async function zipUnderTimezone(zone: timezoneMock.TimeZone): Promise<{ hash: string; date: string }> {
+    let buffer: Buffer;
+    timezoneMock.register(zone);
+    try {
+      buffer = await zipString('hello.txt', 'hello world');
+    } finally {
+      timezoneMock.unregister();
+    }
+    // Read back with the real Date so the decoded date is interpreted consistently.
+    const date = (await jszip.loadAsync(buffer)).files['hello.txt'].date.toISOString();
+    return { hash: contentHash(buffer), date };
+  }
+
+  test('resets dates and produces identical bytes across timezones', async () => {
+    const utc = await zipUnderTimezone('UTC');
+    const adelaide = await zipUnderTimezone('Australia/Adelaide'); // +09:30 (half-hour offset)
+    const pacific = await zipUnderTimezone('US/Pacific'); // negative offset
+
+    // The readable entry date is always the fixed epoch ...
+    for (const result of [utc, adelaide, pacific]) {
+      expect(result.date).toBe('1980-01-01T00:00:00.000Z');
+    }
+
+    // ... and the raw archive bytes are identical regardless of timezone, so
+    // asset hashes stay stable across machines.
+    expect(adelaide.hash).toBe(utc.hash);
+    expect(pacific.hash).toBe(utc.hash);
   });
 });

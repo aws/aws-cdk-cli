@@ -93,6 +93,10 @@
       "type": "build"
     },
     {
+      "name": "timezone-mock",
+      "type": "build"
+    },
+    {
       "name": "ts-jest",
       "type": "build"
     },
