@@ -3,15 +3,12 @@ import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, D
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
-import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
-
-jest.setTimeout(20_000);
+import { mockCloudFormationClient, mockSSMClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -24,7 +21,9 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
-  jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  // Keep the real SdkProvider hermetic: hand out MockSdks and never resolve
+  // ambient credentials (which can spawn `credential_process` helpers and hang).
+  mockSdkProvider();
 
   jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
