@@ -580,8 +580,10 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      '@types/json-source-map@^0.6.0',
     ],
     deps: [
+      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -1686,6 +1688,7 @@ const cdkExplorer = configureProject(
       'vscode-languageserver-textdocument@^1',
       'vscode-jsonrpc@^8',
       'express@^4',
+      'chokidar@^4',
       '@jridgewell/trace-mapping@^0.3',
       'convert-source-map@^2',
     ],
