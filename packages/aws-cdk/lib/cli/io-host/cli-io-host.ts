@@ -137,9 +137,52 @@ interface MessageListener {
 }
 
 /**
+ * How an IoHost processed a single notified message.
+ *
+ * This describes the message *as the host handled it*, which can differ from
+ * what was emitted: listeners may rewrite the text or level, or prevent it from
+ * being written at all.
+ */
+export interface IoMessageObservation {
+  /**
+   * The message exactly as it was emitted to the host (before any listeners).
+   */
+  readonly emitted: IoMessage<unknown>;
+
+  /**
+   * The message after the host's listeners ran (text and/or level may differ).
+   */
+  readonly effective: IoMessage<unknown>;
+
+  /**
+   * Whether a listener prevented this message from being written, i.e. the user
+   * would not see it.
+   */
+  readonly dropped: boolean;
+}
+
+/**
+ * An IoHost whose message handling can be observed.
+ *
+ * This is a CLI-internal contract used by tests to record the *effective*,
+ * user-facing message stream (after listeners) without reaching into host
+ * internals. It is intentionally separate from `IIoHost` so that the recorder
+ * can work with any `IIoHost` and only enrich its output when the host also
+ * implements this interface.
+ */
+export interface ObservableIoHost {
+  /**
+   * Register an observer that is invoked for every notified message with the
+   * disposition the host computed for it. Returns a function that removes the
+   * observer again.
+   */
+  observeMessages(observer: (observation: IoMessageObservation) => void): () => void;
+}
+
+/**
  * A simple IO host for the CLI that writes messages to the console.
  */
-export class CliIoHost implements IIoHost {
+export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
    * Returns the singleton instance
    */
@@ -210,6 +253,12 @@ export class CliIoHost implements IIoHost {
 
   // Message listeners, keyed by message code. See `on`/`once`/`rewrite`/`rewriteOnce`.
   private readonly messageListeners = new Map<IoMessageCode, MessageListener[]>();
+
+  // Observers of how messages are handled (see ObservableIoHost / observeMessages).
+  private readonly messageObservers = new Set<(observation: IoMessageObservation) => void>();
+
+  // True while replaying corked messages, so observers aren't notified twice.
+  private corkReplaying = false;
 
   private readonly autoRespond: boolean;
 
@@ -355,8 +404,13 @@ export class CliIoHost implements IIoHost {
       this.corkedCounter--;
       if (this.corkedCounter === 0) {
         // Process each buffered message through notify
-        for (const ioMessage of this.corkedLoggingBuffer) {
-          await this.notify(ioMessage);
+        this.corkReplaying = true;
+        try {
+          for (const ioMessage of this.corkedLoggingBuffer) {
+            await this.notify(ioMessage);
+          }
+        } finally {
+          this.corkReplaying = false;
         }
         // remove all buffered messages in-place
         this.corkedLoggingBuffer.splice(0);
@@ -379,6 +433,20 @@ export class CliIoHost implements IIoHost {
    */
   public on<T>(code: IoMessageMaker<T>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
     return this.addMessageListener(code.code, { once: false, fn: listener as MessageListenerFn });
+  }
+
+  /**
+   * Register an observer that is invoked for every notified message with the
+   * disposition the host computed for it (its effective form after listeners,
+   * and whether it was dropped). Returns a function that removes the observer.
+   *
+   * @see ObservableIoHost
+   */
+  public observeMessages(observer: (observation: IoMessageObservation) => void): () => void {
+    this.messageObservers.add(observer);
+    return () => {
+      this.messageObservers.delete(observer);
+    };
   }
 
   /**
@@ -481,6 +549,17 @@ export class CliIoHost implements IIoHost {
     // and/or prevent the default processing (e.g. stack-activity messages are
     // routed to the activity printer and not written to a stream).
     const { message, preventDefault } = this.applyMessageListeners(msg);
+
+    // Tell observers how this message was handled (its effective form and
+    // whether it was dropped). Skipped while replaying corked messages so each
+    // message is observed exactly once.
+    if (!this.corkReplaying && this.messageObservers.size > 0) {
+      const observation: IoMessageObservation = { emitted: msg, effective: message, dropped: preventDefault };
+      for (const observer of this.messageObservers) {
+        observer(observation);
+      }
+    }
+
     if (preventDefault) {
       return;
     }
