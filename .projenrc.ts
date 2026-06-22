@@ -717,7 +717,7 @@ const tools = defineTools({
   tools: {
     zip: {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
-      devDeps: ['@types/yazl', 'jszip'],
+      devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
     },
   },
 });
