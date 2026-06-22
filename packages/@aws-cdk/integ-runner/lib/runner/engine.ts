@@ -6,7 +6,7 @@ import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
  *
  * Only the toolkit-lib engine is supported.
  */
-export function makeEngine(options: CdkIntegHelperOptions): ToolkitLibRunnerEngine {
+export function makeEngine(options: EngineOptions): ToolkitLibRunnerEngine {
   return new ToolkitLibRunnerEngine({
     workingDirectory: options.test.directory,
     showOutput: options.showOutput,
@@ -17,3 +17,5 @@ export function makeEngine(options: CdkIntegHelperOptions): ToolkitLibRunnerEngi
     caBundlePath: options.caBundlePath,
   });
 }
+
+export type EngineOptions = Pick<CdkIntegHelperOptions, 'test' | 'showOutput' | 'env' | 'region' | 'profile' | 'proxy' | 'caBundlePath'>;

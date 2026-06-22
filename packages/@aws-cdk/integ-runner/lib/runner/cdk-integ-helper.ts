@@ -95,6 +95,13 @@ export type LegacyEnableLookups = true | false | 'dont-care';
 
 /**
  * Class with some helper routines for running CDK snapshots and integration tests.
+ *
+ * A "golden snapshot" is the snapshot that is stored permanently in version
+ * control, that new runs are compared against (stored in a directory named
+ * `<test-name>.snapshot`).
+ *
+ * This is as opposed to other snapshots, which can be generated for example
+ * temporarily in a temporary directory, to compare agains the golden snapshot.
  */
 export class CdkIntegHelper {
   /**
