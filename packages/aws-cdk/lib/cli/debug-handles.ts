@@ -39,37 +39,37 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   UDPSENDWRAP: 'pending UDP send',
   TLSWRAP: 'open TLS connection',
   TTYWRAP: 'open terminal stream',
-  TIMERWRAP: 'timer',
+  TIMERWRAP: 'internal timer holding the loop open',
   Timeout: 'timer from setTimeout or setInterval',
   Immediate: 'pending setImmediate callback',
   FSREQCALLBACK: 'pending file-system operation',
   FSREQPROMISE: 'pending file-system operation',
   FSEVENTWRAP: 'file-system watcher',
   STATWATCHER: 'file-system stat watcher',
-  PROCESSWRAP: 'child process',
-  ChildProcess: 'child process',
+  PROCESSWRAP: 'spawned child process still running',
+  ChildProcess: 'spawned child process still running',
   GETADDRINFOREQWRAP: 'pending DNS lookup',
   GETNAMEINFOREQWRAP: 'pending DNS reverse lookup',
   QUERYWRAP: 'pending DNS query',
   HTTPCLIENTREQUEST: 'in-flight HTTP request',
   HTTPINCOMINGMESSAGE: 'incoming HTTP message',
-  HTTP2SESSION: 'HTTP/2 session',
-  HTTP2STREAM: 'HTTP/2 stream',
+  HTTP2SESSION: 'open HTTP/2 connection',
+  HTTP2STREAM: 'open HTTP/2 request stream',
   HTTP2PING: 'pending HTTP/2 ping',
   HTTP2SETTINGS: 'pending HTTP/2 settings',
   WRITEWRAP: 'pending stream write',
   SHUTDOWNWRAP: 'pending stream shutdown',
-  SIGNALWRAP: 'signal handler',
-  WORKER: 'worker thread',
-  MESSAGEPORT: 'message port',
-  ZLIB: 'zlib (de)compression stream',
-  DNSCHANNEL: 'DNS resolver channel',
-  ELDHISTOGRAM: 'event-loop-delay histogram',
+  SIGNALWRAP: 'OS signal handler still registered',
+  WORKER: 'worker thread still running',
+  MESSAGEPORT: 'open worker-thread message channel',
+  ZLIB: 'open (de)compression stream',
+  DNSCHANNEL: 'DNS resolver holding sockets open',
+  ELDHISTOGRAM: 'event-loop-delay monitor (perf_hooks)',
   FILEHANDLE: 'open file handle',
   FILEHANDLECLOSEREQ: 'pending file-handle close',
-  HEAPSNAPSHOT: 'heap snapshot stream',
-  JSSTREAM: 'JavaScript stream',
-  JSUDPWRAP: 'JavaScript UDP wrapper',
+  HEAPSNAPSHOT: 'heap snapshot being written',
+  JSSTREAM: 'custom JavaScript-backed stream',
+  JSUDPWRAP: 'custom JavaScript-backed UDP socket',
   KEYPAIRGENREQUEST: 'pending key-pair generation',
   KEYGENREQUEST: 'pending key generation',
   KEYEXPORTREQUEST: 'pending key export',
@@ -78,8 +78,8 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   HASHREQUEST: 'pending hash operation',
   SIGNREQUEST: 'pending sign operation',
   VERIFYREQUEST: 'pending verify operation',
-  HTTPPARSER: 'HTTP parser',
-  INSPECTORJSBINDING: 'inspector binding',
+  HTTPPARSER: 'HTTP parser for an open connection',
+  INSPECTORJSBINDING: 'debugger/inspector session attached',
   SCRYPTREQUEST: 'pending scrypt operation',
   PBKDF2REQUEST: 'pending PBKDF2 operation',
 };
@@ -90,6 +90,10 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
  */
 const SELF_MODULE = 'debug-handles';
 
+/**
+ * A single location in a stack trace: the file a frame points to and the line
+ * within it.
+ */
 interface SourceFrame {
   readonly file: string;
   readonly line: number;
@@ -251,7 +255,11 @@ function describeLocation(frame: SourceFrame): string {
 
 function sourceAt(frame: SourceFrame): string | undefined {
   try {
-    return readFileSync(frame.file, 'utf-8').split(/\r?\n/)[frame.line - 1]?.trim() || undefined;
+    const line = readFileSync(frame.file, 'utf-8').split(/\r?\n/)[frame.line - 1]?.trim() || undefined;
+    // The shipped CLI is one bundled file where a few lines are huge minified
+    // blobs (one is ~600k chars). Truncate so a creation site on such a line
+    // doesn't dump the whole blob; the location alone is still useful.
+    return line && line.length > 200 ? `${line.slice(0, 200)}…` : line;
   } catch {
     // The source file may not be readable (e.g. a bundled or eval'd frame).
     // The location is still useful on its own, so reporting continues without it.

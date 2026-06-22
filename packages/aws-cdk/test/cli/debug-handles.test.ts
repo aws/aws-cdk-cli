@@ -46,7 +46,7 @@ test('reports a leaked TCP connection as an open network connection', async () =
   const { port } = server.address() as net.AddressInfo;
 
   // Tracking must start before the connection is created, otherwise the socket
-  // is never seen — this mirrors how the flag is enabled at CLI startup.
+  // is never seen. This mirrors how the flag is enabled at CLI startup.
   enableHandleTracking();
   const client = net.connect(port, '127.0.0.1');
   try {
@@ -70,6 +70,16 @@ test('excludes handles that have been unref()ed', async () => {
   unrefed.unref();
   await reportLeakedHandles(ioHost.asHelper());
   clearInterval(unrefed);
+
+  expect(reportedLines()).toEqual(['0 handle(s) still keeping the CLI process alive:']);
+});
+
+test('reports zero handles on a clean exit with nothing left open', async () => {
+  enableHandleTracking();
+
+  // Nothing is created after tracking starts, so nothing should be holding the
+  // loop open: the report is just the header with a count of zero.
+  await reportLeakedHandles(ioHost.asHelper());
 
   expect(reportedLines()).toEqual(['0 handle(s) still keeping the CLI process alive:']);
 });
