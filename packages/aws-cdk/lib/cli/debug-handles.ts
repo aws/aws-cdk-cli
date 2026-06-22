@@ -1,6 +1,6 @@
 import { createHook } from 'node:async_hooks';
 import { readFileSync } from 'node:fs';
-import { basename, relative } from 'node:path';
+import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as chalk from 'chalk';
 import type { IoHelper } from '../../lib/api-private';
@@ -83,12 +83,6 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
   SCRYPTREQUEST: 'pending scrypt operation',
   PBKDF2REQUEST: 'pending PBKDF2 operation',
 };
-
-/**
- * Basename (without extension) of this module, so we can drop our own frames
- * from reported stacks.
- */
-const SELF_MODULE = 'debug-handles';
 
 /**
  * A single location in a stack trace: the file a frame points to and the line
@@ -210,6 +204,11 @@ class LeakedHandleTracker {
  * We install a structured `prepareStackTrace` formatter, capture (using this
  * function as the cut-off so neither it nor the async hook appears), then
  * restore the previous formatter so we don't disturb anyone else's stacks.
+ *
+ * `captureStackTrace` removes this function and everything above it, but the
+ * caller is the tracker's own `init` hook, which sits just below it and would
+ * otherwise show up as the top frame. We drop that one frame by position rather
+ * than by filename, since after bundling every frame shares the same file name.
  */
 function captureCreationStack(): SourceFrame[] {
   const carrier: { stack?: SourceFrame[] } = {};
@@ -227,23 +226,20 @@ function captureCreationStack(): SourceFrame[] {
   });
   try {
     Error.captureStackTrace(carrier, captureCreationStack);
-    return carrier.stack ?? [];
+    // Drop the `init` hook frame (always the top one) so reports point at the
+    // application code that created the resource, not at this tracker.
+    return carrier.stack?.slice(1) ?? [];
   } finally {
     Error.prepareStackTrace = previous;
   }
 }
 
 /**
- * Keep only frames the user can act on: drop Node internals and our own module.
+ * Keep only frames the user can act on by dropping Node internals. Our own
+ * `init` frame is already removed at capture time (see captureCreationStack).
  */
 function actionableFrames(frames: SourceFrame[]): SourceFrame[] {
-  return frames.filter((frame) => {
-    if (!frame.file || frame.file.startsWith('node:')) {
-      return false;
-    }
-    // basename so the match holds regardless of path separator (e.g. Windows).
-    return !basename(frame.file).startsWith(`${SELF_MODULE}.`);
-  });
+  return frames.filter((frame) => frame.file && !frame.file.startsWith('node:'));
 }
 
 function describeLocation(frame: SourceFrame): string {
