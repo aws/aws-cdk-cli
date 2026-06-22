@@ -5,9 +5,9 @@ import { StringDecoder } from 'string_decoder';
 import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import { fullDiff, formatDifferences, ResourceImpact } from '@aws-cdk/cloudformation-diff';
+import type { CdkIntegHelperOptions } from './cdk-integ-helper';
+import { CdkIntegHelper } from './cdk-integ-helper';
 import { AssemblyManifestReader } from './private/cloud-assembly';
-import type { IntegRunnerOptions } from './runner-base';
-import { IntegRunner, DEFAULT_SYNTH_OPTIONS } from './runner-base';
 import type { Diagnostic, DestructiveChange, SnapshotVerificationOptions } from '../workers/common';
 import { DiagnosticReason } from '../workers/common';
 
@@ -34,17 +34,29 @@ interface SnapshotAssembly {
  * Runner for snapshot tests. This handles orchestrating
  * the validation of the integration test snapshots
  */
-export class IntegSnapshotRunner extends IntegRunner {
-  constructor(options: Omit<IntegRunnerOptions, 'region'>) {
-    super({
+export class IntegSnapshotRunner {
+  private readonly helper: CdkIntegHelper;
+  constructor(options: Omit<CdkIntegHelperOptions, 'region'>) {
+    this.helper = CdkIntegHelper.create({
       ...options,
       region: UNKNOWN_REGION,
     });
   }
 
+  public hasSnapshot() {
+    return this.helper.hasSnapshot();
+  }
+
+  public actualTests() {
+    return this.helper.actualTests();
+  }
+
+  public dontCareAboutLegacyLookupsForTests() {
+    this.helper.configureLegacyEnableLookups('dont-care');
+  }
+
   /**
-   * Synth the integration tests and compare the templates
-   * to the existing snapshot.
+   * Synth the CDK app and compare the templates to the existing snapshot.
    *
    * @returns any diagnostics and any destructive changes
    */
@@ -54,25 +66,16 @@ export class IntegSnapshotRunner extends IntegRunner {
   }> {
     let doClean = true;
     try {
-      const expectedTestSuite = await this.expectedTestSuite();
-      const actualTestSuite = await this.actualTestSuite();
-      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.snapshotDir, expectedTestSuite?.stacks);
+      // Read the "expected" snapshot
+      const expectedTestSuite = await this.helper.expectedTestSuite();
+      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.helper.goldenSnapshotDir, expectedTestSuite?.stacks);
 
-      // synth the integration test
-      // FIXME: ideally we should not need to run this again if
-      // the cdkOutDir exists already, but for some reason generateActualSnapshot
-      // generates an incorrect snapshot and I have no idea why so synth again here
-      // to produce the "correct" snapshot
-      const env = DEFAULT_SYNTH_OPTIONS.env;
-      await this.cdk.synth({
-        app: this.cdkApp,
-        context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
-        env,
-        output: path.relative(this.directory, this.cdkOutDir),
-      });
+      // Configure settings from the golden snapshot
+      this.helper.configureLegacyEnableLookups(expectedTestSuite?.enableLookups ?? false);
 
       // read the "actual" snapshot
-      const actualSnapshotAssembly = this.getSnapshotAssembly(this.cdkOutDir, actualTestSuite.stacks);
+      const actualSnapshot = await this.helper.actualSnapshot();
+      const actualSnapshotAssembly = this.getSnapshotAssembly(this.helper.cdkOutDir, actualSnapshot.testDefinition.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
       const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
@@ -83,21 +86,16 @@ export class IntegSnapshotRunner extends IntegRunner {
 
         if (options.retain) {
           additionalMessages.push(
-            `(Failure retained) Expected: ${path.relative(process.cwd(), this.snapshotDir)}`,
-            `                   Actual:   ${path.relative(process.cwd(), this.cdkOutDir)}`,
+            `(Failure retained) Expected: ${path.relative(process.cwd(), this.helper.goldenSnapshotDir)}`,
+            `                   Actual:   ${path.relative(process.cwd(), this.helper.cdkOutDir)}`,
           ),
           doClean = false;
         }
 
         if (options.verbose) {
-          // Show the command necessary to repro this
-          const envSet = Object.entries(env).map(([k, v]) => `${k}='${v}'`);
-          const envCmd = envSet.length > 0 ? ['env', ...envSet] : [];
-
           additionalMessages.push(
             'Repro:',
-            `  ${[...envCmd, 'cdk synth', `-a '${this.cdkApp}'`, `-o '${this.cdkOutDir}'`, ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : [])].join(' ')}`,
-
+            `  ${this.helper.actualSynthReproCommand().join(' ')}`,
           );
         }
 
@@ -112,7 +110,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       throw e;
     } finally {
       if (doClean) {
-        this.cleanup();
+        this.helper.cleanup();
       }
     }
   }
@@ -155,7 +153,7 @@ export class IntegSnapshotRunner extends IntegRunner {
    * @returns a list of resource types or undefined if none are found
    */
   private async getAllowedDestroyTypesForStack(stackId: string): Promise<string[] | undefined> {
-    for (const testCase of Object.values((await this.actualTests()) ?? {})) {
+    for (const testCase of Object.values((await this.helper.actualTests()) ?? {})) {
       if (testCase.stacks.includes(stackId)) {
         return testCase.allowDestroy;
       }
@@ -183,7 +181,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       for (const templateId of Object.keys(stack.templates)) {
         if (!actual[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.testName,
+            testName: this.helper.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} exists in snapshot, but not in actual`,
@@ -198,7 +196,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       // that does not exist in the current snapshot
         if (!expected[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.testName,
+            testName: this.helper.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} does not exist in snapshot, but does in actual`,
@@ -206,7 +204,7 @@ export class IntegSnapshotRunner extends IntegRunner {
           continue;
         } else {
           const config = {
-            diffAssets: (await this.actualTestSuite()).getOptionsForStack(stackId)?.diffAssets,
+            diffAssets: (await this.helper.actualSnapshot()).testDefinition.getOptionsForStack(stackId)?.diffAssets,
           };
           let actualTemplate = actual[stackId].templates[templateId];
           let expectedTemplate = expected[stackId].templates[templateId];
@@ -259,7 +257,7 @@ export class IntegSnapshotRunner extends IntegRunner {
               reason: DiagnosticReason.SNAPSHOT_FAILED,
               message: writable.data,
               stackName: templateId,
-              testName: this.testName,
+              testName: this.helper.testName,
               config,
             });
           }
