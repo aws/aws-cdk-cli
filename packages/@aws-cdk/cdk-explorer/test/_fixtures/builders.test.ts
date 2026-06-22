@@ -201,7 +201,7 @@ describe('fixture builders', () => {
 
     expect(result.data.tree).toHaveLength(1);
     expect(result.data.violations).toBeUndefined();
-    expect(result.data.violationsError).toBeTruthy();
+    expect(result.data.warnings.some((w) => w.includes('validation-report.json'))).toBe(true);
   });
 
   test('withValidationReport produces a parseable report', async () => {
@@ -224,7 +224,6 @@ describe('fixture builders', () => {
     const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
 
-    expect(result.data.violationsError).toBeUndefined();
     expect(result.data.violations?.pluginReports[0].pluginName).toBe('test');
   });
 });

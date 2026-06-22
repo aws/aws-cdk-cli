@@ -60,6 +60,7 @@
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@jridgewell/trace-mapping": "^0.3",
+    "chokidar": "^4",
     "convert-source-map": "^2",
     "express": "^4",
     "vscode-jsonrpc": "^8",

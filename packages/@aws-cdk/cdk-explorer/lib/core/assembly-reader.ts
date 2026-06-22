@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildConstructTreeAsync, CloudAssembly, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
+import { buildConstructTreeAsync, CloudAssembly, MANIFEST_FILE, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
 import { SourceMapResolver, isWithinRoot, type SourceLocation } from './source-resolver';
@@ -19,8 +19,6 @@ export interface ConstructNode extends ConstructTreeNode {
 export interface AssemblyData {
   readonly tree: readonly ConstructNode[];
   readonly violations?: PolicyValidationReportJson;
-  /** Set when validation-report.json fails to load. The tree still loads. */
-  readonly violationsError?: string;
   /** Non-fatal warnings collected while reading the assembly (e.g. unparseable source maps). */
   readonly warnings: readonly string[];
 }
@@ -36,7 +34,7 @@ export type AssemblyReadResult =
  * (tree.json + stack-metadata join) is delegated to buildConstructTreeAsync.
  */
 export async function readAssembly(assemblyDir: string): Promise<AssemblyReadResult> {
-  const manifestPath = path.join(assemblyDir, 'manifest.json');
+  const manifestPath = path.join(assemblyDir, MANIFEST_FILE);
   if (!fs.existsSync(manifestPath)) {
     return { status: 'not-found' };
   }
@@ -67,16 +65,19 @@ export async function readAssembly(assemblyDir: string): Promise<AssemblyReadRes
     }));
 
     let violations: PolicyValidationReportJson | undefined;
-    let violationsError: string | undefined;
+    const warnings = [...sourceResolver.warnings];
     try {
       violations = loadViolations(assemblyDir);
     } catch (err) {
-      violationsError = (err as Error).message;
+      // The producer writes the validation report synchronously, so a corrupt
+      // file is not reachable through normal synth flow. We treat it the same
+      // as "no report present" and surface a warning for the rare case.
+      warnings.push(`Failed to load ${VALIDATION_REPORT_FILE}: ${(err as Error).message}`);
     }
 
     return {
       status: 'success',
-      data: { tree, violations, violationsError, warnings: sourceResolver.warnings },
+      data: { tree, violations, warnings },
     };
   } catch (err) {
     return { status: 'error', message: (err as Error).message };
