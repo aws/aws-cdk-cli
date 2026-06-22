@@ -606,7 +606,7 @@ async function getStackTemplate(
   debug: (msg: string) => Promise<void>,
 ): Promise<any | undefined> {
   try {
-    const resp = await cfn.getTemplate({ StackName: stackName });
+    const resp = await cfn.getTemplate({ StackName: stackName, TemplateStage: 'Original' });
     if (!resp.TemplateBody) {
       await debug('Custom resource investigation: empty template body');
       return undefined;
