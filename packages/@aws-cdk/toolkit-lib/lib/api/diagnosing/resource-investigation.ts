@@ -776,7 +776,7 @@ async function fetchCustomResourceLogs(
   const startTime = failureTime !== undefined ? failureTime - LOG_WINDOW_BEFORE_MS : Date.now() - FALLBACK_LOG_WINDOW_MS;
   const endTime = failureTime !== undefined ? failureTime + LOG_WINDOW_AFTER_MS : undefined;
 
-  // Convention first; only pay for the configured group if the convention group is empty.
+  // Convention first; only pay for the configured group if the convention group doesn't yield usable lines (empty group or fetch error).
   const conventionGroup = `/aws/lambda/${functionName}`;
   let result = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
   // The group we point the user at. Once we learn the function's configured log group, prefer
