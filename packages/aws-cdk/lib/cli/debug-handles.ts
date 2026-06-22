@@ -165,7 +165,7 @@ class LeakedHandleTracker {
     });
     this.watched.clear();
 
-    await ioHelper.defaults.info(`${leaks.length} handle(s) still keeping the CLI process alive:`);
+    await ioHelper.defaults.info(`${leaks.length} ${leaks.length === 1 ? 'handle' : 'handles'} still keeping the CLI process alive:`);
     for (const leak of leaks) {
       await this.describe(leak, ioHelper);
     }

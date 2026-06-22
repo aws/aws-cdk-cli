@@ -31,7 +31,7 @@ test('reports a leaked timer with its type, plain-language description, and crea
   clearInterval(leaked);
 
   const lines = reportedLines();
-  expect(lines[0]).toMatch(/^\d+ handle\(s\) still keeping the CLI process alive:$/);
+  expect(lines[0]).toMatch(/^\d+ handles? still keeping the CLI process alive:$/);
   // The type heading is emitted via chalk.bold, so match it the same way to stay
   // independent of whether color is active in the test environment.
   expect(lines).toContainEqual(chalk.bold('# Timeout (timer from setTimeout or setInterval)'));
@@ -71,7 +71,7 @@ test('excludes handles that have been unref()ed', async () => {
   await reportLeakedHandles(ioHost.asHelper());
   clearInterval(unrefed);
 
-  expect(reportedLines()).toEqual(['0 handle(s) still keeping the CLI process alive:']);
+  expect(reportedLines()).toEqual(['0 handles still keeping the CLI process alive:']);
 });
 
 test('reports zero handles on a clean exit with nothing left open', async () => {
@@ -81,7 +81,7 @@ test('reports zero handles on a clean exit with nothing left open', async () => 
   // loop open: the report is just the header with a count of zero.
   await reportLeakedHandles(ioHost.asHelper());
 
-  expect(reportedLines()).toEqual(['0 handle(s) still keeping the CLI process alive:']);
+  expect(reportedLines()).toEqual(['0 handles still keeping the CLI process alive:']);
 });
 
 test('does not report promises, which are filtered as noise', async () => {
