@@ -1,3 +1,4 @@
+import { ASSEMBLY_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, DEFAULT_PORT, type WebServer } from '../../lib/web/server';
 
 describe('Web Server', () => {
@@ -110,7 +111,7 @@ describe('Web Server', () => {
 
     fireChange();
     const { value } = await reader.read();
-    expect(new TextDecoder().decode(value)).toContain('event: assembly-changed');
+    expect(new TextDecoder().decode(value)).toContain(`event: ${ASSEMBLY_CHANGED}`);
 
     await reader.cancel();
   });

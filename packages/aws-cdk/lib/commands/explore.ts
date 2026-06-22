@@ -7,7 +7,12 @@ export interface ExploreOptions {
 }
 
 export async function explore(options: ExploreOptions): Promise<number> {
-  const server = await startWebServer({ port: options.port });
+  const server = await startWebServer({
+    port: options.port,
+    onWatcherError: (err) => void options.ioHelper.defaults.error(
+      `CDK Explorer live refresh stopped: ${err instanceof Error ? err.message : String(err)}`,
+    ),
+  });
   await options.ioHelper.defaults.info(`CDK Explorer running at ${server.url}`);
 
   await new Promise<void>((resolve) => {

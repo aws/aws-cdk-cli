@@ -33,6 +33,11 @@ export interface WebServerOptions {
    * overridden in tests with a fake to drive change events deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
+  /**
+   * Reports a non-fatal watcher error (live refresh stops updating). Defaults to
+   * writing to stderr; the CLI command passes a sink that routes to its IoHost.
+   */
+  readonly onWatcherError?: (err: unknown) => void;
 }
 
 export interface WebServer {
@@ -96,7 +101,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const watcher = startWatcher({
     assemblyDir,
     onChange: () => events.broadcast(ASSEMBLY_CHANGED),
-    onError: (err) => process.stderr.write(`assembly watcher error: ${(err as Error).message}\n`),
+    onError: options.onWatcherError ?? ((err) =>
+      process.stderr.write(`assembly watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
   });
 
   let stopped = false;

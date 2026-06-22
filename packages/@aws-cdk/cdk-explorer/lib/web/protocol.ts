@@ -2,10 +2,13 @@
 
 /**
  * SSE event name the server sends (and the SPA listens for) when the cloud
- * assembly is rewritten. The event carries no payload: the server holds no
+ * assembly is rewritten. It carries no meaningful payload: the server holds no
  * assembly state, so the SPA re-fetches the tree and violations on receipt.
  */
 export const ASSEMBLY_CHANGED = 'assembly-changed';
+
+/** The SSE event names the server may send. One for now. */
+export type SseEventName = typeof ASSEMBLY_CHANGED;
 
 export interface DirEntry {
   readonly name: string;

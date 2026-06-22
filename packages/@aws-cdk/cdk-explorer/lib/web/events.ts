@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { SseEventName } from './protocol';
 
 /**
  * Tracks connected Server-Sent Events clients and pushes events to all of them.
@@ -26,15 +27,19 @@ export class SseBroadcaster {
       this.clients.delete(res);
     };
     req.on('close', remove);
-    // A client that vanishes mid-broadcast surfaces here as a socket error.
-    // Drop it and swallow the error rather than crashing the server on an
-    // otherwise-unhandled 'error' event.
+    // Evict on socket error too, so a vanished client is never written to.
     res.on('error', remove);
   };
 
-  /** Push a named, payload-free event to every connected client. */
-  public broadcast(eventName: string): void {
-    const frame = `event: ${eventName}\ndata: {}\n\n`;
+  /**
+   * Push an event to every connected client. The `data: {}` line is required:
+   * EventSource does not dispatch a named event whose data buffer is empty, so
+   * the empty payload is what makes the client's listener fire. Writing to a
+   * client that already disconnected is a harmless no-op (returns false, does
+   * not throw); the `close`/`error` handlers in `handle` do the eviction.
+   */
+  public broadcast(event: SseEventName): void {
+    const frame = `event: ${event}\ndata: {}\n\n`;
     for (const client of this.clients) {
       client.write(frame);
     }
