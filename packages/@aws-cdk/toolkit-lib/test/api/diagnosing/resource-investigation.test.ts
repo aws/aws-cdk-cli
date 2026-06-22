@@ -7,14 +7,14 @@ import {
   ListTasksCommand,
 } from '@aws-sdk/client-ecs';
 import { GetFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
+import { parseLambdaLogEvents } from '../../../lib/api/diagnosing/format-utils';
 import {
   extractLogStreamName,
   functionNameFromArnOrName,
-  investigateResource,
   parseEcsServiceIdentifier,
-  parseLambdaLogEvents,
   serviceTokenReferencedLogicalId,
-} from '../../../lib/api/diagnosing/resource-investigation';
+} from '../../../lib/api/diagnosing/resource-identifiers';
+import { investigateResource } from '../../../lib/api/diagnosing/resource-investigation';
 import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
 import {
   mockCloudFormationClient,

@@ -1,152 +1,19 @@
+import { trimToRecentLines, parseLambdaLogEvents, cloudWatchLogsConsoleUrl } from './format-utils';
+import {
+  parseEcsServiceIdentifier,
+  serviceTokenReferencedLogicalId,
+  functionNameFromArnOrName,
+  extractLogStreamName,
+  logStreamNameFromPhysicalId,
+  ecsStoppedTasksConsoleUrl,
+} from './resource-identifiers';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
 import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient, ICloudWatchLogsClient, IECSClient, ILambdaClient, SDK } from '../aws-auth/sdk';
 import type { ResourceError } from '../stack-events/resource-errors';
 
-/**
- * Maximum number of log lines included per CloudWatch Logs context block.
- *
- * The formatter renders the messages array verbatim, so this is the
- * single user-visible cap.
- */
-const MAX_LOG_LINES = 50;
-
 /** Fallback look-back when no failure timestamp is available. */
 const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
-
-/**
- * Turn raw CloudWatch log event messages into the trimmed lines we render.
- *
- * Keeps only the most recent {@link MAX_LOG_LINES} (newer output is more useful for
- * diagnosis) and prepends an "N earlier lines omitted" marker when truncation happened.
- * This is the single truncation point shared by all CloudWatch contexts — the formatter
- * renders the result verbatim.
- */
-function trimToRecentLines(events: Array<{ message?: string }>): string[] {
-  const allMessages = events
-    .map(e => e.message?.trimEnd())
-    .filter((m): m is string => m != null);
-  const messages = allMessages.slice(-MAX_LOG_LINES);
-  const omitted = allMessages.length - messages.length;
-  if (omitted > 0) {
-    messages.unshift(`... (${omitted} earlier lines omitted)`);
-  }
-  return messages;
-}
-
-/**
- * Lambda platform log lines (text format) that carry no application signal.
- */
-const LAMBDA_PLATFORM_LINE = /^(INIT_START|START RequestId:|END RequestId:|REPORT RequestId:)/;
-
-/**
- * Normalize Lambda CloudWatch log events into readable lines.
- *
- * Lambda emits logs in one of two formats (per the function's `LoggingConfig.LogFormat`):
- * - **Text**: `<timestamp>\t<requestId>\t<LEVEL>\t<message>`, plus platform lines.
- * - **JSON**: one JSON object per event (`{ timestamp, level, message, ... }`).
- *
- * For both we surface `LEVEL  message` (or just the message when there's no level), strip the
- * redundant per-line timestamp/requestId (it's all one invocation), and drop pure platform
- * boilerplate. We never drop application output — failure detail is often logged at INFO
- * (e.g. the cfn-response "Response body" line). Anything we don't recognize passes through
- * verbatim, and the full logs remain available via the console link.
- *
- * This is Lambda-specific; it is not applied to ECS logs, which are arbitrary container output.
- */
-export function parseLambdaLogEvents(events: Array<{ message?: string }>): Array<{ message: string }> {
-  const out: Array<{ message: string }> = [];
-  for (const e of events) {
-    const raw = e.message;
-    if (raw == null) {
-      continue;
-    }
-    const normalized = normalizeLambdaLine(raw);
-    if (normalized !== undefined) {
-      out.push({ message: normalized });
-    }
-  }
-  return out;
-}
-
-/**
- * Normalize a single Lambda log line. Returns `undefined` to drop the line (platform noise),
- * or the cleaned-up text to keep.
- */
-function normalizeLambdaLine(raw: string): string | undefined {
-  const trimmed = raw.trimEnd();
-
-  // JSON-format event: { timestamp, level, message, ... } (one object per line).
-  const jsonResult = normalizeJsonLogLine(trimmed);
-  if (jsonResult !== undefined) {
-    return jsonResult || undefined;
-  }
-
-  // Text-format platform boilerplate: drop.
-  if (LAMBDA_PLATFORM_LINE.test(trimmed)) {
-    return undefined;
-  }
-
-  // Text-format app line: `<ISO timestamp>\t<requestId>\t<LEVEL>\t<message>`.
-  // Strip the timestamp + requestId prefix; keep `LEVEL message` (or the rest verbatim).
-  const parts = trimmed.split('\t');
-  if (parts.length >= 4 && /^\d{4}-\d{2}-\d{2}T/.test(parts[0])) {
-    const level = parts[2];
-    const message = parts.slice(3).join('\t');
-    return formatLeveledLine(level, message);
-  }
-
-  // Unrecognized (continuation line, plain stdout, etc.) — keep verbatim.
-  return trimmed;
-}
-
-/**
- * If `line` is a JSON-format Lambda log object, render it as `LEVEL<tab>message`
- * (or just the message when there's no level). Returns `undefined` when it isn't JSON.
- *
- * Drops JSON platform events (`type`/`record` envelopes for `platform.*`), which carry no
- * application signal.
- */
-function normalizeJsonLogLine(line: string): string | undefined {
-  if (!line.startsWith('{')) {
-    return undefined;
-  }
-  let obj: any;
-  try {
-    obj = JSON.parse(line);
-  } catch {
-    return undefined;
-  }
-  if (!obj || typeof obj !== 'object') {
-    return undefined;
-  }
-
-  // Platform events (e.g. { type: 'platform.report', record: {...} }) — drop.
-  if (typeof obj.type === 'string' && obj.type.startsWith('platform.')) {
-    return '';
-  }
-
-  const level = typeof obj.level === 'string' ? obj.level : undefined;
-  // Lambda uses `message`; a thrown error envelope uses `errorMessage` (+ optional stackTrace).
-  let message: string;
-  if (typeof obj.message === 'string') {
-    message = obj.message;
-  } else if (typeof obj.errorMessage === 'string') {
-    message = Array.isArray(obj.stackTrace) ? [obj.errorMessage, ...obj.stackTrace].join('\n') : obj.errorMessage;
-  } else {
-    // JSON, but not a shape we recognize — render compactly rather than dropping signal.
-    message = line;
-  }
-  return level ? formatLeveledLine(level, message) : message;
-}
-
-/**
- * Render a log level and message as `LEVEL  message`, padding the level to a fixed width so
- * lines align in the terminal. Multi-line messages keep their internal newlines.
- */
-function formatLeveledLine(level: string, message: string): string {
-  return `${level.padEnd(5)} ${message}`;
-}
 
 /**
  * Options that influence how a resource is investigated.
@@ -275,34 +142,6 @@ async function investigateEcsService(
   }
 
   return results;
-}
-
-/**
- * Parse an ECS service physical resource ID into cluster and service identifiers.
- *
- * The cluster portion is a name (not an ARN) — `describeServices`/`describeTasks`
- * accept either form for their `cluster` parameter, so this is fine downstream.
- *
- * Recognized formats:
- * - Long ARN: `arn:aws:ecs:region:account:service/cluster-name/service-name` (current default)
- * - Path: `cluster-name/service-name`
- * - Bare service name (uses the default cluster)
- */
-export function parseEcsServiceIdentifier(physicalId: string): { cluster?: string; serviceName?: string } {
-  const arnMatch = physicalId.match(/^arn:[^:]+:ecs:[^:]*:[^:]*:service\/([^/]+)\/([^/]+)$/);
-  if (arnMatch) {
-    return { cluster: arnMatch[1], serviceName: arnMatch[2] };
-  }
-
-  const parts = physicalId.split('/');
-  if (parts.length === 2 && parts[0] && parts[1]) {
-    return { cluster: parts[0], serviceName: parts[1] };
-  }
-  if (parts.length === 1 && parts[0]) {
-    return { serviceName: parts[0] };
-  }
-
-  return {};
 }
 
 async function describeService(
@@ -706,62 +545,6 @@ async function resolveServiceTokenToFunctionName(
   return undefined;
 }
 
-/**
- * If a ServiceToken is an `Fn::GetAtt` or `Ref` intrinsic, return the referenced logical ID.
- */
-export function serviceTokenReferencedLogicalId(serviceToken: any): string | undefined {
-  if (!serviceToken || typeof serviceToken !== 'object') {
-    return undefined;
-  }
-  const getAtt = serviceToken['Fn::GetAtt'];
-  // Array form (JSON / CDK output): ["LogicalId", "Arn"].
-  if (Array.isArray(getAtt) && typeof getAtt[0] === 'string') {
-    return getAtt[0];
-  }
-  // String short-form (how YAML `!GetAtt LogicalId.Arn` deserializes): "LogicalId.Attr".
-  if (typeof getAtt === 'string') {
-    return getAtt.split('.')[0] || undefined;
-  }
-  if (typeof serviceToken.Ref === 'string') {
-    return serviceToken.Ref;
-  }
-  return undefined;
-}
-
-/**
- * Extract a Lambda function name from a function ARN or a bare name.
- *
- * Returns `undefined` for non-Lambda ARNs (e.g. an SNS-topic ServiceToken).
- */
-export function functionNameFromArnOrName(arnOrName: string): string | undefined {
-  const arnMatch = arnOrName.match(/^arn:[^:]+:lambda:[^:]*:[^:]*:function:([^:]+)/);
-  if (arnMatch) {
-    return arnMatch[1];
-  }
-  if (arnOrName.startsWith('arn:')) {
-    return undefined;
-  }
-  return arnOrName || undefined;
-}
-
-/**
- * Extract the log stream name out of a cfn-response failure reason
- * ("See the details in CloudWatch Log Stream: <name>").
- */
-export function extractLogStreamName(message: string | undefined): string | undefined {
-  const match = message?.match(/CloudWatch Log Stream:\s*(\S+)/);
-  return match ? match[1] : undefined;
-}
-
-/**
- * cfn-response defaults the physical ID to the log stream name. Use it only when it looks
- * like a Lambda log stream (`YYYY/MM/DD/...`), so a user-provided physical ID isn't mistaken
- * for one.
- */
-function logStreamNameFromPhysicalId(physicalId: string | undefined): string | undefined {
-  return physicalId && /^\d{4}\/\d{2}\/\d{2}\/.+/.test(physicalId) ? physicalId : undefined;
-}
-
 async function fetchCustomResourceLogs(
   cwl: ICloudWatchLogsClient,
   lambda: ILambdaClient,
@@ -895,14 +678,4 @@ async function configuredLogGroup(
     await debug(`Custom resource investigation: failed to read function configuration: ${e.message}`);
     return undefined;
   }
-}
-
-// CloudWatch console uses double-URI-encoding with '$' replacing '%' for the log group in the fragment.
-function cloudWatchLogsConsoleUrl(region: string, logGroup: string): string {
-  const encodedLogGroup = encodeURIComponent(encodeURIComponent(logGroup)).replace(/%/g, '$');
-  return `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:log-groups/log-group/${encodedLogGroup}`;
-}
-
-function ecsStoppedTasksConsoleUrl(region: string, cluster: string, serviceName: string): string {
-  return `https://${region}.console.aws.amazon.com/ecs/v2/clusters/${cluster}/services/${serviceName}/tasks?status=STOPPED&region=${region}`;
 }
