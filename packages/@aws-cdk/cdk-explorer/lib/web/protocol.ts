@@ -1,4 +1,11 @@
-/** HTTP contract shared between the web server and the SPA. Types only. */
+/** HTTP and SSE contract shared between the web server and the SPA. */
+
+/**
+ * SSE event name the server sends (and the SPA listens for) when the cloud
+ * assembly is rewritten. The event carries no payload: the server holds no
+ * assembly state, so the SPA re-fetches the tree and violations on receipt.
+ */
+export const ASSEMBLY_CHANGED = 'assembly-changed';
 
 export interface DirEntry {
   readonly name: string;

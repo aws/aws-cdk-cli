@@ -2,7 +2,8 @@ import * as http from 'http';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
-import { ASSEMBLY_CHANGED, SseBroadcaster } from './events';
+import { SseBroadcaster } from './events';
+import { ASSEMBLY_CHANGED } from './protocol';
 import { registerApi } from './routes';
 import { indexHtml, webAsset } from './web-assets';
 import {

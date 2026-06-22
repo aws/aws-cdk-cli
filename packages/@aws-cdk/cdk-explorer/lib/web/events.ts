@@ -1,14 +1,6 @@
 import type { Request, Response } from 'express';
 
 /**
- * SSE event name signalling that the cloud assembly was rewritten. The event
- * carries no payload: the web server holds no assembly state, so a client
- * re-fetches the construct tree and violations through the regular GET
- * endpoints whenever it sees this.
- */
-export const ASSEMBLY_CHANGED = 'assembly-changed';
-
-/**
  * Tracks connected Server-Sent Events clients and pushes events to all of them.
  * One instance lives per web server. `close()` ends every open stream on
  * shutdown so the HTTP server can stop cleanly.
@@ -25,7 +17,7 @@ export class SseBroadcaster {
     res.set({
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-store',
-      Connection: 'keep-alive',
+      'Connection': 'keep-alive',
     });
     res.flushHeaders();
     this.clients.add(res);

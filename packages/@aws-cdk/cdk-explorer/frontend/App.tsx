@@ -16,7 +16,7 @@ export function App(): JSX.Element {
   const [error, setError] = React.useState<string | undefined>();
   const [appDir, setAppDir] = React.useState<string | undefined>();
 
-  React.useEffect(() => {
+  const reload = React.useCallback((): void => {
     Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()])
       .then(([t, v, info]) => {
         setTree(t);
@@ -24,8 +24,15 @@ export function App(): JSX.Element {
         setAppDir(info.appDir);
         setError(undefined);
       })
+      // Keep the last good render on a transient read (e.g. a mid-synth write);
+      // the next assembly-changed event re-fetches once the write has settled.
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  React.useEffect(() => {
+    reload();
+    return api.subscribe(reload);
+  }, [reload]);
 
   // Vertical split: violations row's share of the page height (default 33%).
   const vSplit = useSplit({ orientation: 'vertical', defaultFraction: 0.33, min: 0.15, max: 0.85 });
