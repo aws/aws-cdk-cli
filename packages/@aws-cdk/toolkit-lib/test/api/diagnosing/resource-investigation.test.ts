@@ -787,6 +787,44 @@ describe('investigateResource for custom resources', () => {
     expect(result).toEqual([]);
   });
 
+  test('returns empty when an intrinsic ServiceToken references a non-Lambda resource', async () => {
+    // ServiceToken is a Ref to a non-Lambda resource whose physical ID is a BARE NAME (not an
+    // ARN) — e.g. some resources return their name as the physical ID. Without the
+    // ResourceType check, functionNameFromArnOrName would accept the bare name and we'd query
+    // /aws/lambda/<name>. The type gate is what stops that.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith({ Ref: 'MyOtherResource' }),
+    });
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [{
+        LogicalResourceId: 'MyOtherResource',
+        ResourceType: 'AWS::SNS::Topic',
+        PhysicalResourceId: 'MyStack-MyOtherResource-ABC123', // bare name, not an ARN
+      } as any],
+    });
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(result).toEqual([]);
+    // Must not have attempted a /aws/lambda/... lookup for the non-Lambda resource.
+    expect(mockCloudWatchClient).not.toHaveReceivedCommand(FilterLogEventsCommand);
+  });
+
+  test('reports a fetch error distinctly from an empty log group', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn'),
+    });
+    // filterLogEvents fails (e.g. AccessDenied) rather than returning empty.
+    mockCloudWatchClient.on(FilterLogEventsCommand).rejects(new Error('AccessDeniedException'));
+    mockLambdaClient.on(GetFunctionConfigurationCommand).resolves({}); // no custom group
+
+    const result = await investigateResource(customResourceError(), sdk, debug);
+    const logs = result.find(c => c.source === 'Custom Resource Lambda Logs');
+    const text = logs!.messages.join('\n');
+    expect(text).toMatch(/Could not fetch logs/);
+    expect(text).not.toMatch(/No log events found/);
+  });
+
   test('resolves a YAML string-form Fn::GetAtt ServiceToken', async () => {
     // YAML `!GetAtt ProviderFn.Arn` deserializes to { 'Fn::GetAtt': 'ProviderFn.Arn' } (a string).
     mockCloudFormationClient.on(GetTemplateCommand).resolves({

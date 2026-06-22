@@ -651,32 +651,33 @@ async function resolveConfiguredLogGroup(
     }
     // No explicit name (CloudFormation generates it) — resolve the log-group resource's
     // physical name, which is the log group name.
-    return resolvePhysicalId(cfn, stackName, logGroup.Ref, debug);
+    return (await resolveStackResource(cfn, stackName, logGroup.Ref, debug))?.physicalId;
   }
   return undefined;
 }
 
 /**
- * Resolve a resource's physical ID by logical ID. Returns `undefined` on failure.
+ * Resolve a resource's physical ID and type by logical ID. Returns `undefined` on failure.
  */
-async function resolvePhysicalId(
+async function resolveStackResource(
   cfn: ICloudFormationClient,
   stackName: string,
   logicalId: string,
   debug: (msg: string) => Promise<void>,
-): Promise<string | undefined> {
+): Promise<{ physicalId?: string; resourceType?: string } | undefined> {
   try {
     const resp = await cfn.describeStackResources({ StackName: stackName, LogicalResourceId: logicalId });
-    return resp.StackResources?.[0]?.PhysicalResourceId;
+    const resource = resp.StackResources?.[0];
+    return resource ? { physicalId: resource.PhysicalResourceId, resourceType: resource.ResourceType } : undefined;
   } catch (e: any) {
-    await debug(`Custom resource investigation: failed to resolve physical ID for "${logicalId}": ${e.message}`);
+    await debug(`Custom resource investigation: failed to resolve resource "${logicalId}": ${e.message}`);
     return undefined;
   }
 }
 
 /**
  * Resolve a `ServiceToken` value (a literal ARN, an `Fn::GetAtt`, or a `Ref`) to a Lambda
- * function name. Intrinsics are resolved to a physical ID via `describeStackResources`.
+ * function name. Intrinsics are resolved via `describeStackResources`.
  */
 async function resolveServiceTokenToFunctionName(
   cfn: ICloudFormationClient,
@@ -686,8 +687,15 @@ async function resolveServiceTokenToFunctionName(
   debug: (msg: string) => Promise<void>,
 ): Promise<string | undefined> {
   if (referencedLogicalId) {
-    const physicalId = await resolvePhysicalId(cfn, stackName, referencedLogicalId, debug);
-    return physicalId ? functionNameFromArnOrName(physicalId) : undefined;
+    const resource = await resolveStackResource(cfn, stackName, referencedLogicalId, debug);
+    // Only treat the reference as a Lambda function. Without this, a ServiceToken pointing at
+    // a non-Lambda resource (e.g. an SNS topic) whose physical ID is a bare name would be
+    // mistaken for a function name, producing a misleading /aws/lambda/<name> log lookup.
+    if (resource?.resourceType && resource.resourceType !== 'AWS::Lambda::Function') {
+      await debug(`Custom resource investigation: ServiceToken references a ${resource.resourceType}, not a Lambda function`);
+      return undefined;
+    }
+    return resource?.physicalId ? functionNameFromArnOrName(resource.physicalId) : undefined;
   }
 
   if (typeof serviceToken === 'string') {
@@ -770,27 +778,36 @@ async function fetchCustomResourceLogs(
 
   // Convention first; only pay for the configured group if the convention group is empty.
   const conventionGroup = `/aws/lambda/${functionName}`;
-  let messages = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
+  let result = await fetchLogLines(cwl, conventionGroup, streamName, startTime, endTime, debug);
   // The group we point the user at. Once we learn the function's configured log group, prefer
   // it for the link even if it too is empty — it's where the function actually logs, whereas
   // the convention group may not exist for advanced-logging functions.
   let logGroup = conventionGroup;
 
-  if (messages === undefined) {
+  if (result.kind !== 'lines') {
     // Prefer the template-derived group (rollback-proof); fall back to the live function
     // configuration only when the template couldn't tell us (e.g. unresolvable intrinsic, or
     // the function is defined outside this stack).
     const configuredGroup = templateLogGroup ?? await configuredLogGroup(lambda, functionName, debug);
     if (configuredGroup && configuredGroup !== conventionGroup) {
       logGroup = configuredGroup;
-      messages = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
+      const configuredResult = await fetchLogLines(cwl, configuredGroup, streamName, startTime, endTime, debug);
+      // Keep the configured-group result unless it errored while the convention attempt was a
+      // clean empty (an "empty" answer is more informative to surface than a fetch error).
+      if (configuredResult.kind === 'lines' || result.kind !== 'empty') {
+        result = configuredResult;
+      }
     }
   }
 
   // Lead with the log group so the user can tell which function these logs belong to
   // (the formatter renders messages but not `source`, and the link is URL-encoded).
   const header = `Logs from ${logGroup}:`;
-  const body = messages ?? ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'];
+  const body = result.kind === 'lines'
+    ? result.lines
+    : result.kind === 'error'
+      ? ['Could not fetch logs (the log group may not exist, or the credentials lack logs:FilterLogEvents). See the console link below.']
+      : ['No log events found around the time of failure. The function may not have produced output, or logging may not be configured.'];
 
   return [{
     source: 'Custom Resource Lambda Logs',
@@ -801,8 +818,22 @@ async function fetchCustomResourceLogs(
 }
 
 /**
- * Fetch and trim recent log lines from a group. Returns `undefined` when the group has no
- * events in the window (so the caller can try a different group).
+ * Result of attempting to fetch logs from a group: the lines on success, or a reason we
+ * have none — distinguishing an empty group from a failed fetch (e.g. missing permissions),
+ * so the user-facing message can reflect the real cause.
+ */
+type LogFetchResult =
+  | { kind: 'lines'; lines: string[] }
+  | { kind: 'empty' }
+  | { kind: 'error' };
+
+/**
+ * Fetch and trim recent log lines from a group.
+ *
+ * Tries the targeted stream first (most relevant), but the cfn-response stream name can be
+ * stale on update/rollback failures (it's pinned to the original create invocation). If the
+ * targeted query finds nothing, falls back to a group-wide scan over the time window so a
+ * stale stream can't hide the actual failing invocation's logs.
  */
 async function fetchLogLines(
   cwl: ICloudWatchLogsClient,
@@ -811,14 +842,10 @@ async function fetchLogLines(
   startTime: number,
   endTime: number | undefined,
   debug: (msg: string) => Promise<void>,
-): Promise<string[] | undefined> {
-  // Try the targeted stream first (most relevant), but the cfn-response stream name can be
-  // stale on update/rollback failures (it's pinned to the original create invocation). If
-  // the targeted query finds nothing, fall back to a group-wide scan over the time window so
-  // a stale stream can't hide the actual failing invocation's logs.
+): Promise<LogFetchResult> {
   if (streamName) {
     const targeted = await filterLogLines(cwl, logGroup, streamName, startTime, endTime, debug);
-    if (targeted !== undefined) {
+    if (targeted.kind === 'lines') {
       return targeted;
     }
   }
@@ -832,7 +859,7 @@ async function filterLogLines(
   startTime: number,
   endTime: number | undefined,
   debug: (msg: string) => Promise<void>,
-): Promise<string[] | undefined> {
+): Promise<LogFetchResult> {
   try {
     const resp = await cwl.filterLogEvents({
       logGroupName: logGroup,
@@ -844,14 +871,14 @@ async function filterLogLines(
     const events = resp.events ?? [];
     if (events.length === 0) {
       await debug(`Custom resource investigation: no log events in ${logGroup}${streamName ? ` (stream: ${streamName})` : ''}`);
-      return undefined;
+      return { kind: 'empty' };
     }
     // Lambda log events have a known structure (text- or JSON-format), unlike raw ECS
     // container output, so we normalize them into readable lines before trimming.
-    return trimToRecentLines(parseLambdaLogEvents(events));
+    return { kind: 'lines', lines: trimToRecentLines(parseLambdaLogEvents(events)) };
   } catch (e: any) {
     await debug(`Custom resource investigation: failed to fetch logs from ${logGroup}: ${e.message}`);
-    return undefined;
+    return { kind: 'error' };
   }
 }
 
