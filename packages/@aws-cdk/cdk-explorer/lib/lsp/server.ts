@@ -42,7 +42,7 @@ export interface LspHandlerOptions {
   /** Callback invoked on `didSave` for tracked source files. */
   readonly onSynthRequest?: (projectDir: string) => void;
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
-  readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult;
+  readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -71,7 +71,7 @@ export interface LspServerOptions extends LspHandlerOptions {
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
 export interface LspHandlers {
   onInitialize(params: InitializeParams): InitializeResult;
-  onInitialized(): void;
+  onInitialized(): Promise<void>;
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
   onCodeLens(params: CodeLensParams): Promise<CodeLens[]>;
   onDefinition(params: DefinitionParams): Promise<Location | undefined>;
@@ -121,9 +121,9 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   // the editor's next natural re-query.
   let codeLensRefreshSupported = false;
 
-  function refreshFromAssembly(projectDir: string): void {
+  async function refreshFromAssembly(projectDir: string): Promise<void> {
     const assemblyDir = path.join(projectDir, 'cdk.out');
-    const result = readAssembly(assemblyDir);
+    const result = await readAssembly(assemblyDir);
 
     if (result.status === 'error') {
       log.error(`Failed to read cloud assembly: ${result.message}`);
@@ -183,7 +183,7 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
         },
       };
     },
-    onInitialized() {
+    async onInitialized() {
       const projectDir = applicationDir ?? process.cwd();
       // Same exclusion logic as toolkit-lib's watch():
       // WATCH_EXCLUDE_DEFAULTS covers common non-source dirs, then we add cdk.out
@@ -199,13 +199,18 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
         ],
         rootDir: projectDir,
       });
-      refreshFromAssembly(projectDir);
+      await refreshFromAssembly(projectDir);
 
       // Watch cdk.out so any synth (an external `cdk synth`/`cdk watch`, or a
       // future in-process synth) refreshes the editor's diagnostics and lenses.
       assemblyWatcher = startWatcher({
         assemblyDir: path.join(projectDir, 'cdk.out'),
-        onChange: () => refreshFromAssembly(projectDir),
+        onChange: () => {
+          // refreshFromAssembly is async; surface a rejection rather than
+          // floating the promise from this watcher callback.
+          refreshFromAssembly(projectDir).catch((err) =>
+            log.error(`Assembly refresh failed: ${(err as Error).message}`));
+        },
         onError: (err) => log.error(`Assembly watcher error: ${(err as Error).message}`),
       });
     },
@@ -272,7 +277,14 @@ export function startServer(options: LspServerOptions): void {
   });
 
   connection.onInitialize((params) => handlers.onInitialize(params));
-  connection.onInitialized(() => handlers.onInitialized());
+  connection.onInitialized(() => {
+    // `initialized` is a notification, so nothing awaits us, but onInitialized's
+    // async work can still reject. Surface it to the editor Output panel rather
+    // than leaving an unhandled rejection.
+    handlers.onInitialized().catch((err) => {
+      connection.console.error(`onInitialized failed: ${(err as Error).message}`);
+    });
+  });
   connection.onDidSaveTextDocument((params) => handlers.onDidSaveTextDocument(params));
   connection.onCodeLens((params) => handlers.onCodeLens(params));
   connection.onDefinition((params) => handlers.onDefinition(params));

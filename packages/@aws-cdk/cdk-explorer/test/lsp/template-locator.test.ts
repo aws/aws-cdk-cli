@@ -61,7 +61,7 @@ describe('resourceTarget', () => {
     dir = buildFlatAssembly({
       stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
     });
-    const result = readAssembly(dir);
+    const result = await readAssembly(dir);
     if (result.status !== 'success') throw new Error('expected success');
     const node = find(result.data.tree, 'Stack1/MyBucket/Resource')!;
     const templateFile = path.join(dir!, 'Stack1.template.json');
