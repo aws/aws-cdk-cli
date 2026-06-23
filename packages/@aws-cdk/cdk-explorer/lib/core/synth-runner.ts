@@ -2,6 +2,16 @@ import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { readCdkConfig } from './cdk-config';
 
 /**
+ * Hold synth()'s read lock this long before releasing it. While we hold a
+ * reader, the next synth cannot take the write lock, so a watcher refresh that
+ * fires in this window shares the read lock rather than being starved under
+ * continuous synths. The refresh also retries its own acquire on contention
+ * (see refreshFromAssembly), so this delay is an anti-starvation hint, not a
+ * correctness requirement.
+ */
+const READER_HANDOFF_DELAY_MS = 100;
+
+/**
  * The outcome of a single synth attempt.
  *
  * `success` means the assembly was written to disk (the watcher will see it).
@@ -53,6 +63,10 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
   } catch (err) {
     return classify(err);
   }
+
+  // Brief hold so the cdk.out watcher can take its own read lock before the
+  // next writer comes in (see READER_HANDOFF_DELAY_MS), then release.
+  await new Promise<void>((resolve) => setTimeout(resolve, READER_HANDOFF_DELAY_MS));
 
   try {
     await cached.dispose();

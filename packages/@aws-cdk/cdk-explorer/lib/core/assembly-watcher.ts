@@ -23,7 +23,11 @@ const ASSEMBLY_SIGNAL_FILES = new Set([
   VALIDATION_REPORT_FILE,
 ]);
 
-const DEBOUNCE_MS = 200;
+// Debounce to coalesce a synth's burst of file writes into a single refresh.
+// The refresh acquires its own read lock and retries on contention (see
+// refreshFromAssembly), so this no longer needs to be tuned against the synth's
+// lock-hold timing.
+const DEBOUNCE_MS = 50;
 
 /** A running assembly watcher. */
 export interface AssemblyWatcher {

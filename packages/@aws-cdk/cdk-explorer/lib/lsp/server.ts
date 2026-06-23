@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
+import { RWLock, ToolkitError, type IReadLock } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
   StreamMessageWriter,
@@ -43,9 +44,21 @@ import {
 } from '../core/assembly-watcher';
 import type { SynthRunResult } from '../core/synth-runner';
 
+/**
+ * The cdk.out watcher fires after a synth's file writes but possibly before the
+ * synth releases its write lock. RWLock is fail-fast (it does not queue), so
+ * refreshFromAssembly polls up to REFRESH_LOCK_RETRIES times,
+ * REFRESH_LOCK_RETRY_MS apart, for the write lock to clear before giving up on
+ * a refresh pass.
+ */
+const REFRESH_LOCK_RETRIES = 10;
+const REFRESH_LOCK_RETRY_MS = 50;
+
 export interface LspHandlerOptions {
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
+  /** Acquire a read lock on the assembly dir for tests. Defaults to a real RWLock read lock. */
+  readonly acquireReadLock?: (assemblyDir: string) => Promise<IReadLock>;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -135,6 +148,7 @@ function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
  */
 export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers {
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
+  const acquireReadLock = options.acquireReadLock ?? ((dir: string) => new RWLock(dir).acquireRead());
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
   });
@@ -180,7 +194,39 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
 
   async function refreshFromAssembly(projectDir: string): Promise<void> {
     const assemblyDir = path.join(projectDir, 'cdk.out');
-    const result = await readAssembly(assemblyDir);
+
+    // Hold a read lock for the read so a concurrent synth (write lock) cannot
+    // overwrite cdk.out mid-read. RWLock is fail-fast and the file events that
+    // triggered us are already over, so poll for a synth's write lock to clear
+    // rather than waiting for another event that will not come.
+    let lock: IReadLock | undefined;
+    for (let attempt = 0; attempt <= REFRESH_LOCK_RETRIES; attempt++) {
+      try {
+        lock = await acquireReadLock(assemblyDir);
+        break;
+      } catch (err) {
+        if (ToolkitError.isLockError(err)) {
+          if (attempt < REFRESH_LOCK_RETRIES) {
+            await new Promise<void>((resolve) => setTimeout(resolve, REFRESH_LOCK_RETRY_MS));
+          }
+          continue;
+        }
+        // No cdk.out yet (ENOENT) is expected and silent; anything else is real.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          log.error(`Failed to acquire read lock on cloud assembly: ${(err as Error).message}`);
+        }
+        return;
+      }
+    }
+    // Write lock still held after every retry: skip this pass; a later synth
+    // (or its watcher event) triggers another refresh.
+    if (lock === undefined) return;
+    let result: AssemblyReadResult;
+    try {
+      result = await readAssembly(assemblyDir);
+    } finally {
+      await lock.release();
+    }
 
     if (result.status === 'error') {
       log.error(`Failed to read cloud assembly: ${result.message}`);

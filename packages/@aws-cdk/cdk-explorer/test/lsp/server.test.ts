@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
+import { LockError } from '@aws-cdk/toolkit-lib';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
@@ -41,6 +42,11 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
     // Default to "no assembly" so tests that don't care about diagnostics
     // don't need a fake fixture. Tests that do care override this.
     readAssembly: opts?.readAssembly ?? (async () => ({ status: 'not-found' })),
+    // Fake read lock so refreshFromAssembly does not touch the real filesystem.
+    acquireReadLock: opts?.acquireReadLock ?? (async () => ({
+      release: async () => {
+      },
+    })),
     synthRunner: opts?.synthRunner,
     notify: opts?.notify,
     logger: log,
@@ -234,6 +240,113 @@ describe('LSP Server', () => {
     expect(client.published).toHaveLength(1);
     expect(client.published[0].uri).toContain('stack.ts');
     expect(client.published[0].diagnostics).toHaveLength(1);
+  });
+
+  test('acquires and releases a read lock around the assembly read', async () => {
+    const { tree, violations } = bucketViolationFixtures();
+    const release = jest.fn(async () => {
+    });
+    const acquireReadLock = jest.fn(async () => ({ release }));
+    const client = createTestClient({
+      readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+      acquireReadLock,
+    });
+    await initializeClient(client, { applicationDir: '/p' });
+    expect(acquireReadLock).toHaveBeenCalledWith(path.join('/p', 'cdk.out'));
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(client.published).toHaveLength(1); // the read happened under the lock
+  });
+
+  test('retries while a synth holds the write lock, then skips without error once retries are exhausted', async () => {
+    jest.useFakeTimers();
+    try {
+      const { tree, violations } = bucketViolationFixtures();
+      const acquireReadLock = jest.fn(async () => {
+        throw new LockError('ConcurrentWriteLock', 'a synth is writing');
+      });
+      const client = createTestClient({
+        readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+        acquireReadLock,
+      });
+      // onInitialized awaits refreshFromAssembly, which now polls for the lock.
+      // Drive the retry delays via fake timers rather than waiting in real time.
+      client.handlers.onInitialize({
+        processId: null,
+        capabilities: {},
+        rootUri: null,
+        initializationOptions: { applicationDir: '/p' },
+      });
+      const initialized = client.handlers.onInitialized();
+      await jest.runAllTimersAsync();
+      await initialized;
+
+      expect(acquireReadLock.mock.calls.length).toBeGreaterThan(1); // it retried
+      expect(client.published).toHaveLength(0); // never got the lock, so no read
+      expect(client.log.error).not.toHaveBeenCalled(); // contention is not an error
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('retries the read lock on write-lock contention and refreshes once it clears', async () => {
+    jest.useFakeTimers();
+    try {
+      const { tree, violations } = bucketViolationFixtures();
+      const release = jest.fn(async () => {
+      });
+      let calls = 0;
+      const acquireReadLock = jest.fn(async () => {
+        calls += 1;
+        if (calls <= 3) throw new LockError('ConcurrentWriteLock', 'a synth is writing');
+        return { release };
+      });
+      const client = createTestClient({
+        readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+        acquireReadLock,
+      });
+      client.handlers.onInitialize({
+        processId: null,
+        capabilities: {},
+        rootUri: null,
+        initializationOptions: { applicationDir: '/p' },
+      });
+      const initialized = client.handlers.onInitialized();
+      await jest.runAllTimersAsync();
+      await initialized;
+
+      expect(acquireReadLock).toHaveBeenCalledTimes(4); // 3 contended + 1 success
+      expect(release).toHaveBeenCalledTimes(1); // released after the successful read
+      expect(client.published).toHaveLength(1); // the violation was published
+      expect(client.published[0].diagnostics).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('skips silently when there is no assembly yet (ENOENT)', async () => {
+    const { tree, violations } = bucketViolationFixtures();
+    const client = createTestClient({
+      readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+      acquireReadLock: async () => {
+        throw Object.assign(new Error('no cdk.out'), { code: 'ENOENT' });
+      },
+    });
+    await initializeClient(client, { applicationDir: '/p' });
+    expect(client.published).toHaveLength(0);
+    expect(client.log.error).not.toHaveBeenCalled();
+  });
+
+  test('logs and skips on an unexpected lock error', async () => {
+    const { tree, violations } = bucketViolationFixtures();
+    const client = createTestClient({
+      readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+      acquireReadLock: async () => {
+        throw new Error('disk on fire');
+      },
+    });
+    await initializeClient(client, { applicationDir: '/p' });
+    expect(client.published).toHaveLength(0);
+    expect(client.log.error).toHaveBeenCalled();
   });
 
   test('responds to codeLens with header + resource lenses for the requested file', async () => {
@@ -531,6 +644,10 @@ describe('LSP Server -- auto-synth toggle', () => {
   test('toggle round-trip: onCodeLens reflects new state after enableAutoSynth', async () => {
     const handlers = createLspHandlers({
       readAssembly: async () => ({ status: 'success', data: { warnings: [], tree: treeWithResource } }),
+      acquireReadLock: async () => ({
+        release: async () => {
+        },
+      }),
       synthRunner: jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' }),
       onRefreshCodeLenses: jest.fn(),
       startAssemblyWatcher: () => ({
