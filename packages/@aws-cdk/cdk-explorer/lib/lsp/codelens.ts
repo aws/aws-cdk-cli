@@ -22,19 +22,25 @@ export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
  *
  * @param autoSynthEnabled - current toggle state; controls which header lenses appear
  */
-export function codeLensesForFile(
+export async function codeLensesForFile(
   index: ConstructIndex<ConstructNode>,
   fileUri: string,
   autoSynthEnabled: boolean,
-): CodeLens[] {
+): Promise<CodeLens[]> {
   const matches = [...index]
     .filter((node) => isResourceOnFile(node, fileUri))
     .map((node) => ({ line: node.sourceLocation.line, node }));
 
-  const l1Lenses = [...groupBy(matches, (m) => m.line)].map(([line, group]) => ({
-    range: lineRange(line),
-    command: commandFor(group.map((m) => m.node)),
-  }));
+  // Multiple resources can map to one line when an L2 construct fans out
+  // (e.g. an L2 producing a primary resource + auxiliary resources). Resolve
+  // sequentially so the number of concurrent reads never grows with app size.
+  const l1Lenses: CodeLens[] = [];
+  for (const [line, group] of groupBy(matches, (m) => m.line)) {
+    l1Lenses.push({
+      range: lineRange(line),
+      command: await commandFor(group.map((m) => m.node)),
+    });
+  }
 
   if (l1Lenses.length === 0) return [];
 
@@ -66,11 +72,15 @@ interface ResourceChoice {
  * client opens directly (one) or via a picker (several). Unresolvable resources
  * are dropped; a line where none resolve stays title-only.
  */
-function commandFor(nodes: readonly ResourceConstruct[]): Command {
+async function commandFor(nodes: readonly ResourceConstruct[]): Promise<Command> {
   const title = titleFor(nodes);
-  const choices = nodes
-    .map((node) => ({ label: node.type, description: friendlyName(node.path), target: resourceTarget(node) }))
-    .filter((choice): choice is ResourceChoice => choice.target !== undefined);
+  const choices: ResourceChoice[] = [];
+  for (const node of nodes) {
+    const target = await resourceTarget(node);
+    if (target !== undefined) {
+      choices.push({ label: node.type, description: friendlyName(node.path), target });
+    }
+  }
   if (choices.length === 0) {
     return { title, command: '' };
   }

@@ -27,7 +27,8 @@ interface CapturedClient {
   log: { warn: jest.Mock; error: jest.Mock };
   refreshCodeLens: jest.Mock;
   watcherClosed: jest.Mock;
-  triggerWatcher: () => void;
+  /** Fire the cdk.out watcher's onChange and await the refresh it triggers. */
+  triggerWatcher: () => Promise<void>;
 }
 
 function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
@@ -37,7 +38,9 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
   const watcherClosed = jest.fn();
   let watcherOnChange: (() => void) | undefined;
   const handlers = createLspHandlers({
-    readAssembly: opts?.readAssembly ?? (() => ({ status: 'not-found' })),
+    // Default to "no assembly" so tests that don't care about diagnostics
+    // don't need a fake fixture. Tests that do care override this.
+    readAssembly: opts?.readAssembly ?? (async () => ({ status: 'not-found' })),
     synthRunner: opts?.synthRunner,
     notify: opts?.notify,
     logger: log,
@@ -58,22 +61,27 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
     log,
     refreshCodeLens,
     watcherClosed,
-    triggerWatcher: () => watcherOnChange?.(),
+    triggerWatcher: async () => {
+      watcherOnChange?.();
+      // onChange kicks off refreshFromAssembly fire-and-forget; let it settle
+      // before the test asserts on the published diagnostics.
+      await new Promise((resolve) => setImmediate(resolve));
+    },
   };
 }
 
-function initializeClient(
+async function initializeClient(
   client: CapturedClient,
   options?: Record<string, unknown>,
   capabilities?: InitializeParams['capabilities'],
-): void {
+): Promise<void> {
   client.handlers.onInitialize({
     processId: null,
     capabilities: capabilities ?? {},
     rootUri: null,
     initializationOptions: options ?? {},
   });
-  client.handlers.onInitialized();
+  await client.handlers.onInitialized();
 }
 
 function bucketViolationFixtures() {
@@ -103,10 +111,15 @@ function bucketViolationFixtures() {
   return { tree, violations };
 }
 
-function readAssemblyResolvingAfterFirst(): () => AssemblyReadResult {
+/**
+ * A readAssembly that reports a violation on the first read and the same tree
+ * with the violation resolved on every read after, simulating a user fixing it
+ * and re-synthing.
+ */
+function readAssemblyResolvingAfterFirst(): () => Promise<AssemblyReadResult> {
   const { tree, violations } = bucketViolationFixtures();
   let call = 0;
-  return (): AssemblyReadResult => {
+  return async (): Promise<AssemblyReadResult> => {
     call += 1;
     return { status: 'success', data: call === 1 ? { warnings: [], tree, violations } : { warnings: [], tree } };
   };
@@ -133,7 +146,7 @@ describe('LSP Server', () => {
   test('didSave triggers auto-synth for non-ignored source files when auto-synth is enabled', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await initializeClient(client, { applicationDir: '/tmp/test-project' });
 
     // Enable auto-synth via the toggle command first
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
@@ -149,7 +162,7 @@ describe('LSP Server', () => {
   test('didSave does not trigger synth when auto-synth is disabled (default)', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await initializeClient(client, { applicationDir: '/tmp/test-project' });
 
     // auto-synth is off by default
     client.handlers.onDidSaveTextDocument({
@@ -163,7 +176,7 @@ describe('LSP Server', () => {
   test('didSave does not trigger synth for ignored files', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     client.handlers.onDidSaveTextDocument({
@@ -180,7 +193,7 @@ describe('LSP Server', () => {
   test('didSave is ignored after shutdown', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     client.handlers.onShutdown();
@@ -195,7 +208,7 @@ describe('LSP Server', () => {
   test('auto-synth app-failure logs to output panel without throwing', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'app-failure', message: 'compile err' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/tmp/test-project' });
+    await initializeClient(client, { applicationDir: '/tmp/test-project' });
     await client.handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     expect(() => client.handlers.onDidSaveTextDocument({
@@ -206,28 +219,28 @@ describe('LSP Server', () => {
     expect(client.log.error).toHaveBeenCalledWith(expect.stringContaining('compile err'));
   });
 
-  test('shutdown completes without error', () => {
+  test('shutdown completes without error', async () => {
     const client = createTestClient();
-    initializeClient(client);
+    await initializeClient(client);
     expect(() => client.handlers.onShutdown()).not.toThrow();
   });
 
-  test('publishes diagnostics on initialized when assembly has violations', () => {
+  test('publishes diagnostics on initialized when assembly has violations', async () => {
     const { tree, violations } = bucketViolationFixtures();
     const client = createTestClient({
-      readAssembly: () => ({ status: 'success', data: { warnings: [], tree, violations } }),
+      readAssembly: async () => ({ status: 'success', data: { warnings: [], tree, violations } }),
     });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
     expect(client.published).toHaveLength(1);
     expect(client.published[0].uri).toContain('stack.ts');
     expect(client.published[0].diagnostics).toHaveLength(1);
   });
 
-  test('responds to codeLens with header + resource lenses for the requested file', () => {
+  test('responds to codeLens with header + resource lenses for the requested file', async () => {
     const stackTs = '/p/lib/stack.ts';
     const stackUri = pathToFileURL(stackTs).toString();
     const client = createTestClient({
-      readAssembly: (): AssemblyReadResult => ({
+      readAssembly: async (): Promise<AssemblyReadResult> => ({
         status: 'success',
         data: {
           warnings: [],
@@ -246,78 +259,85 @@ describe('LSP Server', () => {
         },
       }),
     });
-    initializeClient(client, { applicationDir: '/p' });
-    const lenses = client.handlers.onCodeLens({ textDocument: { uri: stackUri } });
+    await initializeClient(client, { applicationDir: '/p' });
+    const lenses = await client.handlers.onCodeLens({ textDocument: { uri: stackUri } });
     expect(lenses).toHaveLength(3); // 2 header + 1 L1
     expect(lenses[2].range.start.line).toBe(11); // 1-based 12 -> 0-based 11
     expect(lenses[2].command?.title).toBe('Creates AWS::S3::Bucket');
   });
 
-  test('publishes nothing when assembly is not-found (pre-synth)', () => {
-    const client = createTestClient({ readAssembly: () => ({ status: 'not-found' }) });
-    initializeClient(client, { applicationDir: '/p' });
+  test('publishes nothing when assembly is not-found (pre-synth)', async () => {
+    const client = createTestClient({ readAssembly: async () => ({ status: 'not-found' }) });
+    await initializeClient(client, { applicationDir: '/p' });
     expect(client.published).toHaveLength(0);
   });
 
-  test('clears diagnostics for a violation resolved on a later refresh', () => {
+  test('clears diagnostics for a violation resolved on a later refresh', async () => {
     const client = createTestClient({ readAssembly: readAssemblyResolvingAfterFirst() });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
     expect(client.published).toHaveLength(1);
     const violationUri = client.published[0].uri;
-    client.triggerWatcher();
+    expect(client.published[0].diagnostics).toHaveLength(1);
+
+    // Simulate a re-synth picked up by the cdk.out watcher.
+    await client.triggerWatcher();
+
     expect(client.published).toHaveLength(2);
     expect(client.published[1]).toEqual({ uri: violationUri, diagnostics: [] });
   });
 
-  test('requests a CodeLens refresh after a refresh when the client supports it', () => {
+  test('requests a CodeLens refresh after a refresh when the client supports it', async () => {
     const client = createTestClient({
-      readAssembly: (): AssemblyReadResult => ({
+      readAssembly: async (): Promise<AssemblyReadResult> => ({
         status: 'success',
         data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
       }),
     });
-    initializeClient(client, { applicationDir: '/p' }, { workspace: { codeLens: { refreshSupport: true } } });
+    await initializeClient(client, { applicationDir: '/p' }, { workspace: { codeLens: { refreshSupport: true } } });
     expect(client.refreshCodeLens).toHaveBeenCalledTimes(1);
   });
 
-  test('does not request a CodeLens refresh when the client lacks refreshSupport', () => {
+  test('does not request a CodeLens refresh when the client lacks refreshSupport', async () => {
     const client = createTestClient({
-      readAssembly: (): AssemblyReadResult => ({
+      readAssembly: async (): Promise<AssemblyReadResult> => ({
         status: 'success',
         data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
       }),
     });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
     expect(client.refreshCodeLens).not.toHaveBeenCalled();
   });
 
-  test('a watcher-detected re-synth refreshes diagnostics and lenses', () => {
+  test('a watcher-detected re-synth refreshes diagnostics and lenses', async () => {
     const client = createTestClient({ readAssembly: readAssemblyResolvingAfterFirst() });
-    initializeClient(client, { applicationDir: '/p' }, { workspace: { codeLens: { refreshSupport: true } } });
+    await initializeClient(client, { applicationDir: '/p' }, { workspace: { codeLens: { refreshSupport: true } } });
     expect(client.published).toHaveLength(1);
     const violationUri = client.published[0].uri;
     expect(client.refreshCodeLens).toHaveBeenCalledTimes(1);
-    client.triggerWatcher();
+
+    // Simulate a re-synth picked up by the cdk.out watcher.
+    await client.triggerWatcher();
+
     expect(client.published).toHaveLength(2);
     expect(client.published[1]).toEqual({ uri: violationUri, diagnostics: [] });
     expect(client.refreshCodeLens).toHaveBeenCalledTimes(2);
   });
 
-  test('closes the cdk.out watcher on shutdown', () => {
+  test('closes the cdk.out watcher on shutdown', async () => {
     const client = createTestClient();
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
     client.handlers.onShutdown();
     expect(client.watcherClosed).toHaveBeenCalledTimes(1);
   });
 
-  test('onDefinition resolves a template position back to construct source', () => {
+  test('onDefinition resolves a template position back to construct source', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-def-'));
     const templateFile = path.join(dir, 'Stack1.template.json');
     const text = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
     fs.writeFileSync(templateFile, text);
     try {
       const client = createTestClient({
-        readAssembly: () => ({
+        readAssembly: async () => ({
           status: 'success',
           data: {
             tree: [{
@@ -334,10 +354,10 @@ describe('LSP Server', () => {
           },
         }),
       });
-      initializeClient(client, { applicationDir: dir });
+      await initializeClient(client, { applicationDir: dir });
       const uri = pathToFileURL(templateFile).toString();
       const position = TextDocument.create(uri, 'json', 0, text).positionAt(text.indexOf('AWS::S3::Bucket'));
-      const target = client.handlers.onDefinition({ textDocument: { uri }, position });
+      const target = await client.handlers.onDefinition({ textDocument: { uri }, position });
       expect(target?.uri).toBe(pathToFileURL('/p/lib/stack.ts').toString());
       expect(target?.range.start).toEqual({ line: 4, character: 2 });
     } finally {
@@ -345,19 +365,19 @@ describe('LSP Server', () => {
     }
   });
 
-  test('onDefinition returns undefined for a non-template document', () => {
+  test('onDefinition returns undefined for a non-template document', async () => {
     const client = createTestClient();
-    initializeClient(client, { applicationDir: '/p' });
-    expect(client.handlers.onDefinition({
+    await initializeClient(client, { applicationDir: '/p' });
+    expect(await client.handlers.onDefinition({
       textDocument: { uri: pathToFileURL('/p/lib/stack.ts').toString() },
       position: { line: 0, character: 0 },
     })).toBeUndefined();
   });
 
-  test('onDefinition returns undefined (does not throw) for a non-file URI', () => {
+  test('onDefinition returns undefined (does not throw) for a non-file URI', async () => {
     const client = createTestClient();
-    initializeClient(client, { applicationDir: '/p' });
-    expect(client.handlers.onDefinition({
+    await initializeClient(client, { applicationDir: '/p' });
+    expect(await client.handlers.onDefinition({
       textDocument: { uri: 'untitled:Untitled-1' },
       position: { line: 0, character: 0 },
     })).toBeUndefined();
@@ -371,7 +391,7 @@ describe('LSP Server -- executeCommand', () => {
   } {
     const notify = makeNotifySink();
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       notify,
       startAssemblyWatcher: (o) => {
         return {
@@ -382,7 +402,7 @@ describe('LSP Server -- executeCommand', () => {
       ...opts,
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: {} });
-    handlers.onInitialized();
+    void handlers.onInitialized();
     return { handlers, notify };
   }
 
@@ -443,7 +463,7 @@ describe('LSP Server -- executeCommand', () => {
       .mockResolvedValue({ status: 'success' });
     const notify = makeNotifySink();
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       synthRunner,
       notify,
       startAssemblyWatcher: () => ({
@@ -452,7 +472,7 @@ describe('LSP Server -- executeCommand', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    void handlers.onInitialized();
 
     // Enable auto-synth so didSave triggers a synth
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
@@ -479,7 +499,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     const log = { warn: jest.fn(), error: jest.fn() };
     const refreshCodeLens = jest.fn();
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       synthRunner,
       logger: log,
       onRefreshCodeLenses: refreshCodeLens,
@@ -489,7 +509,7 @@ describe('LSP Server -- auto-synth toggle', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    void handlers.onInitialized();
     return { handlers, synthRunner, refreshCodeLens, log };
   }
 
@@ -510,7 +530,7 @@ describe('LSP Server -- auto-synth toggle', () => {
 
   test('toggle round-trip: onCodeLens reflects new state after enableAutoSynth', async () => {
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'success', data: { warnings: [], tree: treeWithResource } }),
+      readAssembly: async () => ({ status: 'success', data: { warnings: [], tree: treeWithResource } }),
       synthRunner: jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' }),
       onRefreshCodeLenses: jest.fn(),
       startAssemblyWatcher: () => ({
@@ -519,10 +539,10 @@ describe('LSP Server -- auto-synth toggle', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    await handlers.onInitialized();
 
     // Before toggle: 2 header lenses (Synth now + Enable auto-synth)
-    const before = handlers.onCodeLens({ textDocument: { uri: stackUri } });
+    const before = await handlers.onCodeLens({ textDocument: { uri: stackUri } });
     expect(before[0].command?.title).toBe('↻ Synth now');
     expect(before[1].command?.title).toBe('▶ Enable auto-synth');
 
@@ -530,7 +550,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     // After toggle: 1 header lens (Disable auto-synth)
-    const after = handlers.onCodeLens({ textDocument: { uri: stackUri } });
+    const after = await handlers.onCodeLens({ textDocument: { uri: stackUri } });
     expect(after[0].command?.title).toBe('⏹ Disable auto-synth');
     expect(after).toHaveLength(2); // 1 header + 1 L1
   });
@@ -547,7 +567,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, [string]>().mockResolvedValue({ status: 'unavailable' });
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       synthRunner,
       logger: log,
       startAssemblyWatcher: () => ({
@@ -556,7 +576,7 @@ describe('LSP Server -- auto-synth toggle', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    await handlers.onInitialized();
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
@@ -573,7 +593,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'lock-conflict' });
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       synthRunner,
       logger: log,
       startAssemblyWatcher: () => ({
@@ -582,7 +602,7 @@ describe('LSP Server -- auto-synth toggle', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    await handlers.onInitialized();
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
@@ -596,7 +616,7 @@ describe('LSP Server -- auto-synth toggle', () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'error', message: 'unexpected failure' });
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: async () => ({ status: 'not-found' }),
       synthRunner,
       logger: log,
       startAssemblyWatcher: () => ({
@@ -605,7 +625,7 @@ describe('LSP Server -- auto-synth toggle', () => {
       }),
     });
     handlers.onInitialize({ processId: null, capabilities: {}, rootUri: null, initializationOptions: { applicationDir: '/p' } });
-    handlers.onInitialized();
+    await handlers.onInitialized();
     await handlers.onExecuteCommand({ command: 'cdk.explorer.enableAutoSynth' });
 
     handlers.onDidSaveTextDocument({ textDocument: { uri: 'file:///p/lib/stack.ts' } });
@@ -623,7 +643,7 @@ describe('LSP Server -- synth-failure diagnostics', () => {
       details: 'lib/stack.ts:12:5 - error TS2322: nope',
     });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
 
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
@@ -639,7 +659,7 @@ describe('LSP Server -- synth-failure diagnostics', () => {
       details: 'lib/stack.ts(1,1): error TS1000: a\nbin/app.ts(2,2): error TS1001: b',
     });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
 
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
@@ -653,7 +673,7 @@ describe('LSP Server -- synth-failure diagnostics', () => {
       message: 'context needed',
     });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
 
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
@@ -666,7 +686,7 @@ describe('LSP Server -- synth-failure diagnostics', () => {
       .mockResolvedValueOnce({ status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' })
       .mockResolvedValueOnce({ status: 'success' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
 
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
@@ -681,7 +701,7 @@ describe('LSP Server -- synth-failure diagnostics', () => {
       .mockResolvedValueOnce({ status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' })
       .mockResolvedValueOnce({ status: 'unavailable' });
     const client = createTestClient({ synthRunner });
-    initializeClient(client, { applicationDir: '/p' });
+    await initializeClient(client, { applicationDir: '/p' });
 
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     await client.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });

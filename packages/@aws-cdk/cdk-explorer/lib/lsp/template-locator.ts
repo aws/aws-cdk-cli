@@ -23,13 +23,13 @@ export interface ResourceTarget {
  * Returns `undefined` when the node is not navigable: no resolved template, the
  * template cannot be read, it does not parse, or the logical id is absent.
  */
-export function resourceTarget(node: { templateFile?: string; logicalId: string }): ResourceTarget | undefined {
+export async function resourceTarget(node: { templateFile?: string; logicalId: string }): Promise<ResourceTarget | undefined> {
   if (node.templateFile === undefined) {
     return undefined;
   }
   let templateText: string;
   try {
-    templateText = fs.readFileSync(node.templateFile, 'utf-8');
+    templateText = await fs.promises.readFile(node.templateFile, 'utf-8');
   } catch {
     return undefined;
   }
