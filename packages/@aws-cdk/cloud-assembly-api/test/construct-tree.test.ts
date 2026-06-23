@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { buildConstructTree, CloudAssembly, ConstructIndex, type ConstructTreeNode } from '../lib';
+import { buildConstructTree, buildConstructTreeAsync, CloudAssembly, ConstructIndex, type ConstructTreeNode } from '../lib';
 import { rimraf } from './util';
 
 const node = (nodePath: string, children: ConstructTreeNode[] = []): ConstructTreeNode => ({
@@ -151,6 +151,22 @@ describe('buildConstructTree', () => {
     const assembly = new CloudAssembly(writeAssembly({ withTree: false }));
     expect(buildConstructTree(assembly, (f) => f)).toEqual([]);
   });
+
+  test('buildConstructTreeAsync awaits the decorator and produces the same joined tree', async () => {
+    const assembly = new CloudAssembly(writeAssembly({ withTree: true }));
+    const tree = await buildConstructTreeAsync(assembly, async (fields, stack, constructPath) => ({
+      ...fields,
+      stackId: stack?.id,
+      // Resolve through a real Promise to prove the async decorator is awaited,
+      // not merely returned synchronously.
+      decoratedPath: await Promise.resolve(constructPath),
+    }));
+    const resource = ConstructIndex.fromTree(tree).byPath('MyStack/Bucket/Resource');
+    expect(resource?.type).toBe('AWS::S3::Bucket');
+    expect(resource?.logicalId).toBe('BucketABC');
+    expect((resource as any)?.decoratedPath).toBe('MyStack/Bucket/Resource');
+    expect((resource as any)?.stackId).toBe('MyStack');
+  });
 });
 
 describe('buildConstructTree -- nested stacks', () => {
@@ -287,5 +303,14 @@ describe('buildConstructTree -- nested stacks', () => {
   test('yields no templateFile when asset metadata is absent (--no-asset-metadata)', () => {
     const d = writeNestedAssembly({ withAssetMetadata: false });
     expect(templateFileOf(d, 'MyStack/Nested/Bucket/Resource')).toBeUndefined();
+  });
+
+  test('buildConstructTreeAsync threads nested-stack scope positionally via for...await (twin logical IDs)', async () => {
+    // Twin logical IDs (NestedStack resets the namespace): the async for...await
+    // recursion must still route each bucket to its own template, like the sync walk.
+    const d = writeNestedAssembly({ nestedBucketLogicalId: 'ParentBucket' });
+    const index = ConstructIndex.fromTree(await buildConstructTreeAsync(new CloudAssembly(d), async (f) => f));
+    expect(index.byPath('MyStack/Bucket/Resource')?.templateFile).toBe(path.join(d, 'template.json'));
+    expect(index.byPath('MyStack/Nested/Bucket/Resource')?.templateFile).toBe(path.join(d, 'nested.template.json'));
   });
 });

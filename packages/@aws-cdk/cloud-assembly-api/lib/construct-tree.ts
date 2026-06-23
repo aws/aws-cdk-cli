@@ -55,6 +55,18 @@ export type ConstructNodeDecorator<T extends ConstructTreeNode> = (
 ) => T;
 
 /**
+ * Async variant of {@link ConstructNodeDecorator}: the decorator may return a
+ * `Promise<T>`, so it can do non-blocking I/O (for example reading source maps
+ * off disk with `fs.promises`) while building each node. Used by
+ * {@link buildConstructTreeAsync}.
+ */
+export type AsyncConstructNodeDecorator<T extends ConstructTreeNode> = (
+  fields: ConstructTreeNodeFields<T>,
+  stack: CloudFormationStackArtifact | undefined,
+  constructPath: string,
+) => T | Promise<T>;
+
+/**
  * A pre-built index over a construct tree. Walks the tree once and exposes
  * O(1) path lookup plus pre-order iteration over every node, so callers never
  * re-implement the recursive descent over `children`.
@@ -114,28 +126,70 @@ function visit<T extends ConstructTreeNode>(nodes: readonly T[], fn: (node: T) =
  *
  * The `decorate` callback turns each node's generic fields and its metadata
  * entries into the concrete node type (e.g. attaching a resolved source location).
+ *
+ * This is the synchronous variant: `decorate` must return `T`. Callers whose
+ * decoration needs non-blocking I/O should use {@link buildConstructTreeAsync}.
  */
 export function buildConstructTree<T extends ConstructTreeNode>(
   assembly: CloudAssembly,
   decorate: ConstructNodeDecorator<T>,
 ): T[] {
-  const treeArtifact = assembly.tree();
-  if (!treeArtifact) return [];
-
-  const rawTree = loadTree(path.join(assembly.directory, treeArtifact.file));
-  if (!rawTree) return [];
-
-  const stackIndex = buildStackIndex(assembly.stacksRecursively);
-  const ctx: WalkContext<T> = { stackIndex, decorate, templateCache: new Map() };
-  return Object.values(rawTree.children ?? {})
-    .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, ctx, undefined, NO_TEMPLATE));
+  const roots = readRoots(assembly);
+  if (!roots) return [];
+  const { rawRoots, ctx } = roots;
+  return rawRoots.map((child) => buildNodeSync(child, ctx, undefined, NO_TEMPLATE, decorate));
 }
 
-/** Shared state for a single {@link buildConstructTree} walk. */
-interface WalkContext<T extends ConstructTreeNode> {
+/**
+ * Async counterpart of {@link buildConstructTree}: the `decorate` callback may
+ * return a `Promise<T>`, letting it do non-blocking I/O per node (for example
+ * tracing source locations with `fs.promises`) without blocking the calling
+ * thread. Behaves identically otherwise; the tree is walked in pre-order and
+ * each node's children are resolved before the node is decorated.
+ */
+export async function buildConstructTreeAsync<T extends ConstructTreeNode>(
+  assembly: CloudAssembly,
+  decorate: AsyncConstructNodeDecorator<T>,
+): Promise<T[]> {
+  const roots = readRoots(assembly);
+  if (!roots) return [];
+  const { rawRoots, ctx } = roots;
+  const out: T[] = [];
+  for (const child of rawRoots) {
+    out.push(await buildNodeAsync(child, ctx, undefined, NO_TEMPLATE, decorate));
+  }
+  return out;
+}
+
+/**
+ * Load tree.json and build the walk context shared by both tree builders.
+ * Returns the user-facing root raw nodes (cdk-internal ids filtered out) plus
+ * the context, or undefined when there's no tree to walk.
+ */
+function readRoots(assembly: CloudAssembly): WalkRoots | undefined {
+  const treeArtifact = assembly.tree();
+  if (!treeArtifact) return undefined;
+
+  const rawTree = loadTree(path.join(assembly.directory, treeArtifact.file));
+  if (!rawTree) return undefined;
+
+  const ctx: WalkContext = {
+    stackIndex: buildStackIndex(assembly.stacksRecursively),
+    templateCache: new Map(),
+  };
+  const rawRoots = Object.values(rawTree.children ?? {}).filter((child) => !isCdkInternal(child.id));
+  return { rawRoots, ctx };
+}
+
+/** The user-facing root raw nodes plus the shared walk context. */
+interface WalkRoots {
+  readonly rawRoots: RawTreeNode[];
+  readonly ctx: WalkContext;
+}
+
+/** Shared state for a single tree walk (decorator-independent). */
+interface WalkContext {
   readonly stackIndex: StackMetadataIndex;
-  readonly decorate: ConstructNodeDecorator<T>;
   /** Parsed nested templates, cached by absolute path. */
   readonly templateCache: Map<string, CfnTemplate | undefined>;
 }
@@ -180,6 +234,29 @@ interface StackMetadata {
 }
 type StackMetadataIndex = Map<string, StackMetadata>;
 
+/** The generic fields for one node, minus its (decorated) children. */
+type NodeFieldsBase = Omit<ConstructTreeNodeFields<ConstructTreeNode>, 'children'>;
+
+/** A child to recurse into, paired with the template scope it inherits. */
+interface ChildInput {
+  readonly raw: RawTreeNode;
+  readonly scope: TemplateScope;
+}
+
+/**
+ * Everything {@link buildNodeSync}/{@link buildNodeAsync} need for one node,
+ * computed once (no I/O beyond the cached template reads), so the two builders
+ * differ only in how they recurse and invoke `decorate`.
+ */
+interface PreparedNode {
+  readonly base: NodeFieldsBase;
+  /** Owning stack metadata: its `stack` is the decorate arg and the children's inheritedStack. */
+  readonly owner: StackMetadata | undefined;
+  readonly constructPath: string;
+  readonly childInputs: readonly ChildInput[];
+}
+
+/** Reads and parses tree.json. Kept synchronous on purpose; see {@link loadTemplate}. */
 function loadTree(treePath: string): RawTreeNode | undefined {
   if (!fs.existsSync(treePath)) return undefined;
   const content = JSON.parse(fs.readFileSync(treePath, 'utf-8'));
@@ -199,12 +276,17 @@ function buildStackIndex(stacks: CloudFormationStackArtifact[]): StackMetadataIn
   return index;
 }
 
-function buildNode<T extends ConstructTreeNode>(
+/**
+ * Compute the generic fields, owning stack, and per-child template scopes for a
+ * single node. Owns all of the tree/metadata/template join logic; the sync and
+ * async builders share it so the substantive walk lives in exactly one place.
+ */
+function prepareNode(
   raw: RawTreeNode,
-  ctx: WalkContext<T>,
+  ctx: WalkContext,
   inheritedStack: StackMetadata | undefined,
   inherited: TemplateScope,
-): T {
+): PreparedNode {
   const stackHere = ctx.stackIndex.get(raw.path);
   const owner = stackHere ?? inheritedStack;
   // A stack node switches to its own template via the artifact's cached getter,
@@ -222,17 +304,47 @@ function buildNode<T extends ConstructTreeNode>(
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
 
   // A NestedStack switches its subtree to the nested scope; other nodes inherit.
-  const children = Object.values(raw.children ?? {})
+  const childInputs: ChildInput[] = Object.values(raw.children ?? {})
     .filter((child) => !isCdkInternal(child.id))
-    .map((child) => buildNode(child, ctx, owner, nestedBoundary(child, raw, owner, scope.template, ctx) ?? scope));
+    .map((child) => ({ raw: child, scope: nestedBoundary(child, raw, owner, scope.template, ctx) ?? scope }));
 
   // Only CFN resources (those with a logical ID) carry a templateFile.
   const nodeTemplateFile = logicalId !== undefined ? scope.file : undefined;
-  return ctx.decorate(
-    { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile, children },
-    owner?.stack,
-    raw.path,
+  return {
+    base: { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile },
+    owner,
+    constructPath: raw.path,
+    childInputs,
+  };
+}
+
+function buildNodeSync<T extends ConstructTreeNode>(
+  raw: RawTreeNode,
+  ctx: WalkContext,
+  inheritedStack: StackMetadata | undefined,
+  inherited: TemplateScope,
+  decorate: ConstructNodeDecorator<T>,
+): T {
+  const prepared = prepareNode(raw, ctx, inheritedStack, inherited);
+  const children = prepared.childInputs.map(
+    (ci) => buildNodeSync(ci.raw, ctx, prepared.owner, ci.scope, decorate),
   );
+  return decorate({ ...prepared.base, children }, prepared.owner?.stack, prepared.constructPath);
+}
+
+async function buildNodeAsync<T extends ConstructTreeNode>(
+  raw: RawTreeNode,
+  ctx: WalkContext,
+  inheritedStack: StackMetadata | undefined,
+  inherited: TemplateScope,
+  decorate: AsyncConstructNodeDecorator<T>,
+): Promise<T> {
+  const prepared = prepareNode(raw, ctx, inheritedStack, inherited);
+  const children: T[] = [];
+  for (const ci of prepared.childInputs) {
+    children.push(await buildNodeAsync(ci.raw, ctx, prepared.owner, ci.scope, decorate));
+  }
+  return decorate({ ...prepared.base, children }, prepared.owner?.stack, prepared.constructPath);
 }
 
 function logicalIdFromEntries(entries: MetadataEntry[]): string | undefined {
@@ -240,7 +352,14 @@ function logicalIdFromEntries(entries: MetadataEntry[]): string | undefined {
   return typeof entry?.data === 'string' ? entry.data : undefined;
 }
 
-/** Parses a template file (cached by absolute path); undefined when missing/unparseable. */
+/**
+ * Parses a template file (cached by absolute path); undefined when missing/unparseable.
+ *
+ * Synchronous by design: {@link prepareNode} is shared by the sync `buildConstructTree`
+ * and the async `buildConstructTreeAsync`, so it cannot await. These reads are O(stacks)
+ * (one tree.json plus a handful of nested templates), not the per-construct hot path, so
+ * blocking here is acceptable. Do not switch to `fs.promises` without splitting the shared walk.
+ */
 function loadTemplate(absPath: string, cache: Map<string, CfnTemplate | undefined>): CfnTemplate | undefined {
   if (cache.has(absPath)) return cache.get(absPath);
   let template: CfnTemplate | undefined;
@@ -265,12 +384,12 @@ function loadTemplate(absPath: string, cache: Map<string, CfnTemplate | undefine
  * NO_TEMPLATE (not the parent's) when unresolvable, since the nested stack's
  * resources don't live in the parent template.
  */
-function nestedBoundary<T extends ConstructTreeNode>(
+function nestedBoundary(
   child: RawTreeNode,
   parent: RawTreeNode,
   owner: StackMetadata | undefined,
   currentTemplate: CfnTemplate | undefined,
-  ctx: WalkContext<T>,
+  ctx: WalkContext,
 ): TemplateScope | undefined {
   const resourceNode = parent.children?.[`${child.id}.NestedStack`]?.children?.[`${child.id}.NestedStackResource`];
   // No sibling -> not a nested stack. A real nested stack always lives under a
