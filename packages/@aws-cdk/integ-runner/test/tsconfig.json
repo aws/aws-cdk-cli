@@ -12,9 +12,6 @@
       "path": "../../cloud-assembly-api"
     },
     {
-      "path": "../../../aws-cdk"
-    },
-    {
       "path": "../../cdk-assets-lib"
     },
     {
