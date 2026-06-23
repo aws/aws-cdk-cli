@@ -85,10 +85,12 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
 };
 
 /**
- * A single location in a stack trace: the file a frame points to and the line
- * within it.
+ * A single location in a stack trace: the function name plus the file and line
+ * it points to. The function name matters in the shipped CLI, where everything
+ * is bundled into one file, so the file:line alone can't tell two frames apart.
  */
 interface SourceFrame {
+  readonly func: string;
   readonly file: string;
   readonly line: number;
 }
@@ -220,6 +222,7 @@ function captureCreationStack(): SourceFrame[] {
   Error.prepareStackTrace = (_error, callSites) => callSites.map((site) => {
     const file = site.getFileName() ?? '';
     return {
+      func: site.getFunctionName() ?? '<anonymous>',
       file: file.startsWith('file://') ? fileURLToPath(file) : file,
       line: site.getLineNumber() ?? 0,
     };
@@ -246,7 +249,9 @@ function describeLocation(frame: SourceFrame): string {
   const fromCwd = relative(process.cwd(), frame.file);
   // A leading '..' means the file is outside cwd, where the absolute path reads better.
   const shown = fromCwd.startsWith('..') ? frame.file : fromCwd;
-  return `${shown}:${frame.line}`;
+  // Lead with the function name: in the bundled CLI every frame shares one file,
+  // so the name is what tells two frames apart.
+  return `${frame.func} (${shown}:${frame.line})`;
 }
 
 function sourceAt(frame: SourceFrame): string | undefined {
