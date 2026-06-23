@@ -428,6 +428,7 @@ __metadata:
     nx: "npm:^22.7.5"
     prettier: "npm:^2.8"
     projen: "npm:^0.99.73"
+    timezone-mock: "npm:^1.4.3"
     ts-jest: "npm:^29.4.11"
     typescript: "npm:5.9"
     yazl: "npm:^3.3.1"
@@ -17461,6 +17462,13 @@ __metadata:
   version: 2.3.8
   resolution: "through@npm:2.3.8"
   checksum: 10c0/4b09f3774099de0d4df26d95c5821a62faee32c7e96fb1f4ebd54a2d7c11c57fe88b0a0d49cf375de5fee5ae6bf4eb56dbbf29d07366864e2ee805349970d3cc
+  languageName: node
+  linkType: hard
+
+"timezone-mock@npm:^1.4.3":
+  version: 1.4.3
+  resolution: "timezone-mock@npm:1.4.3"
+  checksum: 10c0/984e52f711553c8fdc6ad23d756a3518981b9460048d0eec8d670cbe9457ba25217d2dc298af6cf56c5a61ff8f0db745b8170918cda4c6d30fad78d308a75050
   languageName: node
   linkType: hard
 
