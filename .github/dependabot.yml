@@ -4,13 +4,12 @@ version: 2
 updates:
   - package-ecosystem: npm
     schedule:
-      interval: weekly
+      interval: daily
     cooldown:
-      default-days: 7
+      default-days: 3
+    open-pull-requests-limit: 0
     labels:
       - auto-approve
-    allow:
-      - dependency-type: production
     ignore:
       - dependency-name: "@aws-cdk-testing/cli-integ"
       - dependency-name: "@aws-cdk/cdk-assets-lib"
