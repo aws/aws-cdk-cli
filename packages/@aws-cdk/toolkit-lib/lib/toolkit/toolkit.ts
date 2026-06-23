@@ -112,7 +112,7 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
@@ -312,8 +312,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         );
 
         const message = bootstrapResult.noOp
-          ? ` ✅  ${environment.name} (no changes)`
-          : ` ✅  ${environment.name}`;
+          ? `✅  ${environment.name} (no changes)`
+          : `✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
         const envTime = await bootstrapSpan.end();
@@ -1027,21 +1027,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
 
         const message = deployResult.noOp
-          ? ` ✅  ${stack.displayName} (no changes)`
-          : ` ✅  ${stack.displayName}`;
+          ? `✅  ${stack.displayName} (no changes)`
+          : `✅  ${stack.displayName}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green('\n' + message), deployResult));
         deployDuration = await deploySpan.timing(IO.CDK_TOOLKIT_I5000);
 
-        if (deployResult.stabilizingResources.length > 0 && options.express) {
-          const maxNamed = 5;
-          const names = deployResult.stabilizingResources.map((r) => r.logicalResourceId);
-          const shown = names.slice(0, maxNamed).join(', ');
-          const remaining = names.length - maxNamed;
-          const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
-          await ioHelper.notify(IO.CDK_TOOLKIT_W5902.msg(
-            chalk.yellow(`⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`),
-          ));
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(deployResult.stabilizingResources, 'deploy');
+          if (warning) {
+            await ioHelper.notify(IO.CDK_TOOLKIT_W5902.msg(warning));
+          }
         }
 
         if (Object.keys(deployResult.outputs).length > 0) {
@@ -1663,17 +1659,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stackExisted: result.stackArn !== undefined,
           });
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
+          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
 
-          if (result.stabilizingResources.length > 0 && options.express) {
-            const maxNamed = 5;
-            const names = result.stabilizingResources.map((r) => r.logicalResourceId);
-            const shown = names.slice(0, maxNamed).join(', ');
-            const remaining = names.length - maxNamed;
-            const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
-            await ioHelper.notify(IO.CDK_TOOLKIT_W7902.msg(
-              chalk.yellow(`⚠️  Stack deleted using Express Mode. Resources still tearing down: ${resourceList}\n`),
-            ));
+          if (options.express) {
+            const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'destroy');
+            if (warning) {
+              await ioHelper.notify(IO.CDK_TOOLKIT_W7902.msg(warning));
+            }
           }
 
           await singleDestroySpan.end();

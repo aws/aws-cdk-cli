@@ -14,7 +14,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -2434,22 +2434,18 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       }
 
       const message = deployResult.noOp
-        ? ' ✅  %s (no changes)'
-        : ' ✅  %s';
+        ? '✅  %s (no changes)'
+        : '✅  %s';
 
       await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
       elapsedDeployTime = new Date().getTime() - startDeployTime;
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
 
-      if (deployResult.stabilizingResources.length > 0 && this.options.express) {
-        const maxNamed = 5;
-        const names = deployResult.stabilizingResources.map((r) => r.logicalResourceId);
-        const shown = names.slice(0, maxNamed).join(', ');
-        const remaining = names.length - maxNamed;
-        const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
-        await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W5902.msg(
-          chalk.yellow(`⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`),
-        ));
+      if (this.options.express) {
+        const warning = formatExpressStabilizationWarning(deployResult.stabilizingResources, 'deploy');
+        if (warning) {
+          await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W5902.msg(warning));
+        }
       }
 
       if (Object.keys(deployResult.outputs).length > 0) {

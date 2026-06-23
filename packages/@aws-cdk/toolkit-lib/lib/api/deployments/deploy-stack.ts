@@ -8,6 +8,7 @@ import type {
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
   Tag,
+  DeploymentConfig,
 } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
@@ -510,6 +511,13 @@ class FullCloudFormationDeployment {
     return this.checkAndExecuteChangeSet(changeSetDescription);
   }
 
+  private deployConfig(): DeploymentConfig {
+    return { 
+      Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
+      ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+    }
+  }
+
   /**
    * Check rollback/replacement constraints and execute the change set if all checks pass.
    */
@@ -555,10 +563,7 @@ class FullCloudFormationDeployment {
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
       ...this.commonPrepareOptions(),
-      DeploymentConfig: {
-        Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
-        ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
-      },
+      DeploymentConfig: this.deployConfig(),
     });
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
@@ -639,10 +644,7 @@ class FullCloudFormationDeployment {
         const stack = await this.cfn.updateStack({
           StackName: this.stackName,
           ClientRequestToken: `update${this.uuid}`,
-          DeploymentConfig: {
-            Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
-            ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
-          },
+          DeploymentConfig: this.deployConfig(),
           ...this.commonPrepareOptions(),
           ...this.commonExecuteOptions(),
         });
@@ -668,10 +670,7 @@ class FullCloudFormationDeployment {
       const stack = await this.cfn.createStack({
         StackName: this.stackName,
         ClientRequestToken: `create${this.uuid}`,
-        DeploymentConfig: {
-          Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
-          ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
-        },
+        DeploymentConfig: this.deployConfig(),
         ...(terminationProtection ? { EnableTerminationProtection: true } : undefined),
         ...this.commonPrepareOptions(),
         ...this.commonExecuteOptions(),
