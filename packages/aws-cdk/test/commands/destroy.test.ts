@@ -1,4 +1,4 @@
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import { Deployments } from '../../lib/api';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
@@ -160,17 +160,19 @@ describe('force: false (confirmation prompt)', () => {
     expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(1);
   });
 
-  test('aborts (CDK_TOOLKIT_E7010) and destroys nothing when the user declines', async () => {
-    // The IoHost throws AbortedByUser when the user declines a confirmation.
-    jest.spyOn(ioHost, 'requestResponse').mockImplementation((() => {
-      throw new ToolkitError('AbortedByUser', 'Aborted by user');
-    }) as any);
+  test('aborts with an AbortError and destroys nothing when the user declines', async () => {
+    // The IoHost returns the answer; declining is `false` and the command aborts
+    // by throwing an AbortError (non-zero exit, presented softly by the CLI).
+    jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(false as any);
 
-    await toolkit.destroy({
+    const error = await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
       exclusively: true,
       force: false,
-    });
+    }).catch((e) => e);
+
+    expect(AbortError.isAbortError(error)).toBe(true);
+    expect(error.name).toBe('DestroyAborted');
 
     // Aborted before any destroy happened.
     expect(cloudFormation.destroyStack).not.toHaveBeenCalled();

@@ -768,7 +768,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       return msg.defaultResponse;
     }
 
-    const response = await this.withCorkedLogging(async (): Promise<string | number | true> => {
+    const response = await this.withCorkedLogging(async (): Promise<string | number | boolean> => {
       // prepare prompt data
       // @todo this format is not defined anywhere, probably should be
       const data: {
@@ -822,12 +822,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
 
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
+      // The IoHost never aborts on a "no": it returns the answer and lets the
+      // calling action decide what to do (so abort handling is consistent
+      // across actions).
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(question)} (y/n)`);
-        if (!confirmed) {
-          throw new ToolkitError('AbortedByUser', 'Aborted by user');
-        }
-        return confirmed;
+        return promptly.confirm(`${chalk.cyan(question)} (y/n)`);
       }
 
       // Asking for a specific value
