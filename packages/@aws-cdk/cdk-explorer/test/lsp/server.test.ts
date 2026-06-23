@@ -264,7 +264,7 @@ describe('LSP Server', () => {
 
     await initializeClient(client, { applicationDir: '/p' });
 
-    const lenses = client.handlers.onCodeLens({
+    const lenses = await client.handlers.onCodeLens({
       textDocument: { uri: stackUri },
     });
 
@@ -381,7 +381,7 @@ describe('LSP Server', () => {
 
       const uri = pathToFileURL(templateFile).toString();
       const position = TextDocument.create(uri, 'json', 0, text).positionAt(text.indexOf('AWS::S3::Bucket'));
-      const target = client.handlers.onDefinition({ textDocument: { uri }, position });
+      const target = await client.handlers.onDefinition({ textDocument: { uri }, position });
 
       expect(target?.uri).toBe(pathToFileURL('/p/lib/stack.ts').toString());
       expect(target?.range.start).toEqual({ line: 4, character: 2 }); // 1-based (5,3) -> 0-based
@@ -393,7 +393,7 @@ describe('LSP Server', () => {
   test('onDefinition returns undefined for a non-template document', async () => {
     const client = createTestClient();
     await initializeClient(client, { applicationDir: '/p' });
-    const target = client.handlers.onDefinition({
+    const target = await client.handlers.onDefinition({
       textDocument: { uri: pathToFileURL('/p/lib/stack.ts').toString() },
       position: { line: 0, character: 0 },
     });
@@ -404,7 +404,7 @@ describe('LSP Server', () => {
     const client = createTestClient();
     await initializeClient(client, { applicationDir: '/p' });
     expect(
-      client.handlers.onDefinition({
+      await client.handlers.onDefinition({
         textDocument: { uri: 'untitled:Untitled-1' },
         position: { line: 0, character: 0 },
       }),

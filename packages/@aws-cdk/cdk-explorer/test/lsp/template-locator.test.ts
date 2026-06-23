@@ -66,7 +66,7 @@ describe('resourceTarget', () => {
     const node = find(result.data.tree, 'Stack1/MyBucket/Resource')!;
     const templateFile = path.join(dir!, 'Stack1.template.json');
 
-    const target = resourceTarget(node)!;
+    const target = (await resourceTarget(node))!;
     expect(target.uri).toBe(pathToFileURL(templateFile).toString());
     // The range spans the resource block (not a zero-width cursor) and re-parses to it.
     const text = fs.readFileSync(templateFile, 'utf-8');
@@ -74,30 +74,30 @@ describe('resourceTarget', () => {
     expect(sliceParse(text, target.range)).toEqual(JSON.parse(text).Resources.MyBucketF68F3FF0);
   });
 
-  test('returns undefined for a node without a resolved templateFile', () => {
-    expect(resourceTarget({ templateFile: undefined, logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
+  test('returns undefined for a node without a resolved templateFile', async () => {
+    expect(await resourceTarget({ templateFile: undefined, logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
   });
 
-  test('returns undefined when the logical id is not in the resolved template', () => {
+  test('returns undefined when the logical id is not in the resolved template', async () => {
     dir = buildFlatAssembly({
       stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
     });
-    expect(resourceTarget({ templateFile: path.join(dir, 'Stack1.template.json'), logicalId: 'GhostId' })).toBeUndefined();
+    expect(await resourceTarget({ templateFile: path.join(dir, 'Stack1.template.json'), logicalId: 'GhostId' })).toBeUndefined();
   });
 
-  test('returns undefined (does not throw) when the template can no longer be read', () => {
-    expect(resourceTarget({ templateFile: '/no/such/template.json', logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
+  test('returns undefined (does not throw) when the template can no longer be read', async () => {
+    expect(await resourceTarget({ templateFile: '/no/such/template.json', logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
   });
 
-  test('resolves the definition block, not Ref/DependsOn occurrences of the same id', () => {
+  test('resolves the definition block, not Ref/DependsOn occurrences of the same id', async () => {
     const written = writeTemplate(TEMPLATE);
     dir = written.dir;
     // MyBucketF68F3FF0 is defined once and also referenced; the block must be the definition.
-    const target = resourceTarget({ templateFile: written.file, logicalId: 'MyBucketF68F3FF0' })!;
+    const target = (await resourceTarget({ templateFile: written.file, logicalId: 'MyBucketF68F3FF0' }))!;
     expect(sliceParse(TEMPLATE, target.range)).toEqual({ Type: 'AWS::S3::Bucket' });
   });
 
-  test('does not match a logical id that is a prefix of a longer key', () => {
+  test('does not match a logical id that is a prefix of a longer key', async () => {
     const contents = JSON.stringify(
       {
         Resources: {
@@ -111,7 +111,7 @@ describe('resourceTarget', () => {
     const written = writeTemplate(contents);
     dir = written.dir;
     // The shorter id must resolve to its own (distinct) block, not the longer-named sibling.
-    const target = resourceTarget({ templateFile: written.file, logicalId: 'MyBucket' })!;
+    const target = (await resourceTarget({ templateFile: written.file, logicalId: 'MyBucket' }))!;
     expect(sliceParse(contents, target.range)).toEqual({ Type: 'AWS::S3::Bucket', Properties: { BucketName: 'short' } });
   });
 });
