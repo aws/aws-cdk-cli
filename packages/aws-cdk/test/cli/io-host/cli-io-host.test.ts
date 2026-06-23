@@ -860,6 +860,63 @@ describe('CliIoHost', () => {
       })).rejects.toThrow('but concurrency is greater than 1');
     });
 
+    describe('request listeners', () => {
+      function confirmRequest(message = 'Are you sure?'): IoRequest<any, boolean> {
+        return plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'destroy',
+          code: 'CDK_TOOLKIT_I7010',
+          message,
+          defaultResponse: false,
+        }) as IoRequest<any, boolean>;
+      }
+
+      test('respond() answers a request without prompting or printing', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respondOnce() answers only the first request, then defers to the prompt', async () => {
+        const dispose = ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+
+        const first = await ioHost.requestResponse(confirmRequest());
+        const second = await requestResponse('y', confirmRequest());
+
+        expect(first).toBe(true);
+        expect(second).toBe(true);
+        // only the second request prompted; the first was answered silently
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('a listener can reword the question that is prompted', async () => {
+        const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I7010, () => 'Really delete everything?');
+
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Really delete everything?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('the returned dispose function removes the responder', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+        dispose();
+
+        // responder gone, so the host prompts as usual
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+      });
+    });
+
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
         const response = await requestResponse('y', plainMessage({

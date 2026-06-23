@@ -5,7 +5,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as promptly from 'promptly';
-import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoDefaultMessages } from '../../../lib/api-private';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
@@ -135,6 +135,16 @@ export interface MessageListenerResult {
    * @default false
    */
   readonly preventDefault?: boolean;
+
+  /**
+   * For requests only: answer the request with this value so the host does not
+   * prompt the user (and writes nothing). Ignored for plain notifications. The
+   * presence of the key is what matters, so `false`/`0`/`''` are valid answers.
+   * Use the `respond`/`respondOnce` helpers for the common case.
+   *
+   * @default - this listener does not answer the request
+   */
+  readonly respond?: unknown;
 }
 
 /**
@@ -442,7 +452,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    *   myCount += msg.data.stacks.length;
    * });
    */
-  public on<T>(code: IoMessageMaker<T>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
+  public on<T>(code: IoMessageMaker<T> | IoRequestMaker<T, any>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
     return this.addMessageListener(code.code, { once: false, fn: listener as MessageListenerFn });
   }
 
@@ -464,8 +474,30 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Like `on`, but the listener is automatically removed after it has been
    * invoked once.
    */
-  public once<T>(code: IoMessageMaker<T>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
+  public once<T>(code: IoMessageMaker<T> | IoRequestMaker<T, any>, listener: (msg: IoMessage<T>) => void | MessageListenerResult): () => void {
     return this.addMessageListener(code.code, { once: true, fn: listener as MessageListenerFn });
+  }
+
+  /**
+   * Answer a request (by its code) on the user's behalf with a fixed value, so
+   * the host does not prompt and writes nothing. Syntactic sugar for an `on`
+   * listener returning `{ respond: value }`; for conditional answers or to also
+   * reword the question, use `on`/`once` directly. Returns a function that
+   * removes the responder again.
+   *
+   * @example
+   * // Under --force, auto-confirm the destroy prompt without prompting.
+   * const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+   */
+  public respond<T, U>(code: IoRequestMaker<T, U>, value: U): () => void {
+    return this.addMessageListener(code.code, { once: false, fn: () => ({ respond: value }) });
+  }
+
+  /**
+   * Like `respond`, but the answer is given only once and then removed.
+   */
+  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U): () => void {
+    return this.addMessageListener(code.code, { once: true, fn: () => ({ respond: value }) });
   }
 
   /**
@@ -484,7 +516,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) =>
    *   serializeStructure(msg.data.stacks, true));
    */
-  public rewrite<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string, level?: IoMessageLevel): () => void {
+  public rewrite<T>(
+    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
+    formatter: (msg: IoMessage<T>) => string,
+    level?: IoMessageLevel,
+  ): () => void {
     return this.on(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
@@ -492,7 +528,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Like `rewrite`, but the formatter is automatically removed after it has
    * been applied once.
    */
-  public rewriteOnce<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string, level?: IoMessageLevel): () => void {
+  public rewriteOnce<T>(
+    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
+    formatter: (msg: IoMessage<T>) => string,
+    level?: IoMessageLevel,
+  ): () => void {
     return this.once(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
@@ -515,16 +555,23 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
    * Run all registered listeners for a message's code, in registration order.
    *
-   * A listener may update the message text (which is passed on to subsequent
-   * listeners and the rest of the pipeline) and/or request that the default
-   * processing be skipped. `once` listeners are removed after they have run.
+   * A listener may update the message text/level (passed on to subsequent
+   * listeners and the rest of the pipeline), prevent the default processing, or
+   * (for requests) answer it. `once` listeners are removed after they have run.
    *
-   * Returns the (possibly text-updated) message and whether any listener
-   * prevented the default processing.
+   * Returns the (possibly updated) message, whether the default processing was
+   * prevented, and whether a listener answered the request (and with what).
    */
-  private applyMessageListeners(msg: IoMessage<unknown>): { message: IoMessage<unknown>; preventDefault: boolean } {
+  private applyMessageListeners(msg: IoMessage<unknown>): {
+    message: IoMessage<unknown>;
+    preventDefault: boolean;
+    responded: boolean;
+    response: unknown;
+  } {
     let current = msg;
     let preventDefault = false;
+    let responded = false;
+    let response: unknown;
 
     const listeners = msg.code ? this.messageListeners.get(msg.code) : undefined;
     if (listeners && listeners.length > 0) {
@@ -549,11 +596,15 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
           if (result.preventDefault) {
             preventDefault = true;
           }
+          if ('respond' in result) {
+            responded = true;
+            response = result.respond;
+          }
         }
       }
     }
 
-    return { message: current, preventDefault };
+    return { message: current, preventDefault, responded, response };
   }
 
   /**
@@ -582,6 +633,15 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       return;
     }
 
+    this.writeMessage(message);
+  }
+
+  /**
+   * Write a (already listener-processed) message to its target stream, honoring
+   * the log level and corked-logging buffer. Shared by `notify` and the
+   * non-prompting `requestResponse` path.
+   */
+  private writeMessage(message: IoMessage<unknown>): void {
     if (!isMessageRelevantForLevel(message, this.logLevel)) {
       return;
     }
@@ -687,13 +747,24 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
    * Notifies the host of a message that requires a response.
    *
-   * If the host does not return a response the suggested
-   * default response from the input message will be used.
+   * Registered listeners run first: a listener may reword the question (its text
+   * or level) or answer it outright via `respond` (e.g. `--force` auto-confirms
+   * a destroy). If no listener answers and the host cannot prompt, the suggested
+   * default response is used.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
+    // Listeners run exactly once here (so we don't go back through `notify`):
+    // they may answer the request, or reword/relevel the question shown below.
+    const applied = this.applyMessageListeners(msg);
+    if (applied.responded) {
+      return applied.response as ResponseType;
+    }
+    // The (possibly reworded) text/level to present to the user.
+    const question = applied.message.message;
+
     // If the request cannot be prompted for by the CliIoHost, we just accept the default
     if (!isPromptableRequest(msg)) {
-      await this.notify(msg);
+      this.writeMessage(applied.message);
       return msg.defaultResponse;
     }
 
@@ -722,18 +793,18 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       if (this.autoRespond) {
         // respond with yes to all confirmations
         if (isConfirmationPrompt(msg)) {
-          await this.notify({
+          await this.writeMessage({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-confirmed)`,
+            message: `${chalk.cyan(question)} (auto-confirmed)`,
           });
           return true;
         }
 
         // respond with the default for all other messages
         if (msg.defaultResponse) {
-          await this.notify({
+          await this.writeMessage({
             ...msg,
-            message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
+            message: `${chalk.cyan(question)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
           });
           return msg.defaultResponse;
         }
@@ -752,7 +823,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       // Basic confirmation prompt
       // We treat all requests with a boolean response as confirmation prompts
       if (isConfirmationPrompt(msg)) {
-        const confirmed = await promptly.confirm(`${chalk.cyan(msg.message)} (y/n)`);
+        const confirmed = await promptly.confirm(`${chalk.cyan(question)} (y/n)`);
         if (!confirmed) {
           throw new ToolkitError('AbortedByUser', 'Aborted by user');
         }
@@ -762,7 +833,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       // Asking for a specific value
       const prompt = extractPromptInfo(msg);
       const desc = responseDescription ?? prompt.default;
-      const answer = await promptly.prompt(`${chalk.cyan(msg.message)}${desc ? ` (${desc})` : ''}`, {
+      const answer = await promptly.prompt(`${chalk.cyan(question)}${desc ? ` (${desc})` : ''}`, {
         default: prompt.default,
         trim: true,
       });
