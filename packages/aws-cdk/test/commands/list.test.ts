@@ -40,7 +40,7 @@ describe('cdk list', () => {
     selectors: string[],
     options?: { long?: boolean; json?: boolean; showDeps?: boolean },
   ) {
-    const cloudExecutable = await MockCloudExecutable.create({ stacks }, undefined, ioHost);
+    const cloudExecutable = await MockCloudExecutable.create({ stacks }, undefined, ioHost, 'list');
     const toolkit = new CdkToolkit({
       ioHost,
       cloudExecutable,
