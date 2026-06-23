@@ -1,6 +1,5 @@
 import { createHook } from 'node:async_hooks';
 import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as chalk from 'chalk';
 import type { IoHelper } from '../../lib/api-private';
@@ -187,15 +186,17 @@ class LeakedHandleTracker {
     }
 
     // The first frame is where the handle was created; the rest is the call
-    // path that led there.
+    // path that led there. We show the function name and the line of code, not
+    // the file: the shipped CLI is bundled into a single file, so the file name
+    // is always the same and tells the reader nothing.
     const [origin, ...callers] = frames;
-    await ioHelper.defaults.info(`  created at ${describeLocation(origin)}`);
+    await ioHelper.defaults.info(`  created in ${origin.func}()`);
     const source = sourceAt(origin);
     if (source) {
       await ioHelper.defaults.info(`    ${source}`);
     }
     for (const caller of callers) {
-      await ioHelper.defaults.info(`    called from ${describeLocation(caller)}`);
+      await ioHelper.defaults.info(`    called from ${caller.func}()`);
     }
   }
 }
@@ -243,15 +244,6 @@ function captureCreationStack(): SourceFrame[] {
  */
 function actionableFrames(frames: SourceFrame[]): SourceFrame[] {
   return frames.filter((frame) => frame.file && !frame.file.startsWith('node:'));
-}
-
-function describeLocation(frame: SourceFrame): string {
-  const fromCwd = relative(process.cwd(), frame.file);
-  // A leading '..' means the file is outside cwd, where the absolute path reads better.
-  const shown = fromCwd.startsWith('..') ? frame.file : fromCwd;
-  // Lead with the function name: in the bundled CLI every frame shares one file,
-  // so the name is what tells two frames apart.
-  return `${frame.func} (${shown}:${frame.line})`;
 }
 
 function sourceAt(frame: SourceFrame): string | undefined {
