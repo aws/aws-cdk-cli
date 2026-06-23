@@ -88,7 +88,7 @@ async function commandFor(nodes: readonly ResourceConstruct[]): Promise<Command>
 }
 
 /** A construct that produces a CFN resource and carries a source location. */
-interface ResourceConstruct extends ConstructNode {
+export interface ResourceConstruct extends ConstructNode {
   readonly sourceLocation: SourceLocation;
   readonly logicalId: string;
   readonly type: string;
@@ -99,7 +99,7 @@ interface ResourceConstruct extends ConstructNode {
  * and has a source location in the requested file. Wrapper nodes and non-TS
  * constructs are excluded.
  */
-function isResourceOnFile(node: ConstructNode, fileUri: string): node is ResourceConstruct {
+export function isResourceOnFile(node: ConstructNode, fileUri: string): node is ResourceConstruct {
   return (
     node.sourceLocation !== undefined &&
     node.logicalId !== undefined &&

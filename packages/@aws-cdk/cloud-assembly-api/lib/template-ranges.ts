@@ -31,6 +31,45 @@ export function resolveResourceRange(templateText: string, logicalId: string): O
   return { start: mapping.value.pos, end: mapping.valueEnd.pos };
 }
 
+/** A resource's block range plus the range of each of its top-level properties. */
+export interface ResourceRanges {
+  /** The resource's value block `{ ... }` (value-only, like {@link resolveResourceRange}). */
+  readonly block: OffsetRange;
+  /** Each top-level property keyed by name, covering the whole `"Key": value` entry. */
+  readonly properties: Record<string, OffsetRange>;
+}
+
+/**
+ * Resolves, in a single parse, a resource's block range and the range of each
+ * of its top-level properties. Property ranges span `"Key": value` so a
+ * navigation lands on the named property.
+ *
+ * Returns `undefined` when the text is not valid JSON or there is no such resource.
+ */
+export function resolveResourceRanges(templateText: string, logicalId: string): ResourceRanges | undefined {
+  const pointers = parsePointers(templateText);
+  if (pointers === undefined) {
+    return undefined;
+  }
+  const escaped = escapePointerSegment(logicalId);
+  const blockMapping = pointers[`/Resources/${escaped}`];
+  if (blockMapping === undefined) {
+    return undefined;
+  }
+
+  const properties: Record<string, OffsetRange> = {};
+  for (const [pointer, mapping] of Object.entries(pointers)) {
+    // This resource's top-level properties only; a matched member always has a key.
+    const match = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
+    if (match === null || match[1] !== escaped || mapping.key === undefined) {
+      continue;
+    }
+    properties[unescapePointerSegment(match[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
+  }
+
+  return { block: { start: blockMapping.value.pos, end: blockMapping.valueEnd.pos }, properties };
+}
+
 /**
  * The inverse of `resolveResourceRange`: given a character offset into a
  * template's text, returns the logical id of the resource whose block contains
