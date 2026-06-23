@@ -228,6 +228,27 @@ describe('CliIoHost', () => {
       expect(mockStdout).toHaveBeenCalledWith('second\n');
     });
 
+    test('rewrite() can also override the level, moving the message between streams', async () => {
+      // A result-level message normally goes to stdout; rewriting it to info
+      // (and changing the text) sends it to stderr in non-CI mode.
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, 'info'));
+
+      await ioHost.notify(listMessage('first'));
+
+      expect(mockStderr).toHaveBeenCalledWith('rewritten:first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
+    });
+
+    test('on() can override only the level, leaving the text unchanged', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ level: 'info' })));
+
+      await ioHost.notify(listMessage('first'));
+
+      // text unchanged, but routed to stderr because it is now info-level
+      expect(mockStderr).toHaveBeenCalledWith('first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
+    });
+
     test('the returned dispose function removes the listener', async () => {
       const observed: string[] = [];
       const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {

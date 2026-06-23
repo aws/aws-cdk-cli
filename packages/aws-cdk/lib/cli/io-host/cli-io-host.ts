@@ -106,9 +106,9 @@ export type TargetStream = 'stdout' | 'stderr' | 'drop';
 /**
  * The result a message listener may return to influence how a message is handled.
  *
- * A listener can only update the message _text_; it cannot change any other
- * field of the message (such as its `code`), which keeps the code-keyed
- * listener registry valid.
+ * A listener may update the message _text_ and/or its _level_; it cannot change
+ * any other field of the message (such as its `code`), which keeps the
+ * code-keyed listener registry valid.
  */
 export interface MessageListenerResult {
   /**
@@ -117,6 +117,17 @@ export interface MessageListenerResult {
    * @default - the message text is left unchanged
    */
   readonly message?: string;
+
+  /**
+   * Override the level of this message.
+   *
+   * The new level is used for both verbosity filtering and stream selection, so
+   * this can move a message between stdout/stderr (e.g. downgrade a `result` to
+   * `info`). The `code` is intentionally left unchanged.
+   *
+   * @default - the message level is left unchanged
+   */
+  readonly level?: IoMessageLevel;
 
   /**
    * Skip the default processing of the message, i.e. do not write it to a stream.
@@ -462,23 +473,27 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * given code. This lets a caller define _how_ a toolkit message is presented
    * without the IoHost needing to know about it.
    *
-   * Syntactic sugar for an `on` listener that returns `{ message }`. Returns a
-   * function that removes the formatter again.
+   * Optionally pass a `level` to also override the message's level (which moves
+   * it between stdout/stderr and changes verbosity filtering). For the rarer
+   * case of overriding only the level, use `on`/`once` returning `{ level }`.
+   *
+   * Syntactic sugar for an `on` listener that returns `{ message, level? }`.
+   * Returns a function that removes the formatter again.
    *
    * @example
    * const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) =>
    *   serializeStructure(msg.data.stacks, true));
    */
-  public rewrite<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string): () => void {
-    return this.on(code, (msg) => ({ message: formatter(msg) }));
+  public rewrite<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string, level?: IoMessageLevel): () => void {
+    return this.on(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
    * Like `rewrite`, but the formatter is automatically removed after it has
    * been applied once.
    */
-  public rewriteOnce<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string): () => void {
-    return this.once(code, (msg) => ({ message: formatter(msg) }));
+  public rewriteOnce<T>(code: IoMessageMaker<T>, formatter: (msg: IoMessage<T>) => string, level?: IoMessageLevel): () => void {
+    return this.once(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
@@ -527,6 +542,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         if (result) {
           if (result.message !== undefined) {
             current = { ...current, message: result.message };
+          }
+          if (result.level !== undefined) {
+            current = { ...current, level: result.level };
           }
           if (result.preventDefault) {
             preventDefault = true;
