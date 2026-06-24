@@ -83,7 +83,8 @@ describe('buildHover', () => {
       'Stack/Fn/Resource': { uri: FILE_URI, line: 5 },
       'Stack/Fn/ServiceRole/Resource': { uri: FILE_URI, line: 40 },
     },
-    properties: { Runtime: { uri: FILE_URI, line: 8 } },
+    // resolveHoverLinks keys properties by lower-cased name (see HoverLinks).
+    properties: { runtime: { uri: FILE_URI, line: 8 } },
   };
 
   test('returns undefined when no resource maps to the line', () => {

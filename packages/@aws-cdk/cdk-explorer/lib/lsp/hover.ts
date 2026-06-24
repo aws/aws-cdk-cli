@@ -15,9 +15,10 @@ export interface LinkTarget {
  * Template line targets for a hover, resolved from the synthesized template(s).
  * `blocks` is keyed by construct path (the hovered resource and its auxiliaries);
  * paths are globally unique, where stack-relative logical ids can collide across
- * templates. `properties` is keyed by the template (PascalCase) property name of
- * the primary resource. Absent when the template can't be read, in which case
- * values render without links.
+ * templates. `properties` is keyed by the lower-cased property name of the
+ * primary resource, so the L1 camelCase name and the template PascalCase name
+ * match regardless of acronym casing. Absent when the template can't be read,
+ * in which case values render without links.
  */
 export interface HoverLinks {
   readonly blocks: Record<string, LinkTarget>;
@@ -130,7 +131,10 @@ async function resolveHoverLinks(
       }
       blocks[node.path] = { uri, line: lineOf(template.text, resource.block) };
       for (const [name, range] of Object.entries(resource.properties)) {
-        properties[name] = { uri, line: lineOf(template.text, range) };
+        // Lower-case the key so the tree's L1 camelCase prop name matches the
+        // template's PascalCase name even on an acronym (sseSpecification vs
+        // SSESpecification); the two only differ in letter case.
+        properties[name.toLowerCase()] = { uri, line: lineOf(template.text, range) };
       }
     } else {
       const block = template.ranges.block(node.logicalId);
@@ -212,7 +216,7 @@ function propertyLines(primary: ResourceConstruct, links: HoverLinks | undefined
   const keys = Object.keys(properties);
   const lines = keys.slice(0, MAX_PROPERTIES).map((key) => {
     const value = `\`${renderValue(properties[key])}\``;
-    return `- \`${key}\`: ${linked(value, links?.properties[pascalCase(key)])}`;
+    return `- \`${key}\`: ${linked(value, links?.properties[key.toLowerCase()])}`;
   });
   if (keys.length > MAX_PROPERTIES) {
     lines.push(`- +${keys.length - MAX_PROPERTIES} more`);
@@ -294,11 +298,6 @@ function histogram(nodes: readonly ResourceConstruct[]): string {
   const parts = [...counts].sort((a, b) => b[1] - a[1]).map(([type, count]) => `${count}× ${type}`);
   const shown = parts.slice(0, MAX_HISTOGRAM_TYPES);
   return shown.join(', ') + (parts.length > shown.length ? `, … +${parts.length - shown.length} more` : '');
-}
-
-/** First-letter-uppercase: maps an L1 camelCase prop name to its CFN PascalCase name. */
-function pascalCase(name: string): string {
-  return name.length === 0 ? name : name[0].toUpperCase() + name.slice(1);
 }
 
 function truncate(text: string, max: number): string {
