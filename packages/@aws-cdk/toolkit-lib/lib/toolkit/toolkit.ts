@@ -8,7 +8,6 @@ import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
-import * as picomatch from 'picomatch';
 
 /**
  * File events that we care about from chokidar.
@@ -25,6 +24,7 @@ function isFileEvent(event: EventName): event is FileEvent {
   return (FILE_EVENTS as readonly string[]).includes(event);
 }
 import * as fs from 'fs-extra';
+import * as picomatch from 'picomatch';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
