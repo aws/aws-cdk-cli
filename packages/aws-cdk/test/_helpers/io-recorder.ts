@@ -294,7 +294,13 @@ export class IoHostRecorder {
     for (const s of this.scrubbers) {
       out = out.replace(s.pattern, s.replacement);
     }
-    return out;
+    // Trim only after stripping ANSI, so the snapshot is independent of the
+    // active color mode (TTY vs not). toolkit-lib trims its messages, but a
+    // leading newline that is wrapped inside a chalk color escape survives that
+    // trim (the string starts with the escape, not whitespace); once we strip
+    // the ANSI here the newline is re-exposed, so we trim again to keep the
+    // recorded stream deterministic regardless of whether colors were enabled.
+    return out.trim();
   }
 
   private scrubValue(value: unknown): unknown {
