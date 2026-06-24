@@ -79,17 +79,20 @@ describe('selectPrimary', () => {
 
 describe('buildHover', () => {
   const links: HoverLinks = {
-    blocks: { Fn1: { uri: FILE_URI, line: 5 }, Role1: { uri: FILE_URI, line: 40 } },
+    blocks: {
+      'Stack/Fn/Resource': { uri: FILE_URI, line: 5 },
+      'Stack/Fn/ServiceRole/Resource': { uri: FILE_URI, line: 40 },
+    },
     properties: { Runtime: { uri: FILE_URI, line: 8 } },
   };
 
   test('returns undefined when no resource maps to the line', () => {
-    expect(buildHover([], links, RANGE)).toBeUndefined();
+    expect(buildHover([], undefined, links, RANGE)).toBeUndefined();
   });
 
   test('links the logical id to its block and the value to its property line', () => {
     const fn = res('Stack/Fn/Resource', 'Fn1', 'AWS::Lambda::Function', { cfnProperties: { runtime: 'nodejs16.x' } });
-    const value = buildHover([fn], links, RANGE)!.contents as { value: string };
+    const value = buildHover([fn], selectPrimary([fn]), links, RANGE)!.contents as { value: string };
     expect(value.value).toContain(`[**Fn1**](${FILE_URI}#L5) · \`AWS::Lambda::Function\``);
     expect(value.value).toContain('`Stack/Fn/Resource`');
     expect(value.value).toContain(`- \`runtime\`: [\`"nodejs16.x"\`](${FILE_URI}#L8)`);
@@ -97,14 +100,14 @@ describe('buildHover', () => {
 
   test('renders a value without a link when no range resolves for it', () => {
     const fn = res('Stack/Fn/Resource', 'Fn1', 'AWS::Lambda::Function', { cfnProperties: { memorySize: 512 } });
-    const value = (buildHover([fn], links, RANGE)!.contents as { value: string }).value;
+    const value = (buildHover([fn], selectPrimary([fn]), links, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('- `memorySize`: `512`');
     expect(value).not.toContain('memorySize`]');
   });
 
   test('renders everything plainly when links are absent', () => {
     const fn = res('Stack/Fn/Resource', 'Fn1', 'AWS::Lambda::Function', { cfnProperties: { runtime: 'nodejs16.x' } });
-    const value = (buildHover([fn], undefined, RANGE)!.contents as { value: string }).value;
+    const value = (buildHover([fn], selectPrimary([fn]), undefined, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('**Fn1** · `AWS::Lambda::Function`');
     expect(value).not.toContain('](');
   });
@@ -112,7 +115,7 @@ describe('buildHover', () => {
   test('caps properties and appends a "+N more" line', () => {
     const cfnProperties = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`p${i}`, i]));
     const fn = res('Stack/Fn/Resource', 'Fn1', 'AWS::Lambda::Function', { cfnProperties });
-    const value = (buildHover([fn], undefined, RANGE)!.contents as { value: string }).value;
+    const value = (buildHover([fn], selectPrimary([fn]), undefined, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('- `p11`: `11`');
     expect(value).not.toContain('- `p12`:');
     expect(value).toContain('- +3 more');
@@ -121,7 +124,8 @@ describe('buildHover', () => {
   test('shows only the primary values and lists the others under "Also creates"', () => {
     const fn = res('Stack/Fn/Resource', 'Fn1', 'AWS::Lambda::Function', { cfnProperties: { runtime: 'nodejs16.x' } });
     const role = res('Stack/Fn/ServiceRole/Resource', 'Role1', 'AWS::IAM::Role', { cfnProperties: { roleName: 'x' } });
-    const value = (buildHover([fn, role], links, RANGE)!.contents as { value: string }).value;
+    const nodes = [fn, role];
+    const value = (buildHover(nodes, selectPrimary(nodes), links, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('- `runtime`:');
     expect(value).not.toContain('roleName');
     expect(value).toContain(`Also creates: [\`AWS::IAM::Role\`](${FILE_URI}#L40)`);
@@ -134,7 +138,8 @@ describe('buildHover', () => {
       ...Array.from({ length: 2 }, (_, i) => res(`Stack/Vpc/R${i}/RouteTable`, `R${i}`, 'AWS::EC2::RouteTable')),
       res('Stack/Vpc/Igw/Resource', 'Igw1', 'AWS::EC2::InternetGateway'),
     ];
-    const value = (buildHover([vpc, ...aux], undefined, RANGE)!.contents as { value: string }).value;
+    const nodes = [vpc, ...aux];
+    const value = (buildHover(nodes, selectPrimary(nodes), undefined, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('Also creates 6 resources:');
     expect(value).toContain('3× Subnet');
     expect(value).toContain('2× RouteTable');
@@ -143,7 +148,8 @@ describe('buildHover', () => {
   test('shows a resource summary when several resources tie at the shallowest depth', () => {
     const lb = res('Stack/Svc/LB/Resource', 'Lb1', 'AWS::ElasticLoadBalancingV2::LoadBalancer');
     const task = res('Stack/Svc/Task/Resource', 'Task1', 'AWS::ECS::TaskDefinition');
-    const value = (buildHover([lb, task], undefined, RANGE)!.contents as { value: string }).value;
+    const nodes = [lb, task];
+    const value = (buildHover(nodes, selectPrimary(nodes), undefined, RANGE)!.contents as { value: string }).value;
     expect(value).toContain('**2 resources on this line**');
     expect(value).not.toContain('Also creates');
   });

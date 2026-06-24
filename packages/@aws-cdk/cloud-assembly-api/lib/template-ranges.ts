@@ -23,12 +23,7 @@ export interface OffsetRange {
  * resource.
  */
 export function resolveResourceRange(templateText: string, logicalId: string): OffsetRange | undefined {
-  const pointers = parsePointers(templateText);
-  const mapping = pointers?.[`/Resources/${escapePointerSegment(logicalId)}`];
-  if (mapping === undefined) {
-    return undefined;
-  }
-  return { start: mapping.value.pos, end: mapping.valueEnd.pos };
+  return indexTemplateRanges(templateText)?.block(logicalId);
 }
 
 /** A resource's block range plus the range of each of its top-level properties. */
@@ -47,27 +42,61 @@ export interface ResourceRanges {
  * Returns `undefined` when the text is not valid JSON or there is no such resource.
  */
 export function resolveResourceRanges(templateText: string, logicalId: string): ResourceRanges | undefined {
+  return indexTemplateRanges(templateText)?.resource(logicalId);
+}
+
+/**
+ * A template parsed once into a queryable range index, so a caller resolving
+ * several resources (for example a hover over a multi-resource construct) pays
+ * the parse cost once instead of per resource.
+ */
+export interface TemplateRanges {
+  /** The resource's value-block range, or `undefined` if there is no such resource. */
+  block(logicalId: string): OffsetRange | undefined;
+  /** The resource's block plus its top-level property ranges, or `undefined` if absent. */
+  resource(logicalId: string): ResourceRanges | undefined;
+}
+
+/**
+ * Parse a template once into a {@link TemplateRanges} index. Returns `undefined`
+ * when the text is not valid JSON. The single-resource {@link resolveResourceRange}
+ * and {@link resolveResourceRanges} are thin wrappers over this.
+ */
+export function indexTemplateRanges(templateText: string): TemplateRanges | undefined {
   const pointers = parsePointers(templateText);
   if (pointers === undefined) {
     return undefined;
   }
-  const escaped = escapePointerSegment(logicalId);
-  const blockMapping = pointers[`/Resources/${escaped}`];
-  if (blockMapping === undefined) {
-    return undefined;
-  }
+  return {
+    block: (logicalId) => blockRange(pointers, escapePointerSegment(logicalId)),
+    resource: (logicalId) => {
+      const escaped = escapePointerSegment(logicalId);
+      const block = blockRange(pointers, escaped);
+      return block === undefined ? undefined : { block, properties: propertyRanges(pointers, escaped) };
+    },
+  };
+}
 
+/** The value-block range of `/Resources/<escapedId>`, or `undefined` if absent. */
+function blockRange(pointers: Pointers, escapedId: string): OffsetRange | undefined {
+  const mapping = pointers[`/Resources/${escapedId}`];
+  return mapping === undefined ? undefined : { start: mapping.value.pos, end: mapping.valueEnd.pos };
+}
+
+/** Key+value ranges of each top-level property of `/Resources/<escapedId>`. */
+function propertyRanges(pointers: Pointers, escapedId: string): Record<string, OffsetRange> {
   const properties: Record<string, OffsetRange> = {};
   for (const [pointer, mapping] of Object.entries(pointers)) {
-    // This resource's top-level properties only; a matched member always has a key.
+    // This resource's top-level properties only. json-source-map types the key
+    // position as optional (absent for array items); a /Properties/<name> pointer
+    // is always an object member, so this narrows the type, not an impossible case.
     const match = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
-    if (match === null || match[1] !== escaped || mapping.key === undefined) {
+    if (match === null || match[1] !== escapedId || mapping.key === undefined) {
       continue;
     }
     properties[unescapePointerSegment(match[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
   }
-
-  return { block: { start: blockMapping.value.pos, end: blockMapping.valueEnd.pos }, properties };
+  return properties;
 }
 
 /**

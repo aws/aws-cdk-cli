@@ -1,4 +1,4 @@
-import { resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../lib';
+import { indexTemplateRanges, resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../lib';
 
 // A template object is the single source of truth: the text under test is its
 // 1-space serialization (exactly how synth writes `*.template.json`), and the

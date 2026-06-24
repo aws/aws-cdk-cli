@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'url';
-import { type ConstructIndex, type OffsetRange, resolveResourceRange, resolveResourceRanges } from '@aws-cdk/cloud-assembly-api';
+import { type ConstructIndex, indexTemplateRanges, type OffsetRange, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
 import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver/node';
 import { isResourceOnFile, type ResourceConstruct } from './codelens';
 import { offsetsToRange } from './positions';
@@ -13,9 +13,10 @@ export interface LinkTarget {
 
 /**
  * Template line targets for a hover, resolved from the synthesized template(s).
- * `blocks` is keyed by logical id (the hovered resource and its auxiliaries);
- * `properties` is keyed by the template (PascalCase) property name of the
- * primary resource. Absent when the template can't be read, in which case
+ * `blocks` is keyed by construct path (the hovered resource and its auxiliaries);
+ * paths are globally unique, where stack-relative logical ids can collide across
+ * templates. `properties` is keyed by the template (PascalCase) property name of
+ * the primary resource. Absent when the template can't be read, in which case
  * values render without links.
  */
 export interface HoverLinks {
@@ -23,10 +24,22 @@ export interface HoverLinks {
   readonly properties: Record<string, LinkTarget>;
 }
 
+/** A construct line's primary resource (its default child) and its other resources. */
+export interface PrimarySelection {
+  readonly primary: ResourceConstruct;
+  readonly others: readonly ResourceConstruct[];
+}
+
 /** Top-level properties shown before truncating with a "+N more" line. */
 const MAX_PROPERTIES = 12;
 /** Auxiliary resources listed individually before collapsing to a type histogram. */
 const MAX_LINKED_AUX = 5;
+/** Characters of a string value shown before truncating with an ellipsis. */
+const MAX_STRING_LENGTH = 60;
+/** Object keys previewed inline before collapsing with an ellipsis. */
+const MAX_OBJECT_KEYS = 4;
+/** Distinct CFN types shown in an auxiliary histogram before "+N more". */
+const MAX_HISTOGRAM_TYPES = 6;
 
 /**
  * Resource nodes whose creation line is the hovered position in `uri`. Reuses
@@ -59,55 +72,70 @@ export async function hoverForPosition(
   if (nodes.length === 0) {
     return undefined;
   }
-  const links = await resolveHoverLinks(nodes, readTemplate);
+  // Select the primary once and thread it through both link resolution and
+  // rendering, so a single place owns "which resource is canonical".
+  const selection = selectPrimary(nodes);
+  const links = await resolveHoverLinks(nodes, selection?.primary, readTemplate);
   const range: Range = {
     start: { line: position.line, character: 0 },
     end: { line: position.line, character: Number.MAX_VALUE },
   };
-  return buildHover(nodes, links, range);
+  return buildHover(nodes, selection, links, range);
+}
+
+/** A template read and parsed once: its text (for offset->line) and its range index. */
+interface ResolvedTemplate {
+  readonly text: string;
+  readonly ranges: TemplateRanges;
 }
 
 /**
- * Reads each node's template once and resolves the link targets: every
- * resource's block, plus the primary resource's per-property lines.
+ * Resolves the link targets for a hover: every resource's block, plus the
+ * primary resource's per-property lines. Each referenced template is read and
+ * parsed at most once, so a multi-resource construct whose resources share one
+ * template (for example a VPC and its dozens of auxiliaries) pays a single
+ * parse. Blocks are keyed by construct path, which is globally unique, because
+ * stack-relative logical ids can collide across templates.
  */
 async function resolveHoverLinks(
   nodes: readonly ResourceConstruct[],
+  primary: ResourceConstruct | undefined,
   readTemplate: (file: string) => Promise<string | undefined>,
 ): Promise<HoverLinks> {
-  const texts = new Map<string, string | undefined>();
-  const readOnce = async (file: string): Promise<string | undefined> => {
-    if (!texts.has(file)) {
-      texts.set(file, await readTemplate(file));
+  const templates = new Map<string, ResolvedTemplate | undefined>();
+  const resolveOnce = async (file: string): Promise<ResolvedTemplate | undefined> => {
+    if (!templates.has(file)) {
+      const text = await readTemplate(file);
+      const ranges = text === undefined ? undefined : indexTemplateRanges(text);
+      templates.set(file, text !== undefined && ranges !== undefined ? { text, ranges } : undefined);
     }
-    return texts.get(file);
+    return templates.get(file);
   };
 
   const blocks: Record<string, LinkTarget> = {};
   const properties: Record<string, LinkTarget> = {};
-  const primary = selectPrimary(nodes)?.primary;
   for (const node of nodes) {
     if (node.templateFile === undefined) {
       continue;
     }
-    const text = await readOnce(node.templateFile);
-    if (text === undefined) {
+    const template = await resolveOnce(node.templateFile);
+    if (template === undefined) {
       continue;
     }
     const uri = pathToFileURL(node.templateFile).toString();
     if (node === primary) {
-      const ranges = resolveResourceRanges(text, node.logicalId);
-      if (ranges === undefined) {
+      const resource = template.ranges.resource(node.logicalId);
+      if (resource === undefined) {
         continue;
       }
-      blocks[node.logicalId] = { uri, line: lineOf(text, ranges.block) };
-      for (const [name, range] of Object.entries(ranges.properties)) {
-        properties[name] = { uri, line: lineOf(text, range) };
+      blocks[node.path] = { uri, line: lineOf(template.text, resource.block) };
+      for (const [name, range] of Object.entries(resource.properties)) {
+        properties[name] = { uri, line: lineOf(template.text, range) };
       }
     } else {
-      const block = resolveResourceRange(text, node.logicalId);
+      const block = template.ranges.block(node.logicalId);
       if (block !== undefined) {
-        blocks[node.logicalId] = { uri, line: lineOf(text, block) };
+        blocks[node.path] = { uri, line: lineOf(template.text, block) };
       }
     }
   }
@@ -120,21 +148,22 @@ function lineOf(text: string, range: OffsetRange): number {
 }
 
 /**
- * Builds the hover for the resource(s) created on a line. When one resource is
- * the construct's primary (default) child, its resolved properties are shown and
- * the rest are listed under "Also creates"; when several resources tie at the
- * shallowest depth (an L3 with no default child), a resource summary is shown
- * instead. Returns undefined when no resource maps to the line.
+ * Builds the hover for the resource(s) created on a line, given the primary
+ * selection. When one resource is the construct's primary (default) child, its
+ * resolved properties are shown and the rest are listed under "Also creates";
+ * when several resources tie at the shallowest depth (an L3 with no default
+ * child), `selection` is undefined and a resource summary is shown instead.
+ * Returns undefined when no resource maps to the line.
  */
 export function buildHover(
   nodes: readonly ResourceConstruct[],
+  selection: PrimarySelection | undefined,
   links: HoverLinks | undefined,
   range: Range,
 ): Hover | undefined {
   if (nodes.length === 0) {
     return undefined;
   }
-  const selection = selectPrimary(nodes);
   const value = selection === undefined
     ? renderSummary(nodes, links)
     : renderResource(selection.primary, selection.others, links);
@@ -146,9 +175,7 @@ export function buildHover(
  * child) plus its other resources. Undefined when several resources tie at the
  * shallowest depth, so no single one is canonical.
  */
-export function selectPrimary(
-  nodes: readonly ResourceConstruct[],
-): { readonly primary: ResourceConstruct; readonly others: readonly ResourceConstruct[] } | undefined {
+export function selectPrimary(nodes: readonly ResourceConstruct[]): PrimarySelection | undefined {
   const byDepth = [...nodes].sort((a, b) => segments(a) - segments(b));
   if (byDepth.length === 1) {
     return { primary: byDepth[0], others: [] };
@@ -169,7 +196,7 @@ function renderResource(
   links: HoverLinks | undefined,
 ): string {
   const lines = [
-    `${linked(`**${primary.logicalId}**`, links?.blocks[primary.logicalId])} · \`${primary.type}\``,
+    `${linked(`**${primary.logicalId}**`, links?.blocks[primary.path])} · \`${primary.type}\``,
     `\`${primary.path}\``,
     '',
     ...propertyLines(primary, links),
@@ -197,12 +224,12 @@ function alsoCreates(others: readonly ResourceConstruct[], links: HoverLinks | u
   if (others.length > MAX_LINKED_AUX) {
     return `Also creates ${others.length} resources: ${histogram(others)}`;
   }
-  const items = others.map((node) => linked(`\`${node.type}\``, links?.blocks[node.logicalId]));
+  const items = others.map((node) => linked(`\`${node.type}\``, links?.blocks[node.path]));
   return `Also creates: ${items.join(' · ')}`;
 }
 
 function renderSummary(nodes: readonly ResourceConstruct[], links: HoverLinks | undefined): string {
-  const items = nodes.map((node) => `- ${linked(`\`${node.type}\``, links?.blocks[node.logicalId])} \`${node.path}\``);
+  const items = nodes.map((node) => `- ${linked(`\`${node.type}\``, links?.blocks[node.path])} \`${node.path}\``);
   return [`**${nodes.length} resources on this line**`, '', ...items].join('\n');
 }
 
@@ -214,7 +241,7 @@ function linked(text: string, target: LinkTarget | undefined): string {
 /** Compact, single-line rendering of a resolved CloudFormation property value. */
 export function renderValue(value: unknown): string {
   if (typeof value === 'string') {
-    return `"${truncate(value, 60)}"`;
+    return `"${truncate(value, MAX_STRING_LENGTH)}"`;
   }
   if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
     return String(value);
@@ -232,7 +259,7 @@ export function renderValue(value: unknown): string {
     if (keys.length === 0) {
       return '{}';
     }
-    return `{ ${keys.slice(0, 4).join(', ')}${keys.length > 4 ? ', …' : ''} }`;
+    return `{ ${keys.slice(0, MAX_OBJECT_KEYS).join(', ')}${keys.length > MAX_OBJECT_KEYS ? ', …' : ''} }`;
   }
   return String(value);
 }
@@ -265,7 +292,7 @@ function histogram(nodes: readonly ResourceConstruct[]): string {
     counts.set(short, (counts.get(short) ?? 0) + 1);
   }
   const parts = [...counts].sort((a, b) => b[1] - a[1]).map(([type, count]) => `${count}× ${type}`);
-  const shown = parts.slice(0, 6);
+  const shown = parts.slice(0, MAX_HISTOGRAM_TYPES);
   return shown.join(', ') + (parts.length > shown.length ? `, … +${parts.length - shown.length} more` : '');
 }
 
