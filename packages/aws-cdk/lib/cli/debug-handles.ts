@@ -193,7 +193,8 @@ class LeakedHandleTracker {
     await ioHelper.defaults.info(`  created in ${origin.func}()`);
     const source = sourceAt(origin);
     if (source) {
-      await ioHelper.defaults.info(`    ${source}`);
+      // Dim it so it reads as secondary detail under the frame.
+      await ioHelper.defaults.info(`    ${chalk.dim(source)}`);
     }
     for (const caller of callers) {
       await ioHelper.defaults.info(`    called from ${caller.func}()`);
