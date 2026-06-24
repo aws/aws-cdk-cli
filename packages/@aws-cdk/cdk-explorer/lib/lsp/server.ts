@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
-import { RWLock, ToolkitError, type IReadLock } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
   StreamMessageWriter,
@@ -46,19 +46,27 @@ import type { SynthRunResult } from '../core/synth-runner';
 
 /**
  * The cdk.out watcher fires after a synth's file writes but possibly before the
- * synth releases its write lock. RWLock is fail-fast (it does not queue), so
- * refreshFromAssembly polls up to REFRESH_LOCK_RETRIES times,
+ * synth releases its write lock. The toolkit's read lock is fail-fast (it does
+ * not queue), so refreshFromAssembly polls up to REFRESH_LOCK_RETRIES times,
  * REFRESH_LOCK_RETRY_MS apart, for the write lock to clear before giving up on
  * a refresh pass.
  */
 const REFRESH_LOCK_RETRIES = 10;
 const REFRESH_LOCK_RETRY_MS = 50;
 
+/**
+ * A held read lock on the cloud assembly directory; `release()` unlocks it.
+ * In production this wraps the Toolkit's `fromAssemblyDirectory().produce()` readable.
+ */
+export interface AssemblyLock {
+  release(): Promise<void>;
+}
+
 export interface LspHandlerOptions {
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
-  /** Acquire a read lock on the assembly dir for tests. Defaults to a real RWLock read lock. */
-  readonly acquireReadLock?: (assemblyDir: string) => Promise<IReadLock>;
+  /** Acquire a read lock on the assembly dir; throws a `LockError` on writer contention. */
+  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -79,7 +87,7 @@ export interface LspHandlerOptions {
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
   /**
    * Runs a synth of the project at the given root and returns its typed outcome.
-   * Injected by startServer (built from `synthRunnerFactory`); omitted in tests
+   * Injected by startServer (built from the toolkit bindings); omitted in tests
    * that don't exercise synth. The runner reads `cdk.json` under the passed root
    * on each call and returns `unavailable` when there is no `app`, so
    * availability is decided per synth, not cached here.
@@ -89,18 +97,23 @@ export interface LspHandlerOptions {
   readonly notify?: NotifySink;
 }
 
-/** Builds the synth runner once `connection.console` is available (in startServer). */
-export type SynthRunnerFactory = (console: RemoteConsole) => ((projectDir: string) => Promise<SynthRunResult>);
+/**
+ * The Toolkit-backed operations the handlers need, built from one Toolkit wired
+ * to the editor Output panel. The read lock comes from the Toolkit's own
+ * `fromAssemblyDirectory().produce()`, so the LSP never imports `RWLock`.
+ */
+export interface ToolkitBindings {
+  readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
+  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
+}
+
+export type ToolkitBindingsFactory = (console: RemoteConsole) => ToolkitBindings;
 
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
   readonly writable: NodeJS.WritableStream;
-  /**
-   * Factory for the synth runner, invoked once in `startServer` when
-   * `connection.console` first exists. The console-free core
-   * (`createLspHandlers`) consumes the built `synthRunner` it returns.
-   */
-  readonly synthRunnerFactory?: SynthRunnerFactory;
+  /** Builds the Toolkit-backed bindings once `connection.console` exists. Required; main.ts always wires it. */
+  readonly toolkitBindingsFactory: ToolkitBindingsFactory;
 }
 
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
@@ -146,9 +159,9 @@ function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
  * Build the LSP message handlers as plain functions over closed-over state.
  * No streams, no JSON-RPC, no framework — testable in isolation.
  */
-export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers {
+export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
-  const acquireReadLock = options.acquireReadLock ?? ((dir: string) => new RWLock(dir).acquireRead());
+  const acquireAssemblyLock = options.acquireAssemblyLock;
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
   });
@@ -195,14 +208,13 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   async function refreshFromAssembly(projectDir: string): Promise<void> {
     const assemblyDir = path.join(projectDir, 'cdk.out');
 
-    // Hold a read lock for the read so a concurrent synth (write lock) cannot
-    // overwrite cdk.out mid-read. RWLock is fail-fast and the file events that
-    // triggered us are already over, so poll for a synth's write lock to clear
-    // rather than waiting for another event that will not come.
-    let lock: IReadLock | undefined;
+    // Hold a read lock so a concurrent synth can't overwrite cdk.out mid-read.
+    // The lock is fail-fast, so poll until the writer releases; the file events
+    // that triggered us are already over.
+    let lock: AssemblyLock | undefined;
     for (let attempt = 0; attempt <= REFRESH_LOCK_RETRIES; attempt++) {
       try {
-        lock = await acquireReadLock(assemblyDir);
+        lock = await acquireAssemblyLock(assemblyDir);
         break;
       } catch (err) {
         if (ToolkitError.isLockError(err)) {
@@ -211,16 +223,16 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
           }
           continue;
         }
-        // No cdk.out yet (ENOENT) is expected and silent; anything else is real.
+        // ENOENT (no cdk.out yet) is expected and silent; anything else is real.
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          log.error(`Failed to acquire read lock on cloud assembly: ${(err as Error).message}`);
+          log.error(`Failed to open cloud assembly for reading: ${(err as Error).message}`);
         }
         return;
       }
     }
-    // Write lock still held after every retry: skip this pass; a later synth
-    // (or its watcher event) triggers another refresh.
+    // Write lock still held after every retry: skip this pass.
     if (lock === undefined) return;
+
     let result: AssemblyReadResult;
     try {
       result = await readAssembly(assemblyDir);
@@ -425,6 +437,10 @@ export function startServer(options: LspServerOptions): void {
   // Captured from onInitialize; used to gate CodeLens refresh requests.
   let codeLensRefreshSupported = false;
 
+  // Build the toolkit bindings once connection.console exists; main.ts owns how
+  // they are constructed (synth runner + assembly read lock).
+  const { synthRunner, acquireAssemblyLock } = options.toolkitBindingsFactory(connection.console);
+
   const handlers = createLspHandlers({
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {
@@ -437,7 +453,8 @@ export function startServer(options: LspServerOptions): void {
         void connection.sendRequest(CodeLensRefreshRequest.type);
       }
     },
-    synthRunner: options.synthRunnerFactory?.(connection.console),
+    synthRunner,
+    acquireAssemblyLock,
     notify: {
       // Route to the Output panel (connection.console) rather than popups.
       // showMessage creates a dismissable toast that interrupts the user's

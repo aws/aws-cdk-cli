@@ -7,14 +7,19 @@ try {
   startServer({
     readable: process.stdin,
     writable: process.stdout,
-    // synthRunnerFactory: startServer invokes it once, after the LSP connection
-    // exists, so the runner it returns can route Toolkit output to the editor's
-    // Output panel via connection.console. The handler passes the resolved
-    // project root on each call; the runner reads that project's cdk.json `app`
-    // per synth, so it is always built and "no app" is reported per call.
-    synthRunnerFactory: (console) => {
+    // Build the Toolkit once connection.console exists (so output reaches the
+    // editor Output panel), then bind the two ops the handlers need. The read
+    // lock comes from fromAssemblyDirectory().produce(), so we never touch RWLock.
+    toolkitBindingsFactory: (console) => {
       const toolkit = new Toolkit({ ioHost: new LspIoHost(console) });
-      return (projectDir) => runSynth({ toolkit, projectDir });
+      return {
+        synthRunner: (projectDir) => runSynth({ toolkit, projectDir }),
+        acquireAssemblyLock: async (assemblyDir) => {
+          const cx = await toolkit.fromAssemblyDirectory(assemblyDir, { failOnMissingContext: false });
+          const readable = await cx.produce();
+          return { release: () => readable.dispose() };
+        },
+      };
     },
   });
 } catch (err) {

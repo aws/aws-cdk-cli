@@ -18,6 +18,3 @@ export * from './api/io';
 export * from './api/tags';
 export * from './api/plugin';
 export * from './api/source-tracing';
-
-// Single-writer/multi-reader lock on a cloud assembly directory
-export { RWLock, type IReadLock } from './api/rwlock';
