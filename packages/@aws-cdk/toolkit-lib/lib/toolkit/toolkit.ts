@@ -917,14 +917,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         const stackDiff = formatter.formatStackDiff();
 
         // Send a request response with the diff as part of the message,
-        // and the template diff as data
-        // (IoHost decides whether to print depending on permissionChangeType)
+        // and the template diff as data. The IoHost decides how to handle the
+        // request — interactively prompt the user, auto-confirm, or suppress.
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         const deployMotivation = hasSecurityChanges
-          ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
-          : '"--require-approval" is enabled and stack includes updates.';
+          ? 'Stack includes security-sensitive updates'
+          : 'Stack includes updates';
         const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
-        const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
+        const deployQuestion = `${diffOutput}\n\n${deployMotivation}. Do you wish to deploy these changes?`;
         const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
           motivation: deployMotivation,
           concurrency,

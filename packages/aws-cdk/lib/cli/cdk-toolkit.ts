@@ -2296,16 +2296,18 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       const securityDiff = formatter.formatSecurityDiff();
       if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType)) {
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+        // Bare-fact motivation. `CliIoHost.augmentDeployApprovalMessage`
+        // adds the `--require-approval` framing for terminal users.
         const motivation = hasSecurityChanges
-          ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-          : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          ? 'Stack includes security-sensitive updates'
+          : 'Stack includes updates';
         const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
         await this.ioHost.asIoHelper().defaults.info(diffOutput);
 
         try {
           await askUserConfirmation(
             this.ioHost,
-            IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
+            IO.CDK_TOOLKIT_I5060.req(`${motivation}. Do you wish to deploy these changes?`, {
               motivation,
               concurrency: this.options.concurrency,
               permissionChangeType: securityDiff.permissionChangeType,

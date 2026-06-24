@@ -82,9 +82,9 @@ IAM Statement Changes
       action: 'deploy',
       level: 'info',
       code: 'CDK_TOOLKIT_I5060',
-      message: expect.stringContaining('Do you wish to deploy these changes'),
+      message: expect.stringContaining('Do you wish to deploy these changes?'),
       data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        motivation: 'Stack includes security-sensitive updates',
         permissionChangeType: 'broadening',
         templateDiffs: expect.objectContaining({
           Stack1: expect.objectContaining({
@@ -114,12 +114,12 @@ IAM Statement Changes
 
     // Message includes formatted stack diff (not just security diff)
     expect(request).toContain('AWS::S3::Bucket');
-    expect(request).toContain('Do you wish to deploy these changes');
+    expect(request).toContain('Do you wish to deploy these changes?');
 
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_I5060',
       data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes updates.'),
+        motivation: 'Stack includes updates',
         permissionChangeType: 'none',
       }),
     }));
