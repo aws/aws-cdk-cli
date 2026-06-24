@@ -1,9 +1,9 @@
 import { pathToFileURL } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type Range } from 'vscode-languageserver/node';
+import type { ConstructNode } from '../../lib/core/assembly-reader';
 import type { ResourceConstruct } from '../../lib/lsp/codelens';
 import { buildHover, hoverForPosition, type HoverLinks, renderValue, resourceNodesOnLine, selectPrimary } from '../../lib/lsp/hover';
-import type { ConstructNode } from '../../lib/core/assembly-reader';
 
 const RANGE: Range = { start: { line: 9, character: 0 }, end: { line: 9, character: 0 } };
 const FILE = '/app/lib/app.ts';
