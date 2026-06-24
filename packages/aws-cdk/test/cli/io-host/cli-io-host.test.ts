@@ -932,16 +932,17 @@ describe('CliIoHost', () => {
         expect(response).toBe(true);
       });
 
-      test('respond "no" to a confirmation prompt', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('respond "no" to a confirmation prompt returns false (the IoHost does not abort)', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
 
+        expect(response).toBe(false);
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
       });
     });
@@ -1115,15 +1116,17 @@ describe('CliIoHost', () => {
         expect(response).toEqual(true);
       });
 
-      test('require approval by default - respond no', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('require approval by default - respond no returns false', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
+
+        expect(response).toBe(false);
       });
 
       test('never require approval', async () => {

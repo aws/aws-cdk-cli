@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
@@ -893,9 +893,15 @@ export function cli(args: string[] = process.argv.slice(2)) {
       }
     })
     .catch(async (err) => {
+      // The user declined a confirmation. This is an expected outcome, not a crash, so present it softly/
+      // We still exit non-zero so the operation is reported as not completed.
+      const soft = AbortError.isAbortError(err);
+
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, isDeveloperBuildVersion());
+      const debug = isDeveloperBuildVersion();
+
+      prettyPrintError(err, { debug, soft });
       error = {
         name: cdkCliErrorName(err),
       };
