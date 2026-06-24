@@ -225,6 +225,8 @@ bin/run-suite -a cli-integ-tests -t 'test name substring'
 
 Integration tests require AWS credentials and run against real accounts. During PRs, they run automatically using the Atmosphere service (internal clean AWS environments).
 
+**MUST: one `integTest` per file.** Each integration test lives in its own `*.integtest.ts` file containing exactly one `integTest(...)` call. Do not group multiple `integTest` calls in a single file. The file name should describe the scenario (e.g. `cdk-cdk-diff---method-change-set-detects-ssm-parameter-driven-changes.integtest.ts`). The runner discovers and parallelizes tests by file, so combining tests in one file serializes them and breaks isolation.
+
 ## Code Style
 
 ### General Rules
