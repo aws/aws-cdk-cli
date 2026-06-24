@@ -33,6 +33,7 @@ const STACK_C_NESTED: TestStackArtifact = {
 
 let cloudExecutable: MockCloudExecutable;
 let cloudFormation: jest.Mocked<Deployments>;
+let destroyStackSpy: jest.SpyInstance;
 let toolkit: CdkToolkit;
 let ioHost = CliIoHost.instance();
 let recorder: IoHostRecorder;
@@ -50,6 +51,10 @@ beforeEach(async () => {
   }, undefined, ioHost);
 
   cloudFormation = instanceMockFrom(Deployments);
+
+  // `cdk destroy` delegates to toolkit-lib, which constructs its own
+  // `Deployments` instance, so intercept the actual deletion at the prototype.
+  destroyStackSpy = jest.spyOn(Deployments.prototype, 'destroyStack').mockResolvedValue({ stackArn: 'arn' } as any);
 
   toolkit = new CdkToolkit({
     ioHost,
@@ -72,14 +77,13 @@ afterEach(async () => {
 
 describe('force: true (no confirmation prompt)', () => {
   test('destroys a single (nested) stack; "fromDeploy" makes it say "deployed"', async () => {
-    await toolkit.destroy({
+    await toolkit.destroyFromDeploy({
       selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
       exclusively: true,
       force: true,
-      fromDeploy: true,
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(1);
+    expect(destroyStackSpy).toHaveBeenCalledTimes(1);
   });
 
   test('destroys all top-level stacks with concurrency', async () => {
@@ -90,7 +94,7 @@ describe('force: true (no confirmation prompt)', () => {
       concurrency: 5,
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(2);
+    expect(destroyStackSpy).toHaveBeenCalledTimes(2);
   });
 
   test('respects dependency order with concurrency', async () => {
@@ -108,7 +112,7 @@ describe('force: true (no confirmation prompt)', () => {
     cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost);
 
     const destroyOrder: string[] = [];
-    cloudFormation.destroyStack.mockImplementation(async (options: DestroyStackOptions) => {
+    destroyStackSpy.mockImplementation(async (options: DestroyStackOptions) => {
       destroyOrder.push(options.stack.stackName);
       return { stackArn: 'arn' };
     });
@@ -140,7 +144,7 @@ describe('force: true (no confirmation prompt)', () => {
       roleArn: 'arn:aws:iam::123456789012:role/DestroyRole',
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledWith(
+    expect(destroyStackSpy).toHaveBeenCalledWith(
       expect.objectContaining({ roleArn: 'arn:aws:iam::123456789012:role/DestroyRole' }),
     );
   });
@@ -157,7 +161,7 @@ describe('force: false (confirmation prompt)', () => {
     });
 
     // Confirmed -> the stack is actually destroyed.
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(1);
+    expect(destroyStackSpy).toHaveBeenCalledTimes(1);
   });
 
   test('aborts (CDK_TOOLKIT_E7010) and destroys nothing when the user declines', async () => {
@@ -173,7 +177,7 @@ describe('force: false (confirmation prompt)', () => {
     });
 
     // Aborted before any destroy happened.
-    expect(cloudFormation.destroyStack).not.toHaveBeenCalled();
+    expect(destroyStackSpy).not.toHaveBeenCalled();
   });
 
   test('rethrows an unexpected error from the confirmation prompt', async () => {
@@ -187,13 +191,13 @@ describe('force: false (confirmation prompt)', () => {
       force: false,
     })).rejects.toThrow('tty exploded');
 
-    expect(cloudFormation.destroyStack).not.toHaveBeenCalled();
+    expect(destroyStackSpy).not.toHaveBeenCalled();
   });
 });
 
 describe('destroy failure', () => {
   test('emits a failure message and rethrows when destroyStack fails', async () => {
-    cloudFormation.destroyStack.mockRejectedValue(new Error('Deletion failed'));
+    destroyStackSpy.mockRejectedValue(new Error('Deletion failed'));
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
