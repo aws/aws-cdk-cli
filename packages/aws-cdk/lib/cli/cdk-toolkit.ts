@@ -4,13 +4,12 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, DestroyOptions as DestroyToolkitOptions, DestroyResult, ICloudAssemblySource, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import * as picomatch from 'picomatch';
 import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
@@ -18,7 +17,6 @@ import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-pr
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
-  buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
@@ -186,6 +184,14 @@ class InternalToolkit extends Toolkit {
    */
   protected async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
     return this._sdkProvider;
+  }
+
+  /**
+   * Destroy stacks as part of a deploy (e.g. removing a stack that synthesized
+   * to no resources), keeping emitted messages attributed to the deploy action.
+   */
+  public async destroyFromDeploy(cx: ICloudAssemblySource, options: DestroyToolkitOptions = {}): Promise<DestroyResult> {
+    return this.destroyForAction(cx, 'deploy', options);
   }
 }
 
@@ -914,62 +920,54 @@ export class CdkToolkit {
   }
 
   public async destroy(options: DestroyOptions) {
-    const ioHelper = this.ioHost.asIoHelper();
-
-    const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
-
-    await this.suggestStacks({
-      selector: options.selector,
-      stacks,
-      exclusively: options.exclusively,
-    });
-
-    if (stacks.stackArtifacts.length === 0) {
-      await this.ioHost.asIoHelper().defaults.warn(`No stacks match the name(s): ${chalk.red(options.selector.patterns.join(', '))}`);
-      return;
-    }
-
-    if (!options.force) {
-      const motivation = 'Destroying stacks is an irreversible action';
-      const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
-      try {
-        await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      } catch (err: unknown) {
-        if (!ToolkitError.isToolkitError(err) || err.message != 'Aborted by user') {
-          throw err; // unexpected error
-        }
-        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
-        return;
-      }
-    }
-
-    const concurrency = options.concurrency || 1;
-    const action = options.fromDeploy ? 'deploy' : 'destroy';
-    let destroyCount = 0;
-
-    if (concurrency > 1) {
+    if ((options.concurrency ?? 1) > 1) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
-
-    const destroyStack = async (stackNode: StackNode) => {
-      const stack = stackNode.stack;
-      destroyCount++;
-      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), destroyCount, stacks.stackCount);
-      try {
-        await this.props.deployments.destroyStack({
-          stack,
-          deployName: stack.stackName,
-          roleArn: options.roleArn,
-        });
-        await ioHelper.defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
-      } catch (e) {
-        await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
-        throw e;
+    try {
+      await this.toolkit.destroy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
+    } catch (err: unknown) {
+      // Preserve the CLI's historical behavior: declining the confirmation
+      // prompt aborts the command gracefully rather than surfacing as an error.
+      if (ToolkitError.isToolkitError(err) && err.message === 'Aborted by user') {
+        await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
+        return;
       }
-    };
+      throw err;
+    }
+  }
 
-    const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
-    await workGraph.processStacks(concurrency, destroyStack);
+  /**
+   * Destroy stacks as part of a deploy (e.g. removing a stack that synthesized
+   * to no resources). Keeps emitted messages attributed to the deploy action.
+   */
+  public async destroyFromDeploy(options: DestroyOptions) {
+    if ((options.concurrency ?? 1) > 1) {
+      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+    }
+    await this.toolkit.destroyFromDeploy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
+  }
+
+  private buildToolkitDestroyOptions(options: DestroyOptions) {
+    const patterns = options.selector.patterns;
+    let strategy: StackSelectionStrategy;
+    if (patterns.length > 0) {
+      strategy = StackSelectionStrategy.PATTERN_MATCH;
+    } else if (options.selector.allTopLevel) {
+      // `--all`: every stack in the top-level (main) assembly.
+      strategy = StackSelectionStrategy.MAIN_ASSEMBLY;
+    } else {
+      strategy = StackSelectionStrategy.ONLY_SINGLE;
+    }
+    return {
+      stacks: {
+        patterns,
+        strategy,
+        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
+      },
+      force: options.force,
+      roleArn: options.roleArn,
+      concurrency: options.concurrency,
+    };
   }
 
   public async list(
@@ -1317,63 +1315,6 @@ export class CdkToolkit {
     await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
-  }
-
-  private async selectStacksForDestroy(selector: StackSelector, exclusively?: boolean) {
-    const assembly = await this.assembly();
-    const stacks = await assembly.selectStacks(selector, {
-      extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
-    });
-
-    // No validation
-
-    return stacks;
-  }
-
-  private async suggestStacks(props: {
-    selector: StackSelector;
-    stacks: StackCollection;
-    exclusively: boolean;
-  }) {
-    if (props.selector.patterns.length === 0) {
-      return;
-    }
-
-    const assembly = await this.assembly();
-    const selectorWithoutPatterns: StackSelector = {
-      patterns: [],
-    };
-    const stacksWithoutPatterns = await assembly.selectStacks(selectorWithoutPatterns, {
-      extend: props.exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.AllStacks,
-    });
-
-    const patterns = props.selector.patterns.map(pattern => {
-      const notExist = !props.stacks.stackArtifacts.find(stack =>
-        picomatch.isMatch(stack.hierarchicalId, pattern),
-      );
-
-      const closelyMatched = notExist ? stacksWithoutPatterns.stackArtifacts.map(stack => {
-        if (picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase())) {
-          return stack.hierarchicalId;
-        }
-        return;
-      }).filter((stack): stack is string => stack !== undefined) : [];
-
-      return {
-        pattern,
-        notExist,
-        closelyMatched,
-      };
-    });
-
-    for (const pattern of patterns) {
-      if (pattern.notExist) {
-        const closelyMatched = pattern.closelyMatched.length > 0 ? ` Do you mean ${chalk.blue(pattern.closelyMatched.join(', '))}?` : '';
-        await this.ioHost.asIoHelper().defaults.warn(`${chalk.red(pattern.pattern)} does not exist.${closelyMatched}`);
-      }
-    }
   }
 
   /**
@@ -1882,11 +1823,6 @@ export interface DestroyOptions {
   roleArn?: string;
 
   /**
-   * Whether the destroy request came from a deploy.
-   */
-  fromDeploy?: boolean;
-
-  /**
    * Maximum number of simultaneous destroys (dependency permitting) to execute.
    */
   concurrency?: number;
@@ -2186,7 +2122,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
   constructor(
     private readonly deployments: Deployments,
     private readonly ioHost: CliIoHost,
-    private readonly stackOperations: Pick<CdkToolkit, 'destroy' | 'rollback'>,
+    private readonly stackOperations: Pick<CdkToolkit, 'destroy' | 'destroyFromDeploy' | 'rollback'>,
     private readonly options: WorkGraphDeploymentActionsOptions,
   ) {
   }
@@ -2282,12 +2218,11 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
       } else {
         await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, deleting existing stack.', chalk.bold(stack.displayName));
-        await this.stackOperations.destroy({
+        await this.stackOperations.destroyFromDeploy({
           selector: { patterns: [stack.hierarchicalId] },
           exclusively: true,
           force: true,
           roleArn: this.options.roleArn,
-          fromDeploy: true,
         });
       }
       return;

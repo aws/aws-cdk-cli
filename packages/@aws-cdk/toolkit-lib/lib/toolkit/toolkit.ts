@@ -8,6 +8,7 @@ import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
+import * as picomatch from 'picomatch';
 
 /**
  * File events that we care about from chokidar.
@@ -1580,9 +1581,19 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
-    const ioHelper = asIoHelper(this.ioHost, 'destroy');
+    return this.destroyForAction(cx, 'destroy', options);
+  }
+
+  /**
+   * Synthesize and destroy the selected stacks, attributing emitted messages to
+   * the given action. Exposed as `protected` so that callers within this repo
+   * (e.g. the CLI) can perform a destroy as part of a `deploy` while keeping the
+   * message attribution, without widening the public API.
+   */
+  protected async destroyForAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
+    const ioHelper = asIoHelper(this.ioHost, action);
     await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
-    return await this._destroy(assembly, 'destroy', options);
+    return await this._destroy(assembly, action, options);
   }
 
   /**
@@ -1593,16 +1604,27 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const stacks = await assembly.selectStacksV2(selectStacks);
 
+    await this.suggestStacks(ioHelper, assembly, selectStacks, stacks);
+
     const ret: DestroyResult = {
       stacks: [],
     };
 
-    const motivation = 'Destroying stacks is an irreversible action';
-    const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
-    const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-    if (!confirmed) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+    if (stacks.stackCount === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7011.msg(
+        `No stacks match the name(s): ${chalk.red((selectStacks.patterns ?? []).join(', '))}`,
+      ));
       return ret;
+    }
+
+    if (!options.force) {
+      const motivation = 'Destroying stacks is an irreversible action';
+      const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
+      if (!confirmed) {
+        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
+        return ret;
+      }
     }
 
     const concurrency = options.concurrency || 1;
@@ -1653,6 +1675,38 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return ret;
     } finally {
       await destroySpan.end();
+    }
+  }
+
+  /**
+   * Warn about stack name patterns that did not match any stack, suggesting a
+   * close match where one exists (e.g. when only the casing differs).
+   */
+  private async suggestStacks(
+    ioHelper: IoHelper,
+    assembly: StackAssembly,
+    selector: StackSelector,
+    selected: StackCollection,
+  ): Promise<void> {
+    const patterns = selector.patterns ?? [];
+    if (patterns.length === 0) {
+      return;
+    }
+
+    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+
+    for (const pattern of patterns) {
+      const matched = selected.stackArtifacts.some((stack) => picomatch.isMatch(stack.hierarchicalId, pattern));
+      if (matched) {
+        continue;
+      }
+
+      const closeMatches = allStacks.stackArtifacts
+        .filter((stack) => picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
+        .map((stack) => stack.hierarchicalId);
+
+      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
     }
   }
 
