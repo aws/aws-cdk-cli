@@ -84,9 +84,9 @@ const TYPE_DESCRIPTIONS: Readonly<Record<string, string>> = {
 };
 
 /**
- * A single location in a stack trace: the function name plus the file and line
- * it points to. The function name matters in the shipped CLI, where everything
- * is bundled into one file, so the file:line alone can't tell two frames apart.
+ * A single stack frame: the function name (used for the report heading), plus
+ * the file and line, which we read to show the line of code that created the
+ * handle.
  */
 interface SourceFrame {
   readonly func: string;
@@ -250,9 +250,8 @@ function actionableFrames(frames: SourceFrame[]): SourceFrame[] {
 function sourceAt(frame: SourceFrame): string | undefined {
   try {
     const line = readFileSync(frame.file, 'utf-8').split(/\r?\n/)[frame.line - 1]?.trim() || undefined;
-    // The shipped CLI is one bundled file where a few lines are huge minified
-    // blobs (one is ~600k chars). Truncate so a creation site on such a line
-    // doesn't dump the whole blob; the location alone is still useful.
+    // Truncate so an unexpectedly long line (e.g. a generated or packed file)
+    // doesn't flood the report.
     return line && line.length > 200 ? `${line.slice(0, 200)}…` : line;
   } catch {
     // The source file may not be readable (e.g. a bundled or eval'd frame).
