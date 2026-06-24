@@ -22,6 +22,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3"
     "@aws-sdk/client-secrets-manager": "npm:^3"
     "@aws-sdk/client-sns": "npm:^3"
+    "@aws-sdk/client-ssm": "npm:^3"
     "@aws-sdk/client-sso": "npm:^3"
     "@aws-sdk/client-sts": "npm:^3"
     "@aws-sdk/credential-providers": "npm:^3"

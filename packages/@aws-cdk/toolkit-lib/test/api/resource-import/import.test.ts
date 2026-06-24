@@ -3,6 +3,7 @@ import {
   GetTemplateSummaryCommand,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
+import * as yaml from 'yaml';
 import { Deployments } from '../../../lib/api/deployments';
 import type { ImportMap, ResourceImporterProps } from '../../../lib/api/resource-import';
 import { ResourceImporter } from '../../../lib/api/resource-import';
@@ -225,9 +226,76 @@ test('asks human to confirm automatic import if identifier is in template', asyn
   });
 });
 
+test('issue 1575: importing resources does not mutate the cached deployed template', async () => {
+  // GIVEN a deployed stack with no resources, importing MyQueue
+  givenCurrentStack(STACK_WITH_QUEUE.stackName, { Resources: {} });
+  const importer = new ResourceImporter(STACK_WITH_QUEUE, props);
+
+  const first = await importer.discoverImportableResources();
+  const importMap: ImportMap = {
+    importResources: first.additions,
+    resourceMap: { MyQueue: { QueueName: 'TheQueueName' } },
+  };
+
+  // WHEN we run the import (which builds the import template from the cached deployed template)
+  await advanceTime(importer.importResourcesFromMap(importMap));
+
+  // THEN the cached deployed template must be untouched: MyQueue is still reported as a brand-new
+  // addition on a subsequent discovery (it would not be if the import had added it to the cache).
+  const second = await importer.discoverImportableResources();
+  expect(second.additions).toEqual([
+    expect.objectContaining({ logicalId: 'MyQueue' }),
+  ]);
+});
+
+test('issue 1575: IMPORT change set preserves DependsOn order of non-imported resources', async () => {
+  // GIVEN a deployed stack containing a resource whose DependsOn is NOT in alphabetical order.
+  // (A CDK L2 Lambda reliably produces this: [ ...ServiceRoleDefaultPolicy, ...ServiceRole ].)
+  const naturalOrder = ['MyFnServiceRoleDefaultPolicy', 'MyFnServiceRole'];
+  const existingResource = () => ({
+    Type: 'AWS::SQS::Queue',
+    Properties: { QueueName: 'ExistingQueue' },
+    DependsOn: [...naturalOrder],
+  });
+
+  const stackToImportInto = testStack({
+    stackName: 'StackImport1575',
+    template: {
+      Resources: {
+        Existing: existingResource(),
+        MyQueue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'TheQueueName' } },
+      },
+    },
+  });
+
+  givenCurrentStack(stackToImportInto.stackName, {
+    Resources: {
+      Existing: existingResource(),
+    },
+  });
+
+  const importer = new ResourceImporter(stackToImportInto, props);
+  const { additions } = await importer.discoverImportableResources();
+  const importMap: ImportMap = {
+    importResources: additions,
+    resourceMap: {
+      MyQueue: { QueueName: 'TheQueueName' },
+    },
+  };
+
+  // WHEN
+  await advanceTime(importer.importResourcesFromMap(importMap));
+
+  // THEN - the submitted IMPORT template keeps the deployed (natural) DependsOn order, so the
+  // non-imported `Existing` resource is byte-for-byte unchanged and not flagged as "modified".
+  const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+  expect(calls.length).toBeGreaterThan(0);
+  const submittedTemplate = yaml.parse((calls[calls.length - 1].args[0].input as any).TemplateBody);
+  expect(submittedTemplate.Resources.Existing.DependsOn).toEqual(naturalOrder);
+});
+
 test('importing resources from migrate strips cdk metadata and outputs', async () => {
   // GIVEN
-
   const MyQueue = {
     Type: 'AWS::SQS::Queue',
     Properties: {},
