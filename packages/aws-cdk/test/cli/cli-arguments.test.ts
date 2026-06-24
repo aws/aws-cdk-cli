@@ -168,6 +168,7 @@ describe('config', () => {
       flags: expect.anything(),
       doctor: expect.anything(),
       docs: expect.anything(),
+      lsp: expect.anything(),
       orphan: expect.anything(),
       refactor: expect.anything(),
       cliTelemetry: expect.anything(),
