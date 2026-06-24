@@ -249,6 +249,7 @@ Integration tests require AWS credentials and run against real accounts. During 
 - Error messages: lowercase, no period, include the wrong value, explain what to change
 - Never catch and swallow errors — CDK errors are unrecoverable
 - Validate inputs eagerly — fail fast with clear messages
+- Confirmation prompts: a declined confirmation must exit non-zero and fail soft. See [`packages/aws-cdk/docs/confirmation-prompts.md`](./packages/aws-cdk/docs/confirmation-prompts.md)
 
 ### AWS SDK Usage
 
@@ -334,6 +335,7 @@ When changing observable CLI behavior:
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Getting started, prerequisites, integration test process |
 | [`packages/aws-cdk/CONTRIBUTING.md`](./packages/aws-cdk/CONTRIBUTING.md) | CLI-specific: command definitions, bundling, source maps |
 | [`packages/@aws-cdk-testing/cli-integ/README.md`](./packages/@aws-cdk-testing/cli-integ/README.md) | Integration test suites, regression testing, patching |
+| [`packages/aws-cdk/docs/confirmation-prompts.md`](./packages/aws-cdk/docs/confirmation-prompts.md) | How declined confirmation prompts must behave (exit code, soft fail) |
 | [`.projenrc.ts`](./.projenrc.ts) | Monorepo configuration (all project settings) |
 
 ## Environment Setup
