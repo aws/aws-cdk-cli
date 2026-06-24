@@ -1,6 +1,12 @@
-{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
-{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
-{"seq":2,"type":"notify","action":"none","level":"info","code":null,"message":"Test-Stack-A-Display-Name: destroying... [1/2]"}
-{"seq":3,"type":"notify","action":"none","level":"info","code":null,"message":"Test-Stack-B: destroying... [2/2]"}
-{"seq":4,"type":"notify","action":"none","level":"info","code":null,"message":"\n ✅  Test-Stack-A-Display-Name: destroyed"}
-{"seq":5,"type":"notify","action":"none","level":"info","code":null,"message":"\n ✅  Test-Stack-B: destroyed"}
+{"seq":0,"type":"notify","action":"destroy","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":2,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
+{"seq":4,"type":"notify","action":"destroy","level":"trace","code":"CDK_TOOLKIT_I7101","message":"Starting Destroy ..."}
+{"seq":5,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I7100","message":"Test-Stack-A-Display-Name: destroying... [1/2]"}
+{"seq":6,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I7100","message":"Test-Stack-B: destroying... [2/2]"}
+{"seq":7,"type":"notify","action":"destroy","level":"result","code":"CDK_TOOLKIT_I7900","message":"✅  Test-Stack-A-Display-Name: destroyed"}
+{"seq":8,"type":"notify","action":"destroy","level":"result","code":"CDK_TOOLKIT_I7900","message":"✅  Test-Stack-B: destroyed"}
+{"seq":9,"type":"notify","action":"destroy","level":"trace","code":"CDK_TOOLKIT_I7001","message":"✨  Destroy time: <DURATION>"}
+{"seq":10,"type":"notify","action":"destroy","level":"trace","code":"CDK_TOOLKIT_I7001","message":"✨  Destroy time: <DURATION>"}
+{"seq":11,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I7000","message":"✨  Destroy time: <DURATION>"}
