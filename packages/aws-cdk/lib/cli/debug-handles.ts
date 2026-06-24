@@ -185,19 +185,19 @@ class LeakedHandleTracker {
       return;
     }
 
-    // The first frame is where the handle was created; the rest is the call
-    // path that led there. We show the function name and the line of code, not
-    // the file: the shipped CLI is bundled into a single file, so the file name
-    // is always the same and tells the reader nothing.
-    const [origin, ...callers] = frames;
-    await ioHelper.defaults.info(`  created in ${origin.func}()`);
-    const source = sourceAt(origin);
-    if (source) {
-      // Dim it so it reads as secondary detail under the frame.
-      await ioHelper.defaults.info(`    ${chalk.dim(source)}`);
+    // Headline the function only when it has a real name; sockets often open
+    // from anonymous internal callbacks where the name says nothing.
+    const [origin] = frames;
+    if (origin.func && origin.func !== '<anonymous>') {
+      await ioHelper.defaults.info(`  created in ${origin.func}()`);
     }
-    for (const caller of callers) {
-      await ioHelper.defaults.info(`    called from ${caller.func}()`);
+
+    await ioHelper.defaults.info('  call stack:');
+    for (const frame of frames) {
+      const source = sourceAt(frame);
+      if (source) {
+        await ioHelper.defaults.info(`    ${chalk.dim(source)}`);
+      }
     }
   }
 }

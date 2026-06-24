@@ -35,10 +35,9 @@ test('reports a leaked timer with its type, plain-language description, and crea
   // The type heading is emitted via chalk.bold, so match it the same way to stay
   // independent of whether color is active in the test environment.
   expect(lines).toContainEqual(chalk.bold('# Timeout (timer from setTimeout or setInterval)'));
-  // A creation site is reported as `created in <func>()`. Which frame ends up on
-  // top of the stack depends on the async call path, so we assert the shape,
-  // not the specific function.
-  expect(lines.some((l) => /^ {2}created in .+\(\)$/.test(l))).toBe(true);
+  // The report shows a call stack with the line of code that created the handle.
+  expect(lines).toContain('  call stack:');
+  expect(lines.some((l) => l.includes('setInterval'))).toBe(true);
 });
 
 test('reports a leaked TCP connection as an open network connection', async () => {
