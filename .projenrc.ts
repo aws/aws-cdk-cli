@@ -1562,7 +1562,6 @@ new BundleCli(integRunner, {
   externals: {
     dependencies: [
       '@aws-cdk/aws-service-spec',
-      'aws-cdk',
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
