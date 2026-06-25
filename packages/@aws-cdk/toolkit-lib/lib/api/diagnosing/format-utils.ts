@@ -45,19 +45,16 @@ export function wrapText(n: number, text: string): string[] {
 const MAX_LOG_LINES = 50;
 
 /**
- * Turn raw CloudWatch log event messages into the trimmed lines we render.
+ * Trim already-extracted log lines to the set we render.
  *
  * Keeps only the most recent {@link MAX_LOG_LINES} (newer output is more useful for
  * diagnosis) and prepends an "N earlier lines omitted" marker when truncation happened.
  * This is the single truncation point shared by all CloudWatch contexts — the formatter
  * renders the result verbatim.
  */
-export function trimToRecentLines(events: Array<{ message?: string }>): string[] {
-  const allMessages = events
-    .map(e => e.message?.trimEnd())
-    .filter((m): m is string => m != null);
-  const messages = allMessages.slice(-MAX_LOG_LINES);
-  const omitted = allMessages.length - messages.length;
+export function trimToRecentLines(lines: string[]): string[] {
+  const messages = lines.slice(-MAX_LOG_LINES);
+  const omitted = lines.length - messages.length;
   if (omitted > 0) {
     messages.unshift(`... (${omitted} earlier lines omitted)`);
   }
@@ -78,14 +75,15 @@ const LAMBDA_PLATFORM_LINE = /^(INIT_START|START RequestId:|END RequestId:|REPOR
  *
  * For both we surface `LEVEL  message` (or just the message when there's no level), strip the
  * redundant per-line timestamp/requestId (it's all one invocation), and drop pure platform
- * boilerplate. We never drop application output — failure detail is often logged at INFO
- * (e.g. the cfn-response "Response body" line). Anything we don't recognize passes through
- * verbatim, and the full logs remain available via the console link.
+ * boilerplate. The level and message are combined into a single rendered line. We never drop
+ * application output — failure detail is often logged at INFO (e.g. the cfn-response "Response
+ * body" line). Anything we don't recognize passes through verbatim, and the full logs remain
+ * available via the console link.
  *
  * This is Lambda-specific; it is not applied to ECS logs, which are arbitrary container output.
  */
-export function parseLambdaLogEvents(events: Array<{ message?: string }>): Array<{ message: string }> {
-  const out: Array<{ message: string }> = [];
+export function parseLambdaLogEvents(events: Array<{ message?: string }>): string[] {
+  const out: string[] = [];
   for (const e of events) {
     const raw = e.message;
     if (raw == null) {
@@ -93,7 +91,7 @@ export function parseLambdaLogEvents(events: Array<{ message?: string }>): Array
     }
     const normalized = normalizeLambdaLine(raw);
     if (normalized !== undefined) {
-      out.push({ message: normalized });
+      out.push(normalized);
     }
   }
   return out;
@@ -131,8 +129,9 @@ function normalizeLambdaLine(raw: string): string | undefined {
 }
 
 /**
- * If `line` is a JSON-format Lambda log object, render it as `LEVEL<tab>message`
- * (or just the message when there's no level). Returns `undefined` when it isn't JSON.
+ * If `line` is a JSON-format Lambda log object, render it as `LEVEL  message` (the level
+ * space-padded to a fixed width; or just the message when there's no level). Returns
+ * `undefined` when it isn't JSON.
  *
  * Drops JSON platform events (`type`/`record` envelopes for `platform.*`), which carry no
  * application signal.

@@ -455,7 +455,7 @@ describe('extractLogStreamName', () => {
 });
 
 describe('parseLambdaLogEvents', () => {
-  const msgs = (events: Array<{ message?: string }>) => parseLambdaLogEvents(events).map(e => e.message);
+  const msgs = (events: Array<{ message?: string }>) => parseLambdaLogEvents(events);
 
   test('strips the timestamp/requestId prefix from text-format lines and aligns the level', () => {
     expect(msgs([
