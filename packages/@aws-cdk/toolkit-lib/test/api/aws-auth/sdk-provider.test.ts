@@ -428,7 +428,7 @@ describe('with intercepted network calls', () => {
       });
     });
 
-    test('AWS_CDK_ROLE_SESSION_NAME overrides the default session name', async () => {
+    test('CDK_ROLE_SESSION_NAME overrides the default session name', async () => {
       // GIVEN
       prepareCreds({
         fakeSts,
@@ -436,7 +436,7 @@ describe('with intercepted network calls', () => {
           default: { aws_access_key_id: 'foo', $account: '11111' },
         },
       });
-      process.env.AWS_CDK_ROLE_SESSION_NAME = 'custom-session-name';
+      process.env.CDK_ROLE_SESSION_NAME = 'custom-session-name';
 
       try {
         // WHEN
@@ -452,7 +452,7 @@ describe('with intercepted network calls', () => {
           roleSessionName: 'custom-session-name',
         }));
       } finally {
-        delete process.env.AWS_CDK_ROLE_SESSION_NAME;
+        delete process.env.CDK_ROLE_SESSION_NAME;
       }
     });
 

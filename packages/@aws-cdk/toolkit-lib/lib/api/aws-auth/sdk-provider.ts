@@ -349,7 +349,7 @@ export class SdkProvider {
         params: {
           RoleArn: roleArn,
           ExternalId: externalId,
-          RoleSessionName: process.env.AWS_CDK_ROLE_SESSION_NAME || `aws-cdk-${safeUsername()}`,
+          RoleSessionName: process.env.CDK_ROLE_SESSION_NAME || `aws-cdk-${safeUsername()}`,
           ...additionalOptions,
           TransitiveTagKeys: additionalOptions?.Tags ? additionalOptions.Tags.map((t) => t.Key!) : undefined,
         },
