@@ -84,6 +84,37 @@ export abstract class PollRange {
   }
 
   /**
+   * Include the most recent deployment attempt, spanning a rollback and the operation that
+   * triggered it.
+   *
+   * A failed deployment that rolls back is recorded under two CloudFormation operation IDs:
+   * the failed create/update, and the rollback that follows. Scanning newest-first, the
+   * rollback is seen first — but its events are mostly successful deletes; the actual resource
+   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. So we allow up to two
+   * distinct consecutive operation IDs and only stop when a third (an older, unrelated
+   * deployment) appears.
+   */
+  public static mostRecentDeploymentAttempt(): IPollRange {
+    // Track distinct operation IDs seen so far, treating a missing OperationId as its own
+    // value (the empty string) so events without one still count toward the boundary —
+    // otherwise an event stream lacking OperationId would never stop and we'd scan the whole
+    // stack history.
+    const operationIds = new Set<string>();
+    return {
+      shouldStop(event) {
+        const id = event.event.OperationId ?? '';
+        if (!operationIds.has(id)) {
+          if (operationIds.size >= 2) {
+            return 'stop-exclude';
+          }
+          operationIds.add(id);
+        }
+        return 'continue';
+      },
+    };
+  }
+
+  /**
    * A poll range decider that always returns 'continue', consuming the entire CFN event stream.
    */
   public static consumeAll(): IPollRange {

@@ -118,6 +118,66 @@ describe('CloudFormationStackDiagnoser', () => {
       });
     });
 
+    test('finds the failure on a rolled-back stack, across the rollback and create operations', async () => {
+      // A rolled-back deployment spans two CloudFormation operations: the failed create
+      // (operation A) and the rollback that follows (operation B). describeStackEvents returns
+      // newest-first, so the rollback's (successful) DELETE events come first and the actual
+      // CREATE_FAILED belongs to the older operation A. The poll range must include both.
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'ROLLBACK_COMPLETE' });
+      const stack = fakeCfn.accessStack('MyStack');
+      const opCreate = 'op-create-aaaa';
+      const opRollback = 'op-rollback-bbbb';
+
+      // Pushed oldest-first; unshift makes the final array newest-first.
+      // Operation A (create): the real failure.
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-create-failed',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'phys-1',
+        ResourceType: 'Custom::MyThing',
+        ResourceStatus: 'CREATE_FAILED',
+        ResourceStatusReason: 'Received response status [FAILED] from custom resource',
+        OperationId: opCreate,
+        Timestamp: new Date('2026-06-25T18:32:12Z'),
+      });
+      // Operation B (rollback): only successful deletes — no failure signal here.
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-delete',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'phys-1',
+        ResourceType: 'Custom::MyThing',
+        ResourceStatus: 'DELETE_COMPLETE',
+        OperationId: opRollback,
+        Timestamp: new Date('2026-06-25T18:32:16Z'),
+      });
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-rollback-complete',
+        LogicalResourceId: 'MyStack',
+        PhysicalResourceId: stack.id,
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'ROLLBACK_COMPLETE',
+        OperationId: opRollback,
+        Timestamp: new Date('2026-06-25T18:32:31Z'),
+      });
+
+      const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
+
+      expect(result).toMatchObject({
+        type: 'problem',
+        detectedBy: { type: 'deployment' },
+        problems: [expect.objectContaining({
+          logicalId: 'MyResource',
+          message: 'Received response status [FAILED] from custom resource',
+        })],
+      });
+    });
+
     test('diagnoses change set creation failure', async () => {
       fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'CREATE_COMPLETE' });
       fakeCfn.createChangeSetSync({

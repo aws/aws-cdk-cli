@@ -1,4 +1,5 @@
 import { DescribeStackResourcesCommand, GetTemplateCommand } from '@aws-sdk/client-cloudformation';
+import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import {
   DescribeServicesCommand,
@@ -18,6 +19,7 @@ import { investigateResource } from '../../../lib/api/diagnosing/resource-invest
 import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
 import {
   mockCloudFormationClient,
+  mockCloudTrailClient,
   mockCloudWatchClient,
   mockECSClient,
   mockLambdaClient,
@@ -891,5 +893,128 @@ describe('investigateResource for custom resources', () => {
     expect(logs!.messages[0]).toEqual('Logs from /custom/log/group:');
     expect(logs!.link).toContain('$252Fcustom$252Flog$252Fgroup');
     expect(logs!.link).not.toContain('my-cr-fn');
+  });
+});
+
+describe('investigateResource custom resource CloudTrail integration', () => {
+  const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/abc';
+  const FAILURE_TIME = new Date('2026-06-19T12:00:00.000Z');
+
+  function customResourceError(overrides: Partial<ResourceError> = {}): ResourceError {
+    return {
+      stackArn: STACK_ARN,
+      parentStackLogicalIds: [],
+      logicalId: 'MyCustomResource',
+      resourceType: 'Custom::MyThing',
+      message: 'Custom resource failed: internal error during setup',
+      timestamp: FAILURE_TIME,
+      ...overrides,
+    };
+  }
+
+  function templateWithLiteralArn(): string {
+    return JSON.stringify({
+      Resources: {
+        MyCustomResource: {
+          Type: 'Custom::MyThing',
+          Properties: { ServiceToken: 'arn:aws:lambda:us-east-1:123456789012:function:my-cr-fn' },
+        },
+      },
+    });
+  }
+
+  beforeEach(() => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: templateWithLiteralArn() });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'generic line, not enough to diagnose' }] });
+  });
+
+  test('deploy path: skips CloudTrail and adds a "run cdk diagnose" hint', async () => {
+    // cloudTrailEnabled defaults false (the deploy path).
+    const result = await investigateResource(customResourceError(), sdk, debug);
+
+    expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
+    const hint = result.find(c => c.source === 'CloudTrail');
+    expect(hint).toBeDefined();
+    expect(hint!.messages.join('\n')).toMatch(/cdk diagnose/);
+  });
+
+  test('diagnose path: looks up CloudTrail scoped to the function and surfaces error events', async () => {
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventName: 'CreateBucket',
+          eventSource: 's3.amazonaws.com',
+          errorCode: 'AccessDenied',
+          errorMessage: 'not authorized to perform: s3:CreateBucket',
+        }),
+      }],
+    });
+
+    const result = await investigateResource(customResourceError(), sdk, debug, { cloudTrailEnabled: true });
+
+    // Bounded around the failure timestamp AND scoped to the function via the Username attribute.
+    expect(mockCloudTrailClient).toHaveReceivedCommandWith(LookupEventsCommand, {
+      LookupAttributes: [{ AttributeKey: 'Username', AttributeValue: 'my-cr-fn' }],
+      StartTime: new Date(FAILURE_TIME.valueOf() - 5 * 60 * 1000),
+      EndTime: new Date(FAILURE_TIME.valueOf() + 15 * 60 * 1000),
+    });
+    expect(result.find(c => c.source === 'CloudTrail')).toBeUndefined();
+    const errors = result.find(c => c.source === 'CloudTrail Errors');
+    expect(errors).toBeDefined();
+    expect(errors!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+  });
+
+  test('diagnose path: no CloudTrail context when the function made no errored calls', async () => {
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [
+        { CloudTrailEvent: JSON.stringify({ eventName: 'PutLogEvents', eventSource: 'logs.amazonaws.com' }) },
+      ],
+    });
+
+    const result = await investigateResource(customResourceError(), sdk, debug, { cloudTrailEnabled: true });
+
+    expect(result.find(c => c.source === 'CloudTrail Errors')).toBeUndefined();
+    expect(result.find(c => c.source === 'CloudTrail')).toBeUndefined();
+  });
+
+  test('diagnose path: pages through CloudTrail results to find the errored call', async () => {
+    mockCloudTrailClient.on(LookupEventsCommand)
+      .resolvesOnce({
+        Events: [{ CloudTrailEvent: JSON.stringify({ eventName: 'CreateLogStream', eventSource: 'logs.amazonaws.com' }) }],
+        NextToken: 'page2',
+      })
+      .resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventName: 'CreateBucket',
+            eventSource: 's3.amazonaws.com',
+            errorCode: 'AccessDenied',
+            errorMessage: 'not authorized to perform: s3:CreateBucket',
+          }),
+        }],
+      });
+
+    const result = await investigateResource(customResourceError(), sdk, debug, { cloudTrailEnabled: true });
+
+    expect(mockCloudTrailClient).toHaveReceivedCommandTimes(LookupEventsCommand, 2);
+    const errors = result.find(c => c.source === 'CloudTrail Errors');
+    expect(errors!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+  });
+
+  test('diagnose path: skips CloudTrail when the failure has no timestamp to bound the window', async () => {
+    // Without a timestamp (e.g. change-set / early-validation errors), querying CloudTrail
+    // would default to "now" and surface unrelated recent activity by the same function.
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventName: 'CreateBucket', eventSource: 's3.amazonaws.com', errorCode: 'AccessDenied',
+        }),
+      }],
+    });
+
+    const result = await investigateResource(customResourceError({ timestamp: undefined }), sdk, debug, { cloudTrailEnabled: true });
+
+    expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
+    expect(result.find(c => c.source === 'CloudTrail Errors')).toBeUndefined();
   });
 });
