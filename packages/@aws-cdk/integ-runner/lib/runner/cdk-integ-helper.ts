@@ -14,6 +14,7 @@ import type { ManifestTrace } from './private/cloud-assembly';
 import { AssemblyManifestReader } from './private/cloud-assembly';
 import type { DestructiveChange } from '../workers/common';
 import { NoManifestError } from './private/integ-manifest';
+import type { CdkContext } from './private/test-specific-context';
 
 const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 
@@ -185,6 +186,13 @@ export class CdkIntegHelper {
   private _legacyEnableLookups?: LegacyEnableLookups;
 
   /**
+   * Fields that require an async context to initialize.
+   */
+  private _asyncMembers?: {
+    testSpecificContext?: CdkContext;
+  };
+
+  /**
    * Private constructor to prevent inheritance.
    */
   private constructor(options: CdkIntegHelperOptions) {
@@ -204,6 +212,29 @@ export class CdkIntegHelper {
   }
 
   /**
+   * Async initialization; copy information from an async context into variables so we can access them synchronously later.
+   *
+   * We call this automatically in all public async members, but if a consumer wants to access this context synchronously
+   * without calling an async members first, it needs to call this.
+   */
+  public async asyncInitialize(): Promise<void> {
+    if (this._asyncMembers) {
+      return;
+    }
+
+    this._asyncMembers = {
+      testSpecificContext: await this.test.testSpecificContext(),
+    };
+  }
+
+  private get asyncMembers(): NonNullable<CdkIntegHelper['_asyncMembers']> {
+    if (!this._asyncMembers) {
+      throw new Error('Async context not initialized. Call asyncInitialize() first.');
+    }
+    return this._asyncMembers;
+  }
+
+  /**
    * Configure the legacy enableLookups value to use when generating the actual snapshot.
    *
    * Must be set before using snapshot methods.
@@ -216,6 +247,7 @@ export class CdkIntegHelper {
    * Return the list of actual (i.e. new) test cases for this integration test
    */
   public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
+    await this.asyncInitialize();
     return (await this.actualTestSuite()).testSuite;
   }
 
@@ -260,7 +292,7 @@ export class CdkIntegHelper {
 
     await this.cdk.synth({
       app: this.cdkApp,
-      context: this.getContext(this._legacyEnableLookups !== false ? DEFAULT_SYNTH_OPTIONS.context : {}),
+      context: await this.getContext(this._legacyEnableLookups !== false ? DEFAULT_SYNTH_OPTIONS.context : {}),
       env: DEFAULT_SYNTH_OPTIONS.env,
       output: path.relative(this.directory, outputDirectory),
     });
@@ -294,6 +326,7 @@ export class CdkIntegHelper {
    * The test suite from the existing snapshot
    */
   public async expectedTestSuite(): Promise<IntegTestSuite | LegacyIntegTestSuite | undefined> {
+    await this.asyncInitialize();
     if (!this._expectedTestSuite && this.hasSnapshot()) {
       this._expectedTestSuite = await this.loadManifest();
     }
@@ -301,6 +334,7 @@ export class CdkIntegHelper {
   }
 
   public async actualSnapshot(): Promise<SnapshotAndTestDefinition> {
+    await this.asyncInitialize();
     if (!this._actualSnapshot) {
       this._actualSnapshot = await this.generateActualSnapshot();
 
@@ -333,6 +367,7 @@ export class CdkIntegHelper {
    * "legacy mode" and create a manifest from pragma
    */
   public async loadManifest(dir?: string): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+    await this.asyncInitialize();
     const manifest = dir ?? this.goldenSnapshotDir;
     try {
       const testSuite = IntegTestSuite.fromPath(manifest);
@@ -453,6 +488,7 @@ export class CdkIntegHelper {
    * the assembly that was output by the deployment
    */
   public async createSnapshot(): Promise<void> {
+    await this.asyncInitialize();
     if (fs.existsSync(this.goldenSnapshotDir)) {
       fs.removeSync(this.goldenSnapshotDir);
     }
@@ -491,8 +527,13 @@ export class CdkIntegHelper {
   }
 
   public getContext(additionalContext?: Record<string, any>): Record<string, any> {
+    // Load the test-specific context (from `integ.context.json` or `cdk.json#context`), if any.
+    // If not found, use the built-in current feature flags (at the risk of newer feature flags changing
+    // the snapshots).
+    const featureFlags = this.asyncMembers.testSpecificContext ?? currentlyRecommendedAwsCdkLibFlags();
+
     return {
-      ...currentlyRecommendedAwsCdkLibFlags(),
+      ...featureFlags,
       ...this.legacyContext,
       ...additionalContext,
 

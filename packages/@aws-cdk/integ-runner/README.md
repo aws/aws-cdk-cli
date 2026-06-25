@@ -172,7 +172,7 @@ Tests:    1 failed, 9 total
 Error: Some snapshot tests failed!
 To re-run failed tests run: integ-runner --update-on-failed
     at main (packages/@aws-cdk/integ-runner/lib/cli.js:90:15)
-error Command failed with exit code 1. 
+error Command failed with exit code 1.
 ```
 
 To re-run the integration test for the failed tests you would then run:
@@ -227,7 +227,7 @@ By default, integration tests are run with the "update workflow" enabled. This c
 If an existing snapshot is being updated, the integration test runner will first deploy the existing snapshot and then perform a stack update
 with the new changes. This is to test for cases where an update would cause a breaking change only on a stack update.
 
-> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works 
+> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works
 > with **environment-agnostic** snapshots. A snapshot is environment-agnostic when its templates do
 > not embed specific account IDs or regions. Tests that use context lookups (e.g., VPC or AZ
 > providers) store dummy resolved values in their snapshots — these are fine for diffing but can
@@ -364,3 +364,22 @@ integ-runner --help
 ```
 
 To use a different config file, provide the `--config` command-line option.
+
+## Dealing with context and Feature Flags
+
+By default, `integ-runner` will use the most recent recommended set of feature
+flags. This has the consequence that when you upgrade `integ-runner`, the
+feature flag set may change and affect your generated snapshots, requiring a
+snapshot update.
+
+If your test directory has an `integ.context.json` file or `cdk.json` file
+upstream from the test, context values from those files will be used and
+completely replace the built-in flags. This makes sure that your context stays
+the same, even if you upgrade `integ-runner`. It also gives you the ability
+to change a context value for all tests at once. If there are multiple files
+they will not be merged: the closest file to the test will be used.
+
+If `integ.context.json` is found, it is expected to be a one-level dictionary of
+context keys to values. If `cdk.json` is found, its `"context"` key will be used
+as a dictionary of context keys and values (same as the file that typically
+controls a CDK app's context and feature flags).
