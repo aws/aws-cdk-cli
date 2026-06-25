@@ -2,6 +2,7 @@
 import * as path from 'path';
 import * as jest from 'jest';
 import * as yargs from 'yargs';
+import { emitVersionsEmf } from '../emf';
 import { RunnerCliNpmSource } from '../package-sources/cli-npm-source';
 import { RunnerCliRepoSource } from '../package-sources/cli-repo-source';
 import { autoFindRepoRoot } from '../package-sources/find-root';
@@ -241,6 +242,19 @@ async function main() {
       cdkAssets,
     });
 
+    if (process.env.CODEBUILD_BUILD_ID) {
+      // Emitting here is sliiiightly going to mess up the output of the test run, but since this is
+      // CodeBuild not too many people are going to look at it probably. Ultimately we only want these
+      // metrics into CloudWatch.
+      emitVersionsEmf({
+        cli: cli.version,
+        library: library.version,
+        toolkitLib: toolkitLib.version,
+        cdkAssets: cdkAssets.version,
+        tests: thisPackageVersion(),
+      });
+    }
+
     const jestConfig = path.resolve(__dirname, '..', '..', 'resources', 'integ.jest.config.js');
 
     // Flip a flag to indicate we're testing CDK itself. Some parts of CDK behave more thoroughly
@@ -311,3 +325,4 @@ main().catch(e => {
   console.error(e);
   process.exitCode = 1;
 });
+
