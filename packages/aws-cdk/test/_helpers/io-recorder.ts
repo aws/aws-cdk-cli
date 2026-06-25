@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../lib/api';
 import { isMessageRelevantForLevel } from '../../lib/api-private';
+import type { IoMessageObservation, ObservableIoHost } from '../../lib/cli/io-host';
 
 /**
  * Matches ANSI SGR (color/style) escape sequences produced by chalk.
@@ -68,7 +69,7 @@ export interface RecordedIoEntry {
   readonly action?: string;
 
   /**
-   * The recommended log level of the message.
+   * The recommended log level of the message, *after* any listener overrides.
    */
   readonly level: string;
 
@@ -78,9 +79,18 @@ export interface RecordedIoEntry {
   readonly code: string | null;
 
   /**
-   * The fully formatted, ANSI-stripped, scrubbed message text.
+   * The fully formatted, ANSI-stripped, scrubbed message text, *after* any
+   * listener rewrites.
    */
   readonly message: string;
+
+  /**
+   * Whether a listener prevented this message from being written (the user
+   * would not see it). Omitted when the message is written normally.
+   *
+   * @default - omitted (the message is written)
+   */
+  readonly dropped?: boolean;
 
   /**
    * For `request` entries: the response the IoHost resolved with.
@@ -131,9 +141,18 @@ export interface IoHostRecorderOptions {
  * # How it works
  *
  * The recorder installs `jest.spyOn` on the host's `notify` and
- * `requestResponse` methods. It does not change their behavior — it only reads
- * the recorded call arguments afterwards and merges them into a single
- * chronological stream using jest's global `invocationCallOrder`.
+ * `requestResponse` methods to capture the ordered stream of messages (merged
+ * via jest's global `invocationCallOrder`).
+ *
+ * It additionally registers an observer via the host's `observeMessages` hook
+ * (when the host implements `ObservableIoHost`, as the `CliIoHost` does) to
+ * capture the *effective* disposition of each notified message — i.e. the
+ * text/level after any registered listeners have run, and whether a listener
+ * prevented it from being written (`dropped`). This makes the snapshot reflect
+ * what the user would actually see, so listener-based suppression and level
+ * overrides are visible in — and protected by — the snapshot. A plain `IIoHost`
+ * that does not implement `ObservableIoHost` still works; the recorder simply
+ * falls back to the message as emitted.
  *
  * # Usage
  *
@@ -166,11 +185,23 @@ export class IoHostRecorder {
   public static create(host: { notify: any; requestResponse: any }, options: IoHostRecorderOptions = {}): IoHostRecorder {
     const existing = IoHostRecorder.cache.get(host);
     if (existing) {
+      // Same recorder across the (singleton) host; clear the per-test
+      // observation buffer so each test starts fresh.
+      existing.resetObservations();
       return existing;
     }
     const notifySpy = jest.spyOn(host as any, 'notify');
     const requestSpy = jest.spyOn(host as any, 'requestResponse');
     const recorder = new IoHostRecorder(notifySpy, requestSpy, options);
+    // If the host is observable, capture the effective disposition of each
+    // message (text/level after listeners, and whether it was dropped). This is
+    // opt-in enrichment via a public interface: any plain `IIoHost` still works,
+    // it just won't reflect listener-level changes.
+    if (typeof (host as any).observeMessages === 'function') {
+      (host as unknown as ObservableIoHost).observeMessages((observation) => {
+        recorder.observations.push(observation);
+      });
+    }
     IoHostRecorder.cache.set(host, recorder);
     return recorder;
   }
@@ -178,12 +209,17 @@ export class IoHostRecorder {
   /**
    * One recorder per host instance. Because the CLI IoHost is a singleton,
    * this effectively yields a single shared recorder, and ensures we only
-   * install the spies once regardless of how many times `create` is called.
+   * install the spies and observer once regardless of how many times `create`
+   * is called.
    */
   private static readonly cache = new WeakMap<object, IoHostRecorder>();
 
   private readonly scrubbers: Scrubber[];
   private readonly level: IoMessageLevel;
+
+  // Effective disposition of each notified message, collected via the host's
+  // `observeMessages` hook (empty when the host is not observable).
+  private readonly observations: IoMessageObservation[] = [];
 
   private constructor(
     private readonly notifySpy: jest.SpyInstance,
@@ -192,6 +228,10 @@ export class IoHostRecorder {
   ) {
     this.scrubbers = [...defaultScrubbers(), ...(options.scrubbers ?? [])];
     this.level = options.level ?? 'trace';
+  }
+
+  private resetObservations(): void {
+    this.observations.length = 0;
   }
 
   /**
@@ -226,22 +266,34 @@ export class IoHostRecorder {
 
     raw.sort((a, b) => a.order - b.order);
 
-    // The single decision point for which levels are included. The recorder
-    // received every message regardless of the host's logLevel; here we keep
-    // only those at or above the configured threshold.
-    const included = raw.filter((r) => isMessageRelevantForLevel(r.msg, this.level));
+    // Map each notified message to the disposition the host computed for it
+    // (post-listener text/level + whether it was prevented from being written).
+    const disposition = this.dispositionByMessage();
 
     // Build sequentially. The awaited request promises are already settled by
     // the time we read them, so there is no parallelism to bound here.
     const entries: RecordedIoEntry[] = [];
-    for (const [seq, r] of included.entries()) {
+    let seq = 0;
+    for (const r of raw) {
+      // For notifications, prefer the post-listener message; fall back to the
+      // emitted message when the host did not process it (e.g. notify mocked).
+      const effective = (r.type === 'notify' ? disposition.get(r.msg)?.effective : undefined) ?? r.msg;
+      const dropped = r.type === 'notify' ? (disposition.get(r.msg)?.dropped ?? false) : false;
+
+      // The single decision point for which levels are included; uses the
+      // effective level so listener level-overrides are respected.
+      if (!isMessageRelevantForLevel({ level: effective.level }, this.level)) {
+        continue;
+      }
+
       const base: RecordedIoEntry = {
-        seq,
+        seq: seq++,
         type: r.type,
         action: r.msg.action,
-        level: r.msg.level,
+        level: effective.level,
         code: r.msg.code ?? null,
-        message: this.normalize(String(r.msg.message ?? '')),
+        message: this.normalize(String(effective.message ?? '')),
+        ...(dropped ? { dropped: true } : {}),
       };
 
       if (r.type === 'request') {
@@ -251,6 +303,20 @@ export class IoHostRecorder {
       }
     }
     return entries;
+  }
+
+  /**
+   * Index the message dispositions captured from the host's `observeMessages`
+   * hook by the emitted message object, so notifications can be enriched with
+   * their effective form. Empty when the host is not observable, or when it did
+   * not process any messages (e.g. `notify` was mocked to a no-op).
+   */
+  private dispositionByMessage(): Map<object, IoMessageObservation> {
+    const map = new Map<object, IoMessageObservation>();
+    for (const observation of this.observations) {
+      map.set(observation.emitted, observation);
+    }
+    return map;
   }
 
   /**
@@ -318,7 +384,9 @@ export class IoHostRecorder {
  * `requestResponse` is async, so the recorded mock result value is (usually) a
  * promise. By the time we read it (after the action under test has completed)
  * the promise has settled, so awaiting it is safe and yields the real resolved
- * response. A rejection (e.g. `AbortedByUser`) is captured as its error name.
+ * response. A declined confirmation resolves to `false` (it is the command's
+ * job to abort); a rejection (e.g. an unexpected error from the prompt) is
+ * captured as its error name.
  */
 async function resolveResult(result?: jest.MockResult<any>): Promise<unknown> {
   if (!result) {

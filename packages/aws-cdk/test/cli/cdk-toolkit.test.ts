@@ -114,7 +114,7 @@ let cloudExecutable: MockCloudExecutable;
 let ioHost = CliIoHost.instance();
 let ioHelper = asIoHelper(ioHost, 'deploy');
 let notifySpy = jest.spyOn(ioHost, 'notify');
-let requestSpy = jest.spyOn(ioHost, 'requestResponse');
+let requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 
 beforeEach(async () => {
   jest.resetAllMocks();
@@ -147,6 +147,10 @@ beforeEach(async () => {
   ioHelper = asIoHelper(ioHost, 'deploy');
   ioHost.isCI = false;
   notifySpy = jest.spyOn(ioHost, 'notify');
+  // Confirmation prompts are answered "yes" by default; the IoHost returns the
+  // answer (it no longer throws on decline), so the action decides. Tests that
+  // exercise a decline override this with `false`.
+  requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 });
 
 function defaultToolkitSetup() {
@@ -261,7 +265,7 @@ describe('deploy', () => {
 
   test('any-change approval shows stack diff when there are no security changes', async () => {
     const toolkit = defaultToolkitSetup();
-    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
     await toolkit.deploy({
       selector: { patterns: ['Test-Stack-A-Display-Name'] },
       deploymentMethod: { method: 'change-set' },
@@ -505,7 +509,7 @@ describe('deploy', () => {
         deployments: mockCfnDeployments,
       });
 
-      requestSpy = jest.spyOn(ioHost, 'requestResponse');
+      requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 
       // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
       // set means there is nothing for the user to approve.
@@ -574,8 +578,8 @@ describe('deploy', () => {
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
       });
 
-      // Reject approval
-      requestSpy.mockRejectedValue(new Error('Aborted by user'));
+      // Reject approval: the IoHost returns false and the deploy aborts itself.
+      requestSpy.mockResolvedValue(false);
 
       const cdkToolkit = new CdkToolkit({
         ioHost,
@@ -590,7 +594,7 @@ describe('deploy', () => {
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
-      })).rejects.toThrow(/Aborted/);
+      })).rejects.toThrow(/Deployment cancelled/);
 
       // THEN
       expect(mockCfnDeployments.cleanupChangeSet).toHaveBeenCalledWith(

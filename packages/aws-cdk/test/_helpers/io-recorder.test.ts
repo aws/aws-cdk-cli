@@ -82,4 +82,42 @@ describe('IoHostRecorder', () => {
     // trace/debug/info are dropped by the recorder's own threshold (not the host).
     expect((await recorder.entries()).map((e) => e.level)).toEqual(['warn', 'error']);
   });
+
+  test('marks a message a listener prevented from being written as `dropped`', async () => {
+    const ioHost = CliIoHost.instance({ logLevel: 'trace' }, /* forceNew */ true);
+    const recorder = IoHostRecorder.create(ioHost);
+    const ioHelper = asIoHelper(ioHost, 'destroy');
+
+    // Suppress a specific coded message, the way the CLI drops the synth/destroy
+    // time lines on the destroy path.
+    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I9999' } as any, () => ({ preventDefault: true }));
+
+    await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9999', message: 'suppressed', data: undefined });
+    await ioHelper.defaults.info('shown');
+
+    const entries = await recorder.entries();
+    expect(entries).toEqual([
+      expect.objectContaining({ code: 'CDK_TOOLKIT_I9999', message: 'suppressed', dropped: true }),
+      expect.objectContaining({ code: null, message: 'shown' }),
+    ]);
+    // A normally-written message carries no `dropped` flag.
+    expect(entries[1]).not.toHaveProperty('dropped');
+
+    dispose();
+  });
+
+  test('reflects a listener that rewrites the message text', async () => {
+    const ioHost = CliIoHost.instance({ logLevel: 'trace' }, /* forceNew */ true);
+    const recorder = IoHostRecorder.create(ioHost);
+    const ioHelper = asIoHelper(ioHost, 'destroy');
+
+    const dispose = ioHost.rewrite({ code: 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
+
+    await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9998', message: 'original', data: undefined });
+
+    const entries = await recorder.entries();
+    expect(entries[0]).toEqual(expect.objectContaining({ code: 'CDK_TOOLKIT_I9998', message: 'rewritten by listener' }));
+
+    dispose();
+  });
 });

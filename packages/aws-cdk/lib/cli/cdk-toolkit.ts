@@ -5,7 +5,7 @@ import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, DestroyOptions as DestroyToolkitOptions, DestroyResult, ICloudAssemblySource, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
-import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -828,8 +828,7 @@ export class CdkToolkit {
       await ioHelper.defaults.info(formattedDiff);
       const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
       if (!confirmed) {
-        await ioHelper.defaults.info('Import cancelled.');
-        return;
+        throw new AbortError('ImportAborted', 'Import cancelled');
       }
     }
 
@@ -923,17 +922,9 @@ export class CdkToolkit {
     if ((options.concurrency ?? 1) > 1) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
-    try {
-      await this.toolkit.destroy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
-    } catch (err: unknown) {
-      // Preserve the CLI's historical behavior: declining the confirmation
-      // prompt aborts the command gracefully rather than surfacing as an error.
-      if (ToolkitError.isToolkitError(err) && err.message === 'Aborted by user') {
-        await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
-        return;
-      }
-      throw err;
-    }
+    // Declining the confirmation throws an `AbortError` (`DestroyAborted`), which
+    // the top-level CLI handler presents softly with a non-zero exit code.
+    await this.toolkit.destroy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
   }
 
   /**
@@ -2057,9 +2048,15 @@ function buildParameterMap(
 async function askUserConfirmation(
   ioHost: CliIoHost,
   req: ActionLessRequest<ConfirmationRequest, boolean>,
+  abortErrorCode: string,
+  abortMessage: string,
 ) {
   await ioHost.withCorkedLogging(async () => {
-    await ioHost.asIoHelper().requestResponse(req);
+    // The IoHost returns the answer rather than aborting; abort here on decline.
+    const confirmed = await ioHost.asIoHelper().requestResponse(req);
+    if (!confirmed) {
+      throw new AbortError(abortErrorCode, abortMessage);
+    }
   });
 }
 
@@ -2303,6 +2300,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
               permissionChangeType: securityDiff.permissionChangeType,
               templateDiffs: formatter.diffs,
             }),
+            'DeployAborted',
+            'Deployment cancelled',
           );
         } catch (e) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -2371,6 +2370,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
                   motivation,
                   concurrency: this.options.concurrency,
                 }),
+                'RollbackAborted',
+                'Rollback cancelled',
               );
             }
 
@@ -2398,6 +2399,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
                   concurrency: this.options.concurrency,
                   motivation,
                 }),
+                'ReplacementRollbackAborted',
+                'Rollback cancelled',
               );
             }
 

@@ -228,6 +228,27 @@ describe('CliIoHost', () => {
       expect(mockStdout).toHaveBeenCalledWith('second\n');
     });
 
+    test('rewrite() can also override the level, moving the message between streams', async () => {
+      // A result-level message normally goes to stdout; rewriting it to info
+      // (and changing the text) sends it to stderr in non-CI mode.
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, 'info'));
+
+      await ioHost.notify(listMessage('first'));
+
+      expect(mockStderr).toHaveBeenCalledWith('rewritten:first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
+    });
+
+    test('on() can override only the level, leaving the text unchanged', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ level: 'info' })));
+
+      await ioHost.notify(listMessage('first'));
+
+      // text unchanged, but routed to stderr because it is now info-level
+      expect(mockStderr).toHaveBeenCalledWith('first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
+    });
+
     test('the returned dispose function removes the listener', async () => {
       const observed: string[] = [];
       const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
@@ -839,6 +860,63 @@ describe('CliIoHost', () => {
       })).rejects.toThrow('but concurrency is greater than 1');
     });
 
+    describe('request listeners', () => {
+      function confirmRequest(message = 'Are you sure?'): IoRequest<any, boolean> {
+        return plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'destroy',
+          code: 'CDK_TOOLKIT_I7010',
+          message,
+          defaultResponse: false,
+        }) as IoRequest<any, boolean>;
+      }
+
+      test('respond() answers a request without prompting or printing', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respondOnce() answers only the first request, then defers to the prompt', async () => {
+        const dispose = ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+
+        const first = await ioHost.requestResponse(confirmRequest());
+        const second = await requestResponse('y', confirmRequest());
+
+        expect(first).toBe(true);
+        expect(second).toBe(true);
+        // only the second request prompted; the first was answered silently
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('a listener can reword the question that is prompted', async () => {
+        const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I7010, () => 'Really delete everything?');
+
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Really delete everything?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('the returned dispose function removes the responder', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+        dispose();
+
+        // responder gone, so the host prompts as usual
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+      });
+    });
+
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
         const response = await requestResponse('y', plainMessage({
@@ -854,16 +932,17 @@ describe('CliIoHost', () => {
         expect(response).toBe(true);
       });
 
-      test('respond "no" to a confirmation prompt', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('respond "no" to a confirmation prompt returns false (the IoHost does not abort)', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
 
+        expect(response).toBe(false);
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
       });
     });
@@ -1037,15 +1116,17 @@ describe('CliIoHost', () => {
         expect(response).toEqual(true);
       });
 
-      test('require approval by default - respond no', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('require approval by default - respond no returns false', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
+
+        expect(response).toBe(false);
       });
 
       test('never require approval', async () => {

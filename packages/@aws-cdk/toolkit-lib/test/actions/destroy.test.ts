@@ -4,6 +4,7 @@ import * as deployments from '../../lib/api/deployments';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
 import type { RollbackResult } from '../../lib/toolkit';
 import { Toolkit } from '../../lib/toolkit';
+import { AbortError } from '../../lib/toolkit/toolkit-error';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
@@ -42,6 +43,20 @@ describe('destroy', () => {
       code: 'CDK_TOOLKIT_I7010',
       message: expect.stringContaining('Are you sure you want to delete'),
     }));
+  });
+
+  test('aborts with a DestroyAborted error when the confirmation prompt is declined', async () => {
+    // GIVEN
+    ioHost.mockResponseOnce('CDK_TOOLKIT_I7010', false);
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const error = await toolkit.destroy(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } }).catch((e) => e);
+
+    // THEN
+    expect(AbortError.isAbortError(error)).toBe(true);
+    expect(error.name).toBe('DestroyAborted');
+    expect(mockDestroyStack).not.toHaveBeenCalled();
   });
 
   test('multiple stacks', async () => {

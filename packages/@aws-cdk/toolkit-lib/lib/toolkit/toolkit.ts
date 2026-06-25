@@ -28,7 +28,7 @@ import * as picomatch from 'picomatch';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
-import { ToolkitError } from './toolkit-error';
+import { ToolkitError, AbortError } from './toolkit-error';
 import type { DeployResult, DestroyResult, FeatureFlag, MinimumSeverity, RollbackResult } from './types';
 import type {
   BootstrapEnvironments,
@@ -936,7 +936,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           if (prepareResult?.changeSet?.ChangeSetName) {
             await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
           }
-          throw new ToolkitError('DeployAborted', 'Aborted by user');
+          throw new AbortError('DeployAborted', 'Deployment cancelled');
         }
       }
 
@@ -987,7 +987,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('RollbackAborted', 'Aborted by user');
+                throw new AbortError('RollbackAborted', 'Rollback cancelled');
               }
 
               // Perform a rollback
@@ -1013,7 +1013,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
                 concurrency,
               }));
               if (!confirmed) {
-                throw new ToolkitError('ReplacementRollbackAborted', 'Aborted by user');
+                throw new AbortError('ReplacementRollbackAborted', 'Rollback cancelled');
               }
 
               // Go around through the 'while' loop again but switch rollback to true.
@@ -1394,7 +1394,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         motivation: 'User confirmation is needed before orphaning resources',
       }));
     if (!confirmed) {
-      throw new ToolkitError('OrphanAborted', 'Aborted by user');
+      throw new AbortError('OrphanAborted', 'Orphaning cancelled');
     }
 
     const result = await plan.execute();
@@ -1622,8 +1622,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const question = `Are you sure you want to delete: ${chalk.blue(stacks.hierarchicalIds.join(', '))}`;
       const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
       if (!confirmed) {
-        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
-        return ret;
+        throw new AbortError('DestroyAborted', 'Deletion cancelled');
       }
     }
 

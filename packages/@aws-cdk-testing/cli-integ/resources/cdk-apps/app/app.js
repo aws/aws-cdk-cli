@@ -85,6 +85,26 @@ class NoticesStack extends cdk.Stack {
   }
 }
 
+// Names an SQS queue after the *value* of an SSM parameter, resolved at deploy time via a
+// `AWS::SSM::Parameter::Value<String>` CloudFormation parameter (i.e. StringParameter.valueForStringParameter).
+// The synthesized template is identical regardless of the parameter's value, so a template-only
+// diff cannot detect a change. This is used to verify that `cdk diff --method=change-set` surfaces
+// changes that only a CloudFormation change set knows about. See aws/aws-cdk-cli#641.
+class SsmResolveQueueStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+    const parameterName = process.env.SSM_PARAMETER_NAME || '/cdk-integ/ssm-resolve-queue/placeholder';
+    const queueName = ssm.StringParameter.valueForStringParameter(this, parameterName);
+    // Optional ordinary (template-visible) change, used to exercise the "mixed" case where a
+    // resource has both a template-detected change and a change-set-only change. See #641.
+    const waitTime = process.env.SSM_RESOLVE_QUEUE_WAIT_TIME;
+    new sqs.Queue(this, 'Queue', {
+      queueName,
+      receiveMessageWaitTime: waitTime ? cdk.Duration.seconds(Number(waitTime)) : undefined,
+    });
+  }
+}
+
 class SsoPermissionSetNoPolicy extends Stack {
   constructor(scope, id) {
     super(scope, id);
@@ -1077,6 +1097,9 @@ switch (stackSet) {
     new ConsumingStack(app, `${stackPrefix}-order-consuming`, { providingStack: providing });
 
     new MissingSSMParameterStack(app, `${stackPrefix}-missing-ssm-parameter`, { env: defaultEnv });
+
+    // Queue whose name is resolved from an SSM parameter at deploy time (see aws/aws-cdk-cli#641)
+    new SsmResolveQueueStack(app, `${stackPrefix}-ssm-resolve-queue`, { env: defaultEnv });
 
     new LambdaStack(app, `${stackPrefix}-lambda`);
 

@@ -1615,6 +1615,7 @@ const cliInteg = configureProject(
       sdkDep('@aws-sdk/client-s3'),
       sdkDep('@aws-sdk/client-sns'),
       sdkDep('@aws-sdk/client-sso'),
+      sdkDep('@aws-sdk/client-ssm'),
       sdkDep('@aws-sdk/client-sts'),
       sdkDep('@aws-sdk/client-secrets-manager'),
       sdkDep('@aws-sdk/credential-providers'),

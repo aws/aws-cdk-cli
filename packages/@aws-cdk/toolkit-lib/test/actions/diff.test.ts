@@ -492,6 +492,32 @@ describe('diff', () => {
       });
     });
 
+    test('ChangeSet diff describes the change set with IncludePropertyValues so deploy-time-only changes are surfaced', async () => {
+      // GIVEN - an existing stack
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+        Stacks: [{ StackName: 'Stack1', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+      });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the change set was described requesting property values (BeforeContext/AfterContext)
+      const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
+      expect(describeCalls.length).toBeGreaterThan(0);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
+    });
+
     test('ChangeSet diff treats DELETE_IN_PROGRESS stack as non-existent', async () => {
       // GIVEN - stack is in DELETE_IN_PROGRESS (from a previous diff cleanup)
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);

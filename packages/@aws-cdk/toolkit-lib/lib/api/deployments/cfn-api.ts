@@ -39,11 +39,12 @@ async function describeChangeSet(
   cfn: ICloudFormationClient,
   stackNameOrArn: string,
   changeSetNameOrArn: string,
-  { fetchAll }: { fetchAll: boolean },
+  { fetchAll, includePropertyValues }: { fetchAll: boolean; includePropertyValues?: boolean },
 ): Promise<DescribeChangeSetCommandOutput> {
   const response = await cfn.describeChangeSet({
     StackName: stackNameOrArn,
     ChangeSetName: changeSetNameOrArn,
+    IncludePropertyValues: includePropertyValues,
   });
 
   // If fetchAll is true, traverse all pages from the change set description.
@@ -52,6 +53,7 @@ async function describeChangeSet(
       StackName: response.StackId ?? stackNameOrArn,
       ChangeSetName: response.ChangeSetId ?? changeSetNameOrArn,
       NextToken: response.NextToken,
+      IncludePropertyValues: includePropertyValues,
     });
 
     // Consolidate the changes
@@ -102,7 +104,7 @@ export async function waitForChangeSetReport(
   ioHelper: IoHelper,
   stackNameOrArn: string,
   changeSetNameOrArn: string,
-  { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
+  { fetchAll, diagnoser, includePropertyValues }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser; includePropertyValues?: boolean },
 ): Promise<ChangeSetReport> {
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
   const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
@@ -110,6 +112,7 @@ export async function waitForChangeSetReport(
   const ret = await waitFor(async () => {
     const description = await describeChangeSet(cfn, stackNameOrArn, changeSetNameOrArn, {
       fetchAll,
+      includePropertyValues,
     });
 
     if (description.Status === 'CREATE_PENDING' || description.Status === 'CREATE_IN_PROGRESS') {
@@ -145,9 +148,12 @@ export async function waitForChangeSet(
   ioHelper: IoHelper,
   stackNameOrArn: string,
   changeSetNameOrArn: string,
-  { fetchAll, diagnoser }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser },
+  { fetchAll, diagnoser, includePropertyValues }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser; includePropertyValues?: boolean },
 ): Promise<DescribeChangeSetCommandOutput> {
-  const { description, diagnosis } = await waitForChangeSetReport(cfn, ioHelper, stackNameOrArn, changeSetNameOrArn, { fetchAll, diagnoser });
+  const { description, diagnosis } = await waitForChangeSetReport(
+    cfn, ioHelper, stackNameOrArn, changeSetNameOrArn,
+    { fetchAll, diagnoser, includePropertyValues },
+  );
   if (diagnosis.type !== 'no-problem') {
     throwDeploymentErrorFromDiagnosis(diagnosis);
   }
@@ -405,6 +411,11 @@ async function createChangeSetAndCleanup(
     {
       fetchAll: options.willExecute,
       diagnoser: options.diagnoser,
+      // Ask CloudFormation to include the before/after property values and resource contexts
+      // in the change set description. This is what lets `cdk diff` surface changes that are
+      // invisible to a pure template diff (e.g. an SSM parameter or dynamic reference whose
+      // resolved value changed even though the local template did not).
+      includePropertyValues: true,
     },
   );
 
