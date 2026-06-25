@@ -108,6 +108,9 @@ async function main() {
         alias: 'w',
         describe: 'Specifies the maximum number of workers the worker-pool will spawn for running tests. We use a sensible default for running cli integ tests.',
         type: 'string',
+        // makes it easier to control from the outside and mitigate
+        // resource utilization issues on codebuild.
+        default: process.env.JEST_MAX_WORKERS,
         requiresArg: true,
       })
       .options('shard', {
