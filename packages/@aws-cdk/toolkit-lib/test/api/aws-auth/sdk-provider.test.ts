@@ -428,6 +428,34 @@ describe('with intercepted network calls', () => {
       });
     });
 
+    test('AWS_CDK_ROLE_SESSION_NAME overrides the default session name', async () => {
+      // GIVEN
+      prepareCreds({
+        fakeSts,
+        config: {
+          default: { aws_access_key_id: 'foo', $account: '11111' },
+        },
+      });
+      process.env.AWS_CDK_ROLE_SESSION_NAME = 'custom-session-name';
+
+      try {
+        // WHEN
+        const provider = await providerFromProfile(undefined);
+
+        const sdk = (
+          await provider.forEnvironment(env(uniq('88888')), Mode.ForReading, { assumeRoleArn: 'arn:aws:role' })
+        ).sdk as SDK;
+        await sdk.currentAccount();
+
+        // THEN
+        expect(fakeSts.assumedRoles).toContainEqual(expect.objectContaining({
+          roleSessionName: 'custom-session-name',
+        }));
+      } finally {
+        delete process.env.AWS_CDK_ROLE_SESSION_NAME;
+      }
+    });
+
     test('session tags can be passed when assuming a role', async () => {
       // GIVEN
       prepareCreds({
