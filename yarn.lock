@@ -460,6 +460,7 @@ __metadata:
     "@aws-sdk/client-bedrock-agentcore-control": "npm:^3"
     "@aws-sdk/client-cloudcontrol": "npm:^3"
     "@aws-sdk/client-cloudformation": "npm:^3"
+    "@aws-sdk/client-cloudtrail": "npm:^3"
     "@aws-sdk/client-cloudwatch-logs": "npm:^3"
     "@aws-sdk/client-codebuild": "npm:^3"
     "@aws-sdk/client-ec2": "npm:^3"
@@ -684,6 +685,24 @@ __metadata:
     "@smithy/types": "npm:^4.15.1"
     tslib: "npm:^2.6.2"
   checksum: 10c0/764c3d80b16ec84dc07ae499da11f3538a45a211bc222010f6f696e7481b3fdded01d3156dc3d11ebb41dfa00eb91498bafbc7ca08221586369cefe4b89b67ba
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/client-cloudtrail@npm:^3":
+  version: 3.1075.0
+  resolution: "@aws-sdk/client-cloudtrail@npm:3.1075.0"
+  dependencies:
+    "@aws-crypto/sha256-browser": "npm:5.2.0"
+    "@aws-crypto/sha256-js": "npm:5.2.0"
+    "@aws-sdk/core": "npm:^3.974.23"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.58"
+    "@aws-sdk/types": "npm:^3.973.13"
+    "@smithy/core": "npm:^3.24.6"
+    "@smithy/fetch-http-handler": "npm:^5.4.6"
+    "@smithy/node-http-handler": "npm:^4.7.6"
+    "@smithy/types": "npm:^4.14.3"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/a7a8118e743280ffdfbd6bd016d60055819a2589a682ef5879fa3b2708e457e8b71b91dfb215df25dd9f03e5eda0d5f2e492dbbf11df36d8ec7bfedf95c4bba3
   languageName: node
   linkType: hard
 

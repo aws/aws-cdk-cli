@@ -7,6 +7,7 @@ import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CloudFormationClient, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CloudTrailClient } from '@aws-sdk/client-cloudtrail';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { EC2Client } from '@aws-sdk/client-ec2';
@@ -42,6 +43,7 @@ export const awsMock = {
   bedrockAgentCoreControl: mockClient(BedrockAgentCoreControlClient),
   cloudControl: mockClient(CloudControlClient),
   cloudFormation: mockClient(CloudFormationClient),
+  cloudTrail: mockClient(CloudTrailClient),
   cloudWatch: mockClient(CloudWatchLogsClient),
   codeBuild: mockClient(CodeBuildClient),
   ec2: mockClient(EC2Client),
@@ -64,6 +66,7 @@ export const mockAppSyncClient = awsMock.appSync;
 export const mockBedrockAgentCoreControlClient = awsMock.bedrockAgentCoreControl;
 export const mockCloudControlClient = awsMock.cloudControl;
 export const mockCloudFormationClient = awsMock.cloudFormation;
+export const mockCloudTrailClient = awsMock.cloudTrail;
 export const mockCloudWatchClient = awsMock.cloudWatch;
 export const mockCodeBuildClient = awsMock.codeBuild;
 export const mockEC2Client = awsMock.ec2;

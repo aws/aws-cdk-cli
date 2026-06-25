@@ -214,3 +214,41 @@ describe('poll', () => {
     expect(poller.deleteFailures).toEqual([]);
   });
 });
+
+describe('PollRange.mostRecentDeploymentAttempt', () => {
+  // The decider only looks at event.OperationId and isRootStackEvent is irrelevant here.
+  const ev = (operationId: string | undefined) => ({
+    event: { OperationId: operationId } as StackEvent,
+    parentStackLogicalIds: [],
+    isRootStackEvent: false,
+  });
+
+  const decisions = (range: ReturnType<typeof PollRange.mostRecentDeploymentAttempt>, ops: Array<string | undefined>) =>
+    ops.map(op => range.shouldStop(ev(op)));
+
+  test('spans two operations (rollback + the create it rolled back), then stops at a third', () => {
+    const range = PollRange.mostRecentDeploymentAttempt();
+    // Newest-first: rollback op B (3 events), then create op A (2 events), then an older op C.
+    expect(decisions(range, ['B', 'B', 'B', 'A', 'A', 'C'])).toEqual([
+      'continue', 'continue', 'continue', // op B
+      'continue', 'continue', // op A
+      'stop-exclude', // op C — third distinct operation
+    ]);
+  });
+
+  test('stops at a third operation even when events have no OperationId', () => {
+    // Regression: undefined OperationId must still count toward the boundary, otherwise the
+    // poller scans the entire stack history.
+    const range = PollRange.mostRecentDeploymentAttempt();
+    expect(decisions(range, [undefined, undefined, 'A', 'B'])).toEqual([
+      'continue', 'continue', // the (single) undefined operation
+      'continue', // op A — second distinct
+      'stop-exclude', // op B — third distinct
+    ]);
+  });
+
+  test('never stops within a single operation', () => {
+    const range = PollRange.mostRecentDeploymentAttempt();
+    expect(decisions(range, ['A', 'A', 'A', 'A'])).toEqual(['continue', 'continue', 'continue', 'continue']);
+  });
+});

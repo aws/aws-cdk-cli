@@ -172,6 +172,14 @@ import {
   ListChangeSetsCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
+import {
+  CloudTrailClient,
+  LookupEventsCommand,
+} from '@aws-sdk/client-cloudtrail';
+import type {
+  LookupEventsCommandInput,
+  LookupEventsCommandOutput,
+} from '@aws-sdk/client-cloudtrail';
 import type {
   FilterLogEventsCommandInput,
   FilterLogEventsCommandOutput,
@@ -533,6 +541,10 @@ export interface ICloudFormationClient {
 export interface ICloudWatchLogsClient {
   describeLogGroups(input: DescribeLogGroupsCommandInput): Promise<DescribeLogGroupsCommandOutput>;
   filterLogEvents(input: FilterLogEventsCommandInput): Promise<FilterLogEventsCommandOutput>;
+}
+
+export interface ICloudTrailClient {
+  lookupEvents(input: LookupEventsCommandInput): Promise<LookupEventsCommandOutput>;
 }
 
 export interface ICodeBuildClient {
@@ -901,6 +913,14 @@ export class SDK {
         client.send(new DescribeLogGroupsCommand(input)),
       filterLogEvents: (input: FilterLogEventsCommandInput): Promise<FilterLogEventsCommandOutput> =>
         client.send(new FilterLogEventsCommand(input)),
+    };
+  }
+
+  public cloudTrail(): ICloudTrailClient {
+    const client = new CloudTrailClient(this.config);
+    return {
+      lookupEvents: (input: LookupEventsCommandInput): Promise<LookupEventsCommandOutput> =>
+        client.send(new LookupEventsCommand(input)),
     };
   }
 

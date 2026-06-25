@@ -63,6 +63,18 @@ export interface DiagnoseOptions {
    * @default true
    */
   readonly rollbackEnabled?: boolean;
+
+  /**
+   * Whether to consult CloudTrail for control-plane errors (e.g. AccessDenied) around the
+   * failure.
+   *
+   * CloudTrail events are delivered with several minutes of latency, so they are not yet
+   * available during a `deploy` (this defaults to false there). The `diagnose` action, run
+   * after the fact, enables it.
+   *
+   * @default false
+   */
+  readonly cloudTrailEnabled?: boolean;
 }
 
 export class CloudFormationStackDiagnoser {
@@ -70,6 +82,7 @@ export class CloudFormationStackDiagnoser {
   private parentStackLogicalIds: string[];
   private _additionalExplorationSdkPromise?: Promise<SDK | undefined>;
   private rollbackEnabled = true;
+  private cloudTrailEnabled = false;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
@@ -80,6 +93,9 @@ export class CloudFormationStackDiagnoser {
    * Diagnose a stack's root cause given no pre-existing state
    */
   public async diagnoseFromFresh(stackName: string): Promise<StackDiagnosis> {
+    // diagnoseFromFresh is the on-demand `cdk diagnose` path: it runs after the fact, by
+    // which time CloudTrail events for the failure have usually been delivered.
+    this.cloudTrailEnabled = true;
     try {
       const response = await this.cfn.describeStacks({ StackName: stackName });
       const stack = response.Stacks?.[0];
@@ -129,6 +145,7 @@ export class CloudFormationStackDiagnoser {
     options: DiagnoseOptions = {},
   ): Promise<StackDiagnosis> {
     this.rollbackEnabled = options.rollbackEnabled ?? true;
+    this.cloudTrailEnabled = options.cloudTrailEnabled ?? this.cloudTrailEnabled;
     if (errors.isEmpty()) {
       if (allowFallback) {
         // The monitor may not have seen failure events yet (race condition).
@@ -161,7 +178,7 @@ export class CloudFormationStackDiagnoser {
   private async _diagnoseViaStackEvents(stack: Stack): Promise<StackDiagnosis> {
     const poller = new StackEventPoller(this.cfn, {
       stackArn: stack.StackId!,
-      initialPollRange: PollRange.mostRecentOperation(),
+      initialPollRange: PollRange.mostRecentDeploymentAttempt(),
     });
 
     // We don't need the resulting events of polling. Polling will automatically update the error collection,
@@ -313,6 +330,7 @@ export class CloudFormationStackDiagnoser {
     try {
       return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg), {
         rollbackEnabled: this.rollbackEnabled,
+        cloudTrailEnabled: this.cloudTrailEnabled,
       });
     } catch (e: any) {
       await this.props.ioHelper.defaults.debug(`Resource investigation failed: ${e.message}`);
