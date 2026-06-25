@@ -3,7 +3,7 @@ import { IntegTest } from '../../lib/runner/integration-tests';
 import { ManifestLoadError } from '../../lib/runner/private/integ-manifest';
 import { testDataPath } from '../helpers';
 
-describe('IntegRunner manifest error handling', () => {
+describe('CdkIntegHelper manifest error handling', () => {
   let mockCdk: any;
 
   beforeEach(() => {
