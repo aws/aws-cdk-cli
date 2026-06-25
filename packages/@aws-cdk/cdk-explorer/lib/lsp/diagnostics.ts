@@ -89,9 +89,7 @@ function anchorViolation(
   const loc = resolveLocation(constructPath, index);
   if ('reason' in loc) return loc;
 
-  // Anchor to whatever user source the resolver produced (.ts/.tsx for TS apps,
-  // .py/.java for jsii host-language apps). The resolver owns which files are
-  // valid sources; here we just turn the location into a range.
+  // Resolver already vetted the source file; just turn the location into a range.
   return { uri: pathToFileURL(loc.file).toString(), range: toRange(loc) };
 }
 

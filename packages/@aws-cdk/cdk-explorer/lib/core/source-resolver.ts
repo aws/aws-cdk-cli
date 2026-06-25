@@ -49,13 +49,9 @@ export class SourceMapResolver {
   public async resolveFrames(frames: readonly string[] | undefined): Promise<SourceLocation | undefined> {
     if (!frames) return undefined;
 
-    // Scan for the first frame that is a supported source file inside the
-    // project. For TypeScript apps aws-cdk-lib's renderCallStackJustMyCode
-    // pre-filters framework frames into non-parsing placeholders, so the user
-    // .ts is first. For jsii host languages (Python/Java) the trace instead
-    // carries real aws-cdk-lib and jsii-kernel .js frames (in a temp dir,
-    // outside the root) ahead of the user's .py/.java frame, so we skip past
-    // unsupported-or-out-of-root frames rather than stop at the first one.
+    // First in-root, supported-source frame wins. Host-language traces carry
+    // framework .js frames (outside the root) ahead of the user's .py/.java
+    // frame, so skip past them rather than stop at the first parsed frame.
     for (const frame of frames) {
       const parsed = parseFrame(frame);
       if (!parsed) continue;
@@ -145,9 +141,7 @@ export class SourceMapResolver {
 }
 // TypeScript/JavaScript frames go through source-map resolution (.js -> .ts).
 const TS_JS_EXTENSIONS = ['.ts', '.tsx', '.js'] as const;
-// jsii host-language frames (Python/Java) already point at user source; they
-// need no source map, only column normalization. .go/.cs are deferred until
-// their jsii runtimes send host stack traces over the wire.
+// jsii host-language frames already point at user source (no source map needed).
 const HOST_LANGUAGE_EXTENSIONS = ['.py', '.java'] as const;
 
 function sourceKind(file: string): 'tsjs' | 'host' | undefined {
@@ -156,17 +150,13 @@ function sourceKind(file: string): 'tsjs' | 'host' | undefined {
   return undefined;
 }
 
-// jsii host frames are already source-space, but their columns are 0-indexed
-// (and 0 when unavailable, e.g. Python). SourceLocation is 1-based, so shift;
-// 0 -> 1 lands at the start of the line, the safe default.
+// Host frame columns are 0-indexed (0 = unavailable); SourceLocation is 1-based.
 function normalizeHostFrame(loc: SourceLocation): SourceLocation {
   return { file: loc.file, line: loc.line, column: loc.column + 1 };
 }
 
-// V8 frames are "<name> (<file>:<line>:<col>)". jsii host-language frames
-// (aws-cdk-lib's formatExternalFrame) omit the column when it's unavailable
-// (the common Python/Java case), emitting "<name> (<file>:<line>)", so the
-// column group is optional. Anchoring on "(" avoids capturing a leading "at ".
+// "<name> (<file>:<line>[:<col>])"; host frames omit the column when
+// unavailable, so it's optional. Anchoring on "(" avoids a leading "at ".
 const FRAME_RE = /\(([^()\s][^()]*?):(\d+)(?::(\d+))?\)\s*$/;
 
 function parseFrame(frame: string): SourceLocation | undefined {
