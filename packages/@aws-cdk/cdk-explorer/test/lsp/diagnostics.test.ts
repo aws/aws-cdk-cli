@@ -156,13 +156,16 @@ describe('mapViolationsToDiagnostics', () => {
     expect(dropped[0].reason).toContain('no source location');
   });
 
-  test('drops violations whose source file is not TypeScript', () => {
-    const tree = indexOf(nodeWithLocation('S/X', '/p/lib/x.py', 1, 1));
+  test('anchors a violation to a Python (host-language) source file', () => {
+    const tree = indexOf(nodeWithLocation('S/X', '/p/stacks/x.py', 31, 1));
     const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/X'] });
 
     const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
-    expect(byUri.size).toBe(0);
-    expect(dropped[0].reason).toContain('not TypeScript');
+    expect(dropped).toHaveLength(0);
+    expect(byUri.size).toBe(1);
+    const [uri, diags] = [...byUri.entries()][0];
+    expect(uri).toContain('x.py');
+    expect(diags[0].range.start).toEqual({ line: 30, character: 0 });
   });
 
   test('anchors at the top of the file when line/column are unknown', () => {
