@@ -1,4 +1,4 @@
-import { createVersionsEmf } from "../lib/emf";
+import { createVersionsEmf } from '../lib/emf';
 
 process.env.CODEBUILD_BUILD_ID = 'test-project:1234567890';
 

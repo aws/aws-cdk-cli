@@ -8,6 +8,7 @@
  * automatically emit metric data from these fields.
  */
 export function emitVersionsEmf(versions: Versions) {
+  // eslint-disable-next-line no-console
   console.log(JSON.stringify(createVersionsEmf(versions)));
 }
 

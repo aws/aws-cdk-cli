@@ -2,6 +2,7 @@
 import * as path from 'path';
 import * as jest from 'jest';
 import * as yargs from 'yargs';
+import { emitVersionsEmf } from '../emf';
 import { RunnerCliNpmSource } from '../package-sources/cli-npm-source';
 import { RunnerCliRepoSource } from '../package-sources/cli-repo-source';
 import { autoFindRepoRoot } from '../package-sources/find-root';
@@ -10,7 +11,6 @@ import { RunnerLibraryNpmSource } from '../package-sources/library-npm-source';
 import { RunnerLibraryPreinstalledSource } from '../package-sources/library-preinstalled-source';
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
-import { emitVersionsEmf } from '../emf';
 
 const CLI_PACKAGE_NAME = 'aws-cdk';
 const CDK_ASSETS_PACKAGE_NAME = 'cdk-assets';
