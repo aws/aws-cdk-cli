@@ -607,6 +607,14 @@ export const IO = {
     description: 'A debug message emitted by a Context Provider',
     interface: 'ContextProviderMessageSource',
   }),
+  CDK_ASSEMBLY_I0400: make.info({
+    code: 'CDK_ASSEMBLY_I0400',
+    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
+  }),
+  CDK_ASSEMBLY_I0401: make.info({
+    code: 'CDK_ASSEMBLY_I0401',
+    description: 'Stacks added to the selection because they are dependent on selected stacks (downstream expansion)',
+  }),
 
   // Assembly Annotations
   CDK_ASSEMBLY_I9999: make.info<cxapi.SynthesisMessage>({

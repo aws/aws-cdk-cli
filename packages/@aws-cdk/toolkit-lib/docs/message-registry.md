@@ -167,6 +167,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_ASSEMBLY_I0150` | Indicates the use of a pre-synthesized cloud assembly directory | `debug` | n/a |
 | `CDK_ASSEMBLY_I0300` | An info message emitted by a Context Provider | `info` | {@link ContextProviderMessageSource} |
 | `CDK_ASSEMBLY_I0301` | A debug message emitted by a Context Provider | `debug` | {@link ContextProviderMessageSource} |
+| `CDK_ASSEMBLY_I0400` | Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion) | `info` | n/a |
+| `CDK_ASSEMBLY_I0401` | Stacks added to the selection because they are dependent on selected stacks (downstream expansion) | `info` | n/a |
 | `CDK_ASSEMBLY_I9999` | Annotations emitted by the cloud assembly | `info` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_W9999` | Warnings emitted by the cloud assembly | `warn` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |
 | `CDK_ASSEMBLY_E9999` | Errors emitted by the cloud assembly | `error` | [cxapi.SynthesisMessage](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.SynthesisMessage.html) |

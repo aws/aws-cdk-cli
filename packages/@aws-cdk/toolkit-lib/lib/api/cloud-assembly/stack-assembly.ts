@@ -4,6 +4,7 @@ import { isMatch as picomatch } from 'picomatch';
 import { StackCollection } from './stack-collection';
 import { flatten } from '../../util';
 import type { IoHelper } from '../io/private/io-helper';
+import { IO } from '../io/private/messages';
 
 export interface IStackAssembly {
   /**
@@ -148,7 +149,7 @@ async function includeDownstreamStacks(
   } while (madeProgress);
 
   if (added.length > 0) {
-    await ioHelper.defaults.info(`Including depending stacks: ${chalk.bold(added.join(', '))}`);
+    await ioHelper.notify(IO.CDK_ASSEMBLY_I0401.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
   }
 }
 
@@ -180,6 +181,6 @@ async function includeUpstreamStacks(
   }
 
   if (added.length > 0) {
-    await ioHelper.defaults.info(`Including dependency stacks: ${chalk.bold(added.join(', '))}`);
+    await ioHelper.notify(IO.CDK_ASSEMBLY_I0400.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
   }
 }
