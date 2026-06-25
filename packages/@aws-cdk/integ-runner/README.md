@@ -377,7 +377,8 @@ upstream from the test, context values from those files will be used and
 completely replace the built-in flags. This makes sure that your context stays
 the same, even if you upgrade `integ-runner`. It also gives you the ability
 to change a context value for all tests at once. If there are multiple files
-they will not be merged: the closest file to the test will be used.
+they will not be merged: the closest file to the test will be used, with
+`integ.context.json` taking precedence over `cdk.json`.
 
 If `integ.context.json` is found, it is expected to be a one-level dictionary of
 context keys to values. If `cdk.json` is found, its `"context"` key will be used
