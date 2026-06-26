@@ -57,6 +57,14 @@ export const IO = {
     description: 'Cloud Assembly synthesis is starting',
     interface: 'StackSelectionDetails',
   }),
+  CDK_TOOLKIT_I1002: make.info({
+    code: 'CDK_TOOLKIT_I1002',
+    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
+  }),
+  CDK_TOOLKIT_I1003: make.info({
+    code: 'CDK_TOOLKIT_I1003',
+    description: 'Stacks added to the selection because they are dependent on the selected stacks (downstream expansion)',
+  }),
   CDK_TOOLKIT_I1901: make.result<StackAndAssemblyData>({
     code: 'CDK_TOOLKIT_I1901',
     description: 'Provides stack data',
