@@ -1051,8 +1051,8 @@ export class CdkToolkit {
       try {
         const result = await bootstrapper.bootstrapEnvironment(environment, this.props.sdkProvider, options);
         const message = result.noOp
-          ? ' ✅  Environment %s bootstrapped (no changes).'
-          : ' ✅  Environment %s bootstrapped.';
+          ? '✅  Environment %s bootstrapped (no changes).'
+          : '✅  Environment %s bootstrapped.';
         await this.ioHost.asIoHelper().defaults.info(chalk.green(message), chalk.blue(environment.name));
       } catch (e) {
         await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), e);

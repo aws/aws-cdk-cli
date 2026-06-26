@@ -105,6 +105,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'import-existing-resources': { type: 'boolean', desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist', default: true },
+          'express': { type: 'boolean', desc: 'Whether creation of bootstrap stack should use CloudFormation Express mode', default: false },
         },
       },
       'gc': {
@@ -169,8 +170,8 @@ export async function makeConfig(): Promise<CliConfig> {
           'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
-            desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +
-              'Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
+            desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
+              'iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
             negativeAlias: 'R',
           },
           'hotswap': {

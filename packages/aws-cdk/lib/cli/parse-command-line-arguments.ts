@@ -351,6 +351,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: true,
           type: 'boolean',
           desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist',
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Whether creation of bootstrap stack should use CloudFormation Express mode',
         }),
     )
     .command(
@@ -561,7 +566,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('rollback', {
           default: undefined,
           type: 'boolean',
-          desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deploymentsiterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
         })
         .option('R', { type: 'boolean', hidden: true })
         .middleware(helpers.yargsNegativeAlias('R', 'rollback'), true)

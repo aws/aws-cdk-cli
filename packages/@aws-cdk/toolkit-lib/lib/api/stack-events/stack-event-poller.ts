@@ -3,7 +3,7 @@ import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import type { ResourceError } from './resource-errors';
 import { ResourceErrors } from './resource-errors';
 import type { ResourceDeleteFailure, StabilizingResource } from '../../toolkit/types';
-import { formatErrorMessage, isRootStackEvent } from '../../util';
+import { formatErrorMessage, isRootStackEvent, isStabilizingResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
 export interface StackEventPollerProps {
@@ -230,18 +230,11 @@ export class StackEventPoller {
 
   private updateStabilizingResources(events: ResourceEvent[]) {
     for (const { event } of events) {
-      // In Express Mode, CloudFormation reports a resource as `*_COMPLETE`
-      // while it is still stabilizing, surfacing this via a status reason.
-      if (
-        event.ResourceStatus?.endsWith('_COMPLETE') &&
-        event.ResourceType !== 'AWS::CloudFormation::Stack' &&
-        event.ResourceStatusReason &&
-        event.LogicalResourceId
-      ) {
+      if (isStabilizingResourceEvent(event)) {
         this.stabilizingResources.push({
-          logicalResourceId: event.LogicalResourceId,
+          logicalResourceId: event.LogicalResourceId!,
           resourceType: event.ResourceType ?? '',
-          reason: event.ResourceStatusReason,
+          reason: event.ResourceStatusReason!,
         });
       }
     }

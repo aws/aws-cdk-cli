@@ -512,10 +512,10 @@ class FullCloudFormationDeployment {
   }
 
   private deployConfig(): DeploymentConfig {
-    return { 
+    return {
       Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
       ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
-    }
+    };
   }
 
   /**
