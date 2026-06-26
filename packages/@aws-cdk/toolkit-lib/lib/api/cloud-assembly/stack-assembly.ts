@@ -149,7 +149,7 @@ async function includeDownstreamStacks(
   } while (madeProgress);
 
   if (added.length > 0) {
-    await ioHelper.notify(IO.CDK_ASSEMBLY_I0401.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
+    await ioHelper.notify(IO.CDK_TOOLKIT_I1003.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
   }
 }
 
@@ -181,6 +181,6 @@ async function includeUpstreamStacks(
   }
 
   if (added.length > 0) {
-    await ioHelper.notify(IO.CDK_ASSEMBLY_I0400.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
+    await ioHelper.notify(IO.CDK_TOOLKIT_I1002.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
   }
 }

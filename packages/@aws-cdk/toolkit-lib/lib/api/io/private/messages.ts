@@ -57,6 +57,14 @@ export const IO = {
     description: 'Cloud Assembly synthesis is starting',
     interface: 'StackSelectionDetails',
   }),
+  CDK_TOOLKIT_I1002: make.info({
+    code: 'CDK_TOOLKIT_I1002',
+    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
+  }),
+  CDK_TOOLKIT_I1003: make.info({
+    code: 'CDK_TOOLKIT_I1003',
+    description: 'Stacks added to the selection because they are dependent on the selected stacks (downstream expansion)',
+  }),
   CDK_TOOLKIT_I1901: make.result<StackAndAssemblyData>({
     code: 'CDK_TOOLKIT_I1901',
     description: 'Provides stack data',
@@ -606,14 +614,6 @@ export const IO = {
     code: 'CDK_ASSEMBLY_I0301',
     description: 'A debug message emitted by a Context Provider',
     interface: 'ContextProviderMessageSource',
-  }),
-  CDK_ASSEMBLY_I0400: make.info({
-    code: 'CDK_ASSEMBLY_I0400',
-    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
-  }),
-  CDK_ASSEMBLY_I0401: make.info({
-    code: 'CDK_ASSEMBLY_I0401',
-    description: 'Stacks added to the selection because they are dependent on selected stacks (downstream expansion)',
   }),
 
   // Assembly Annotations
