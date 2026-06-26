@@ -28,7 +28,6 @@
 /.projen/** linguist-generated
 /.projen/deps.json linguist-generated
 /.projen/files.json linguist-generated
-/.projen/prepare-verdaccio.sh linguist-generated
 /.projen/tasks.json linguist-generated
 /.yarn/** linguist-vendored
 /.yarn/plugins/**/* binary
