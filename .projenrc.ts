@@ -1495,7 +1495,6 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      // cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
