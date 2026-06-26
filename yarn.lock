@@ -361,7 +361,6 @@ __metadata:
     "@types/yargs": "npm:^17.0.35"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk: "npm:^0.0.0"
     aws-cdk-lib: "npm:2.258.1"
     chalk: "npm:^4"
     chokidar: "npm:^4"

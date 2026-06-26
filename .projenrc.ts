@@ -1495,7 +1495,6 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
@@ -1562,7 +1561,6 @@ new BundleCli(integRunner, {
   externals: {
     dependencies: [
       '@aws-cdk/aws-service-spec',
-      'aws-cdk',
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
