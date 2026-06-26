@@ -318,6 +318,9 @@ import {
   type ListAliasesCommandOutput,
 } from '@aws-sdk/client-kms';
 import {
+  GetFunctionConfigurationCommand,
+  type GetFunctionConfigurationCommandInput,
+  type GetFunctionConfigurationCommandOutput,
   InvokeCommand,
   type InvokeCommandInput,
   type InvokeCommandOutput,
@@ -598,6 +601,7 @@ export interface IKMSClient {
 }
 
 export interface ILambdaClient {
+  getFunctionConfiguration(input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput>;
   invokeCommand(input: InvokeCommandInput): Promise<InvokeCommandOutput>;
   publishVersion(input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput>;
   updateAlias(input: UpdateAliasCommandInput): Promise<UpdateAliasCommandOutput>;
@@ -1048,6 +1052,8 @@ export class SDK {
   public lambda(): ILambdaClient {
     const client = new LambdaClient(this.config);
     return {
+      getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
+        client.send(new GetFunctionConfigurationCommand(input)),
       invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => client.send(new InvokeCommand(input)),
       publishVersion: (input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput> =>
         client.send(new PublishVersionCommand(input)),
