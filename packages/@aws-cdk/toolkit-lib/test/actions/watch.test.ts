@@ -42,10 +42,17 @@ jest.mock('chokidar', () => ({
   watch: mockChokidarWatch,
 }));
 
+import type { Stats } from 'node:fs';
 import * as path from 'node:path';
 import type { DeploymentMethod } from '../../lib/actions/deploy';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+
+// Chokidar v4 invokes the `ignored` callback with the file system stats of the
+// entry being considered, which the matcher uses to distinguish files from
+// directories.
+const FILE = { isFile: () => true, isDirectory: () => false } as unknown as Stats;
+const DIR = { isFile: () => false, isDirectory: () => true } as unknown as Stats;
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
@@ -314,16 +321,17 @@ describe('watch chokidar configuration', () => {
       exclude: [],
     });
 
-    // Get the ignored function that was passed to chokidar
-    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+    // Get the ignored function that was passed to chokidar. Chokidar v4 invokes
+    // it with the file system stats of the entry being considered.
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string, stats?: Stats) => boolean;
 
     // THEN - .ts files should NOT be ignored
-    expect(ignoredFn('file.ts')).toBe(false);
-    expect(ignoredFn('src/file.ts')).toBe(false);
+    expect(ignoredFn('file.ts', FILE)).toBe(false);
+    expect(ignoredFn('src/file.ts', FILE)).toBe(false);
 
     // Non-.ts files should be ignored
-    expect(ignoredFn('file.js')).toBe(true);
-    expect(ignoredFn('file.json')).toBe(true);
+    expect(ignoredFn('file.js', FILE)).toBe(true);
+    expect(ignoredFn('file.json', FILE)).toBe(true);
   });
 
   test('ignored function filters files based on exclude patterns', async () => {
@@ -335,15 +343,15 @@ describe('watch chokidar configuration', () => {
     });
 
     // Get the ignored function that was passed to chokidar
-    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string, stats?: Stats) => boolean;
 
     // THEN - excluded files should be ignored
-    expect(ignoredFn('node_modules/pkg/index.js')).toBe(true);
-    expect(ignoredFn('src/file.test.ts')).toBe(true);
+    expect(ignoredFn('node_modules/pkg/index.js', FILE)).toBe(true);
+    expect(ignoredFn('src/file.test.ts', FILE)).toBe(true);
 
     // Non-excluded files should NOT be ignored
-    expect(ignoredFn('src/file.ts')).toBe(false);
-    expect(ignoredFn('lib/index.ts')).toBe(false);
+    expect(ignoredFn('src/file.ts', FILE)).toBe(false);
+    expect(ignoredFn('lib/index.ts', FILE)).toBe(false);
   });
 
   test('ignored function applies default excludes', async () => {
@@ -355,14 +363,39 @@ describe('watch chokidar configuration', () => {
     });
 
     // Get the ignored function that was passed to chokidar
-    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string, stats?: Stats) => boolean;
 
     // THEN - default excludes should be applied
-    expect(ignoredFn('node_modules/pkg/index.js')).toBe(true);
-    expect(ignoredFn('.gitignore')).toBe(true);
-    expect(ignoredFn('.git/config')).toBe(true);
+    expect(ignoredFn('node_modules/pkg/index.js', FILE)).toBe(true);
+    expect(ignoredFn('.gitignore', FILE)).toBe(true);
+    expect(ignoredFn('.git/config', FILE)).toBe(true);
 
     // Regular files should NOT be ignored
-    expect(ignoredFn('src/file.ts')).toBe(false);
+    expect(ignoredFn('src/file.ts', FILE)).toBe(false);
+  });
+
+  test('ignored function descends into ancestor directories of a user-supplied file glob', async () => {
+    // Regression test for https://github.com/aws/aws-cdk-cli/issues/1647:
+    // a glob like 'src/**/*.ts' must not cause chokidar to prune the 'src'
+    // directory, or the nested .ts files are never discovered.
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.watch(cx, {
+      include: ['src/**/*.ts'],
+      exclude: [],
+    });
+
+    const ignoredFn = mockChokidarWatch.mock.calls[0][1].ignored as (path: string, stats?: Stats) => boolean;
+
+    // Ancestor directories of the glob must be traversed, not pruned.
+    expect(ignoredFn('src', DIR)).toBe(false);
+    expect(ignoredFn('src/nested', DIR)).toBe(false);
+
+    // Directories that cannot contain a match are pruned.
+    expect(ignoredFn('lib', DIR)).toBe(true);
+
+    // The matching files are watched; non-matching files are ignored.
+    expect(ignoredFn('src/file.ts', FILE)).toBe(false);
+    expect(ignoredFn('src/nested/file.ts', FILE)).toBe(false);
+    expect(ignoredFn('src/file.js', FILE)).toBe(true);
   });
 });

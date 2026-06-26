@@ -40,7 +40,9 @@ class SecurityPlugin {
 }
 
 const app = new cdk.App();
-cdk.Validations.of(app).addPlugins(new SecurityPlugin());
+if (process.env.INJECT_OFFLINE_ERRORS) {
+  cdk.Validations.of(app).addPlugins(new SecurityPlugin());
+}
 
 // Valid stack — no offline or online errors
 class ValidStack extends cdk.Stack {

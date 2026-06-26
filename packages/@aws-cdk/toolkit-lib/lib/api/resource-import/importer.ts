@@ -305,7 +305,14 @@ export class ResourceImporter {
    * Return the current template, with the given resources added to it
    */
   private async currentTemplateWithAdditions(additions: ImportableResource[]): Promise<any> {
-    const template = await this.currentTemplate();
+    // Build the IMPORT change-set template from a *copy* of the deployed template. We must not
+    // mutate the cached deployed template: it is also referenced as the "old template" by the
+    // diff formatter returned from `discoverImportableResources`, and `fullDiff` (which it runs)
+    // already had a history of mutating its inputs. Reusing/mutating the cached object risks
+    // leaking changes - the import additions, or normalizations such as sorted `DependsOn`
+    // arrays - into the submitted change set, which CloudFormation rejects as modifications to
+    // resources that are not being imported. See https://github.com/aws/aws-cdk-cli/issues/1575.
+    const template = structuredClone(await this.currentTemplate());
     if (!template.Resources) {
       template.Resources = {};
     }

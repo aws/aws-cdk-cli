@@ -74,6 +74,10 @@ export function contextFromSettings(
   const bundlingStacks = settings.get(['bundlingStacks']) ?? ['**'];
   context[cxapi.BUNDLING_STACKS] = bundlingStacks;
 
+  // We unconditionally tell the CDK app that the toolkit/CLI will handle validation reports.
+  // The app never has to exit with an error code because of it.
+  context[cxapi.FAIL_SYNTH_ON_VALIDATION_ERRORS_CONTEXT] = false;
+
   return context;
 }
 

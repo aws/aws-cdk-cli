@@ -2,6 +2,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
+const ABORT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AbortError');
 const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError');
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
@@ -23,6 +24,13 @@ export class ToolkitError extends Error {
    */
   public static isAuthenticationError(x: any): x is AuthenticationError {
     return ToolkitError.isToolkitError(x) && AUTHENTICATION_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of AbortError.
+   */
+  public static isAbortError(x: any): x is AbortError {
+    return ToolkitError.isToolkitError(x) && ABORT_ERROR_SYMBOL in x;
   }
 
   /**
@@ -92,6 +100,28 @@ export class AuthenticationError extends ToolkitError {
     super(errorCode, message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
     Object.defineProperty(this, AUTHENTICATION_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents an abort of an operation because the user declined a confirmation.
+ *
+ * This is not a failure of the toolkit: the user was asked a question and chose
+ * not to proceed. It carries a per-action error code (for example
+ * `DeployAborted`) so the reason stays specific, while `isAbortError` lets
+ * consumers detect a user-initiated abort without matching on messages. The
+ * default message, `Operation cancelled`, is a sensible generic for any action.
+ */
+export class AbortError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(errorCode: string, message: string = 'Operation cancelled') {
+    super(errorCode, message, 'abort');
+    Object.setPrototypeOf(this, AbortError.prototype);
+    Object.defineProperty(this, ABORT_ERROR_SYMBOL, { value: true });
   }
 }
 

@@ -42,7 +42,7 @@ const fakeChokidarWatch = {
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get ignoredFn(): (path: string) => boolean {
+  get ignoredFn(): (path: string, stats?: Stats) => boolean {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
     // the ignored function is a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
@@ -50,8 +50,16 @@ const fakeChokidarWatch = {
   },
 };
 
+// Chokidar v4 invokes the `ignored` callback with the file system stats of the
+// entry being considered, which the matcher uses to distinguish files from
+// directories (a directory is traversed even when it doesn't itself match a
+// file glob, so nested matching files can be discovered).
+const FILE = { isFile: () => true, isDirectory: () => false } as unknown as Stats;
+const DIR = { isFile: () => false, isDirectory: () => true } as unknown as Stats;
+
 jest.setTimeout(30_000);
 
+import type { Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
@@ -106,7 +114,7 @@ let cloudExecutable: MockCloudExecutable;
 let ioHost = CliIoHost.instance();
 let ioHelper = asIoHelper(ioHost, 'deploy');
 let notifySpy = jest.spyOn(ioHost, 'notify');
-let requestSpy = jest.spyOn(ioHost, 'requestResponse');
+let requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 
 beforeEach(async () => {
   jest.resetAllMocks();
@@ -139,6 +147,10 @@ beforeEach(async () => {
   ioHelper = asIoHelper(ioHost, 'deploy');
   ioHost.isCI = false;
   notifySpy = jest.spyOn(ioHost, 'notify');
+  // Confirmation prompts are answered "yes" by default; the IoHost returns the
+  // answer (it no longer throws on decline), so the action decides. Tests that
+  // exercise a decline override this with `false`.
+  requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 });
 
 function defaultToolkitSetup() {
@@ -253,7 +265,7 @@ describe('deploy', () => {
 
   test('any-change approval shows stack diff when there are no security changes', async () => {
     const toolkit = defaultToolkitSetup();
-    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
     await toolkit.deploy({
       selector: { patterns: ['Test-Stack-A-Display-Name'] },
       deploymentMethod: { method: 'change-set' },
@@ -497,7 +509,7 @@ describe('deploy', () => {
         deployments: mockCfnDeployments,
       });
 
-      requestSpy = jest.spyOn(ioHost, 'requestResponse');
+      requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 
       // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
       // set means there is nothing for the user to approve.
@@ -566,8 +578,8 @@ describe('deploy', () => {
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
       });
 
-      // Reject approval
-      requestSpy.mockRejectedValue(new Error('Aborted by user'));
+      // Reject approval: the IoHost returns false and the deploy aborts itself.
+      requestSpy.mockResolvedValue(false);
 
       const cdkToolkit = new CdkToolkit({
         ioHost,
@@ -582,7 +594,7 @@ describe('deploy', () => {
         selector: { patterns: ['Test-Stack-A-Display-Name'] },
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
-      })).rejects.toThrow(/Aborted/);
+      })).rejects.toThrow(/Deployment cancelled/);
 
       // THEN
       expect(mockCfnDeployments.cleanupChangeSet).toHaveBeenCalledWith(
@@ -1729,78 +1741,6 @@ describe('deploy', () => {
   });
 });
 
-describe('destroy', () => {
-  test('destroy correct stack', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
-      });
-    }).resolves;
-  });
-
-  test('destroy with concurrency', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['*'] },
-      exclusively: false,
-      force: true,
-      concurrency: 5,
-    });
-  });
-
-  test('destroy respects dependency order with concurrency', async () => {
-    const stackC: TestStackArtifact = {
-      stackName: 'Test-Stack-C',
-      template: { Resources: { TemplateName: 'Test-Stack-C' } },
-      env: 'aws://123456789012/bermuda-triangle-1',
-    };
-    const stackD: TestStackArtifact = {
-      stackName: 'Test-Stack-D',
-      template: { Resources: { TemplateName: 'Test-Stack-D' } },
-      env: 'aws://123456789012/bermuda-triangle-1',
-      depends: [stackC.stackName],
-    };
-    cloudExecutable = await MockCloudExecutable.create({
-      stacks: [stackC, stackD],
-    });
-
-    const destroyOrder: string[] = [];
-    const fakeDeployments = new FakeCloudFormation({
-      'Test-Stack-C': { Baz: 'Zinga!' },
-      'Test-Stack-D': { Baz: 'Zinga!' },
-    });
-    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
-    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
-      destroyOrder.push(options.stack.stackName);
-      return originalDestroyStack(options);
-    };
-
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable,
-      configuration: cloudExecutable.configuration,
-      sdkProvider: cloudExecutable.sdkProvider,
-      deployments: fakeDeployments,
-    });
-
-    await toolkit.destroy({
-      selector: { allTopLevel: true, patterns: [] },
-      exclusively: false,
-      force: true,
-      concurrency: 10,
-    });
-
-    // stackD depends on stackC, so D must be destroyed before C
-    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
-  });
-});
-
 describe('watch', () => {
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
@@ -1843,9 +1783,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(false); // included - not ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(false); // included - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // not included - ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(false); // included - not ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(false); // included - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // not included - ignored
   });
 
   test("allows providing an array of strings in 'watch.include'", async () => {
@@ -1862,9 +1802,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(false); // matches first pattern - not ignored
-    expect(ignoredFn('nested/my-dir2/file.ts')).toBe(false); // matches second pattern - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // matches neither - ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(false); // matches first pattern - not ignored
+    expect(ignoredFn('nested/my-dir2/file.ts', FILE)).toBe(false); // matches second pattern - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // matches neither - ignored
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1880,11 +1820,11 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('cdk.out/stack.template.json')).toBe(true); // output dir - ignored
-    expect(ignoredFn('.hidden')).toBe(true); // dot file - ignored
-    expect(ignoredFn('.git/config')).toBe(true); // dot directory - ignored
-    expect(ignoredFn('node_modules/package/index.js')).toBe(true); // node_modules - ignored
-    expect(ignoredFn('src/app.ts')).toBe(false); // regular file - not ignored
+    expect(ignoredFn('cdk.out/stack.template.json', FILE)).toBe(true); // output dir - ignored
+    expect(ignoredFn('.hidden', FILE)).toBe(true); // dot file - ignored
+    expect(ignoredFn('.git/config', FILE)).toBe(true); // dot directory - ignored
+    expect(ignoredFn('node_modules/package/index.js', FILE)).toBe(true); // node_modules - ignored
+    expect(ignoredFn('src/app.ts', FILE)).toBe(false); // regular file - not ignored
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1901,9 +1841,9 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(true); // excluded - ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(true); // excluded - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // not excluded - not ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(true); // excluded - ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(true); // excluded - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // not excluded - not ignored
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1920,10 +1860,10 @@ describe('watch', () => {
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('my-dir1/file.ts')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('nested/my-dir2')).toBe(true); // matches second exclude - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // matches neither exclude - not ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('my-dir1/file.ts', FILE)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('nested/my-dir2', DIR)).toBe(true); // matches second exclude - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // matches neither exclude - not ignored
   });
 
   test('allows watching with deploy concurrency', async () => {

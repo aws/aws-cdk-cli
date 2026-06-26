@@ -152,7 +152,7 @@ export class AssemblyManifestReader {
   /**
    * Return a list of asset artifacts for a given stack
    */
-  public getAssetManifestsForStack(stackId: string): AssetManifest[] {
+  private getAssetManifestsForStack(stackId: string): AssetManifest[] {
     return Object.values(this.manifest.artifacts ?? {})
       .filter(artifact =>
         artifact.type === ArtifactType.ASSET_MANIFEST && (artifact.properties as AssetManifestProperties)?.file === `${stackId}.assets.json`)

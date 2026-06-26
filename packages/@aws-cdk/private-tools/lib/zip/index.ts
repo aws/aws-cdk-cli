@@ -1,12 +1,27 @@
 import { createWriteStream, promises as fs } from 'fs';
 import * as path from 'path';
-import { Writable } from 'stream';
 import type { Options } from 'fast-glob';
 import { globSync } from 'fast-glob';
+import { ZipFile } from 'yazl';
 
-// namespace object imports won't work in the bundle for function exports
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const archiver = require('archiver');
+/**
+ * The fixed timestamp applied to every entry so that equal content yields an
+ * equal zip (deterministic output, stable content hash).
+ *
+ * It is built lazily (per call) from *local* date components rather than from a
+ * UTC instant (e.g. `new Date('1980-01-01T00:00:00Z')`). yazl derives the ZIP
+ * "DOS" timestamp from the local-time fields of this `Date`, so local
+ * components yield the same DOS value (1980-01-01 00:00:00) on every machine
+ * regardless of its timezone. Constructing it lazily (instead of as a
+ * module-load constant) means it reflects the process timezone at call time,
+ * which keeps the behavior identical in production while remaining observable
+ * to tests that simulate a timezone. Combined with `forceDosTimestamp`, the
+ * produced archive is byte-for-byte identical across timezones, which the asset
+ * hashing relies on.
+ */
+function epoch(): Date {
+  return new Date(1980, 0, 1, 0, 0, 0);
+}
 
 /**
  * Receives informational messages (e.g. retries on EPERM on Windows).
@@ -49,21 +64,18 @@ export function zipString(fileName: string, rawString: string): Promise<Buffer> 
   return new Promise((resolve, reject) => {
     const buffers: Buffer[] = [];
 
-    const converter = new Writable();
-    converter._write = (chunk: Buffer, _: string, callback: () => void) => {
-      buffers.push(chunk);
-      process.nextTick(callback);
-    };
-    converter.on('finish', () => resolve(Buffer.concat(buffers)));
+    const zip = new ZipFile();
+    zip.outputStream.on('data', (chunk: Buffer) => buffers.push(chunk));
+    zip.outputStream.on('error', reject);
+    zip.outputStream.on('end', () => resolve(Buffer.concat(buffers)));
 
-    const archive = archiver('zip');
-    archive.on('error', reject);
-    archive.pipe(converter);
-    archive.append(rawString, {
-      name: fileName,
-      date: new Date('1980-01-01T00:00:00.000Z'),
+    zip.addBuffer(Buffer.from(rawString), fileName, {
+      mtime: epoch(), // reset date to get the same hash for the same content
+      // Only emit the DOS timestamp (no UTC "universal time" extended field),
+      // so the archive bytes do not depend on the machine's timezone.
+      forceDosTimestamp: true,
     });
-    void archive.finalize();
+    zip.end();
   });
 }
 
@@ -80,18 +92,15 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
     };
     const files = globSync('**', globOptions); // The output here is already sorted
 
+    const zip = new ZipFile();
+    zip.outputStream.on('error', fail);
+
     const output = createWriteStream(outputFile);
-
-    const archive = archiver('zip');
-    archive.on('warning', fail);
-    archive.on('error', fail);
-
-    // archive has been finalized and the output file descriptor has closed, resolve promise
-    // this has to be done before calling `finalize` since the events may fire immediately after.
-    // see https://www.npmjs.com/package/archiver
+    output.on('error', fail);
+    // resolve once the output file descriptor has closed
     output.once('close', ok);
 
-    archive.pipe(output);
+    zip.outputStream.pipe(output);
 
     // Append files serially to ensure file order
     for (const file of files) {
@@ -99,14 +108,16 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
       // There are exactly 2 promises
       // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
       const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
-      archive.append(data, {
-        name: file,
-        date: new Date('1980-01-01T00:00:00.000Z'), // reset dates to get the same hash for the same content
+      zip.addBuffer(data, file, {
+        mtime: epoch(), // reset dates to get the same hash for the same content
         mode: stat.mode,
+        // Only emit the DOS timestamp (no UTC "universal time" extended field),
+        // so the archive bytes do not depend on the machine's timezone.
+        forceDosTimestamp: true,
       });
     }
 
-    await archive.finalize();
+    zip.end();
   });
 }
 

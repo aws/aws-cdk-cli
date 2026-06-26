@@ -146,7 +146,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I9500` | Stack diagnosis (no problems found) | `info` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_E9500` | Stack diagnosis (problems found) | `error` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_W9501` | Stack diagnosis (diagnosis could not be performed) | `warn` | {@link DiagnosedStack} |
-| `CDK_TOOLKIT_I9600` | Policy validation passed | `info` | {@link ValidateResult} |
+| `CDK_TOOLKIT_I9600` | Validation did not find any problems | `info` | {@link ValidateResult} |
 | `CDK_TOOLKIT_E9600` | Policy validation failed | `error` | {@link ValidateResult} |
 | `CDK_TOOLKIT_I9601` | No policy validation report found | `info` | n/a |
 | `CDK_TOOLKIT_W9602` | Online validation could not be completed for a stack | `warn` | n/a |

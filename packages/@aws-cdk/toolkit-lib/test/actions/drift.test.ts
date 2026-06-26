@@ -1,9 +1,8 @@
 import { DescribeStackDriftDetectionStatusCommand, DescribeStackResourceDriftsCommand, DetectStackDriftCommand } from '@aws-sdk/client-cloudformation';
-import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+import { mockCloudFormationClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -16,7 +15,8 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
-  jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  // Keep the real SdkProvider hermetic and avoid resolving ambient credentials.
+  mockSdkProvider();
 });
 
 describe('drift', () => {

@@ -185,6 +185,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-ssm",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-sso",
       "version": "^3",
       "type": "runtime"
