@@ -1,4 +1,4 @@
-{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
-{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
-{"seq":2,"type":"notify","action":"none","level":"info","code":null,"message":"Test-Stack-A/Test-Stack-C: destroying... [1/1]"}
-{"seq":3,"type":"notify","action":"none","level":"info","code":null,"message":"\n ✅  Test-Stack-A/Test-Stack-C: deployed"}
+{"seq":0,"type":"notify","action":"destroy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"destroy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"destroy","level":"info","code":null,"message":"Test-Stack-A/Test-Stack-C: destroying... [1/1]"}
+{"seq":3,"type":"notify","action":"destroy","level":"info","code":null,"message":"\n ✅  Test-Stack-A/Test-Stack-C: deployed"}

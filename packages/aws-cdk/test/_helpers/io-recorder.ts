@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { IoMessage, IoMessageLevel, IoRequest } from '../../lib/api';
+import type { IoMessageLevel } from '../../lib/api';
 import { isMessageRelevantForLevel } from '../../lib/api-private';
 import type { IoMessageObservation, ObservableIoHost } from '../../lib/cli/io-host';
 
@@ -140,26 +140,41 @@ export interface IoHostRecorderOptions {
  *
  * # How it works
  *
- * The recorder installs `jest.spyOn` on the host's `notify` and
- * `requestResponse` methods to capture the ordered stream of messages (merged
- * via jest's global `invocationCallOrder`).
+ * The recorder captures the message stream purely through the host's
+ * `observeMessages` hook (the `ObservableIoHost` contract the `CliIoHost`
+ * implements). The host reports every message it handles — both `notify`
+ * notifications and `requestResponse` requests — in the order it handled them,
+ * along with the *effective* disposition of each one: the text/level after any
+ * registered listeners ran, whether a listener prevented a notification from
+ * being written (`dropped`), and the resolved response for a request.
  *
- * It additionally registers an observer via the host's `observeMessages` hook
- * (when the host implements `ObservableIoHost`, as the `CliIoHost` does) to
- * capture the *effective* disposition of each notified message — i.e. the
- * text/level after any registered listeners have run, and whether a listener
- * prevented it from being written (`dropped`). This makes the snapshot reflect
- * what the user would actually see, so listener-based suppression and level
- * overrides are visible in — and protected by — the snapshot. A plain `IIoHost`
- * that does not implement `ObservableIoHost` still works; the recorder simply
- * falls back to the message as emitted.
+ * Because the recorder only *observes* and never replaces (`spyOn`) the host's
+ * methods, the real `notify`/`requestResponse` always run. This is what makes
+ * it robust: a test's `jest.resetAllMocks()` has nothing of the recorder's to
+ * neuter, so the recorder needs no per-test pass-through boilerplate, and the
+ * real request path runs — so listeners (e.g. a `respondOnce`/`--force`
+ * auto-confirm) are honored exactly as in production. Answer prompts in tests
+ * with `ioHost.respondOnce(IO.<code>, value)` rather than by spying on
+ * `requestResponse`.
+ *
+ * The host must implement `ObservableIoHost`; the `CliIoHost` does. (This is a
+ * CLI-internal test helper, and every recorded host is a `CliIoHost`.)
+ *
+ * # Dropped (suppressed) messages
+ *
+ * A notification a listener suppressed via `preventDefault` (e.g. the CLI drops
+ * toolkit-lib's synth-time line on the `--json list` path) is *recorded* and
+ * tagged `"dropped": true`. This is deliberate: listener-based suppression is
+ * exactly the kind of user-facing behavior the snapshot exists to protect, so a
+ * change to what is suppressed must show up as a snapshot diff. Dropped entries
+ * are therefore part of the committed snapshot, not noise to be filtered out.
  *
  * # Usage
  *
  * The IoHost is a singleton, so there is a single recorder instance per host:
- * `create()` is idempotent and returns the same recorder (installing the spies
- * only once). Jest's `clearMocks` wipes the recorded calls between tests, so
- * the recorder always reflects only the current test's messages.
+ * `create()` is idempotent, returns the same recorder (registering the observer
+ * only once), and clears the per-test observation buffer, so the recorder
+ * always reflects only the current test's messages.
  *
  * ```ts
  * let recorder: IoHostRecorder;
@@ -167,9 +182,12 @@ export interface IoHostRecorderOptions {
  *   recorder = IoHostRecorder.create(ioHost);
  * });
  *
- * test('...', async () => {
+ * test('destroys after confirmation', async () => {
+ *   // Answer the confirmation prompt the real way: a one-shot responder, so
+ *   // the real requestResponse runs and the request is recorded.
+ *   ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
  *   await toolkit.destroy({ ... });
- *   await recorder.matchSnapshot();
+ *   recorder.matchSnapshot();
  * });
  * ```
  *
@@ -179,10 +197,12 @@ export interface IoHostRecorderOptions {
  */
 export class IoHostRecorder {
   /**
-   * Get (or lazily create) the recorder for the given IoHost by spying on its
-   * message methods. Repeated calls for the same host return the same recorder.
+   * Get (or lazily create) the recorder for the given IoHost by registering a
+   * message observer on it. Repeated calls for the same host return the same
+   * recorder (the observer is registered exactly once) and reset its per-test
+   * observation buffer, so each test starts fresh.
    */
-  public static create(host: { notify: any; requestResponse: any }, options: IoHostRecorderOptions = {}): IoHostRecorder {
+  public static create(host: ObservableIoHost, options: IoHostRecorderOptions = {}): IoHostRecorder {
     const existing = IoHostRecorder.cache.get(host);
     if (existing) {
       // Same recorder across the (singleton) host; clear the per-test
@@ -190,18 +210,16 @@ export class IoHostRecorder {
       existing.resetObservations();
       return existing;
     }
-    const notifySpy = jest.spyOn(host as any, 'notify');
-    const requestSpy = jest.spyOn(host as any, 'requestResponse');
-    const recorder = new IoHostRecorder(notifySpy, requestSpy, options);
-    // If the host is observable, capture the effective disposition of each
-    // message (text/level after listeners, and whether it was dropped). This is
-    // opt-in enrichment via a public interface: any plain `IIoHost` still works,
-    // it just won't reflect listener-level changes.
-    if (typeof (host as any).observeMessages === 'function') {
-      (host as unknown as ObservableIoHost).observeMessages((observation) => {
-        recorder.observations.push(observation);
-      });
+    if (typeof host?.observeMessages !== 'function') {
+      throw new Error('IoHostRecorder requires an ObservableIoHost (e.g. CliIoHost); the given host does not implement observeMessages()');
     }
+    const recorder = new IoHostRecorder(options);
+    // Capture the effective disposition of every message the host handles
+    // (notifications and requests). The observer is never removed: the host is
+    // a singleton, so the recorder is shared and the observer is installed once.
+    host.observeMessages((observation) => {
+      recorder.observations.push(observation);
+    });
     IoHostRecorder.cache.set(host, recorder);
     return recorder;
   }
@@ -209,23 +227,18 @@ export class IoHostRecorder {
   /**
    * One recorder per host instance. Because the CLI IoHost is a singleton,
    * this effectively yields a single shared recorder, and ensures we only
-   * install the spies and observer once regardless of how many times `create`
-   * is called.
+   * install the observer once regardless of how many times `create` is called.
    */
   private static readonly cache = new WeakMap<object, IoHostRecorder>();
 
   private readonly scrubbers: Scrubber[];
   private readonly level: IoMessageLevel;
 
-  // Effective disposition of each notified message, collected via the host's
-  // `observeMessages` hook (empty when the host is not observable).
+  // The ordered stream of messages the host handled this test, collected via
+  // its `observeMessages` hook. Cleared between tests by `resetObservations`.
   private readonly observations: IoMessageObservation[] = [];
 
-  private constructor(
-    private readonly notifySpy: jest.SpyInstance,
-    private readonly requestSpy: jest.SpyInstance,
-    options: IoHostRecorderOptions,
-  ) {
+  private constructor(options: IoHostRecorderOptions) {
     this.scrubbers = [...defaultScrubbers(), ...(options.scrubbers ?? [])];
     this.level = options.level ?? 'trace';
   }
@@ -235,95 +248,44 @@ export class IoHostRecorder {
   }
 
   /**
-   * Build the ordered list of recorded entries from the spies.
+   * Build the ordered list of recorded entries from the observed message
+   * stream. Observations are already in the order the host handled them, so no
+   * separate ordering is needed.
    */
-  public async entries(): Promise<RecordedIoEntry[]> {
-    interface Raw {
-      order: number;
-      type: 'notify' | 'request';
-      msg: IoMessage<unknown> | IoRequest<unknown, unknown>;
-      result?: jest.MockResult<any>;
-    }
-
-    const raw: Raw[] = [];
-
-    this.notifySpy.mock.calls.forEach((args, i) => {
-      raw.push({
-        order: this.notifySpy.mock.invocationCallOrder[i],
-        type: 'notify',
-        msg: args[0],
-      });
-    });
-
-    this.requestSpy.mock.calls.forEach((args, i) => {
-      raw.push({
-        order: this.requestSpy.mock.invocationCallOrder[i],
-        type: 'request',
-        msg: args[0],
-        result: this.requestSpy.mock.results[i],
-      });
-    });
-
-    raw.sort((a, b) => a.order - b.order);
-
-    // Map each notified message to the disposition the host computed for it
-    // (post-listener text/level + whether it was prevented from being written).
-    const disposition = this.dispositionByMessage();
-
-    // Build sequentially. The awaited request promises are already settled by
-    // the time we read them, so there is no parallelism to bound here.
+  public entries(): RecordedIoEntry[] {
     const entries: RecordedIoEntry[] = [];
     let seq = 0;
-    for (const r of raw) {
-      // For notifications, prefer the post-listener message; fall back to the
-      // emitted message when the host did not process it (e.g. notify mocked).
-      const effective = (r.type === 'notify' ? disposition.get(r.msg)?.effective : undefined) ?? r.msg;
-      const dropped = r.type === 'notify' ? (disposition.get(r.msg)?.dropped ?? false) : false;
-
+    for (const { type, emitted, effective, dropped } of this.observations) {
       // The single decision point for which levels are included; uses the
       // effective level so listener level-overrides are respected.
       if (!isMessageRelevantForLevel({ level: effective.level }, this.level)) {
         continue;
       }
 
-      const base: RecordedIoEntry = {
+      const entry: RecordedIoEntry = {
         seq: seq++,
-        type: r.type,
-        action: r.msg.action,
+        type,
+        action: emitted.action,
         level: effective.level,
-        code: r.msg.code ?? null,
+        code: emitted.code ?? null,
         message: this.normalize(String(effective.message ?? '')),
+        // A suppressed notification is recorded and flagged so the snapshot
+        // protects listener-based suppression (see the class doc). Requests are
+        // never dropped.
         ...(dropped ? { dropped: true } : {}),
+        // For requests, also record the resolved response (scrubbed).
+        ... ((type === 'request' && 'defaultResponse' in effective) ? { response: this.scrubValue(effective.defaultResponse) } : {}),
       };
-
-      if (r.type === 'request') {
-        entries.push({ ...base, response: this.scrubValue(await resolveResult(r.result)) });
-      } else {
-        entries.push(base);
-      }
+      entries.push(entry);
     }
     return entries;
   }
 
   /**
-   * Index the message dispositions captured from the host's `observeMessages`
-   * hook by the emitted message object, so notifications can be enriched with
-   * their effective form. Empty when the host is not observable, or when it did
-   * not process any messages (e.g. `notify` was mocked to a no-op).
-   */
-  private dispositionByMessage(): Map<object, IoMessageObservation> {
-    const map = new Map<object, IoMessageObservation>();
-    for (const observation of this.observations) {
-      map.set(observation.emitted, observation);
-    }
-    return map;
-  }
-
-  /**
    * Render the recorded entries as NDJSON (one JSON object per line).
    */
-  public async toNdjson(): Promise<string> {
-    const lines = (await this.entries()).map((e) => JSON.stringify(e));
+  public toNdjson(): string {
+    const lines = this.entries().map((e) => JSON.stringify(e));
     return lines.length > 0 ? lines.join('\n') + '\n' : '';
   }
 
@@ -331,8 +293,8 @@ export class IoHostRecorder {
    * Compare the recorded NDJSON against the on-disk snapshot, creating or
    * updating it when running with `-u` (or in `--ci` mode, failing if missing).
    */
-  public async matchSnapshot(name?: string): Promise<void> {
-    const actual = await this.toNdjson();
+  public matchSnapshot(name?: string): void {
+    const actual = this.toNdjson();
     const file = snapshotFilePath(name);
     const update = updateMode();
     const exists = fs.existsSync(file);
@@ -370,33 +332,6 @@ export class IoHostRecorder {
     const json = JSON.stringify(value, (_k, v) => (typeof v === 'string' ? this.normalize(v) : v));
     return json === undefined ? undefined : JSON.parse(json);
   }
-}
-
-/**
- * Resolve the value a `requestResponse` call produced.
- *
- * `requestResponse` is async, so the recorded mock result value is (usually) a
- * promise. By the time we read it (after the action under test has completed)
- * the promise has settled, so awaiting it is safe and yields the real resolved
- * response. A rejection (e.g. `AbortedByUser`) is captured as its error name.
- */
-async function resolveResult(result?: jest.MockResult<any>): Promise<unknown> {
-  if (!result) {
-    return undefined;
-  }
-  // Synchronous throw (rare for an async method, but be safe).
-  if (result.type === 'throw') {
-    return { error: result.value?.name ?? 'Error' };
-  }
-  const value: unknown = result.value;
-  if (value && typeof (value as any).then === 'function') {
-    try {
-      return value;
-    } catch (err: any) {
-      return { error: err?.name ?? 'Error' };
-    }
-  }
-  return value;
 }
 
 type UpdateMode = 'all' | 'new' | 'none';
