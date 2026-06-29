@@ -50,7 +50,7 @@ export class SourceMapResolver {
     if (!frames) return undefined;
 
     // First in-root, supported-source frame wins. Host-language traces carry
-    // framework .js frames (outside the root) ahead of the user's .py/.java
+    // framework .js frames (outside the root) ahead of the user's .py
     // frame, so skip past them rather than stop at the first parsed frame.
     for (const frame of frames) {
       const parsed = parseFrame(frame);
@@ -142,7 +142,7 @@ export class SourceMapResolver {
 // TypeScript/JavaScript frames go through source-map resolution (.js -> .ts).
 const TS_JS_EXTENSIONS = ['.ts', '.tsx', '.js'] as const;
 // jsii host-language frames already point at user source (no source map needed).
-const HOST_LANGUAGE_EXTENSIONS = ['.py', '.java'] as const;
+const HOST_LANGUAGE_EXTENSIONS = ['.py'] as const;
 
 function sourceKind(file: string): 'tsjs' | 'host' | undefined {
   if (TS_JS_EXTENSIONS.some((ext) => file.endsWith(ext))) return 'tsjs';
