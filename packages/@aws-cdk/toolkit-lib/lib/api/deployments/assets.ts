@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { EnvironmentResources } from '../environment';

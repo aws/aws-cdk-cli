@@ -5,7 +5,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 

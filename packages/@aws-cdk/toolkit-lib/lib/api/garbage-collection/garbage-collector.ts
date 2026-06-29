@@ -1,7 +1,7 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';

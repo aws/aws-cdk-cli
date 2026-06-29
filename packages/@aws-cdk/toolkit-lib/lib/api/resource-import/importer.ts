@@ -3,7 +3,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfnDiff from '@aws-cdk/cloudformation-diff';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';

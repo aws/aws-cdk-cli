@@ -1,5 +1,5 @@
 import { PropertyScrutinyType, ResourceScrutinyType } from '@aws-cdk/service-spec-types';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { ISsoInstanceACAConfig, ISsoPermissionSet } from './iam-identity-center';
 import { SsoAssignment, SsoInstanceACAConfig, SsoPermissionSet } from './iam-identity-center';
 import type { ManagedPolicyJson } from './managed-policy';
