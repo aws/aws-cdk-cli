@@ -1,4 +1,3 @@
-export * from './archive';
 export * from './arrays';
 export * from './bool';
 export * from './bytes';

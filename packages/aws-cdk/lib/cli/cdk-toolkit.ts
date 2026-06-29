@@ -5,7 +5,7 @@ import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
-import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
@@ -14,7 +14,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   buildDestroyWorkGraph,
@@ -38,7 +38,7 @@ import type { Deployments, SuccessfulDeployStackResult } from '../api/deployment
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
 import { type Tag } from '../api/tags';
 import { StackActivityProgress } from '../commands/deploy';
-import { listStacks } from '../commands/list-stacks';
+import { formatStackList } from '../commands/list-stacks';
 import type { FromScan, GenerateTemplateOutput } from '../commands/migrate';
 import {
   appendWarningsToReadme,
@@ -585,6 +585,9 @@ export class CdkToolkit {
    * Validate synthesized templates against policy rules
    */
   public async validate(options: ValidateOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const result = await this.toolkit.validate(this.props.cloudExecutable, options);
     return result.conclusion === 'failure' ? 1 : 0;
   }
@@ -593,6 +596,9 @@ export class CdkToolkit {
    * Diagnose errors
    */
   public async diagnose(options: DiagnoseOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const results = await this.toolkit.diagnose(this.props.cloudExecutable, options);
 
     if (results.stacks.some(s => s.result.type !== 'no-problem')) {
@@ -815,8 +821,7 @@ export class CdkToolkit {
       await ioHelper.defaults.info(formattedDiff);
       const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
       if (!confirmed) {
-        await ioHelper.defaults.info('Import cancelled.');
-        return;
+        throw new AbortError('ImportAborted', 'Import cancelled');
       }
     }
 
@@ -914,14 +919,9 @@ export class CdkToolkit {
     if (!options.force) {
       const motivation = 'Destroying stacks is an irreversible action';
       const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
-      try {
-        await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      } catch (err: unknown) {
-        if (!ToolkitError.isToolkitError(err) || err.message != 'Aborted by user') {
-          throw err; // unexpected error
-        }
-        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
-        return;
+      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
+      if (!confirmed) {
+        throw new AbortError('DestroyAborted', 'Deletion cancelled');
       }
     }
 
@@ -958,38 +958,19 @@ export class CdkToolkit {
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    const stacks = await listStacks(this, {
-      selectors: selectors,
+    this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+
+    // With `--json`, stdout must stay machine-parsable, so suppress the synth-time line (I1000).
+    if (options.json) {
+      this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+    }
+
+    await this.toolkit.list(this.props.cloudExecutable, {
+      stacks: selectors.length > 0
+        ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
+        : undefined,
     });
 
-    if (options.long && options.showDeps) {
-      await printSerializedObject(this.ioHost.asIoHelper(), stacks, options.json ?? false);
-      return 0;
-    }
-
-    if (options.showDeps) {
-      const stackDeps = stacks.map(stack => ({
-        id: stack.id,
-        dependencies: stack.dependencies,
-      }));
-      await printSerializedObject(this.ioHost.asIoHelper(), stackDeps, options.json ?? false);
-      return 0;
-    }
-
-    if (options.long) {
-      const long = stacks.map(stack => ({
-        id: stack.id,
-        name: stack.name,
-        environment: stack.environment,
-      }));
-      await printSerializedObject(this.ioHost.asIoHelper(), long, options.json ?? false);
-      return 0;
-    }
-
-    // just print stack IDs
-    for (const stack of stacks) {
-      await this.ioHost.asIoHelper().defaults.result(stack.id);
-    }
     return 0; // exit-code
   }
 
@@ -1289,7 +1270,7 @@ export class CdkToolkit {
     });
 
     this.validateStacksSelected(stacks, selector.patterns);
-    await this.validateStacks(stacks);
+    await this.validateStacks(assembly, stacks);
 
     return stacks;
   }
@@ -1315,7 +1296,7 @@ export class CdkToolkit {
       : new StackCollection(assembly, []);
 
     this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(selectedForDiff.concat(autoValidateStacks));
+    await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
   }
@@ -1335,9 +1316,9 @@ export class CdkToolkit {
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(stacks: StackCollection) {
+  private async validateStacks(assembly: CloudAssembly, stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.ioHost.asIoHelper(), this.props.verbose));
+    await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
   }
 
   private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
@@ -2077,9 +2058,15 @@ function buildParameterMap(
 async function askUserConfirmation(
   ioHost: CliIoHost,
   req: ActionLessRequest<ConfirmationRequest, boolean>,
+  abortErrorCode: string,
+  abortMessage: string,
 ) {
   await ioHost.withCorkedLogging(async () => {
-    await ioHost.asIoHelper().requestResponse(req);
+    // The IoHost returns the answer rather than aborting; abort here on decline.
+    const confirmed = await ioHost.asIoHelper().requestResponse(req);
+    if (!confirmed) {
+      throw new AbortError(abortErrorCode, abortMessage);
+    }
   });
 }
 
@@ -2106,31 +2093,6 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
   if (numUnconfigured > 0) {
     await ioHost.defaults.warn(`${numUnconfigured} feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more.`);
   }
-}
-
-/**
- * Logger for processing stack metadata
- */
-function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
-  const makeLogger = (level: string): [logger: (m: string) => void, prefix: string] => {
-    switch (level) {
-      case 'error':
-        return [(m) => ioHelper.defaults.error(m), 'Error'];
-      case 'warn':
-        return [(m) => ioHelper.defaults.warn(m), 'Warning'];
-      default:
-        return [(m) => ioHelper.defaults.info(m), 'Info'];
-    }
-  };
-
-  return async (level, msg) => {
-    const [logFn, prefix] = makeLogger(level);
-    await logFn(`[${prefix} at ${msg.id}] ${msg.entry.data}`);
-
-    if (verbose && msg.entry.trace) {
-      logFn(`  ${msg.entry.trace.join('\n  ')}`);
-    }
-  };
 }
 
 interface WorkGraphDeploymentActionsOptions {
@@ -2349,6 +2311,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
               permissionChangeType: securityDiff.permissionChangeType,
               templateDiffs: formatter.diffs,
             }),
+            'DeployAborted',
+            'Deployment cancelled',
           );
         } catch (e) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -2417,6 +2381,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
                   motivation,
                   concurrency: this.options.concurrency,
                 }),
+                'RollbackAborted',
+                'Rollback cancelled',
               );
             }
 
@@ -2444,6 +2410,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
                   concurrency: this.options.concurrency,
                   motivation,
                 }),
+                'ReplacementRollbackAborted',
+                'Rollback cancelled',
               );
             }
 

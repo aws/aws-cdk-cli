@@ -419,15 +419,12 @@ describe('processFlagsCommand', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
     expect(mockToolkit.diff).toHaveBeenCalled();
     expect(requestResponseSpy).toHaveBeenCalled();
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Operation cancelled');
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
@@ -474,7 +471,7 @@ describe('processFlagsCommand', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const finalContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const finalJson = JSON.parse(finalContent);
@@ -486,9 +483,6 @@ describe('processFlagsCommand', () => {
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
     expect(mockToolkit.diff).toHaveBeenCalled();
     expect(requestResponseSpy).toHaveBeenCalled();
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Operation cancelled');
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
@@ -1229,7 +1223,7 @@ describe('CLI context parameters', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
@@ -1274,7 +1268,7 @@ describe('CLI context parameters', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
@@ -1322,7 +1316,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -1348,7 +1342,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');

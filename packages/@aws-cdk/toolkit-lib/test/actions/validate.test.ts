@@ -1,11 +1,17 @@
+import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
+import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, TestIoHost } from '../_helpers';
+import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
 
 beforeEach(() => {
+  jest.restoreAllMocks();
+  restoreSdkMocksToDefault();
+  setDefaultSTSMocks();
   ioHost = new TestIoHost();
   toolkit = new Toolkit({ ioHost });
 });
@@ -13,10 +19,9 @@ beforeEach(() => {
 describe('validate', () => {
   test('returns failure when report contains failing plugin', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
-    expect(result.title).toBe('Validation Report');
     expect(result.pluginReports).toHaveLength(2);
     expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
     expect(result.pluginReports[0].conclusion).toBe('failure');
@@ -27,7 +32,7 @@ describe('validate', () => {
 
   test('returns success when all plugins pass', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('success');
     expect(result.pluginReports).toHaveLength(1);
@@ -35,25 +40,9 @@ describe('validate', () => {
     expect(result.pluginReports[0].violations).toHaveLength(0);
   });
 
-  test('returns success with no reports when no report file exists', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
-
-    expect(result.conclusion).toBe('success');
-    expect(result.pluginReports).toHaveLength(0);
-    ioHost.expectMessage({ containing: 'No validation plugins configured', level: 'info' });
-  });
-
-  test('emits info IO message on success', async () => {
-    const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
-    await toolkit.validate(cx);
-
-    ioHost.expectMessage({ containing: 'No problems found', level: 'info' });
-  });
-
   test('can invoke without options', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('success');
   });
@@ -62,6 +51,7 @@ describe('validate', () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
     const result = await toolkit.validate(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
     });
 
     expect(result.conclusion).toBe('failure');
@@ -69,7 +59,7 @@ describe('validate', () => {
 
   test('parses violation details correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const violation = result.pluginReports[0].violations[0];
     expect(violation.severity).toBe('error');
@@ -82,7 +72,7 @@ describe('validate', () => {
 
   test('includes plugin version in report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.pluginReports[0].pluginVersion).toBe('1.0.0');
     expect(result.pluginReports[1].pluginVersion).toBeUndefined();
@@ -91,12 +81,12 @@ describe('validate', () => {
   test('throws on malformed report', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
 
-    await expect(toolkit.validate(cx)).rejects.toThrow();
+    await expect(toolkit.validate(cx, { online: false })).rejects.toThrow();
   });
 
   test('parses stack traces correctly', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     const construct = result.pluginReports[0].violations[0].violatingConstructs[0];
     expect(construct.stackTraces).toBeDefined();
@@ -106,15 +96,14 @@ describe('validate', () => {
 
   test('IO message payload contains full ValidateResult', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
-    await toolkit.validate(cx);
+    await toolkit.validate(cx, { online: false });
 
     const msg = ioHost.messages.find(
-      (m) => m.code === 'CDK_TOOLKIT_I9600',
+      (m) => m.code === 'CDK_TOOLKIT_E9600',
     );
     expect(msg).toBeDefined();
     expect(msg!.data).toMatchObject({
       conclusion: 'failure',
-      title: 'Validation Report',
       pluginReports: expect.arrayContaining([
         expect.objectContaining({
           pluginName: 'TestPlugin',
@@ -126,11 +115,124 @@ describe('validate', () => {
 
   test('handles report with missing title field', async () => {
     const cx = await cdkOutFixture(toolkit, 'stack-with-no-title-validation');
-    const result = await toolkit.validate(cx);
+    const result = await toolkit.validate(cx, { online: false });
 
     expect(result.conclusion).toBe('failure');
     expect(result.title).toBeUndefined();
     expect(result.pluginReports).toHaveLength(1);
     expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
+  });
+});
+
+describe('validate --online', () => {
+  beforeEach(() => {
+    jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  });
+
+  test('reports CloudFormation validation errors as a plugin report', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: {
+        type: 'problem',
+        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        problems: [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'BadResource',
+            resourceType: 'AWS::Fake::DoesNotExist',
+            message: 'Resource type AWS::Fake::DoesNotExist does not exist',
+            errorCode: 'InvalidResourceType',
+            sourceTrace: undefined,
+          },
+        ],
+      },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].pluginName).toBe('CloudFormation');
+    expect(result.pluginReports[0].conclusion).toBe('failure');
+    expect(result.pluginReports[0].violations).toHaveLength(1);
+    expect(result.pluginReports[0].violations[0].ruleName).toBe('InvalidResourceType');
+    expect(result.pluginReports[0].violations[0].description).toBe('Resource type AWS::Fake::DoesNotExist does not exist');
+    expect(result.pluginReports[0].violations[0].violatingConstructs[0].cloudFormationResource?.logicalId).toBe('BadResource');
+  });
+
+  test('passes when CloudFormation finds no problems', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: { type: 'no-problem' },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+  });
+
+  test('merges offline and online results', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: {
+        type: 'problem',
+        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        problems: [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'MyBucket',
+            message: 'Property validation failure',
+            errorCode: 'InvalidProperty',
+            sourceTrace: undefined,
+          },
+        ],
+      },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    // 2 from offline report + 1 from online
+    expect(result.pluginReports).toHaveLength(3);
+    expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
+    expect(result.pluginReports[1].pluginName).toBe('Construct Annotations');
+    expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
+  });
+
+  test('runs online validation by default when no options provided', async () => {
+    const spy = jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      description: { $metadata: {} } as any,
+      diagnosis: { type: 'no-problem' },
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.validate(cx);
+
+    expect(spy).toHaveBeenCalled();
+  });
+
+  test('emits warning when online validation throws instead of reporting violation', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
+      new Error('Access denied'),
+    );
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warn',
+      code: 'CDK_TOOLKIT_W9602',
+      message: expect.stringContaining('Access denied'),
+    }));
   });
 });

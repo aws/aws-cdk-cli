@@ -237,11 +237,25 @@ export interface GlobalOptions {
   readonly verbose?: number;
 
   /**
-   * Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)
+   * Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.
    *
    * @default - false
    */
   readonly debug?: boolean;
+
+  /**
+   * Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.
+   *
+   * @default - false
+   */
+  readonly debugApp?: boolean;
+
+  /**
+   * Debug the CDK CLI itself.
+   *
+   * @default - false
+   */
+  readonly debugCli?: boolean;
 
   /**
    * Use the indicated AWS profile as the default environment
@@ -992,6 +1006,13 @@ export interface DeployOptions {
  * @struct
  */
 export interface ValidateOptions {
+  /**
+   * Submit templates to CloudFormation for early validation (requires AWS credentials)
+   *
+   * @default - true
+   */
+  readonly online?: boolean;
+
   /**
    * Positional argument for validate
    */

@@ -2,11 +2,17 @@
 import * as chalk from 'chalk';
 
 /* c8 ignore start */
-export function prettyPrintError(error: unknown, debug = false) {
+export function prettyPrintError(error: unknown, options: { soft?: boolean; debug?: boolean } = {}) {
   const err = ensureError(error);
-  console.error(chalk.red(err.message));
+  const debug = options.debug ?? false;
+  const soft = options.soft ?? false;
 
-  if (err.cause) {
+  // A soft error (for example a user-declined confirmation) is an expected outcome, not a crash.
+  // Present the message less scary.
+  const errorPaint = soft ? chalk.yellow : chalk.red;
+
+  console.error(errorPaint(err.message));
+  if (err.cause && !soft) {
     const cause = ensureError(err.cause);
     console.error(chalk.yellow(cause.message));
     printTrace(cause, debug);

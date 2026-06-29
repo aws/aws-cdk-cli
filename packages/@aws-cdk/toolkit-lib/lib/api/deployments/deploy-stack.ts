@@ -682,7 +682,9 @@ class FullCloudFormationDeployment {
     } catch (e: any) {
       // If this is a deployment error, route the diagnosis and error reporting through the central code for that
       if (ToolkitError.isDeploymentError(e)) {
-        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, finalState.wrapped);
+        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, finalState.wrapped, true, {
+          rollbackEnabled: this.options.rollback !== false,
+        });
         if (diagnosis.type !== 'no-problem') {
           throwDeploymentErrorFromDiagnosis(diagnosis);
         }

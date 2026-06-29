@@ -15,6 +15,7 @@ import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
+import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -345,7 +346,7 @@ const repoProject = new yarn.Monorepo({
 });
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
-  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'yarn jest'),
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
@@ -699,6 +700,33 @@ const cliPluginContract = configureProject(
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/private-tools
+
+/**
+ * Private (unpublished) package hosting small, self-contained utilities.
+ *
+ * Non-bundled consumers cherry-pick a tool via `project.with(tools.<name>)`,
+ * which adds a re-export shim (`lib/private/tools.ts`) and bundles only our
+ * code into it at pack time. Already-bundled consumers (the CLI) take a direct
+ * dependency on the package instead.
+ *
+ * Adding a new tool: create `packages/@aws-cdk/private-tools/lib/<tool>/index.ts`
+ * (auto-discovered) and declare its dependencies in the `tools` map below.
+ */
+const tools = defineTools({
+  ...genericCdkProps({ private: true }),
+  parent: repo,
+  tools: {
+    zip: {
+      deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
+      devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
+    },
+  },
+});
+configureProject(tools);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region @aws-cdk/cdk-assets-lib
 
 const cdkAssetsLib = configureProject(
@@ -712,8 +740,6 @@ const cdkAssetsLib = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      'archiver',
-      'fast-glob',
       'mime@^2',
       sdkDep('@aws-sdk/client-ecr'),
       sdkDep('@aws-sdk/client-s3'),
@@ -726,7 +752,6 @@ const cdkAssetsLib = configureProject(
       'picomatch',
     ],
     devDeps: [
-      '@types/archiver',
       '@types/mime@^2',
       '@types/picomatch',
       'fs-extra@^11',
@@ -766,6 +791,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.zip);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -924,7 +950,6 @@ const toolkitLib = configureProject(
       smithyDep('@smithy/shared-ini-file-loader'),
       smithyDep('@smithy/util-retry'),
       smithyDep('@smithy/util-waiter'),
-      'archiver',
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^4',
@@ -934,7 +959,6 @@ const toolkitLib = configureProject(
       'p-limit@^3',
       'semver',
       'split2',
-      'fast-glob',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -999,6 +1023,7 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.zip);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1194,10 +1219,13 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
+    // The CLI bundles all of its dependencies, so it may depend on the private
+    // `@aws-cdk/private-tools` package directly (it is inlined on bundle).
+    allowPrivateDeps: true,
     devDeps: [
       yargsGen,
       cliPluginContract,
-      '@types/archiver',
+      '@types/yazl',
       '@types/fs-extra@^11',
       '@types/mockery',
       '@types/picomatch',
@@ -1223,7 +1251,10 @@ const cli = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
-      'archiver',
+      // Already bundled by the CLI: depend on the private tools package
+      // directly (the bundler inlines it and dedupes its transitive deps).
+      tools,
+      'yazl',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDep('@aws-sdk/client-cloudformation'),
@@ -1466,7 +1497,6 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
@@ -1533,7 +1563,6 @@ new BundleCli(integRunner, {
   externals: {
     dependencies: [
       '@aws-cdk/aws-service-spec',
-      'aws-cdk',
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
@@ -1586,6 +1615,7 @@ const cliInteg = configureProject(
       sdkDep('@aws-sdk/client-s3'),
       sdkDep('@aws-sdk/client-sns'),
       sdkDep('@aws-sdk/client-sso'),
+      sdkDep('@aws-sdk/client-ssm'),
       sdkDep('@aws-sdk/client-sts'),
       sdkDep('@aws-sdk/client-secrets-manager'),
       sdkDep('@aws-sdk/credential-providers'),
@@ -1724,10 +1754,18 @@ void cdkExplorer;
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects.
 
-// We prefer the projen updates, but Dependabot acts as a fallback in case
-// they get blocked. Dependabot also handles emergent security updates.
-// Because of that, we configure Dependabot cooldowns to a week.
+// We also want daily dependabot PRs in case they resolve
+// security alerts - and those need to be auto-approved as well.
+
+// configure a cooldown period so we don't grab fresh package versions
+// that haven't been battletested for security vulnurabilities yet.
+// note that for PRs that FIX a security alert, we skip the cooldown
+// since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
+
+// for PRs resolving security alerts we accept a shorter cooldown
+// given those are normally patch versions on top of already "cold" versions.
+const dependabotSecurityCooldown = 3;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
@@ -1735,14 +1773,17 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
-        'schedule': { interval: 'weekly' },
+        'schedule': { interval: 'daily' },
         'cooldown': {
-          'default-days': dependabotCooldown,
+          'default-days': dependabotSecurityCooldown,
         },
+        // disable version updates, leaving only security updates.
+        // see https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-security-updates#overriding-the-default-behavior-with-a-configuration-file
+        'open-pull-requests-limit': 0,
         'labels': ['auto-approve'],
-        'allow': [{
-          'dependency-type': 'production',
-        }],
+        'ignore': repoProject.subprojects
+          .map(p => ({ 'dependency-name': p.name }))
+          .sort((a, b) => a['dependency-name'].localeCompare(b['dependency-name'])),
         'directories': ['/', ...repoProject.node.children
           .filter(child => child instanceof TypeScriptWorkspace)
           .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)
@@ -1824,7 +1865,7 @@ new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', 'THIRD_PARTY_LICENSES'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', '*THIRD_PARTY_LICENSES'],
 });
 
 // Set allowed scopes based on monorepo packages

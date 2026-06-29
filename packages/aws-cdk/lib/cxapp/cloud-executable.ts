@@ -66,6 +66,18 @@ export class CloudExecutable implements ICloudAssemblySource {
   }
 
   /**
+   * Switch on debugging for the cloud executable.
+   *
+   * This will cause it to log more stack traces and other information that will make error
+   * reports more useful (at the cost of increased execution time).
+   */
+  public switchOnDebugging() {
+    this.props.configuration.settings.temporarilyMutable((settings) => {
+      settings.set(['debug'], true);
+    });
+  }
+
+  /**
    * Synthesize a set of stacks.
    *
    * @param cacheCloudAssembly - whether to cache the Cloud Assembly after it has been first synthesized.
