@@ -9,7 +9,7 @@ import type { TestStackArtifact } from '../_helpers';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { IoHostRecorder } from '../_helpers/io-recorder';
 
-// ANSI escape codes get injected whenever chalk's (global, process-wide) color 
+// ANSI escape codes get injected whenever chalk's (global, process-wide) color
 // level is enabled. Strip them so the assertion compares the visible text.
 const stripAnsi = (str: string): string => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
 
