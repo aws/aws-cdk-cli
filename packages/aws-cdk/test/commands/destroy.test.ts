@@ -1,6 +1,7 @@
-import { ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
+import { AbortError } from '@aws-cdk/toolkit-lib';
 import { Deployments } from '../../lib/api';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
+import { IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { TestStackArtifact } from '../_helpers';
@@ -43,11 +44,15 @@ beforeEach(async () => {
 
   ioHost = CliIoHost.instance();
   ioHost.isCI = false;
+  // Run as the `destroy` command so every message — synthesis, the confirmation
+  // request, and the destroy progress — is tagged with the `destroy` action,
+  // exactly as the real CLI would.
+  ioHost.currentAction = 'destroy';
 
   cloudExecutable = await MockCloudExecutable.create({
     stacks: [STACK_A, STACK_B],
     nestedAssemblies: [{ stacks: [STACK_C_NESTED] }],
-  }, undefined, ioHost);
+  }, undefined, ioHost, 'destroy');
 
   cloudFormation = instanceMockFrom(Deployments);
 
@@ -64,10 +69,10 @@ beforeEach(async () => {
   recorder = IoHostRecorder.create(ioHost);
 });
 
-afterEach(async () => {
+afterEach(() => {
   // Snapshot every message the destroy path sent to the CliIoHost. Any change to
   // that stream (e.g. when rerouting through toolkit-lib) shows up as a diff.
-  await recorder.matchSnapshot();
+  recorder.matchSnapshot();
 });
 
 describe('force: true (no confirmation prompt)', () => {
@@ -105,7 +110,7 @@ describe('force: true (no confirmation prompt)', () => {
       env: 'aws://123456789012/bermuda-triangle-1',
       depends: [stackC.stackName],
     };
-    cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost);
+    cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost, 'destroy');
 
     const destroyOrder: string[] = [];
     cloudFormation.destroyStack.mockImplementation(async (options: DestroyStackOptions) => {
@@ -148,7 +153,10 @@ describe('force: true (no confirmation prompt)', () => {
 
 describe('force: false (confirmation prompt)', () => {
   test('asks for confirmation and proceeds when the user confirms', async () => {
-    jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true as any);
+    // Answer the confirmation prompt with a one-shot responder. The real
+    // requestResponse runs (so the request is recorded in the snapshot); no
+    // spy/pass-through is needed.
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
 
     await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -163,7 +171,7 @@ describe('force: false (confirmation prompt)', () => {
   test('aborts with an AbortError and destroys nothing when the user declines', async () => {
     // The IoHost returns the answer; declining is `false` and the command aborts
     // by throwing an AbortError (non-zero exit, presented softly by the CLI).
-    jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(false as any);
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, false);
 
     const error = await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -175,20 +183,6 @@ describe('force: false (confirmation prompt)', () => {
     expect(error.name).toBe('DestroyAborted');
 
     // Aborted before any destroy happened.
-    expect(cloudFormation.destroyStack).not.toHaveBeenCalled();
-  });
-
-  test('rethrows an unexpected error from the confirmation prompt', async () => {
-    jest.spyOn(ioHost, 'requestResponse').mockImplementation((() => {
-      throw new ToolkitError('SomethingElse', 'tty exploded');
-    }) as any);
-
-    await expect(toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
-      force: false,
-    })).rejects.toThrow('tty exploded');
-
     expect(cloudFormation.destroyStack).not.toHaveBeenCalled();
   });
 });

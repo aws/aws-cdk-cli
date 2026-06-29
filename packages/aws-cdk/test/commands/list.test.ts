@@ -26,13 +26,13 @@ describe('cdk list', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    // Exercise the real notify path so the output listeners actually run.
-    jest.spyOn(ioHost, 'notify').mockImplementation(((m: any) => CliIoHost.prototype.notify.call(ioHost, m)) as any);
+    // The recorder observes the host (it does not spy on `notify`), so the real
+    // notify path — and the output listeners — run without any pass-through.
     recorder = IoHostRecorder.create(ioHost);
   });
 
-  afterEach(async () => {
-    await recorder.matchSnapshot();
+  afterEach(() => {
+    recorder.matchSnapshot();
   });
 
   async function list(
