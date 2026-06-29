@@ -474,6 +474,10 @@ export const IO = {
     description: 'Bootstrap results on success',
     interface: 'cxapi.Environment',
   }),
+  CDK_TOOLKIT_W9902: make.warn({
+    code: 'CDK_TOOLKIT_W9902',
+    description: 'Bootstrap completed with Express Mode, resources still stabilizing',
+  }),
   CDK_TOOLKIT_E9900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',

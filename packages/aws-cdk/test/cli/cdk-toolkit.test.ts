@@ -193,6 +193,58 @@ describe('bootstrap', () => {
       source: defaultBootstrapSource,
     });
   });
+
+  test('warns about resources still stabilizing in Express Mode', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+    bootstrapEnvironmentMock.mockResolvedValue({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+      ],
+    });
+
+    // WHEN
+    await toolkit.bootstrap(['aws://56789/south-pole'], {
+      source: defaultBootstrapSource,
+      express: true,
+    });
+
+    // THEN
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W9902',
+      message: expect.stringContaining('still stabilizing: MyBucket'),
+    }));
+  });
+
+  test('does not warn about stabilizing resources when not in Express Mode', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+    bootstrapEnvironmentMock.mockResolvedValue({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+      ],
+    });
+
+    // WHEN
+    await toolkit.bootstrap(['aws://56789/south-pole'], {
+      source: defaultBootstrapSource,
+    });
+
+    // THEN
+    expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W9902',
+    }));
+  });
 });
 
 describe('list', () => {

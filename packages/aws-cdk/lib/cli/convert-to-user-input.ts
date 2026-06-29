@@ -85,6 +85,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         template: args.template,
         previousParameters: args.previousParameters,
         importExistingResources: args.importExistingResources,
+        express: args.express,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -427,6 +428,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     template: config.bootstrap?.template,
     previousParameters: config.bootstrap?.previousParameters,
     importExistingResources: config.bootstrap?.importExistingResources,
+    express: config.bootstrap?.express,
   };
   const gcOptions = {
     action: config.gc?.action,

@@ -3,9 +3,9 @@ import * as chalk from 'chalk';
 import type { StabilizingResource } from '../toolkit/types';
 
 /**
- * Whether the Express Mode warning is for a stack that was just deployed or destroyed.
+ * Whether the Express Mode warning is for a stack that was just deployed, destroyed, or bootstrapped.
  */
-export type ExpressStabilizationMode = 'deploy' | 'destroy';
+export type ExpressStabilizationMode = 'deploy' | 'destroy' | 'bootstrap';
 
 /**
  * Whether a CloudFormation event reports a resource that completed but is still
@@ -47,9 +47,18 @@ export function formatExpressStabilizationWarning(
   const remaining = names.length - maxNamed;
   const resourceList = remaining > 0 ? `${shown}, ...and ${remaining} more...` : shown;
 
-  const message = mode === 'deploy'
-    ? `⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`
-    : `⚠️  Stack deleted using Express Mode. Resources still tearing down: ${resourceList}\n`;
+  let message: string;
+  switch (mode) {
+    case 'deploy':
+      message = `⚠️  Stack deployed using Express Mode. Resources still stabilizing: ${resourceList}\n`;
+      break;
+    case 'destroy':
+      message = `⚠️  Stack deleted using Express Mode. Resources still tearing down: ${resourceList}\n`;
+      break;
+    case 'bootstrap':
+      message = `⚠️  Created bootstrap stack using Express Mode. Resources still stabilizing: ${resourceList}\n`;
+      break;
+  }
 
   return chalk.yellow(message);
 }

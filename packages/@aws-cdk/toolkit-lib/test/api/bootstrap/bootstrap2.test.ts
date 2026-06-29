@@ -103,6 +103,37 @@ describe('Bootstrapping v2', () => {
     );
   });
 
+  test('passes express mode through to deployStack', async () => {
+    await bootstrapper.bootstrapEnvironment(env, sdk, {
+      express: true,
+      parameters: {
+        cloudFormationExecutionPolicies: ['arn:policy'],
+      },
+    });
+
+    expect(mockDeployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        express: true,
+      }),
+      expect.anything(),
+    );
+  });
+
+  test('does not pass express mode by default', async () => {
+    await bootstrapper.bootstrapEnvironment(env, sdk, {
+      parameters: {
+        cloudFormationExecutionPolicies: ['arn:policy'],
+      },
+    });
+
+    expect(mockDeployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        express: undefined,
+      }),
+      expect.anything(),
+    );
+  });
+
   test('passes the KMS key ID as a CFN parameter', async () => {
     await bootstrapper.bootstrapEnvironment(env, sdk, {
       parameters: {

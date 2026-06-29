@@ -316,6 +316,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           : `✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(bootstrapResult.stabilizingResources, 'bootstrap');
+          if (warning) {
+            await ioHelper.notify(IO.CDK_TOOLKIT_W9902.msg(warning));
+          }
+        }
+
         const envTime = await bootstrapSpan.end();
         const result: EnvironmentBootstrapResult = {
           environment,
@@ -980,7 +988,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
               const motivation = r.reason === 'replacement'
                 ? `Stack is in a paused fail state (${r.status}) and change includes a replacement which cannot be deployed with "--no-rollback"`
                 : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
-              const question = `${motivation}. Perform a regular deployment`;
+              const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
                 motivation,
@@ -1006,7 +1014,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
             case 'replacement-requires-rollback': {
               const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
-              const question = `${motivation}. Perform a regular deployment`;
+              const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
                 motivation,

@@ -142,6 +142,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9210` | Confirm the deletion of a batch of assets | `info` | {@link AssetBatchDeletionRequest} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
+| `CDK_TOOLKIT_W9902` | Bootstrap completed with Express Mode, resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link FeatureFlagChangeRequest} |
 | `CDK_TOOLKIT_I9400` | All assets are already published | `info` | n/a |

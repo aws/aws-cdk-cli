@@ -1054,6 +1054,13 @@ export class CdkToolkit {
           ? '✅  Environment %s bootstrapped (no changes).'
           : '✅  Environment %s bootstrapped.';
         await this.ioHost.asIoHelper().defaults.info(chalk.green(message), chalk.blue(environment.name));
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'bootstrap');
+          if (warning) {
+            await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W9902.msg(warning));
+          }
+        }
       } catch (e) {
         await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), e);
         throw e;

@@ -66,6 +66,13 @@ export interface BootstrapEnvironmentOptions {
    * @default true
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Whether to deploy the bootstrap stack using CloudFormation Express mode.
+   *
+   * @default false
+   */
+  readonly express?: boolean;
 }
 
 /**

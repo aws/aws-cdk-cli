@@ -392,6 +392,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           terminationProtection: args.terminationProtection,
           usePreviousParameters: args['previous-parameters'],
           importExistingResources: args.importExistingResources,
+          express: args.express,
           parameters: {
             bucketName: configuration.settings.get(['toolkitBucket', 'bucketName']),
             kmsKeyId: configuration.settings.get(['toolkitBucket', 'kmsKeyId']),

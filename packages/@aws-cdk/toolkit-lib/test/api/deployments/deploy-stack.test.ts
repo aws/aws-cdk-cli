@@ -1507,6 +1507,35 @@ test.each([
   },
 );
 
+// Express mode disables rollback by default, so a replacement still requires a
+// rollback-enabled deployment unless the user explicitly opted into rollback.
+test.each([
+  // --express alone (rollback defaults off): replacement needs a rollback-enabled deployment
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
+  // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
+  ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
+] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
+  'express mode and replacement from a stable state: %s -> %s',
+  async (_name, options, expectedType) => {
+    // GIVEN
+    givenStackExists({
+      StackStatus: StackStatus.UPDATE_COMPLETE,
+    });
+    givenTemplateIs(FAKE_STACK.template);
+    givenChangeSetContainsReplacement(true);
+
+    // WHEN
+    const result = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK),
+      forceDeployment: true, // Bypass 'canSkipDeploy'
+      ...options,
+    }));
+
+    // THEN
+    expect(result.type).toEqual(expectedType);
+  },
+);
+
 test('assertIsSuccessfulDeployStackResult does what it says', () => {
   expect(() => assertIsSuccessfulDeployStackResult({ type: 'replacement-requires-rollback' })).toThrow();
 });

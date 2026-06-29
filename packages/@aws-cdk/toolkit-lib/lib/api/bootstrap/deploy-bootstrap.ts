@@ -151,6 +151,7 @@ export class BootstrapStack {
         },
         parameters,
         usePreviousParameters: options.usePreviousParameters ?? true,
+        express: options.express,
         // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
         envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
         diagnoser: new CloudFormationStackDiagnoser({
