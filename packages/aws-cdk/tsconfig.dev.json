@@ -3,17 +3,16 @@
   "compilerOptions": {
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2019",
-      "esnext.disposable",
-      "es2022.error"
+      "es2022",
+      "esnext.disposable"
     ],
-    "module": "commonjs",
-    "noEmitOnError": false,
+    "module": "node18",
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -25,7 +24,7 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2020",
+    "target": "es2022",
     "types": [
       "fs-extra",
       "jest",
