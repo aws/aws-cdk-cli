@@ -64,6 +64,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Operation} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I1002` | Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion) | `info` | n/a |
+| `CDK_TOOLKIT_I1003` | Stacks added to the selection because they are dependent on the selected stacks (downstream expansion) | `info` | n/a |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
@@ -146,9 +148,10 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I9500` | Stack diagnosis (no problems found) | `info` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_E9500` | Stack diagnosis (problems found) | `error` | {@link DiagnosedStack} |
 | `CDK_TOOLKIT_W9501` | Stack diagnosis (diagnosis could not be performed) | `warn` | {@link DiagnosedStack} |
-| `CDK_TOOLKIT_I9600` | Policy validation passed | `info` | {@link ValidateResult} |
+| `CDK_TOOLKIT_I9600` | Validation did not find any problems | `info` | {@link ValidateResult} |
 | `CDK_TOOLKIT_E9600` | Policy validation failed | `error` | {@link ValidateResult} |
 | `CDK_TOOLKIT_I9601` | No policy validation report found | `info` | n/a |
+| `CDK_TOOLKIT_W9602` | Online validation could not be completed for a stack | `warn` | n/a |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |

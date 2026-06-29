@@ -44,24 +44,23 @@ export class SourceMapResolver {
   /**
    * Resolve the user source location from a creation stack trace (the frames
    * produced by toolkit-lib's findCreationStackTrace). Returns undefined when
-   * there's no trace (non-TS apps) or every frame is a skip-placeholder
-   * (framework-only call sites).
+   * there's no trace or no frame resolves to an in-root user source file.
    */
   public async resolveFrames(frames: readonly string[] | undefined): Promise<SourceLocation | undefined> {
     if (!frames) return undefined;
 
-    // aws-cdk-lib's renderCallStackJustMyCode (in node_modules/aws-cdk-lib/core/
-    // lib/stack-trace.js) pre-filters node_modules/node:internal frames into
-    // skip-placeholder lines. Those don't match FRAME_RE, so the first frame
-    // that parses IS the user call site.
+    // First in-root, supported-source frame wins. Host-language traces carry
+    // framework .js frames (outside the root) ahead of the user's .py
+    // frame, so skip past them rather than stop at the first parsed frame.
     for (const frame of frames) {
       const parsed = parseFrame(frame);
       if (!parsed) continue;
-      if (!isSupportedSourceFile(parsed.file)) return undefined;
+      const kind = sourceKind(parsed.file);
+      if (!kind) continue;
       // The frame's file path is assembly-derived and attacker-influenceable.
       // Never read or surface a location outside the project.
-      if (!(await isWithinRoot(this.projectRoot, parsed.file))) return undefined;
-      return this.mapJsToOriginalSource(parsed);
+      if (!(await isWithinRoot(this.projectRoot, parsed.file))) continue;
+      return kind === 'host' ? normalizeHostFrame(parsed) : this.mapJsToOriginalSource(parsed);
     }
     return undefined;
   }
@@ -140,21 +139,32 @@ export class SourceMapResolver {
     }
   }
 }
-const SUPPORTED_SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js'] as const;
+// TypeScript/JavaScript frames go through source-map resolution (.js -> .ts).
+const TS_JS_EXTENSIONS = ['.ts', '.tsx', '.js'] as const;
+// jsii host-language frames already point at user source (no source map needed).
+const HOST_LANGUAGE_EXTENSIONS = ['.py'] as const;
 
-function isSupportedSourceFile(file: string): boolean {
-  return SUPPORTED_SOURCE_EXTENSIONS.some((ext) => file.endsWith(ext));
+function sourceKind(file: string): 'tsjs' | 'host' | undefined {
+  if (TS_JS_EXTENSIONS.some((ext) => file.endsWith(ext))) return 'tsjs';
+  if (HOST_LANGUAGE_EXTENSIONS.some((ext) => file.endsWith(ext))) return 'host';
+  return undefined;
 }
 
-// renderCallStackJustMyCode emits frames as "    at <name> (<file>:<line>:<col>)".
-// Anchoring on "(" avoids capturing the leading "at " into the file group.
-const FRAME_RE = /\(([^()\s][^()]*?):(\d+):(\d+)\)\s*$/;
+// Treat the host column as 1-based; jsii sends 0 when unavailable, so clamp 0 to line start.
+function normalizeHostFrame(loc: SourceLocation): SourceLocation {
+  return { file: loc.file, line: loc.line, column: Math.max(1, loc.column) };
+}
+
+// "<name> (<file>:<line>[:<col>])"; host frames omit the column when
+// unavailable, so it's optional. Anchoring on "(" avoids a leading "at ".
+const FRAME_RE = /\(([^()\s][^()]*?):(\d+)(?::(\d+))?\)\s*$/;
 
 function parseFrame(frame: string): SourceLocation | undefined {
   const m = FRAME_RE.exec(frame);
   if (!m) return undefined;
   const line = Number(m[2]);
-  const column = Number(m[3]);
+  // Host frames may omit the column; treat absent as 0 (unavailable).
+  const column = m[3] !== undefined ? Number(m[3]) : 0;
   if (!Number.isFinite(line) || !Number.isFinite(column)) return undefined;
   return { file: m[1], line, column };
 }

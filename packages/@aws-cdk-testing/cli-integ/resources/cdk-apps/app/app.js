@@ -85,6 +85,26 @@ class NoticesStack extends cdk.Stack {
   }
 }
 
+// Names an SQS queue after the *value* of an SSM parameter, resolved at deploy time via a
+// `AWS::SSM::Parameter::Value<String>` CloudFormation parameter (i.e. StringParameter.valueForStringParameter).
+// The synthesized template is identical regardless of the parameter's value, so a template-only
+// diff cannot detect a change. This is used to verify that `cdk diff --method=change-set` surfaces
+// changes that only a CloudFormation change set knows about. See aws/aws-cdk-cli#641.
+class SsmResolveQueueStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+    const parameterName = process.env.SSM_PARAMETER_NAME || '/cdk-integ/ssm-resolve-queue/placeholder';
+    const queueName = ssm.StringParameter.valueForStringParameter(this, parameterName);
+    // Optional ordinary (template-visible) change, used to exercise the "mixed" case where a
+    // resource has both a template-detected change and a change-set-only change. See #641.
+    const waitTime = process.env.SSM_RESOLVE_QUEUE_WAIT_TIME;
+    new sqs.Queue(this, 'Queue', {
+      queueName,
+      receiveMessageWaitTime: waitTime ? cdk.Duration.seconds(Number(waitTime)) : undefined,
+    });
+  }
+}
+
 class SsoPermissionSetNoPolicy extends Stack {
   constructor(scope, id) {
     super(scope, id);
@@ -865,6 +885,24 @@ class MultipleDockerAssetsStack extends cdk.Stack {
 }
 
 /**
+ * A stack that uses the same docker image as another stack, to test that the
+ * same image asset can be published to multiple destinations without rebuilding.
+ */
+class DockerMultiDestStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    new docker.DockerImageAsset(this, 'image', {
+      directory: path.join(__dirname, 'docker')
+    });
+
+    new cdk.CfnResource(this, 'Handle', {
+      type: 'AWS::CloudFormation::WaitConditionHandle'
+    });
+  }
+}
+
+/**
  * A stack that will never succeed deploying (done in a way that CDK cannot detect but CFN will complain about)
  */
 class FailedStack extends cdk.Stack {
@@ -1060,6 +1098,9 @@ switch (stackSet) {
 
     new MissingSSMParameterStack(app, `${stackPrefix}-missing-ssm-parameter`, { env: defaultEnv });
 
+    // Queue whose name is resolved from an SSM parameter at deploy time (see aws/aws-cdk-cli#641)
+    new SsmResolveQueueStack(app, `${stackPrefix}-ssm-resolve-queue`, { env: defaultEnv });
+
     new LambdaStack(app, `${stackPrefix}-lambda`);
 
     // This stack is used to test diff with large templates by creating a role with a ton of metadata
@@ -1081,6 +1122,14 @@ switch (stackSet) {
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
     new DockerStackWithCustomFile(app, `${stackPrefix}-docker-with-custom-file`);
     new MultipleDockerAssetsStack(app, `${stackPrefix}-multiple-docker-assets`);
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-1`, { env: defaultEnv });
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-2`, { env: defaultEnv });
+
+    if (process.env.CDK_SECONDARY_REGION) {
+      const secondaryEnv = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_SECONDARY_REGION };
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-1`, { env: defaultEnv });
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-2`, { env: secondaryEnv });
+    }
 
     new NotificationArnsStack(app, `${stackPrefix}-notification-arns`);
 

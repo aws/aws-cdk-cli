@@ -90,7 +90,7 @@ test('outputs of assembly are measured', async () => {
     return app.synth();
   });
 
-  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Found errors/);
+  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Synthesis finished with errors/);
 
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     data: expect.objectContaining({

@@ -51,7 +51,7 @@ export async function resourceTarget(node: { templateFile?: string; logicalId: s
  * `index` (matched by both `templateFile` and `logicalId`, since logical ids are
  * only unique within a template), and returns its source location as a zero-width
  * range. Undefined when the offset is not inside a resource, no construct owns it,
- * or the construct has no source location (for example a non-TypeScript app).
+ * or the construct has no source location (for example a framework-only trace).
  */
 export function sourceTargetAtTemplateOffset(
   index: ConstructIndex<ConstructNode>,

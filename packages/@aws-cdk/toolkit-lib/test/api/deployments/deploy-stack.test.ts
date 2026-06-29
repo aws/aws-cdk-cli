@@ -28,7 +28,10 @@ import { deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environment';
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
-import { invalidateHotswapTemplateCache, writeHotswapTemplateCache } from '../../../lib/api/hotswap/hotswap-template-cache';
+import {
+  invalidateHotswapTemplateCache,
+  writeHotswapTemplateCache,
+} from '../../../lib/api/hotswap/hotswap-template-cache';
 import { StackArtifactSourceTracer } from '../../../lib/api/source-tracing/private/stack-source-tracing';
 import { testStack } from '../../_helpers/assembly';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
@@ -243,7 +246,11 @@ test('correctly passes SSM parameters when hotswapping', async () => {
 test('prints revert-drift recommendation on successful hotswap deployment', async () => {
   givenStackExists();
   (tryHotswapDeployment as jest.Mock).mockResolvedValue({
-    type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [],
+    type: 'did-deploy-stack',
+    noOp: false,
+    stackArn: 'arn:stack',
+    outputs: {},
+    deleteFailures: [],
   });
 
   // WHEN
@@ -253,9 +260,13 @@ test('prints revert-drift recommendation on successful hotswap deployment', asyn
   });
 
   // THEN
-  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-    message: expect.stringMatching(/should include '--revert-drift' to resolve the drift that was introduced while hotswapping/),
-  }));
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.stringMatching(
+        /should include '--revert-drift' to resolve the drift that was introduced while hotswapping/,
+      ),
+    }),
+  );
 });
 
 describe('hotswap template cache', () => {
@@ -342,10 +353,12 @@ test('execute-change-set throws if change set is not ready', async () => {
   });
 
   // WHEN/THEN
-  await expect(testDeployStack({
-    ...standardDeployStackArguments(),
-    deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
-  })).rejects.toThrow('not ready for execution');
+  await expect(
+    testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+    }),
+  ).rejects.toThrow('not ready for execution');
 });
 
 test('call UpdateStack when method=direct and the stack exists already', async () => {
@@ -1228,21 +1241,17 @@ describe('import-existing-resources', () => {
       }),
     ).rejects.toMatchInlineSnapshot(`
       [DeploymentError: Failed to create change set cdk-deploy-change-set:
-       └─ import-error-stack
-           ├─ Dashboards
-           │   └─ MyRole
-           │       └─ Resource  (DashboardsMyRoleABC123)
-           │          🛑 Automatic import of existing resource DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}) needs a DeletionPolicy of
-           │             'Retain' or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
-           │             'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
-           │             https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)
-           └─ MyService
-               └─ AnotherResource
-                   └─ Resource  (AnotherResourceABC123)
-                      🛑 Automatic import of existing resource AnotherResourceABC123 ({BucketName=my-bucket}) needs a DeletionPolicy of 'Retain'
-                         or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
-                         'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
-                         https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)]
+      import-error-stack/Dashboards/MyRole/Resource  (DashboardsMyRoleABC123)
+        Automatic import of existing resource DashboardsMyRoleABC123 ({RoleName=CloudWatchDashboards}) needs a DeletionPolicy of
+        'Retain' or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+        'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+        https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)
+
+      import-error-stack/MyService/AnotherResource/Resource  (AnotherResourceABC123)
+        Automatic import of existing resource AnotherResourceABC123 ({BucketName=my-bucket}) needs a DeletionPolicy of 'Retain'
+        or 'RetainExceptOnCreate'. Set the removal policy to 'RemovalPolicy.RETAIN' or
+        'RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE' (See
+        https://docs.aws.amazon.com/cdk/v2/guide/resources.html#resources-removal)]
     `);
   });
 
@@ -1524,7 +1533,9 @@ test('does not pass IncludeNestedStacks for import changesets', async () => {
   givenStackExists({ StackName: 'withnestedstack' });
   await testDeployStack({
     ...standardDeployStackArguments(FAKE_STACK_WITH_NESTED_STACK),
-    resourcesToImport: [{ ResourceType: 'AWS::S3::Bucket', LogicalResourceId: 'Bucket', ResourceIdentifier: { BucketName: 'my-bucket' } }],
+    resourcesToImport: [
+      { ResourceType: 'AWS::S3::Bucket', LogicalResourceId: 'Bucket', ResourceIdentifier: { BucketName: 'my-bucket' } },
+    ],
   });
 
   const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);

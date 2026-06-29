@@ -18,6 +18,9 @@
       "path": "../../@aws-cdk/toolkit-lib"
     },
     {
+      "path": "../../@aws-cdk/private-tools"
+    },
+    {
       "path": "../../@aws-cdk/cdk-assets-lib"
     },
     {

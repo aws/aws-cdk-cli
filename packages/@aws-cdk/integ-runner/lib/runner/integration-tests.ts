@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import { findTestSpecificContext } from './private/test-specific-context';
 
 const CDK_OUTDIR_PREFIX = 'cdk-integ.out';
 
@@ -139,6 +140,17 @@ export class IntegTest {
       this.testName,
       this.absoluteFileName,
     ].includes(name);
+  }
+
+  /**
+   * Search for a test-specific context file and return its contents if it exists.
+   *
+   * If `undefined`, no test-specific context could be found. Test-specific context
+   * will be taken from either `integ.context.json` if found, or otherwise
+   * `cdk.json#context` if not found, upstream from the test.
+   */
+  public async testSpecificContext(): Promise<Record<string, unknown> | undefined> {
+    return findTestSpecificContext(this.fileName);
   }
 }
 

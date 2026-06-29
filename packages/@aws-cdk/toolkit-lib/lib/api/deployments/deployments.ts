@@ -416,6 +416,7 @@ export class Deployments {
         sourceTracer: new StackArtifactSourceTracer(options.stack),
         ioHelper: this.ioHelper,
         topLevelStackHierarchicalId: options.stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
       }),
     }, this.ioHelper);
   }
@@ -498,6 +499,7 @@ export class Deployments {
         sourceTracer: new StackArtifactSourceTracer(stack),
         ioHelper: this.ioHelper,
         topLevelStackHierarchicalId: stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
       }),
     });
   }

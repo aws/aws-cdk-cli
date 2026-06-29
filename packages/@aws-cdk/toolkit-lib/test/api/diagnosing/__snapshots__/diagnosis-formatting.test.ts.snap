@@ -3,10 +3,9 @@
 exports[`hostMessageFromDiagnosis change set failure with multiple errors for the same resource 1`] = `
 "❌ Stack MyStack:
 Early validation failed for change set my-cs:
- └─ TestStack
-     └─ BadPolicy  (AWS::IAM::Policy BadPolicy)
-        🛑 Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)
-        🛑 Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)"
+TestStack/BadPolicy  (AWS::IAM::Policy BadPolicy)
+  Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)
+  Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)"
 `;
 
 exports[`hostMessageFromDiagnosis change set failure with resource errors 1`] = `
@@ -39,9 +38,8 @@ exports[`hostMessageFromDiagnosis change set failure with resource errors 1`] = 
   "level": "error",
   "message": "❌ Stack MyStack:
 Failed to create change set cdk-deploy-cs:
- └─ MyStack
-     └─ MyBucket  (AWS::S3::Bucket MyBucket)
-        🛑 Invalid property",
+MyStack/MyBucket  (AWS::S3::Bucket MyBucket)
+  Invalid property",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;
@@ -66,6 +64,64 @@ exports[`hostMessageFromDiagnosis change set failure without resource errors 1`]
   "level": "error",
   "message": "❌ Stack MyStack:
 Failed to create change set cdk-deploy-cs: Template format error",
+  "time": 1970-01-01T00:00:00.000Z,
+}
+`;
+
+exports[`hostMessageFromDiagnosis deployment failure with additional diagnostic context 1`] = `
+{
+  "code": "CDK_TOOLKIT_E9500",
+  "data": {
+    "hierarchicalId": "MyStack",
+    "result": {
+      "detectedBy": {
+        "stackStatus": "CREATE_FAILED",
+        "statusReason": "Resource creation failed",
+        "type": "deployment",
+      },
+      "problems": [
+        {
+          "additionalContext": [
+            {
+              "link": "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks",
+              "linkLabel": "Tasks",
+              "messages": [
+                "Task stopped: CannotPullContainerError: image not found",
+                "(2 other failed task(s) not shown)",
+              ],
+              "source": "ECS Stopped Tasks",
+            },
+            {
+              "messages": [
+                "No CloudWatch Logs found.",
+              ],
+              "source": "CloudWatch Logs",
+            },
+          ],
+          "logicalId": "Service",
+          "message": "Error occurred during operation 'ECS Deployment Circuit Breaker was triggered'.",
+          "parentStackLogicalIds": [],
+          "resourceType": "AWS::ECS::Service",
+          "sourceTrace": undefined,
+          "stackArn": "arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid",
+          "topLevelStackHierarchicalId": "MyStack",
+        },
+      ],
+      "type": "problem",
+    },
+    "stackName": "MyStack",
+  },
+  "level": "error",
+  "message": "❌ Stack MyStack:
+Resource updates failed:
+MyStack/Service  (AWS::ECS::Service Service)
+  Error occurred during operation 'ECS Deployment Circuit Breaker was triggered'.
+
+   Task stopped: CannotPullContainerError: image not found
+   (2 other failed task(s) not shown)
+   Tasks: https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks
+
+   No CloudWatch Logs found.",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;
@@ -108,11 +164,11 @@ exports[`hostMessageFromDiagnosis deployment failure with resource errors 1`] = 
   "level": "error",
   "message": "❌ Stack MyStack:
 Resource updates failed:
- └─ MyStack
-     ├─ MyBucket  (AWS::S3::Bucket MyBucket)
-     │  🛑 Access Denied
-     └─ MyFunc  (AWS::Lambda::Function MyFunc)
-        🛑 Handler error: timeout",
+MyStack/MyBucket  (AWS::S3::Bucket MyBucket)
+  Access Denied
+
+MyStack/MyFunc  (AWS::Lambda::Function MyFunc)
+  Handler error: timeout",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;
@@ -168,9 +224,8 @@ exports[`hostMessageFromDiagnosis early validation failure with resource errors 
   "level": "error",
   "message": "❌ Stack MyStack:
 Early validation failed for change set cdk-deploy-cs:
- └─ MyStack
-     └─ MyBucket  (AWS::S3::Bucket MyBucket)
-        🛑 Resource already exists (at /Resources/MyBucket)",
+MyStack/MyBucket  (AWS::S3::Bucket MyBucket)
+  Resource already exists (at /Resources/MyBucket)",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;
@@ -239,10 +294,8 @@ exports[`hostMessageFromDiagnosis resource error in nested stack without source 
   "level": "error",
   "message": "❌ Stack MyStack:
 Resource updates failed:
- └─ MyStack
-     └─ Nested stack NestedStackA
-         └─ MyBucket  (AWS::S3::Bucket MyBucket)
-            🛑 Access Denied",
+MyStack/Nested stack NestedStackA/MyBucket  (AWS::S3::Bucket MyBucket)
+  Access Denied",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;
@@ -282,12 +335,10 @@ exports[`hostMessageFromDiagnosis resource error with source trace 1`] = `
   "level": "error",
   "message": "❌ Stack MyStack:
 Resource updates failed:
- └─ MyStack
-     └─ MyBucket
-         └─ Resource  (AWS::S3::Bucket MyBucket)
-            🛑 Access Denied
-            Source Location: at new Bucket (lib/bucket.ts:42)
-                             at new MyStack (lib/stack.ts:10)",
+MyStack/MyBucket/Resource  (AWS::S3::Bucket MyBucket)
+  Access Denied
+Source Location: at new Bucket (lib/bucket.ts:42)
+                 at new MyStack (lib/stack.ts:10)",
   "time": 1970-01-01T00:00:00.000Z,
 }
 `;

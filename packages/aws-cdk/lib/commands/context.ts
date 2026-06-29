@@ -4,7 +4,6 @@ import * as chalk from 'chalk';
 import picomatch = require('picomatch');
 import type { Context } from '../api/context';
 import type { IoHelper } from '../api-private';
-import { displayVersionMessage } from '../cli/display-version';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
 
@@ -72,7 +71,6 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
       await listContext(ioHelper, options.context);
     }
   }
-  await displayVersionMessage(ioHelper);
 
   return 0;
 }

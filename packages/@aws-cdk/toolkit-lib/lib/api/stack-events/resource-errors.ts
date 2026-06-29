@@ -43,6 +43,19 @@ export interface ResourceError {
    * Error code of the resource
    */
   readonly errorCode?: string;
+
+  /**
+   * Timestamp of the failure event, if known.
+   *
+   * Used to bound exploratory lookups (e.g. CloudWatch Logs queries) to the time
+   * around the failure. This matters for resources whose logs span multiple
+   * deployments (creates, updates, rollbacks), where the most recent invocation
+   * is not necessarily the one that failed.
+   *
+   * Only populated for errors derived from stack events; absent for change-set
+   * and early-validation errors.
+   */
+  readonly timestamp?: Date;
 }
 
 /**
@@ -121,6 +134,7 @@ function errorFromEvent(ev: ResourceEvent): ResourceError {
     stackArn: ev.event.StackId ?? '',
     errorCode: extractErrorCode(ev.event),
     physicalId: ev.event.PhysicalResourceId,
+    timestamp: ev.event.Timestamp,
   };
 }
 

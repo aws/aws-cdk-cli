@@ -66,8 +66,46 @@ describe('SourceMapResolver.resolveFrames', () => {
     });
   });
 
-  test('returns undefined for a non-TypeScript (host-language) frame', async () => {
-    expect(await resolver.resolveFrames(['    at <module> (/project/app/my_stack.py:42:5)'])).toBeUndefined();
+  test('resolves a Python host frame in the real released format (placeholders + no-column .py)', async () => {
+    // Verbatim shape from aws-cdk-lib 2.260.0 / jsii 1.137.0: kernel frames are
+    // collapsed to non-parsing placeholders, and host frames carry no column
+    // (jsii's Python runtime sends column 0, which formatExternalFrame omits).
+    const frames = [
+      '...jsii runtime, node internals...',
+      '(no user code in 10 frames, use --stack-trace-limit to capture more)',
+      '__init__ (/project/stacks/network_stack.py:42)',
+      '<module> (/project/app.py:10)',
+    ];
+    // No column -> 1-based start of line.
+    expect(await resolver.resolveFrames(frames)).toEqual({
+      file: '/project/stacks/network_stack.py',
+      line: 42,
+      column: 1,
+    });
+  });
+
+  test('skips out-of-root .js frames to reach the first in-root .py frame', async () => {
+    // Robustness: if raw jsii/aws-cdk-lib .js frames appear (outside the root)
+    // ahead of the user frame, skip them rather than give up.
+    const frames = [
+      'Kernel._Kernel_create (/private/var/folders/qw/T/tmpiqvf63c1/lib/program.js:1:61273)',
+      '__init__ (/project/stacks/network_stack.py:42)',
+    ];
+    expect(await resolver.resolveFrames(frames)).toEqual({
+      file: '/project/stacks/network_stack.py', line: 42, column: 1,
+    });
+  });
+
+  test('preserves an explicit (non-zero) host column', async () => {
+    // A real host column is already 1-based, so it is kept as-is. Only the 0
+    // "unavailable" sentinel is clamped to the start of the line.
+    expect(await resolver.resolveFrames(['f (/project/stacks/data_stack.py:31:8)'])).toEqual({
+      file: '/project/stacks/data_stack.py', line: 31, column: 8,
+    });
+  });
+
+  test('drops a host frame whose file escapes the project root', async () => {
+    expect(await resolver.resolveFrames(['<module> (/etc/evil.py:1)'])).toBeUndefined();
   });
 });
 

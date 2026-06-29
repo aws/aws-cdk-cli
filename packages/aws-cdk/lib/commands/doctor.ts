@@ -1,14 +1,27 @@
 import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as chalk from 'chalk';
+import type { Settings } from '../api/settings';
 import type { IoHelper } from '../api-private';
 import { displayVersionMessage } from '../cli/display-version';
 import { versionWithBuild } from '../cli/version';
 
-export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<number> {
+export interface DoctorOptions {
+  readonly ioHelper: IoHelper;
+
+  /**
+   * The resolved CLI settings, used to report the active CLI configuration
+   * (debug targets, verbosity, ...).
+   *
+   * @default - configuration is not reported
+   */
+  readonly settings?: Settings;
+}
+
+export async function doctor({ ioHelper, settings }: DoctorOptions): Promise<number> {
   let exitStatus: number = 0;
   for (const verification of verifications) {
-    if (!await verification(ioHelper)) {
+    if (!await verification(ioHelper, settings)) {
       exitStatus = -1;
     }
   }
@@ -16,16 +29,36 @@ export async function doctor({ ioHelper }: { ioHelper: IoHelper }): Promise<numb
   return exitStatus;
 }
 
-const verifications: Array<(ioHelper: IoHelper) => boolean | Promise<boolean>> = [
+const verifications: Array<(ioHelper: IoHelper, settings?: Settings) => boolean | Promise<boolean>> = [
   displayVersionInformation,
+  displayCliConfiguration,
   displayAwsEnvironmentVariables,
   displayCdkEnvironmentVariables,
 ];
 
 // ### Verifications ###
 
+async function displayCliConfiguration(ioHelper: IoHelper, settings?: Settings) {
+  const verbosity = Number(settings?.get(['verbose']) ?? 0);
+  const verbose = verbosity ? `extra verbosity (-${'v'.repeat(verbosity)})` : 'normal verbosity';
+
+  const debug = [];
+  if (Boolean(settings?.get(['debugApp']))) {
+    debug.push('CDK app');
+  }
+  if (Boolean(settings?.get(['debugCli']))) {
+    debug.push('CLI');
+  }
+  const debugging = debug.length ? `debugging ${debug.join(' & ')}` : 'no debugging';
+
+  await ioHelper.defaults.info(chalk.gray.italic(
+    `${verbose}, ${debugging}`,
+  ));
+  return true;
+}
+
 async function displayVersionInformation(ioHelper: IoHelper) {
-  await ioHelper.defaults.info(`ℹ️ CDK Version: ${chalk.green(versionWithBuild())}`);
+  await ioHelper.defaults.info(`ℹ️ CDK CLI Version: ${chalk.green(versionWithBuild())}`);
   return true;
 }
 
