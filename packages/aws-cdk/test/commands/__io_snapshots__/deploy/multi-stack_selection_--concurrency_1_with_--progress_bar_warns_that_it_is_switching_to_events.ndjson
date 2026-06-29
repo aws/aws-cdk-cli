@@ -1,0 +1,23 @@
+{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"deploy","level":"warn","code":null,"message":"⚠️ The --concurrency flag only supports --progress \"events\". Switching to \"events\"."}
+{"seq":4,"type":"notify","action":"deploy","level":"debug","code":null,"message":"Checking for previously published assets"}
+{"seq":5,"type":"notify","action":"deploy","level":"debug","code":null,"message":"0 total assets, 0 still need to be published"}
+{"seq":6,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name"}
+{"seq":7,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-B"}
+{"seq":8,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name: deploying... [1/2]"}
+{"seq":9,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-B: deploying... [2/2]"}
+{"seq":10,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
+{"seq":11,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
+{"seq":12,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-A-Display-Name"}
+{"seq":13,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-B"}
+{"seq":14,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
+{"seq":15,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
+{"seq":16,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
+{"seq":17,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
+{"seq":18,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd"}
+{"seq":19,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-B/abcd"}
+{"seq":20,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3001","message":"\n✨  Deploy time: <DURATION>\n"}
+{"seq":21,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3001","message":"\n✨  Deploy time: <DURATION>\n"}
+{"seq":22,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Total time: <DURATION>\n"}
