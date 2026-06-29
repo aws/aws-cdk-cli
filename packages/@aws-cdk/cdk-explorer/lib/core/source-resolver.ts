@@ -150,7 +150,7 @@ function sourceKind(file: string): 'tsjs' | 'host' | undefined {
   return undefined;
 }
 
-// Host frame columns are 0-indexed (0 = unavailable); SourceLocation is 1-based.
+// Treat the host column as 1-based; jsii sends 0 when unavailable, so clamp 0 to line start.
 function normalizeHostFrame(loc: SourceLocation): SourceLocation {
   return { file: loc.file, line: loc.line, column: Math.max(1, loc.column) };
 }

@@ -96,10 +96,11 @@ describe('SourceMapResolver.resolveFrames', () => {
     });
   });
 
-  test('normalizes an explicit (non-zero) host column to 1-based', async () => {
-    // When a host frame does carry a column it is 0-indexed; shift to 1-based.
+  test('preserves an explicit (non-zero) host column', async () => {
+    // A real host column is already 1-based, so it is kept as-is. Only the 0
+    // "unavailable" sentinel is clamped to the start of the line.
     expect(await resolver.resolveFrames(['f (/project/stacks/data_stack.py:31:8)'])).toEqual({
-      file: '/project/stacks/data_stack.py', line: 31, column: 9,
+      file: '/project/stacks/data_stack.py', line: 31, column: 8,
     });
   });
 
