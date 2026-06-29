@@ -17,7 +17,6 @@ import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-pr
 import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
-  buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
@@ -912,46 +911,54 @@ export class CdkToolkit {
   }
 
   public async destroy(options: DestroyOptions) {
-    const ioHelper = this.ioHost.asIoHelper();
-
-    const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
-
-    if (!options.force) {
-      const motivation = 'Destroying stacks is an irreversible action';
-      const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      if (!confirmed) {
-        throw new AbortError('DestroyAborted', 'Deletion cancelled');
-      }
-    }
-
-    const concurrency = options.concurrency || 1;
+    // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
-    let destroyCount = 0;
 
-    if (concurrency > 1) {
+    if ((options.concurrency || 1) > 1) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
-    const destroyStack = async (stackNode: StackNode) => {
-      const stack = stackNode.stack;
-      destroyCount++;
-      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), destroyCount, stacks.stackCount);
-      try {
-        await this.props.deployments.destroyStack({
-          stack,
-          deployName: stack.stackName,
-          roleArn: options.roleArn,
-        });
-        await ioHelper.defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
-      } catch (e) {
-        await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
-        throw e;
-      }
-    };
+    // The destroy action runs through toolkit-lib.
+    // Use listeners to keep the messages as they were before.
+    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
+    // The success line was `info` in the historical `cdk destroy`, not `result`.
+    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
-    const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
-    await workGraph.processStacks(concurrency, destroyStack);
+    // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
+    // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
+    // the listener both suppresses the log and aborts the command (the top-level
+    // renders `AbortError` as "Deletion cancelled").
+    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+      throw new AbortError('DestroyAborted', 'Deletion cancelled');
+    });
+
+    if (options.force) {
+      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
+      await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.allTopLevel
+            ? StackSelectionStrategy.MAIN_ASSEMBLY
+            : options.selector.patterns.length > 0
+              ? StackSelectionStrategy.PATTERN_MATCH
+              : StackSelectionStrategy.ONLY_SINGLE,
+          expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
+        },
+        roleArn: options.roleArn,
+        concurrency: options.concurrency,
+      });
+    } finally {
+      this.ioHost.removeAllListeners();
+    }
   }
 
   public async list(
@@ -1299,18 +1306,6 @@ export class CdkToolkit {
     await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
-  }
-
-  private async selectStacksForDestroy(selector: StackSelector, exclusively?: boolean) {
-    const assembly = await this.assembly();
-    const stacks = await assembly.selectStacks(selector, {
-      extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
-    });
-
-    // No validation
-
-    return stacks;
   }
 
   /**
