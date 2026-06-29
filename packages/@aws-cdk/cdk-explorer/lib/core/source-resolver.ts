@@ -152,7 +152,7 @@ function sourceKind(file: string): 'tsjs' | 'host' | undefined {
 
 // Host frame columns are 0-indexed (0 = unavailable); SourceLocation is 1-based.
 function normalizeHostFrame(loc: SourceLocation): SourceLocation {
-  return { file: loc.file, line: loc.line, column: loc.column + 1 };
+  return { file: loc.file, line: loc.line, column: Math.max(1, loc.column) };
 }
 
 // "<name> (<file>:<line>[:<col>])"; host frames omit the column when
