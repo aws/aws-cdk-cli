@@ -2417,11 +2417,11 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
             const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
-              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with regular deployment (--force).`);
+              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);
             } else {
               await askUserConfirmation(
                 this.ioHost,
-                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
+                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a deployment with rollback enabled`, {
                   concurrency: this.options.concurrency,
                   motivation,
                 }),
