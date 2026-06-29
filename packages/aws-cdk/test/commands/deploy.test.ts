@@ -9,6 +9,12 @@ import type { TestStackArtifact } from '../_helpers';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { IoHostRecorder } from '../_helpers/io-recorder';
 
+// The failure message wraps the stack name in `chalk.bold`, which injects ANSI
+// escape codes whenever chalk's (global, process-wide) color level is enabled.
+// Strip them so the assertion compares the visible text regardless of whether
+// an earlier test in the suite turned colors on.
+const stripAnsi = (str: string): string => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
+
 // `cdk deploy` emits a stream of messages to the user: synthesis timing,
 // the (optional) require-approval prompt, the hotswap/concurrency warnings,
 // per-stack progress, outputs, and the deployment/total timings.
@@ -464,7 +470,7 @@ describe('deploy failures', () => {
       requireApproval: RequireApproval.NEVER,
     }).catch((e) => e);
 
-    expect(error.message).toBe(
+    expect(stripAnsi(error.message)).toBe(
       '❌  Test-Stack-A failed: ResourceNotReady: Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
     );
     expect(error.name).toBe('DeployStackFailed');
