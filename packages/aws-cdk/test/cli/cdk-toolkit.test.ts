@@ -2781,7 +2781,7 @@ describe('rollback', () => {
       if (firstResult.type === 'failpaused-need-rollback-first') {
         expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Roll back first and then proceed with deployment')));
       } else {
-        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Perform a regular deployment')));
+        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Perform a deployment with rollback enabled')));
       }
     }
 
