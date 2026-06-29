@@ -56,6 +56,9 @@ integTest(
         identifiers: expect.objectContaining({
           eventId: expect.stringContaining(':3'),
         }),
+        counters: expect.objectContaining({
+          sequentialDeploymentFailures: 0,
+        }),
       }),
       expect.objectContaining({
         event: expect.objectContaining({

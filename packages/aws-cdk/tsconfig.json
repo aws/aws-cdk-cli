@@ -28,7 +28,6 @@
     "stripInternal": true,
     "target": "ES2020",
     "types": [
-      "archiver",
       "fs-extra",
       "jest",
       "mockery",
@@ -37,7 +36,8 @@
       "promptly",
       "semver",
       "sinon",
-      "yargs"
+      "yargs",
+      "yazl"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -64,6 +64,9 @@
     },
     {
       "path": "../@aws-cdk/toolkit-lib"
+    },
+    {
+      "path": "../@aws-cdk/private-tools"
     },
     {
       "path": "../@aws-cdk/cdk-assets-lib"

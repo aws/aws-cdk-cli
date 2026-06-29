@@ -3,15 +3,12 @@ import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, D
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import * as chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
-import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, mockSSMClient, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
-
-jest.setTimeout(20_000);
+import { mockCloudFormationClient, mockSSMClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -24,7 +21,9 @@ beforeEach(() => {
   toolkit = new Toolkit({ ioHost });
 
   // Some default implementations
-  jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  // Keep the real SdkProvider hermetic: hand out MockSdks and never resolve
+  // ambient credentials (which can spawn `credential_process` helpers and hang).
+  mockSdkProvider();
 
   jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
     deployedRootTemplate: {
@@ -491,6 +490,32 @@ describe('diff', () => {
       expect(mockCloudFormationClient).toHaveReceivedCommandWith(DeleteStackCommand, {
         StackName: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
       });
+    });
+
+    test('ChangeSet diff describes the change set with IncludePropertyValues so deploy-time-only changes are surfaced', async () => {
+      // GIVEN - an existing stack
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+        Stacks: [{ StackName: 'Stack1', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+      });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the change set was described requesting property values (BeforeContext/AfterContext)
+      const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
+      expect(describeCalls.length).toBeGreaterThan(0);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
     });
 
     test('ChangeSet diff treats DELETE_IN_PROGRESS stack as non-existent', async () => {

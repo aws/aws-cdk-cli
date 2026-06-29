@@ -4,13 +4,28 @@ version: 2
 updates:
   - package-ecosystem: npm
     schedule:
-      interval: weekly
+      interval: daily
     cooldown:
-      default-days: 7
+      default-days: 3
+    open-pull-requests-limit: 0
     labels:
       - auto-approve
-    allow:
-      - dependency-type: production
+    ignore:
+      - dependency-name: "@aws-cdk-testing/cli-integ"
+      - dependency-name: "@aws-cdk/cdk-assets-lib"
+      - dependency-name: "@aws-cdk/cdk-explorer"
+      - dependency-name: "@aws-cdk/cli-plugin-contract"
+      - dependency-name: "@aws-cdk/cloud-assembly-api"
+      - dependency-name: "@aws-cdk/cloud-assembly-schema"
+      - dependency-name: "@aws-cdk/cloudformation-diff"
+      - dependency-name: "@aws-cdk/integ-runner"
+      - dependency-name: "@aws-cdk/private-tools"
+      - dependency-name: "@aws-cdk/toolkit-lib"
+      - dependency-name: "@aws-cdk/user-input-gen"
+      - dependency-name: "@aws-cdk/yarn-cling"
+      - dependency-name: aws-cdk
+      - dependency-name: cdk
+      - dependency-name: cdk-assets
     directories:
       - /
       - /packages/@aws-cdk-testing/cli-integ
@@ -21,6 +36,7 @@ updates:
       - /packages/@aws-cdk/cloud-assembly-schema
       - /packages/@aws-cdk/cloudformation-diff
       - /packages/@aws-cdk/integ-runner
+      - /packages/@aws-cdk/private-tools
       - /packages/@aws-cdk/toolkit-lib
       - /packages/@aws-cdk/user-input-gen
       - /packages/@aws-cdk/yarn-cling

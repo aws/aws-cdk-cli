@@ -213,6 +213,7 @@ async function hotswapDeployment(
         stack,
         mode: hotswapMode,
         hotswapped: false,
+        hotswapFallback: true,
         hotswappableChanges,
         nonHotswappableChanges,
       };
@@ -233,6 +234,7 @@ async function hotswapDeployment(
     stack,
     mode: hotswapMode,
     hotswapped: !error,
+    hotswapFallback: false,
     hotswappableChanges,
     nonHotswappableChanges,
     error,

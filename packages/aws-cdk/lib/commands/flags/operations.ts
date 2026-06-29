@@ -3,7 +3,7 @@ import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { formatTable } from '@aws-cdk/cloudformation-diff';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
-import { CdkAppMultiContext, MemoryContext, DiffMethod } from '@aws-cdk/toolkit-lib';
+import { CdkAppMultiContext, MemoryContext, DiffMethod, AbortError } from '@aws-cdk/toolkit-lib';
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
 import PQueue from 'p-queue';
@@ -366,13 +366,13 @@ export class FlagOperations {
       defaultResponse: false,
     });
 
-    if (userAccepted) {
-      await this.modifyValues(flagNames, params);
-      await this.ioHelper.defaults.info('Flag value(s) updated successfully.');
-    } else {
-      await this.ioHelper.defaults.info('Operation cancelled');
+    if (!userAccepted) {
+      await this.cleanupTempDirectories();
+      throw new AbortError('FlagsAborted', 'Flag update cancelled');
     }
 
+    await this.modifyValues(flagNames, params);
+    await this.ioHelper.defaults.info('Flag value(s) updated successfully.');
     await this.cleanupTempDirectories();
   }
 

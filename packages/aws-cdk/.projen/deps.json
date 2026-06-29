@@ -18,10 +18,6 @@
       "type": "build"
     },
     {
-      "name": "@types/archiver",
-      "type": "build"
-    },
-    {
       "name": "@types/fs-extra",
       "version": "^11",
       "type": "build"
@@ -58,6 +54,10 @@
     {
       "name": "@types/yargs",
       "version": "^15",
+      "type": "build"
+    },
+    {
+      "name": "@types/yazl",
       "type": "build"
     },
     {
@@ -219,6 +219,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/private-tools",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/toolkit-lib",
       "type": "runtime"
     },
@@ -368,10 +372,6 @@
       "type": "runtime"
     },
     {
-      "name": "archiver",
-      "type": "runtime"
-    },
-    {
       "name": "camelcase",
       "version": "^6",
       "type": "runtime"
@@ -452,6 +452,10 @@
     {
       "name": "yargs",
       "version": "^15",
+      "type": "runtime"
+    },
+    {
+      "name": "yazl",
       "type": "runtime"
     }
   ],

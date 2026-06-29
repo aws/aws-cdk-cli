@@ -1826,6 +1826,7 @@ The following environment variables affect aws-cdk:
 
 - `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
+- `CDK_ROLE_SESSION_NAME`: customize the session name used when the CLI assumes a role (for example `cdk-hnb659fds-deploy-role`). When unset, the CLI defaults to `aws-cdk-<username>`. Useful for attributing deployments in CloudTrail when running from a CI/CD pipeline.
 
 ### Region resolution
 

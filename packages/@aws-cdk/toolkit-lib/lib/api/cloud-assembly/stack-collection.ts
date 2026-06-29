@@ -94,6 +94,8 @@ export class StackCollection {
 
   /**
    * Extracts 'aws:cdk:warning|info|error' metadata entries from the stack synthesis
+   *
+   * @deprecated The formatting of this function is lackluster. Use `throwIfValidationFailures()` instead.
    */
   public async validateMetadata(
     failAt: 'warn' | 'error' | 'none' = 'error',

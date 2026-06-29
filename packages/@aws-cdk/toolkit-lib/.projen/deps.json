@@ -5,6 +5,10 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/private-tools",
+      "type": "build"
+    },
+    {
       "name": "@cdklabs/eslint-plugin",
       "type": "build"
     },
@@ -89,6 +93,10 @@
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -337,10 +345,6 @@
       "type": "runtime"
     },
     {
-      "name": "archiver",
-      "type": "runtime"
-    },
-    {
       "name": "cdk-from-cfn",
       "type": "runtime"
     },
@@ -360,6 +364,7 @@
     },
     {
       "name": "fast-glob",
+      "version": "^3.3.3",
       "type": "runtime"
     },
     {
@@ -392,6 +397,11 @@
     {
       "name": "yaml",
       "version": "^1",
+      "type": "runtime"
+    },
+    {
+      "name": "yazl",
+      "version": "^3.3.1",
       "type": "runtime"
     }
   ],

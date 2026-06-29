@@ -28,6 +28,8 @@ describe('yargs', () => {
         versionReporting: undefined,
         ci: true,
         debug: false,
+        debugApp: false,
+        debugCli: false,
         ec2creds: undefined,
         json: false,
         lookups: true,
@@ -116,6 +118,21 @@ describe('yargs', () => {
         hotswapEcsMinimumHealthyPercent: 100,
         hotswapEcsMaximumHealthyPercent: 250,
         hotswapEcsStabilizationTimeoutSeconds: 300,
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
+
+  test('init --project-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['init', 'app', '--language', 'typescript', '--project-name', 'my-app']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'init',
+      init: expect.objectContaining({
+        projectName: 'my-app',
+        TEMPLATE: 'app',
       }),
       globalOptions: expect.anything(),
     });
