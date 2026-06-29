@@ -13,6 +13,7 @@ updates:
     ignore:
       - dependency-name: "@aws-cdk-testing/cli-integ"
       - dependency-name: "@aws-cdk/cdk-assets-lib"
+      - dependency-name: "@aws-cdk/cdk-explorer"
       - dependency-name: "@aws-cdk/cli-plugin-contract"
       - dependency-name: "@aws-cdk/cloud-assembly-api"
       - dependency-name: "@aws-cdk/cloud-assembly-schema"
