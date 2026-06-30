@@ -252,7 +252,7 @@ test('prints revert-drift recommendation on successful hotswap deployment', asyn
     noOp: false,
     stackArn: 'arn:stack',
     outputs: {},
-    deleteFailures: [], 
+    deleteFailures: [],
     stabilizingResources: [],
   });
 

@@ -1,5 +1,5 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { StabilizingResource } from '../toolkit/types';
 
 /**

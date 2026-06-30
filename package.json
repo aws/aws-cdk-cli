@@ -52,11 +52,6 @@
     "tsx": "^4.22.4",
     "typescript": "5.9"
   },
-  "resolutions": {
-    "@aws-sdk/client-cloudformation": "file:/home/lvielto/JsSdkV3/clients/client-cloudformation/aws-sdk-client-cloudformation-3.1066.0.tgz",
-    "@aws-sdk/client-s3": "3.1072.0",
-    "@smithy/types": "4.15.0"
-  },
   "engines": {
     "node": ">= 18.0.0"
   },

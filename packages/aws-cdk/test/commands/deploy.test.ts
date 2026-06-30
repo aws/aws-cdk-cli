@@ -81,6 +81,7 @@ beforeEach(async () => {
     outputs: {},
     stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
     deleteFailures: [],
+    stabilizingResources: [],
     changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
   });
   cloudFormation.deployStack.mockImplementation(async (options) => ({
@@ -89,6 +90,7 @@ beforeEach(async () => {
     noOp: false,
     outputs: {},
     deleteFailures: [],
+    stabilizingResources: [],
   }));
 
   toolkit = await makeToolkit();
@@ -257,6 +259,7 @@ describe('no-op deploy', () => {
       outputs: { BucketName: 'my-bucket' },
       stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
       deleteFailures: [],
+      stabilizingResources: [],
       changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
     });
 
@@ -280,6 +283,7 @@ describe('outputs', () => {
       noOp: false,
       outputs: { BucketName: 'my-bucket', QueueUrl: 'https://example.com/q' },
       deleteFailures: [],
+      stabilizingResources: [],
     });
 
     await toolkit.deploy({
