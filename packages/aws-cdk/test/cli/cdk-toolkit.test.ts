@@ -220,24 +220,10 @@ describe('list', () => {
     ]);
   });
 
-  test('with --json, suppresses the synthesis-time line so stdout stays machine-parsable', async () => {
-    // `cdk ls --json` stdout is a machine-readable contract; the "Synthesis time" line
-    // (CDK_TOOLKIT_I1000) must not be written (in CI mode non-error output goes to stdout).
-    const toolkit = defaultToolkitSetup();
-    const onceSpy = jest.spyOn(ioHost, 'once');
-
-    // WHEN
-    await toolkit.list([], { json: true });
-
-    // THEN - a one-shot suppressor for I1000 was registered that prevents default handling.
-    const i1000Call = onceSpy.mock.calls.find(([code]) => (code as any)?.code === 'CDK_TOOLKIT_I1000');
-    expect(i1000Call).toBeDefined();
-    const listener = i1000Call![1] as (msg: any) => any;
-    expect(listener({ code: 'CDK_TOOLKIT_I1000' })).toEqual({ preventDefault: true });
-  });
-
-  test('without --json, does not suppress the synthesis-time line', async () => {
-    // Plain `cdk ls` is not a machine-readable contract, so the line is left alone.
+  test('suppresses the synth-time (I1000) and dependency-expansion (I1002) lines on the list path', async () => {
+    // Both are info-level lines emitted next to the listing; in CI they would land on stdout and
+    // pollute the parseable output. The list path registers a one-shot suppressor for each so they
+    // are dropped before being written. (End-to-end stdout behavior is covered by the integ test.)
     const toolkit = defaultToolkitSetup();
     const onceSpy = jest.spyOn(ioHost, 'once');
 
@@ -245,8 +231,12 @@ describe('list', () => {
     await toolkit.list([]);
 
     // THEN
-    const i1000Call = onceSpy.mock.calls.find(([code]) => (code as any)?.code === 'CDK_TOOLKIT_I1000');
-    expect(i1000Call).toBeUndefined();
+    for (const code of ['CDK_TOOLKIT_I1000', 'CDK_TOOLKIT_I1002']) {
+      const call = onceSpy.mock.calls.find(([sel]) => (sel as any)?.code === code);
+      expect(call).toBeDefined();
+      const listener = call![1] as (msg: any) => any;
+      expect(listener({ code })).toEqual({ preventDefault: true });
+    }
   });
 });
 
