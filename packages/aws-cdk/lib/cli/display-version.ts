@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as semver from 'semver';
 import type { IoHelper } from '../api-private';

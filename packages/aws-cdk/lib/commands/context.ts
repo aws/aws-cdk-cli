@@ -1,5 +1,5 @@
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import picomatch = require('picomatch');
 import type { Context } from '../api/context';

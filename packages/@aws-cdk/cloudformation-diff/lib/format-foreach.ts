@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { deepEqual } from './diff/util';
 
 const ADDITION = chalk.green('[+]');

@@ -1,4 +1,4 @@
-import * as mockfs from 'mock-fs';
+import mockfs from 'mock-fs';
 import { IntegrationTests } from '../../lib/runner/integration-tests';
 
 describe('IntegrationTests Discovery', () => {

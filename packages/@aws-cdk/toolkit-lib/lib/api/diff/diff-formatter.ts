@@ -9,7 +9,7 @@ import {
   type ResourceDifference,
   type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
 import type { NestedStackTemplates, Template } from '../cloudformation';
 import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';

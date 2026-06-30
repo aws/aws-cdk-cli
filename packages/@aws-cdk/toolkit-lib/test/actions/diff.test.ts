@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';

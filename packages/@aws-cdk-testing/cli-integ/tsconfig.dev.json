@@ -3,7 +3,7 @@
   "compilerOptions": {
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -12,8 +12,8 @@
       "esnext.disposable",
       "dom"
     ],
-    "module": "NodeNext",
-    "noEmitOnError": false,
+    "module": "node18",
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,

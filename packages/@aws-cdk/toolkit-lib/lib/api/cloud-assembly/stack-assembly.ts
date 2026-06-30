@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { isMatch as picomatch } from 'picomatch';
 import { StackCollection } from './stack-collection';
 import { flatten } from '../../util';

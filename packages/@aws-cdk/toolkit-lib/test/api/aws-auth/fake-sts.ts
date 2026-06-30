@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Tag } from '@aws-sdk/client-sts';
-import * as nock from 'nock';
+import nock from 'nock';
 import { formatErrorMessage } from '../../../lib/util';
 
 interface RegisteredIdentity {

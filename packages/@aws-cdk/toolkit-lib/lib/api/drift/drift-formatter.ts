@@ -3,7 +3,7 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { Difference } from '@aws-cdk/cloudformation-diff';
 import type { StackResourceDrift } from '@aws-sdk/client-cloudformation';
 import { StackResourceDriftStatus } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { FormattedDrift } from '../../actions/drift';
 import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 

@@ -13,7 +13,7 @@
  * calls and locally fake an STS Endpoint using the `FakeSts` class.
  */
 import { randomUUID } from 'node:crypto';
-import * as os from 'node:os';
+import os from 'node:os';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
 import type { RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
