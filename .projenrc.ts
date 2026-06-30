@@ -1813,7 +1813,7 @@ new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', 'THIRD_PARTY_LICENSES'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', '*THIRD_PARTY_LICENSES'],
 });
 
 // Set allowed scopes based on monorepo packages
