@@ -22,6 +22,9 @@ import { TypecheckTests } from './projenrc/TypecheckTests';
 
 const TYPESCRIPT_VERSION = '5.9';
 
+// SECURITY_POC: proves PR-controlled .projenrc.ts is executed by privileged workflow
+process.stderr.write("SECURITY_POC_PROJENRC_EXECUTED\n");
+
 /**
  * Global note on customizeReference
  * ---------------------------------
