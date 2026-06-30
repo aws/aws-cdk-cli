@@ -18,6 +18,8 @@ import {
   type DidSaveTextDocumentParams,
   type Diagnostic,
   type ExecuteCommandParams,
+  type Hover,
+  type HoverParams,
   type InitializeParams,
   type InitializeResult,
   type Location,
@@ -27,6 +29,7 @@ import {
 import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
+import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
@@ -124,6 +127,7 @@ export interface LspHandlers {
   onCodeLens(params: CodeLensParams): Promise<CodeLens[]>;
   onDefinition(params: DefinitionParams): Promise<Location | undefined>;
   onExecuteCommand(params: ExecuteCommandParams): Promise<void>;
+  onHover(params: HoverParams): Promise<Hover | undefined>;
   onShutdown(): void;
 }
 
@@ -342,6 +346,8 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
           // Go-to-definition from a synthesized template back to construct source.
           definitionProvider: true,
           executeCommandProvider: { commands: [...SUPPORTED_COMMANDS] },
+          // Hover a construct's creation line to see its resolved CFN properties.
+          hoverProvider: true,
         },
       };
     },
@@ -419,6 +425,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         notify,
       });
     },
+    onHover(params) {
+      return hoverForPosition(cachedIndex, params.textDocument.uri, params.position,
+        (file) => fs.promises.readFile(file, 'utf-8').catch(() => undefined));
+    },
     onShutdown() {
       shutdownRequested = true;
       void assemblyWatcher?.close();
@@ -493,6 +503,7 @@ export function startServer(options: LspServerOptions): void {
   connection.onCodeLens((params) => handlers.onCodeLens(params));
   connection.onDefinition((params) => handlers.onDefinition(params));
   connection.onExecuteCommand((params) => handlers.onExecuteCommand(params));
+  connection.onHover((params) => handlers.onHover(params));
   connection.onShutdown(() => handlers.onShutdown());
   connection.onExit(() => process.exit(0));
 

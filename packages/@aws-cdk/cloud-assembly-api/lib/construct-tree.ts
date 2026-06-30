@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ArtifactMetadataEntryType, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
+import { ArtifactMetadataEntryType, CFN_RESOURCE_PROPS_ATTRIBUTE, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from './artifacts/cloudformation-artifact';
 import { ASSET_RESOURCE_METADATA_PATH_KEY } from './assets';
 import type { CloudAssembly } from './cloud-assembly';
@@ -27,6 +27,11 @@ export interface ConstructTreeNode {
    * only for CFN resources whose template is resolvable.
    */
   readonly templateFile?: string;
+  /**
+   * Resolved CloudFormation resource properties (the synthesized values from
+   * the `aws:cdk:cloudformation:props` attribute), if this is a CFN resource.
+   */
+  readonly cfnProperties?: Record<string, unknown>;
   readonly children: readonly ConstructTreeNode[];
 }
 
@@ -40,6 +45,7 @@ export interface ConstructTreeNodeFields<T extends ConstructTreeNode> {
   readonly type?: string;
   readonly logicalId?: string;
   readonly templateFile?: string;
+  readonly cfnProperties?: Record<string, unknown>;
   readonly children: readonly T[];
 }
 
@@ -302,6 +308,9 @@ function prepareNode(
 
   const cfnTypeRaw = raw.attributes?.[CFN_RESOURCE_TYPE_ATTRIBUTE];
   const cfnType = typeof cfnTypeRaw === 'string' ? cfnTypeRaw : undefined;
+  const cfnPropsRaw = raw.attributes?.[CFN_RESOURCE_PROPS_ATTRIBUTE];
+  const cfnProperties =
+    typeof cfnPropsRaw === 'object' && cfnPropsRaw !== null ? (cfnPropsRaw as Record<string, unknown>) : undefined;
 
   // A NestedStack switches its subtree to the nested scope; other nodes inherit.
   const childInputs: ChildInput[] = Object.values(raw.children ?? {})
@@ -311,7 +320,7 @@ function prepareNode(
   // Only CFN resources (those with a logical ID) carry a templateFile.
   const nodeTemplateFile = logicalId !== undefined ? scope.file : undefined;
   return {
-    base: { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile },
+    base: { path: raw.path, id: raw.id, type: cfnType, logicalId, templateFile: nodeTemplateFile, cfnProperties },
     owner,
     constructPath: raw.path,
     childInputs,
