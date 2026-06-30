@@ -1619,7 +1619,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     const motivation = 'Destroying stacks is an irreversible action';
-    const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
+    const question = `Are you sure you want to delete: ${chalk.blue(stacks.hierarchicalIds.join(', '))}`;
     const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
