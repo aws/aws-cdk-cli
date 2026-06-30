@@ -20,6 +20,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SNSClient } from '@aws-sdk/client-sns';
+import { SSMClient } from '@aws-sdk/client-ssm';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
@@ -51,6 +52,7 @@ export class AwsClients {
   public readonly ecrPublic: ECRPUBLICClient;
   public readonly ecs: ECSClient;
   public readonly sso: SSOClient;
+  public readonly ssm: SSMClient;
   public readonly sns: SNSClient;
   public readonly iam: IAMClient;
   public readonly lambda: LambdaClient;
@@ -76,6 +78,7 @@ export class AwsClients {
     this.ecrPublic = new ECRPUBLICClient({ ...this.config, region: 'us-east-1' /* public gallery is only available in us-east-1 */ });
     this.ecs = new ECSClient(this.config);
     this.sso = new SSOClient(this.config);
+    this.ssm = new SSMClient(this.config);
     this.sns = new SNSClient(this.config);
     this.iam = new IAMClient(this.config);
     this.lambda = new LambdaClient(this.config);

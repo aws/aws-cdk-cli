@@ -55,7 +55,7 @@
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,node-backpack,nx,projen,sinon,ts-jest,ts-mock-imports,ts-node,tsx,@aws-cdk/cdk-explorer,archiver,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,@types/yazl,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,node-backpack,nx,projen,sinon,ts-jest,ts-mock-imports,ts-node,tsx,@aws-cdk/cdk-explorer,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,yazl"
         }
       ]
     },
@@ -109,7 +109,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=exact @aws-cdk/cloud-assembly-api=exact @aws-cdk/toolkit-lib=future-minor @aws-cdk/cdk-assets-lib=future-minor",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cli-plugin-contract=exact @aws-cdk/user-input-gen=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloudformation-diff=exact @aws-cdk/cloud-assembly-api=exact @aws-cdk/toolkit-lib=future-minor @aws-cdk/private-tools=future-minor @aws-cdk/cdk-assets-lib=future-minor",
           "receiveArgs": true
         }
       ]

@@ -5,6 +5,40 @@ test('cdk deploy -R sets rollback to false', async () => {
   expect(argv.rollback).toBe(false);
 });
 
+test('cdk deploy --debug implies both --debug-app and --debug-cli', async () => {
+  const argv = await parseCommandLineArguments(['deploy', '--debug']);
+  expect(argv.debug).toBe(true);
+  expect(argv.debugApp).toBe(true);
+  expect(argv.debugCli).toBe(true);
+});
+
+test('cdk deploy --debug-app sets only the app debug flag', async () => {
+  const argv = await parseCommandLineArguments(['deploy', '--debug-app']);
+  expect(argv.debugApp).toBe(true);
+  expect(argv.debug).toBe(false);
+  expect(argv.debugCli).toBe(false);
+});
+
+test('cdk deploy --debug-cli sets only the cli debug flag', async () => {
+  const argv = await parseCommandLineArguments(['deploy', '--debug-cli']);
+  expect(argv.debugCli).toBe(true);
+  expect(argv.debug).toBe(false);
+  expect(argv.debugApp).toBe(false);
+});
+
+test('cdk deploy --debug does not consume the following stack argument', async () => {
+  const argv = await parseCommandLineArguments(['deploy', '--debug', 'MyStack']);
+  expect(argv.debug).toBe(true);
+  expect(argv.STACKS).toEqual(['MyStack']);
+});
+
+test('cdk deploy without debug flags leaves them false', async () => {
+  const argv = await parseCommandLineArguments(['deploy']);
+  expect(argv.debug).toBe(false);
+  expect(argv.debugApp).toBe(false);
+  expect(argv.debugCli).toBe(false);
+});
+
 describe('cdk docs', () => {
   const originalPlatform = process.platform;
   // Helper to mock process.platform

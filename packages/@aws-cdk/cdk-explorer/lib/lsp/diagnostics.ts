@@ -27,7 +27,7 @@ export interface MapViolationsResult {
 
 /**
  * Convert a validation report into LSP diagnostics keyed by file URI.
- * Violations we can't anchor to a TypeScript source location are dropped
+ * Violations we can't anchor to a source location are dropped
  * (with a reason) rather than thrown.
  */
 export function mapViolationsToDiagnostics(
@@ -77,7 +77,7 @@ function resolveLocation(
   if (!constructPath) return { reason: 'violation has no construct path' };
   const node = index.byPath(constructPath);
   if (!node) return { reason: 'not found in the construct tree' };
-  if (!node.sourceLocation) return { reason: 'no source location (non-TypeScript app or framework-only trace)' };
+  if (!node.sourceLocation) return { reason: 'no source location (framework-only trace or unresolved source)' };
   return node.sourceLocation;
 }
 
@@ -89,14 +89,8 @@ function anchorViolation(
   const loc = resolveLocation(constructPath, index);
   if ('reason' in loc) return loc;
 
-  // We only surface diagnostics for TypeScript sources for now.
-  if (!isTypeScript(loc.file)) return { reason: `source file is not TypeScript: ${loc.file}` };
-
+  // Resolver already vetted the source file; just turn the location into a range.
   return { uri: pathToFileURL(loc.file).toString(), range: toRange(loc) };
-}
-
-function isTypeScript(file: string): boolean {
-  return file.endsWith('.ts') || file.endsWith('.tsx');
 }
 
 /**

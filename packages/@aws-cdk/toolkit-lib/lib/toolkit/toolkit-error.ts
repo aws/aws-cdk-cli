@@ -2,10 +2,13 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 
 const TOOLKIT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ToolkitError');
 const AUTHENTICATION_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AuthenticationError');
+const ABORT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AbortError');
 const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError');
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
+const LOCK_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.LockError');
+const CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextLookupsDisabledError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -26,6 +29,13 @@ export class ToolkitError extends Error {
   }
 
   /**
+   * Determines if a given error is an instance of AbortError.
+   */
+  public static isAbortError(x: any): x is AbortError {
+    return ToolkitError.isToolkitError(x) && ABORT_ERROR_SYMBOL in x;
+  }
+
+  /**
    * Determines if a given error is an instance of DeploymentError.
    */
   public static isDeploymentError(x: any): x is DeploymentError {
@@ -37,6 +47,20 @@ export class ToolkitError extends Error {
    */
   public static isAssemblyError(x: any): x is AssemblyError {
     return ToolkitError.isToolkitError(x) && ASSEMBLY_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of LockError.
+   */
+  public static isLockError(x: any): x is LockError {
+    return ToolkitError.isToolkitError(x) && LOCK_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of ContextLookupsDisabledError.
+   */
+  public static isContextLookupsDisabledError(x: any): x is ContextLookupsDisabledError {
+    return ToolkitError.isToolkitError(x) && CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL in x;
   }
 
   /**
@@ -92,6 +116,64 @@ export class AuthenticationError extends ToolkitError {
     super(errorCode, message, 'authentication');
     Object.setPrototypeOf(this, AuthenticationError.prototype);
     Object.defineProperty(this, AUTHENTICATION_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents an abort of an operation because the user declined a confirmation.
+ *
+ * This is not a failure of the toolkit: the user was asked a question and chose
+ * not to proceed. It carries a per-action error code (for example
+ * `DeployAborted`) so the reason stays specific, while `isAbortError` lets
+ * consumers detect a user-initiated abort without matching on messages. The
+ * default message, `Operation cancelled`, is a sensible generic for any action.
+ */
+export class AbortError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(errorCode: string, message: string = 'Operation cancelled') {
+    super(errorCode, message, 'abort');
+    Object.setPrototypeOf(this, AbortError.prototype);
+    Object.defineProperty(this, ABORT_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents a failure to acquire the read/write lock on the cloud assembly
+ * output directory, because another CLI is reading from or writing to it.
+ */
+export class LockError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(errorCode: string, message: string) {
+    super(errorCode, message, 'lock');
+    Object.setPrototypeOf(this, LockError.prototype);
+    Object.defineProperty(this, LOCK_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents synthesis that could not complete because the app needs context
+ * lookups that are not cached, and lookups are disabled. The fix is to run
+ * `cdk synth` in a terminal once (with AWS credentials) so the values are
+ * written to `cdk.context.json`.
+ */
+export class ContextLookupsDisabledError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(message: string) {
+    super('ContextLookupsDisabled', message);
+    Object.setPrototypeOf(this, ContextLookupsDisabledError.prototype);
+    Object.defineProperty(this, CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL, { value: true });
   }
 }
 

@@ -8,16 +8,13 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { type RefactorOptions, StackSelectionStrategy, Toolkit } from '../../lib';
-import { SdkProvider } from '../../lib/api/aws-auth/private';
 import { builderFixture, TestIoHost } from '../_helpers';
-import { mockCloudFormationClient, MockSdk, mockSTSClient } from '../_helpers/mock-sdk';
-
-jest.setTimeout(20_000);
+import { mockCloudFormationClient, mockSTSClient, mockSdkProvider } from '../_helpers/mock-sdk';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost, unstableFeatures: ['refactor'] });
 
-jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+mockSdkProvider();
 
 beforeEach(() => {
   ioHost.notifySpy.mockClear();

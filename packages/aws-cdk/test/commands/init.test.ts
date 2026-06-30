@@ -65,7 +65,7 @@ describe('constructs version', () => {
     expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
-  cliTest('can specify project name with --name option', async (workDir) => {
+  cliTest('can specify project name with --project-name option', async (workDir) => {
     await cliInit({
       ioHelper,
       type: 'app',
@@ -76,6 +76,28 @@ describe('constructs version', () => {
 
     const stackFile = await fs.readFile(path.join(workDir, 'lib', 'my-project-stack.ts'), 'utf-8');
     expect(stackFile).toContain('export class MyProjectStack');
+  });
+
+  cliTest('can specify project name with project-name option via CLI', async (workDir) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', TERM: 'dumb', NO_COLOR: '1' };
+    const execOptions = { timeout: 30_000, killSignal: 9 };
+
+    await execAsync(`node ${cdkBin} init app --language typescript --project-name awesome-app --generate-only`, {
+      cwd: workDir,
+      env: commonEnv,
+      ...execOptions,
+    });
+
+    const stackFile = await fs.readFile(path.join(workDir, 'lib', 'awesome-app-stack.ts'), 'utf-8');
+    expect(stackFile).toContain('export class AwesomeAppStack');
+
+    const packageJson = await fs.readJson(path.join(workDir, 'package.json'));
+    expect(packageJson.name).toEqual('awesome-app');
   });
 
   cliTest('asking for a nonexistent template fails', async (workDir) => {

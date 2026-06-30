@@ -25,6 +25,25 @@ export function yargsNegativeAlias<T extends { [x in S | L]: boolean | undefined
 }
 
 /**
+ * yargs middleware to switch on other boolean options when a flag is set.
+ * E.g. `--debug` implies `--debug-app` and `--debug-cli`.
+ *
+ * @param flag - The camelCase name of the flag that implies the others, e.g. `debug`
+ * @param impliedOptions - The camelCase names of the options to switch on, e.g. `['debugApp', 'debugCli']`
+ * @returns a middleware function that can be passed to yargs
+ */
+export function yargsImplies(flag: string, impliedOptions: string[]): (argv: Record<string, any>) => Record<string, any> {
+  return (argv: Record<string, any>) => {
+    if (argv[flag]) {
+      for (const implied of impliedOptions) {
+        argv[implied] = true;
+      }
+    }
+    return argv;
+  };
+}
+
+/**
  * Returns the current version of the CLI
  * @returns the current version of the CLI
  */

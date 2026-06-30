@@ -18,6 +18,7 @@ interface ContainerImageAssetHandlerInit {
 
 export class ContainerImageAssetHandler implements IAssetHandler {
   private init?: ContainerImageAssetHandlerInit;
+  private buildCompleted = false;
 
   constructor(
     private readonly workDir: string,
@@ -60,6 +61,7 @@ export class ContainerImageAssetHandler implements IAssetHandler {
     }
 
     await dockerForBuilding.tag(localTagName, initOnce.imageUri);
+    this.buildCompleted = true;
   }
 
   public async isPublished(): Promise<boolean> {
@@ -91,6 +93,20 @@ export class ContainerImageAssetHandler implements IAssetHandler {
 
     if (this.host.aborted) {
       return;
+    }
+
+    // When the same image asset is published to multiple destinations (e.g.
+    // multi-region deployments), the work graph deduplicates the build step so
+    // only one destination gets docker-tagged during build(). If build() was
+    // not called on this handler, ensure the image is tagged locally for this
+    // destination by re-tagging from any existing local image that carries the
+    // same imageTag.
+    if (!this.buildCompleted && !await dockerForPushing.exists(initOnce.imageUri)) {
+      const imageTag = this.asset.destination.imageTag;
+      const existing = await dockerForPushing.findImageByTag(imageTag);
+      if (existing) {
+        await dockerForPushing.tag(existing, initOnce.imageUri);
+      }
     }
 
     this.host.emitMessage(EventType.UPLOAD, `Push ${initOnce.imageUri}`);

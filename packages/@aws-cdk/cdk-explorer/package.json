@@ -30,7 +30,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.8",
+    "@cdklabs/eslint-plugin": "^2.0.9",
     "@cloudscape-design/components": "^3",
     "@cloudscape-design/global-styles": "^1",
     "@stylistic/eslint-plugin": "^3",
@@ -56,7 +56,7 @@
     "jest-junit": "^16",
     "nx": "^22.7.5",
     "prettier": "^2.8",
-    "projen": "^0.99.70",
+    "projen": "^0.99.73",
     "react": "^18",
     "react-dom": "^18",
     "supertest": "^6",

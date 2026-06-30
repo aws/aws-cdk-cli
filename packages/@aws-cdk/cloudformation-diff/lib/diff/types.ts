@@ -396,6 +396,23 @@ export class DifferenceCollection<V, T extends IDifference<V>> {
     delete this.diffs[logicalId];
   }
 
+  /**
+   * Whether a difference (changed or not) is tracked for the given logical ID.
+   *
+   * Note this is different from `logicalIds`, which only returns IDs that have
+   * an actual change. A logical ID may be present here with a "no-op" difference.
+   */
+  public has(logicalId: string): boolean {
+    return this.diffs[logicalId] !== undefined;
+  }
+
+  /**
+   * Set (or replace) the difference tracked for the given logical ID.
+   */
+  public set(logicalId: string, diff: T): void {
+    this.diffs[logicalId] = diff;
+  }
+
   public get logicalIds(): string[] {
     return Object.keys(this.changes);
   }
