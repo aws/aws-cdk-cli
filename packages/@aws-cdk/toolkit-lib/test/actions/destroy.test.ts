@@ -40,8 +40,6 @@ describe('destroy', () => {
       action: 'destroy',
       level: 'info',
       code: 'CDK_TOOLKIT_I7010',
-      // Stack names are colored blue, matching the color the CLI used before
-      // destroy was routed through toolkit-lib (not red).
       message: expect.stringContaining(`Are you sure you want to delete: ${chalk.blue('Stack1')}`),
     }));
   });
