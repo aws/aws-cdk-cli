@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
   StreamMessageWriter,
@@ -16,14 +17,18 @@ import {
   type DefinitionParams,
   type DidSaveTextDocumentParams,
   type Diagnostic,
+  type ExecuteCommandParams,
   type InitializeParams,
   type InitializeResult,
   type Location,
+  type RemoteConsole,
 } from 'vscode-languageserver/node';
 /* eslint-disable import/no-relative-packages */
 import { codeLensesForFile } from './codelens';
+import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
 import { offsetAtPosition } from './positions';
+import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
 import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
@@ -37,12 +42,31 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import type { SynthRunResult } from '../core/synth-runner';
+
+/**
+ * The cdk.out watcher fires after a synth's file writes but possibly before the
+ * synth releases its write lock. The toolkit's read lock is fail-fast (it does
+ * not queue), so refreshFromAssembly polls up to REFRESH_LOCK_RETRIES times,
+ * REFRESH_LOCK_RETRY_MS apart, for the write lock to clear before giving up on
+ * a refresh pass.
+ */
+const REFRESH_LOCK_RETRIES = 10;
+const REFRESH_LOCK_RETRY_MS = 50;
+
+/**
+ * A held read lock on the cloud assembly directory; `release()` unlocks it.
+ * In production this wraps the Toolkit's `fromAssemblyDirectory().produce()` readable.
+ */
+export interface AssemblyLock {
+  release(): Promise<void>;
+}
 
 export interface LspHandlerOptions {
-  /** Callback invoked on `didSave` for tracked source files. */
-  readonly onSynthRequest?: (projectDir: string) => void;
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
+  /** Acquire a read lock on the assembly dir; throws a `LockError` on writer contention. */
+  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -61,11 +85,35 @@ export interface LspHandlerOptions {
    * overridden in tests to drive refreshes deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
+  /**
+   * Runs a synth of the project at the given root and returns its typed outcome.
+   * Injected by startServer (built from the toolkit bindings); omitted in tests
+   * that don't exercise synth. The runner reads `cdk.json` under the passed root
+   * on each call and returns `unavailable` when there is no `app`, so
+   * availability is decided per synth, not cached here.
+   */
+  readonly synthRunner?: (projectDir: string) => Promise<SynthRunResult>;
+  /** User-facing notification sink. Injected by startServer; omitted in tests. */
+  readonly notify?: NotifySink;
 }
 
-export interface LspServerOptions extends LspHandlerOptions {
+/**
+ * The Toolkit-backed operations the handlers need, built from one Toolkit wired
+ * to the editor Output panel. The read lock comes from the Toolkit's own
+ * `fromAssemblyDirectory().produce()`, so the LSP never imports `RWLock`.
+ */
+export interface ToolkitBindings {
+  readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
+  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
+}
+
+export type ToolkitBindingsFactory = (console: RemoteConsole) => ToolkitBindings;
+
+export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
   readonly writable: NodeJS.WritableStream;
+  /** Builds the Toolkit-backed bindings once `connection.console` exists. Required; main.ts always wires it. */
+  readonly toolkitBindingsFactory: ToolkitBindingsFactory;
 }
 
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
@@ -75,6 +123,7 @@ export interface LspHandlers {
   onDidSaveTextDocument(params: DidSaveTextDocumentParams): void;
   onCodeLens(params: CodeLensParams): Promise<CodeLens[]>;
   onDefinition(params: DefinitionParams): Promise<Location | undefined>;
+  onExecuteCommand(params: ExecuteCommandParams): Promise<void>;
   onShutdown(): void;
 }
 
@@ -90,23 +139,50 @@ const NOOP_LOGGER: LogSink = {
   },
 };
 
+/** Log auto-synth-on-save outcomes. Errors go to the Output panel; success is silent. */
+function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
+  switch (result.status) {
+    case 'success':
+    case 'lock-conflict':
+    case 'unavailable':
+      return; // silent — watcher handles updates; lock = another synth running; unavailable = no app
+    case 'app-failure':
+      log.error(`Auto-synth failed: ${result.message}`);
+      return;
+    case 'error':
+      log.error(`Auto-synth failed unexpectedly: ${result.message}`);
+      return;
+  }
+}
+
 /**
  * Build the LSP message handlers as plain functions over closed-over state.
  * No streams, no JSON-RPC, no framework — testable in isolation.
  */
-export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers {
-  const onSynthRequest = options.onSynthRequest ?? (() => {
-  });
+export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
+  const acquireAssemblyLock = options.acquireAssemblyLock;
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
   });
   const onRefreshCodeLenses = options.onRefreshCodeLenses ?? (() => {
   });
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
+  const synthRunner = options.synthRunner;
+  const notify = options.notify ?? {
+    info: () => {
+    },
+    error: () => {
+    },
+    withProgress: <T>(_msg: string, fn: () => Promise<T>) => fn(),
+  };
 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
+  let synthInFlight = false;
+  // URIs (source files, or cdk.json) currently showing synth-failure diagnostics.
+  let synthFailureUris = new Set<string>();
+  let autoSynthEnabled = false; // off by default; user enables via the CodeLens toggle
   let shouldIgnore: (filePath: string) => boolean = () => false;
   let assemblyWatcher: AssemblyWatcher | undefined;
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
@@ -121,9 +197,48 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
   // the editor's next natural re-query.
   let codeLensRefreshSupported = false;
 
+  // Single source of truth for the project root: the directory the client opened
+  // (applicationDir from initialize), falling back to cwd for non-IDE callers.
+  // Every consumer (assembly read, watcher, synth, diagnostics) reads this so
+  // they never disagree about which project is being operated on.
+  function currentProjectDir(): string {
+    return applicationDir ?? process.cwd();
+  }
+
   async function refreshFromAssembly(projectDir: string): Promise<void> {
     const assemblyDir = path.join(projectDir, 'cdk.out');
-    const result = await readAssembly(assemblyDir);
+
+    // Hold a read lock so a concurrent synth can't overwrite cdk.out mid-read.
+    // The lock is fail-fast, so poll until the writer releases; the file events
+    // that triggered us are already over.
+    let lock: AssemblyLock | undefined;
+    for (let attempt = 0; attempt <= REFRESH_LOCK_RETRIES; attempt++) {
+      try {
+        lock = await acquireAssemblyLock(assemblyDir);
+        break;
+      } catch (err) {
+        if (ToolkitError.isLockError(err)) {
+          if (attempt < REFRESH_LOCK_RETRIES) {
+            await new Promise<void>((resolve) => setTimeout(resolve, REFRESH_LOCK_RETRY_MS));
+          }
+          continue;
+        }
+        // ENOENT (no cdk.out yet) is expected and silent; anything else is real.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          log.error(`Failed to open cloud assembly for reading: ${(err as Error).message}`);
+        }
+        return;
+      }
+    }
+    // Write lock still held after every retry: skip this pass.
+    if (lock === undefined) return;
+
+    let result: AssemblyReadResult;
+    try {
+      result = await readAssembly(assemblyDir);
+    } finally {
+      await lock.release();
+    }
 
     if (result.status === 'error') {
       log.error(`Failed to read cloud assembly: ${result.message}`);
@@ -163,6 +278,52 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
     }
   }
 
+  // Shared synth invocation used by both the manual CodeLens command and
+  // auto-synth-on-save. The in-flight latch suppresses overlapping synths from
+  // the same LSP instance: a second call while the first is running is dropped
+  // (not queued) and returns lock-conflict immediately. The Toolkit's RWLock
+  // would reject it anyway, but this short-circuits before any setup work.
+  async function guardedSynth(): Promise<SynthRunResult> {
+    if (synthInFlight) return { status: 'lock-conflict' };
+    synthInFlight = true;
+    try {
+      const result = await (synthRunner ? synthRunner(currentProjectDir()) : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
+      publishSynthDiagnostics(result);
+      return result;
+    } finally {
+      synthInFlight = false;
+    }
+  }
+
+  // Publish diagnostics for a failed synth (one per failing source file, or
+  // cdk.json as a fallback) and clear them once a synth succeeds. The cdk.out
+  // watcher owns violation diagnostics; this only manages synth-failure ones.
+  function publishSynthDiagnostics(result: SynthRunResult): void {
+    // A successful synth resolves all failures; 'unavailable' means there is no
+    // app to fail, so any prior synth-failure diagnostics no longer apply.
+    if (result.status === 'success' || result.status === 'unavailable') {
+      clearSynthFailures();
+      return;
+    }
+    const failures = synthFailureDiagnostics(result, currentProjectDir());
+    if (failures.length === 0) return; // lock-conflict / error: leave any existing diagnostic
+    const nextUris = new Set(failures.map((f) => f.uri));
+    for (const uri of synthFailureUris) {
+      if (!nextUris.has(uri)) onPublishDiagnostics(uri, []);
+    }
+    for (const f of failures) {
+      onPublishDiagnostics(f.uri, f.diagnostics);
+    }
+    synthFailureUris = nextUris;
+  }
+
+  function clearSynthFailures(): void {
+    for (const uri of synthFailureUris) {
+      onPublishDiagnostics(uri, []);
+    }
+    synthFailureUris = new Set();
+  }
+
   return {
     onInitialize(params) {
       applicationDir = params.initializationOptions?.applicationDir;
@@ -180,11 +341,12 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
           codeLensProvider: { resolveProvider: false },
           // Go-to-definition from a synthesized template back to construct source.
           definitionProvider: true,
+          executeCommandProvider: { commands: [...SUPPORTED_COMMANDS] },
         },
       };
     },
     async onInitialized() {
-      const projectDir = applicationDir ?? process.cwd();
+      const projectDir = currentProjectDir();
       // Same exclusion logic as toolkit-lib's watch():
       // WATCH_EXCLUDE_DEFAULTS covers common non-source dirs, then we add cdk.out
       // (our own output) and dotfiles (editor configs, .git, etc.)
@@ -218,15 +380,13 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       if (shutdownRequested) return;
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
-      const projectDir = applicationDir ?? process.cwd();
-      try {
-        onSynthRequest(projectDir);
-      } catch (err) {
-        log.error(`Synth request failed: ${(err as Error).message}`);
-      }
+      if (!autoSynthEnabled) return;
+      void guardedSynth()
+        .then((result) => handleSynthOnSave(result, log))
+        .catch((err: unknown) => log.error(`Auto-synth threw unexpectedly: ${(err as Error).message}`));
     },
     onCodeLens(params) {
-      return codeLensesForFile(cachedIndex, params.textDocument.uri);
+      return codeLensesForFile(cachedIndex, params.textDocument.uri, autoSynthEnabled);
     },
     async onDefinition(params) {
       // Only synthesized templates link back to source, and only file: URIs are
@@ -249,6 +409,16 @@ export function createLspHandlers(options: LspHandlerOptions = {}): LspHandlers 
       const offset = offsetAtPosition(templateText, params.position);
       return sourceTargetAtTemplateOffset(cachedIndex, filePath, templateText, offset);
     },
+    async onExecuteCommand(params) {
+      await executeCommand(params.command, params.arguments ?? [], {
+        synth: guardedSynth,
+        toggleAutoSynth: (enabled) => {
+          autoSynthEnabled = enabled;
+          onRefreshCodeLenses();
+        },
+        notify,
+      });
+    },
     onShutdown() {
       shutdownRequested = true;
       void assemblyWatcher?.close();
@@ -264,19 +434,53 @@ export function startServer(options: LspServerOptions): void {
     new StreamMessageWriter(options.writable),
   );
 
+  // Captured from onInitialize; used to gate CodeLens refresh requests.
+  let codeLensRefreshSupported = false;
+
+  // Build the toolkit bindings once connection.console exists; main.ts owns how
+  // they are constructed (synth runner + assembly read lock).
+  const { synthRunner, acquireAssemblyLock } = options.toolkitBindingsFactory(connection.console);
+
   const handlers = createLspHandlers({
-    onSynthRequest: options.onSynthRequest,
-    readAssembly: options.readAssembly,
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {
       void connection.sendDiagnostics({ uri, diagnostics });
     },
     onRefreshCodeLenses: () => {
-      void connection.sendRequest(CodeLensRefreshRequest.type);
+      // codeLensRefreshSupported is captured from onInitialize; gate here so
+      // the toggle and the watcher both respect the client's capability.
+      if (codeLensRefreshSupported) {
+        void connection.sendRequest(CodeLensRefreshRequest.type);
+      }
+    },
+    synthRunner,
+    acquireAssemblyLock,
+    notify: {
+      // Route to the Output panel (connection.console) rather than popups.
+      // showMessage creates a dismissable toast that interrupts the user's
+      // workflow; console writes are visible on demand in the Output panel.
+      info: (msg) => {
+        connection.console.info(msg);
+      },
+      error: (msg) => {
+        connection.console.error(msg);
+      },
+      withProgress: async (title, fn) => {
+        const progress = await connection.window.createWorkDoneProgress();
+        progress.begin(title);
+        try {
+          return await fn();
+        } finally {
+          progress.done();
+        }
+      },
     },
   });
 
-  connection.onInitialize((params) => handlers.onInitialize(params));
+  connection.onInitialize((params) => {
+    codeLensRefreshSupported = params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
+    return handlers.onInitialize(params);
+  });
   connection.onInitialized(() => {
     // `initialized` is a notification, so nothing awaits us, but onInitialized's
     // async work can still reject. Surface it to the editor Output panel rather
@@ -288,6 +492,7 @@ export function startServer(options: LspServerOptions): void {
   connection.onDidSaveTextDocument((params) => handlers.onDidSaveTextDocument(params));
   connection.onCodeLens((params) => handlers.onCodeLens(params));
   connection.onDefinition((params) => handlers.onDefinition(params));
+  connection.onExecuteCommand((params) => handlers.onExecuteCommand(params));
   connection.onShutdown(() => handlers.onShutdown());
   connection.onExit(() => process.exit(0));
 

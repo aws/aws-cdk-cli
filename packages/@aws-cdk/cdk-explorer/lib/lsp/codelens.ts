@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'url';
 import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
+import { COMMAND_DISABLE_AUTO_SYNTH, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_SYNTH_NOW } from './commands';
 import { resourceTarget, type ResourceTarget } from './template-locator';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
@@ -9,11 +10,23 @@ import type { SourceLocation } from '../core/source-resolver';
 export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
 
 /**
- * Build CodeLens entries for a single source file. For every construct whose
- * sourceLocation matches fileUri, group by line and emit one lens per line
- * summarising the CFN resources produced there.
+ * Build CodeLens entries for a single source file. Returns an empty array if
+ * no CDK resources in the index map to `fileUri`.
+ *
+ * When resources are found, two header lenses are prepended at line 0:
+ * - `autoSynthEnabled = false`: "↻ Synth now" + "▶ Enable auto-synth"
+ * - `autoSynthEnabled = true`: "⏹ Disable auto-synth" (saves trigger synth)
+ *
+ * The remaining lenses are one per source line, each summarising the CFN
+ * resources produced there (multiple L2 fan-out resources are grouped).
+ *
+ * @param autoSynthEnabled - current toggle state; controls which header lenses appear
  */
-export async function codeLensesForFile(index: ConstructIndex<ConstructNode>, fileUri: string): Promise<CodeLens[]> {
+export async function codeLensesForFile(
+  index: ConstructIndex<ConstructNode>,
+  fileUri: string,
+  autoSynthEnabled: boolean,
+): Promise<CodeLens[]> {
   const matches = [...index]
     .filter((node) => isResourceOnFile(node, fileUri))
     .map((node) => ({ line: node.sourceLocation.line, node }));
@@ -21,14 +34,26 @@ export async function codeLensesForFile(index: ConstructIndex<ConstructNode>, fi
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources). Resolve
   // sequentially so the number of concurrent reads never grows with app size.
-  const lenses: CodeLens[] = [];
+  const l1Lenses: CodeLens[] = [];
   for (const [line, group] of groupBy(matches, (m) => m.line)) {
-    lenses.push({
+    l1Lenses.push({
       range: lineRange(line),
       command: await commandFor(group.map((m) => m.node)),
     });
   }
-  return lenses;
+
+  if (l1Lenses.length === 0) return [];
+
+  const header0: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+  // When auto-synth is off, show "Synth now" + "Enable auto-synth".
+  // When auto-synth is on, show only "Disable auto-synth" (saves handle synth).
+  const headerLenses: CodeLens[] = autoSynthEnabled
+    ? [{ range: header0, command: { title: '⏹ Disable auto-synth', command: COMMAND_DISABLE_AUTO_SYNTH } }]
+    : [
+      { range: header0, command: { title: '↻ Synth now', command: COMMAND_SYNTH_NOW } },
+      { range: header0, command: { title: '▶ Enable auto-synth', command: COMMAND_ENABLE_AUTO_SYNTH } },
+    ];
+  return [...headerLenses, ...l1Lenses];
 }
 
 /**
