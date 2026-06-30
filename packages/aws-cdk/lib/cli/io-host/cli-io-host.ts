@@ -888,10 +888,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
 
     const response = await this.resolveRequest(message, listenerResult);
 
-    // Tell observers how this request was handled: the effective (possibly
-    // reworded) question and the resolved response. A request is reported only
-    // once it has been answered, so it is never `dropped`.
-    this.notifyObservers({ type: 'request', emitted: msg, effective: message, dropped: false });
+    // Tell observers how this request was handled: the effective (possibly reworded) question
+    // and the resolved response. When a listener answered the request with the question suppressed
+    // (`preventDefault`, e.g. `--force` auto-confirm), it is reported as `dropped` since the user never saw it.
+    this.notifyObservers({ type: 'request', emitted: msg, effective: message, dropped: listenerResult.preventDefault });
 
     return response;
   }

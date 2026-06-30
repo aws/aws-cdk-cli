@@ -1580,9 +1580,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
-    const ioHelper = asIoHelper(this.ioHost, 'destroy');
+    return this._destroyWithAction(cx, 'destroy', options);
+  }
+
+  /**
+   * Synthesize and destroy, labelling the work with an explicit action.
+   *
+   * Kept private: the CLI reaches it (via a `// @ts-ignore`) to keep the
+   * "deployed" wording when a destroy runs as part of a deploy (rollback
+   * cleanup). Not part of the public API.
+   */
+  private async _destroyWithAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions = {}): Promise<DestroyResult> {
+    const ioHelper = asIoHelper(this.ioHost, action);
     await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
-    return await this._destroy(assembly, 'destroy', options);
+    return await this._destroy(assembly, action, options);
   }
 
   /**

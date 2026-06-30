@@ -44,8 +44,9 @@ describe('IoHostRecorder', () => {
     const ioHelper = asIoHelper(ioHost, 'destroy');
 
     // Answer the request through a listener so the real `requestResponse` runs
-    // (and is therefore observed) — the recorder never spies on it.
-    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I0000' } as any, () => ({ respond: true, preventDefault: true }));
+    // (and is therefore observed) — the recorder never spies on it. The question
+    // is not suppressed, so it stays in the recorded stream.
+    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I0000' } as any, () => ({ respond: true }));
 
     await ioHelper.defaults.info('before');
     await ioHelper.requestResponse({
@@ -82,7 +83,8 @@ describe('IoHostRecorder', () => {
 
     // Answer the prompt the documented way, exactly as a rerouted command test
     // would (no `jest.spyOn(ioHost, 'requestResponse')` pass-through needed).
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+    // suppressQuestion=false keeps the (shown) prompt in the recorded stream.
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true, false);
 
     await ioHelper.defaults.info('before');
     const answer = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('proceed?', { motivation: 'testing' }));
@@ -115,7 +117,7 @@ describe('IoHostRecorder', () => {
 
   test('marks a message a listener prevented from being written as `dropped`', async () => {
     const ioHost = CliIoHost.instance({ logLevel: 'trace' }, /* forceNew */ true);
-    const recorder = IoHostRecorder.create(ioHost);
+    const recorder = IoHostRecorder.create(ioHost, { excludeDropped: false });
     const ioHelper = asIoHelper(ioHost, 'destroy');
 
     // Suppress a specific coded message, the way the CLI drops the synth/destroy
