@@ -358,10 +358,6 @@ new SelfMutationOnForks(repoProject, { environment: 'automation' });
 
 repoProject.gitignore.addPatterns('.vscode/settings.json');
 
-repoProject.package.addPackageResolutions('@aws-sdk/client-cloudformation@file:/home/lvielto/JsSdkV3/clients/client-cloudformation/aws-sdk-client-cloudformation-3.1066.0.tgz');
-repoProject.package.addPackageResolutions('@smithy/types@4.15.0');
-repoProject.package.addPackageResolutions('@aws-sdk/client-s3@3.1072.0');
-
 // Eslint for projen config
 // @ts-ignore
 repoProject.eslint = new pj.javascript.Eslint(repoProject, {

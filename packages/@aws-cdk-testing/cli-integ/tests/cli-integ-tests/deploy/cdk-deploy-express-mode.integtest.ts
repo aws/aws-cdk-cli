@@ -1,6 +1,5 @@
 import { DescribeStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
-import { EXPRESS_MODE_REGIONS } from '../../../lib/regions';
 
 integTest(
   'deploy and destroy in Express Mode',
@@ -23,7 +22,5 @@ integTest(
     await fixture.cdkDestroy('test-2', {
       options: ['--express'],
     });
-  },
-  // Express Mode is currently only available in a subset of regions.
-  { aws: { regions: EXPRESS_MODE_REGIONS } }),
+  }),
 );

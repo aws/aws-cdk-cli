@@ -1166,7 +1166,7 @@ export class SDK {
    */
   public async getUrlSuffix(region: string): Promise<string> {
     const cfn = new CloudFormationClient({ region });
-    const endpoint = await getEndpointFromInstructions({}, DescribeStackResourcesCommand as any, { ...cfn.config });
+    const endpoint = await getEndpointFromInstructions({}, DescribeStackResourcesCommand, { ...cfn.config });
     return endpoint.url.hostname.split(`${region}.`).pop()!;
   }
 

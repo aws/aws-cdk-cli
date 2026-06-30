@@ -956,6 +956,7 @@ export class CdkToolkit {
         },
         roleArn: options.roleArn,
         concurrency: options.concurrency,
+        express: options.express,
       });
     } finally {
       this.ioHost.removeAllListeners();
