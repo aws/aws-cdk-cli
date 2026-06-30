@@ -1,6 +1,7 @@
-import { ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
+import { AbortError } from '@aws-cdk/toolkit-lib';
 import { Deployments } from '../../lib/api';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
+import { IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import type { TestStackArtifact } from '../_helpers';
@@ -32,8 +33,7 @@ const STACK_C_NESTED: TestStackArtifact = {
 };
 
 let cloudExecutable: MockCloudExecutable;
-let cloudFormation: jest.Mocked<Deployments>;
-let destroyStackSpy: jest.SpyInstance;
+let destroyStackMock: jest.SpyInstance;
 let toolkit: CdkToolkit;
 let ioHost = CliIoHost.instance();
 let recorder: IoHostRecorder;
@@ -44,24 +44,27 @@ beforeEach(async () => {
 
   ioHost = CliIoHost.instance();
   ioHost.isCI = false;
+  // Run as the `destroy` command so every message — synthesis, the confirmation
+  // request, and the destroy progress — is tagged with the `destroy` action,
+  // exactly as the real CLI would.
+  ioHost.currentAction = 'destroy';
 
   cloudExecutable = await MockCloudExecutable.create({
     stacks: [STACK_A, STACK_B],
     nestedAssemblies: [{ stacks: [STACK_C_NESTED] }],
-  }, undefined, ioHost);
+  }, undefined, ioHost, 'destroy');
 
-  cloudFormation = instanceMockFrom(Deployments);
-
-  // `cdk destroy` delegates to toolkit-lib, which constructs its own
-  // `Deployments` instance, so intercept the actual deletion at the prototype.
-  destroyStackSpy = jest.spyOn(Deployments.prototype, 'destroyStack').mockResolvedValue({ stackArn: 'arn' } as any);
+  // The rerouted destroy runs through toolkit-lib, which builds its own
+  // Deployments. Intercept at the prototype so the real CFN calls never run.
+  destroyStackMock = jest.spyOn(Deployments.prototype, 'destroyStack')
+    .mockResolvedValue({ stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test' } as any);
 
   toolkit = new CdkToolkit({
     ioHost,
     cloudExecutable,
     configuration: cloudExecutable.configuration,
     sdkProvider: cloudExecutable.sdkProvider,
-    deployments: cloudFormation,
+    deployments: instanceMockFrom(Deployments),
   });
 
   // Single recorder bound to the (singleton) ioHost; `clearMocks` scopes the
@@ -69,21 +72,22 @@ beforeEach(async () => {
   recorder = IoHostRecorder.create(ioHost);
 });
 
-afterEach(async () => {
+afterEach(() => {
   // Snapshot every message the destroy path sent to the CliIoHost. Any change to
   // that stream (e.g. when rerouting through toolkit-lib) shows up as a diff.
-  await recorder.matchSnapshot();
+  recorder.matchSnapshot();
 });
 
 describe('force: true (no confirmation prompt)', () => {
   test('destroys a single (nested) stack; "fromDeploy" makes it say "deployed"', async () => {
-    await toolkit.destroyFromDeploy({
+    await toolkit.destroy({
       selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
       exclusively: true,
       force: true,
+      fromDeploy: true,
     });
 
-    expect(destroyStackSpy).toHaveBeenCalledTimes(1);
+    expect(destroyStackMock).toHaveBeenCalledTimes(1);
   });
 
   test('destroys all top-level stacks with concurrency', async () => {
@@ -94,7 +98,7 @@ describe('force: true (no confirmation prompt)', () => {
       concurrency: 5,
     });
 
-    expect(destroyStackSpy).toHaveBeenCalledTimes(2);
+    expect(destroyStackMock).toHaveBeenCalledTimes(2);
   });
 
   test('respects dependency order with concurrency', async () => {
@@ -109,10 +113,10 @@ describe('force: true (no confirmation prompt)', () => {
       env: 'aws://123456789012/bermuda-triangle-1',
       depends: [stackC.stackName],
     };
-    cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost);
+    cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost, 'destroy');
 
     const destroyOrder: string[] = [];
-    destroyStackSpy.mockImplementation(async (options: DestroyStackOptions) => {
+    destroyStackMock.mockImplementation(async (options: DestroyStackOptions) => {
       destroyOrder.push(options.stack.stackName);
       return { stackArn: 'arn' };
     });
@@ -122,7 +126,7 @@ describe('force: true (no confirmation prompt)', () => {
       cloudExecutable,
       configuration: cloudExecutable.configuration,
       sdkProvider: cloudExecutable.sdkProvider,
-      deployments: cloudFormation,
+      deployments: instanceMockFrom(Deployments),
     });
 
     await toolkit.destroy({
@@ -144,7 +148,7 @@ describe('force: true (no confirmation prompt)', () => {
       roleArn: 'arn:aws:iam::123456789012:role/DestroyRole',
     });
 
-    expect(destroyStackSpy).toHaveBeenCalledWith(
+    expect(destroyStackMock).toHaveBeenCalledWith(
       expect.objectContaining({ roleArn: 'arn:aws:iam::123456789012:role/DestroyRole' }),
     );
   });
@@ -152,7 +156,11 @@ describe('force: true (no confirmation prompt)', () => {
 
 describe('force: false (confirmation prompt)', () => {
   test('asks for confirmation and proceeds when the user confirms', async () => {
-    jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true as any);
+    // Answer the confirmation prompt with a one-shot responder. The real
+    // requestResponse runs (so the request is recorded in the snapshot); no
+    // spy/pass-through is needed. suppressQuestion=false: a non-forced destroy
+    // shows the prompt to the user, so it stays in the snapshot.
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true, false);
 
     await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -161,13 +169,14 @@ describe('force: false (confirmation prompt)', () => {
     });
 
     // Confirmed -> the stack is actually destroyed.
-    expect(destroyStackSpy).toHaveBeenCalledTimes(1);
+    expect(destroyStackMock).toHaveBeenCalledTimes(1);
   });
 
   test('aborts with an AbortError and destroys nothing when the user declines', async () => {
     // The IoHost returns the answer; declining is `false` and the command aborts
     // by throwing an AbortError (non-zero exit, presented softly by the CLI).
-    jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(false as any);
+    // suppressQuestion=false: the prompt is shown to the user (non-forced).
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, false, false);
 
     const error = await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -179,27 +188,13 @@ describe('force: false (confirmation prompt)', () => {
     expect(error.name).toBe('DestroyAborted');
 
     // Aborted before any destroy happened.
-    expect(destroyStackSpy).not.toHaveBeenCalled();
-  });
-
-  test('rethrows an unexpected error from the confirmation prompt', async () => {
-    jest.spyOn(ioHost, 'requestResponse').mockImplementation((() => {
-      throw new ToolkitError('SomethingElse', 'tty exploded');
-    }) as any);
-
-    await expect(toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
-      force: false,
-    })).rejects.toThrow('tty exploded');
-
-    expect(destroyStackSpy).not.toHaveBeenCalled();
+    expect(destroyStackMock).not.toHaveBeenCalled();
   });
 });
 
 describe('destroy failure', () => {
   test('emits a failure message and rethrows when destroyStack fails', async () => {
-    destroyStackSpy.mockRejectedValue(new Error('Deletion failed'));
+    destroyStackMock.mockRejectedValue(new Error('Deletion failed'));
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },

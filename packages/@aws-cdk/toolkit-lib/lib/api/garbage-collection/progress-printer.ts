@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { GcAsset as GCAsset } from './garbage-collector';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { IoHelper } from '../io/private';

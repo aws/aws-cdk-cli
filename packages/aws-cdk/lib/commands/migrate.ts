@@ -19,7 +19,7 @@ import type {
   ScannedResourceIdentifier,
 } from '@aws-sdk/client-cloudformation';
 import * as cdk_from_cfn from 'cdk-from-cfn';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { cliInit } from './init';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';

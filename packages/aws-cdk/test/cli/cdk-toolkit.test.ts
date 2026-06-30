@@ -67,7 +67,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import { Toolkit } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -1738,136 +1738,6 @@ describe('deploy', () => {
 
     // now expect it to be updated
     expect(ioHost.stackProgress).toBe('events');
-  });
-});
-
-describe('destroy', () => {
-  let destroyForActionSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    // `destroy` and `destroyFromDeploy` both funnel through Toolkit's protected
-    // `destroyForAction(cx, action, options)`, so spying there lets us assert the
-    // CLI -> toolkit-lib option mapping (and the action attribution) in one place.
-    destroyForActionSpy = jest.spyOn(Toolkit.prototype as any, 'destroyForAction').mockResolvedValue({ stacks: [] });
-  });
-
-  afterEach(() => {
-    destroyForActionSpy.mockRestore();
-  });
-
-  test('delegates with PATTERN_MATCH and no expansion when patterns are given and exclusively is true', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-A'] },
-      exclusively: true,
-      force: true,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'destroy',
-      expect.objectContaining({
-        stacks: {
-          patterns: ['Test-Stack-A'],
-          strategy: StackSelectionStrategy.PATTERN_MATCH,
-          expand: ExpandStackSelection.NONE,
-        },
-        force: true,
-      }),
-    );
-  });
-
-  test('expands to downstream stacks when exclusively is false', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-A'] },
-      exclusively: false,
-      force: true,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'destroy',
-      expect.objectContaining({
-        stacks: expect.objectContaining({ expand: ExpandStackSelection.DOWNSTREAM }),
-      }),
-    );
-  });
-
-  test('selects a single stack when no patterns are given', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: [] },
-      exclusively: true,
-      force: true,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'destroy',
-      expect.objectContaining({
-        stacks: expect.objectContaining({ strategy: StackSelectionStrategy.ONLY_SINGLE }),
-      }),
-    );
-  });
-
-  test('selects all top-level stacks for the --all flag (allTopLevel)', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { allTopLevel: true, patterns: [] },
-      exclusively: true,
-      force: true,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'destroy',
-      expect.objectContaining({
-        stacks: expect.objectContaining({ strategy: StackSelectionStrategy.MAIN_ASSEMBLY }),
-      }),
-    );
-  });
-
-  test('passes force, roleArn and concurrency through to toolkit-lib', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-A'] },
-      exclusively: true,
-      force: true,
-      roleArn: 'arn:aws:iam::123456789012:role/destroy',
-      concurrency: 5,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'destroy',
-      expect.objectContaining({
-        force: true,
-        roleArn: 'arn:aws:iam::123456789012:role/destroy',
-        concurrency: 5,
-      }),
-    );
-  });
-
-  test('destroyFromDeploy delegates with the deploy action for message attribution', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroyFromDeploy({
-      selector: { patterns: ['Test-Stack-A'] },
-      exclusively: true,
-      force: true,
-    });
-
-    expect(destroyForActionSpy).toHaveBeenCalledWith(
-      cloudExecutable,
-      'deploy',
-      expect.objectContaining({ force: true }),
-    );
   });
 });
 

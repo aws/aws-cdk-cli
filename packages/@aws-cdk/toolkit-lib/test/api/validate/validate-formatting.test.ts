@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { ValidateResult } from '../../../lib/actions/validate';
 import { formatValidateResult as formatValidateResult_ } from '../../../lib/api/validate/validate-formatting';
 

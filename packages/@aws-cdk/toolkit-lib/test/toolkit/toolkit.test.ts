@@ -6,7 +6,7 @@
  */
 
 import * as cdk from 'aws-cdk-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
 

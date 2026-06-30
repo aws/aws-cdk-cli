@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { snapshotTestWorker } from '../../lib/workers/extract';
 
 jest.setTimeout(20_000);

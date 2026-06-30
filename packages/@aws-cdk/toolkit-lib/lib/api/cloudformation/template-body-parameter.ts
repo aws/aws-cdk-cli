@@ -4,7 +4,7 @@ import * as util from 'node:util';
 import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash, toYAML } from '../../util';
 import type { AssetManifestBuilder } from '../deployments';

@@ -19,11 +19,4 @@ export interface DestroyOptions {
    * @default 1
    */
   readonly concurrency?: number;
-
-  /**
-   * Do not ask for confirmation before destroying the stacks
-   *
-   * @default false
-   */
-  readonly force?: boolean;
 }

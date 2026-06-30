@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { formatAsBanner } from '../../lib/cli/util/console-formatters';
 
 test('no banner on empty msg list', () =>

@@ -13,7 +13,7 @@
  * calls and locally fake an STS Endpoint using the `FakeSts` class.
  */
 import { randomUUID } from 'node:crypto';
-import * as os from 'node:os';
+import os from 'node:os';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as fromEnv from '@aws-sdk/credential-provider-env';
 import type { RegisterRoleOptions, RegisterUserOptions } from './fake-sts';
@@ -426,6 +426,34 @@ describe('with intercepted network calls', () => {
           roleSessionName: 'aws-cdk-sk@l',
         }));
       });
+    });
+
+    test('CDK_ROLE_SESSION_NAME overrides the default session name', async () => {
+      // GIVEN
+      prepareCreds({
+        fakeSts,
+        config: {
+          default: { aws_access_key_id: 'foo', $account: '11111' },
+        },
+      });
+      process.env.CDK_ROLE_SESSION_NAME = 'custom-session-name';
+
+      try {
+        // WHEN
+        const provider = await providerFromProfile(undefined);
+
+        const sdk = (
+          await provider.forEnvironment(env(uniq('88888')), Mode.ForReading, { assumeRoleArn: 'arn:aws:role' })
+        ).sdk as SDK;
+        await sdk.currentAccount();
+
+        // THEN
+        expect(fakeSts.assumedRoles).toContainEqual(expect.objectContaining({
+          roleSessionName: 'custom-session-name',
+        }));
+      } finally {
+        delete process.env.CDK_ROLE_SESSION_NAME;
+      }
     });
 
     test('session tags can be passed when assuming a role', async () => {

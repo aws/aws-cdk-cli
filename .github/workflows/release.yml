@@ -337,7 +337,7 @@ jobs:
       - name: "aws-cdk: Check publish"
         run: |-
           should_publish="${{ needs.release.outputs.publish-aws-cdk }}"
-          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk","@aws-cdk/integ-runner"]'), github.event.inputs.package)) }}"
+          package_filter="${{ (!github.event.inputs.package || github.event.inputs.package == '*all packages*' || contains(fromJSON('["aws-cdk","cdk"]'), github.event.inputs.package)) }}"
           if [[ "$should_publish" != "true" ]]; then
             echo "⏭️ Skipping aws-cdk: release tag already exists"
           elif [[ "$package_filter" != "true" ]]; then
@@ -1338,7 +1338,6 @@ jobs:
       - aws-cdk-cloud-assembly-api_release_done
       - aws-cdk-cdk-assets-lib_release_done
       - aws-cdk-toolkit-lib_release_done
-      - aws-cdk_release_done
     runs-on: ubuntu-latest
     permissions:
       id-token: write

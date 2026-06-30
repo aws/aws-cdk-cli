@@ -5,7 +5,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 
@@ -24,7 +24,6 @@ function isFileEvent(event: EventName): event is FileEvent {
   return (FILE_EVENTS as readonly string[]).includes(event);
 }
 import * as fs from 'fs-extra';
-import * as picomatch from 'picomatch';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
@@ -1581,16 +1580,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
-    return this.destroyForAction(cx, 'destroy', options);
+    return this._destroyWithAction(cx, 'destroy', options);
   }
 
   /**
-   * Synthesize and destroy the selected stacks, attributing emitted messages to
-   * the given action. Exposed as `protected` so that callers within this repo
-   * (e.g. the CLI) can perform a destroy as part of a `deploy` while keeping the
-   * message attribution, without widening the public API.
+   * Synthesize and destroy, labelling the work with an explicit action.
+   *
+   * Kept private: the CLI reaches it (via a `// @ts-ignore`) to keep the
+   * "deployed" wording when a destroy runs as part of a deploy (rollback
+   * cleanup). Not part of the public API.
    */
-  protected async destroyForAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
+  private async _destroyWithAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
     return await this._destroy(assembly, action, options);
@@ -1604,26 +1604,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const stacks = await assembly.selectStacksV2(selectStacks);
 
-    await this.suggestStacks(ioHelper, assembly, selectStacks, stacks);
-
     const ret: DestroyResult = {
       stacks: [],
     };
 
-    if (stacks.stackCount === 0) {
-      await ioHelper.notify(IO.CDK_TOOLKIT_W7011.msg(
-        `No stacks match the name(s): ${chalk.red((selectStacks.patterns ?? []).join(', '))}`,
-      ));
+    const motivation = 'Destroying stacks is an irreversible action';
+    const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
+    const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
+    if (!confirmed) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
       return ret;
-    }
-
-    if (!options.force) {
-      const motivation = 'Destroying stacks is an irreversible action';
-      const question = `Are you sure you want to delete: ${chalk.blue(stacks.hierarchicalIds.join(', '))}`;
-      const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      if (!confirmed) {
-        throw new AbortError('DestroyAborted', 'Deletion cancelled');
-      }
     }
 
     const concurrency = options.concurrency || 1;
@@ -1674,38 +1664,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return ret;
     } finally {
       await destroySpan.end();
-    }
-  }
-
-  /**
-   * Warn about stack name patterns that did not match any stack, suggesting a
-   * close match where one exists (e.g. when only the casing differs).
-   */
-  private async suggestStacks(
-    ioHelper: IoHelper,
-    assembly: StackAssembly,
-    selector: StackSelector,
-    selected: StackCollection,
-  ): Promise<void> {
-    const patterns = selector.patterns ?? [];
-    if (patterns.length === 0) {
-      return;
-    }
-
-    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
-
-    for (const pattern of patterns) {
-      const matched = selected.stackArtifacts.some((stack) => picomatch.isMatch(stack.hierarchicalId, pattern));
-      if (matched) {
-        continue;
-      }
-
-      const closeMatches = allStacks.stackArtifacts
-        .filter((stack) => picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
-        .map((stack) => stack.hierarchicalId);
-
-      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
-      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
     }
   }
 

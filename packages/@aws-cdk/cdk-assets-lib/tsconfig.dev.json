@@ -3,15 +3,15 @@
   "compilerOptions": {
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2020"
+      "es2022"
     ],
-    "module": "commonjs",
-    "noEmitOnError": false,
+    "module": "node18",
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -23,7 +23,7 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2020",
+    "target": "es2022",
     "types": [
       "jest",
       "mime",
@@ -39,8 +39,7 @@
   },
   "include": [
     "lib/**/*.ts",
-    "test/**/*.ts",
-    "bin/**/*.ts"
+    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules"

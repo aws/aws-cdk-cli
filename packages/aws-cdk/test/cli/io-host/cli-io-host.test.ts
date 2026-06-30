@@ -2,12 +2,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost } from '../../../lib/cli/io-host';
+import { CliIoHost, matchAny } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 
 let passThrough: PassThrough;
@@ -206,6 +206,165 @@ describe('CliIoHost', () => {
       await ioHost.notify(listMessage('second'));
 
       expect(observed).toEqual(['first']);
+    });
+
+    test('on() supports async listeners and awaits them before the message is processed', async () => {
+      const order: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
+        await new Promise((resolve) => setImmediate(resolve));
+        order.push(`listener:${msg.message}`);
+        return { message: `async:${msg.message}` };
+      }));
+
+      await ioHost.notify(listMessage('first'));
+      order.push('after-notify');
+
+      // notify() did not resolve until the async listener finished, and the
+      // text it returned was applied before the message was written.
+      expect(order).toEqual(['listener:first', 'after-notify']);
+      expect(mockStdout).toHaveBeenCalledWith('async:first\n');
+    });
+
+    test('requestResponse() awaits an async listener that answers the request', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I7010, async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+        return { respond: true, preventDefault: true };
+      }));
+
+      const answer = await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'destroy',
+        code: 'CDK_TOOLKIT_I7010',
+        message: 'proceed?',
+        defaultResponse: true,
+        data: { motivation: 'because' },
+      });
+
+      expect(answer).toBe(true);
+    });
+
+    test('removeAllListeners() removes every user-registered listener', async () => {
+      const observed: string[] = [];
+      // Register via on() and once() and rewrite() — all user listeners.
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      }));
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+
+      await ioHost.notify(listMessage('before'));
+      ioHost.removeAllListeners();
+      await ioHost.notify(listMessage('after'));
+
+      // The on() listener stopped firing and the rewrite no longer applies.
+      expect(observed).toEqual(['before']);
+      expect(mockStdout).toHaveBeenCalledWith('after\n');
+    });
+
+    test('removeAllListeners() keeps the host internal stack-activity routing', async () => {
+      // Clear all (user) listeners, then verify a stack-activity message is
+      // still routed to the printer and suppressed — i.e. the internal listener
+      // survived.
+      ioHost.removeAllListeners();
+      (ioHost as any).activityPrinter = undefined;
+      const fakePrinter = { notify: jest.fn() };
+      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
+
+      const activity = plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5502',
+        message: 'raw activity text',
+      });
+      await ioHost.notify(activity);
+
+      expect(fakePrinter.notify).toHaveBeenCalledWith(activity);
+      expect(mockStdout).not.toHaveBeenCalled();
+      expect(mockStderr).not.toHaveBeenCalled();
+
+      makeSpy.mockRestore();
+    });
+
+    test('on() accepts a maker `.is` type guard as the selector', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901.is, (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('matches'));
+      // A message with a different code is not matched by the type guard.
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'other',
+      }));
+
+      expect(observed).toEqual(['matches']);
+    });
+
+    test('on() accepts an arbitrary predicate as the selector', async () => {
+      const observed: string[] = [];
+      // Match any message whose code is in the I29xx family.
+      track(ioHost.on((msg) => (msg.code ?? '').startsWith('CDK_TOOLKIT_I29'), (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('matches'));
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'nope',
+      }));
+
+      expect(observed).toEqual(['matches']);
+    });
+
+    test('a request maker `.is` predicate can answer a request', async () => {
+      // The motivating example: pass IO.<code>.is as the selector for a request.
+      track(ioHost.on(IO.CDK_TOOLKIT_I7010.is, () => ({ respond: true, preventDefault: true })));
+
+      const answer = await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'destroy',
+        code: 'CDK_TOOLKIT_I7010',
+        message: 'proceed?',
+        defaultResponse: false,
+        data: { motivation: 'because' },
+      });
+
+      expect(answer).toBe(true);
+    });
+
+    test('on() with matchAny() fires for any of the given codes', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
+        observed.push(`${msg.code}:${msg.message}`);
+      }));
+
+      await ioHost.notify(listMessage('a'));
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I1000',
+        message: 'b',
+      }));
+      // A code not in the set is ignored.
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'c',
+      }));
+
+      expect(observed).toEqual(['CDK_TOOLKIT_I2901:a', 'CDK_TOOLKIT_I1000:b']);
     });
 
     test('rewrite() replaces the printed text for every matching message', async () => {
@@ -914,6 +1073,54 @@ describe('CliIoHost', () => {
 
         expect(response).toBe(true);
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+      });
+
+      test('a respond value skips the prompt but still surfaces the question', async () => {
+        // No preventDefault, so the question is written; but the prompt is
+        // skipped and the request resolves with the supplied value.
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('Are you sure?')); // surfaced, not prompted
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respond + preventDefault skips the prompt and suppresses the question', async () => {
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).not.toHaveBeenCalled();
+        expect(mockStderr).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('preventDefault alone skips the prompt silently and resolves with the default', async () => {
+        // confirmRequest()'s defaultResponse is false; preventDefault means the
+        // listener handled it, so we return that default without prompting.
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ preventDefault: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(false);
+        expect(mockStdout).not.toHaveBeenCalled();
+        expect(mockStderr).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respond(..., false) answers the request while still surfacing the question', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true, /* suppressQuestion */ false);
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('Are you sure?'));
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
       });
     });
 

@@ -285,6 +285,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     new TextFile(repo, '.projen/prepare-verdaccio.sh', {
       executable: true,
+      committed: false,
       lines: [
         '#!/bin/bash',
         'npm install -g verdaccio pm2',

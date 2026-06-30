@@ -57,6 +57,14 @@ export const IO = {
     description: 'Cloud Assembly synthesis is starting',
     interface: 'StackSelectionDetails',
   }),
+  CDK_TOOLKIT_I1002: make.info({
+    code: 'CDK_TOOLKIT_I1002',
+    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
+  }),
+  CDK_TOOLKIT_I1003: make.info({
+    code: 'CDK_TOOLKIT_I1003',
+    description: 'Stacks added to the selection because they are dependent on the selected stacks (downstream expansion)',
+  }),
   CDK_TOOLKIT_I1901: make.result<StackAndAssemblyData>({
     code: 'CDK_TOOLKIT_I1901',
     description: 'Provides stack data',
@@ -384,15 +392,6 @@ export const IO = {
     code: 'CDK_TOOLKIT_I7101',
     description: 'Start stack destroying',
     interface: 'StackDestroy',
-  }),
-
-  CDK_TOOLKIT_W7010: make.warn({
-    code: 'CDK_TOOLKIT_W7010',
-    description: 'A provided stack name does not match any stack',
-  }),
-  CDK_TOOLKIT_W7011: make.warn({
-    code: 'CDK_TOOLKIT_W7011',
-    description: 'No stacks match the provided names, nothing to destroy',
   }),
 
   CDK_TOOLKIT_I7900: make.result<cxapi.CloudFormationStackArtifact>({

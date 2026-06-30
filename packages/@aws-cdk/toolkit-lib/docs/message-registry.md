@@ -64,6 +64,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Operation} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I1002` | Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion) | `info` | n/a |
+| `CDK_TOOLKIT_I1003` | Stacks added to the selection because they are dependent on the selected stacks (downstream expansion) | `info` | n/a |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
@@ -126,8 +128,6 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7010` | Confirm destroy stacks | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
 | `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
-| `CDK_TOOLKIT_W7010` | A provided stack name does not match any stack | `warn` | n/a |
-| `CDK_TOOLKIT_W7011` | No stacks match the provided names, nothing to destroy | `warn` | n/a |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |

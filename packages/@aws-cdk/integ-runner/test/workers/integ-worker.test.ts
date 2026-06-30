@@ -1,6 +1,6 @@
-import * as builtinFs from 'fs';
+import builtinFs from 'fs';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import { IntegTestRunner } from '../../lib/runner';
 import { integTestWorker } from '../../lib/workers/extract';

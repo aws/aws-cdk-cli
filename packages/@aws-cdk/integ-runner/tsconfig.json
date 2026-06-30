@@ -5,7 +5,7 @@
     "outDir": "lib",
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -13,8 +13,8 @@
       "es2022",
       "esnext.disposable"
     ],
-    "module": "NodeNext",
-    "noEmitOnError": false,
+    "module": "node18",
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -56,9 +56,6 @@
     },
     {
       "path": "../cloud-assembly-api"
-    },
-    {
-      "path": "../../aws-cdk"
     },
     {
       "path": "../cdk-assets-lib"

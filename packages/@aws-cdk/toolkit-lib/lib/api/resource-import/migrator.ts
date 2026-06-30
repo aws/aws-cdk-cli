@@ -1,5 +1,5 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { ImportDeploymentOptions, ResourcesToImport } from './importer';
 import { ResourceImporter } from './importer';

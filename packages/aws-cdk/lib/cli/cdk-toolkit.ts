@@ -4,9 +4,9 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, DestroyOptions as DestroyToolkitOptions, DestroyResult, ICloudAssemblySource, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
@@ -184,14 +184,6 @@ class InternalToolkit extends Toolkit {
    */
   protected async sdkProvider(_action: ToolkitAction): Promise<SdkProvider> {
     return this._sdkProvider;
-  }
-
-  /**
-   * Destroy stacks as part of a deploy (e.g. removing a stack that synthesized
-   * to no resources), keeping emitted messages attributed to the deploy action.
-   */
-  public async destroyFromDeploy(cx: ICloudAssemblySource, options: DestroyToolkitOptions = {}): Promise<DestroyResult> {
-    return this.destroyForAction(cx, 'deploy', options);
   }
 }
 
@@ -919,46 +911,54 @@ export class CdkToolkit {
   }
 
   public async destroy(options: DestroyOptions) {
-    if ((options.concurrency ?? 1) > 1) {
+    // Keep the "deployed" wording when a destroy runs as part of a deploy.
+    const action = options.fromDeploy ? 'deploy' : 'destroy';
+
+    if ((options.concurrency || 1) > 1) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
-    // Declining the confirmation throws an `AbortError` (`DestroyAborted`), which
-    // the top-level CLI handler presents softly with a non-zero exit code.
-    await this.toolkit.destroy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
-  }
 
-  /**
-   * Destroy stacks as part of a deploy (e.g. removing a stack that synthesized
-   * to no resources). Keeps emitted messages attributed to the deploy action.
-   */
-  public async destroyFromDeploy(options: DestroyOptions) {
-    if ((options.concurrency ?? 1) > 1) {
-      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
-    }
-    await this.toolkit.destroyFromDeploy(this.props.cloudExecutable, this.buildToolkitDestroyOptions(options));
-  }
+    // The destroy action runs through toolkit-lib.
+    // Use listeners to keep the messages as they were before.
+    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
+    // The success line was `info` in the historical `cdk destroy`, not `result`.
+    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
-  private buildToolkitDestroyOptions(options: DestroyOptions) {
-    const patterns = options.selector.patterns;
-    let strategy: StackSelectionStrategy;
-    if (patterns.length > 0) {
-      strategy = StackSelectionStrategy.PATTERN_MATCH;
-    } else if (options.selector.allTopLevel) {
-      // `--all`: every stack in the top-level (main) assembly.
-      strategy = StackSelectionStrategy.MAIN_ASSEMBLY;
-    } else {
-      strategy = StackSelectionStrategy.ONLY_SINGLE;
+    // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
+    // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
+    // the listener both suppresses the log and aborts the command (the top-level
+    // renders `AbortError` as "Deletion cancelled").
+    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+      throw new AbortError('DestroyAborted', 'Deletion cancelled');
+    });
+
+    if (options.force) {
+      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
     }
-    return {
-      stacks: {
-        patterns,
-        strategy,
-        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
-      },
-      force: options.force,
-      roleArn: options.roleArn,
-      concurrency: options.concurrency,
-    };
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
+      await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.allTopLevel
+            ? StackSelectionStrategy.MAIN_ASSEMBLY
+            : options.selector.patterns.length > 0
+              ? StackSelectionStrategy.PATTERN_MATCH
+              : StackSelectionStrategy.ONLY_SINGLE,
+          expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
+        },
+        roleArn: options.roleArn,
+        concurrency: options.concurrency,
+      });
+    } finally {
+      this.ioHost.removeAllListeners();
+    }
   }
 
   public async list(
@@ -1814,6 +1814,11 @@ export interface DestroyOptions {
   roleArn?: string;
 
   /**
+   * Whether the destroy request came from a deploy.
+   */
+  fromDeploy?: boolean;
+
+  /**
    * Maximum number of simultaneous destroys (dependency permitting) to execute.
    */
   concurrency?: number;
@@ -2119,7 +2124,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
   constructor(
     private readonly deployments: Deployments,
     private readonly ioHost: CliIoHost,
-    private readonly stackOperations: Pick<CdkToolkit, 'destroy' | 'destroyFromDeploy' | 'rollback'>,
+    private readonly stackOperations: Pick<CdkToolkit, 'destroy' | 'rollback'>,
     private readonly options: WorkGraphDeploymentActionsOptions,
   ) {
   }
@@ -2215,11 +2220,12 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, skipping deployment.', chalk.bold(stack.displayName));
       } else {
         await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, deleting existing stack.', chalk.bold(stack.displayName));
-        await this.stackOperations.destroyFromDeploy({
+        await this.stackOperations.destroy({
           selector: { patterns: [stack.hierarchicalId] },
           exclusively: true,
           force: true,
           roleArn: this.options.roleArn,
+          fromDeploy: true,
         });
       }
       return;
