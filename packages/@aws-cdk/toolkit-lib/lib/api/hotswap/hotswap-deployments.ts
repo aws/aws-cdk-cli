@@ -2,7 +2,7 @@ import { format } from 'util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type { WaiterResult } from '@smithy/util-waiter';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { NonHotswappableReason } from '../../payloads';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';

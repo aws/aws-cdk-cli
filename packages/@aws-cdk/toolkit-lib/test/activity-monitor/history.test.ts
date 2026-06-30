@@ -1,5 +1,5 @@
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { HistoryActivityPrinter } from '../../lib/private/activity-printer';
 import { testStack } from '../_helpers/assembly';
 import { stderr } from '../_helpers/console-listener';

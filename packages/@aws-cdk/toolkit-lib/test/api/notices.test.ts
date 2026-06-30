@@ -1,8 +1,8 @@
-import * as https from 'https';
+import https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import * as nock from 'nock';
+import nock from 'nock';
 import { Context } from '../../lib/api/context';
 import { asIoHelper } from '../../lib/api/io/private';
 import { NetworkDetector } from '../../lib/api/network-detector/network-detector';

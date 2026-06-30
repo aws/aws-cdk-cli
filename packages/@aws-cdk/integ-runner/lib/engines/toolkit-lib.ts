@@ -3,7 +3,7 @@ import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
 import type { ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
 import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { CdkDeployResult, CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
 import { ProxyAgentProvider } from './proxy-agent';

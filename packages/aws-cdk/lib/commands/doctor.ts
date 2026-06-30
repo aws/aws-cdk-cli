@@ -1,6 +1,6 @@
 import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { Settings } from '../api/settings';
 import type { IoHelper } from '../api-private';
 import { displayVersionMessage } from '../cli/display-version';

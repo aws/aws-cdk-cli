@@ -1,8 +1,11 @@
-import * as child_process from 'child_process';
+import child_process from 'child_process';
+import type { ChildProcess } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
+import { promisify } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
+import { makeConfig } from '../../lib/cli/cli-config';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 import { type JsPackageManager } from '../../lib/commands/init/package-manager';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
@@ -79,9 +82,7 @@ describe('constructs version', () => {
   });
 
   cliTest('can specify project name with project-name option via CLI', async (workDir) => {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const execAsync = promisify(child_process.exec);
     const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
 
     const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', TERM: 'dumb', NO_COLOR: '1' };
@@ -721,9 +722,7 @@ describe('constructs version', () => {
   30_000);
 
   cliTest('unstable flag functionality works correctly', async (workDir) => {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const execAsync = promisify(child_process.exec);
     const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
 
     const repoDir = await createMultiTemplateRepository(workDir, [
@@ -765,9 +764,7 @@ describe('constructs version', () => {
   }, 100_000);
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const execAsync = promisify(child_process.exec);
 
     const templateDir = await createSingleLanguageTemplate(workDir, 'conflict-test', 'typescript');
 
@@ -782,7 +779,6 @@ describe('constructs version', () => {
 
   cliTest('template-path implies from-path validation works', async (workDir) => {
     // Test that the implication is properly configured
-    const { makeConfig } = await import('../../lib/cli/cli-config');
     const config = await makeConfig();
     expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
 
@@ -1189,7 +1185,7 @@ describe('constructs version', () => {
       once: jest.fn((event, cb) => {
         if (event === 'exit') cb(0);
       }),
-    }) as unknown as child_process.ChildProcess);
+    }) as unknown as ChildProcess);
 
     try {
       const templateDir = path.join(workDir, 'csharp-template');
@@ -1437,7 +1433,7 @@ describe('constructs version', () => {
       // Mock child_process.spawn to track which package manager is called
       spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
         stdout: { on: jest.fn() },
-      }) as unknown as child_process.ChildProcess);
+      }) as unknown as ChildProcess);
     });
 
     afterEach(() => {

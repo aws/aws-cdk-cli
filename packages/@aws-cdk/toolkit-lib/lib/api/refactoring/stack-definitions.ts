@@ -1,7 +1,7 @@
 import * as util from 'node:util';
 import type { Environment } from '@aws-cdk/cx-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { CloudFormationStack, ResourceMapping } from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash } from '../../util';
