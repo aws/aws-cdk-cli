@@ -21723,7 +21723,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** semver@7.8.4 - https://www.npmjs.com/package/semver/v/7.8.4 | ISC
+** semver@7.8.5 - https://www.npmjs.com/package/semver/v/7.8.5 | ISC
 The ISC License
 
 Copyright (c) Isaac Z. Schlueter and Contributors
@@ -21864,7 +21864,7 @@ ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ----------------
 
-** yargs@17.7.2 - https://www.npmjs.com/package/yargs/v/17.7.2 | MIT
+** yargs@17.7.3 - https://www.npmjs.com/package/yargs/v/17.7.3 | MIT
 MIT License
 
 Copyright 2010 James Halliday (mail@substack.net); Modified work Copyright 2014 Contributors (ben@npmjs.com)
