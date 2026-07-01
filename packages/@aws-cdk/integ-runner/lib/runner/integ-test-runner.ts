@@ -414,7 +414,7 @@ export class IntegTestRunner {
             all: true,
             force: true,
             app: this.helper.cdkApp,
-            output: path.relative(this.helper.directory, this.helper.cdkOutDir),
+            output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
             ...actualTestCase.cdkCommandOptions?.destroy?.args,
             context: this.helper.getContext(actualTestCase.cdkCommandOptions?.destroy?.args?.context),
             roleArn: options.roleArn ?? actualTestCase.cdkCommandOptions?.destroy?.args?.roleArn,
@@ -477,8 +477,8 @@ export class IntegTestRunner {
         ...actualTestCase.stacks,
         ...actualTestCase.assertionStack ? [actualTestCase.assertionStack] : [],
       ],
-      output: path.relative(this.helper.directory, this.helper.cdkOutDir),
-      outputsFile: path.relative(this.helper.directory, path.join(this.helper.cdkOutDir, 'assertion-results.json')),
+      output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
+      outputsFile: path.relative(this.helper.directory, path.join(this.helper.temporarySnapshotDir, 'assertion-results.json')),
       ...actualTestCase?.cdkCommandOptions?.deploy?.args,
       context: {
         ...this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
@@ -507,7 +507,7 @@ export class IntegTestRunner {
           `  ${[
             'cdk synth',
             `-a '${this.helper.cdkApp}'`,
-            `-o '${this.helper.cdkOutDir}'`,
+            `-o '${this.helper.temporarySnapshotDir}'`,
             ...Object.entries(this.helper.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
             watchArgs.stacks.join(' '),
             `--outputs-file ${watchArgs.outputsFile}`,
@@ -518,8 +518,8 @@ export class IntegTestRunner {
       });
     }
 
-    const assertionResults = path.join(this.helper.cdkOutDir, 'assertion-results.json');
-    const watcher = chokidar.watch([this.helper.cdkOutDir], {
+    const assertionResults = path.join(this.helper.temporarySnapshotDir, 'assertion-results.json');
+    const watcher = chokidar.watch([this.helper.temporarySnapshotDir], {
       cwd: this.helper.directory,
     });
     watcher.on('all', (event: EventName, file: string) => {
@@ -646,7 +646,7 @@ export class IntegTestRunner {
         stacks: [
           ...actualTestCase.stacks,
         ],
-        output: path.relative(this.helper.directory, this.helper.cdkOutDir),
+        output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
         ...actualTestCase?.cdkCommandOptions?.deploy?.args,
         context: this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
         app: this.helper.cdkApp,
@@ -680,9 +680,9 @@ export class IntegTestRunner {
             actualTestCase.assertionStack,
           ],
           rollback: false,
-          output: path.relative(this.helper.directory, this.helper.cdkOutDir),
+          output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
           ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-          outputsFile: path.relative(this.helper.directory, path.join(this.helper.cdkOutDir, 'assertion-results.json')),
+          outputsFile: path.relative(this.helper.directory, path.join(this.helper.temporarySnapshotDir, 'assertion-results.json')),
           context: this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
           app: this.helper.cdkApp,
         });
@@ -698,7 +698,7 @@ export class IntegTestRunner {
 
       if (actualTestCase.assertionStack && actualTestCase.assertionStackName) {
         return this.processAssertionResults(
-          path.join(this.helper.cdkOutDir, 'assertion-results.json'),
+          path.join(this.helper.temporarySnapshotDir, 'assertion-results.json'),
           actualTestCase.assertionStackName,
           actualTestCase.assertionStack,
         );
