@@ -1,4 +1,5 @@
 import { trimToRecentLines, parseLambdaLogEvents, cloudWatchLogsConsoleUrl } from './format-utils';
+import type { InvestigateOptions } from './investigate-ecs-service';
 import {
   serviceTokenReferencedLogicalId,
   functionNameFromArnOrName,
@@ -7,8 +8,25 @@ import {
 } from './resource-identifiers';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
 import { deserializeStructure } from '../../util';
-import type { ICloudFormationClient, ICloudWatchLogsClient, ILambdaClient, SDK } from '../aws-auth/sdk';
+import type { ICloudFormationClient, ICloudTrailClient, ICloudWatchLogsClient, ILambdaClient, SDK } from '../aws-auth/sdk';
 import type { ResourceError } from '../stack-events/resource-errors';
+
+/**
+ * Options for the custom-resource investigation, including the CloudTrail lookup that is
+ * specific to it (the backing Lambda's control-plane errors). ECS and other resource types
+ * do not consult CloudTrail, so this option is not on the shared {@link InvestigateOptions}.
+ */
+export interface InvestigateCustomResourceOptions extends InvestigateOptions {
+  /**
+   * Whether CloudTrail may be consulted for control-plane errors (e.g. AccessDenied) made by
+   * the backing Lambda around the failure.
+   *
+   * Off during `deploy` (CloudTrail events aren't delivered yet); on during `diagnose`.
+   *
+   * @default false
+   */
+  readonly cloudTrailEnabled?: boolean;
+}
 
 /** Fallback look-back when no failure timestamp is available. */
 const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
@@ -38,6 +56,7 @@ export async function investigateCustomResource(
   err: ResourceError,
   sdk: SDK,
   debug: (msg: string) => Promise<void>,
+  options: InvestigateCustomResourceOptions = {},
 ): Promise<AdditionalDiagnosticContext[]> {
   if (!err.logicalId) {
     await debug('Custom resource investigation: no logical ID available');
@@ -85,7 +104,154 @@ export async function investigateCustomResource(
   // (and uses it as the default physical ID). Targeting it gives the exact invocation.
   const streamName = extractLogStreamName(err.message) ?? logStreamNameFromPhysicalId(err.physicalId);
 
-  return fetchCustomResourceLogs(cwl, lambda, functionName, templateLogGroup, streamName, err.timestamp, region, debug);
+  const results = await fetchCustomResourceLogs(cwl, lambda, functionName, templateLogGroup, streamName, err.timestamp, region, debug);
+
+  // Control-plane errors (e.g. the function's execution role being denied an API call) don't
+  // appear in the function's own logs in a usable form, but CloudTrail records them. Those
+  // events are delivered with a few minutes' latency, so they're only worth querying on the
+  // `diagnose` path (run after the fact) — on `deploy` we instead point the user there.
+  if (!options.cloudTrailEnabled) {
+    results.push({
+      source: 'CloudTrail',
+      messages: [
+        'If this looks like a permissions error, run `cdk diagnose` in a few minutes:',
+        'CloudTrail records control-plane errors (e.g. AccessDenied) that the logs above may',
+        'not show, but its events take several minutes to become available.',
+      ],
+    });
+  } else if (err.timestamp) {
+    // Only query CloudTrail when we can bound the search to the failure time. Without a
+    // timestamp (e.g. change-set / early-validation errors) the window would default to "now",
+    // surfacing unrelated recent activity by the same function and misleading the user.
+    const ctContext = await investigateViaCloudTrail(sdk.cloudTrail(), functionName, err.timestamp, debug);
+    if (ctContext) {
+      results.push(ctContext);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Maximum number of CloudTrail error events to surface.
+ */
+const MAX_CLOUDTRAIL_EVENTS = 5;
+
+/**
+ * Maximum CloudTrail result pages to page through (bounds the work; the events we want are
+ * scoped to the function and the window, so this is a generous safety cap).
+ */
+const MAX_CLOUDTRAIL_PAGES = 5;
+
+/**
+ * How far before/after the failure to scan CloudTrail (events have delivery latency and the
+ * window of interest is the failing invocation).
+ */
+const CLOUDTRAIL_WINDOW_BEFORE_MS = 5 * 60 * 1000;
+const CLOUDTRAIL_WINDOW_AFTER_MS = 15 * 60 * 1000;
+
+/**
+ * Look up CloudTrail for errored API calls (e.g. AccessDenied) made by the backing Lambda
+ * around the time of failure, and surface them.
+ *
+ * The lookup is scoped to the function server-side via the Username attribute (the Lambda
+ * execution role's assumed-role session name is the function name, which CloudTrail indexes
+ * as the event Username), so it returns only the function's own calls. Returns `undefined`
+ * when there's nothing useful (or the lookup fails — best-effort like everything else here).
+ */
+async function investigateViaCloudTrail(
+  cloudTrail: ICloudTrailClient,
+  functionName: string,
+  timestamp: Date,
+  debug: (msg: string) => Promise<void>,
+): Promise<AdditionalDiagnosticContext | undefined> {
+  const failureTime = timestamp.valueOf();
+  try {
+    const events: ParsedCloudTrailEvent[] = [];
+    let nextToken: string | undefined;
+    let pages = 0;
+    do {
+      const resp = await cloudTrail.lookupEvents({
+        LookupAttributes: [{ AttributeKey: 'Username', AttributeValue: functionName }],
+        StartTime: new Date(failureTime - CLOUDTRAIL_WINDOW_BEFORE_MS),
+        EndTime: new Date(failureTime + CLOUDTRAIL_WINDOW_AFTER_MS),
+        MaxResults: 50,
+        NextToken: nextToken,
+      });
+      for (const e of resp.Events ?? []) {
+        const parsed = parseCloudTrailEvent(e.CloudTrailEvent);
+        if (parsed) {
+          events.push(parsed);
+        }
+      }
+      nextToken = resp.NextToken;
+    } while (nextToken && ++pages < MAX_CLOUDTRAIL_PAGES);
+
+    const errorEvents = events.filter(e => e.errorCode);
+    if (errorEvents.length === 0) {
+      await debug(`CloudTrail: no errored events for ${functionName} in the failure window`);
+      return undefined;
+    }
+
+    const shown = errorEvents.slice(0, MAX_CLOUDTRAIL_EVENTS);
+    const messages = shown.map(e => `${e.errorCode} on ${e.eventSource ?? '?'}:${e.eventName ?? '?'}${e.errorMessage ? ` — ${e.errorMessage}` : ''}`);
+    if (errorEvents.length > shown.length) {
+      messages.push(`(${errorEvents.length - shown.length} more error event(s) not shown)`);
+    }
+
+    return { source: 'CloudTrail Errors', messages };
+  } catch (e: any) {
+    await debug(`CloudTrail: lookup failed: ${e.message}`);
+    // If the lookup itself is denied (a locked-down account may not grant
+    // `cloudtrail:LookupEvents` to the lookup role), silently returning would leave the user
+    // with the same unhelpful message as if CloudTrail had nothing — hiding an actionable,
+    // one-permission fix. Surface it instead.
+    if (isAccessDeniedError(e)) {
+      return {
+        source: 'CloudTrail',
+        messages: [
+          'Could not query CloudTrail for the root cause: the lookup role is missing the',
+          '`cloudtrail:LookupEvents` permission. Grant it to surface control-plane errors',
+          '(e.g. AccessDenied) that the logs above may not show.',
+        ],
+      };
+    }
+    return undefined;
+  }
+}
+
+/**
+ * Whether an error from an AWS SDK call is an authorization failure. CloudTrail raises
+ * `AccessDeniedException`; other services phrase it as `AccessDenied`, so match both.
+ */
+function isAccessDeniedError(e: any): boolean {
+  const name = e?.name ?? e?.Code ?? '';
+  return name === 'AccessDenied' || name === 'AccessDeniedException';
+}
+
+interface ParsedCloudTrailEvent {
+  eventName?: string;
+  eventSource?: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+/** Parse the `CloudTrailEvent` JSON blob into the fields we care about. */
+function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent | undefined {
+  if (!json) {
+    return undefined;
+  }
+  try {
+    const obj = JSON.parse(json);
+    return {
+      eventName: typeof obj.eventName === 'string' ? obj.eventName : undefined,
+      eventSource: typeof obj.eventSource === 'string' ? obj.eventSource : undefined,
+      errorCode: typeof obj.errorCode === 'string' ? obj.errorCode : undefined,
+      errorMessage: typeof obj.errorMessage === 'string' ? obj.errorMessage : undefined,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /**
