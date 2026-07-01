@@ -478,3 +478,50 @@ describe('deploy failures', () => {
     expect(error.name).toBe('DeployStackFailed');
   });
 });
+
+describe('--express', () => {
+  test('warns about resources still stabilizing when deployStack reports them', async () => {
+    // Express Mode returns success while some resources are still settling; the
+    // deploy path surfaces this as an extra warning listing those resources.
+    cloudFormation.deployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
+      noOp: false,
+      outputs: {},
+      deleteFailures: [],
+      stabilizingResources: [{
+        logicalResourceId: 'MyResource',
+        resourceType: 'AWS::S3::Bucket',
+        reason: 'Resource operation completed using Express Mode. It may continue becoming available in the background.',
+      }],
+    });
+
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      express: true,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+
+  test('does not warn when no resources are still stabilizing', async () => {
+    // Express Mode is on, but the default mock reports an empty
+    // `stabilizingResources`, so the deploy path emits no stabilization warning.
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      express: true,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+});
