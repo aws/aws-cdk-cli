@@ -58,6 +58,8 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
     const cx = await options.toolkit.fromCdkApp(app, {
       workingDirectory: options.projectDir,
       lookups: false,
+      // Make jsii forward host-language (Python/Java) source frames; TS resolves via source maps.
+      env: { JSII_HOST_STACK_TRACES: '1' },
     });
     cached = await options.toolkit.synth(cx);
   } catch (err) {
