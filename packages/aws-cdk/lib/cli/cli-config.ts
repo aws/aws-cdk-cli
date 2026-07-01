@@ -105,6 +105,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'import-existing-resources': { type: 'boolean', desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist', default: true },
+          'express': { type: 'boolean', desc: 'Whether creation of bootstrap stack should use CloudFormation Express mode', default: false },
         },
       },
       'gc': {
@@ -169,8 +170,8 @@ export async function makeConfig(): Promise<CliConfig> {
           'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
-            desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +
-              'Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
+            desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
+              'iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
             negativeAlias: 'R',
           },
           'hotswap': {
@@ -218,6 +219,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
           'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
+          'express': { type: 'boolean', desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default', default: false },
         },
         arg: {
           name: 'STACKS',
@@ -388,6 +390,7 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only destroy requested stacks, don\'t include dependees' },
           force: { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
           concurrency: { type: 'number', desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.', default: 1, requiresArg: true },
+          express: { type: 'boolean', desc: 'Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default', default: false },
         },
       },
       'diff': {

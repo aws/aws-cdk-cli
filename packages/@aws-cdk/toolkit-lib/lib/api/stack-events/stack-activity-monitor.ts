@@ -162,6 +162,14 @@ export class StackActivityMonitor {
     return this.poller.deleteFailures;
   }
 
+  /**
+   * Resources that completed deployment but are still stabilizing.
+   * Populated for Express Mode deployments.
+   */
+  public get stabilizingResources() {
+    return this.poller.stabilizingResources;
+  }
+
   public async start() {
     this.monitorId = randomUUID();
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {

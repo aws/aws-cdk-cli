@@ -64,3 +64,21 @@ describe('deploy --method=execute-change-set', () => {
     }));
   });
 });
+
+describe('deploy --express', () => {
+  test('passes express: true to CdkToolkit.deploy', async () => {
+    await exec(['deploy', '--app', 'echo', '--express', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      express: true,
+    }));
+  });
+
+  test('express defaults to false', async () => {
+    await exec(['deploy', '--app', 'echo', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      express: false,
+    }));
+  });
+});

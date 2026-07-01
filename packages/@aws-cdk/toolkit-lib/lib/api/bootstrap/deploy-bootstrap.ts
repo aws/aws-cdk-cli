@@ -86,6 +86,7 @@ export class BootstrapStack {
         outputs: {},
         stackArn: this.currentToolkitInfo.bootstrapStack.stackId,
         deleteFailures: [],
+        stabilizingResources: [],
       } satisfies SuccessfulDeployStackResult;
 
       // Validate that the bootstrap stack we're trying to replace is from the same variant as the one we're trying to deploy
@@ -150,6 +151,7 @@ export class BootstrapStack {
         },
         parameters,
         usePreviousParameters: options.usePreviousParameters ?? true,
+        express: options.express,
         // Obviously we can't need a bootstrap stack to deploy a bootstrap stack
         envResources: new NoBootstrapStackEnvironmentResources(this.resolvedEnvironment, this.sdk, this.ioHelper),
         diagnoser: new CloudFormationStackDiagnoser({
