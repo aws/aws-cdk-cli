@@ -247,9 +247,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       storage: './storage',
       auth: { htpasswd: { file: './htpasswd' } },
       uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
-      // The bundled `aws-cdk` tarball is larger than Verdaccio's default 10mb
-      // body limit
-      max_body_size: '100mb',
+      max_body_size: '20mb',
       packages: {} as Record<string, unknown>,
     };
 
