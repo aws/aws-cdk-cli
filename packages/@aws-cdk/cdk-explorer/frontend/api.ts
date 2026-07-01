@@ -29,9 +29,14 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface AppInfoResponse {
+  readonly appDir: string;
+}
+
 export const api = {
   listFiles: (dir = ''): Promise<FilesResponse> => getJson(`/api/files?dir=${encodeURIComponent(dir)}`),
   readFile: (filePath: string): Promise<FileResponse> => getJson(`/api/file?path=${encodeURIComponent(filePath)}`),
   getTree: (): Promise<TreeResponse> => getJson('/api/tree'),
   getViolations: (): Promise<ViolationsResponse> => getJson('/api/policy-validation'),
+  getAppInfo: (): Promise<AppInfoResponse> => getJson('/api/info'),
 };

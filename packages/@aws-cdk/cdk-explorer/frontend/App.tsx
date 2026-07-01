@@ -14,12 +14,14 @@ export function App(): JSX.Element {
   const [tree, setTree] = React.useState<TreeResponse | undefined>();
   const [violations, setViolations] = React.useState<ViolationsResponse | undefined>();
   const [error, setError] = React.useState<string | undefined>();
+  const [appDir, setAppDir] = React.useState<string | undefined>();
 
   React.useEffect(() => {
-    Promise.all([api.getTree(), api.getViolations()])
-      .then(([t, v]) => {
+    Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()])
+      .then(([t, v, info]) => {
         setTree(t);
         setViolations(v);
+        setAppDir(info.appDir);
         setError(undefined);
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -33,7 +35,7 @@ export function App(): JSX.Element {
   return (
     <div style={PAGE_STYLE} ref={vSplit.containerRef}>
       <header style={TITLE_BLOCK_STYLE}>
-        <Header variant="h1" description="last updated: —">CDK Web Explorer</Header>
+        <Header variant="h1" description={appDir ?? '—'}>CDK Web Explorer</Header>
       </header>
       {error && <Box color="text-status-error">{error}</Box>}
       <div style={topRowStyle(vSplit)} ref={hSplit.containerRef}>

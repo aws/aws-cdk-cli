@@ -26,7 +26,7 @@ export interface ApiOptions {
    * Reader for the cloud assembly. Injectable for tests; defaults to the real
    * `readAssembly` against {@link assemblyDir}.
    */
-  readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult;
+  readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult | Promise<AssemblyReadResult>;
 }
 
 export function createApiRouter(options: ApiOptions): Router {
@@ -37,6 +37,10 @@ export function createApiRouter(options: ApiOptions): Router {
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  router.get('/info', (_req, res) => {
+    res.json({ appDir });
   });
 
   router.get('/files', (req, res) => {
@@ -85,8 +89,8 @@ export function createApiRouter(options: ApiOptions): Router {
     return res.json({ path: toPosix(path.relative(appDir, resolved)), content: buffer.toString('utf-8') });
   });
 
-  router.get('/tree', (_req, res) => {
-    withAssembly(readAssembly(assemblyDir), res, (data) => {
+  router.get('/tree', async (_req, res) => {
+    withAssembly(await readAssembly(assemblyDir), res, (data) => {
       const severityByPath = highestSeverityByPath(data.violations);
       const tree = data.tree.map((node) => toWebNode(node, severityByPath, assemblyDir, appDir));
       const body: TreeResponse = { status: 'ok', tree, warnings: data.warnings };
@@ -94,8 +98,8 @@ export function createApiRouter(options: ApiOptions): Router {
     });
   });
 
-  router.get('/policy-validation', (_req, res) => {
-    withAssembly(readAssembly(assemblyDir), res, (data) => {
+  router.get('/policy-validation', async (_req, res) => {
+    withAssembly(await readAssembly(assemblyDir), res, (data) => {
       const index = ConstructIndex.fromTree(data.tree);
       const violations = normalizeViolations(data.violations, index, assemblyDir, appDir);
       const body: ViolationsResponse = { status: 'ok', violations };
@@ -162,6 +166,8 @@ export function toWebNode(
     (child) => DEFAULT_CHILD_IDS.has(child.id) && child.children.length === 0 && child.type !== undefined,
   );
   if (!defaultChild) {
+    const highestSeverity = ownSeverity;
+    const inheritedSeverity = highestSeverity ? undefined : worstChildSeverity(children);
     return {
       path: node.path,
       id: node.id,
@@ -169,10 +175,14 @@ export function toWebNode(
       logicalId: node.logicalId,
       templateFile: node.templateFile ? toPosix(path.relative(assemblyDir, node.templateFile)) : undefined,
       sourceLocation: toWebSourceLocation(node.sourceLocation, appDir),
-      highestSeverity: ownSeverity,
+      highestSeverity,
+      ...(inheritedSeverity && { inheritedSeverity }),
       children,
     };
   }
+  const highestSeverity = moreSevere(ownSeverity, defaultChild.highestSeverity);
+  const remainingChildren = children.filter((child) => child !== defaultChild);
+  const inheritedSeverity = highestSeverity ? undefined : worstChildSeverity(remainingChildren);
   return {
     path: node.path,
     id: node.id,
@@ -180,8 +190,9 @@ export function toWebNode(
     logicalId: defaultChild.logicalId,
     templateFile: defaultChild.templateFile,
     sourceLocation: toWebSourceLocation(node.sourceLocation, appDir) ?? defaultChild.sourceLocation,
-    highestSeverity: moreSevere(ownSeverity, defaultChild.highestSeverity),
-    children: children.filter((child) => child !== defaultChild),
+    highestSeverity,
+    ...(inheritedSeverity && { inheritedSeverity }),
+    children: remainingChildren,
   };
 }
 
@@ -207,6 +218,15 @@ function moreSevere(a: string | undefined, b: string | undefined): string | unde
   if (a === undefined) return b;
   if (b === undefined) return a;
   return severityRank(a) <= severityRank(b) ? a : b;
+}
+
+/** The worst severity across all children (direct or inherited). */
+function worstChildSeverity(children: readonly WebConstructNode[]): string | undefined {
+  let worst: string | undefined;
+  for (const child of children) {
+    worst = moreSevere(worst, child.highestSeverity ?? child.inheritedSeverity);
+  }
+  return worst;
 }
 
 /** Relativize a source location to the app dir, dropping any that escape it. */

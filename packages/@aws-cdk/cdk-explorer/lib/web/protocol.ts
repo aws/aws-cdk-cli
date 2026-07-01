@@ -59,6 +59,12 @@ export interface WebConstructNode {
    * construct has no violation. Used to flag the node in the tree.
    */
   readonly highestSeverity?: string;
+  /**
+   * Highest severity inherited from any descendant. Set when a child (or
+   * deeper) has a violation but this node does not. Lets the tree color
+   * ancestor labels so users can drill down to the offending construct.
+   */
+  readonly inheritedSeverity?: string;
   readonly children: readonly WebConstructNode[];
 }
 

@@ -39,6 +39,8 @@ function TreeNode({ node, depth }: { readonly node: WebConstructNode; readonly d
   const label = friendlyName(node);
   const severity = node.highestSeverity;
   const severityColor = severity ? severityHexColor(severity) : undefined;
+  const inherited = !severity ? node.inheritedSeverity : undefined;
+  const inheritedColor = inherited ? severityHexColor(inherited) : undefined;
 
   return (
     <li style={ITEM_STYLE}>
@@ -57,7 +59,7 @@ function TreeNode({ node, depth }: { readonly node: WebConstructNode; readonly d
             aria-label={`${severity} violation`}
           />
         )}
-        <span style={severityColor ? { ...LABEL_STYLE, color: severityColor } : LABEL_STYLE} title={node.path}>
+        <span style={labelStyle(severityColor, inheritedColor)} title={node.path}>
           {label}
         </span>
         {node.type && (
@@ -82,6 +84,12 @@ function friendlyName(node: WebConstructNode): string {
 /** "AWS::DynamoDB::Table" -> "DynamoDB Table". */
 function friendlyType(type: string): string {
   return type.replace(/^AWS::/, '').split('::').join(' ');
+}
+
+function labelStyle(severityColor: string | undefined, inheritedColor: string | undefined): React.CSSProperties {
+  if (severityColor) return { ...LABEL_STYLE, color: severityColor };
+  if (inheritedColor) return { ...LABEL_STYLE, color: inheritedColor, opacity: 0.7 };
+  return LABEL_STYLE;
 }
 
 const TREE_VIEWPORT_STYLE: React.CSSProperties = { overflowX: 'hidden', overflowY: 'auto', height: '100%' };
