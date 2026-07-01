@@ -42,7 +42,8 @@ jspm_packages/
 !/.prettierignore
 !/.prettierrc.json
 !/test/
-!/tsconfig.dev.json
+!/tsconfig.json
+!/test/tsconfig.json
 !/lib/
 /lib/**/*.js
 /lib/**/*.d.ts
@@ -53,7 +54,6 @@ jspm_packages/
 /dist/version.txt
 !/.eslintrc.js
 .jsii
-tsconfig.json
 .jsii.tabl.json
 !/rosetta/default.ts-fixture
 cli-version.json
