@@ -117,7 +117,7 @@ describe('symlink containment', () => {
 describe('GET /api/tree', () => {
   /** Build an app whose /api router uses an injected assembly reader. */
   function appWith(
-    readAssembly: (dir: string) => AssemblyReadResult,
+    readAssembly: (dir: string) => Promise<AssemblyReadResult>,
     opts: { assemblyDir?: string } = {},
   ): express.Express {
     const a = express();
@@ -127,7 +127,7 @@ describe('GET /api/tree', () => {
 
   test('maps a successful read into an ok TreeResponse with relativized paths', async () => {
     const realAppDir = fs.realpathSync(appDir);
-    const reader = (dir: string): AssemblyReadResult => {
+    const reader = async (dir: string): Promise<AssemblyReadResult> => {
       const node: ConstructNode = {
         path: 'MyStack/Bucket',
         id: 'Bucket',
@@ -155,20 +155,20 @@ describe('GET /api/tree', () => {
   });
 
   test('returns not-synthesized (200) when no assembly is found', async () => {
-    const res = await request(appWith(() => ({ status: 'not-found' }))).get('/api/tree');
+    const res = await request(appWith(async () => ({ status: 'not-found' }))).get('/api/tree');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'not-synthesized' });
   });
 
   test('returns 500 when the read errors', async () => {
-    const res = await request(appWith(() => ({ status: 'error', message: 'bad manifest' }))).get('/api/tree');
+    const res = await request(appWith(async () => ({ status: 'error', message: 'bad manifest' }))).get('/api/tree');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'bad manifest' });
   });
 
   test('defaults the assembly dir to <appDir>/cdk.out', async () => {
     let seen: string | undefined;
-    const reader = (dir: string): AssemblyReadResult => {
+    const reader = async (dir: string): Promise<AssemblyReadResult> => {
       seen = dir;
       return { status: 'not-found' };
     };
@@ -178,7 +178,7 @@ describe('GET /api/tree', () => {
 
   test('honors an explicit assemblyDir override', async () => {
     let seen: string | undefined;
-    const reader = (dir: string): AssemblyReadResult => {
+    const reader = async (dir: string): Promise<AssemblyReadResult> => {
       seen = dir;
       return { status: 'not-found' };
     };
@@ -188,7 +188,7 @@ describe('GET /api/tree', () => {
 });
 
 describe('GET /api/policy-validation', () => {
-  function appWith(readAssembly: (dir: string) => AssemblyReadResult): express.Express {
+  function appWith(readAssembly: (dir: string) => Promise<AssemblyReadResult>): express.Express {
     const a = express();
     a.use('/api', createApiRouter({ appDir, readAssembly }));
     return a;
@@ -196,7 +196,7 @@ describe('GET /api/policy-validation', () => {
 
   test('normalizes violations joined to the construct tree', async () => {
     const realAppDir = fs.realpathSync(appDir);
-    const reader = (dir: string): AssemblyReadResult => {
+    const reader = async (dir: string): Promise<AssemblyReadResult> => {
       const node: ConstructNode = {
         path: 'MyStack/Bucket',
         id: 'Bucket',
@@ -244,13 +244,13 @@ describe('GET /api/policy-validation', () => {
   });
 
   test('returns not-synthesized (200) when no assembly is found', async () => {
-    const res = await request(appWith(() => ({ status: 'not-found' }))).get('/api/policy-validation');
+    const res = await request(appWith(async () => ({ status: 'not-found' }))).get('/api/policy-validation');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ status: 'not-synthesized' });
   });
 
   test('returns 500 when the read errors', async () => {
-    const res = await request(appWith(() => ({ status: 'error', message: 'boom' }))).get('/api/policy-validation');
+    const res = await request(appWith(async () => ({ status: 'error', message: 'boom' }))).get('/api/policy-validation');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'boom' });
   });
