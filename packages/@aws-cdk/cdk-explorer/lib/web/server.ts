@@ -15,6 +15,11 @@ export interface WebServerOptions {
    * `process.cwd()`.
    */
   readonly appDir?: string;
+  /**
+   * Cloud assembly directory to read the construct tree and violations from.
+   * Defaults to `<appDir>/cdk.out`.
+   */
+  readonly assemblyDir?: string;
 }
 
 export interface WebServer {
@@ -36,20 +41,24 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   const app = express();
 
-  registerApi(app, { appDir });
+  registerApi(app, { appDir, assemblyDir: options.assemblyDir });
 
   // Unknown /api routes must return JSON 404, not fall through to the SPA.
   app.use('/api', (_req, res) => res.status(404).json({ error: 'unknown endpoint' }));
 
   // Serve the SPA from the embedded bundle (survives CLI bundling). Named assets
   // by path; any other GET falls back to index.html for client-side routing.
+  // The bundle filename is unversioned, so disable caching to ensure a rebuilt
+  // explorer is always picked up on reload rather than served stale by the browser.
   app.get('/:asset', (req, res, next) => {
     const asset = webAsset(req.params.asset);
     if (!asset) return next();
+    res.set('Cache-Control', 'no-store');
     return res.type(asset.contentType).send(asset.body);
   });
   app.get('*', (_req, res) => {
     const index = indexHtml();
+    res.set('Cache-Control', 'no-store');
     res.type(index.contentType).send(index.body);
   });
 
