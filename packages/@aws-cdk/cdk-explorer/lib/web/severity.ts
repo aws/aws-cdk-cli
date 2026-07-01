@@ -10,11 +10,11 @@ import type { WebViolation, WebViolationSeverity } from './protocol';
 const KNOWN_SEVERITIES = new Set<string>(['fatal', 'error', 'warning', 'info', 'custom']);
 
 /**
- * Classify a severity from a raw, unvalidated policy-validation report into the
- * wire model. Known values and a missing severity pass through unchanged; a
- * value outside the set is mapped to `custom`, keeping the raw value as the
- * label, so a newer or non-conforming report can never produce a wire value
- * that violates {@link WebViolationSeverity}.
+ * Coerce a report's severity into the wire model. aws-cdk-lib already emits standard
+ * levels as-is and non-standard ones as `severity: 'custom'` with the raw label in
+ * `customSeverity`. Since we read the report as untyped JSON, this also folds any
+ * unrecognized `severity` string into `'custom'` (keeping the raw value as its label),
+ * so the result can never be a value outside {@link WebViolationSeverity}.
  */
 export function classifyReportSeverity(
   severity: string | undefined,
