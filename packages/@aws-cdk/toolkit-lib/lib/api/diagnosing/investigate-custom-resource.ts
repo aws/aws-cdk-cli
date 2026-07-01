@@ -202,8 +202,31 @@ async function investigateViaCloudTrail(
     return { source: 'CloudTrail Errors', messages };
   } catch (e: any) {
     await debug(`CloudTrail: lookup failed: ${e.message}`);
+    // If the lookup itself is denied (a locked-down account may not grant
+    // `cloudtrail:LookupEvents` to the lookup role), silently returning would leave the user
+    // with the same unhelpful message as if CloudTrail had nothing — hiding an actionable,
+    // one-permission fix. Surface it instead.
+    if (isAccessDeniedError(e)) {
+      return {
+        source: 'CloudTrail',
+        messages: [
+          'Could not query CloudTrail for the root cause: the lookup role is missing the',
+          '`cloudtrail:LookupEvents` permission. Grant it to surface control-plane errors',
+          '(e.g. AccessDenied) that the logs above may not show.',
+        ],
+      };
+    }
     return undefined;
   }
+}
+
+/**
+ * Whether an error from an AWS SDK call is an authorization failure. CloudTrail raises
+ * `AccessDeniedException`; other services phrase it as `AccessDenied`, so match both.
+ */
+function isAccessDeniedError(e: any): boolean {
+  const name = e?.name ?? e?.Code ?? '';
+  return name === 'AccessDenied' || name === 'AccessDeniedException';
 }
 
 interface ParsedCloudTrailEvent {

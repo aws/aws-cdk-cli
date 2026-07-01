@@ -1017,4 +1017,33 @@ describe('investigateResource custom resource CloudTrail integration', () => {
     expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
     expect(result.find(c => c.source === 'CloudTrail Errors')).toBeUndefined();
   });
+
+  test('diagnose path: surfaces an actionable hint when the CloudTrail lookup itself is denied', async () => {
+    // A locked-down account may not grant `cloudtrail:LookupEvents` to the lookup role.
+    // Swallowing that silently would leave the user with the same unhelpful message; instead
+    // we point them at the missing permission.
+    const denied = new Error('User is not authorized to perform: cloudtrail:LookupEvents');
+    denied.name = 'AccessDeniedException';
+    mockCloudTrailClient.on(LookupEventsCommand).rejects(denied);
+
+    const result = await investigateResource(customResourceError(), sdk, debug, { cloudTrailEnabled: true });
+
+    const hint = result.find(c => c.source === 'CloudTrail');
+    expect(hint).toBeDefined();
+    expect(hint!.messages.join('\n')).toMatch(/cloudtrail:LookupEvents/);
+    // It's the permission hint, not the "run cdk diagnose later" deploy-path hint.
+    expect(hint!.messages.join('\n')).not.toMatch(/cdk diagnose/);
+    expect(result.find(c => c.source === 'CloudTrail Errors')).toBeUndefined();
+  });
+
+  test('diagnose path: stays silent when the CloudTrail lookup fails for a non-permission reason', async () => {
+    // Best-effort: a transient/other failure should degrade silently, not emit a misleading
+    // "grant this permission" hint.
+    mockCloudTrailClient.on(LookupEventsCommand).rejects(new Error('ThrottlingException: rate exceeded'));
+
+    const result = await investigateResource(customResourceError(), sdk, debug, { cloudTrailEnabled: true });
+
+    expect(result.find(c => c.source === 'CloudTrail')).toBeUndefined();
+    expect(result.find(c => c.source === 'CloudTrail Errors')).toBeUndefined();
+  });
 });
