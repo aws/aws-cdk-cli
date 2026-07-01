@@ -66,7 +66,7 @@
     "mock-fs": "^5.5.0",
     "nx": "^22.7.5",
     "prettier": "^2.8",
-    "projen": "^0.99.73",
+    "projen": "^0.100.7",
     "ts-jest": "^29.4.11",
     "tsx": "^4.22.4",
     "typescript": "5.9",
@@ -97,13 +97,13 @@
   "main": "lib/index.js",
   "license": "Apache-2.0",
   "homepage": "https://github.com/aws/aws-cdk",
+  "stability": "stable",
   "publishConfig": {
     "access": "public"
   },
   "version": "0.0.0",
   "packageManager": "yarn@4.13.0",
   "types": "lib/index.d.ts",
-  "stability": "stable",
   "jsii": {
     "outdir": "dist",
     "targets": {
@@ -131,13 +131,8 @@
         "moduleName": "github.com/cdklabs/cloud-assembly-schema-go"
       }
     },
-    "tsc": {
-      "outDir": "lib",
-      "rootDir": "lib"
-    },
-    "excludeTypescript": [
-      "**/test/**/*.ts"
-    ],
+    "tsconfig": "tsconfig.json",
+    "validateTsconfig": "strict",
     "projectReferences": true
   },
   "installConfig": {

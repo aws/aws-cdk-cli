@@ -38,7 +38,9 @@
     "lib/**/*.ts",
     "bin/**/*.ts"
   ],
-  "exclude": [],
+  "exclude": [
+    "node_modules"
+  ],
   "references": [
     {
       "path": "../@aws-cdk/cdk-assets-lib"

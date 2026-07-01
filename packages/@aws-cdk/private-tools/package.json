@@ -50,7 +50,7 @@
     "jszip": "^3.10.1",
     "nx": "^22.7.5",
     "prettier": "^2.8",
-    "projen": "^0.99.73",
+    "projen": "^0.100.7",
     "timezone-mock": "^1.4.3",
     "ts-jest": "^29.4.11",
     "typescript": "5.9"

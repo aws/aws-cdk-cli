@@ -47,10 +47,10 @@ jspm_packages/
 !/.github/pull_request_template.md
 !/test/
 !/tsconfig.json
-!/tsconfig.dev.json
 !/src/
 /lib
 /dist/
+!/projenrc/tsconfig.json
 !/aws-cdk-cli.code-workspace
 /.nx
 !/nx.json
