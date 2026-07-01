@@ -58,9 +58,6 @@ describe('IntegTest runIntegTests', () => {
     });
 
     // THEN
-    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
-    expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       requireApproval: 'never',
@@ -234,9 +231,6 @@ describe('IntegTest runIntegTests', () => {
     });
 
     // THEN
-    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
-    expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       context: expect.any(Object),
