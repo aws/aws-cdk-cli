@@ -1,22 +1,9 @@
-import { LegacyIntegTestSuite } from '../../lib/runner';
+import { CdkIntegHelper, LegacyIntegTestSuite } from '../../lib/runner';
 import { IntegTest } from '../../lib/runner/integration-tests';
 import { ManifestLoadError } from '../../lib/runner/private/integ-manifest';
-import { IntegRunner } from '../../lib/runner/runner-base';
 import { testDataPath } from '../helpers';
 
-// Create a concrete implementation of IntegRunner for testing
-class TestIntegRunner extends IntegRunner {
-  public async runIntegTestCase(): Promise<void> {
-    // No-op for testing
-  }
-
-  // Expose protected method for testing
-  public async testLoadManifest(dir?: string) {
-    return this.loadManifest(dir);
-  }
-}
-
-describe('IntegRunner manifest error handling', () => {
+describe('CdkIntegHelper manifest error handling', () => {
   let mockCdk: any;
 
   beforeEach(() => {
@@ -49,7 +36,7 @@ describe('IntegRunner manifest error handling', () => {
   test('loadManifest throws ManifestLoadError when manifest is invalid', async () => {
     // GIVEN
     const invalidManifestDir = testDataPath('invalid-integ-manifest');
-    const runner = new TestIntegRunner({
+    const runner = CdkIntegHelper.create({
       cdk: mockCdk,
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
@@ -60,13 +47,13 @@ describe('IntegRunner manifest error handling', () => {
     });
 
     // WHEN / THEN
-    await expect(runner.testLoadManifest(invalidManifestDir)).rejects.toThrow(ManifestLoadError);
+    await expect(runner._loadManifest(invalidManifestDir)).rejects.toThrow(ManifestLoadError);
   });
 
   test('loadManifest falls back to legacy mode when manifest does not exist', async () => {
     // GIVEN
     const nonExistentDir = testDataPath('non-existent-dir');
-    const runner = new TestIntegRunner({
+    const runner = CdkIntegHelper.create({
       cdk: mockCdk,
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
@@ -77,7 +64,7 @@ describe('IntegRunner manifest error handling', () => {
     });
 
     // WHEN
-    const result = await runner.testLoadManifest(nonExistentDir);
+    const result = await runner._loadManifest(nonExistentDir);
 
     // THEN
     expect(result instanceof LegacyIntegTestSuite).toBe(true);

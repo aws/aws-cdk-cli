@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
+import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
-import { displayVersionMessage } from './display-version';
+import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
@@ -88,12 +88,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
-  // If users request debug information (which switches on CDK_DEBUG=1 to get the
-  // CDK app to emit more information), they probably are troubleshooting and we've
-  // historically decided they then want more logging from the CLI as well.
-  // There is currently no way to get the CDK to emit tracing information that
-  // does not cause the CLI to barf logs to the console.
-  setSdkTracing(argv.debug || argv.verbose > 2);
+  // CLI debugging (and the highest verbosity, `-vvv`) turns on verbose AWS SDK tracing.
+  setSdkTracing(Boolean(argv.debugCli) || argv.verbose > 2);
 
   try {
     await checkForPlatformWarnings(ioHelper);
@@ -246,7 +242,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     await outDirLock?.release();
 
     // Do PSAs here
-    await displayVersionMessage(ioHelper);
+    if (shouldDisplayVersionMessage()) {
+      await displayVersionMessage(ioHelper);
+    }
 
     await refreshNotices;
     if (cmd === 'notices') {
@@ -323,6 +321,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'doctor';
         return doctor({
           ioHelper,
+          settings: configuration.settings,
         });
 
       case 'ls':
@@ -393,6 +392,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           terminationProtection: args.terminationProtection,
           usePreviousParameters: args['previous-parameters'],
           importExistingResources: args.importExistingResources,
+          express: args.express,
           parameters: {
             bucketName: configuration.settings.get(['toolkitBucket', 'bucketName']),
             kmsKeyId: configuration.settings.get(['toolkitBucket', 'kmsKeyId']),
@@ -449,6 +449,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+          express: args.express,
         });
 
       case 'validate':
@@ -463,11 +464,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diagnose':
         cliRequireUnstable(configuration, 'diagnose');
         ioHost.currentAction = 'diagnose';
-
-        // Implicitly switch 'debug' mode to true, that is going to be most useful.
-        configuration.settings.temporarilyMutable((settings) => {
-          settings.set(['debug'], true);
-        });
 
         return cli.diagnose({
           stacks: specificStacksOrAllRecursively(args.STACKS),
@@ -550,6 +546,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           force: args.force,
           roleArn: args.roleArn,
           concurrency: args.concurrency,
+          express: args.express,
         });
 
       case 'gc':
@@ -648,7 +645,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             fromPath: args['from-path'],
             templatePath: args['template-path'],
             packageManager: args['package-manager'],
-            projectName: args.name,
+            projectName: args.projectName,
           });
         }
       case 'migrate':
@@ -899,9 +896,15 @@ export function cli(args: string[] = process.argv.slice(2)) {
       }
     })
     .catch(async (err) => {
+      // The user declined a confirmation. This is an expected outcome, not a crash, so present it softly/
+      // We still exit non-zero so the operation is reported as not completed.
+      const soft = AbortError.isAbortError(err);
+
       // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
       // file and the printed code line and stack trace are huge and useless.
-      prettyPrintError(err, isDeveloperBuildVersion());
+      const debug = isDeveloperBuildVersion();
+
+      prettyPrintError(err, { debug, soft });
       error = {
         name: cdkCliErrorName(err),
       };

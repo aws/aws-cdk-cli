@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
   BasePublishProgressListener,
@@ -150,6 +150,11 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   */
+  readonly express?: boolean;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -258,6 +263,7 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
+  express?: boolean;
 }
 
 export interface StackExistsOptions {
@@ -416,7 +422,9 @@ export class Deployments {
         sourceTracer: new StackArtifactSourceTracer(options.stack),
         ioHelper: this.ioHelper,
         topLevelStackHierarchicalId: options.stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
       }),
+      express: options.express,
     }, this.ioHelper);
   }
 
@@ -498,6 +506,7 @@ export class Deployments {
         sourceTracer: new StackArtifactSourceTracer(stack),
         ioHelper: this.ioHelper,
         topLevelStackHierarchicalId: stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
       }),
     });
   }
@@ -641,6 +650,7 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
+      express: options.express,
     }, this.ioHelper);
   }
 

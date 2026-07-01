@@ -1,6 +1,6 @@
 import * as childProcess from 'child_process';
 import { promisify } from 'node:util';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { IoHelper } from '../api-private';
 
 export const command = 'docs';

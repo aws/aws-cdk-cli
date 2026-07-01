@@ -14,6 +14,7 @@ describe('yargs', () => {
         assetMetadata: undefined,
         build: undefined,
         caBundlePath: undefined,
+        color: undefined,
         context: undefined,
         ignoreErrors: false,
         noColor: false,
@@ -21,13 +22,17 @@ describe('yargs', () => {
         plugin: undefined,
         profile: undefined,
         proxy: undefined,
+        region: undefined,
         roleArn: undefined,
         staging: true,
         strict: undefined,
+        telemetryFile: undefined,
         verbose: 1,
         versionReporting: undefined,
         ci: true,
         debug: false,
+        debugApp: false,
+        debugCli: false,
         ec2creds: undefined,
         json: false,
         lookups: true,
@@ -48,8 +53,12 @@ describe('yargs', () => {
         concurrency: 1,
         execute: undefined,
         exclusively: undefined,
+        express: false,
         force: false,
         hotswap: undefined,
+        hotswapEcsMaximumHealthyPercent: undefined,
+        hotswapEcsMinimumHealthyPercent: undefined,
+        hotswapEcsStabilizationTimeoutSeconds: undefined,
         hotswapFallback: undefined,
         ignoreNoStacks: false,
         importExistingResources: false,
@@ -116,6 +125,21 @@ describe('yargs', () => {
         hotswapEcsMinimumHealthyPercent: 100,
         hotswapEcsMaximumHealthyPercent: 250,
         hotswapEcsStabilizationTimeoutSeconds: 300,
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
+
+  test('init --project-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['init', 'app', '--language', 'typescript', '--project-name', 'my-app']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'init',
+      init: expect.objectContaining({
+        projectName: 'my-app',
+        TEMPLATE: 'app',
       }),
       globalOptions: expect.anything(),
     });

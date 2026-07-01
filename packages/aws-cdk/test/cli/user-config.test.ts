@@ -176,3 +176,26 @@ test('array settings are not overridden by yarg defaults', async () => {
   expect(configWithPlugin.settings.get(['plugin'])).toEqual(['[]']);
   expect(configWithoutPlugin.settings.get(['plugin'])).toEqual(['dummy']);
 });
+
+test('a `debug: true` config file setting implies both debug targets', async () => {
+  // GIVEN
+  const GIVEN_CONFIG: Map<string, any> = new Map([
+    [PROJECT_CONFIG, {
+      debug: true,
+    }],
+  ]);
+
+  // WHEN
+  mockedFs.pathExists.mockImplementation(path => {
+    return GIVEN_CONFIG.has(path);
+  });
+  mockedFs.readJSON.mockImplementation(((path: string) => {
+    return GIVEN_CONFIG.get(path);
+  }) as any);
+
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
+
+  // THEN
+  expect(config.settings.get(['debugApp'])).toBe(true);
+  expect(config.settings.get(['debugCli'])).toBe(true);
+});

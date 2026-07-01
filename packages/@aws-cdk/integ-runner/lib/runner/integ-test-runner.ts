@@ -5,8 +5,8 @@ import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
-import type { IntegRunnerOptions } from './runner-base';
-import { IntegRunner } from './runner-base';
+import type { CdkIntegHelperOptions } from './cdk-integ-helper';
+import { CdkIntegHelper } from './cdk-integ-helper';
 import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
@@ -118,10 +118,35 @@ export interface RunOptions extends CommonOptions {
  * An integration test runner that orchestrates executing
  * integration tests
  */
-export class IntegTestRunner extends IntegRunner {
-  constructor(options: IntegRunnerOptions, destructiveChanges?: DestructiveChange[]) {
-    super(options);
-    this._destructiveChanges = destructiveChanges;
+export class IntegTestRunner {
+  private readonly helper: CdkIntegHelper;
+  constructor(options: CdkIntegHelperOptions, destructiveChanges?: DestructiveChange[]) {
+    this.helper = CdkIntegHelper.create(options);
+    this.helper._destructiveChanges = destructiveChanges;
+
+    // We need to have given this a value, but we don't actually care about it initially,
+    // because we only synth to get the test definition.
+    // FIXME: This is unfortunate -- in order to start running the test "for real" we
+    // already have created a real snapshot with the real test definition, but we've thrown
+    // that away already. So we need to synth again just to get the test definition, AGAIN.
+    //
+    // We will rewrite this later when it comes time to generate the actual
+    // golden snapshot, to match the requested value in the test definition.
+    this.helper.configureLegacyEnableLookups('dont-care');
+  }
+
+  /**
+   * Compatibility shim with old API
+   */
+  public get testName() {
+    return this.helper.testName;
+  }
+
+  /**
+   * Compatibility shim with old API
+   */
+  private async actualTestSuite() {
+    return (await this.helper.actualSnapshot()).testDefinition;
   }
 
   public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
@@ -129,8 +154,8 @@ export class IntegTestRunner extends IntegRunner {
     // We don't want new tests written in the legacy mode.
     // If there is no existing snapshot _and_ this is a legacy
     // test then point the user to the new `IntegTest` construct
-    if (!this.hasSnapshot() && actualTestSuite.type === 'legacy-test-suite') {
-      throw new Error(`${this.testName} is a new test. Please use the IntegTest construct ` +
+    if (!this.helper.hasSnapshot() && actualTestSuite.type === 'legacy-test-suite') {
+      throw new Error(`${this.helper.testName} is a new test. Please use the IntegTest construct ` +
         'to configure the test\n' +
         'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
       );
@@ -140,8 +165,8 @@ export class IntegTestRunner extends IntegRunner {
   }
 
   public createCdkContextJson(): void {
-    if (!fs.existsSync(this.cdkContextPath)) {
-      fs.writeFileSync(this.cdkContextPath, JSON.stringify({
+    if (!fs.existsSync(this.helper.cdkContextPath)) {
+      fs.writeFileSync(this.helper.cdkContextPath, JSON.stringify({
         watch: { },
       }, undefined, 2));
     }
@@ -152,9 +177,9 @@ export class IntegTestRunner extends IntegRunner {
    * Fails fast if the snapshot does not exist at the given ref.
    */
   private checkoutSnapshotAtRef(ref: string): void {
-    const gitCwd = path.dirname(this.snapshotDir);
+    const gitCwd = path.dirname(this.helper.goldenSnapshotDir);
     const git = ['git', '-C', gitCwd];
-    const relativeSnapshotDir = path.relative(gitCwd, this.snapshotDir);
+    const relativeSnapshotDir = path.relative(gitCwd, this.helper.goldenSnapshotDir);
 
     try {
       exec([...git, 'checkout', ref, '--', relativeSnapshotDir]);
@@ -181,11 +206,11 @@ export class IntegTestRunner extends IntegRunner {
 
     for (let i = 0; i < totalTags; i++) {
       const tag = tags[i];
-      logger.highlight(`${this.testName}/${testCaseName}: deploying tag ${tag} (${i + 1}/${totalTags})`);
+      logger.highlight(`${this.helper.testName}/${testCaseName}: deploying tag ${tag} (${i + 1}/${totalTags})`);
 
       this.checkoutSnapshotAtRef(tag);
 
-      const expectedTestSuite = await this.expectedTestSuite();
+      const expectedTestSuite = await this.helper.expectedTestSuite();
       if (!expectedTestSuite || !(testCaseName in expectedTestSuite.testSuite)) {
         throw new Error(
           `Test case '${testCaseName}' does not exist in snapshot at tag '${tag}'`,
@@ -193,12 +218,12 @@ export class IntegTestRunner extends IntegRunner {
       }
 
       const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
-      const deployResult = await this.cdk.deploy({
+      const deployResult = await this.helper.cdk.deploy({
         ...deployArgs,
         stacks: expectedTestCase.stacks,
         ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
-        context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
-        app: path.relative(this.directory, this.snapshotDir),
+        context: this.helper.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
+        app: path.relative(this.helper.directory, this.helper.goldenSnapshotDir),
         lookups: expectedTestSuite?.enableLookups,
       });
 
@@ -216,7 +241,7 @@ export class IntegTestRunner extends IntegRunner {
       }
     }
 
-    logger.highlight(`${this.testName}/${testCaseName}: deploying current branch (final)`);
+    logger.highlight(`${this.helper.testName}/${testCaseName}: deploying current branch (final)`);
   }
 
   /**
@@ -236,7 +261,7 @@ export class IntegTestRunner extends IntegRunner {
     // @see https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt
     // This way we are guaranteed to operate under the correct git repo, even
     // when executing integ-runner from outside the repo under test.
-    const gitCwd = path.dirname(this.snapshotDir);
+    const gitCwd = path.dirname(this.helper.goldenSnapshotDir);
     const git = ['git', '-C', gitCwd];
 
     // https://git-scm.com/docs/git-merge-base
@@ -253,7 +278,7 @@ export class IntegTestRunner extends IntegRunner {
     } catch (e) {
       logger.warning('%s\n%s',
         'Could not determine git origin branch.',
-        `You need to manually checkout the snapshot directory ${this.snapshotDir}` +
+        `You need to manually checkout the snapshot directory ${this.helper.goldenSnapshotDir}` +
         'from the merge-base (https://git-scm.com/docs/git-merge-base)',
       );
       logger.warning('error: %s', formatError(e));
@@ -262,14 +287,14 @@ export class IntegTestRunner extends IntegRunner {
     // if we found the base branch then get the merge-base (most recent common commit)
     // and checkout the snapshot using that commit
     if (baseBranch) {
-      const relativeSnapshotDir = path.relative(gitCwd, this.snapshotDir);
+      const relativeSnapshotDir = path.relative(gitCwd, this.helper.goldenSnapshotDir);
 
       const checkoutCommand = [...git, 'checkout', [...git, 'merge-base', 'HEAD', baseBranch], '--', relativeSnapshotDir];
       try {
         execWithSubShell(checkoutCommand);
       } catch (e) {
         logger.warning('%s\n%s',
-          `Could not checkout snapshot directory '${this.snapshotDir}'. Please verify the following command completes correctly:`,
+          `Could not checkout snapshot directory '${this.helper.goldenSnapshotDir}'. Please verify the following command completes correctly:`,
           renderCommand(checkoutCommand),
           '',
         );
@@ -296,14 +321,14 @@ export class IntegTestRunner extends IntegRunner {
     try {
       await this.watch(
         {
-          ...this.defaultArgs,
+          ...this.helper.defaultArgs,
           deploymentMethod: {
             method: 'hotswap',
             fallback: {
               method: 'change-set',
             },
           },
-          profile: this.profile,
+          profile: this.helper.profile,
           requireApproval: RequireApproval.NEVER,
           traceLogs: enableForVerbosityLevel(2) ?? false,
           verbose: enableForVerbosityLevel(3),
@@ -336,6 +361,16 @@ export class IntegTestRunner extends IntegRunner {
     if (!actualTestCase) {
       throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
     }
+
+    // Ideally we would force `enableLookups` to `true`, always, because that's what we would like to converge on for the snapshots.
+    //
+    // HOWEVER!
+    //
+    // In order to do that, to validate the snapshot correctly we need to match what's in `integ.json`. In order to ratchet
+    // that value to `true`, we would need to rewrite `integ.json` to have `enableLookups: true`. We don't currently
+    // have code to reliably rewrite that file, so we just leave the value at whatever the test requested.
+    this.helper.configureLegacyEnableLookups(actualTestSuite.enableLookups ?? false);
+
     const clean = options.clean ?? true;
     const updateWorkflowEnabled = (options.updateWorkflow ?? true)
       && (actualTestCase.stackUpdateWorkflow ?? true);
@@ -349,8 +384,8 @@ export class IntegTestRunner extends IntegRunner {
       if (!options.dryRun && (actualTestCase.cdkCommandOptions?.deploy?.enabled ?? true)) {
         assertionResults = await this.deploy(
           {
-            ...this.defaultArgs,
-            profile: this.profile,
+            ...this.helper.defaultArgs,
+            profile: this.helper.profile,
             requireApproval: RequireApproval.NEVER,
             verbose: enableForVerbosityLevel(3),
             debug: enableForVerbosityLevel(4),
@@ -366,7 +401,7 @@ export class IntegTestRunner extends IntegRunner {
       // only create the snapshot if there are no failed assertion results
       // (i.e. no failures)
       if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
-        await this.createSnapshot();
+        await this.helper.createSnapshot();
       }
     } catch (e) {
       throw e;
@@ -374,21 +409,21 @@ export class IntegTestRunner extends IntegRunner {
       if (!options.dryRun) {
         if (clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
           await this.destroy(options.testCaseName, {
-            ...this.defaultArgs,
-            profile: this.profile,
+            ...this.helper.defaultArgs,
+            profile: this.helper.profile,
             all: true,
             force: true,
-            app: this.cdkApp,
-            output: path.relative(this.directory, this.cdkOutDir),
+            app: this.helper.cdkApp,
+            output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
             ...actualTestCase.cdkCommandOptions?.destroy?.args,
-            context: this.getContext(actualTestCase.cdkCommandOptions?.destroy?.args?.context),
+            context: this.helper.getContext(actualTestCase.cdkCommandOptions?.destroy?.args?.context),
             roleArn: options.roleArn ?? actualTestCase.cdkCommandOptions?.destroy?.args?.roleArn,
             verbose: enableForVerbosityLevel(3),
             debug: enableForVerbosityLevel(4),
           });
         }
       }
-      this.cleanup();
+      this.helper.cleanup();
     }
     return assertionResults;
   }
@@ -402,18 +437,18 @@ export class IntegTestRunner extends IntegRunner {
       if (actualTestCase.hooks?.preDestroy) {
         actualTestCase.hooks.preDestroy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(this.helper.goldenSnapshotDir),
           });
         });
       }
-      await this.cdk.destroy({
+      await this.helper.cdk.destroy({
         ...destroyArgs,
       });
 
       if (actualTestCase.hooks?.postDestroy) {
         actualTestCase.hooks.postDestroy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(this.helper.goldenSnapshotDir),
           });
         });
       }
@@ -431,7 +466,7 @@ export class IntegTestRunner extends IntegRunner {
     if (actualTestCase.hooks?.preDeploy) {
       actualTestCase.hooks.preDeploy.forEach(cmd => {
         exec(chunks(cmd), {
-          cwd: path.dirname(this.snapshotDir),
+          cwd: path.dirname(this.helper.goldenSnapshotDir),
         });
       });
     }
@@ -442,13 +477,13 @@ export class IntegTestRunner extends IntegRunner {
         ...actualTestCase.stacks,
         ...actualTestCase.assertionStack ? [actualTestCase.assertionStack] : [],
       ],
-      output: path.relative(this.directory, this.cdkOutDir),
-      outputsFile: path.relative(this.directory, path.join(this.cdkOutDir, 'assertion-results.json')),
+      output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
+      outputsFile: path.relative(this.helper.directory, path.join(this.helper.temporarySnapshotDir, 'assertion-results.json')),
       ...actualTestCase?.cdkCommandOptions?.deploy?.args,
       context: {
-        ...this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
+        ...this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
       },
-      app: this.cdkApp,
+      app: this.helper.cdkApp,
     };
     const destroyMessage = {
       additionalMessages: [
@@ -456,7 +491,7 @@ export class IntegTestRunner extends IntegRunner {
         `  ${[
           ...process.env.AWS_REGION ? [`AWS_REGION=${process.env.AWS_REGION}`] : [],
           'cdk destroy',
-          `-a '${this.cdkApp}'`,
+          `-a '${this.helper.cdkApp}'`,
           watchArgs.stacks.join(' '),
           `--profile ${watchArgs.profile}`,
         ].join(' ')}`,
@@ -471,9 +506,9 @@ export class IntegTestRunner extends IntegRunner {
           'Repro:',
           `  ${[
             'cdk synth',
-            `-a '${this.cdkApp}'`,
-            `-o '${this.cdkOutDir}'`,
-            ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
+            `-a '${this.helper.cdkApp}'`,
+            `-o '${this.helper.temporarySnapshotDir}'`,
+            ...Object.entries(this.helper.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
             watchArgs.stacks.join(' '),
             `--outputs-file ${watchArgs.outputsFile}`,
             `--profile ${watchArgs.profile}`,
@@ -483,9 +518,9 @@ export class IntegTestRunner extends IntegRunner {
       });
     }
 
-    const assertionResults = path.join(this.cdkOutDir, 'assertion-results.json');
-    const watcher = chokidar.watch([this.cdkOutDir], {
-      cwd: this.directory,
+    const assertionResults = path.join(this.helper.temporarySnapshotDir, 'assertion-results.json');
+    const watcher = chokidar.watch([this.helper.temporarySnapshotDir], {
+      cwd: this.helper.directory,
     });
     watcher.on('all', (event: EventName, file: string) => {
       if (!isFileEvent(event)) {
@@ -498,7 +533,7 @@ export class IntegTestRunner extends IntegRunner {
         if (actualTestCase.hooks?.postDeploy) {
           actualTestCase.hooks.postDeploy.forEach(cmd => {
             exec(chunks(cmd), {
-              cwd: path.dirname(this.snapshotDir),
+              cwd: path.dirname(this.helper.goldenSnapshotDir),
             });
           });
         }
@@ -538,7 +573,7 @@ export class IntegTestRunner extends IntegRunner {
 
     const { promise: waiter, resolve } = promiseWithResolvers<number | null>();
 
-    await this.cdk.watch(watchArgs, {
+    await this.helper.cdk.watch(watchArgs, {
       // if `-v` (or above) is passed then stream the logs
       onStdout: (message) => {
         if (verbosity > 0) {
@@ -579,7 +614,7 @@ export class IntegTestRunner extends IntegRunner {
       if (actualTestCase.hooks?.preDeploy) {
         actualTestCase.hooks.preDeploy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(this.helper.goldenSnapshotDir),
           });
         });
       }
@@ -587,34 +622,34 @@ export class IntegTestRunner extends IntegRunner {
       if (updateFromTags && updateFromTags.length > 0) {
         // Tag-sequence update workflow: deploy each tag's snapshot in order
         await this.deployFromTags(deployArgs, testCaseName, updateFromTags, allowDeleteFailures);
-      } else if (updateWorkflowEnabled && this.hasSnapshot()) {
+      } else if (updateWorkflowEnabled && this.helper.hasSnapshot()) {
         // Normal merge-base update workflow
-        const expectedTestSuite = await this.expectedTestSuite();
+        const expectedTestSuite = await this.helper.expectedTestSuite();
         if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite) {
           this.checkoutSnapshot();
           const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
-          await this.cdk.deploy({
+          await this.helper.cdk.deploy({
             ...deployArgs,
             stacks: expectedTestCase.stacks,
             ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
-            context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
-            app: path.relative(this.directory, this.snapshotDir),
+            context: this.helper.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
+            app: path.relative(this.helper.directory, this.helper.goldenSnapshotDir),
             lookups: expectedTestSuite?.enableLookups,
           });
         }
       }
       // now deploy the "actual" test.
       // This is the stack update if the update workflow ran above.
-      const actualDeployResult = await this.cdk.deploy({
+      const actualDeployResult = await this.helper.cdk.deploy({
         ...deployArgs,
         lookups: (await this.actualTestSuite()).enableLookups,
         stacks: [
           ...actualTestCase.stacks,
         ],
-        output: path.relative(this.directory, this.cdkOutDir),
+        output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
         ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-        context: this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
-        app: this.cdkApp,
+        context: this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
+        app: this.helper.cdkApp,
       });
 
       if (actualDeployResult.deleteFailures.length > 0) {
@@ -638,32 +673,32 @@ export class IntegTestRunner extends IntegRunner {
       // assertions instead of failing at the first failed assertion
       // combining it with the above deployment would prevent any replacement updates
       if (actualTestCase.assertionStack) {
-        await this.cdk.deploy({
+        await this.helper.cdk.deploy({
           ...deployArgs,
           lookups: (await this.actualTestSuite()).enableLookups,
           stacks: [
             actualTestCase.assertionStack,
           ],
           rollback: false,
-          output: path.relative(this.directory, this.cdkOutDir),
+          output: path.relative(this.helper.directory, this.helper.temporarySnapshotDir),
           ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-          outputsFile: path.relative(this.directory, path.join(this.cdkOutDir, 'assertion-results.json')),
-          context: this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
-          app: this.cdkApp,
+          outputsFile: path.relative(this.helper.directory, path.join(this.helper.temporarySnapshotDir, 'assertion-results.json')),
+          context: this.helper.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
+          app: this.helper.cdkApp,
         });
       }
 
       if (actualTestCase.hooks?.postDeploy) {
         actualTestCase.hooks.postDeploy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(this.helper.goldenSnapshotDir),
           });
         });
       }
 
       if (actualTestCase.assertionStack && actualTestCase.assertionStackName) {
         return this.processAssertionResults(
-          path.join(this.cdkOutDir, 'assertion-results.json'),
+          path.join(this.helper.temporarySnapshotDir, 'assertion-results.json'),
           actualTestCase.assertionStackName,
           actualTestCase.assertionStack,
         );

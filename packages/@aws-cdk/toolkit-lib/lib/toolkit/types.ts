@@ -65,6 +65,31 @@ export interface DeployedStack extends PhysicalStack {
 }
 
 /**
+ * A resource that completed deployment but is still stabilizing
+ *
+ * When deploying with Express Mode, CloudFormation may report a resource as
+ * `*_COMPLETE` while it is still stabilizing asynchronously. CloudFormation
+ * surfaces this via a `ResourceStatusReason` on the completion event. These
+ * resources are deployed, but may not be fully ready to use immediately.
+ */
+export interface StabilizingResource {
+  /**
+   * The logical ID of the resource in the CloudFormation template
+   */
+  readonly logicalResourceId: string;
+
+  /**
+   * The CloudFormation resource type (e.g. AWS::S3::Bucket)
+   */
+  readonly resourceType: string;
+
+  /**
+   * The reason CloudFormation gave for the resource still stabilizing
+   */
+  readonly reason: string;
+}
+
+/**
  * A resource that CloudFormation failed to delete during a stack update
  */
 export interface ResourceDeleteFailure {
@@ -160,3 +185,5 @@ export interface FeatureFlag {
   readonly explanation?: string;
   readonly unconfiguredBehavesLike?: { v2?: any };
 }
+
+export type MinimumSeverity = 'error' | 'warn' | 'none';

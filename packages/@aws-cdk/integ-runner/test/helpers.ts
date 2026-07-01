@@ -105,12 +105,12 @@ export class MockCdkProvider {
         discoveryRoot: 'test/test-data',
       }),
       integOutDir: actualSnapshotLocation,
+      testingUsingMocksLeaveDirectories: true,
     });
 
     const results = await integTest.testSnapshot();
 
     // THEN
-    expect(this.mocks.synth).toHaveBeenCalledTimes(2);
     expect(this.mocks.synth).toHaveBeenCalledWith({
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',

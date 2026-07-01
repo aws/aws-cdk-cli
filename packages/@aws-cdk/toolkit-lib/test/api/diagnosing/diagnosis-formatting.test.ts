@@ -49,6 +49,43 @@ describe('hostMessageFromDiagnosis', () => {
     expect(msg.code).toBe('CDK_TOOLKIT_E9500');
   });
 
+  test('deployment failure with additional diagnostic context', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'CREATE_FAILED', statusReason: 'Resource creation failed' },
+      problems: [
+        tracedError({
+          logicalId: 'Service',
+          resourceType: 'AWS::ECS::Service',
+          message: "Error occurred during operation 'ECS Deployment Circuit Breaker was triggered'.",
+          additionalContext: [
+            {
+              source: 'ECS Stopped Tasks',
+              messages: [
+                'Task stopped: CannotPullContainerError: image not found',
+                '(2 other failed task(s) not shown)',
+              ],
+              link: 'https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks',
+              linkLabel: 'Tasks',
+            },
+            {
+              source: 'CloudWatch Logs',
+              messages: ['No CloudWatch Logs found.'],
+            },
+          ],
+        }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+    // The self-describing message and the labeled link must appear...
+    expect(msg.message).toContain('Task stopped: CannotPullContainerError: image not found');
+    expect(msg.message).toContain('Tasks: https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks');
+    expect(msg.message).toContain('No CloudWatch Logs found.');
+    // ...but the structured `source` identifiers must NOT be rendered as headers.
+    expect(msg.message).not.toContain('ECS Stopped Tasks');
+    expect(msg.message).not.toContain('CloudWatch Logs:');
+  });
+
   test('deployment failure without resource errors', () => {
     const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
       type: 'problem',

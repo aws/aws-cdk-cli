@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
+import { zipDirectory } from '@aws-cdk/private-tools/lib/zip';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type {
   DescribeGeneratedTemplateCommandOutput,
@@ -18,13 +19,12 @@ import type {
   ScannedResourceIdentifier,
 } from '@aws-sdk/client-cloudformation';
 import * as cdk_from_cfn from 'cdk-from-cfn';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { cliInit } from './init';
 import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';
 import { Mode } from '../api/plugin';
 import type { IoHelper } from '../api-private';
-import { zipDirectory } from '../util';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');
 /** The list of languages supported by the built-in noctilucent binary. */

@@ -53,8 +53,22 @@
     },
     "debug": {
       "type": "boolean",
-      "desc": "Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)",
-      "default": false
+      "default": false,
+      "implies": [
+        "debug-app",
+        "debug-cli"
+      ],
+      "desc": "Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time."
+    },
+    "debug-app": {
+      "type": "boolean",
+      "default": false,
+      "desc": "Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis."
+    },
+    "debug-cli": {
+      "type": "boolean",
+      "default": false,
+      "desc": "Debug the CDK CLI itself."
     },
     "profile": {
       "type": "string",
@@ -311,6 +325,11 @@
           "type": "boolean",
           "desc": "Whether to import existing resources into the bootstrap stack instead of failing if they already exist",
           "default": true
+        },
+        "express": {
+          "type": "boolean",
+          "desc": "Whether creation of bootstrap stack should use CloudFormation Express mode",
+          "default": false
         }
       }
     },
@@ -521,7 +540,7 @@
         },
         "rollback": {
           "type": "boolean",
-          "desc": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          "desc": "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deploymentsiterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
           "negativeAlias": "R"
         },
         "hotswap": {
@@ -582,6 +601,11 @@
         "revert-drift": {
           "type": "boolean",
           "desc": "Create a drift-aware change set that brings actual resource states in line with template definitions",
+          "default": false
+        },
+        "express": {
+          "type": "boolean",
+          "desc": "Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default",
           "default": false
         }
       },
@@ -841,6 +865,11 @@
           "desc": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
           "default": 1,
           "requiresArg": true
+        },
+        "express": {
+          "type": "boolean",
+          "desc": "Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default",
+          "default": false
         }
       }
     },

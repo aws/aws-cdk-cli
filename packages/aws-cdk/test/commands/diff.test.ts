@@ -394,6 +394,7 @@ describe('imports', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );
@@ -519,6 +520,7 @@ describe('non-nested stacks', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );
@@ -622,7 +624,7 @@ describe('non-nested stacks', () => {
       toolkit.diff({
         stackNames: ['C'],
       }),
-    ).rejects.toThrow(/Found errors/);
+    ).rejects.toThrow(/Synthesis finished with errors/);
   });
 
   test('when quiet mode is enabled, stacks with no diffs should not print stack name & no differences to stdout', async () => {
@@ -728,6 +730,7 @@ describe('stack exists checks', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );

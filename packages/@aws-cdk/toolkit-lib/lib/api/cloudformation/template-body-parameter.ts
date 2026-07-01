@@ -4,7 +4,7 @@ import * as util from 'node:util';
 import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash, toYAML } from '../../util';
 import type { AssetManifestBuilder } from '../deployments';
@@ -145,7 +145,7 @@ export async function restUrlFromManifest(url: string, environment: Environment)
     // SDK v3 no longer allows for getting endpoints from only region.
     // A command and client config must now be provided.
     const s3 = new S3Client({ region });
-    const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand, {
+    const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand as any, {
       ...s3.config,
     });
 

@@ -27,6 +27,9 @@
       "path": "packages/@aws-cdk/integ-runner"
     },
     {
+      "path": "packages/@aws-cdk/private-tools"
+    },
+    {
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {
@@ -49,7 +52,7 @@
     "files.exclude": {
       "packages": true
     },
-    "jest.jestCommandLine": "npx jest",
+    "jest.jestCommandLine": "yarn jest",
     "js/ts.tsdk.path": "<root>/node_modules/typescript/lib"
   }
 }

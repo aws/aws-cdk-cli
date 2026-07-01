@@ -19,10 +19,10 @@
 /.yarnrc.yml linguist-generated
 /api-extractor.json linguist-generated
 /jest.config.json linguist-generated
+/lib/private/tools.ts linguist-generated
 /LICENSE linguist-generated
 /package.json linguist-generated
-/test/tsconfig.json linguist-generated
-/tsconfig.dev.json linguist-generated linguist-language=JSON-with-Comments
+/test/tsconfig.json linguist-generated linguist-language=JSON-with-Comments
 /tsconfig.json linguist-generated linguist-language=JSON-with-Comments
 /tsdoc.json linguist-generated
 /yarn.lock linguist-generated

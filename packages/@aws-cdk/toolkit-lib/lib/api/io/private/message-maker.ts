@@ -1,4 +1,4 @@
-import type { IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from '../io-message';
+import type { IoMessage, IoMessageCode, IoMessageLevel } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 
 /**
@@ -120,9 +120,9 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
       : (message: string, data: T, defaultResponse: U) => ActionLessRequest<T, U>;
 
   /**
-   * Returns whether the given `IoMessage` instance matches the current request definition
+   * Returns whether the given `IoMessage` instance matches this request definition
    */
-  is(x: IoMessage<unknown>): x is IoRequest<T, U>;
+  is(x: IoMessage<unknown>): x is IoMessage<T>;
 }
 
 /**
@@ -142,7 +142,7 @@ function request<T = AbsentData, U = ImpossibleType>(level: IoMessageLevel, deta
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoRequest<T, U> => m.code === details.code,
+    is: (m): m is IoMessage<T> => m.code === details.code,
   };
 }
 
@@ -172,6 +172,6 @@ export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoRequest<T, string> => m.code === details.code,
+    is: (m): m is IoMessage<T> => m.code === details.code,
   };
 }

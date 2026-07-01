@@ -1,8 +1,8 @@
-import * as child_process from 'child_process';
-import * as builtinFs from 'fs';
+import child_process from 'child_process';
+import builtinFs from 'fs';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { IntegTestRunner, IntegTest } from '../../lib/runner';
 import { MockCdkProvider } from '../helpers';
 
@@ -51,15 +51,13 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
     // THEN
-    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
-    expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenCalledWith({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       requireApproval: 'never',
@@ -117,6 +115,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
@@ -161,6 +160,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
@@ -224,15 +224,13 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
     });
 
     // THEN
-    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
-    expect(cdkMock.mocks.destroy).toHaveBeenCalledTimes(1);
-    expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(2);
     expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
       app: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
       context: expect.any(Object),
@@ -271,6 +269,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
@@ -292,6 +291,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
@@ -313,6 +313,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.integ-test1.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await runner.actualTests();
 
@@ -339,6 +340,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
       }),
       profile: 'test-profile',
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.integ-test1',
@@ -389,6 +391,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets',
@@ -443,6 +446,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -484,6 +488,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -526,6 +531,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -547,14 +553,13 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets',
     });
 
     expect(removeSyncMock.mock.calls).toEqual([
-      ['test/test-data/cdk-integ.out.xxxxx.test-with-snapshot-assets.js.snapshot'],
-      ['test/test-data/xxxxx.test-with-snapshot-assets.js.snapshot'],
       [
         'test/test-data/xxxxx.test-with-snapshot-assets.js.snapshot/asset.be270bbdebe0851c887569796e3997437cca54ce86893ed94788500448e92824',
       ],
@@ -570,6 +575,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot-assets-diff.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot-assets-diff',
@@ -579,7 +585,6 @@ describe('IntegTest runIntegTests', () => {
     // Since git doesn't track empty directories, we only assert on the calls that always happen.
     expect(removeSyncMock.mock.calls).toEqual(
       expect.arrayContaining([
-        ['test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot'],
         [
           'test/test-data/xxxxx.test-with-snapshot-assets-diff.js.snapshot/asset.fec1c56a3f23d9d27f58815e0c34c810cc02f431ac63a078f9b5d2aa44cc3509',
         ],
@@ -603,6 +608,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -634,6 +640,7 @@ describe('IntegTest runIntegTests', () => {
         discoveryRoot: 'test/test-data',
         appCommand: 'node --no-warnings {filePath}',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -673,6 +680,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // WHEN
@@ -712,6 +720,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // THEN
@@ -740,6 +749,7 @@ describe('IntegTest runIntegTests', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // THEN - does not throw
@@ -761,6 +771,7 @@ describe('IntegTest watchIntegTest', () => {
         discoveryRoot: 'test/test-data',
         appCommand: 'node --no-warnings {filePath}',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // WHEN
@@ -792,6 +803,7 @@ describe('IntegTest watchIntegTest', () => {
         discoveryRoot: 'test/test-data',
         appCommand: 'node --no-warnings {filePath}',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // WHEN
@@ -824,6 +836,7 @@ describe('IntegTest watchIntegTest', () => {
           fileName: 'test/test-data/xxxxx.test-with-error.js',
           discoveryRoot: 'test/test-data',
         }),
+        testingUsingMocksLeaveDirectories: true,
       });
       // WHEN
       await runner.actualTests();
@@ -843,6 +856,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -867,6 +881,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.watchIntegTest({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -888,6 +903,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -919,6 +935,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',
@@ -975,6 +992,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // THEN
@@ -1006,6 +1024,7 @@ describe('IntegTest roleArn', () => {
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
       }),
+      testingUsingMocksLeaveDirectories: true,
     });
     await integTest.runIntegTestCase({
       testCaseName: 'xxxxx.test-with-snapshot',

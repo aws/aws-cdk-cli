@@ -237,11 +237,25 @@ export interface GlobalOptions {
   readonly verbose?: number;
 
   /**
-   * Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)
+   * Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.
    *
    * @default - false
    */
   readonly debug?: boolean;
+
+  /**
+   * Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.
+   *
+   * @default - false
+   */
+  readonly debugApp?: boolean;
+
+  /**
+   * Debug the CDK CLI itself.
+   *
+   * @default - false
+   */
+  readonly debugCli?: boolean;
 
   /**
    * Use the indicated AWS profile as the default environment
@@ -605,6 +619,13 @@ export interface BootstrapOptions {
   readonly importExistingResources?: boolean;
 
   /**
+   * Whether creation of bootstrap stack should use CloudFormation Express mode
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
+
+  /**
    * Positional argument for bootstrap
    */
   readonly ENVIRONMENTS?: Array<string>;
@@ -883,7 +904,7 @@ export interface DeployOptions {
   readonly progress?: string;
 
   /**
-   * Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail
+   * Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deploymentsiterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail
    *
    * @default - undefined
    */
@@ -979,6 +1000,13 @@ export interface DeployOptions {
    * @default - false
    */
   readonly revertDrift?: boolean;
+
+  /**
+   * Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
 
   /**
    * Positional argument for deploy
@@ -1349,6 +1377,13 @@ export interface DestroyOptions {
    * @default - 1
    */
   readonly concurrency?: number;
+
+  /**
+   * Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
 
   /**
    * Positional argument for destroy

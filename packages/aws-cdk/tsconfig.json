@@ -5,16 +5,15 @@
     "outDir": "lib",
     "alwaysStrict": true,
     "declaration": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": [
-      "es2019",
-      "es2022.error"
+      "es2022"
     ],
-    "module": "commonjs",
-    "noEmitOnError": false,
+    "module": "node18",
+    "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -26,9 +25,8 @@
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
     "stripInternal": true,
-    "target": "ES2020",
+    "target": "es2022",
     "types": [
-      "archiver",
       "fs-extra",
       "jest",
       "mockery",
@@ -37,7 +35,8 @@
       "promptly",
       "semver",
       "sinon",
-      "yargs"
+      "yargs",
+      "yazl"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -48,6 +47,7 @@
     "lib/**/*.ts"
   ],
   "exclude": [
+    "node_modules",
     "lib/init-templates/*/typescript/*/*.template.ts",
     "test/integ/cli/sam_cdk_integ_app/**/*",
     "vendor/**/*"
@@ -64,6 +64,9 @@
     },
     {
       "path": "../@aws-cdk/toolkit-lib"
+    },
+    {
+      "path": "../@aws-cdk/private-tools"
     },
     {
       "path": "../@aws-cdk/cdk-assets-lib"

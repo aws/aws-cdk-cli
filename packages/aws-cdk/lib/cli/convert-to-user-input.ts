@@ -20,6 +20,8 @@ export function convertYargsToUserInput(args: any): UserInput {
     json: args.json,
     verbose: args.verbose,
     debug: args.debug,
+    debugApp: args.debugApp,
+    debugCli: args.debugCli,
     profile: args.profile,
     region: args.region,
     proxy: args.proxy,
@@ -83,6 +85,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         template: args.template,
         previousParameters: args.previousParameters,
         importExistingResources: args.importExistingResources,
+        express: args.express,
         ENVIRONMENTS: args.ENVIRONMENTS,
       };
       break;
@@ -147,6 +150,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         assetPrebuild: args.assetPrebuild,
         ignoreNoStacks: args.ignoreNoStacks,
         revertDrift: args.revertDrift,
+        express: args.express,
         STACKS: args.STACKS,
       };
       break;
@@ -227,6 +231,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         force: args.force,
         concurrency: args.concurrency,
+        express: args.express,
         STACKS: args.STACKS,
       };
       break;
@@ -371,6 +376,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     json: config.json,
     verbose: config.verbose,
     debug: config.debug,
+    debugApp: config.debugApp,
+    debugCli: config.debugCli,
     profile: config.profile,
     region: config.region,
     proxy: config.proxy,
@@ -421,6 +428,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     template: config.bootstrap?.template,
     previousParameters: config.bootstrap?.previousParameters,
     importExistingResources: config.bootstrap?.importExistingResources,
+    express: config.bootstrap?.express,
   };
   const gcOptions = {
     action: config.gc?.action,
@@ -473,6 +481,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     assetPrebuild: config.deploy?.assetPrebuild,
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
+    express: config.deploy?.express,
   };
   const validateOptions = {
     online: config.validate?.online,
@@ -525,6 +534,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.destroy?.exclusively,
     force: config.destroy?.force,
     concurrency: config.destroy?.concurrency,
+    express: config.destroy?.express,
   };
   const diffOptions = {
     exclusively: config.diff?.exclusively,

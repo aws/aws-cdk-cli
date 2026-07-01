@@ -1,5 +1,5 @@
 import * as util from 'node:util';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../api/io';
 import { isMessageRelevantForLevel } from '../api/io/private';
 import { HistoryActivityPrinter, type IActivityPrinter } from '../private/activity-printer';

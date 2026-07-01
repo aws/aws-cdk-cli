@@ -17,7 +17,7 @@
   "parserOptions": {
     "ecmaVersion": 2018,
     "sourceType": "module",
-    "project": "./tsconfig.dev.json"
+    "projectService": true
   },
   "extends": [
     "plugin:import/typescript",
@@ -34,7 +34,7 @@
     "import/resolver": {
       "node": {},
       "typescript": {
-        "project": "./tsconfig.dev.json",
+        "project": "./tsconfig.json",
         "alwaysTryTypes": true
       }
     }
@@ -152,6 +152,14 @@
           {
             "name": "punycode",
             "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
+          },
+          {
+            "name": "@aws-cdk/private-tools",
+            "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
+          },
+          {
+            "name": "@aws-cdk/private-tools/lib/zip",
+            "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
           }
         ],
         "patterns": [

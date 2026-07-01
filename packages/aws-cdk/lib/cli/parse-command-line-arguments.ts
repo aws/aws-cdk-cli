@@ -73,7 +73,18 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)',
+      desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.',
+    })
+    .middleware(helpers.yargsImplies('debug', ['debugApp', 'debugCli']), true)
+    .option('debug-app', {
+      default: false,
+      type: 'boolean',
+      desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.',
+    })
+    .option('debug-cli', {
+      default: false,
+      type: 'boolean',
+      desc: 'Debug the CDK CLI itself.',
     })
     .option('profile', {
       default: undefined,
@@ -340,6 +351,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: true,
           type: 'boolean',
           desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist',
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Whether creation of bootstrap stack should use CloudFormation Express mode',
         }),
     )
     .command(
@@ -550,7 +566,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('rollback', {
           default: undefined,
           type: 'boolean',
-          desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deploymentsiterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
         })
         .option('R', { type: 'boolean', hidden: true })
         .middleware(helpers.yargsNegativeAlias('R', 'rollback'), true)
@@ -620,6 +636,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions',
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default',
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
@@ -858,6 +879,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'number',
           desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.',
           requiresArg: true,
+        })
+        .option('express', {
+          default: false,
+          type: 'boolean',
+          desc: 'Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default',
         }),
     )
     .command(

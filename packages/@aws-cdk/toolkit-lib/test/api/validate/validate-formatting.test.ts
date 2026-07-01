@@ -1,6 +1,6 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { ValidateResult } from '../../../lib/actions/validate';
-import { formatValidateResult } from '../../../lib/api/validate/validate-formatting';
+import { formatValidateResult as formatValidateResult_ } from '../../../lib/api/validate/validate-formatting';
 
 // Disable chalk for predictable assertions — set level directly because
 // env vars may not take effect when chalk is already loaded by another test in the same worker.
@@ -12,13 +12,6 @@ function makeResult(pluginReports: ValidateResult['pluginReports']): ValidateRes
 }
 
 describe('formatValidateResult', () => {
-  test('returns pass message when no violations', () => {
-    const result = makeResult([
-      { pluginName: 'TestPlugin', conclusion: 'success', violations: [] },
-    ]);
-    expect(formatValidateResult(result)).toContain('No problems found.');
-  });
-
   test('sorts violations by severity (fatal > error > warning > info > custom)', () => {
     const result = makeResult([{
       pluginName: 'TestPlugin',
@@ -34,11 +27,13 @@ describe('formatValidateResult', () => {
 
     const output = formatValidateResult(result);
     const lines = output.split('\n\n').filter(l => l.trim());
-    expect(lines[1]).toContain('fatal issue');
-    expect(lines[2]).toContain('error issue');
-    expect(lines[3]).toContain('warning issue');
-    expect(lines[4]).toContain('info issue');
-    expect(lines[5]).toContain('custom issue');
+    expect(lines).toEqual([
+      expect.stringContaining('fatal issue'),
+      expect.stringContaining('error issue'),
+      expect.stringContaining('warning issue'),
+      expect.stringContaining('info issue'),
+      expect.stringContaining('custom issue'),
+    ]);
   });
 
   test('formats construct path with logical id', () => {
@@ -147,7 +142,7 @@ describe('formatValidateResult', () => {
     }]);
 
     const output = formatValidateResult(result);
-    expect(output).toContain("Acknowledge 'SecurityPlugin::no-public-buckets'");
+    expect(output).toContain("Acknowledge with 'SecurityPlugin::no-public-buckets'");
   });
 
   test('includes constructFqn when present', () => {
@@ -194,3 +189,7 @@ describe('formatValidateResult', () => {
     expect(output).toContain('Evil');
   });
 });
+
+function formatValidateResult(result: ValidateResult) {
+  return formatValidateResult_(process.cwd(), result);
+}

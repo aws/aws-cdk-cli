@@ -29,7 +29,9 @@ export async function makeConfig(): Promise<CliConfig> {
       'ignore-errors': { type: 'boolean', default: false, desc: 'Ignores synthesis errors, which will likely produce an invalid output' },
       'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
-      'debug': { type: 'boolean', desc: 'Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)', default: false },
+      'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
+      'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
+      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself.' },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
@@ -103,6 +105,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'import-existing-resources': { type: 'boolean', desc: 'Whether to import existing resources into the bootstrap stack instead of failing if they already exist', default: true },
+          'express': { type: 'boolean', desc: 'Whether creation of bootstrap stack should use CloudFormation Express mode', default: false },
         },
       },
       'gc': {
@@ -167,8 +170,8 @@ export async function makeConfig(): Promise<CliConfig> {
           'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
-            desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +
-              'Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
+            desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
+              'iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail',
             negativeAlias: 'R',
           },
           'hotswap': {
@@ -216,6 +219,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'asset-prebuild': { type: 'boolean', desc: 'Whether to build all assets before deploying the first stack (useful for failing Docker builds)', default: true },
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
           'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
+          'express': { type: 'boolean', desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default', default: false },
         },
         arg: {
           name: 'STACKS',
@@ -386,6 +390,7 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only destroy requested stacks, don\'t include dependees' },
           force: { type: 'boolean', alias: 'f', desc: 'Do not ask for confirmation before destroying the stacks' },
           concurrency: { type: 'number', desc: 'Maximum number of simultaneous destroys (dependency permitting) to execute.', default: 1, requiresArg: true },
+          express: { type: 'boolean', desc: 'Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default', default: false },
         },
       },
       'diff': {

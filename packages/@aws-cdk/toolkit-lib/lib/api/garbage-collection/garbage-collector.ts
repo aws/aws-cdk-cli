@@ -1,12 +1,12 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { ToolkitError, AbortError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
@@ -760,7 +760,7 @@ export class GarbageCollector {
       const yes = ['y', 'yes'];
       const all = ['a', 'all', 'delete-all'];
       if (!response || ![...yes, ...all].includes(response.toLowerCase())) {
-        throw new ToolkitError('DeletionAborted', 'Deletion aborted by user');
+        throw new AbortError('DeletionAborted', 'Garbage collection cancelled');
       } else if (all.includes(response.toLowerCase())) {
         this.confirm = false;
       }

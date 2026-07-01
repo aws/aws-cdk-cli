@@ -22,6 +22,7 @@ beforeEach(() => {
     outputs: {},
     noOp: false,
     deleteFailures: [],
+    stabilizingResources: [],
   });
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
@@ -132,6 +133,7 @@ IAM Statement Changes
         type: 'did-deploy-stack',
         noOp: false,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: DEFAULT_DEPLOY_CHANGE_SET_NAME, $metadata: {} } as any,
@@ -142,6 +144,7 @@ IAM Statement Changes
           type: 'did-deploy-stack',
           noOp: false,
           deleteFailures: [],
+          stabilizingResources: [],
           outputs: {},
           stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         });
@@ -183,6 +186,7 @@ IAM Statement Changes
         type: 'did-deploy-stack',
         noOp: true,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -204,6 +208,7 @@ IAM Statement Changes
         type: 'did-deploy-stack',
         noOp: true,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: { BucketName: 'my-bucket' },
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -228,6 +233,7 @@ IAM Statement Changes
         type: 'did-deploy-stack',
         noOp: true,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
       });
@@ -253,6 +259,7 @@ IAM Statement Changes
         type: 'did-deploy-stack',
         noOp: false,
         deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
         changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} } as any,
@@ -285,6 +292,70 @@ IAM Statement Changes
       }));
 
       successfulDeployment();
+    });
+
+    test('express option is passed in', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        express: true,
+      });
+
+      // passed through correctly to Deployments
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        express: true,
+      }));
+
+      successfulDeployment();
+    });
+
+    test('warns about resources still stabilizing in Express Mode', async () => {
+      // GIVEN
+      mockDeployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        outputs: {},
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        express: true,
+      });
+
+      // THEN
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+        message: expect.stringContaining('still stabilizing: MyBucket'),
+      }));
+    });
+
+    test('does not warn about stabilizing resources when not in Express Mode', async () => {
+      // GIVEN
+      mockDeployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        outputs: {},
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx);
+
+      // THEN
+      expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+      }));
     });
 
     test('notification arns are passed in', async () => {
@@ -446,6 +517,7 @@ IAM Statement Changes
             outputs: {},
             noOp: false,
             deleteFailures: [],
+            stabilizingResources: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -476,6 +548,7 @@ IAM Statement Changes
             outputs: {},
             noOp: false,
             deleteFailures: [],
+            stabilizingResources: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -504,6 +577,7 @@ IAM Statement Changes
       },
       noOp: false,
       deleteFailures: [],
+      stabilizingResources: [],
     });
 
     // WHEN
@@ -561,6 +635,7 @@ IAM Statement Changes
       },
       noOp: false,
       deleteFailures: [],
+      stabilizingResources: [],
     });
 
     // WHEN
@@ -592,6 +667,7 @@ IAM Statement Changes
           reason: 'The bucket is not empty',
         },
       ],
+      stabilizingResources: [],
     });
 
     // WHEN

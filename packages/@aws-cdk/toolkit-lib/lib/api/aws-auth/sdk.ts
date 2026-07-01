@@ -253,6 +253,13 @@ import {
 } from '@aws-sdk/client-ecr';
 import type {
   DescribeServicesCommandInput,
+  DescribeServicesCommandOutput,
+  DescribeTaskDefinitionCommandInput,
+  DescribeTaskDefinitionCommandOutput,
+  DescribeTasksCommandInput,
+  DescribeTasksCommandOutput,
+  ListTasksCommandInput,
+  ListTasksCommandOutput,
   RegisterTaskDefinitionCommandInput,
   ListClustersCommandInput,
   ListClustersCommandOutput,
@@ -261,8 +268,12 @@ import type {
   UpdateServiceCommandOutput,
 } from '@aws-sdk/client-ecs';
 import {
+  DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  DescribeTasksCommand,
   ECSClient,
   ListClustersCommand,
+  ListTasksCommand,
   RegisterTaskDefinitionCommand,
   UpdateServiceCommand,
   waitUntilServicesStable,
@@ -307,6 +318,9 @@ import {
   type ListAliasesCommandOutput,
 } from '@aws-sdk/client-kms';
 import {
+  GetFunctionConfigurationCommand,
+  type GetFunctionConfigurationCommandInput,
+  type GetFunctionConfigurationCommandOutput,
   InvokeCommand,
   type InvokeCommandInput,
   type InvokeCommandOutput,
@@ -555,6 +569,10 @@ export interface IECRClient {
 }
 
 export interface IECSClient {
+  describeServices(input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput>;
+  describeTaskDefinition(input: DescribeTaskDefinitionCommandInput): Promise<DescribeTaskDefinitionCommandOutput>;
+  describeTasks(input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput>;
+  listTasks(input: ListTasksCommandInput): Promise<ListTasksCommandOutput>;
   listClusters(input: ListClustersCommandInput): Promise<ListClustersCommandOutput>;
   registerTaskDefinition(input: RegisterTaskDefinitionCommandInput): Promise<RegisterTaskDefinitionCommandOutput>;
   updateService(input: UpdateServiceCommandInput): Promise<UpdateServiceCommandOutput>;
@@ -583,6 +601,7 @@ export interface IKMSClient {
 }
 
 export interface ILambdaClient {
+  getFunctionConfiguration(input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput>;
   invokeCommand(input: InvokeCommandInput): Promise<InvokeCommandOutput>;
   publishVersion(input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput>;
   updateAlias(input: UpdateAliasCommandInput): Promise<UpdateAliasCommandOutput>;
@@ -950,6 +969,14 @@ export class SDK {
   public ecs(): IECSClient {
     const client = new ECSClient(this.config);
     return {
+      describeServices: (input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput> =>
+        client.send(new DescribeServicesCommand(input)),
+      describeTaskDefinition: (input: DescribeTaskDefinitionCommandInput): Promise<DescribeTaskDefinitionCommandOutput> =>
+        client.send(new DescribeTaskDefinitionCommand(input)),
+      describeTasks: (input: DescribeTasksCommandInput): Promise<DescribeTasksCommandOutput> =>
+        client.send(new DescribeTasksCommand(input)),
+      listTasks: (input: ListTasksCommandInput): Promise<ListTasksCommandOutput> =>
+        client.send(new ListTasksCommand(input)),
       listClusters: (input: ListClustersCommandInput): Promise<ListClustersCommandOutput> =>
         client.send(new ListClustersCommand(input)),
       registerTaskDefinition: (
@@ -1025,6 +1052,8 @@ export class SDK {
   public lambda(): ILambdaClient {
     const client = new LambdaClient(this.config);
     return {
+      getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
+        client.send(new GetFunctionConfigurationCommand(input)),
       invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => client.send(new InvokeCommand(input)),
       publishVersion: (input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput> =>
         client.send(new PublishVersionCommand(input)),
@@ -1137,7 +1166,7 @@ export class SDK {
    */
   public async getUrlSuffix(region: string): Promise<string> {
     const cfn = new CloudFormationClient({ region });
-    const endpoint = await getEndpointFromInstructions({}, DescribeStackResourcesCommand, { ...cfn.config });
+    const endpoint = await getEndpointFromInstructions({}, DescribeStackResourcesCommand as any, { ...cfn.config });
     return endpoint.url.hostname.split(`${region}.`).pop()!;
   }
 

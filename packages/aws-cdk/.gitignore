@@ -42,7 +42,7 @@ jspm_packages/
 !/.prettierrc.json
 !/test/
 !/tsconfig.json
-!/tsconfig.dev.json
+!/test/tsconfig.json
 !/lib/
 /lib/**/*.js
 /lib/**/*.d.ts
@@ -52,7 +52,6 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
-!/test/tsconfig.json
 db.json.gz
 .init-version.json
 index_bg.wasm

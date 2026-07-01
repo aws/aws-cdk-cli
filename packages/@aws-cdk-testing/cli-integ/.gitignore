@@ -43,7 +43,7 @@ jspm_packages/
 !/.prettierrc.json
 !/test/
 !/tsconfig.json
-!/tsconfig.dev.json
+!/test/tsconfig.json
 !/./
 /./**/*.js
 /./**/*.d.ts

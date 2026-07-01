@@ -1,7 +1,7 @@
 // Exercise all integ stacks and if they deploy, update the expected synth files
 import * as fs from 'fs';
 import * as path from 'path';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';

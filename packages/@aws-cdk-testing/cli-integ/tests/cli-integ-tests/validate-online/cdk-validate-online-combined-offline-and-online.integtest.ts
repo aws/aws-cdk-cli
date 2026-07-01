@@ -14,6 +14,9 @@ integTest(
       const output = await fixture.cdk(
         ['--unstable=validate', 'validate', '--online', fixture.fullStackName('validate-online-combined')],
         {
+          modEnv: {
+            INJECT_OFFLINE_ERRORS: 'true',
+          },
           allowErrExit: true,
         },
       );

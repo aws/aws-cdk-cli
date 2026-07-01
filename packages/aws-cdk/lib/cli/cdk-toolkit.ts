@@ -5,8 +5,8 @@ import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
-import { PermissionChangeType, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
+import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
@@ -14,10 +14,9 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
-  buildDestroyWorkGraph,
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
@@ -546,6 +545,7 @@ export class CdkToolkit {
       extraUserAgent: options.extraUserAgent,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
+      express: options.express,
     });
 
     const startDeployTime = Date.now();
@@ -585,6 +585,9 @@ export class CdkToolkit {
    * Validate synthesized templates against policy rules
    */
   public async validate(options: ValidateOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const result = await this.toolkit.validate(this.props.cloudExecutable, options);
     return result.conclusion === 'failure' ? 1 : 0;
   }
@@ -593,6 +596,9 @@ export class CdkToolkit {
    * Diagnose errors
    */
   public async diagnose(options: DiagnoseOptions): Promise<number> {
+    // Implicitly switch 'debug' mode to true; more stack traces = more useful.
+    this.props.cloudExecutable.switchOnDebugging();
+
     const results = await this.toolkit.diagnose(this.props.cloudExecutable, options);
 
     if (results.stacks.some(s => s.result.type !== 'no-problem')) {
@@ -815,8 +821,7 @@ export class CdkToolkit {
       await ioHelper.defaults.info(formattedDiff);
       const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('Perform import?', { motivation: 'Confirm import with pending drift' }));
       if (!confirmed) {
-        await ioHelper.defaults.info('Import cancelled.');
-        return;
+        throw new AbortError('ImportAborted', 'Import cancelled');
       }
     }
 
@@ -907,51 +912,55 @@ export class CdkToolkit {
   }
 
   public async destroy(options: DestroyOptions) {
-    const ioHelper = this.ioHost.asIoHelper();
-
-    const stacks = await this.selectStacksForDestroy(options.selector, options.exclusively);
-
-    if (!options.force) {
-      const motivation = 'Destroying stacks is an irreversible action';
-      const question = `Are you sure you want to delete: ${chalk.blue(stacks.stackArtifacts.map((s) => s.hierarchicalId).join(', '))}`;
-      try {
-        await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
-      } catch (err: unknown) {
-        if (!ToolkitError.isToolkitError(err) || err.message != 'Aborted by user') {
-          throw err; // unexpected error
-        }
-        await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg(err.message));
-        return;
-      }
-    }
-
-    const concurrency = options.concurrency || 1;
+    // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
-    let destroyCount = 0;
 
-    if (concurrency > 1) {
+    if ((options.concurrency || 1) > 1) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
-    const destroyStack = async (stackNode: StackNode) => {
-      const stack = stackNode.stack;
-      destroyCount++;
-      await ioHelper.defaults.info(chalk.green('%s: destroying... [%s/%s]'), chalk.blue(stack.displayName), destroyCount, stacks.stackCount);
-      try {
-        await this.props.deployments.destroyStack({
-          stack,
-          deployName: stack.stackName,
-          roleArn: options.roleArn,
-        });
-        await ioHelper.defaults.info(chalk.green(`\n ✅  %s: ${action}ed`), chalk.blue(stack.displayName));
-      } catch (e) {
-        await ioHelper.defaults.error(`\n ❌  %s: ${action} failed`, chalk.blue(stack.displayName), e);
-        throw e;
-      }
-    };
+    // The destroy action runs through toolkit-lib.
+    // Use listeners to keep the messages as they were before.
+    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
+    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
+    // The success line was `info` in the historical `cdk destroy`, not `result`.
+    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
-    const workGraph = buildDestroyWorkGraph(stacks.stackArtifacts, ioHelper);
-    await workGraph.processStacks(concurrency, destroyStack);
+    // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
+    // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
+    // the listener both suppresses the log and aborts the command (the top-level
+    // renders `AbortError` as "Deletion cancelled").
+    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+      throw new AbortError('DestroyAborted', 'Deletion cancelled');
+    });
+
+    if (options.force) {
+      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
+      await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: options.selector.allTopLevel
+            ? StackSelectionStrategy.MAIN_ASSEMBLY
+            : options.selector.patterns.length > 0
+              ? StackSelectionStrategy.PATTERN_MATCH
+              : StackSelectionStrategy.ONLY_SINGLE,
+          expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
+        },
+        roleArn: options.roleArn,
+        concurrency: options.concurrency,
+        express: options.express,
+      });
+    } finally {
+      this.ioHost.removeAllListeners();
+    }
   }
 
   public async list(
@@ -959,6 +968,11 @@ export class CdkToolkit {
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
     this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+
+    // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
+    // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
+    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+    this.ioHost.once(IO.CDK_TOOLKIT_I1002, () => ({ preventDefault: true }));
 
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0
@@ -1038,9 +1052,16 @@ export class CdkToolkit {
       try {
         const result = await bootstrapper.bootstrapEnvironment(environment, this.props.sdkProvider, options);
         const message = result.noOp
-          ? ' ✅  Environment %s bootstrapped (no changes).'
-          : ' ✅  Environment %s bootstrapped.';
+          ? '✅  Environment %s bootstrapped (no changes).'
+          : '✅  Environment %s bootstrapped.';
         await this.ioHost.asIoHelper().defaults.info(chalk.green(message), chalk.blue(environment.name));
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'bootstrap');
+          if (warning) {
+            await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W9902.msg(warning));
+          }
+        }
       } catch (e) {
         await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), e);
         throw e;
@@ -1265,7 +1286,7 @@ export class CdkToolkit {
     });
 
     this.validateStacksSelected(stacks, selector.patterns);
-    await this.validateStacks(stacks);
+    await this.validateStacks(assembly, stacks);
 
     return stacks;
   }
@@ -1291,29 +1312,17 @@ export class CdkToolkit {
       : new StackCollection(assembly, []);
 
     this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(selectedForDiff.concat(autoValidateStacks));
+    await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
 
     return selectedForDiff;
-  }
-
-  private async selectStacksForDestroy(selector: StackSelector, exclusively?: boolean) {
-    const assembly = await this.assembly();
-    const stacks = await assembly.selectStacks(selector, {
-      extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Downstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
-    });
-
-    // No validation
-
-    return stacks;
   }
 
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(stacks: StackCollection) {
+  private async validateStacks(assembly: CloudAssembly, stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
-    await stacks.validateMetadata(failAt, stackMetadataLogger(this.ioHost.asIoHelper(), this.props.verbose));
+    await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
   }
 
   private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
@@ -1711,6 +1720,11 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Whether to use CloudFormation express mode for the current deployment
+   */
+  readonly express?: boolean;
 }
 
 export interface RollbackOptions {
@@ -1822,6 +1836,11 @@ export interface DestroyOptions {
    * Maximum number of simultaneous destroys (dependency permitting) to execute.
    */
   concurrency?: number;
+
+  /**
+   * Whether to use CloudFormation express mode to delete the stack(s)
+   */
+  express?: boolean;
 }
 
 /**
@@ -2053,9 +2072,15 @@ function buildParameterMap(
 async function askUserConfirmation(
   ioHost: CliIoHost,
   req: ActionLessRequest<ConfirmationRequest, boolean>,
+  abortErrorCode: string,
+  abortMessage: string,
 ) {
   await ioHost.withCorkedLogging(async () => {
-    await ioHost.asIoHelper().requestResponse(req);
+    // The IoHost returns the answer rather than aborting; abort here on decline.
+    const confirmed = await ioHost.asIoHelper().requestResponse(req);
+    if (!confirmed) {
+      throw new AbortError(abortErrorCode, abortMessage);
+    }
   });
 }
 
@@ -2084,31 +2109,6 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
   }
 }
 
-/**
- * Logger for processing stack metadata
- */
-function stackMetadataLogger(ioHelper: IoHelper, verbose?: boolean): (level: 'info' | 'error' | 'warn', msg: cxapi.SynthesisMessage) => Promise<void> {
-  const makeLogger = (level: string): [logger: (m: string) => void, prefix: string] => {
-    switch (level) {
-      case 'error':
-        return [(m) => ioHelper.defaults.error(m), 'Error'];
-      case 'warn':
-        return [(m) => ioHelper.defaults.warn(m), 'Warning'];
-      default:
-        return [(m) => ioHelper.defaults.info(m), 'Info'];
-    }
-  };
-
-  return async (level, msg) => {
-    const [logFn, prefix] = makeLogger(level);
-    await logFn(`[${prefix} at ${msg.id}] ${msg.entry.data}`);
-
-    if (verbose && msg.entry.trace) {
-      logFn(`  ${msg.entry.trace.join('\n  ')}`);
-    }
-  };
-}
-
 interface WorkGraphDeploymentActionsOptions {
   readonly roleArn?: string;
   readonly force?: boolean;
@@ -2127,6 +2127,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly concurrency: number;
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
+  readonly express?: boolean;
 }
 
 /**
@@ -2282,6 +2283,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       notificationArns,
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
+      express: this.options.express,
     };
 
     // When using change-set method, always create the change set upfront.
@@ -2327,6 +2329,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
               permissionChangeType: securityDiff.permissionChangeType,
               templateDiffs: formatter.diffs,
             }),
+            'DeployAborted',
+            'Deployment cancelled',
           );
         } catch (e) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -2395,6 +2399,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
                   motivation,
                   concurrency: this.options.concurrency,
                 }),
+                'RollbackAborted',
+                'Rollback cancelled',
               );
             }
 
@@ -2414,14 +2420,16 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
             const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
-              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with regular deployment (--force).`);
+              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);
             } else {
               await askUserConfirmation(
                 this.ioHost,
-                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
+                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a deployment with rollback enabled`, {
                   concurrency: this.options.concurrency,
                   motivation,
                 }),
+                'ReplacementRollbackAborted',
+                'Rollback cancelled',
               );
             }
 
@@ -2436,12 +2444,19 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       }
 
       const message = deployResult.noOp
-        ? ' ✅  %s (no changes)'
-        : ' ✅  %s';
+        ? '✅  %s (no changes)'
+        : '✅  %s';
 
       await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
       elapsedDeployTime = new Date().getTime() - startDeployTime;
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
+
+      if (this.options.express) {
+        const warning = formatExpressStabilizationWarning(deployResult.stabilizingResources, 'deploy');
+        if (warning) {
+          await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W5902.msg(warning));
+        }
+      }
 
       if (Object.keys(deployResult.outputs).length > 0) {
         await this.ioHost.asIoHelper().defaults.info('Outputs:');

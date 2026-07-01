@@ -32,6 +32,8 @@ export interface ValidateResult {
 
   /**
    * The title of the validation report
+   *
+   * @deprecated This field is never populated
    */
   readonly title?: string;
 

@@ -74,6 +74,10 @@ export function contextFromSettings(
   const bundlingStacks = settings.get(['bundlingStacks']) ?? ['**'];
   context[cxapi.BUNDLING_STACKS] = bundlingStacks;
 
+  // We unconditionally tell the CDK app that the toolkit/CLI will handle validation reports.
+  // The app never has to exit with an error code because of it.
+  context[cxapi.FAIL_SYNTH_ON_VALIDATION_ERRORS_CONTEXT] = false;
+
   return context;
 }
 
@@ -84,12 +88,25 @@ export function synthParametersFromSettings(settings: Settings): {
   context: Context;
   env: Env;
 } {
+  // These are the environment variables that will switch on debugging in the
+  // CDK framework.
+  //
+  // - CDK_DEBUG: an environment variable instead of a context variable, so it can also
+  // be accessed in framework code where we don't have access to a construct tree.
+  // - JSII_HOST_STACK_TRACES: have the jsii client library send call stacks
+  // across so we can read them in JS-land. Only set if not already set by the
+  // user, this allows them to switch it off by setting `JSII_HOST_STACK_TRACES=0`.
+  const debugEnvVars: Record<string, string> = {
+    CDK_DEBUG: 'true',
+  };
+  if (process.env.JSII_HOST_STACK_TRACES === undefined) {
+    debugEnvVars.JSII_HOST_STACK_TRACES = '1';
+  }
+
   return {
     context: contextFromSettings(settings),
     env: {
-      // An environment variable instead of a context variable, so it can also
-      // be accessed in framework code where we don't have access to a construct tree.
-      ...settings.get(['debug']) ? { CDK_DEBUG: 'true' } : {},
+      ...settings.get(['debugApp']) ? debugEnvVars : {},
     },
   };
 }

@@ -2,7 +2,7 @@ import { format } from 'util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type { WaiterResult } from '@smithy/util-waiter';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { NonHotswappableReason } from '../../payloads';
 import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
@@ -147,6 +147,7 @@ export async function tryHotswapDeployment(
       stackArn: cloudFormationStack.stackId,
       outputs: cloudFormationStack.outputs,
       deleteFailures: [],
+      stabilizingResources: [],
     };
   }
 
@@ -213,6 +214,7 @@ async function hotswapDeployment(
         stack,
         mode: hotswapMode,
         hotswapped: false,
+        hotswapFallback: true,
         hotswappableChanges,
         nonHotswappableChanges,
       };
@@ -233,6 +235,7 @@ async function hotswapDeployment(
     stack,
     mode: hotswapMode,
     hotswapped: !error,
+    hotswapFallback: false,
     hotswappableChanges,
     nonHotswappableChanges,
     error,

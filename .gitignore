@@ -47,10 +47,10 @@ jspm_packages/
 !/.github/pull_request_template.md
 !/test/
 !/tsconfig.json
-!/tsconfig.dev.json
 !/src/
 /lib
 /dist/
+!/projenrc/tsconfig.json
 !/aws-cdk-cli.code-workspace
 /.nx
 !/nx.json
@@ -62,7 +62,7 @@ jspm_packages/
 !/.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml
 !/.github/dependabot.yml
 !/.github/workflows/integ.yml
-!/.projen/prepare-verdaccio.sh
+/.projen/prepare-verdaccio.sh
 !/.github/workflows/codecov.yml
 !/.github/workflows/issue-label-assign.yml
 !/.github/workflows/issue-regression-labeler.yml

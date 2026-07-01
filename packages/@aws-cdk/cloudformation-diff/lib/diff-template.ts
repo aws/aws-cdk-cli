@@ -51,15 +51,36 @@ export function fullDiff(
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
 ): types.TemplateDiff {
-  normalize(currentTemplate);
-  normalize(newTemplate);
-  const theDiff = diffTemplate(currentTemplate, newTemplate);
+  // `normalize` mutates the templates it is given (it sorts `DependsOn` arrays and rewrites
+  // `Fn::GetAtt` short form, among other things). We must not mutate the caller's objects,
+  // because they may be reused for other purposes (e.g. `cdk import` reuses the deployed
+  // template as the base for the IMPORT change set, and a reordered `DependsOn` there is
+  // rejected by CloudFormation as a "modification" to a non-imported resource).
+  // So we normalize copies and diff those.
+  const currentTemplateCopy = deepCopy(currentTemplate);
+  const newTemplateCopy = deepCopy(newTemplate);
+  normalize(currentTemplateCopy);
+  normalize(newTemplateCopy);
+  const theDiff = diffTemplate(currentTemplateCopy, newTemplateCopy);
   if (changeSet) {
     // These methods mutate the state of theDiff, using the changeSet.
     const changeSetDiff = new TemplateAndChangeSetDiffMerger({ changeSet });
-    theDiff.resources.forEachDifference((logicalId: string, change: types.ResourceDifference) =>
-      changeSetDiff.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, change),
-    );
+
+    // Capture the resources the template diff knows about *before* we start
+    // mutating their change impacts. Resources that are already part of the
+    // template diff are handled by the override path below; resources that are
+    // only known to the change set (e.g. a property that resolves to a different
+    // value at deploy time, such as an SSM parameter or a CloudFormation dynamic
+    // reference) are added afterwards.
+    const resourcesInTemplateDiff = new Set(theDiff.resources.logicalIds);
+
+    theDiff.resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
+      changeSetDiff.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, change);
+      // For resources the template diff already found, also surface any *additional* property
+      // changes that only the change set knows about (e.g. a deploy-time-resolved property).
+      changeSetDiff.addChangeSetPropertiesNotInTemplateDiff(logicalId, change);
+    });
+    changeSetDiff.addChangeSetResourcesNotInTemplateDiff(theDiff.resources, resourcesInTemplateDiff);
     changeSetDiff.addImportInformationFromChangeset(theDiff.resources);
   } else if (isImport) {
     makeAllResourceChangesImports(theDiff);

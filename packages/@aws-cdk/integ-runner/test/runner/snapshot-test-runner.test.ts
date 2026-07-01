@@ -1,7 +1,7 @@
-import * as child_process from 'child_process';
-import * as builtinFs from 'fs';
+import child_process from 'child_process';
+import builtinFs from 'fs';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { IntegSnapshotRunner, IntegTest } from '../../lib/runner';
 import { DiagnosticReason } from '../../lib/workers/common';
 import { MockCdkProvider } from '../helpers';
@@ -186,6 +186,7 @@ describe('IntegTest runSnapshotTests', () => {
         }),
         integOutDir: 'does/not/exist',
       });
+      integTest.dontCareAboutLegacyLookupsForTests();
 
       // THEN
       expect(await integTest.actualTests()).toEqual(expect.objectContaining({
@@ -208,6 +209,7 @@ describe('IntegTest runSnapshotTests', () => {
         }),
         integOutDir: 'does/not/exist',
       });
+      integTest.dontCareAboutLegacyLookupsForTests();
 
       // THEN
       expect(await integTest.actualTests()).toEqual(expect.objectContaining({

@@ -1,4 +1,5 @@
 import type { Tag } from '../../lib/api/tags';
+import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
 import { Command, commandLineArgumentsToSettings } from '../../lib/cli/user-configuration';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -22,6 +23,39 @@ test('can parse string context from command line arguments with equals sign in v
   // THEN
   expect(settings1.get(['context']).foo).toEqual( '=bar=');
   expect(settings2.get(['context']).foo).toEqual( 'bar=');
+});
+
+describe('the debug flags map to separate debugApp/debugCli settings', () => {
+  // The `debugApp` setting gates the CDK_DEBUG environment variable.
+  // `--debug` implies both targets (resolved during argument parsing);
+  // `--debug-app` / `--debug-cli` are independent.
+  test('--debug enables both debugApp and debugCli', async () => {
+    const argv = await parseCommandLineArguments(['deploy', '--debug']);
+    const settings = await commandLineArgumentsToSettings(ioHelper, argv);
+    expect(settings.get(['debugApp'])).toBe(true);
+    expect(settings.get(['debugCli'])).toBe(true);
+  });
+
+  test('--debug-app enables only debugApp', async () => {
+    const argv = await parseCommandLineArguments(['deploy', '--debug-app']);
+    const settings = await commandLineArgumentsToSettings(ioHelper, argv);
+    expect(settings.get(['debugApp'])).toBe(true);
+    expect(settings.get(['debugCli'])).toBe(false);
+  });
+
+  test('--debug-cli enables only debugCli', async () => {
+    const argv = await parseCommandLineArguments(['deploy', '--debug-cli']);
+    const settings = await commandLineArgumentsToSettings(ioHelper, argv);
+    expect(settings.get(['debugCli'])).toBe(true);
+    expect(settings.get(['debugApp'])).toBe(false);
+  });
+
+  test('no debug flags leave both settings false', async () => {
+    const argv = await parseCommandLineArguments(['deploy']);
+    const settings = await commandLineArgumentsToSettings(ioHelper, argv);
+    expect(settings.get(['debugApp'])).toBe(false);
+    expect(settings.get(['debugCli'])).toBe(false);
+  });
 });
 
 test('can parse tag values from command line arguments', async () => {

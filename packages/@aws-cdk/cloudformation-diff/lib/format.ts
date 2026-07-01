@@ -1,5 +1,5 @@
 import { format } from 'util';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { DifferenceCollection, Move, TemplateDiff } from './diff/types';
 import { deepEqual } from './diff/util';
 import type { Difference, ResourceDifference } from './diff-template';

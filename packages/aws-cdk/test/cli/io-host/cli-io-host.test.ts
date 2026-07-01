@@ -2,12 +2,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost } from '../../../lib/cli/io-host';
+import { CliIoHost, matchAny } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 
 let passThrough: PassThrough;
@@ -208,6 +208,165 @@ describe('CliIoHost', () => {
       expect(observed).toEqual(['first']);
     });
 
+    test('on() supports async listeners and awaits them before the message is processed', async () => {
+      const order: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
+        await new Promise((resolve) => setImmediate(resolve));
+        order.push(`listener:${msg.message}`);
+        return { message: `async:${msg.message}` };
+      }));
+
+      await ioHost.notify(listMessage('first'));
+      order.push('after-notify');
+
+      // notify() did not resolve until the async listener finished, and the
+      // text it returned was applied before the message was written.
+      expect(order).toEqual(['listener:first', 'after-notify']);
+      expect(mockStdout).toHaveBeenCalledWith('async:first\n');
+    });
+
+    test('requestResponse() awaits an async listener that answers the request', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I7010, async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+        return { respond: true, preventDefault: true };
+      }));
+
+      const answer = await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'destroy',
+        code: 'CDK_TOOLKIT_I7010',
+        message: 'proceed?',
+        defaultResponse: true,
+        data: { motivation: 'because' },
+      });
+
+      expect(answer).toBe(true);
+    });
+
+    test('removeAllListeners() removes every user-registered listener', async () => {
+      const observed: string[] = [];
+      // Register via on() and once() and rewrite() — all user listeners.
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        observed.push(msg.message);
+      }));
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+
+      await ioHost.notify(listMessage('before'));
+      ioHost.removeAllListeners();
+      await ioHost.notify(listMessage('after'));
+
+      // The on() listener stopped firing and the rewrite no longer applies.
+      expect(observed).toEqual(['before']);
+      expect(mockStdout).toHaveBeenCalledWith('after\n');
+    });
+
+    test('removeAllListeners() keeps the host internal stack-activity routing', async () => {
+      // Clear all (user) listeners, then verify a stack-activity message is
+      // still routed to the printer and suppressed — i.e. the internal listener
+      // survived.
+      ioHost.removeAllListeners();
+      (ioHost as any).activityPrinter = undefined;
+      const fakePrinter = { notify: jest.fn() };
+      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
+
+      const activity = plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5502',
+        message: 'raw activity text',
+      });
+      await ioHost.notify(activity);
+
+      expect(fakePrinter.notify).toHaveBeenCalledWith(activity);
+      expect(mockStdout).not.toHaveBeenCalled();
+      expect(mockStderr).not.toHaveBeenCalled();
+
+      makeSpy.mockRestore();
+    });
+
+    test('on() accepts a maker `.is` type guard as the selector', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901.is, (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('matches'));
+      // A message with a different code is not matched by the type guard.
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'other',
+      }));
+
+      expect(observed).toEqual(['matches']);
+    });
+
+    test('on() accepts an arbitrary predicate as the selector', async () => {
+      const observed: string[] = [];
+      // Match any message whose code is in the I29xx family.
+      track(ioHost.on((msg) => (msg.code ?? '').startsWith('CDK_TOOLKIT_I29'), (msg) => {
+        observed.push(msg.message);
+      }));
+
+      await ioHost.notify(listMessage('matches'));
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'nope',
+      }));
+
+      expect(observed).toEqual(['matches']);
+    });
+
+    test('a request maker `.is` predicate can answer a request', async () => {
+      // The motivating example: pass IO.<code>.is as the selector for a request.
+      track(ioHost.on(IO.CDK_TOOLKIT_I7010.is, () => ({ respond: true, preventDefault: true })));
+
+      const answer = await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'destroy',
+        code: 'CDK_TOOLKIT_I7010',
+        message: 'proceed?',
+        defaultResponse: false,
+        data: { motivation: 'because' },
+      });
+
+      expect(answer).toBe(true);
+    });
+
+    test('on() with matchAny() fires for any of the given codes', async () => {
+      const observed: string[] = [];
+      track(ioHost.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
+        observed.push(`${msg.code}:${msg.message}`);
+      }));
+
+      await ioHost.notify(listMessage('a'));
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I1000',
+        message: 'b',
+      }));
+      // A code not in the set is ignored.
+      await ioHost.notify(plainMessage({
+        time: new Date(),
+        level: 'info',
+        action: 'synth',
+        code: 'CDK_TOOLKIT_I0001',
+        message: 'c',
+      }));
+
+      expect(observed).toEqual(['CDK_TOOLKIT_I2901:a', 'CDK_TOOLKIT_I1000:b']);
+    });
+
     test('rewrite() replaces the printed text for every matching message', async () => {
       track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
 
@@ -226,6 +385,27 @@ describe('CliIoHost', () => {
 
       expect(mockStdout).toHaveBeenCalledWith('rewritten:first\n');
       expect(mockStdout).toHaveBeenCalledWith('second\n');
+    });
+
+    test('rewrite() can also override the level, moving the message between streams', async () => {
+      // A result-level message normally goes to stdout; rewriting it to info
+      // (and changing the text) sends it to stderr in non-CI mode.
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, 'info'));
+
+      await ioHost.notify(listMessage('first'));
+
+      expect(mockStderr).toHaveBeenCalledWith('rewritten:first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
+    });
+
+    test('on() can override only the level, leaving the text unchanged', async () => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ level: 'info' })));
+
+      await ioHost.notify(listMessage('first'));
+
+      // text unchanged, but routed to stderr because it is now info-level
+      expect(mockStderr).toHaveBeenCalledWith('first\n');
+      expect(mockStdout).not.toHaveBeenCalled();
     });
 
     test('the returned dispose function removes the listener', async () => {
@@ -646,6 +826,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { logicalId: 'C' } }],
           stack: {},
@@ -660,6 +841,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           hotswapped: 1,
+          hotswapFallback: 0,
           hotswappableChanges: 2,
           nonHotswappableChanges: 1,
         },
@@ -679,6 +861,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 200,
           hotswapped: false,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }],
           nonHotswappableChanges: [],
           stack: {},
@@ -697,6 +880,7 @@ describe('CliIoHost', () => {
         }),
         counters: {
           hotswapped: 0,
+          hotswapFallback: 0,
           hotswappableChanges: 1,
           nonHotswappableChanges: 0,
         },
@@ -713,6 +897,7 @@ describe('CliIoHost', () => {
         data: {
           duration: 456,
           hotswapped: true,
+          hotswapFallback: false,
           hotswappableChanges: [{ a: 1 }, { b: 2 }],
           nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }, { subject: { resourceType: 'someOtherResource', rejectedProperties: ['Name', 'Id'], logicalId: 'B' } }, { subject: { logicalId: 'C' } }],
           stack: {},
@@ -727,6 +912,7 @@ describe('CliIoHost', () => {
         duration: 456,
         counters: {
           'hotswapped': 1,
+          'hotswapFallback': 0,
           'hotswappableChanges': 2,
           'nonHotswappableChanges': 3,
           'hotswapFallback:someResource': 1,
@@ -736,6 +922,79 @@ describe('CliIoHost', () => {
       }));
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
         error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on failed HOTSWAP event with nonHotswappable resources and fallback enabled', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 456,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }, { b: 2 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 456,
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 2,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
+      }));
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.not.objectContaining({
+        error: expect.anything(),
+      }));
+    });
+
+    test('emit telemetry on HOTSWAP event with fallback enabled and a failed CloudFormation deployment', async () => {
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5410',
+        message: 'hotswap result',
+        data: {
+          duration: 200,
+          hotswapped: false,
+          hotswapFallback: true,
+          hotswappableChanges: [{ a: 1 }],
+          nonHotswappableChanges: [{ subject: { resourceType: 'someResource', logicalId: 'A' } }],
+          stack: {},
+          mode: 'hotswap-fallback',
+          error: new Error('Failed to deploy'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'HOTSWAP',
+        duration: 200,
+        error: expect.objectContaining({
+          name: 'UnknownError',
+        }),
+        counters: {
+          'hotswapped': 0,
+          'hotswapFallback': 1,
+          'hotswappableChanges': 1,
+          'nonHotswappableChanges': 1,
+          'hotswapFallback:someResource': 1,
+        },
       }));
     });
   });
@@ -760,6 +1019,111 @@ describe('CliIoHost', () => {
       })).rejects.toThrow('but concurrency is greater than 1');
     });
 
+    describe('request listeners', () => {
+      function confirmRequest(message = 'Are you sure?'): IoRequest<any, boolean> {
+        return plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'destroy',
+          code: 'CDK_TOOLKIT_I7010',
+          message,
+          defaultResponse: false,
+        }) as IoRequest<any, boolean>;
+      }
+
+      test('respond() answers a request without prompting or printing', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respondOnce() answers only the first request, then defers to the prompt', async () => {
+        const dispose = ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+
+        const first = await ioHost.requestResponse(confirmRequest());
+        const second = await requestResponse('y', confirmRequest());
+
+        expect(first).toBe(true);
+        expect(second).toBe(true);
+        // only the second request prompted; the first was answered silently
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('a listener can reword the question that is prompted', async () => {
+        const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I7010, () => 'Really delete everything?');
+
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Really delete everything?') + ' (y/n) ');
+        dispose();
+      });
+
+      test('the returned dispose function removes the responder', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+        dispose();
+
+        // responder gone, so the host prompts as usual
+        const response = await requestResponse('y', confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Are you sure?') + ' (y/n) ');
+      });
+
+      test('a respond value skips the prompt but still surfaces the question', async () => {
+        // No preventDefault, so the question is written; but the prompt is
+        // skipped and the request resolves with the supplied value.
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('Are you sure?')); // surfaced, not prompted
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respond + preventDefault skips the prompt and suppresses the question', async () => {
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStdout).not.toHaveBeenCalled();
+        expect(mockStderr).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('preventDefault alone skips the prompt silently and resolves with the default', async () => {
+        // confirmRequest()'s defaultResponse is false; preventDefault means the
+        // listener handled it, so we return that default without prompting.
+        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ preventDefault: true }));
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(false);
+        expect(mockStdout).not.toHaveBeenCalled();
+        expect(mockStderr).not.toHaveBeenCalled();
+        dispose();
+      });
+
+      test('respond(..., false) answers the request while still surfacing the question', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true, /* suppressQuestion */ false);
+
+        const response = await ioHost.requestResponse(confirmRequest());
+
+        expect(response).toBe(true);
+        expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining('Are you sure?'));
+        expect(mockStdout).not.toHaveBeenCalled();
+        dispose();
+      });
+    });
+
     describe('boolean', () => {
       test('respond "yes" to a confirmation prompt', async () => {
         const response = await requestResponse('y', plainMessage({
@@ -775,16 +1139,17 @@ describe('CliIoHost', () => {
         expect(response).toBe(true);
       });
 
-      test('respond "no" to a confirmation prompt', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('respond "no" to a confirmation prompt returns false (the IoHost does not abort)', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I0001',
           message: 'Continue?',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
 
+        expect(response).toBe(false);
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('Continue?') + ' (y/n) ');
       });
     });
@@ -958,15 +1323,17 @@ describe('CliIoHost', () => {
         expect(response).toEqual(true);
       });
 
-      test('require approval by default - respond no', async () => {
-        await expect(() => requestResponse('n', plainMessage({
+      test('require approval by default - respond no returns false', async () => {
+        const response = await requestResponse('n', plainMessage({
           time: new Date(),
           level: 'info',
           action: 'synth',
           code: 'CDK_TOOLKIT_I5060',
           message: 'test message',
           defaultResponse: true,
-        }))).rejects.toThrow('Aborted by user');
+        }));
+
+        expect(response).toBe(false);
       });
 
       test('never require approval', async () => {

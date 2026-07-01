@@ -86,4 +86,37 @@ export interface TracedResourceError {
    * (Not optional on purpose so we are not allowed to forget to call the code that should fill it)
    */
   readonly sourceTrace: SourceTrace | undefined;
+
+  /**
+   * Additional context gathered from AWS service APIs to help diagnose the root cause.
+   *
+   * For example, CloudWatch Logs from an ECS service whose tasks failed to start.
+   */
+  readonly additionalContext?: AdditionalDiagnosticContext[];
+}
+
+export interface AdditionalDiagnosticContext {
+  /**
+   * A short structured identifier of where this context came from.
+   *
+   * @example "CloudWatch Logs (log-group-name)"
+   */
+  readonly source: string;
+
+  /**
+   * The log lines or messages retrieved
+   */
+  readonly messages: string[];
+
+  /**
+   * An optional console deep link for further investigation
+   */
+  readonly link?: string;
+
+  /**
+   * An optional short leader word rendered before the link, e.g. "Tasks" or "Logs".
+   *
+   * Helps distinguish multiple links on a single resource.
+   */
+  readonly linkLabel?: string;
 }

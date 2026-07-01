@@ -15,6 +15,7 @@ import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
+import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 
 // #region shared config
@@ -124,11 +125,12 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
 ];
 
 const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
-  target: 'ES2020',
-  module: 'commonjs',
-  lib: ['es2020'],
+  module: 'node18',
+  target: 'es2022',
+  lib: ['es2022'],
   incremental: true,
-  esModuleInterop: false,
+  esModuleInterop: true,
+  noEmitOnError: true,
   skipLibCheck: true,
   isolatedModules: true,
 };
@@ -166,6 +168,7 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
     // Randomize test order: this will catch tests that accidentally pass or
     // fail because they rely on shared mutable state left by other tests
     // (files on disk, global mocks, etc).
+    // @ts-ignore
     randomize: true,
   };
 }
@@ -345,7 +348,7 @@ const repoProject = new yarn.Monorepo({
 });
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
-  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'npx jest'),
+  pj.JsonPatch.add('/settings/jest.jestCommandLine', 'yarn jest'),
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
@@ -363,7 +366,6 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   dirs: [],
   devdirs: ['projenrc', '.projenrc.ts'],
   fileExtensions: ['.ts', '.tsx'],
-  lintProjenRc: false,
 });
 
 // always lint projen files as part of the build
@@ -445,7 +447,14 @@ const cloudAssemblySchema = configureProject(
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
-    disableTsconfig: true,
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        module: 'node16',
+        stripInternal: false,
+        tsBuildInfoFile: 'tsconfig.tsbuildinfo',
+      },
+    },
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -543,14 +552,6 @@ const cloudFormationDiff = configureProject(
       'string-width@^4',
       'table@^6',
     ],
-    // FIXME: this should be a jsii project
-    // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
@@ -629,11 +630,6 @@ const yarnCling = configureProject(
     deps: ['@yarnpkg/parsers', 'semver'],
     devDeps: ['@types/semver', 'fast-check'],
     minNodeVersion: '20',
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
@@ -662,11 +658,6 @@ const yargsGen = configureProject(
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
     devDeps: ['@types/semver', '@types/yarnpkg__lockfile', '@types/lodash.clonedeep', '@types/prettier@^2'],
     minNodeVersion: '20', // Necessary for 'structuredClone'
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
 
@@ -687,13 +678,35 @@ const cliPluginContract = configureProject(
     ],
     devDeps: [
     ],
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/private-tools
+
+/**
+ * Private (unpublished) package hosting small, self-contained utilities.
+ *
+ * Non-bundled consumers cherry-pick a tool via `project.with(tools.<name>)`,
+ * which adds a re-export shim (`lib/private/tools.ts`) and bundles only our
+ * code into it at pack time. Already-bundled consumers (the CLI) take a direct
+ * dependency on the package instead.
+ *
+ * Adding a new tool: create `packages/@aws-cdk/private-tools/lib/<tool>/index.ts`
+ * (auto-discovered) and declare its dependencies in the `tools` map below.
+ */
+const tools = defineTools({
+  ...genericCdkProps({ private: true }),
+  parent: repo,
+  tools: {
+    zip: {
+      deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
+      devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
+    },
+  },
+});
+configureProject(tools);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -710,8 +723,6 @@ const cdkAssetsLib = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      'archiver',
-      'fast-glob',
       'mime@^2',
       sdkDep('@aws-sdk/client-ecr'),
       sdkDep('@aws-sdk/client-s3'),
@@ -724,7 +735,6 @@ const cdkAssetsLib = configureProject(
       'picomatch',
     ],
     devDeps: [
-      '@types/archiver',
       '@types/mime@^2',
       '@types/picomatch',
       'fs-extra@^11',
@@ -735,20 +745,6 @@ const cdkAssetsLib = configureProject(
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
-    tsconfigDev: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-      include: ['bin/**/*.ts'],
-    },
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        rootDir: undefined,
-        outDir: undefined,
-      },
-      include: ['bin/**/*.ts'],
-    },
     jestOptions: jestOptionsForProject({
       jestConfig: {
         // We have many tests here that commonly time out
@@ -764,6 +760,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.zip);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -871,9 +868,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLibTsCompilerOptions = {
   ...defaultTsOptions,
-  target: 'es2022',
   lib: ['es2022', 'esnext.disposable'],
-  module: 'NodeNext',
   declarationMap: true,
 };
 
@@ -922,7 +917,6 @@ const toolkitLib = configureProject(
       smithyDep('@smithy/shared-ini-file-loader'),
       smithyDep('@smithy/util-retry'),
       smithyDep('@smithy/util-waiter'),
-      'archiver',
       'cdk-from-cfn',
       'chalk@^4',
       'chokidar@^4',
@@ -932,7 +926,6 @@ const toolkitLib = configureProject(
       'p-limit@^3',
       'semver',
       'split2',
-      'fast-glob',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -987,16 +980,11 @@ const toolkitLib = configureProject(
         ...toolkitLibTsCompilerOptions,
       },
     },
-    tsconfigDev: {
-      compilerOptions: {
-        ...toolkitLibTsCompilerOptions,
-        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
-      },
-    },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.zip);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1192,10 +1180,13 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
+    // The CLI bundles all of its dependencies, so it may depend on the private
+    // `@aws-cdk/private-tools` package directly (it is inlined on bundle).
+    allowPrivateDeps: true,
     devDeps: [
       yargsGen,
       cliPluginContract,
-      '@types/archiver',
+      '@types/yazl',
       '@types/fs-extra@^11',
       '@types/mockery',
       '@types/picomatch',
@@ -1221,7 +1212,10 @@ const cli = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
-      'archiver',
+      // Already bundled by the CLI: depend on the private tools package
+      // directly (the bundler inlines it and dedupes its transitive deps).
+      tools,
+      'yazl',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
       sdkDep('@aws-sdk/client-cloudformation'),
@@ -1272,25 +1266,10 @@ const cli = configureProject(
       'yargs@^15',
     ],
     excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        lib: ['es2019', 'es2022.error'],
-
-        // Changes the meaning of 'import' for libraries whose top-level export is a function
-        // 'aws-cdk' has been written against `false` for interop
-        esModuleInterop: false,
-
-        // Necessary to properly compile proxy-agent and lru-cache without esModuleInterop set.
-        skipLibCheck: true,
-      },
-    },
     tsconfigDev: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2019', 'esnext.disposable', 'es2022.error'],
-        esModuleInterop: false,
-        skipLibCheck: true,
+        lib: ['es2022', 'esnext.disposable'],
       },
     },
     eslintOptions: {
@@ -1397,7 +1376,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('tsx --tsconfig tsconfig.dev.json scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('tsx --tsconfig test/tsconfig.json scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
@@ -1440,11 +1419,6 @@ const cdkAliasPackage = configureProject(
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
     majorVersion: 2,
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
 void cdkAliasPackage;
@@ -1464,7 +1438,6 @@ const integRunner = configureProject(
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      cli.customizeReference({ versionType: 'exact' }),
       cdkAssetsLib.customizeReference({ versionType: 'exact' }),
       cloudFormationDiff.customizeReference({ versionType: 'exact' }),
       toolkitLib.customizeReference({ versionType: 'exact' }),
@@ -1531,7 +1504,6 @@ new BundleCli(integRunner, {
   externals: {
     dependencies: [
       '@aws-cdk/aws-service-spec',
-      'aws-cdk',
     ],
   },
   allowedLicenses: BUNDLED_LICENSES,
@@ -1584,6 +1556,7 @@ const cliInteg = configureProject(
       sdkDep('@aws-sdk/client-s3'),
       sdkDep('@aws-sdk/client-sns'),
       sdkDep('@aws-sdk/client-sso'),
+      sdkDep('@aws-sdk/client-ssm'),
       sdkDep('@aws-sdk/client-sts'),
       sdkDep('@aws-sdk/client-secrets-manager'),
       sdkDep('@aws-sdk/credential-providers'),
@@ -1627,10 +1600,8 @@ const cliInteg = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        esModuleInterop: false,
         target: 'es2022',
         lib: ['es2022', 'esnext.disposable', 'dom'],
-        module: 'NodeNext',
       },
       include: ['**/*.ts'],
       exclude: ['resources/**/*'],
@@ -1672,10 +1643,18 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // The pj.github.Dependabot component is only for a single Node project,
 // but we need multiple non-Node projects.
 
-// We prefer the projen updates, but Dependabot acts as a fallback in case
-// they get blocked. Dependabot also handles emergent security updates.
-// Because of that, we configure Dependabot cooldowns to a week.
+// We also want daily dependabot PRs in case they resolve
+// security alerts - and those need to be auto-approved as well.
+
+// configure a cooldown period so we don't grab fresh package versions
+// that haven't been battletested for security vulnurabilities yet.
+// note that for PRs that FIX a security alert, we skip the cooldown
+// since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
+
+// for PRs resolving security alerts we accept a shorter cooldown
+// given those are normally patch versions on top of already "cold" versions.
+const dependabotSecurityCooldown = 3;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
@@ -1683,14 +1662,17 @@ new pj.YamlFile(repo, '.github/dependabot.yml', {
     updates: [
       {
         'package-ecosystem': 'npm',
-        'schedule': { interval: 'weekly' },
+        'schedule': { interval: 'daily' },
         'cooldown': {
-          'default-days': dependabotCooldown,
+          'default-days': dependabotSecurityCooldown,
         },
+        // disable version updates, leaving only security updates.
+        // see https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-security-updates#overriding-the-default-behavior-with-a-configuration-file
+        'open-pull-requests-limit': 0,
         'labels': ['auto-approve'],
-        'allow': [{
-          'dependency-type': 'production',
-        }],
+        'ignore': repoProject.subprojects
+          .map(p => ({ 'dependency-name': p.name }))
+          .sort((a, b) => a['dependency-name'].localeCompare(b['dependency-name'])),
         'directories': ['/', ...repoProject.node.children
           .filter(child => child instanceof TypeScriptWorkspace)
           .map(ts => `/${path.relative(repoProject.outdir, ts.outdir)}`)
@@ -1772,7 +1754,7 @@ new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
 
 new LargePrChecker(repo, {
-  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', 'THIRD_PARTY_LICENSES'],
+  excludeFiles: ['*.md', '*.test.ts', '*.yml', '*.lock', '*THIRD_PARTY_LICENSES'],
 });
 
 // Set allowed scopes based on monorepo packages

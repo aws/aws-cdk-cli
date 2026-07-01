@@ -34,7 +34,8 @@
     "\\.generated\\.[jt]s$",
     "<rootDir>/test/",
     ".warnings.jsii.js$",
-    "/node_modules/"
+    "/node_modules/",
+    "lib/private/tools\\.js$"
   ],
   "reporters": [
     "default",
@@ -60,7 +61,7 @@
     "^.+\\.[t]sx?$": [
       "ts-jest",
       {
-        "tsconfig": "tsconfig.dev.json"
+        "tsconfig": "test/tsconfig.json"
       }
     ]
   },

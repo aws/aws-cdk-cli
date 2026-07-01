@@ -20,7 +20,7 @@ jest.mock('../../lib/api/notices', () => ({
 describe('doctor', () => {
   test('prints CDK version', async () => {
     await exec(['doctor']);
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: expect.stringContaining('CDK Version:') }));
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ level: 'info', message: expect.stringContaining('CDK CLI Version:') }));
   });
 });
 

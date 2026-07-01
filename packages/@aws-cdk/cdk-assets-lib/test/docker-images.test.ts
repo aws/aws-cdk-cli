@@ -2,7 +2,7 @@ jest.mock('child_process');
 
 import 'aws-sdk-client-mock-jest';
 
-import * as fs from 'fs';
+import fs from 'fs';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import type { GetAuthorizationTokenResponse } from '@aws-sdk/client-ecr';
 import {

@@ -6,7 +6,7 @@
  */
 
 import * as cdk from 'aws-cdk-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
 
@@ -90,7 +90,7 @@ test('outputs of assembly are measured', async () => {
     return app.synth();
   });
 
-  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Found errors/);
+  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Synthesis finished with errors/);
 
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     data: expect.objectContaining({

@@ -1,46 +1,26 @@
 import * as path from 'node:path';
-import type { PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
-import * as chalk from 'chalk';
+import type { PluginReportJson, PolicyViolationJson, PolicyViolationSeverity, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import chalk from 'chalk';
 import type { ValidateResult } from '../../actions/validate';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
 
-// Matches C0 control chars (except \t and \n), DEL, and CSI (8-bit mode).
-// Strips ANSI escape sequences, carriage returns, backspaces, BEL, and
-// bidirectional overrides that could spoof terminal output.
-const CONTROL_CHARS = /[\x00-\x08\x0B-\x1F\x7F\x9B]/g;
-function sanitize(s: string | undefined): string {
-  return (s ?? '').replace(CONTROL_CHARS, '�');
-}
-
-interface FlattenedViolation {
-  readonly severity: string;
-  readonly description: string;
-  readonly ruleName: string;
-  readonly pluginName: string;
-  readonly construct: ViolatingConstructJson;
-}
-
-const SEVERITY_ORDER: Record<string, number> = {
-  fatal: 0,
-  error: 1,
-  warning: 2,
-  info: 3,
-};
-
-export function hostMessageFromValidation(result: ValidateResult): ActionLessMessage<any> {
+export function hostMessageFromValidation(fileRoot: string, result: ValidateResult): ActionLessMessage<any> {
   // Always emit at info level so the CLI IoHost doesn't wrap the entire output
   // in a single color. The formatter handles per-severity coloring internally.
   // Consumers detect failure via the structured `data.conclusion` field or exit code.
-  return IO.CDK_TOOLKIT_I9600.msg(formatValidateResult(result), result);
+  return IO.CDK_TOOLKIT_E9600.msg(formatValidateResult(fileRoot, result), result);
 }
 
-export function formatValidateResult(result: ValidateResult): string {
-  const violations = flattenViolations(result.pluginReports);
+export function formatValidateResult(fileRoot: string, result: ValidateResult): string {
+  return formatValidationReports(fileRoot, result.pluginReports).join('\n\n');
+}
 
-  if (violations.length === 0) {
-    return '\nPolicy validation passed. No problems found.';
-  }
+export function formatValidationReports(fileRoot: string, reports: PluginReportJson[]): string[] {
+  const successfullyExecutedPlugins = reports.filter((r) => isPluginFailure(r) === undefined);
+  const pluginFailures = reports.map(isPluginFailure).filter((e) => e !== undefined);
+
+  const violations = flattenViolations(successfullyExecutedPlugins);
 
   violations.sort((a, b) => {
     const aOrder = SEVERITY_ORDER[a.severity.toLowerCase()] ?? 4;
@@ -48,59 +28,68 @@ export function formatValidateResult(result: ValidateResult): string {
     return aOrder - bOrder;
   });
 
-  const title = result.title ?? 'Validation Report';
-  const blocks = violations.map((v) => formatViolationBlock(v));
-  return `\n${title}\n${'-'.repeat(title.length)}\n\n${blocks.join('\n\n')}`;
+  return [
+    ...pluginFailures.map(formatPluginFailure),
+    ...violations.map((v) => formatViolationBlock(fileRoot, v)),
+  ];
 }
 
-function flattenViolations(pluginReports: PluginReportJson[]): FlattenedViolation[] {
-  const result: FlattenedViolation[] = [];
-
-  for (const report of pluginReports) {
+function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
+  return reports.flatMap((report) => {
     const pluginName = report.pluginName;
+    return report.violations.flatMap((violation) => {
+      return violation.violatingConstructs.map((construct) => ({
+        severity: normalizeSeverity(violation.severity),
+        description: violation.description,
+        ruleName: violation.ruleName,
+        pluginName,
+        construct,
+        suggestedFix: violation.suggestedFix,
+        ruleMetadata: violation.ruleMetadata,
+      }));
+    });
+  });
+}
 
-    for (const violation of report.violations) {
-      const severity = normalizeSeverity(violation.severity);
-
-      for (const construct of violation.violatingConstructs) {
-        result.push({ severity, description: violation.description, ruleName: violation.ruleName, pluginName, construct });
-      }
-    }
+function normalizeSeverity(severity: PolicyViolationSeverity, customSeverity?: string): string {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+    case 'warning':
+    case 'info':
+      return severity.toUpperCase();
+    case 'custom':
+      return customSeverity ?? 'INFO';
   }
-
-  return result;
 }
 
-function normalizeSeverity(severity: string | undefined): string {
-  if (!severity) return 'Warning';
-  const lower = severity.toLowerCase();
-  if (lower === 'fatal') return 'Fatal';
-  if (lower === 'error') return 'Error';
-  if (lower === 'warning') return 'Warning';
-  if (lower === 'info') return 'Info';
-  const safe = sanitize(severity);
-  return safe.charAt(0).toUpperCase() + safe.slice(1);
-}
-
-function formatViolationBlock(v: FlattenedViolation): string {
+function formatViolationBlock(fileRoot: string, v: FlattenedViolation): string {
   const lines: string[] = [];
 
-  const location = getLeafLocation(v.construct.stackTraces);
+  const location = sourceLocation(fileRoot, v.construct.stackTraces);
   if (location) {
     lines.push(chalk.underline(sanitize(location)));
   }
 
-  const severityColor = getSeverityColor(v.severity);
-  const description = stripAckTag(sanitize(v.description));
-  const severityAndDesc = severityColor(chalk.bold(`${v.severity}: ${description}`));
-  lines.push(`${severityAndDesc} ${sanitize(v.pluginName)}`);
+  lines.push([
+    chalk.bold(getSeverityColor(v.severity)(sanitize(v.severity))),
+    chalk.bold(stripAckTag(sanitize(v.description))),
+    chalk.grey(`(${sanitize(v.pluginName)})`),
+  ].join(' '));
 
-  const constructInfo = formatConstructInfo(v.construct);
+  const constructInfo = formatConstructInfo(fileRoot, v.construct);
   lines.push(`   ${constructInfo}`);
 
-  if (v.severity.toLowerCase() !== 'fatal') {
+  if (v.suggestedFix) {
+    lines.push(`   Suggested fix: ${sanitize(v.suggestedFix).replace(/\n/g, '\n   ')}`);
+  }
+
+  if (isSuppressibleViolation(v)) {
     const ackId = `${sanitize(v.pluginName)}::${sanitize(v.ruleName)}`.replace(/ /g, '-');
-    lines.push(`   Acknowledge '${ackId}'`);
+    lines.push(`   ${chalk.grey(`Acknowledge with '${ackId}'`)}`);
+  } else {
+    // If not acknowledgeable, we should still show the rule name for reference.
+    lines.push(`   ${chalk.grey(`Rule ${sanitize(v.ruleName)}`)}`);
   }
 
   return lines.join('\n');
@@ -115,19 +104,29 @@ function getSeverityColor(severity: string): (str: string) => string {
   }
 }
 
-function formatConstructInfo(construct: ViolatingConstructJson): string {
+function formatPluginFailure(f: PluginError): string {
+  return `${chalk.ansi256(208)('ERROR')} ${sanitize(f.error)}`;
+}
+
+function formatConstructInfo(fileRoot: string, construct: ViolatingConstructJson): string {
   const parts: string[] = [];
   const logicalId = sanitize(construct.cloudFormationResource?.logicalId);
 
   if (construct.constructPath) {
     const cPath = sanitize(construct.constructPath);
     parts.push(logicalId ? `${chalk.bold(cPath)} (${logicalId})` : chalk.bold(cPath));
-  } else if (logicalId) {
-    parts.push(chalk.bold(logicalId));
+  } else {
+    // No construct information, show template path and logical ID
+    if (construct.cloudFormationResource?.templatePath) {
+      parts.push(humanFriendlyFilename(fileRoot, sanitize(construct.cloudFormationResource.templatePath)));
+    }
+    if (logicalId) {
+      parts.push(chalk.bold(logicalId));
+    }
   }
 
   if (construct.constructFqn) {
-    parts.push(sanitize(construct.constructFqn));
+    parts.push(chalk.grey(sanitize(construct.constructFqn)));
   }
 
   return parts.join(' ');
@@ -137,10 +136,18 @@ function stripAckTag(description: string): string {
   return description.replace(/\s*\[ack:\s*[^\]]+\]\s*/g, '').trim();
 }
 
-function getLeafLocation(stackTraces: string[] | undefined): string | undefined {
-  if (!stackTraces || stackTraces.length === 0) return undefined;
-  const lastTrace = stackTraces[stackTraces.length - 1];
-  const frames = lastTrace.split('\n');
+function sourceLocation(fileRoot: string, stackTraces: string[] | undefined): string | undefined {
+  for (const trace of stackTraces ?? []) {
+    const frame = getLeafLocation(trace);
+    if (frame && frame.fileName) {
+      return `${humanFriendlyFilename(fileRoot, frame.fileName)}:${frame.sourceLocation}`;
+    }
+  }
+  return undefined;
+}
+
+function getLeafLocation(stackTrace: string) {
+  const frames = stackTrace.split('\n');
   if (frames.length === 0) return undefined;
 
   // Find the first frame that's user code (not in node_modules or aws-cdk-lib)
@@ -149,5 +156,53 @@ function getLeafLocation(stackTraces: string[] | undefined): string | undefined 
 
   const match = frame.match(/\((.+)\)$/) || frame.match(/at\s+(.+)$/);
   const location = match ? match[1] : frame;
-  return path.isAbsolute(location.split(':')[0]) ? path.relative(process.cwd(), location) : location;
+  return { fileName: location.split(':')[0], sourceLocation: location.split(':').slice(1).join(':') };
+}
+
+// Matches C0 control chars (except \t and \n), DEL, and CSI (8-bit mode).
+// Strips ANSI escape sequences, carriage returns, backspaces, BEL, and
+// bidirectional overrides that could spoof terminal output.
+const CONTROL_CHARS = /[\x00-\x08\x0B-\x1F\x7F\x9B]/g;
+function sanitize(s: string | undefined): string {
+  return (s ?? '').replace(CONTROL_CHARS, '�');
+}
+
+export type FlattenedViolation =
+  & Pick<PluginReportJson, 'pluginName'>
+  & Pick<PolicyViolationJson, 'description' | 'ruleName' | 'suggestedFix' | 'ruleMetadata'>
+  & { severity: string; construct: ViolatingConstructJson };
+
+const SEVERITY_ORDER: Record<string, number> = {
+  fatal: 0,
+  error: 1,
+  warning: 2,
+  info: 3,
+};
+
+export function humanFriendlyFilename(root: string, filename: string): string {
+  const absPath = filename;
+  const relPath = path.relative(root, filename);
+  return relPath.length < absPath.length ? relPath : absPath;
+}
+
+interface PluginError {
+  readonly error: string;
+}
+
+function isPluginFailure(r: PluginReportJson): PluginError | undefined {
+  if (r.conclusion === 'success' || r.violations.length > 0 || !r.metadata?.error) {
+    return undefined;
+  }
+  return { error: r.metadata.error };
+}
+
+/**
+ * Report whether it is possible to suppress this violation.
+ *
+ * Violations that are reported as "fatal", or that have been converted from annotations, cannot be suppressed.
+ */
+function isSuppressibleViolation(violation: { severity?: string; ruleMetadata?: { [key: string]: string } }): boolean {
+  const isFatal = violation.severity?.toLowerCase() === 'fatal';
+  const isErrorAnnotation = violation.ruleMetadata?.['cdk:annotation'] && violation.severity?.toLowerCase() === 'error';
+  return !isFatal && !isErrorAnnotation;
 }
