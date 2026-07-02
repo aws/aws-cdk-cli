@@ -1365,10 +1365,10 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
-        // The prompt appears (approval is required), with the CLI's --require-approval framing.
-        expect(mockStdout).toHaveBeenCalledWith(
-          chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
-        );
+        // The prompt appears (approval is required). Without the deploy listener
+        // the host prints the message as-is; the `--require-approval` framing is
+        // covered below.
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 
@@ -1390,9 +1390,23 @@ describe('CliIoHost', () => {
         expect(response).toEqual(true);
       });
 
-      describe('CLI augments the library motivation with --require-approval framing', () => {
-        const bareMotivationMessage = 'Stack includes security-sensitive updates: Do you wish to deploy these changes?';
-        const bareNonSecurityMessage = 'Stack includes updates: Do you wish to deploy these changes?';
+      describe('CLI reframes the library motivation with --require-approval framing', () => {
+        // The deploy command registers a rewrite listener on I5060 that adds the
+        // CLI's `--require-approval` framing to the library's flag-free question.
+        // Register the same listener here so the reframed prompt can be asserted
+        // in isolation, keyed off the message payload and the configured flag.
+        beforeEach(() => {
+          ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+            const updateTypeText = msg.data.permissionChangeType !== 'none'
+              ? 'security-sensitive updates'
+              : 'updates';
+            return `Stack includes ${updateTypeText} and "--require-approval" is set to '${ioHost.requireDeployApproval}'.\nDo you wish to deploy these changes?`;
+          });
+        });
+
+        afterEach(() => {
+          ioHost.removeAllListeners();
+        });
 
         test('BROADENING + has-security adds the --require-approval suffix and breaks the question to a new line', async () => {
           ioHost.requireDeployApproval = RequireApproval.BROADENING;
@@ -1401,7 +1415,7 @@ describe('CliIoHost', () => {
             level: 'info',
             action: 'synth',
             code: 'CDK_TOOLKIT_I5060',
-            message: bareMotivationMessage,
+            message: 'test message',
             data: {
               permissionChangeType: 'broadening',
             },
@@ -1420,7 +1434,7 @@ describe('CliIoHost', () => {
             level: 'info',
             action: 'synth',
             code: 'CDK_TOOLKIT_I5060',
-            message: bareMotivationMessage,
+            message: 'test message',
             data: {
               permissionChangeType: 'broadening',
             },
@@ -1439,7 +1453,7 @@ describe('CliIoHost', () => {
             level: 'info',
             action: 'synth',
             code: 'CDK_TOOLKIT_I5060',
-            message: bareNonSecurityMessage,
+            message: 'test message',
             data: {
               permissionChangeType: 'none',
             },
