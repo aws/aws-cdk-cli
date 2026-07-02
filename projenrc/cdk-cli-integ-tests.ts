@@ -247,6 +247,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       storage: './storage',
       auth: { htpasswd: { file: './htpasswd' } },
       uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
+      max_body_size: '100mb',
       packages: {} as Record<string, unknown>,
     };
 
