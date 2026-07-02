@@ -145,7 +145,7 @@ export async function restUrlFromManifest(url: string, environment: Environment)
     // SDK v3 no longer allows for getting endpoints from only region.
     // A command and client config must now be provided.
     const s3 = new S3Client({ region });
-    const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand as any, {
+    const endpoint = await getEndpointFromInstructions({}, HeadObjectCommand, {
       ...s3.config,
     });
 

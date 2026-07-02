@@ -1,0 +1,4 @@
+{"seq":0,"type":"notify","action":"destroy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"destroy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I7100","message":"Test-Stack-B: destroying... [1/1]"}
+{"seq":3,"type":"notify","action":"destroy","level":"info","code":"CDK_TOOLKIT_I7900","message":"\n✅  Test-Stack-B: destroyed"}
