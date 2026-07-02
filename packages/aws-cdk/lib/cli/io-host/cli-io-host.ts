@@ -730,7 +730,13 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     // Run any registered listeners. A listener may update the message text
     // and/or prevent the default processing (e.g. stack-activity messages are
     // routed to the activity printer and not written to a stream).
-    const { message, preventDefault } = await this.applyMessageListeners(msg);
+    //
+    // Skip this while replaying corked messages: the listeners already ran on
+    // the first pass, and running them again would re-transform an
+    // already-transformed message.
+    const { message, preventDefault } = this.corkReplaying
+      ? { message: msg, preventDefault: false }
+      : await this.applyMessageListeners(msg);
 
     // Tell observers how this message was handled (its effective form and
     // whether it was dropped). Skipped while replaying corked messages so each
