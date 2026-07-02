@@ -17,7 +17,6 @@ const MAX_PORT_ATTEMPTS = 100;
 
 export interface WebServerOptions {
   readonly port?: number;
-  readonly host?: string;
   /**
    * Root of the CDK app. File listing/reading is confined here. Defaults to
    * `process.cwd()`.
@@ -54,7 +53,6 @@ export interface WebServer {
  * @returns A handle to the running server with its URL and a stop function.
  */
 export async function startWebServer(options: WebServerOptions = {}): Promise<WebServer> {
-  const host = options.host ?? '127.0.0.1';
   const appDir = options.appDir ?? process.cwd();
   // Single owner of where the cloud assembly lives: the same resolved path feeds
   // both the read endpoints and the change watcher, so the two never disagree.
@@ -91,8 +89,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const server = http.createServer(app);
 
   const port = options.port !== undefined
-    ? await listenOnPort(server, host, options.port)
-    : await listenWithPortSearch(server, host, DEFAULT_PORT);
+    ? await listenOnPort(server, options.port)
+    : await listenWithPortSearch(server, DEFAULT_PORT);
 
   // Start watching only after the server is listening, so a failed bind does not
   // leave a watcher running. Any synth that rewrites cdk.out (an external
@@ -107,7 +105,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   let stopped = false;
   return {
-    url: `http://${host}:${port}`,
+    url: `http://127.0.0.1:${port}`,
     stop: async () => {
       if (stopped) return;
       stopped = true;
@@ -123,12 +121,11 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
 async function listenOnPort(
   server: http.Server,
-  host: string,
   port: number,
 ): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, host, () => {
+    server.listen(port, '127.0.0.1', () => {
       server.removeListener('error', reject);
       resolve();
     });
@@ -138,14 +135,13 @@ async function listenOnPort(
 
 async function listenWithPortSearch(
   server: http.Server,
-  host: string,
   startPort: number,
 ): Promise<number> {
   for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(port, host, () => {
+        server.listen(port, '127.0.0.1', () => {
           server.removeListener('error', reject);
           resolve();
         });
