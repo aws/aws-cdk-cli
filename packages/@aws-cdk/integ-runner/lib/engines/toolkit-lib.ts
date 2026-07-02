@@ -276,6 +276,16 @@ export class ToolkitLibRunnerEngine implements ICdk {
       outdir = path.join(this.options.workingDirectory, options.output);
     }
 
+    // If the target directory already exists, we assume it's a pre-synthesized assembly and use it directly.
+    // This helps a lot with speed if we run `cdk list` on previously synth'ed directory, which happens
+    // a bunch in the integ-runner.
+    //
+    // Ideally we would represent a previously produced assembly with an object that we pass around, but
+    // that's a bigger API change.
+    if (outdir && fs.pathExistsSync(outdir) && fs.statSync(outdir).isDirectory()) {
+      return this.toolkit.fromAssemblyDirectory(outdir);
+    }
+
     return this.toolkit.fromCdkApp(options.app, {
       workingDirectory: this.options.workingDirectory,
       outdir,

@@ -203,3 +203,49 @@ describe('destroy failure', () => {
     })).rejects.toThrow('Deletion failed');
   });
 });
+
+describe('--express', () => {
+  test('warns about resources still tearing down when destroyStack reports them', async () => {
+    // Express Mode returns success while some resources are still tearing down;
+    // the destroy path surfaces this as an extra warning listing those resources.
+    destroyStackMock.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test',
+      stabilizingResources: [{
+        logicalResourceId: 'MyResource',
+        resourceType: 'AWS::S3::Bucket',
+        reason: 'Resource deletion Initiated',
+      }],
+    } as any);
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    expect(destroyStackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+
+  test('does not warn when no resources are still tearing down', async () => {
+    // Express Mode is on, but destroyStack reports an empty
+    // `stabilizingResources`, so the destroy path emits no stabilization warning.
+    destroyStackMock.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test',
+      stabilizingResources: [],
+    } as any);
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    expect(destroyStackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+});

@@ -38,7 +38,9 @@
   "include": [
     "lib/**/*.ts"
   ],
-  "exclude": [],
+  "exclude": [
+    "node_modules"
+  ],
   "references": [
     {
       "path": "../aws-cdk"

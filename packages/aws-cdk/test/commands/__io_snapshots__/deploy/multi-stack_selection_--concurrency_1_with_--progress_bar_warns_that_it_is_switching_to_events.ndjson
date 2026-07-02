@@ -10,8 +10,8 @@
 {"seq":9,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-B: deploying... [2/2]"}
 {"seq":10,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
 {"seq":11,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
-{"seq":12,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-A-Display-Name"}
-{"seq":13,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-B"}
+{"seq":12,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-A-Display-Name"}
+{"seq":13,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-B"}
 {"seq":14,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
 {"seq":15,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
 {"seq":16,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}

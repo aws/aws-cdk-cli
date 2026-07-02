@@ -147,6 +147,7 @@ export async function tryHotswapDeployment(
       stackArn: cloudFormationStack.stackId,
       outputs: cloudFormationStack.outputs,
       deleteFailures: [],
+      stabilizingResources: [],
     };
   }
 

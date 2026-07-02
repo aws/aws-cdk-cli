@@ -203,6 +203,13 @@ export interface BaseDeployOptions {
    * @default false
    */
   readonly traceLogs?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   *
+   * @default false
+   */
+  readonly express?: boolean;
 }
 
 export interface DeployOptions extends BaseDeployOptions {

@@ -394,6 +394,7 @@ describe('imports', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );
@@ -519,6 +520,7 @@ describe('non-nested stacks', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );
@@ -728,6 +730,7 @@ describe('stack exists checks', () => {
         outputs: {},
         stackArn: '',
         deleteFailures: [],
+        stabilizingResources: [],
         stackArtifact: options.stack,
       }),
     );

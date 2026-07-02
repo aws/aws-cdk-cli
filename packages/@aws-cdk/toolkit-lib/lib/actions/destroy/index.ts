@@ -19,4 +19,11 @@ export interface DestroyOptions {
    * @default 1
    */
   readonly concurrency?: number;
+
+  /**
+   * Whether to use express mode to destroy the stack(s)
+   *
+   * @default false
+   */
+  readonly express?: boolean;
 }

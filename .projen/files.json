@@ -29,7 +29,7 @@
     "aws-cdk-cli.code-workspace",
     "LICENSE",
     "nx.json",
-    "tsconfig.dev.json",
+    "projenrc/tsconfig.json",
     "tsconfig.json",
     "yarn.config.cjs"
   ],

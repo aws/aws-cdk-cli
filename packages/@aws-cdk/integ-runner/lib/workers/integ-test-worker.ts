@@ -18,6 +18,15 @@ export interface IntegTestBatchRequest extends IntegTestOptions {
    * The AWS profile to use when running this test
    */
   readonly profile?: string;
+
+  /**
+   * In unit test mode, leave the synth output directories, don't clean them.
+   *
+   * Many of our tests use mocks and don't actually synth output directories, they are
+   * static and must not be deleted.
+   */
+  readonly testingUsingMocksLeaveDirectories?: boolean;
+
 }
 
 /**

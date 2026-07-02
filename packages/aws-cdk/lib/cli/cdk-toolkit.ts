@@ -14,7 +14,7 @@ import { CliIoHost } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -545,6 +545,7 @@ export class CdkToolkit {
       extraUserAgent: options.extraUserAgent,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
+      express: options.express,
     });
 
     const startDeployTime = Date.now();
@@ -955,6 +956,7 @@ export class CdkToolkit {
         },
         roleArn: options.roleArn,
         concurrency: options.concurrency,
+        express: options.express,
       });
     } finally {
       this.ioHost.removeAllListeners();
@@ -967,10 +969,10 @@ export class CdkToolkit {
   ): Promise<number> {
     this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
-    // With `--json`, stdout must stay machine-parsable, so suppress the synth-time line (I1000).
-    if (options.json) {
-      this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
-    }
+    // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
+    // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
+    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+    this.ioHost.once(IO.CDK_TOOLKIT_I1002, () => ({ preventDefault: true }));
 
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0
@@ -1050,9 +1052,16 @@ export class CdkToolkit {
       try {
         const result = await bootstrapper.bootstrapEnvironment(environment, this.props.sdkProvider, options);
         const message = result.noOp
-          ? ' ✅  Environment %s bootstrapped (no changes).'
-          : ' ✅  Environment %s bootstrapped.';
+          ? '✅  Environment %s bootstrapped (no changes).'
+          : '✅  Environment %s bootstrapped.';
         await this.ioHost.asIoHelper().defaults.info(chalk.green(message), chalk.blue(environment.name));
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'bootstrap');
+          if (warning) {
+            await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W9902.msg(warning));
+          }
+        }
       } catch (e) {
         await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), e);
         throw e;
@@ -1711,6 +1720,11 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default false
    */
   readonly ignoreNoStacks?: boolean;
+
+  /**
+   * Whether to use CloudFormation express mode for the current deployment
+   */
+  readonly express?: boolean;
 }
 
 export interface RollbackOptions {
@@ -1822,6 +1836,11 @@ export interface DestroyOptions {
    * Maximum number of simultaneous destroys (dependency permitting) to execute.
    */
   concurrency?: number;
+
+  /**
+   * Whether to use CloudFormation express mode to delete the stack(s)
+   */
+  express?: boolean;
 }
 
 /**
@@ -2108,6 +2127,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly concurrency: number;
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
+  readonly express?: boolean;
 }
 
 /**
@@ -2263,6 +2283,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       notificationArns,
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
+      express: this.options.express,
     };
 
     // When using change-set method, always create the change set upfront.
@@ -2397,11 +2418,11 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
             const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
-              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with regular deployment (--force).`);
+              await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);
             } else {
               await askUserConfirmation(
                 this.ioHost,
-                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a regular deployment`, {
+                IO.CDK_TOOLKIT_I5050.req(`${motivation}. Perform a deployment with rollback enabled`, {
                   concurrency: this.options.concurrency,
                   motivation,
                 }),
@@ -2421,12 +2442,19 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       }
 
       const message = deployResult.noOp
-        ? ' ✅  %s (no changes)'
-        : ' ✅  %s';
+        ? '✅  %s (no changes)'
+        : '✅  %s';
 
       await this.ioHost.asIoHelper().defaults.info(chalk.green('\n' + message), stack.displayName);
       elapsedDeployTime = new Date().getTime() - startDeployTime;
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Deployment time: ${formatTime(elapsedDeployTime)}s\n`);
+
+      if (this.options.express) {
+        const warning = formatExpressStabilizationWarning(deployResult.stabilizingResources, 'deploy');
+        if (warning) {
+          await this.ioHost.asIoHelper().notify(IO.CDK_TOOLKIT_W5902.msg(warning));
+        }
+      }
 
       if (Object.keys(deployResult.outputs).length > 0) {
         await this.ioHost.asIoHelper().defaults.info('Outputs:');

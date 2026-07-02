@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { CdkIntegHelper } from '../../lib/runner';
 import { IntegTest } from '../../lib/runner/integration-tests';
+import { findTestSpecificContext } from '../../lib/runner/private/test-specific-context';
 
 let mockCdk: any;
 let tempDir: string;
@@ -70,6 +71,28 @@ test('can read context from parent directory', async () => {
 
   // WHEN / THEN
   expect(helper.getContext()).toMatchObject({ integJsonKey: 'integJsonValue' });
+});
+
+test('can read upwards from current directory', async () => {
+  // GIVEN
+  await writeJson(path.join(tempDir, 'integ.context.json'), {
+    integJsonKey: 'integJsonValue',
+  });
+
+  const oldDir = process.cwd();
+  const subdir = path.join(tempDir, 'subdir');
+  await fs.mkdir(subdir, { recursive: true });
+
+  process.chdir(subdir);
+  try {
+    // WHEN
+    const context = await findTestSpecificContext('.');
+
+    // THEN
+    expect(context).toMatchObject({ integJsonKey: 'integJsonValue' });
+  } finally {
+    process.chdir(oldDir);
+  }
 });
 
 async function makeHelper(relativePath: string) {
