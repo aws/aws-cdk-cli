@@ -434,11 +434,9 @@ export class CdkToolkit {
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
     this.ioHost.requireDeployApproval = requireApproval;
 
-    // The deploy-approval request (I5060) is emitted with a flag-free motivation:
-    // toolkit-lib has no business referring to CLI arguments. The CLI is the layer
-    // that knows about `--require-approval`, so it reframes the question here. The
-    // listener fires wherever the request originates (the CLI deploy path or
-    // toolkit-lib's own deploy action), so both stay in sync.
+    // toolkit-lib emits the approval request (I5060) without mentioning
+    // `--require-approval`. The CLI owns that flag, so it adds the framing here.
+    // Both deploy paths resolve through this host, so one listener covers both.
     this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
