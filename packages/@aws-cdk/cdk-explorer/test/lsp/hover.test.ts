@@ -75,6 +75,14 @@ describe('selectPrimary', () => {
     const task = res('Stack/Svc/Task/Resource', 'Task1', 'AWS::ECS::TaskDefinition');
     expect(selectPrimary([lb, task])).toBeUndefined();
   });
+
+  test('the default child is primary even when tied at the shallowest depth', () => {
+    // A Vpc creates its CfnVPC (default child `Resource`) and an InternetGateway
+    // as siblings at the same depth; the default child is still the primary.
+    const vpc = res('Stack/Vpc/Resource', 'Vpc1', 'AWS::EC2::VPC');
+    const igw = res('Stack/Vpc/IGW', 'Igw1', 'AWS::EC2::InternetGateway');
+    expect(selectPrimary([igw, vpc])).toEqual({ primary: vpc, others: [igw] });
+  });
 });
 
 describe('buildHover', () => {

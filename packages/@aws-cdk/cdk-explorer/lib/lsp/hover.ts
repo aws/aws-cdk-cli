@@ -25,7 +25,7 @@ export interface HoverLinks {
   readonly properties: Record<string, LinkTarget>;
 }
 
-/** A construct line's primary resource (its default child) and its other resources. */
+/** A construct line's primary resource (the one the hover leads with) and its other resources. */
 export interface PrimarySelection {
   readonly primary: ResourceConstruct;
   readonly others: readonly ResourceConstruct[];
@@ -152,11 +152,11 @@ function lineOf(text: string, range: OffsetRange): number {
 }
 
 /**
- * Builds the hover for the resource(s) created on a line, given the primary
- * primaryResource. When one resource is the construct's primary (default) child, its
- * resolved properties are shown and the rest are listed under "Also creates";
- * when several resources tie at the shallowest depth (an L3 with no default
- * child), `primaryResource` is undefined and a resource summary is shown instead.
+ * Builds the hover for the resource(s) created on a line, given the selected
+ * primary resource. When one resource is the clear primary, its resolved
+ * properties are shown and the rest are listed under "Also creates"; when
+ * several resources tie at the shallowest depth with no single primary,
+ * `primaryResource` is undefined and a resource summary is shown instead.
  * Returns undefined when no resource maps to the line.
  */
 export function buildHover(
@@ -175,9 +175,11 @@ export function buildHover(
 }
 
 /**
- * The construct's primary resource (the uniquely shallowest, i.e. its default
- * child) plus its other resources. Undefined when several resources tie at the
- * shallowest depth, so no single one is canonical.
+ * Selects the line's primary resource: the uniquely shallowest resource on the
+ * line, which is usually but not always the construct's default child. When
+ * several resources tie at the shallowest depth, a single default child
+ * (`Resource`/`Default`) breaks the tie; if none or more than one qualifies,
+ * there is no clear primary and this returns undefined. `others` holds the rest.
  */
 export function selectPrimary(nodes: readonly ResourceConstruct[]): PrimarySelection | undefined {
   const byDepth = [...nodes].sort((a, b) => segments(a) - segments(b));
