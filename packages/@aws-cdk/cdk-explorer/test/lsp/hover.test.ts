@@ -79,7 +79,7 @@ describe('selectPrimary', () => {
 
 describe('buildHover', () => {
   const links: HoverLinks = {
-    blocks: {
+    resourceLocations: {
       'Stack/Fn/Resource': { uri: FILE_URI, line: 5 },
       'Stack/Fn/ServiceRole/Resource': { uri: FILE_URI, line: 40 },
     },

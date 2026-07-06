@@ -13,7 +13,7 @@ export interface LinkTarget {
 
 /**
  * Template line targets for a hover, resolved from the synthesized template(s).
- * `blocks` is keyed by construct path (the hovered resource and its auxiliaries);
+ * `resourceLocations` is keyed by construct path (the hovered resource and its auxiliaries);
  * paths are globally unique, where stack-relative logical ids can collide across
  * templates. `properties` is keyed by the lower-cased property name of the
  * primary resource, so the L1 camelCase name and the template PascalCase name
@@ -21,7 +21,7 @@ export interface LinkTarget {
  * in which case values render without links.
  */
 export interface HoverLinks {
-  readonly blocks: Record<string, LinkTarget>;
+  readonly resourceLocations: Record<string, LinkTarget>;
   readonly properties: Record<string, LinkTarget>;
 }
 
@@ -75,13 +75,13 @@ export async function hoverForPosition(
   }
   // Select the primary once and thread it through both link resolution and
   // rendering, so a single place owns "which resource is canonical".
-  const selection = selectPrimary(nodes);
-  const links = await resolveHoverLinks(nodes, selection?.primary, readTemplate);
+  const primaryResource = selectPrimary(nodes);
+  const links = await resolveHoverLinks(nodes, primaryResource?.primary, readTemplate);
   const range: Range = {
     start: { line: position.line, character: 0 },
     end: { line: position.line, character: Number.MAX_VALUE },
   };
-  return buildHover(nodes, selection, links, range);
+  return buildHover(nodes, primaryResource, links, range);
 }
 
 /** A template read and parsed once: its text (for offset->line) and its range index. */
@@ -113,7 +113,7 @@ async function resolveHoverLinks(
     return templates.get(file);
   };
 
-  const blocks: Record<string, LinkTarget> = {};
+  const resourceLocations: Record<string, LinkTarget> = {};
   const properties: Record<string, LinkTarget> = {};
   for (const node of nodes) {
     if (node.templateFile === undefined) {
@@ -129,7 +129,7 @@ async function resolveHoverLinks(
       if (resource === undefined) {
         continue;
       }
-      blocks[node.path] = { uri, line: lineOf(template.text, resource.block) };
+      resourceLocations[node.path] = { uri, line: lineOf(template.text, resource.block) };
       for (const [name, range] of Object.entries(resource.properties)) {
         // Lower-case the key so the tree's L1 camelCase prop name matches the
         // template's PascalCase name even on an acronym (sseSpecification vs
@@ -139,11 +139,11 @@ async function resolveHoverLinks(
     } else {
       const block = template.ranges.block(node.logicalId);
       if (block !== undefined) {
-        blocks[node.path] = { uri, line: lineOf(template.text, block) };
+        resourceLocations[node.path] = { uri, line: lineOf(template.text, block) };
       }
     }
   }
-  return { blocks, properties };
+  return { resourceLocations, properties };
 }
 
 /** 1-based template line of a range's start (the file: `#L` fragment is 1-based). */
@@ -153,24 +153,24 @@ function lineOf(text: string, range: OffsetRange): number {
 
 /**
  * Builds the hover for the resource(s) created on a line, given the primary
- * selection. When one resource is the construct's primary (default) child, its
+ * primaryResource. When one resource is the construct's primary (default) child, its
  * resolved properties are shown and the rest are listed under "Also creates";
  * when several resources tie at the shallowest depth (an L3 with no default
- * child), `selection` is undefined and a resource summary is shown instead.
+ * child), `primaryResource` is undefined and a resource summary is shown instead.
  * Returns undefined when no resource maps to the line.
  */
 export function buildHover(
   nodes: readonly ResourceConstruct[],
-  selection: PrimarySelection | undefined,
+  primaryResource: PrimarySelection | undefined,
   links: HoverLinks | undefined,
   range: Range,
 ): Hover | undefined {
   if (nodes.length === 0) {
     return undefined;
   }
-  const value = selection === undefined
+  const value = primaryResource === undefined
     ? renderSummary(nodes, links)
-    : renderResource(selection.primary, selection.others, links);
+    : renderResource(primaryResource.primary, primaryResource.others, links);
   return { contents: { kind: MarkupKind.Markdown, value }, range };
 }
 
@@ -184,10 +184,18 @@ export function selectPrimary(nodes: readonly ResourceConstruct[]): PrimarySelec
   if (byDepth.length === 1) {
     return { primary: byDepth[0], others: [] };
   }
-  if (segments(byDepth[0]) === segments(byDepth[1])) {
-    return undefined;
+  // Uniquely shallowest → clear primary.
+  if (segments(byDepth[0]) !== segments(byDepth[1])) {
+    return { primary: byDepth[0], others: byDepth.slice(1) };
   }
-  return { primary: byDepth[0], others: byDepth.slice(1) };
+  // Tied at shallowest depth: check if exactly one is the default child.
+  const shallowest = byDepth.filter((n) => segments(n) === segments(byDepth[0]));
+  const defaults = shallowest.filter((n) => n.id === 'Resource' || n.id === 'Default');
+  if (defaults.length === 1) {
+    const primary = defaults[0];
+    return { primary, others: byDepth.filter((n) => n !== primary) };
+  }
+  return undefined;
 }
 
 function segments(node: ConstructNode): number {
@@ -200,7 +208,7 @@ function renderResource(
   links: HoverLinks | undefined,
 ): string {
   const lines = [
-    `${linked(`**${primary.logicalId}**`, links?.blocks[primary.path])} · \`${primary.type}\``,
+    `${linked(`**${primary.logicalId}**`, links?.resourceLocations[primary.path])} · \`${primary.type}\``,
     `\`${primary.path}\``,
     '',
     ...propertyLines(primary, links),
@@ -228,12 +236,12 @@ function alsoCreates(others: readonly ResourceConstruct[], links: HoverLinks | u
   if (others.length > MAX_LINKED_AUX) {
     return `Also creates ${others.length} resources: ${histogram(others)}`;
   }
-  const items = others.map((node) => linked(`\`${node.type}\``, links?.blocks[node.path]));
+  const items = others.map((node) => linked(`\`${node.type}\``, links?.resourceLocations[node.path]));
   return `Also creates: ${items.join(' · ')}`;
 }
 
 function renderSummary(nodes: readonly ResourceConstruct[], links: HoverLinks | undefined): string {
-  const items = nodes.map((node) => `- ${linked(`\`${node.type}\``, links?.blocks[node.path])} \`${node.path}\``);
+  const items = nodes.map((node) => `- ${linked(`\`${node.type}\``, links?.resourceLocations[node.path])} \`${node.path}\``);
   return [`**${nodes.length} resources on this line**`, '', ...items].join('\n');
 }
 
