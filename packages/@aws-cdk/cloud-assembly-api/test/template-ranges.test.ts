@@ -1,4 +1,4 @@
-import { resolveLogicalIdAtOffset, resolveResourceRange } from '../lib';
+import { indexTemplateRanges, resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../lib';
 
 // A template object is the single source of truth: the text under test is its
 // 1-space serialization (exactly how synth writes `*.template.json`), and the
@@ -109,5 +109,56 @@ describe('resolveLogicalIdAtOffset', () => {
 
   test('returns undefined when the text cannot be parsed into a tree', () => {
     expect(resolveLogicalIdAtOffset('not json at all', 3)).toBeUndefined();
+  });
+});
+
+describe('resolveResourceRanges', () => {
+  // Wrapping a key+value slice in braces makes it a valid object, so the same
+  // re-parse oracle proves each property range covers exactly `"Key": value`.
+  const sliceParseEntry = (range: { start: number; end: number }) =>
+    JSON.parse('{' + TEMPLATE_TEXT.slice(range.start, range.end) + '}');
+
+  test.each(LOGICAL_IDS)('the block range for %s re-parses to that exact resource', (logicalId) => {
+    const { block } = resolveResourceRanges(TEMPLATE_TEXT, logicalId)!;
+    expect(sliceParse(block)).toEqual(RESOURCES[logicalId]);
+  });
+
+  test('each Policy property range re-parses to its exact `"Key": value` entry', () => {
+    // Policy's values include an Fn::Sub, an InlineJson string with braces and
+    // escaped quotes, and a Description with a lone brace -- hazards for anything
+    // but a real parse.
+    const { properties } = resolveResourceRanges(TEMPLATE_TEXT, 'Policy')!;
+    const expected = (RESOURCES.Policy as { Properties: Record<string, unknown> }).Properties;
+    expect(Object.keys(properties).sort()).toEqual(Object.keys(expected).sort());
+    for (const [name, range] of Object.entries(properties)) {
+      expect(sliceParseEntry(range)).toEqual({ [name]: expected[name] });
+    }
+  });
+
+  test('property ranges include the key, not just the value', () => {
+    const { properties } = resolveResourceRanges(TEMPLATE_TEXT, 'MyBucket')!;
+    const slice = TEMPLATE_TEXT.slice(properties.BucketName.start, properties.BucketName.end);
+    expect(slice.startsWith('"BucketName"')).toBe(true);
+    expect(sliceParseEntry(properties.BucketName)).toEqual({ BucketName: 'plain-bucket' });
+  });
+
+  test('enumerates only top-level properties, not nested keys', () => {
+    // PolicyDocument is one entry; its nested Statement/Action are not separate.
+    const { properties } = resolveResourceRanges(TEMPLATE_TEXT, 'Policy')!;
+    expect(Object.keys(properties).sort()).toEqual(['Description', 'InlineJson', 'PolicyDocument']);
+  });
+
+  test('a resource with no Properties yields an empty property map', () => {
+    const ranges = resolveResourceRanges(TEMPLATE_TEXT, 'Topic')!;
+    expect(ranges.properties).toEqual({});
+    expect(sliceParse(ranges.block)).toEqual(RESOURCES.Topic);
+  });
+
+  test('returns undefined for an unknown logical id', () => {
+    expect(resolveResourceRanges(TEMPLATE_TEXT, 'DoesNotExist')).toBeUndefined();
+  });
+
+  test('returns undefined when the text cannot be parsed into a tree', () => {
+    expect(resolveResourceRanges('not json at all', 'MyBucket')).toBeUndefined();
   });
 });
