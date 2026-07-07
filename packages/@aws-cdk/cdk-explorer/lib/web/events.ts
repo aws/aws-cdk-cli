@@ -14,7 +14,7 @@ export class SseBroadcaster {
    * registers the client, removing it when the request closes or the socket
    * errors so a vanished client is never written to.
    */
-  public readonly handle = (req: Request, res: Response): void => {
+  public handle(req: Request, res: Response): void {
     res.set({
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-store',
@@ -29,7 +29,7 @@ export class SseBroadcaster {
     req.on('close', remove);
     // Evict on socket error too, so a vanished client is never written to.
     res.on('error', remove);
-  };
+  }
 
   /**
    * Push an event to every connected client. The `data: {}` line is required:

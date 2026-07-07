@@ -66,7 +66,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
   // changes. Registered before the /api catch-all so it is not treated as unknown.
   const events = new SseBroadcaster();
-  app.get('/api/events', events.handle);
+  app.get('/api/events', events.handle.bind(events));
 
   // Unknown /api routes must return JSON 404, not fall through to the SPA.
   app.use('/api', (_req, res) => res.status(404).json({ error: 'unknown endpoint' }));
