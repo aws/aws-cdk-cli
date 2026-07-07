@@ -3,7 +3,12 @@ import { LspIoHost } from './io-host';
 import { startServer } from './server';
 import { runSynth } from '../core/synth-runner';
 
-try {
+/**
+ * Starts the CDK Language Server over the process's stdin/stdout. Wires the
+ * Toolkit-backed bindings the handlers need. This is the single entrypoint
+ * used by the `cdk lsp` CLI command.
+ */
+export function startLspServer(): void {
   startServer({
     readable: process.stdin,
     writable: process.stdout,
@@ -22,8 +27,4 @@ try {
       };
     },
   });
-} catch (err) {
-  const e = err as Error;
-  process.stderr.write(`CDK LSP startup fatal: ${e.stack ?? e.message}\n`);
-  process.exit(1);
 }

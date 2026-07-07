@@ -1,5 +1,5 @@
 import * as process from 'process';
-import { startServer } from '@aws-cdk/cdk-explorer';
+import { startLspServer } from '@aws-cdk/cdk-explorer';
 
 /**
  * Starts the CDK Language Server over stdio.
@@ -10,7 +10,7 @@ import { startServer } from '@aws-cdk/cdk-explorer';
  * closes the stdio channel (stdin end), then exits 0.
  */
 export async function lsp(): Promise<number> {
-  startServer({ readable: process.stdin, writable: process.stdout });
+  startLspServer();
 
   await new Promise<void>((resolve) => {
     const done = () => resolve();
