@@ -10,9 +10,8 @@ const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
 /**
  * Options that influence how a resource is investigated.
  *
- * Note: this is shared by all resource-type investigations, so it only carries options that
- * apply across them. Options specific to one resource type (e.g. the custom-resource
- * CloudTrail lookup) live on that investigation's own options type.
+ * This is shared by all resource-type investigations, so it only carries options that
+ * apply across them.
  */
 export interface InvestigateOptions {
   /**

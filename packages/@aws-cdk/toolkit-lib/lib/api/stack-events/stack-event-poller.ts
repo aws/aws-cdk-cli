@@ -88,10 +88,10 @@ export abstract class PollRange {
    * triggered it.
    *
    * A failed deployment that rolls back is recorded under two CloudFormation operation IDs:
-   * the failed create/update, and the rollback that follows. Scanning newest-first, the
+   * the failed create/update and the rollback that follows. Scanning newest-first, the
    * rollback is seen first — but its events are mostly successful deletes; the actual resource
-   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. So we allow up to two
-   * distinct consecutive operation IDs and only stop when a third (an older, unrelated
+   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. Our heuristic allows
+   * up to two distinct consecutive operation IDs and only stops when a third (an older, unrelated
    * deployment) appears.
    */
   public static mostRecentDeploymentAttempt(): IPollRange {

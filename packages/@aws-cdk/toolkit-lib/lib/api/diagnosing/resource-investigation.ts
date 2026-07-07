@@ -1,4 +1,4 @@
-import { investigateCustomResource, type InvestigateCustomResourceOptions } from './investigate-custom-resource';
+import { investigateCustomResource } from './investigate-custom-resource';
 import { investigateEcsService, type InvestigateOptions } from './investigate-ecs-service';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
 import type { SDK } from '../aws-auth/sdk';
@@ -7,11 +7,9 @@ import type { ResourceError } from '../stack-events/resource-errors';
 export type { InvestigateOptions };
 
 /**
- * The superset of options across all resource-type investigations. The dispatcher accepts
- * this and routes the relevant subset to each investigation (e.g. only the custom-resource
- * path reads `cloudTrailEnabled`).
+ * Options shared by all resource-type investigations.
  */
-export type InvestigateResourceOptions = InvestigateCustomResourceOptions;
+export type InvestigateResourceOptions = InvestigateOptions;
 
 /**
  * Investigate a failed resource using AWS service APIs to gather additional root cause context.

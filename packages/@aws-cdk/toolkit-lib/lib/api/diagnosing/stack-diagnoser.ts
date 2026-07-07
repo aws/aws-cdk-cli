@@ -2,8 +2,9 @@ import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
+import { cloudTrailContextsByLogicalId, investigateStackViaCloudTrail } from './cloudtrail-investigation';
 import { investigateResource } from './resource-investigation';
-import type { StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
+import type { AdditionalDiagnosticContext, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
@@ -63,18 +64,6 @@ export interface DiagnoseOptions {
    * @default true
    */
   readonly rollbackEnabled?: boolean;
-
-  /**
-   * Whether to consult CloudTrail for control-plane errors (e.g. AccessDenied) around the
-   * failure.
-   *
-   * CloudTrail events are delivered with several minutes of latency, so they are not yet
-   * available during a `deploy` (this defaults to false there). The `diagnose` action, run
-   * after the fact, enables it.
-   *
-   * @default false
-   */
-  readonly cloudTrailEnabled?: boolean;
 }
 
 export class CloudFormationStackDiagnoser {
@@ -82,7 +71,6 @@ export class CloudFormationStackDiagnoser {
   private parentStackLogicalIds: string[];
   private _additionalExplorationSdkPromise?: Promise<SDK | undefined>;
   private rollbackEnabled = true;
-  private cloudTrailEnabled = false;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
@@ -93,9 +81,6 @@ export class CloudFormationStackDiagnoser {
    * Diagnose a stack's root cause given no pre-existing state
    */
   public async diagnoseFromFresh(stackName: string): Promise<StackDiagnosis> {
-    // diagnoseFromFresh is the on-demand `cdk diagnose` path: it runs after the fact, by
-    // which time CloudTrail events for the failure have usually been delivered.
-    this.cloudTrailEnabled = true;
     try {
       const response = await this.cfn.describeStacks({ StackName: stackName });
       const stack = response.Stacks?.[0];
@@ -145,7 +130,6 @@ export class CloudFormationStackDiagnoser {
     options: DiagnoseOptions = {},
   ): Promise<StackDiagnosis> {
     this.rollbackEnabled = options.rollbackEnabled ?? true;
-    this.cloudTrailEnabled = options.cloudTrailEnabled ?? this.cloudTrailEnabled;
     if (errors.isEmpty()) {
       if (allowFallback) {
         // The monitor may not have seen failure events yet (race condition).
@@ -166,8 +150,55 @@ export class CloudFormationStackDiagnoser {
         stackStatus: stack.StackStatus ?? '',
         statusReason: stack.StackStatusReason ?? '',
       },
-      problems: await this.enhanceErrors(errors.all),
+      problems: await this.addCloudTrailContext(await this.enhanceErrors(errors.all), errors.all),
     };
+  }
+
+  /**
+   * Run the stack-level CloudTrail investigation and attach its findings to the problems.
+   *
+   * One sweep per diagnosis (cdk diagnose or cdk deploy): the sweep covers the whole failure
+   * window and correlates events to resources afterwards. Findings for a resource that is
+   * itself among the problems are attached there. When run right after a deployment, the events
+   * may not be delivered yet, in which case the output notifies the user.
+   */
+  private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+    const sdk = await this.additionalExplorationSdk();
+    if (!sdk || problems.length === 0) {
+      return problems;
+    }
+
+    let investigation;
+    try {
+      investigation = await investigateStackViaCloudTrail(sdk, errs, this.props.ioHelper);
+    } catch (e: any) {
+      await this.props.ioHelper.defaults.debug(`CloudTrail investigation failed: ${e.message}`);
+      return problems;
+    }
+    if (!investigation || (investigation.errors.length === 0 && investigation.notes.length === 0)) {
+      return problems;
+    }
+
+    const contexts = cloudTrailContextsByLogicalId(investigation);
+    const unattributed: AdditionalDiagnosticContext[] = [];
+    for (const [logicalId, context] of contexts) {
+      if (!problems.some((p) => p.logicalId === logicalId)) {
+        unattributed.push(context);
+      }
+    }
+    if (investigation.notes.length > 0) {
+      unattributed.push({ source: 'CloudTrail', messages: investigation.notes });
+    }
+
+    return problems.map((p, i) => {
+      const additional = [
+        ...(p.logicalId ? [contexts.get(p.logicalId)] : []),
+        ...(i === 0 ? unattributed : []),
+      ].filter((c): c is AdditionalDiagnosticContext => c !== undefined);
+      return additional.length > 0
+        ? { ...p, additionalContext: [...(p.additionalContext ?? []), ...additional] }
+        : p;
+    });
   }
 
   /**
@@ -330,7 +361,6 @@ export class CloudFormationStackDiagnoser {
     try {
       return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg), {
         rollbackEnabled: this.rollbackEnabled,
-        cloudTrailEnabled: this.cloudTrailEnabled,
       });
     } catch (e: any) {
       await this.props.ioHelper.defaults.debug(`Resource investigation failed: ${e.message}`);

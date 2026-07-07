@@ -1,13 +1,16 @@
 import {
   ChangeSetStatus,
+  DescribeStackResourcesCommand,
+  ResourceStatus,
 } from '@aws-sdk/client-cloudformation';
+import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import type { StackDiagnosis } from '../../../lib/actions/diagnose';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import type { ISourceTracer } from '../../../lib/api/source-tracing/private/source-tracing';
 import type { SourceTrace } from '../../../lib/api/source-tracing/types';
 import { ResourceErrors } from '../../../lib/api/stack-events/resource-errors';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
-import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { mockCloudFormationClient, mockCloudTrailClient, MockSdk, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
 let sdk: MockSdk;
@@ -528,6 +531,90 @@ describe('CloudFormationStackDiagnoser', () => {
           sourceTrace: { constructPath: 'MyStack/MyFunc/Resource' },
         })],
       });
+    });
+  });
+
+  describe('CloudTrail investigation wiring', () => {
+    const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/abc';
+    const FAILURE_TIME = new Date('2026-06-19T12:00:00.000Z');
+
+    function makeErrors(): ResourceErrors {
+      const errors = new ResourceErrors();
+      errors.update({
+        event: {
+          EventId: 'evt-1',
+          StackId: STACK_ARN,
+          StackName: 'MyStack',
+          LogicalResourceId: 'CrHandler',
+          PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
+          ResourceType: 'AWS::Lambda::Function',
+          ResourceStatus: 'CREATE_FAILED',
+          ResourceStatusReason: 'Handler error',
+          Timestamp: FAILURE_TIME,
+        },
+        parentStackLogicalIds: [],
+        isRootStackEvent: false,
+      });
+      return errors;
+    }
+
+    function makeExploringDiagnoser() {
+      return new CloudFormationStackDiagnoser({
+        sdk,
+        sourceTracer: fakeTracer,
+        ioHelper: ioHost.asHelper('diagnose'),
+        topLevelStackHierarchicalId: 'MyStack',
+        additionalExplorationSdkProvider: async () => sdk,
+      });
+    }
+
+    test('attaches correlated CloudTrail errors to the failed resource on any path', async () => {
+      // No cloudTrailEnabled gating anymore: the investigation runs for deploy-originating
+      // error collections too (a recent failure just yields fewer delivered events).
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
+      mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+        StackResources: [{
+          LogicalResourceId: 'CrHandler',
+          ResourceType: 'AWS::Lambda::Function',
+          PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
+          ResourceStatus: ResourceStatus.CREATE_FAILED,
+          Timestamp: FAILURE_TIME,
+        }],
+      });
+      mockCloudTrailClient.on(LookupEventsCommand).resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventTime: '2026-06-19T11:59:00Z',
+            eventSource: 's3.amazonaws.com',
+            eventName: 'CreateBucket',
+            errorCode: 'AccessDenied',
+            errorMessage: 'not authorized to perform: s3:CreateBucket',
+            userIdentity: { arn: 'arn:aws:sts::123456789012:assumed-role/some-role/MyStack-CrHandler-abc123def456' },
+          }),
+        }],
+      });
+
+      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      const context = result.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      expect(context).toBeDefined();
+      expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('does not run the investigation without an exploration SDK', async () => {
+      const result = await makeDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
     });
   });
 });
