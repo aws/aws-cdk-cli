@@ -71,10 +71,13 @@ function formatViolationBlock(fileRoot: string, v: FlattenedViolation): string {
     lines.push(chalk.underline(sanitize(location)));
   }
 
+  const ruleName = v.ruleName.includes('::') ? v.ruleName : `${v.pluginName}::${v.ruleName}`;
+  const namespace = ruleName.split('::')[0];
+
   lines.push([
     chalk.bold(getSeverityColor(v.severity)(sanitize(v.severity))),
     chalk.bold(stripAckTag(sanitize(v.description))),
-    chalk.grey(`(${sanitize(v.pluginName)})`),
+    chalk.grey(`(${sanitize(namespace)})`),
   ].join(' '));
 
   const constructInfo = formatConstructInfo(fileRoot, v.construct);
@@ -85,11 +88,11 @@ function formatViolationBlock(fileRoot: string, v: FlattenedViolation): string {
   }
 
   if (isSuppressibleViolation(v)) {
-    const ackId = `${sanitize(v.pluginName)}::${sanitize(v.ruleName)}`.replace(/ /g, '-');
+    const ackId = `${sanitize(ruleName)}`.replace(/ /g, '-');
     lines.push(`   ${chalk.grey(`Acknowledge with '${ackId}'`)}`);
   } else {
     // If not acknowledgeable, we should still show the rule name for reference.
-    lines.push(`   ${chalk.grey(`Rule ${sanitize(v.ruleName)}`)}`);
+    lines.push(`   ${chalk.grey(`Rule ${sanitize(ruleName)}`)}`);
   }
 
   return lines.join('\n');
