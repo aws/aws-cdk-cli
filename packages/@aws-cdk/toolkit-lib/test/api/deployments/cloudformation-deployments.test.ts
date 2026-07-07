@@ -10,7 +10,7 @@ import {
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
-import { deployStack } from '../../../lib/api/deployments/deploy-stack';
+import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
 import {
@@ -136,6 +136,42 @@ test('prepareStack returns undefined for non-success results', async () => {
 
   // THEN
   expect(result).toBeUndefined();
+});
+
+test('passes through stackEventPollingInterval to deployStack()', async () => {
+  // WHEN
+  await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stackEventPollingInterval: 10_000,
+    }),
+    expect.anything(),
+  );
+});
+
+test('passes through stackEventPollingInterval to destroyStack()', async () => {
+  // WHEN
+  await deployments.destroyStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(destroyStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stackEventPollingInterval: 10_000,
+    }),
+    expect.anything(),
+  );
 });
 
 test('placeholders are substituted in CloudFormation execution role', async () => {
