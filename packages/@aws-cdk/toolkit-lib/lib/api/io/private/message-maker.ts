@@ -44,7 +44,7 @@ export interface IoMessageMaker<T> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
-  msg: [T] extends [AbsentData] ? (message: string) => ActionLessMessage<AbsentData> : (message: string, data: T) => ActionLessMessage<T>;
+  msg: [T] extends [void] ? (message: string) => ActionLessMessage<void> : (message: string, data: T) => ActionLessMessage<T>;
 
   /**
    * Returns whether the given `IoMessage` instance matches the current message definition
@@ -92,8 +92,12 @@ type CodeInfoMaybeInterface<T> = [T] extends [AbsentData] ? Omit<CodeInfo, 'inte
  *
  * Not a lot of difference between `undefined` and `void`, but `void`
  * reads better.
+ *
+ * Internal only: the public maker interfaces spell out `void` directly (rather
+ * than referencing this alias) so it stays off the public API and remains free
+ * to change.
  */
-export type AbsentData = void;
+type AbsentData = void;
 
 export const trace = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('trace', details);
 export const debug = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('debug', details);
@@ -113,8 +117,8 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
-  req: [T] extends [AbsentData]
-    ? (message: string) => ActionLessMessage<AbsentData>
+  req: [T] extends [void]
+    ? (message: string) => ActionLessMessage<void>
     : [U] extends [boolean]
       ? (message: string, data: T) => ActionLessRequest<T, U>
       : (message: string, data: T, defaultResponse: U) => ActionLessRequest<T, U>;
