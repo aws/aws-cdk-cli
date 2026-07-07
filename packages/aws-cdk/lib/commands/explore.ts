@@ -1,4 +1,4 @@
-import { startWebServer } from '@aws-cdk/cdk-explorer';
+import { startCdkExplore } from '@aws-cdk/cdk-explorer';
 import type { IoHelper } from '../api-private';
 
 export interface ExploreOptions {
@@ -7,7 +7,7 @@ export interface ExploreOptions {
 }
 
 export async function explore(options: ExploreOptions): Promise<number> {
-  const server = await startWebServer({
+  const server = await startCdkExplore({
     port: options.port,
     onWatcherError: (err) => void options.ioHelper.defaults.error(
       `CDK Explorer live refresh stopped: ${err instanceof Error ? err.message : String(err)}`,

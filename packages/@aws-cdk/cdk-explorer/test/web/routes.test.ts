@@ -430,3 +430,97 @@ describe('assembly read lock', () => {
     expect(readAssembly).toHaveBeenCalledTimes(2); // mtime changed, so re-read
   });
 });
+
+describe('synth endpoints', () => {
+  let synthApp: express.Express;
+  let mockSynth: jest.Mock;
+  let autoSynthState: boolean;
+
+  beforeEach(() => {
+    autoSynthState = false;
+    mockSynth = jest.fn().mockResolvedValue({ status: 'success' });
+    synthApp = express();
+    synthApp.use('/api', createApiRouter({
+      appDir,
+      autoSynth: {
+        get: () => autoSynthState,
+        set: (enabled) => {
+          autoSynthState = enabled;
+        },
+      },
+      synth: mockSynth,
+    }));
+  });
+
+  describe('GET /api/synth/auto', () => {
+    test('returns current auto-synth state', async () => {
+      const res = await request(synthApp).get('/api/synth/auto');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ enabled: false });
+    });
+
+    test('reflects state after toggle', async () => {
+      autoSynthState = true;
+      const res = await request(synthApp).get('/api/synth/auto');
+      expect(res.body).toEqual({ enabled: true });
+    });
+  });
+
+  describe('POST /api/synth/auto', () => {
+    test('enables auto-synth', async () => {
+      const res = await request(synthApp)
+        .post('/api/synth/auto')
+        .send({ enabled: true });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ enabled: true });
+      expect(autoSynthState).toBe(true);
+    });
+
+    test('disables auto-synth', async () => {
+      autoSynthState = true;
+      const res = await request(synthApp)
+        .post('/api/synth/auto')
+        .send({ enabled: false });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ enabled: false });
+      expect(autoSynthState).toBe(false);
+    });
+
+    test('rejects non-boolean with 400', async () => {
+      const res = await request(synthApp)
+        .post('/api/synth/auto')
+        .send({ enabled: 'yes' });
+      expect(res.status).toBe(400);
+    });
+
+    test('rejects missing body with 400', async () => {
+      const res = await request(synthApp)
+        .post('/api/synth/auto')
+        .send({});
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/synth', () => {
+    test('triggers synth and returns result', async () => {
+      const res = await request(synthApp).post('/api/synth');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: 'success' });
+      expect(mockSynth).toHaveBeenCalledTimes(1);
+    });
+
+    test('returns app-failure result', async () => {
+      mockSynth.mockResolvedValue({ status: 'app-failure', message: 'compile error' });
+      const res = await request(synthApp).post('/api/synth');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: 'app-failure', message: 'compile error' });
+    });
+  });
+
+  describe('without synth configured', () => {
+    test('synth endpoints are not registered', async () => {
+      const res = await request(app).get('/api/synth/auto');
+      expect(res.status).toBe(404);
+    });
+  });
+});

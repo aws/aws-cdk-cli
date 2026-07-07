@@ -33,7 +33,6 @@ import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
-import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
 import type { AssemblyLock } from '../core/assembly-lock';
 import {
@@ -46,6 +45,7 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import { SOURCE_WATCH_EXCLUDES } from '../core/synth-runner';
 import { isWithinRoot } from '../core/source-resolver';
 import type { SynthRunResult } from '../core/synth-runner';
 
@@ -347,18 +347,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onInitialized() {
       const projectDir = currentProjectDir();
-      // Same exclusion logic as toolkit-lib's watch():
-      // WATCH_EXCLUDE_DEFAULTS covers common non-source dirs, then we add cdk.out
-      // (our own output) and dotfiles (editor configs, .git, etc.)
+      // Ignore non-source files (build output, deps, dotfiles). This exclude
+      // policy is shared with the web source watcher; see lib/core/source-watch.
       shouldIgnore = createIgnoreMatcher({
-        exclude: [
-          ...WATCH_EXCLUDE_DEFAULTS,
-          '**/node_modules/**',
-          '**/cdk.out/**',
-          '.*',
-          '**/.*',
-          '**/.*/**',
-        ],
+        exclude: SOURCE_WATCH_EXCLUDES,
         rootDir: projectDir,
       });
       await refreshFromAssembly(projectDir);

@@ -1,6 +1,24 @@
 import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { readCdkConfig } from './cdk-config';
 
+/* eslint-disable import/no-relative-packages -- toolkit-lib watch internals are not re-exported from its package index */
+import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
+
+/**
+ * Files whose changes are not treated as CDK source edits by the source
+ * watchers (the LSP's auto-synth-on-save and the web server), so both apply an
+ * identical policy. Excluding cdk.out is essential: it prevents a
+ * synth -> cdk.out write -> re-synth loop. node_modules and dotfiles cut noise.
+ */
+export const SOURCE_WATCH_EXCLUDES = [
+  ...WATCH_EXCLUDE_DEFAULTS,
+  '**/cdk.out/**',
+  '**/node_modules/**',
+  '.*',
+  '**/.*',
+  '**/.*/**',
+];
+
 /**
  * Hold synth()'s read lock this long before releasing it. While we hold a
  * reader, the next synth cannot take the write lock, so a watcher refresh that

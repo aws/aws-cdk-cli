@@ -10,5 +10,5 @@ export { startLspServer } from './lsp/main';
 export { startServer, createLspHandlers } from './lsp/server';
 export type { LspHandlers, LspHandlerOptions, LspServerOptions } from './lsp/server';
 
-export { startWebServer } from './web/server';
-export type { WebServer, WebServerOptions } from './web/server';
+export { startCdkExplore } from './web/server';
+export type { WebServer, StartCdkExploreOptions } from './web/server';

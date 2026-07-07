@@ -6,13 +6,15 @@ import express = require('express');
 import { SseBroadcaster } from './events';
 import { ASSEMBLY_CHANGED } from './protocol';
 import { registerApi } from './routes';
+import { startSourceWatcher, type SourceWatcher, type SourceWatcherOptions } from './source-watcher';
 import { indexHtml, webAsset } from './web-assets';
-import { toolkitAssemblyLock } from '../core/assembly-lock';
+import { toolkitAssemblyLock, type AcquireAssemblyLock } from '../core/assembly-lock';
 import {
   startAssemblyWatcher as defaultStartAssemblyWatcher,
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import { runSynth, type SynthRunResult } from '../core/synth-runner';
 
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
@@ -40,10 +42,27 @@ export interface WebServerOptions {
    * writing to stderr; the CLI command passes a sink that routes to its IoHost.
    */
   readonly onWatcherError?: (err: unknown) => void;
+  /**
+   * Runs a synth of the project. The CLI command handler injects the real
+   * runner; tests pass a noop or a jest.fn double.
+   */
+  readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
+  /**
+   * Factory for the source file watcher. Production injects the chokidar-backed
+   * watcher; tests inject a fake so the base suite doesn't spin up a real
+   * watcher on process.cwd().
+   */
+  readonly startSourceWatcher: (options: SourceWatcherOptions) => SourceWatcher;
+  /**
+   * Acquires the assembly read lock (derived from the shared Toolkit). Required
+   * so read endpoints never observe a torn cdk.out mid-synth; tests inject a noop.
+   */
+  readonly acquireAssemblyLock: AcquireAssemblyLock;
 }
 
 export interface WebServer {
   readonly url: string;
+  autoSynthEnabled: boolean;
   stop(): Promise<void>;
 }
 
@@ -55,7 +74,7 @@ export interface WebServer {
  *
  * @returns A handle to the running server with its URL and a stop function.
  */
-export async function startWebServer(options: WebServerOptions = {}): Promise<WebServer> {
+export async function startWebServer(options: WebServerOptions): Promise<WebServer> {
   const appDir = options.appDir ?? process.cwd();
   // Single owner of where the cloud assembly lives: the same resolved path feeds
   // both the read endpoints and the change watcher, so the two never disagree.
@@ -63,14 +82,39 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   const app = express();
 
-  // The Toolkit provides the assembly read lock (via fromAssemblyDirectory().
-  // produce()); a non-interactive IoHost is fine here since stdout/stderr are
-  // free in the web process, unlike the LSP's stdio channel.
-  const toolkit = new Toolkit({ ioHost: new NonInteractiveIoHost() });
+  let autoSynthEnabled = false;
+  let synthInFlight = false;
+  // Drop-if-in-flight: mirrors lib/lsp/server.ts. The Toolkit's RWLock on
+  // cdk.out is the real cross-process mutex; this in-process boolean is a
+  // deliberate short-circuit before any synth setup work.
+  async function guardedSynth(): Promise<SynthRunResult> {
+    if (synthInFlight) return { status: 'lock-conflict' };
+    synthInFlight = true;
+    try {
+      return await options.synthRunner(appDir);
+    } finally {
+      synthInFlight = false;
+    }
+  }
+  const sourceWatcher = options.startSourceWatcher({
+    appDir,
+    onChange: () => {
+      if (!autoSynthEnabled) return;
+      void guardedSynth();
+    },
+  });
+
   registerApi(app, {
     appDir,
     assemblyDir,
-    acquireAssemblyLock: toolkitAssemblyLock(toolkit),
+    acquireAssemblyLock: options.acquireAssemblyLock,
+    autoSynth: {
+      get: () => autoSynthEnabled,
+      set: (enabled) => {
+        autoSynthEnabled = enabled;
+      },
+    },
+    synth: guardedSynth,
   });
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
@@ -117,10 +161,17 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   let stopped = false;
   return {
     url: `http://${HOST}:${port}`,
+    get autoSynthEnabled() {
+      return autoSynthEnabled;
+    },
+    set autoSynthEnabled(enabled: boolean) {
+      autoSynthEnabled = enabled;
+    },
     stop: async () => {
       if (stopped) return;
       stopped = true;
       await watcher.close();
+      await sourceWatcher.close();
       events.close();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
@@ -128,6 +179,41 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       });
     },
   };
+}
+
+export interface StartCdkExploreOptions {
+  readonly port?: number;
+  /**
+   * Root of the CDK app; also the synth working directory. Defaults to
+   * `process.cwd()`.
+   */
+  readonly appDir?: string;
+  /**
+   * Reports a non-fatal assembly-watcher error. The CLI command routes this to
+   * its IoHost; defaults (in startWebServer) to stderr.
+   */
+  readonly onWatcherError?: (err: unknown) => void;
+}
+
+/**
+ * Production entry point for `cdk explore`. Constructs a Toolkit + IoHost,
+ * wires the synth runner and source watcher, and delegates to `startWebServer`.
+ * Kept separate so `startWebServer` stays a pure testable factory: tests inject
+ * a noop synthRunner and a fake watcher via that lower layer.
+ */
+export async function startCdkExplore(options: StartCdkExploreOptions = {}): Promise<WebServer> {
+  // The one Toolkit for the web process: it owns the cdk.out read lock and runs
+  // synths, so a synth write and an assembly read share a single lock owner. Its
+  // default IoHost is NonInteractiveIoHost (stdout/stderr aren't our transport).
+  const toolkit = new Toolkit({ ioHost: new NonInteractiveIoHost() });
+  return startWebServer({
+    port: options.port,
+    appDir: options.appDir,
+    onWatcherError: options.onWatcherError,
+    synthRunner: (projectDir) => runSynth({ toolkit, projectDir }),
+    acquireAssemblyLock: toolkitAssemblyLock(toolkit),
+    startSourceWatcher,
+  });
 }
 
 async function listenOnPort(

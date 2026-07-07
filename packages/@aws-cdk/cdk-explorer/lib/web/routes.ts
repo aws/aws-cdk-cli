@@ -12,6 +12,7 @@ import { classifyReportSeverity, displaySeverity, severityRank } from './severit
 import type { AcquireAssemblyLock, AssemblyLock } from '../core/assembly-lock';
 import { readAssembly as defaultReadAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
+import type { SynthRunResult } from '../core/synth-runner';
 
 /** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -39,6 +40,10 @@ export interface ApiOptions {
    * mid-synth assembly. Built from the Toolkit in {@link registerApi}'s caller.
    */
   readonly acquireAssemblyLock: AcquireAssemblyLock;
+  /** Get/set auto-synth state. Omit if synth is not available. */
+  readonly autoSynth?: { get(): boolean; set(enabled: boolean): void };
+  /** Trigger a manual synth. Omit if synth is not available. */
+  readonly synth?: () => Promise<SynthRunResult>;
 }
 
 export function createApiRouter(options: ApiOptions): Router {
@@ -204,6 +209,26 @@ export function createApiRouter(options: ApiOptions): Router {
     const body: TemplateResponse = { content, resources };
     return res.json(body);
   });
+
+  if (options.autoSynth && options.synth) {
+    router.get('/synth/auto', (_req, res) => {
+      res.json({ enabled: options.autoSynth!.get() });
+    });
+
+    router.post('/synth/auto', express.json(), (req, res) => {
+      const { enabled } = req.body ?? {};
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean' });
+      }
+      options.autoSynth!.set(enabled);
+      return res.json({ enabled: options.autoSynth!.get() });
+    });
+
+    router.post('/synth', async (_req, res) => {
+      const result = await options.synth!();
+      res.json(result);
+    });
+  }
 
   return router;
 }
