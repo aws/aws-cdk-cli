@@ -112,6 +112,11 @@ export type PolicyValidationReportConclusion = 'success' | 'failure';
 export interface PolicyViolationJson {
   /**
    * The name of the rule that was violated.
+   *
+   * This may include a namespace: `'<namespace>::<rule-name>'`. If it does not,
+   * the plugin name will be used as the namespace.
+   *
+   * The namespace must be included when acknowledging the violation.
    */
   readonly ruleName: string;
 

@@ -6,7 +6,7 @@
 {"seq":5,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name"}
 {"seq":6,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name: deploying... [1/2]"}
 {"seq":7,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
-{"seq":8,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-A-Display-Name"}
+{"seq":8,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-A-Display-Name"}
 {"seq":9,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
 {"seq":10,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
 {"seq":11,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd"}
@@ -14,7 +14,7 @@
 {"seq":13,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-C"}
 {"seq":14,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-C: deploying... [2/2]"}
 {"seq":15,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
-{"seq":16,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n ✅  Test-Stack-C"}
+{"seq":16,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-C"}
 {"seq":17,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
 {"seq":18,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
 {"seq":19,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-C/abcd"}

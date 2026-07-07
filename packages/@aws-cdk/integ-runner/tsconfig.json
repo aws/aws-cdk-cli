@@ -47,6 +47,7 @@
     "lib/init-templates/*/*/add-project.hook.ts"
   ],
   "exclude": [
+    "node_modules",
     "lib/init-templates/*/typescript/**/*.ts",
     "test/language-tests/**/integ.*.ts"
   ],

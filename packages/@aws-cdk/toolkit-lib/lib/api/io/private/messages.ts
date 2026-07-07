@@ -330,6 +330,10 @@ export const IO = {
     code: 'CDK_TOOLKIT_I5901',
     description: 'Generic deployment success messages',
   }),
+  CDK_TOOLKIT_W5902: warn({
+    code: 'CDK_TOOLKIT_W5902',
+    description: 'Express Mode deployment completed with resources still stabilizing',
+  }),
   CDK_TOOLKIT_W5400: warn({
     code: 'CDK_TOOLKIT_W5400',
     description: 'Hotswap disclosure message',
@@ -400,6 +404,11 @@ export const IO = {
     interface: 'cxapi.CloudFormationStackArtifact',
   }),
 
+  CDK_TOOLKIT_W7902: warn({
+    code: 'CDK_TOOLKIT_W7902',
+    description: 'Express Mode deletion completed with resources still tearing down',
+  }),
+
   CDK_TOOLKIT_E7010: error({
     code: 'CDK_TOOLKIT_E7010',
     description: 'Action was aborted due to negative confirmation of request',
@@ -464,6 +473,10 @@ export const IO = {
     code: 'CDK_TOOLKIT_I9900',
     description: 'Bootstrap results on success',
     interface: 'cxapi.Environment',
+  }),
+  CDK_TOOLKIT_W9902: warn({
+    code: 'CDK_TOOLKIT_W9902',
+    description: 'Bootstrap completed with Express Mode, resources still stabilizing',
   }),
   CDK_TOOLKIT_E9900: error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E9900',

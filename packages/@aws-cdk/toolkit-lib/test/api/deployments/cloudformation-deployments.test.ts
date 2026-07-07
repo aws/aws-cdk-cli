@@ -94,6 +94,7 @@ test('prepareStack calls deployStack with execute: false and returns successful 
     type: 'did-deploy-stack',
     noOp: false,
     deleteFailures: [],
+    stabilizingResources: [],
     outputs: {},
     stackArn: 'arn:stack',
     changeSet: { Status: 'CREATE_COMPLETE' },
@@ -116,6 +117,7 @@ test('prepareStack calls deployStack with execute: false and returns successful 
     type: 'did-deploy-stack',
     noOp: false,
     deleteFailures: [],
+    stabilizingResources: [],
     changeSet: { Status: 'CREATE_COMPLETE' },
   }));
 });

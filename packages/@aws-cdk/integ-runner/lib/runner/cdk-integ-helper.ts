@@ -81,6 +81,14 @@ export interface CdkIntegHelperOptions {
    * @default - no additional CA bundle
    */
   readonly caBundlePath?: string;
+
+  /**
+   * In unit test mode, leave the synth output directories, don't clean them.
+   *
+   * Many of our tests use mocks and don't actually synth output directories, they are
+   * static and must not be deleted.
+   */
+  readonly testingUsingMocksLeaveDirectories?: boolean;
 }
 
 /**
@@ -167,7 +175,7 @@ export class CdkIntegHelper {
    *
    * Relative to cwd.
    */
-  public readonly cdkOutDir: string;
+  public readonly temporarySnapshotDir: string;
 
   /**
    * The profile to use for the CDK CLI calls
@@ -184,6 +192,8 @@ export class CdkIntegHelper {
   private _expectedTestSuite?: IntegTestSuite | LegacyIntegTestSuite;
   private _actualSnapshot?: SnapshotAndTestDefinition;
   private _legacyEnableLookups?: LegacyEnableLookups;
+
+  private readonly deleteSynthDirectories: boolean;
 
   /**
    * Fields that require an async context to initialize.
@@ -205,10 +215,12 @@ export class CdkIntegHelper {
     this.showOutput = options.showOutput ?? false;
 
     this.cdk = options.cdk ?? makeEngine(options);
-    this.cdkOutDir = options.integOutDir ?? this.test.temporaryOutputDir;
+    this.temporarySnapshotDir = options.integOutDir ?? this.test.temporaryOutputDir;
 
     const testRunCommand = this.test.appCommand;
     this.cdkApp = testRunCommand.replace('{filePath}', path.relative(this.directory, this.test.fileName));
+
+    this.deleteSynthDirectories = !options.testingUsingMocksLeaveDirectories;
   }
 
   /**
@@ -257,11 +269,11 @@ export class CdkIntegHelper {
    * This will synth and then load the integration test manifest
    */
   private async generateActualSnapshot(): Promise<SnapshotAndTestDefinition> {
-    await this.synthActualSnapshot(this.cdkOutDir);
-    const manifest = await this.loadManifest(this.cdkOutDir);
+    await this.synthActualSnapshot(this.temporarySnapshotDir);
+    const manifest = await this._loadManifest(this.temporarySnapshotDir);
     return {
       testDefinition: manifest,
-      snapshotDirectory: this.cdkOutDir,
+      snapshotDirectory: this.temporarySnapshotDir,
     };
   }
 
@@ -290,11 +302,20 @@ export class CdkIntegHelper {
       throw new Error('Must call configureLegacyEnableLookups before generating snapshots');
     }
 
+    const output = path.relative(this.directory, outputDirectory);
+
+    // Remove the target directory, so that we don't have stale files from
+    // previous synths. Also, the runner will re-use a directory that already
+    // exists and we want force recreation (unless we are unit testing).
+    if (this.deleteSynthDirectories) {
+      await fs.rm(output, { recursive: true, force: true });
+    }
+
     await this.cdk.synth({
       app: this.cdkApp,
-      context: await this.getContext(this._legacyEnableLookups !== false ? DEFAULT_SYNTH_OPTIONS.context : {}),
+      context: this.getContext(this._legacyEnableLookups !== false ? DEFAULT_SYNTH_OPTIONS.context : {}),
       env: DEFAULT_SYNTH_OPTIONS.env,
-      output: path.relative(this.directory, outputDirectory),
+      output,
     });
   }
 
@@ -310,7 +331,7 @@ export class CdkIntegHelper {
       '-a',
       `'${this.cdkApp}'`,
       '-o',
-      `'${this.cdkOutDir}'`,
+      `'${this.temporarySnapshotDir}'`,
       ...Object.entries(this.getContext(DEFAULT_SYNTH_OPTIONS.context)).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
     ];
   }
@@ -328,7 +349,7 @@ export class CdkIntegHelper {
   public async expectedTestSuite(): Promise<IntegTestSuite | LegacyIntegTestSuite | undefined> {
     await this.asyncInitialize();
     if (!this._expectedTestSuite && this.hasSnapshot()) {
-      this._expectedTestSuite = await this.loadManifest();
+      this._expectedTestSuite = await this._loadManifest(this.goldenSnapshotDir);
     }
     return this._expectedTestSuite;
   }
@@ -365,10 +386,12 @@ export class CdkIntegHelper {
    * First we try and load the manifest from the integ manifest (i.e. integ.json)
    * from the cloud assembly. If it doesn't exist, then we fallback to the
    * "legacy mode" and create a manifest from pragma
+   *
+   * @internal
    */
-  public async loadManifest(dir?: string): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+  public async _loadManifest(dir: string): Promise<IntegTestSuite | LegacyIntegTestSuite> {
     await this.asyncInitialize();
-    const manifest = dir ?? this.goldenSnapshotDir;
+    const manifest = dir;
     try {
       const testSuite = IntegTestSuite.fromPath(manifest);
       return testSuite;
@@ -396,7 +419,7 @@ export class CdkIntegHelper {
           all: true,
           app: this.cdkApp,
           profile: this.profile,
-          output: path.relative(this.directory, this.cdkOutDir),
+          output: path.relative(this.directory, this.temporarySnapshotDir),
         },
       });
       this.legacyContext = LegacyIntegTestSuite.getPragmaContext(this.test.fileName);
@@ -405,7 +428,7 @@ export class CdkIntegHelper {
   }
 
   public cleanup(): void {
-    const cdkOutPath = this.cdkOutDir;
+    const cdkOutPath = this.temporarySnapshotDir;
     if (fs.existsSync(cdkOutPath)) {
       fs.removeSync(cdkOutPath);
     }
@@ -489,9 +512,6 @@ export class CdkIntegHelper {
    */
   public async createSnapshot(): Promise<void> {
     await this.asyncInitialize();
-    if (fs.existsSync(this.goldenSnapshotDir)) {
-      fs.removeSync(this.goldenSnapshotDir);
-    }
 
     // TODO: If we're clever, we should be able to reuse the snapshot that was
     // generated during the test invalidation check and avoid the below synth.

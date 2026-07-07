@@ -2,7 +2,6 @@
 /.projen/
 permissions-backup.acl
 /test/
-/tsconfig.dev.json
 /src/
 !/lib/
 !/lib/**/*.js
@@ -14,6 +13,7 @@ dist
 /.idea/
 /.projenrc.js
 tsconfig.tsbuildinfo
+/projenrc/tsconfig.json
 /.nx
 /.eslintrc.json
 .eslintrc.js

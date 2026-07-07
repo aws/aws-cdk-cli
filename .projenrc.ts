@@ -168,6 +168,7 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
     // Randomize test order: this will catch tests that accidentally pass or
     // fail because they rely on shared mutable state left by other tests
     // (files on disk, global mocks, etc).
+    // @ts-ignore
     randomize: true,
   };
 }
@@ -365,7 +366,6 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   dirs: [],
   devdirs: ['projenrc', '.projenrc.ts'],
   fileExtensions: ['.ts', '.tsx'],
-  lintProjenRc: false,
 });
 
 // always lint projen files as part of the build
@@ -447,7 +447,14 @@ const cloudAssemblySchema = configureProject(
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
-    disableTsconfig: true,
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        module: 'node16',
+        stripInternal: false,
+        tsBuildInfoFile: 'tsconfig.tsbuildinfo',
+      },
+    },
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1369,7 +1376,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('tsx --tsconfig tsconfig.dev.json scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('tsx --tsconfig test/tsconfig.json scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',

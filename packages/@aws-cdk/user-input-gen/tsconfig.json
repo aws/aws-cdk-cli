@@ -42,6 +42,8 @@
   "include": [
     "lib/**/*.ts"
   ],
-  "exclude": [],
+  "exclude": [
+    "node_modules"
+  ],
   "references": []
 }

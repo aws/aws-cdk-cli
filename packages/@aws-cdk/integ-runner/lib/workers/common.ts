@@ -102,6 +102,14 @@ export interface SnapshotVerificationOptions {
    * @default false
    */
   readonly verbose?: boolean;
+
+  /**
+   * In unit test mode, leave the synth output directories, don't clean them.
+   *
+   * Many of our tests use mocks and don't actually synth output directories, they are
+   * static and must not be deleted.
+   */
+  readonly testingUsingMocksLeaveDirectories?: boolean;
 }
 
 /**
@@ -207,6 +215,14 @@ export interface IntegTestOptions {
    * @default false
    */
   readonly allowDeleteFailures?: boolean;
+
+  /**
+   * In unit test mode, leave the synth output directories, don't clean them.
+   *
+   * Many of our tests use mocks and don't actually synth output directories, they are
+   * static and must not be deleted.
+   */
+  readonly testingUsingMocksLeaveDirectories?: boolean;
 }
 
 /**

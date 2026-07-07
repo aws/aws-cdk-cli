@@ -1,6 +1,7 @@
 export * from './arrays';
 export * from './bool';
 export * from './bytes';
+export * from './cfn-express';
 export * from './cloudformation';
 export * from './content-hash';
 export * from './directories';

@@ -45,6 +45,7 @@
     "**/*.ts"
   ],
   "exclude": [
+    "node_modules",
     "resources/**/*"
   ],
   "references": [
