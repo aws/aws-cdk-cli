@@ -90,9 +90,13 @@ export abstract class PollRange {
    * A failed deployment that rolls back is recorded under two CloudFormation operation IDs:
    * the failed create/update and the rollback that follows. Scanning newest-first, the
    * rollback is seen first — but its events are mostly successful deletes; the actual resource
-   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. Our heuristic allows
-   * up to two distinct consecutive operation IDs and only stops when a third (an older, unrelated
-   * deployment) appears.
+   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. So when the newest
+   * operation is a rollback (any of its events carry a ROLLBACK status), we continue into the
+   * one operation that precedes it.
+   *
+   * When the newest operation is NOT a rollback (e.g. a `--no-rollback` failure), it *is* the
+   * whole deployment attempt, and anything older belongs to a previous, unrelated deployment —
+   * so we stop at the first operation boundary, exactly like {@link mostRecentOperation}.
    */
   public static mostRecentDeploymentAttempt(): IPollRange {
     // Track distinct operation IDs seen so far, treating a missing OperationId as its own
@@ -100,14 +104,20 @@ export abstract class PollRange {
     // otherwise an event stream lacking OperationId would never stop and we'd scan the whole
     // stack history.
     const operationIds = new Set<string>();
+    let newestOperationIsRollback = false;
     return {
       shouldStop(event) {
         const id = event.event.OperationId ?? '';
         if (!operationIds.has(id)) {
-          if (operationIds.size >= 2) {
+          // An operation boundary (scanning newest-first, so this is an OLDER operation).
+          // Cross it only once, and only when the newest operation was a rollback.
+          if (operationIds.size >= 2 || (operationIds.size === 1 && !newestOperationIsRollback)) {
             return 'stop-exclude';
           }
           operationIds.add(id);
+        }
+        if (operationIds.size === 1 && (event.event.ResourceStatus ?? '').includes('ROLLBACK')) {
+          newestOperationIsRollback = true;
         }
         return 'continue';
       },

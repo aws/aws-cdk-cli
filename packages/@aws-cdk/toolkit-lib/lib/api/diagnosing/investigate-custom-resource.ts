@@ -1,5 +1,4 @@
 import { trimToRecentLines, parseLambdaLogEvents, cloudWatchLogsConsoleUrl } from './format-utils';
-import type { InvestigateOptions } from './investigate-ecs-service';
 import {
   serviceTokenReferencedLogicalId,
   functionNameFromArnOrName,
@@ -39,7 +38,6 @@ export async function investigateCustomResource(
   err: ResourceError,
   sdk: SDK,
   debug: (msg: string) => Promise<void>,
-  _options: InvestigateOptions = {},
 ): Promise<AdditionalDiagnosticContext[]> {
   if (!err.logicalId) {
     await debug('Custom resource investigation: no logical ID available');

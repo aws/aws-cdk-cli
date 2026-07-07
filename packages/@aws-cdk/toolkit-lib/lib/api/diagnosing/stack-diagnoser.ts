@@ -2,7 +2,7 @@ import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
-import { cloudTrailContextsByLogicalId, investigateStackViaCloudTrail } from './cloudtrail-investigation';
+import { attributedCloudTrailContexts, investigateStackViaCloudTrail } from './cloudtrail-investigation';
 import { investigateResource } from './resource-investigation';
 import type { AdditionalDiagnosticContext, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
@@ -158,9 +158,12 @@ export class CloudFormationStackDiagnoser {
    * Run the stack-level CloudTrail investigation and attach its findings to the problems.
    *
    * One sweep per diagnosis (cdk diagnose or cdk deploy): the sweep covers the whole failure
-   * window and correlates events to resources afterwards. Findings for a resource that is
-   * itself among the problems are attached there. When run right after a deployment, the events
-   * may not be delivered yet, in which case the output notifies the user.
+   * window and correlates events to resources afterwards. A finding whose resource is itself
+   * among the problems (matched by stack AND logical ID — logical IDs repeat across nested
+   * stacks) is attached to that problem. Findings for other resources, and notes about the
+   * scan itself, are labeled with the resource they belong to and reported at the stack
+   * level. When run right after a deployment, the events may not be delivered yet, in which
+   * case the output notifies the user.
    */
   private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
     const sdk = await this.additionalExplorationSdk();
@@ -175,26 +178,36 @@ export class CloudFormationStackDiagnoser {
       await this.props.ioHelper.defaults.debug(`CloudTrail investigation failed: ${e.message}`);
       return problems;
     }
-    if (!investigation || (investigation.errors.length === 0 && investigation.notes.length === 0)) {
+    if (!investigation) {
       return problems;
     }
 
-    const contexts = cloudTrailContextsByLogicalId(investigation);
-    const unattributed: AdditionalDiagnosticContext[] = [];
-    for (const [logicalId, context] of contexts) {
-      if (!problems.some((p) => p.logicalId === logicalId)) {
-        unattributed.push(context);
+    // Contexts whose resource is a reported problem attach to it; the rest are labeled with
+    // their resource so they don't read as belonging to whatever problem carries them.
+    const attachable = new Map<TracedResourceError, AdditionalDiagnosticContext[]>();
+    const stackLevel: AdditionalDiagnosticContext[] = [];
+    for (const attributed of attributedCloudTrailContexts(investigation)) {
+      const problem = problems.find((p) => p.logicalId === attributed.logicalId && p.stackArn === attributed.stackArn);
+      if (problem) {
+        attachable.set(problem, [...(attachable.get(problem) ?? []), attributed.context]);
+      } else {
+        stackLevel.push({
+          ...attributed.context,
+          messages: attributed.context.messages.map((m) => `${attributed.description}: ${m}`),
+        });
       }
     }
     if (investigation.notes.length > 0) {
-      unattributed.push({ source: 'CloudTrail', messages: investigation.notes });
+      stackLevel.push({ source: 'CloudTrail', messages: investigation.notes });
     }
 
     return problems.map((p, i) => {
       const additional = [
-        ...(p.logicalId ? [contexts.get(p.logicalId)] : []),
-        ...(i === 0 ? unattributed : []),
-      ].filter((c): c is AdditionalDiagnosticContext => c !== undefined);
+        ...(attachable.get(p) ?? []),
+        // Stack-level findings have no problem of their own to live under; report them once,
+        // on the first problem, labeled with the resource they belong to.
+        ...(i === 0 ? stackLevel : []),
+      ];
       return additional.length > 0
         ? { ...p, additionalContext: [...(p.additionalContext ?? []), ...additional] }
         : p;

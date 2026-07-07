@@ -7,11 +7,6 @@ import type { ResourceError } from '../stack-events/resource-errors';
 export type { InvestigateOptions };
 
 /**
- * Options shared by all resource-type investigations.
- */
-export type InvestigateResourceOptions = InvestigateOptions;
-
-/**
  * Investigate a failed resource using AWS service APIs to gather additional root cause context.
  *
  * Returns additional diagnostic context (e.g. log lines) or an empty array if
@@ -21,14 +16,14 @@ export async function investigateResource(
   err: ResourceError,
   sdk: SDK,
   debug: (msg: string) => Promise<void>,
-  options: InvestigateResourceOptions = {},
+  options: InvestigateOptions = {},
 ): Promise<AdditionalDiagnosticContext[]> {
   const resourceType = err.resourceType ?? '';
   if (resourceType === 'AWS::ECS::Service') {
     return investigateEcsService(err, sdk, debug, options);
   }
   if (resourceType === 'AWS::CloudFormation::CustomResource' || resourceType.startsWith('Custom::')) {
-    return investigateCustomResource(err, sdk, debug, options);
+    return investigateCustomResource(err, sdk, debug);
   }
   return [];
 }

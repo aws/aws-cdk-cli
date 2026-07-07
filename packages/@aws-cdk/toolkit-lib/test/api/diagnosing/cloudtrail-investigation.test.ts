@@ -197,15 +197,20 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
-  test('correlates via resources[].ARN when userIdentity carries no stack identity', async () => {
+  test('does not correlate via resources[].ARN — only the calling principal counts', async () => {
+    // An unrelated principal's denied call AGAINST a stack resource is not the stack's
+    // failure. Matching on touched resources would attribute foreign activity to the stack.
     mockCloudTrailClient.on(LookupEventsCommand).resolves({
       Events: [{
         CloudTrailEvent: JSON.stringify({
           eventTime: '2026-06-19T11:59:00Z',
-          eventSource: 'lambda.amazonaws.com',
-          eventName: 'GetFunctionConfiguration20150331v2',
-          errorCode: 'ResourceNotFoundException',
-          userIdentity: { type: 'AWSService' },
+          eventSource: 's3.amazonaws.com',
+          eventName: 'PutBucketPolicy',
+          errorCode: 'AccessDenied',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/some-unrelated-ci-role/ci-session`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/some-unrelated-ci-role` } },
+          },
           resources: [{ ARN: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:${CR_FUNCTION_NAME}` }],
         }),
       }],
@@ -213,8 +218,126 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
+    expect(result!.errors).toHaveLength(0);
+  });
+
+  test('does not match an identity that is a prefix of another principal name', async () => {
+    // 'MyStack-VpcFn-iB66SjyhkS37' must not claim events from a hypothetical
+    // 'MyStack-VpcFn-iB66SjyhkS37x' principal: matching is by whole ARN segment.
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventTime: '2026-06-19T11:59:00Z',
+          eventSource: 's3.amazonaws.com',
+          eventName: 'CreateBucket',
+          errorCode: 'AccessDenied',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/other-role/MyStack-VpcFn-iB66SjyhkS37x`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/other-role` } },
+          },
+        }),
+      }],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(0);
+  });
+
+  test('correlates roles referenced by nested template properties', async () => {
+    // Role references are often nested (Firehose destination configs, EventBridge targets);
+    // the identity scan must find them at any depth. The role here is NOT a stack resource
+    // (imported by ARN), so only the template scan can index it.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          DeliveryStream: {
+            Type: 'AWS::KinesisFirehose::DeliveryStream',
+            Properties: {
+              S3DestinationConfiguration: {
+                BucketARN: 'arn:aws:s3:::some-bucket',
+                RoleARN: `arn:aws:iam::${ACCOUNT}:role/imported-firehose-role`,
+              },
+            },
+          },
+        },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventTime: '2026-06-19T11:59:00Z',
+          eventSource: 's3.amazonaws.com',
+          eventName: 'PutBucketPolicy',
+          errorCode: 'AccessDenied',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/imported-firehose-role/firehose-session`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/imported-firehose-role` } },
+          },
+        }),
+      }],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
     expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+    expect(result!.errors[0].logicalId).toEqual('DeliveryStream');
+  });
+
+  test('correlates a role expressed as Fn::Sub with a literal name segment', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          Project: {
+            Type: 'AWS::CodeBuild::Project',
+            Properties: { ServiceRole: { 'Fn::Sub': 'arn:aws:iam::${AWS::AccountId}:role/my-codebuild-role' } },
+          },
+        },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventTime: '2026-06-19T11:59:00Z',
+          eventSource: 'ec2.amazonaws.com',
+          eventName: 'CreateNetworkInterface',
+          errorCode: 'Client.UnauthorizedOperation',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/my-codebuild-role/codebuild-session`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/my-codebuild-role` } },
+          },
+        }),
+      }],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('Project');
+  });
+
+  test('still collects template-derived identities when DescribeStackResources fails', async () => {
+    // A denied/throttled resource listing must not abort the investigation: a literal
+    // ServiceToken ARN in the template is resolvable without physical IDs.
+    const denied = new Error('not authorized');
+    denied.name = 'AccessDeniedException';
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).rejects(denied);
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: {
+          MyCustomResource: {
+            Type: 'Custom::MyThing',
+            Properties: { ServiceToken: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:${CR_FUNCTION_NAME}` },
+          },
+        },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('MyCustomResource');
   });
 });
 
@@ -246,7 +369,7 @@ describe('presentation', () => {
     expect(result!.errors[1].message).toMatch(/67 occurrences/);
   });
 
-  test('caps distinct events at 5 and discloses the cut', async () => {
+  test('caps distinct events at 5 and discloses the cut as a note', async () => {
     const events = Array.from({ length: 7 }, (_, i) => handlerEvent({
       eventName: `DistinctCall${i}`,
       eventTime: `2026-06-19T11:59:0${i}Z`,
@@ -255,9 +378,42 @@ describe('presentation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
-    expect(result!.errors).toHaveLength(6);
+    expect(result!.errors).toHaveLength(5);
     expect(result!.errors[0].message).toMatch(/DistinctCall0/);
-    expect(result!.errors[5].message).toMatch(/2 more distinct error event\(s\) not shown/);
+    // The overflow disclosure is scan metadata, not an error attributed to a resource.
+    expect(result!.notes.join('\n')).toMatch(/2 more distinct CloudTrail error event\(s\) not shown/);
+  });
+
+  test('keeps the earlier event\'s own attribution when dedup replaces a later duplicate', async () => {
+    // Two events with the same (eventSource, eventName, errorCode) from DIFFERENT resources:
+    // LookupEvents returns newest-first, so the later (12:01) event is seen first. The dedup
+    // must keep the earlier (11:58) event AND its resource, not mix event A with identity B.
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [
+        handlerEvent({
+          eventTime: '2026-06-19T12:01:00Z',
+          eventSource: 'iam.amazonaws.com',
+          eventName: 'PassRole',
+          errorCode: 'AccessDenied',
+          errorMessage: 'handler denied',
+        }),
+        serviceOnBehalfEvent({
+          eventTime: '2026-06-19T11:58:00Z',
+          eventSource: 'iam.amazonaws.com',
+          eventName: 'PassRole',
+          errorCode: 'AccessDenied',
+          errorMessage: 'vpc role denied',
+        }),
+      ],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    // The earlier event came from the VPC role's principal, so the attribution follows it.
+    expect(result!.errors[0].logicalId).toEqual('VpcFnRole');
+    expect(result!.errors[0].message).toMatch(/vpc role denied/);
+    expect(result!.errors[0].message).toMatch(/2 occurrences/);
   });
 });
 
@@ -276,13 +432,21 @@ describe('sweep mechanics', () => {
     expect(input.LookupAttributes).toBeUndefined();
   });
 
-  test('pages through results and discloses truncation at the page cap', async () => {
-    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()], NextToken: 'more' });
+  test('pages through results and discloses truncation with the number of events checked', async () => {
+    // Two events per page (one errored, one clean): the disclosure must count events
+    // CHECKED (20), not errored events kept (10).
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [
+        handlerEvent(),
+        { CloudTrailEvent: JSON.stringify({ eventTime: '2026-06-19T11:59:00Z', eventSource: 's3.amazonaws.com', eventName: 'CreateBucket' }) },
+      ],
+      NextToken: 'more',
+    });
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
     expect(mockCloudTrailClient).toHaveReceivedCommandTimes(LookupEventsCommand, 10);
-    expect(result!.notes.join('\n')).toMatch(/only the most recent .* events in the window were checked/);
+    expect(result!.notes.join('\n')).toMatch(/only the most recent 20 CloudTrail events in the window were checked/);
   });
 
   test('skips the sweep when no failure has a timestamp to bound the window', async () => {
@@ -296,15 +460,27 @@ describe('sweep mechanics', () => {
     expect(result).toBeUndefined();
   });
 
-  test('hints at delivery latency when nothing correlates and the failure is recent', async () => {
+  test('hints at delivery latency when the failure is recent', async () => {
     jest.setSystemTime(FAILURE_TIME.valueOf() + 3 * 60 * 1000); // 3 minutes after failure
     mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [] });
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
     expect(result!.errors).toHaveLength(0);
-    expect(result!.notes.join('\n')).toMatch(/may not be delivered yet/);
+    expect(result!.notes.join('\n')).toMatch(/can lag up to 15 minutes/);
     expect(result!.notes.join('\n')).toMatch(/cdk diagnose/);
+  });
+
+  test('hints at delivery latency even when some events already correlated', async () => {
+    // An early benign error being delivered does not mean the fatal one has been: the hint
+    // must not be suppressed by partial delivery.
+    jest.setSystemTime(FAILURE_TIME.valueOf() + 3 * 60 * 1000);
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.notes.join('\n')).toMatch(/can lag up to 15 minutes/);
   });
 
   test('stays quiet when nothing correlates and the failure is old', async () => {
