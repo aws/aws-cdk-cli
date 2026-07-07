@@ -35,6 +35,7 @@ import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
 import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
 import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
+import type { AssemblyLock } from '../core/assembly-lock';
 import {
   readAssembly as defaultReadAssembly,
   type AssemblyReadResult,
@@ -57,13 +58,8 @@ import type { SynthRunResult } from '../core/synth-runner';
 const REFRESH_LOCK_RETRIES = 10;
 const REFRESH_LOCK_RETRY_MS = 50;
 
-/**
- * A held read lock on the cloud assembly directory; `release()` unlocks it.
- * In production this wraps the Toolkit's `fromAssemblyDirectory().produce()` readable.
- */
-export interface AssemblyLock {
-  release(): Promise<void>;
-}
+// Re-exported from core so existing importers keep resolving `AssemblyLock` here.
+export type { AssemblyLock };
 
 export interface LspHandlerOptions {
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */

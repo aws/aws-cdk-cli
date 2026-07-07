@@ -1,6 +1,7 @@
 import { Toolkit } from '@aws-cdk/toolkit-lib';
 import { LspIoHost } from './io-host';
 import { startServer } from './server';
+import { toolkitAssemblyLock } from '../core/assembly-lock';
 import { runSynth } from '../core/synth-runner';
 
 /**
@@ -19,11 +20,7 @@ export function startLspServer(): void {
       const toolkit = new Toolkit({ ioHost: new LspIoHost(console) });
       return {
         synthRunner: (projectDir) => runSynth({ toolkit, projectDir }),
-        acquireAssemblyLock: async (assemblyDir) => {
-          const cx = await toolkit.fromAssemblyDirectory(assemblyDir, { failOnMissingContext: false });
-          const readable = await cx.produce();
-          return { release: () => readable.dispose() };
-        },
+        acquireAssemblyLock: toolkitAssemblyLock(toolkit),
       };
     },
   });
