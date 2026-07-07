@@ -20,17 +20,17 @@ describe('Web Server', () => {
     expect(body).toEqual({ status: 'ok' });
   });
 
-  test('binds to 127.0.0.1 by default', async () => {
+  test('binds to localhost by default', async () => {
     server = await startWebServer();
-    expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    expect(server.url).toMatch(/^http:\/\/localhost:\d+$/);
   });
 
   test('auto-increments port by 1 when default is taken', async () => {
     const first = await startWebServer({ port: DEFAULT_PORT });
     server = await startWebServer();
 
-    expect(first.url).toBe(`http://127.0.0.1:${DEFAULT_PORT}`);
-    expect(server.url).toBe(`http://127.0.0.1:${DEFAULT_PORT + 1}`);
+    expect(first.url).toBe(`http://localhost:${DEFAULT_PORT}`);
+    expect(server.url).toBe(`http://localhost:${DEFAULT_PORT + 1}`);
     await first.stop();
   });
 

@@ -14,6 +14,7 @@ import {
 
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
+const HOST = 'localhost';
 
 export interface WebServerOptions {
   readonly port?: number;
@@ -89,8 +90,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const server = http.createServer(app);
 
   const port = options.port !== undefined
-    ? await listenOnPort(server, options.port)
-    : await listenWithPortSearch(server, DEFAULT_PORT);
+    ? await listenOnPort(server, options.port, HOST)
+    : await listenWithPortSearch(server, DEFAULT_PORT, HOST);
 
   // Start watching only after the server is listening, so a failed bind does not
   // leave a watcher running. Any synth that rewrites cdk.out (an external
@@ -105,7 +106,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   let stopped = false;
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: `http://${HOST}:${port}`,
     stop: async () => {
       if (stopped) return;
       stopped = true;
@@ -122,10 +123,11 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 async function listenOnPort(
   server: http.Server,
   port: number,
+  host: string,
 ): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, host, () => {
       server.removeListener('error', reject);
       resolve();
     });
@@ -136,12 +138,13 @@ async function listenOnPort(
 async function listenWithPortSearch(
   server: http.Server,
   startPort: number,
+  host: string,
 ): Promise<number> {
   for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(port, '127.0.0.1', () => {
+        server.listen(port, host, () => {
           server.removeListener('error', reject);
           resolve();
         });
