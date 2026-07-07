@@ -22,6 +22,6 @@ describe('explore command', () => {
 
     expect(exitCode).toBe(0);
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatch(/CDK Explorer running at http:\/\/127\.0\.0\.1:\d+/);
+    expect(messages[0]).toMatch(/CDK Explorer running at http:\/\/localhost:\d+/);
   });
 });
