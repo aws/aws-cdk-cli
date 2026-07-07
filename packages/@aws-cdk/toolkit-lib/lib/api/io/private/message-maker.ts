@@ -4,7 +4,7 @@ import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 /**
  * Information for each IO Message Code.
  */
-interface CodeInfo {
+export interface CodeInfo {
   /**
    * The message code.
    */
@@ -30,7 +30,7 @@ interface CodeInfo {
 /**
  * Information for each IO Message
  */
-interface MessageInfo extends CodeInfo {
+export interface MessageInfo extends CodeInfo {
   /**
    * The message level
    */
@@ -93,7 +93,7 @@ type CodeInfoMaybeInterface<T> = [T] extends [AbsentData] ? Omit<CodeInfo, 'inte
  * Not a lot of difference between `undefined` and `void`, but `void`
  * reads better.
  */
-type AbsentData = void;
+export type AbsentData = void;
 
 export const trace = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('trace', details);
 export const debug = <T = AbsentData>(details: CodeInfoMaybeInterface<T>) => message<T>('debug', details);
