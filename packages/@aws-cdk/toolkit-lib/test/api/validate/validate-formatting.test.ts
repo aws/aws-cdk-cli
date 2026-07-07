@@ -145,6 +145,22 @@ describe('formatValidateResult', () => {
     expect(output).toContain("Acknowledge with 'SecurityPlugin::no-public-buckets'");
   });
 
+  test('support custom namespaces for rule names', () => {
+    const result = makeResult([{
+      pluginName: 'SecurityPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'SillyGoose::no-public-buckets',
+        description: 'bad bucket',
+        severity: 'error',
+        violatingConstructs: [{ constructPath: 'Stack/Bucket' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain("Acknowledge with 'SillyGoose::no-public-buckets'");
+  });
+
   test('includes constructFqn when present', () => {
     const result = makeResult([{
       pluginName: 'TestPlugin',
