@@ -1,11 +1,13 @@
 import * as http from 'http';
 import * as path from 'path';
+import { Toolkit, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 import { SseBroadcaster } from './events';
 import { ASSEMBLY_CHANGED } from './protocol';
 import { registerApi } from './routes';
 import { indexHtml, webAsset } from './web-assets';
+import { toolkitAssemblyLock } from '../core/assembly-lock';
 import {
   startAssemblyWatcher as defaultStartAssemblyWatcher,
   type AssemblyWatcher,
@@ -61,7 +63,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   const app = express();
 
-  registerApi(app, { appDir, assemblyDir });
+  // The Toolkit provides the assembly read lock (via fromAssemblyDirectory().
+  // produce()); a non-interactive IoHost is fine here since stdout/stderr are
+  // free in the web process, unlike the LSP's stdio channel.
+  const toolkit = new Toolkit({ ioHost: new NonInteractiveIoHost() });
+  registerApi(app, {
+    appDir,
+    assemblyDir,
+    acquireAssemblyLock: toolkitAssemblyLock(toolkit),
+  });
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
   // changes. Registered before the /api catch-all so it is not treated as unknown.

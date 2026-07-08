@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+import { LockError } from '@aws-cdk/toolkit-lib';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -12,6 +13,15 @@ import { createApiRouter } from '../../lib/web/routes';
 let appDir: string;
 let app: express.Express;
 
+/** No-op assembly lock; these tests inject readAssembly directly, so no real lock is exercised. */
+const noopAssemblyLock = async () => ({ release: () => Promise.resolve() });
+
+/** Writes a minimal manifest so the router's mtime check reaches the injected readAssembly. */
+function writeManifest(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'manifest.json'), '{"version":"36.0.0"}');
+}
+
 beforeEach(() => {
   appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-routes-'));
   fs.writeFileSync(path.join(appDir, 'app.ts'), 'export const x = 1;\n');
@@ -19,7 +29,7 @@ beforeEach(() => {
   fs.writeFileSync(path.join(appDir, 'lib', 'stack.ts'), 'class Stack {}\n');
 
   app = express();
-  app.use('/api', createApiRouter({ appDir }));
+  app.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock }));
 });
 
 afterEach(() => {
@@ -120,8 +130,10 @@ describe('GET /api/tree', () => {
     readAssembly: (dir: string) => Promise<AssemblyReadResult>,
     opts: { assemblyDir?: string } = {},
   ): express.Express {
+    const assemblyDir = opts.assemblyDir ?? path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
     const a = express();
-    a.use('/api', createApiRouter({ appDir, assemblyDir: opts.assemblyDir, readAssembly }));
+    a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
     return a;
   }
 
@@ -182,15 +194,97 @@ describe('GET /api/tree', () => {
       seen = dir;
       return { status: 'not-found' };
     };
-    await request(appWith(reader, { assemblyDir: '/custom/out' })).get('/api/tree');
-    expect(seen).toBe('/custom/out');
+    const override = path.join(appDir, 'custom-out');
+    await request(appWith(reader, { assemblyDir: override })).get('/api/tree');
+    expect(seen).toBe(override);
+  });
+});
+
+describe('GET /api/template', () => {
+  const TEMPLATE_OBJ = {
+    Resources: {
+      Bucket123: {
+        Type: 'AWS::S3::Bucket',
+        Properties: { BucketName: 'my-bucket', VersioningConfiguration: { Status: 'Enabled' } },
+      },
+      Topic456: { Type: 'AWS::SNS::Topic' },
+    },
+  };
+  const TEMPLATE_TEXT = JSON.stringify(TEMPLATE_OBJ, undefined, 1);
+
+  function appWith(
+    readAssembly: (dir: string) => Promise<AssemblyReadResult>,
+    opts: { assemblyDir?: string } = {},
+  ): express.Express {
+    const assemblyDir = opts.assemblyDir ?? path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
+    fs.writeFileSync(path.join(assemblyDir, 'MyStack.template.json'), TEMPLATE_TEXT);
+    const a = express();
+    a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
+    return a;
+  }
+
+  test('returns template content and resource line ranges', async () => {
+    const realAppDir = fs.realpathSync(appDir);
+    const assemblyDir = path.join(appDir, 'cdk.out');
+    const reader = async (dir: string): Promise<AssemblyReadResult> => {
+      const node: ConstructNode = {
+        path: 'MyStack/Bucket',
+        id: 'Bucket',
+        type: 'AWS::S3::Bucket',
+        logicalId: 'Bucket123',
+        templateFile: path.join(dir, 'MyStack.template.json'),
+        sourceLocation: { file: path.join(realAppDir, 'lib', 'stack.ts'), line: 10, column: 5 },
+        children: [],
+      };
+      return { status: 'success', data: { tree: [node], warnings: [] } };
+    };
+
+    const res = await request(appWith(reader)).get('/api/template').query({ file: 'MyStack.template.json' });
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe(TEMPLATE_TEXT);
+    expect(res.body.resources.Bucket123).toBeDefined();
+    expect(res.body.resources.Bucket123.block.startLine).toBeGreaterThan(0);
+    expect(res.body.resources.Bucket123.block.endLine).toBeGreaterThanOrEqual(res.body.resources.Bucket123.block.startLine);
+    expect(res.body.resources.Bucket123.source).toEqual({ file: 'lib/stack.ts', line: 10, column: 5 });
+    expect(res.body.resources.Topic456).toBeDefined();
+    expect(res.body.resources.Topic456.source).toBeUndefined();
+  });
+
+  test('requires a file parameter', async () => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const res = await request(appWith(reader)).get('/api/template');
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects path traversal with 403', async () => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const res = await request(appWith(reader)).get('/api/template').query({ file: '../../etc/passwd' });
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 404 for a missing template', async () => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const res = await request(appWith(reader)).get('/api/template').query({ file: 'nope.template.json' });
+    expect(res.status).toBe(404);
+  });
+
+  test('works without a construct tree (assembly not found)', async () => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const res = await request(appWith(reader)).get('/api/template').query({ file: 'MyStack.template.json' });
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe(TEMPLATE_TEXT);
+    expect(res.body.resources.Bucket123).toBeDefined();
+    expect(res.body.resources.Bucket123.source).toBeUndefined();
   });
 });
 
 describe('GET /api/policy-validation', () => {
   function appWith(readAssembly: (dir: string) => Promise<AssemblyReadResult>): express.Express {
+    const assemblyDir = path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
     const a = express();
-    a.use('/api', createApiRouter({ appDir, readAssembly }));
+    a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
     return a;
   }
 
@@ -253,5 +347,86 @@ describe('GET /api/policy-validation', () => {
     const res = await request(appWith(async () => ({ status: 'error', message: 'boom' }))).get('/api/policy-validation');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'boom' });
+  });
+});
+
+describe('assembly read lock', () => {
+  function appWithLock(acquireAssemblyLock: () => Promise<{ release: () => Promise<void> }>): express.Express {
+    const assemblyDir = path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
+    const a = express();
+    a.use('/api', createApiRouter({
+      appDir,
+      assemblyDir,
+      readAssembly: () => ({ status: 'not-found' }),
+      acquireAssemblyLock,
+    }));
+    return a;
+  }
+
+  test('acquires the lock and releases it after reading', async () => {
+    const release = jest.fn(() => Promise.resolve());
+    const acquireAssemblyLock = jest.fn(async () => ({ release }));
+    const res = await request(appWithLock(acquireAssemblyLock)).get('/api/tree');
+    expect(res.status).toBe(200);
+    expect(acquireAssemblyLock).toHaveBeenCalledWith(path.join(appDir, 'cdk.out'));
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  test('retries while a synth holds the write lock, then reads once it clears', async () => {
+    let calls = 0;
+    const acquireAssemblyLock = jest.fn(async () => {
+      calls += 1;
+      if (calls <= 2) throw new LockError('ConcurrentWriteLock', 'a synth is writing');
+      return { release: () => Promise.resolve() };
+    });
+    const res = await request(appWithLock(acquireAssemblyLock)).get('/api/tree');
+    expect(res.status).toBe(200);
+    expect(acquireAssemblyLock).toHaveBeenCalledTimes(3); // 2 contended + 1 success
+  });
+
+  test('returns 503 when the write lock never clears', async () => {
+    const acquireAssemblyLock = jest.fn(async () => {
+      throw new LockError('ConcurrentWriteLock', 'a synth is writing');
+    });
+    const res = await request(appWithLock(acquireAssemblyLock)).get('/api/tree');
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ error: 'synth in progress, please retry' });
+  });
+
+  test('returns 500 when the lock fails for a non-contention reason', async () => {
+    const acquireAssemblyLock = jest.fn(async () => {
+      throw new Error('corrupt manifest');
+    });
+    const res = await request(appWithLock(acquireAssemblyLock)).get('/api/tree');
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'corrupt manifest' });
+  });
+
+  test('serves a cached read without re-locking while the manifest mtime is unchanged', async () => {
+    const assemblyDir = path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
+    const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
+    const readAssembly = jest.fn((): AssemblyReadResult => ({ status: 'success', data: { tree: [], warnings: [] } }));
+    const a = express();
+    a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
+    await request(a).get('/api/tree');
+    await request(a).get('/api/tree');
+    expect(readAssembly).toHaveBeenCalledTimes(1); // second request served from cache
+    expect(acquireAssemblyLock).toHaveBeenCalledTimes(1); // no lock taken on a cache hit
+  });
+
+  test('re-reads under the lock when the manifest mtime changes', async () => {
+    const assemblyDir = path.join(appDir, 'cdk.out');
+    writeManifest(assemblyDir);
+    const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
+    const readAssembly = jest.fn((): AssemblyReadResult => ({ status: 'success', data: { tree: [], warnings: [] } }));
+    const a = express();
+    a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
+    await request(a).get('/api/tree');
+    const future = new Date(Date.now() + 5000);
+    fs.utimesSync(path.join(assemblyDir, 'manifest.json'), future, future);
+    await request(a).get('/api/tree');
+    expect(readAssembly).toHaveBeenCalledTimes(2); // mtime changed, so re-read
   });
 });

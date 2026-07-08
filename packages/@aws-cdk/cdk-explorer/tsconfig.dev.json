@@ -29,6 +29,7 @@
       "express",
       "jest",
       "node",
+      "prismjs",
       "react-dom",
       "react",
       "supertest"

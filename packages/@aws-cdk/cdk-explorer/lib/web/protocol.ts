@@ -78,6 +78,26 @@ export interface WebConstructNode {
   readonly children: readonly WebConstructNode[];
 }
 
+/** Line range within a template (1-based, inclusive on both ends). */
+export interface LineRange {
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
+/** Resolved resource metadata returned by `GET /api/template`. */
+export interface TemplateResource {
+  /** Line range of the resource's value block `{ ... }`. */
+  readonly block: LineRange;
+  /** User source location for the construct that owns this resource. */
+  readonly source?: WebSourceLocation;
+}
+
+/** Response for `GET /api/template?file=<templateFile>`. */
+export interface TemplateResponse {
+  readonly content: string;
+  readonly resources: Record<string, TemplateResource>;
+}
+
 /**
  * Response for `GET /api/tree`. `not-synthesized` means no cloud assembly was
  * found (the user has not run `cdk synth`)

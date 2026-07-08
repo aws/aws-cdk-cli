@@ -1736,6 +1736,9 @@ const cdkExplorer = configureProject(
       'supertest@^6',
       '@types/supertest@^6',
       '@types/convert-source-map@^2',
+      'prismjs@^1',
+      '@types/prismjs@^1',
+      'yaml@^2',
     ],
     tsconfig: {
       compilerOptions: {

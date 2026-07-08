@@ -1,0 +1,17 @@
+@keyframes nav-highlight-fade {
+  from { opacity: 0.35; }
+  to { opacity: 0; }
+}
+
+.nav-highlight {
+  position: relative;
+}
+
+.nav-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--nav-highlight-color, #0972d3);
+  animation: nav-highlight-fade 3s ease-out forwards;
+  pointer-events: none;
+}

@@ -3,28 +3,25 @@ import Icon from '@cloudscape-design/components/icon';
 import * as React from 'react';
 import { severityHexColor } from '../../lib/web/severity';
 import type { WebConstructNode } from '../api';
+import type { NavigateHandler } from '../nav-types';
 
 interface ConstructTreeProps {
   readonly nodes: readonly WebConstructNode[];
   readonly depth?: number;
+  readonly onNavigate: NavigateHandler;
 }
 
 /** Auto-expand the tree through this depth on load (0 = root), so stacks and their top-level constructs are visible without manual clicks. */
 const AUTO_EXPAND_DEPTH = 2;
 
-/**
- * Renders the construct hierarchy as a nested, indented list. Rows never spill
- * past the panel: long labels truncate with an ellipsis and the tree clips
- * horizontally. Nodes collapse via a caret (whole-row click). Display-only.
- */
-export function ConstructTree({ nodes, depth = 0 }: ConstructTreeProps): JSX.Element {
+export function ConstructTree({ nodes, depth = 0, onNavigate }: ConstructTreeProps): JSX.Element {
   if (nodes.length === 0) {
     return <Box color="text-status-inactive">No constructs.</Box>;
   }
   const list = (
     <ul style={LIST_STYLE}>
       {nodes.map((node) => (
-        <TreeNode key={node.path} node={node} depth={depth} />
+        <TreeNode key={node.path} node={node} depth={depth} onNavigate={onNavigate} />
       ))}
     </ul>
   );
@@ -32,7 +29,7 @@ export function ConstructTree({ nodes, depth = 0 }: ConstructTreeProps): JSX.Ele
   return depth === 0 ? <div style={TREE_VIEWPORT_STYLE}>{list}</div> : list;
 }
 
-function TreeNode({ node, depth }: { readonly node: WebConstructNode; readonly depth: number }): JSX.Element {
+function TreeNode({ node, depth, onNavigate }: { readonly node: WebConstructNode; readonly depth: number; readonly onNavigate: NavigateHandler }): JSX.Element {
   const hasChildren = node.children.length > 0;
   const [expanded, setExpanded] = React.useState(depth < AUTO_EXPAND_DEPTH);
 
@@ -42,15 +39,43 @@ function TreeNode({ node, depth }: { readonly node: WebConstructNode; readonly d
   const inherited = !severity ? node.inheritedSeverity : undefined;
   const inheritedColor = inherited ? severityHexColor(inherited) : undefined;
 
+  const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleClick = React.useCallback(() => {
+    if (!hasChildren) return;
+    if (clickTimer.current) return;
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      setExpanded((e) => !e);
+    }, 200);
+  }, [hasChildren]);
+
+  const handleDoubleClick = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    if (!node.sourceLocation && !node.templateFile) return;
+    const color = severityColor ?? '#5f6b7a';
+    onNavigate({
+      sourceLocation: node.sourceLocation,
+      templateFile: node.templateFile,
+      logicalId: node.logicalId,
+      color,
+    });
+  }, [node, severityColor, onNavigate]);
+
   return (
     <li style={ITEM_STYLE}>
       <div
         style={hasChildren ? ROW_CLICKABLE_STYLE : ROW_STYLE}
-        onClick={hasChildren ? () => setExpanded((e) => !e) : undefined}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         role={hasChildren ? 'button' : undefined}
         aria-expanded={hasChildren ? expanded : undefined}
       >
-        {hasChildren ? <span style={CARET_STYLE}>{expanded ? '\u25be' : '\u25b8'}</span> : <span style={CARET_SPACER} />}
+        {hasChildren ? <span style={CARET_STYLE}>{expanded ? '▾' : '▸'}</span> : <span style={CARET_SPACER} />}
         <Icon name={hasChildren ? 'folder' : 'file'} variant="subtle" />
         {severityColor && (
           <span
@@ -68,7 +93,7 @@ function TreeNode({ node, depth }: { readonly node: WebConstructNode; readonly d
           </span>
         )}
       </div>
-      {hasChildren && expanded && <ConstructTree nodes={node.children} depth={depth + 1} />}
+      {hasChildren && expanded && <ConstructTree nodes={node.children} depth={depth + 1} onNavigate={onNavigate} />}
     </li>
   );
 }
