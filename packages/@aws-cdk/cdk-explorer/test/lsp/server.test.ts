@@ -6,9 +6,10 @@ import { LockError } from '@aws-cdk/toolkit-lib';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
+import type { AssemblyLock } from '../../lib/core/assembly-lock';
 import type { SynthRunResult } from '../../lib/core/synth-runner';
 import { COMMAND_SYNTH_NOW, type NotifySink } from '../../lib/lsp/commands';
-import { createLspHandlers, type AssemblyLock, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
+import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
 
 function makeNotifySink(): NotifySink & { infoMessages: string[]; errorMessages: string[] } {
   const infoMessages: string[] = [];

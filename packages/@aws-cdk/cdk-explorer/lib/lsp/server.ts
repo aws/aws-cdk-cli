@@ -58,9 +58,6 @@ import type { SynthRunResult } from '../core/synth-runner';
 const REFRESH_LOCK_RETRIES = 10;
 const REFRESH_LOCK_RETRY_MS = 50;
 
-// Re-exported from core so existing importers keep resolving `AssemblyLock` here.
-export type { AssemblyLock };
-
 export interface LspHandlerOptions {
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
