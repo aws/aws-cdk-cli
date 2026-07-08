@@ -4,6 +4,14 @@ import { shell } from './shell';
 
 const MINIMUM_VERSION = '3.9';
 
+/**
+ * The `init-typescript-app` test runs `cdk synth` through `ts-node@^10`, which is
+ * incompatible with TypeScript >= 7 (the Go-based compiler no longer exposes the `ts.sys`
+ * API ts-node reads its configuration through). Exclude 7.x from the matrix until the
+ * template's toolchain supports it — this bound is exclusive.
+ */
+const MAXIMUM_VERSION = '7.0';
+
 export async function npmMostRecentMatching(packageName: string, range: string) {
   const output = JSON.parse(await shell(['node', require.resolve('npm'), '--silent', 'view', `${packageName}@${range}`, 'version', '--json'], {
     show: 'error',
@@ -40,7 +48,8 @@ export async function npmQueryInstalledVersion(packageName: string, dir: string)
  * Use NPM preinstalled on the machine to look up a list of TypeScript versions
  */
 export function typescriptVersionsSync(): string[] {
-  const { stdout } = spawnSync('npm', ['--silent', 'view', `typescript@>=${MINIMUM_VERSION}`, 'version', '--json'], { encoding: 'utf-8' });
+  const range = `>=${MINIMUM_VERSION} <${MAXIMUM_VERSION}`;
+  const { stdout } = spawnSync('npm', ['--silent', 'view', `typescript@${range}`, 'version', '--json'], { encoding: 'utf-8' });
 
   const versions: string[] = JSON.parse(stdout);
   return Array.from(new Set(versions.map(v => v.split('.').slice(0, 2).join('.'))));
