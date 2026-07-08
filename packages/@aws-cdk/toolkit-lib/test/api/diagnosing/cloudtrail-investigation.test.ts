@@ -221,6 +221,26 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
+  test('attributes to the session-name identity (the caller) when multiple identities match', async () => {
+    // A handler's session ARN contains both the role name and the function name (as the
+    // session name). The role is listed BEFORE the function in DescribeStackResources
+    // (see beforeEach fixture ordering is not guaranteed either way), so first-match would
+    // be order-dependent; the session-name segment identifies the actual caller and must
+    // win regardless of insertion order.
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [
+        resource('CrHandlerRole', 'AWS::IAM::Role', CR_ROLE_NAME),
+        resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME),
+      ],
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
   test('does not match an identity that is a prefix of another principal name', async () => {
     // 'MyStack-VpcFn-iB66SjyhkS37' must not claim events from a hypothetical
     // 'MyStack-VpcFn-iB66SjyhkS37x' principal: matching is by whole ARN segment.

@@ -476,6 +476,14 @@ async function sweepCloudTrail(
  * event's calling-principal ARNs. Errored calls made by the deploying principal itself carry
  * no stack identity, which is correct: their errors are already in the resource's status
  * reason.
+ *
+ * A single event can match several identities — an assumed-role session ARN
+ * (`arn:...:assumed-role/<roleName>/<sessionName>`) contains both the role and, for
+ * Lambda-made calls, the function name as the session name. Attribution must not depend on
+ * identity-set insertion order (which follows the unordered `DescribeStackResources`
+ * response), so the most specific match wins: the session-name segment identifies the actual
+ * caller (the function), the role only who it borrowed permissions from; ties fall back to
+ * the longest key.
  */
 function correlateEvents(
   events: ParsedCloudTrailEvent[],
@@ -483,12 +491,39 @@ function correlateEvents(
 ): Array<{ event: ParsedCloudTrailEvent; identity: StackIdentity }> {
   const ret: Array<{ event: ParsedCloudTrailEvent; identity: StackIdentity }> = [];
   for (const event of events) {
-    const identity = identities.find((i) => event.callerIdentityStrings.some((s) => identityMatches(s, i.key)));
+    const identity = mostSpecificMatch(event, identities);
     if (identity) {
       ret.push({ event, identity });
     }
   }
   return ret;
+}
+
+/**
+ * The best-matching identity for an event: session-name matches beat other matches, longer
+ * keys beat shorter ones (a longer segment is a more specific name).
+ */
+function mostSpecificMatch(event: ParsedCloudTrailEvent, identities: StackIdentity[]): StackIdentity | undefined {
+  const sessionNames = new Set(
+    event.callerIdentityStrings
+      .map((s) => s.match(/:assumed-role\/[^/]+\/(.+)$/)?.[1])
+      .filter((s): s is string => !!s),
+  );
+
+  let best: StackIdentity | undefined;
+  let bestRank = -1;
+  for (const identity of identities) {
+    if (!event.callerIdentityStrings.some((s) => identityMatches(s, identity.key))) {
+      continue;
+    }
+    // Two-tier rank: session-name matches sort above everything else; key length breaks ties.
+    const rank = (sessionNames.has(identity.key) ? 1_000_000 : 0) + identity.key.length;
+    if (rank > bestRank) {
+      best = identity;
+      bestRank = rank;
+    }
+  }
+  return best;
 }
 
 /**
