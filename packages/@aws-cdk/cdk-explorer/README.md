@@ -9,11 +9,6 @@ diagnostics from policy validation.
 Used by the `cdk lsp` command in the AWS CDK CLI. It is for CDK developers who
 want in-editor feedback without leaving their source files.
 
-## Status
-
-This release ships the LSP server only. The web interface is not part of this
-package yet.
-
 ## Installing and running
 
 The server ships inside the AWS CDK CLI. Start it over stdio:
@@ -28,26 +23,17 @@ stdin/stdout. You can also start it programmatically:
 
 ## Features
 
-Code lenses appear on source lines that create CloudFormation resources:
-
-- Per resource: a lens titled `Creates <Type>`, or `Creates N resources: <types>`
-  when one construct fans out to several. Clicking it opens that resource in the
-  synthesized template; when a line maps to several resources the client shows a
-  picker.
-- File header (line 0, shown only when the file produces resources):
-  `↻ Synth now` and `▶ Enable auto-synth` when auto-synth is off, or
-  `⏹ Disable auto-synth` when it is on.
-
-Other features:
-
+- Code lenses on source lines that create resources: `Creates <Type>` opens that
+  resource in the synthesized template (a picker when a line maps to several),
+  plus `Synth now` / `Enable auto-synth` / `Disable auto-synth` in the file header.
 - Hover: a construct's resolved CloudFormation properties and a link to the
   generated template.
-- Go to definition: from a position in a synthesized `*.template.json` back to
-  the construct source that produced it.
+- Go to definition: from a position in a synthesized `*.template.json` back to the
+  construct source that produced it.
 - Diagnostics: policy validation report findings appear as squiggles in source.
 
-Source-linked features (code lenses, hover, go to definition) currently work
-for TypeScript and Python.
+Source-linked features (code lenses, hover, go to definition) currently work for
+TypeScript and Python.
 
 ## Security
 
