@@ -133,6 +133,10 @@ export class IntegTestRunner {
     // We will rewrite this later when it comes time to generate the actual
     // golden snapshot, to match the requested value in the test definition.
     this.helper.configureLegacyEnableLookups('dont-care');
+
+    // If the snapshot test left the temporary snapshot directory behind, then clean it up
+    // now so a fresh synth with the correct context can be performed.
+    this.helper.cleanup();
   }
 
   /**
