@@ -1,4 +1,10 @@
-import { functionNameFromArnOrName, serviceTokenReferencedLogicalId } from './resource-identifiers';
+import {
+  assumedRoleSessionName,
+  functionNameFromArnOrName,
+  identityMatches,
+  nameSegment,
+  serviceTokenReferencedLogicalId,
+} from './resource-identifiers';
 import { getStackTemplate } from './stack-template';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
 import type { ICloudFormationClient, ICloudTrailClient, SDK } from '../aws-auth/sdk';
@@ -345,18 +351,6 @@ function collectPrincipalProperties(props: any, depth = 0): Array<{ propName: st
 }
 
 /**
- * The trailing name segment of an ARN-shaped identifier (e.g. the role name out of a role
- * ARN), or `undefined` when the value has no path to strip.
- */
-function nameSegment(value: string): string | undefined {
-  if (!value.includes('/')) {
-    return undefined;
-  }
-  const segment = value.split('/').pop();
-  return segment && segment !== value ? segment : undefined;
-}
-
-/**
  * Resolve a template property value to a matchable identity string: literals pass through,
  * `Ref`/`Fn::GetAtt` resolve via the resource's physical ID, and an `Fn::Sub` role ARN
  * yields its role name when that segment is literal. Unresolvable expressions (e.g.
@@ -506,7 +500,7 @@ function correlateEvents(
 function mostSpecificMatch(event: ParsedCloudTrailEvent, identities: StackIdentity[]): StackIdentity | undefined {
   const sessionNames = new Set(
     event.callerIdentityStrings
-      .map((s) => s.match(/:assumed-role\/[^/]+\/(.+)$/)?.[1])
+      .map(assumedRoleSessionName)
       .filter((s): s is string => !!s),
   );
 
@@ -524,32 +518,6 @@ function mostSpecificMatch(event: ParsedCloudTrailEvent, identities: StackIdenti
     }
   }
   return best;
-}
-
-/**
- * Whether an identity key occurs in an ARN as a whole segment.
- *
- * Segment-anchored on purpose: a bare substring test would let a key that is a prefix of
- * another resource's name (e.g. `my-svc-1` inside `my-svc-10`) claim that resource's events.
- * Single-segment keys (names, physical IDs) must equal a full `:`/`/`-delimited segment;
- * multi-segment keys (ARNs, path-shaped IDs) must be bounded by delimiters or string ends.
- */
-function identityMatches(haystack: string, key: string): boolean {
-  if (haystack === key) {
-    return true;
-  }
-  if (!key.includes(':') && !key.includes('/')) {
-    return haystack.split(/[:/]/).includes(key);
-  }
-  const isBoundary = (c: string | undefined) => c === undefined || c === ':' || c === '/';
-  let idx = haystack.indexOf(key);
-  while (idx !== -1) {
-    if (isBoundary(haystack[idx - 1]) && isBoundary(haystack[idx + key.length])) {
-      return true;
-    }
-    idx = haystack.indexOf(key, idx + 1);
-  }
-  return false;
 }
 
 /**
