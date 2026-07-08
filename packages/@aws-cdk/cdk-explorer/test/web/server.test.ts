@@ -1,3 +1,4 @@
+import { ASSEMBLY_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, DEFAULT_PORT, type WebServer } from '../../lib/web/server';
 
 describe('Web Server', () => {
@@ -19,17 +20,17 @@ describe('Web Server', () => {
     expect(body).toEqual({ status: 'ok' });
   });
 
-  test('binds to 127.0.0.1 by default', async () => {
+  test('binds to localhost by default', async () => {
     server = await startWebServer();
-    expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    expect(server.url).toMatch(/^http:\/\/localhost:\d+$/);
   });
 
   test('auto-increments port by 1 when default is taken', async () => {
     const first = await startWebServer({ port: DEFAULT_PORT });
     server = await startWebServer();
 
-    expect(first.url).toBe(`http://127.0.0.1:${DEFAULT_PORT}`);
-    expect(server.url).toBe(`http://127.0.0.1:${DEFAULT_PORT + 1}`);
+    expect(first.url).toBe(`http://localhost:${DEFAULT_PORT}`);
+    expect(server.url).toBe(`http://localhost:${DEFAULT_PORT + 1}`);
     await first.stop();
   });
 
@@ -70,5 +71,48 @@ describe('Web Server', () => {
     const res = await fetch(`${server.url}/`);
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  test('watches the resolved assembly dir and closes the watcher on stop', async () => {
+    let seenDir: string | undefined;
+    let closed = false;
+    server = await startWebServer({
+      assemblyDir: '/tmp/explorer-test/cdk.out',
+      startAssemblyWatcher: (opts) => {
+        seenDir = opts.assemblyDir;
+        return {
+          close: async () => {
+            closed = true;
+          },
+        };
+      },
+    });
+
+    expect(seenDir).toBe('/tmp/explorer-test/cdk.out');
+
+    await server.stop();
+    expect(closed).toBe(true);
+  });
+
+  test('broadcasts an assembly-changed event to a connected client when the watcher fires', async () => {
+    let fireChange = (): void => undefined;
+    server = await startWebServer({
+      startAssemblyWatcher: (opts) => {
+        fireChange = opts.onChange;
+        return { close: async () => undefined };
+      },
+    });
+
+    const res = await fetch(`${server.url}/api/events`);
+    expect(res.headers.get('content-type')).toMatch(/text\/event-stream/);
+    const body = res.body;
+    if (!body) throw new Error('SSE response had no body');
+    const reader = body.getReader();
+
+    fireChange();
+    const { value } = await reader.read();
+    expect(new TextDecoder().decode(value)).toContain(`event: ${ASSEMBLY_CHANGED}`);
+
+    await reader.cancel();
   });
 });

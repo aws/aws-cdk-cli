@@ -26,7 +26,7 @@ export interface ApiOptions {
    * Reader for the cloud assembly. Injectable for tests; defaults to the real
    * `readAssembly` against {@link assemblyDir}.
    */
-  readonly readAssembly?: (assemblyDir: string) => AssemblyReadResult | Promise<AssemblyReadResult>;
+  readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
 }
 
 export function createApiRouter(options: ApiOptions): Router {

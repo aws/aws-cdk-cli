@@ -1,15 +1,23 @@
 import * as http from 'http';
+import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
+import { SseBroadcaster } from './events';
+import { ASSEMBLY_CHANGED } from './protocol';
 import { registerApi } from './routes';
 import { indexHtml, webAsset } from './web-assets';
+import {
+  startAssemblyWatcher as defaultStartAssemblyWatcher,
+  type AssemblyWatcher,
+  type AssemblyWatcherOptions,
+} from '../core/assembly-watcher';
 
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
+const HOST = 'localhost';
 
 export interface WebServerOptions {
   readonly port?: number;
-  readonly host?: string;
   /**
    * Root of the CDK app. File listing/reading is confined here. Defaults to
    * `process.cwd()`.
@@ -20,6 +28,16 @@ export interface WebServerOptions {
    * Defaults to `<appDir>/cdk.out`.
    */
   readonly assemblyDir?: string;
+  /**
+   * Starts the cdk.out watcher. Defaults to the real chokidar-backed watcher;
+   * overridden in tests with a fake to drive change events deterministically.
+   */
+  readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
+  /**
+   * Reports a non-fatal watcher error (live refresh stops updating). Defaults to
+   * writing to stderr; the CLI command passes a sink that routes to its IoHost.
+   */
+  readonly onWatcherError?: (err: unknown) => void;
 }
 
 export interface WebServer {
@@ -36,12 +54,19 @@ export interface WebServer {
  * @returns A handle to the running server with its URL and a stop function.
  */
 export async function startWebServer(options: WebServerOptions = {}): Promise<WebServer> {
-  const host = options.host ?? '127.0.0.1';
   const appDir = options.appDir ?? process.cwd();
+  // Single owner of where the cloud assembly lives: the same resolved path feeds
+  // both the read endpoints and the change watcher, so the two never disagree.
+  const assemblyDir = options.assemblyDir ?? path.join(appDir, 'cdk.out');
 
   const app = express();
 
-  registerApi(app, { appDir, assemblyDir: options.assemblyDir });
+  registerApi(app, { appDir, assemblyDir });
+
+  // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
+  // changes. Registered before the /api catch-all so it is not treated as unknown.
+  const events = new SseBroadcaster();
+  app.get('/api/events', events.handle.bind(events));
 
   // Unknown /api routes must return JSON 404, not fall through to the SPA.
   app.use('/api', (_req, res) => res.status(404).json({ error: 'unknown endpoint' }));
@@ -65,16 +90,29 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const server = http.createServer(app);
 
   const port = options.port !== undefined
-    ? await listenOnPort(server, host, options.port)
-    : await listenWithPortSearch(server, host, DEFAULT_PORT);
+    ? await listenOnPort(server, options.port, HOST)
+    : await listenWithPortSearch(server, DEFAULT_PORT, HOST);
+
+  // Start watching only after the server is listening, so a failed bind does not
+  // leave a watcher running. Any synth that rewrites cdk.out (an external
+  // `cdk synth`/`cdk watch`, or a future in-process synth) wakes every browser.
+  const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
+  const watcher = startWatcher({
+    assemblyDir,
+    onChange: () => events.broadcast(ASSEMBLY_CHANGED),
+    onError: options.onWatcherError ?? ((err) =>
+      process.stderr.write(`assembly watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
+  });
 
   let stopped = false;
   return {
-    url: `http://${host}:${port}`,
-    stop: () => {
-      if (stopped) return Promise.resolve();
+    url: `http://${HOST}:${port}`,
+    stop: async () => {
+      if (stopped) return;
       stopped = true;
-      return new Promise<void>((resolve) => {
+      await watcher.close();
+      events.close();
+      await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();
       });
@@ -84,8 +122,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
 async function listenOnPort(
   server: http.Server,
-  host: string,
   port: number,
+  host: string,
 ): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -99,8 +137,8 @@ async function listenOnPort(
 
 async function listenWithPortSearch(
   server: http.Server,
-  host: string,
   startPort: number,
+  host: string,
 ): Promise<number> {
   for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
     try {

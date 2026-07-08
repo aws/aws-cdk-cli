@@ -52,7 +52,7 @@ export interface AssemblyWatcherOptions {
   /** Invoked (debounced) when the assembly's signal files change. */
   readonly onChange: () => void;
   /** Receives non-fatal watcher errors. */
-  readonly onError?: (error: unknown) => void;
+  readonly onError: (error: unknown) => void;
   /**
    * Factory for the underlying file watcher. Defaults to chokidar; overridden
    * in tests with a fake so behavior is verified without real file IO.
@@ -101,13 +101,13 @@ export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyW
       try {
         options.onChange();
       } catch (error) {
-        options.onError?.(error);
+        options.onError(error);
       }
     }, DEBOUNCE_MS);
   });
 
   watcher.on('error', (error) => {
-    options.onError?.(error);
+    options.onError(error);
   });
 
   return {
