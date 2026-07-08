@@ -6,6 +6,7 @@ import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import { stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import { isAccessDeniedError } from '../aws-auth/util';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
@@ -286,7 +287,7 @@ export class StackActivityMonitor {
       const errorMessage = e instanceof Error ? e.message : String(e);
 
       const isPermissionsError =
-        e.name === 'AccessDeniedException' ||
+        isAccessDeniedError(e) ||
         (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
 
       if (isPermissionsError && this.envResources) {

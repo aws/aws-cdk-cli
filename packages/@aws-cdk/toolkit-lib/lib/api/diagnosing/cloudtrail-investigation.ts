@@ -1,7 +1,8 @@
 import { functionNameFromArnOrName, serviceTokenReferencedLogicalId } from './resource-identifiers';
+import { getStackTemplate } from './stack-template';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
-import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient, ICloudTrailClient, SDK } from '../aws-auth/sdk';
+import { isAccessDeniedError } from '../aws-auth/util';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ResourceError } from '../stack-events/resource-errors';
 
@@ -590,31 +591,3 @@ function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent |
   }
 }
 
-/**
- * Whether an error from an AWS SDK call is an authorization failure. CloudTrail raises
- * `AccessDeniedException`; other services phrase it as `AccessDenied`, so match both.
- */
-function isAccessDeniedError(e: any): boolean {
-  const name = e?.name ?? e?.Code ?? '';
-  return name === 'AccessDenied' || name === 'AccessDeniedException';
-}
-
-/**
- * Fetch and parse the stack's (original) template. Returns `undefined` if it can't be read.
- */
-async function getStackTemplate(
-  cfn: ICloudFormationClient,
-  stackName: string,
-  debug: (msg: string) => Promise<void>,
-): Promise<any | undefined> {
-  try {
-    const resp = await cfn.getTemplate({ StackName: stackName, TemplateStage: 'Original' });
-    if (!resp.TemplateBody) {
-      return undefined;
-    }
-    return deserializeStructure(resp.TemplateBody);
-  } catch (e: any) {
-    await debug(`CloudTrail investigation: failed to read template: ${e.message}`);
-    return undefined;
-  }
-}
