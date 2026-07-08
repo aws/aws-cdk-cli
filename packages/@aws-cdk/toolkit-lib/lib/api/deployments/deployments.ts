@@ -155,6 +155,13 @@ export interface DeployStackOptions {
    * Whether to deploy with express mode
    */
   readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -264,6 +271,7 @@ export interface DestroyStackOptions {
   deployName?: string;
   roleArn?: string;
   express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface StackExistsOptions {
@@ -425,6 +433,7 @@ export class Deployments {
         additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
       }),
       express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
   }
 
@@ -651,6 +660,7 @@ export class Deployments {
       stack: options.stack,
       deployName: options.deployName,
       express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
   }
 
