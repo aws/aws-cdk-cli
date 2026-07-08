@@ -1110,6 +1110,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         desc: 'Port to bind the web server on',
       }),
     )
+    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration')
     .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs

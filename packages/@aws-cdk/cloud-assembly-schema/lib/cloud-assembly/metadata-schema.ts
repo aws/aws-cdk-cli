@@ -361,6 +361,13 @@ export enum ArtifactMetadataEntryType {
 export const CFN_RESOURCE_TYPE_ATTRIBUTE = 'aws:cdk:cloudformation:type';
 
 /**
+ * tree.json node attribute carrying a construct's resolved CloudFormation
+ * resource properties (the synthesized property values). A construct-tree node
+ * attribute, like {@link CFN_RESOURCE_TYPE_ATTRIBUTE}.
+ */
+export const CFN_RESOURCE_PROPS_ATTRIBUTE = 'aws:cdk:cloudformation:props';
+
+/**
  * A metadata entry in a cloud assembly artifact.
  */
 export interface MetadataEntry {

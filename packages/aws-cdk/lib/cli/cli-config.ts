@@ -530,6 +530,9 @@ export async function makeConfig(): Promise<CliConfig> {
           port: { type: 'number', desc: 'Port to bind the web server on', default: 4200 },
         },
       },
+      'lsp': {
+        description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
+      },
       'orphan': {
         arg: {
           name: 'PATHS',

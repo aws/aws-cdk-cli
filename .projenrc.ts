@@ -1762,6 +1762,8 @@ cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generat
 cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
 cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
+cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
+
 // #endregion
 //////////////////////////////////////////////////////////////////////
 // #region shared setup

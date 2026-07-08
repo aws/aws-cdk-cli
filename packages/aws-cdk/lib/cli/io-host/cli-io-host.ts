@@ -31,6 +31,7 @@ type CliAction =
   | 'context'
   | 'docs'
   | 'explore'
+  | 'lsp'
   | 'flags'
   | 'notices'
   | 'version'

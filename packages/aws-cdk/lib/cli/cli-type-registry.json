@@ -1159,6 +1159,9 @@
         }
       }
     },
+    "lsp": {
+      "description": "Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration"
+    },
     "orphan": {
       "arg": {
         "name": "PATHS",

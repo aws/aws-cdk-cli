@@ -65,7 +65,7 @@ describe('runSynth', () => {
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, { workingDirectory: projectDir, lookups: false });
+    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, { workingDirectory: projectDir, lookups: false, env: { JSII_HOST_STACK_TRACES: '1' } });
     expect(cached.dispose).toHaveBeenCalledTimes(1);
   });
 

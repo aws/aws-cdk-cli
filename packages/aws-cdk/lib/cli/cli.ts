@@ -36,6 +36,7 @@ import { explore } from '../commands/explore';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getLanguageFromAlias } from '../commands/language';
+import { lsp } from '../commands/lsp';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -331,6 +332,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           ioHelper,
           port: args.port,
         });
+
+      case 'lsp':
+        ioHost.currentAction = 'lsp';
+        return lsp();
 
       case 'ls':
       case 'list':

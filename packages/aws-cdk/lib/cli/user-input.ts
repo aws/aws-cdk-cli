@@ -150,6 +150,11 @@ export interface UserInput {
   readonly explore?: ExploreOptions;
 
   /**
+   * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+   */
+  readonly lsp?: {};
+
+  /**
    * Detach resources from a CloudFormation stack without deleting them
    */
   readonly orphan?: OrphanOptions;
