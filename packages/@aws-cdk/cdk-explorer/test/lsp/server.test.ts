@@ -449,7 +449,9 @@ describe('LSP Server', () => {
 
   test('onDefinition resolves a template position back to construct source', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-def-'));
-    const templateFile = path.join(dir, 'Stack1.template.json');
+    const outDir = path.join(dir, 'cdk.out');
+    fs.mkdirSync(outDir, { recursive: true });
+    const templateFile = path.join(outDir, 'Stack1.template.json');
     const text = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
     fs.writeFileSync(templateFile, text);
     try {
@@ -498,6 +500,23 @@ describe('LSP Server', () => {
       textDocument: { uri: 'untitled:Untitled-1' },
       position: { line: 0, character: 0 },
     })).toBeUndefined();
+  });
+
+  test('onDefinition returns undefined for a template outside the project cdk.out', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'server-def-outside-'));
+    const templateFile = path.join(outside, 'Evil.template.json');
+    fs.writeFileSync(templateFile, JSON.stringify({ Resources: {} }));
+    try {
+      const client = createTestClient();
+      await initializeClient(client, { applicationDir: '/p' });
+      const target = await client.handlers.onDefinition({
+        textDocument: { uri: pathToFileURL(templateFile).toString() },
+        position: { line: 0, character: 0 },
+      });
+      expect(target).toBeUndefined();
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
   });
 });
 
