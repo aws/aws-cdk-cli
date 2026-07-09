@@ -31,7 +31,7 @@ export interface IntegTestInfo {
    *
    * @default - test run command will be `node {filePath}`
    */
-  readonly appCommand?: string;
+  readonly appCommandTemplate?: string;
 
   /**
    * true if this test is running in watch mode
@@ -45,6 +45,10 @@ export interface IntegTestInfo {
  * Derived information for IntegTests
  */
 export class IntegTest {
+  public static hydrate(info: IntegTestInfo): IntegTest {
+    return new IntegTest(info);
+  }
+
   /**
    * The name of the file to run
    *
@@ -74,7 +78,7 @@ export class IntegTest {
   /**
    * Directory the test is in
    */
-  public readonly directory: string;
+  public readonly workingDirectory: string;
 
   /**
    * Display name for the test
@@ -101,26 +105,42 @@ export class IntegTest {
    *
    * @default - test run command will be `node {filePath}`
    */
-  readonly appCommand: string;
+  readonly appCommandTemplate: string;
+
+  public readonly testDirectory: string;
+
+  public readonly testBaseName: string;
 
   constructor(public readonly info: IntegTestInfo) {
-    this.appCommand = info.appCommand ?? 'node {filePath}';
+    this.appCommandTemplate = info.appCommandTemplate ?? 'node {filePath}';
 
     // for consistency, always run the CDK apps under test from the CWD
     // this is especially important for languages that use the CWD to discover assets
     // @see https://github.com/aws/aws-cdk-cli/issues/638
-    this.directory = process.cwd();
+    this.workingDirectory = process.cwd();
     this.absoluteFileName = path.resolve(info.fileName);
-    this.fileName = path.relative(this.directory, info.fileName);
+    this.fileName = path.relative(this.workingDirectory, info.fileName);
+    this.testDirectory = path.dirname(this.fileName);
+    this.testBaseName = path.basename(this.fileName);
     this.discoveryRelativeFileName = path.relative(info.discoveryRoot, info.fileName);
 
     // We treat the discovery root as the base for display names
     // Looks either like `integ.mytest` or `package/test/integ.mytest`
     const parsed = path.parse(this.fileName);
-    this.testName = path.join(path.relative(this.info.discoveryRoot, parsed.dir), parsed.name);
+    this.testName = path.relative(this.info.discoveryRoot, this.absoluteFileName);
     this.normalizedTestName = parsed.name;
     this.snapshotDir = path.join(parsed.dir, `${parsed.base}.snapshot`);
     this.temporaryOutputDir = path.join(parsed.dir, `${CDK_OUTDIR_PREFIX}.${parsed.base}.snapshot`);
+  }
+
+  public specializeTemplate(template: string) {
+    return template
+      .replaceAll('{filePath}', this.fileName)
+      .replaceAll('{testBaseName}', this.testBaseName);
+  }
+
+  public dehydrate() {
+    return this.info;
   }
 
   /**
@@ -346,7 +366,7 @@ export class IntegrationTests {
         .map(fileName => new IntegTest({
           discoveryRoot: this.directory,
           fileName,
-          appCommand,
+          appCommandTemplate: appCommand,
         })),
       );
 

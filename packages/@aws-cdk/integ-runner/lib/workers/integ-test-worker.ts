@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type * as workerpool from 'workerpool';
 import type { IntegBatchResponse, IntegTestOptions, IntegRunnerMetrics } from './common';
 import { printResults, printSummary } from './common';
@@ -135,7 +136,7 @@ export async function runIntegrationTestsInParallel(
       const test = queue.pop();
       if (!test) break;
       const testStart = Date.now();
-      logger.highlight(`Running test ${test.fileName} in ${worker.profile ? worker.profile + '/' : ''}${worker.region}`);
+      logger.highlight(`Running test ${path.relative(test.discoveryRoot, test.fileName)} in ${worker.profile ? worker.profile + '/' : ''}${worker.region}`);
       const response: IntegTestInfo[][] = await options.pool.exec('integTestWorker', [{
         watch: options.watch,
         region: worker.region,

@@ -2,57 +2,30 @@ import * as path from 'path';
 import type { WritableOptions } from 'stream';
 import { Writable } from 'stream';
 import { StringDecoder } from 'string_decoder';
-import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import { fullDiff, formatDifferences, ResourceImpact } from '@aws-cdk/cloudformation-diff';
-import type { CdkIntegHelperOptions } from './cdk-integ-helper';
-import { CdkIntegHelper } from './cdk-integ-helper';
-import { AssemblyManifestReader } from './private/cloud-assembly';
+import type { CdkTestAppOptions, SnapshotAssembly } from './cdk-test-app';
+import { CdkTestApp } from './cdk-test-app';
+import type { IntegTest } from './integration-tests';
 import type { Diagnostic, DestructiveChange, SnapshotVerificationOptions } from '../workers/common';
 import { DiagnosticReason } from '../workers/common';
 
-interface SnapshotAssembly {
-  /**
-   * Map of stacks that are part of this assembly
-   */
-  [stackName: string]: {
-    /**
-     * All templates for this stack, including nested stacks
-     */
-    templates: {
-      [templateId: string]: any;
-    };
+type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate' | 'region'>;
 
-    /**
-     * List of asset Ids that are used by this assembly
-     */
-    assets: string[];
-  };
-}
+export type SnapshotResult =
+  | { type: 'no-shapshot' }
+  | { type: 'did-compare'; diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] }
+  ;
 
 /**
  * Runner for snapshot tests. This handles orchestrating
  * the validation of the integration test snapshots
  */
 export class IntegSnapshotRunner {
-  private readonly helper: CdkIntegHelper;
-  constructor(options: Omit<CdkIntegHelperOptions, 'region'>) {
-    this.helper = CdkIntegHelper.create({
-      ...options,
-      region: UNKNOWN_REGION,
-    });
-  }
+  private readonly test: IntegTest;
 
-  public hasSnapshot() {
-    return this.helper.hasSnapshot();
-  }
-
-  public actualTests() {
-    return this.helper.actualTests();
-  }
-
-  public dontCareAboutLegacyLookupsForTests() {
-    this.helper.configureLegacyEnableLookups('dont-care');
+  constructor(private readonly options: RunnerOptions) {
+    this.test = options.test;
   }
 
   /**
@@ -60,25 +33,32 @@ export class IntegSnapshotRunner {
    *
    * @returns any diagnostics and any destructive changes
    */
-  public async testSnapshot(options: SnapshotVerificationOptions = {}): Promise<{
-    diagnostics: Diagnostic[];
-    destructiveChanges: DestructiveChange[];
-  }> {
-    let doClean = true;
+  public async testSnapshot(options: SnapshotVerificationOptions = {}): Promise<SnapshotResult> {
+    let cleanApp: CdkTestApp | undefined;
     try {
-      // Read the "expected" snapshot
-      const expectedTestSuite = await this.helper.expectedTestSuite();
-      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.helper.goldenSnapshotDir, expectedTestSuite?.stacks);
+      // Read expected
+      const expected = await CdkTestApp.forGoldenSnapshot(this.options);
+      const expectedSuite = await expected.loadExistingSuite();
 
-      // Configure settings from the golden snapshot
-      this.helper.configureLegacyEnableLookups(expectedTestSuite?.enableLookups ?? false);
+      if (expectedSuite === undefined) {
+        return { type: 'no-shapshot' };
+      }
+
+      const expectedSnapshotAssembly = expected.snapshotAssembly(expectedSuite?.stacks);
+
+      // Set up actual
+      const actual = await CdkTestApp.forComparison({
+        ...this.options,
+        enableLookups: expectedSuite?.enableLookups ?? false,
+      });
+      cleanApp = actual;
 
       // read the "actual" snapshot
-      const actualSnapshot = await this.helper.actualSnapshot();
-      const actualSnapshotAssembly = this.getSnapshotAssembly(this.helper.temporarySnapshotDir, actualSnapshot.testDefinition.stacks);
+      const actualSuite = await actual.synthForSnapshotComparison();
+      const actualSnapshotAssembly = actual.snapshotAssembly(actualSuite.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
-      const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
+      const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly, actual);
 
       if (diagnostics.diagnostics.length) {
         // Attach additional messages to the first diagnostic
@@ -86,16 +66,16 @@ export class IntegSnapshotRunner {
 
         if (options.retain) {
           additionalMessages.push(
-            `(Failure retained) Expected: ${path.relative(process.cwd(), this.helper.goldenSnapshotDir)}`,
-            `                   Actual:   ${path.relative(process.cwd(), this.helper.temporarySnapshotDir)}`,
+            `(Failure retained) Expected: ${path.relative(process.cwd(), expected.outputDirectory)}`,
+            `                   Actual:   ${path.relative(process.cwd(), actual.outputDirectory)}`,
           ),
-          doClean = false;
+          cleanApp = undefined;
         }
 
         if (options.verbose) {
           additionalMessages.push(
             'Repro:',
-            `  ${this.helper.actualSynthReproCommand().join(' ')}`,
+            `  ${actual.synthReproCommand}`,
           );
         }
 
@@ -105,44 +85,18 @@ export class IntegSnapshotRunner {
         };
       }
 
-      return diagnostics;
+      return {
+        type: 'did-compare',
+        diagnostics: diagnostics.diagnostics,
+        destructiveChanges: diagnostics.destructiveChanges,
+      };
     } catch (e) {
       throw e;
     } finally {
-      if (doClean) {
-        this.helper.cleanup();
+      if (cleanApp) {
+        cleanApp.cleanup();
       }
     }
-  }
-
-  /**
-   * For a given cloud assembly return a collection of all templates
-   * that should be part of the snapshot and any required meta data.
-   *
-   * @param cloudAssemblyDir - The directory of the cloud assembly to look for snapshots
-   * @param pickStacks - Pick only these stacks from the cloud assembly
-   * @returns A SnapshotAssembly, the collection of all templates in this snapshot and required meta data
-   */
-  private getSnapshotAssembly(cloudAssemblyDir: string, pickStacks: string[] = []): SnapshotAssembly {
-    const assembly = this.readAssembly(cloudAssemblyDir);
-    const stacks = assembly.stacks;
-    const snapshots: SnapshotAssembly = {};
-    for (const [stackName, stackTemplate] of Object.entries(stacks)) {
-      if (pickStacks.includes(stackName)) {
-        const manifest = AssemblyManifestReader.fromPath(cloudAssemblyDir);
-        const assets = manifest.getAssetIdsForStack(stackName);
-
-        snapshots[stackName] = {
-          templates: {
-            [stackName]: stackTemplate,
-            ...assembly.getNestedStacksForStack(stackName),
-          },
-          assets,
-        };
-      }
-    }
-
-    return snapshots;
   }
 
   /**
@@ -152,8 +106,8 @@ export class IntegSnapshotRunner {
    * @param stackId - the stack id
    * @returns a list of resource types or undefined if none are found
    */
-  private async getAllowedDestroyTypesForStack(stackId: string): Promise<string[] | undefined> {
-    for (const testCase of Object.values((await this.helper.actualTests()) ?? {})) {
+  private async getAllowedDestroyTypesForStack(actual: CdkTestApp, stackId: string): Promise<string[] | undefined> {
+    for (const testCase of Object.values(actual.testCases())) {
       if (testCase.stacks.includes(stackId)) {
         return testCase.allowDestroy;
       }
@@ -171,6 +125,7 @@ export class IntegSnapshotRunner {
   private async diffAssembly(
     expected: SnapshotAssembly,
     actual: SnapshotAssembly,
+    actualApp: CdkTestApp,
   ): Promise<{ diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] }> {
     const failures: Diagnostic[] = [];
     const destructiveChanges: DestructiveChange[] = [];
@@ -181,7 +136,7 @@ export class IntegSnapshotRunner {
       for (const templateId of Object.keys(stack.templates)) {
         if (!actual[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.helper.testName,
+            testName: this.test.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} exists in snapshot, but not in actual`,
@@ -196,7 +151,7 @@ export class IntegSnapshotRunner {
       // that does not exist in the current snapshot
         if (!expected[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.helper.testName,
+            testName: this.test.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} does not exist in snapshot, but does in actual`,
@@ -204,7 +159,7 @@ export class IntegSnapshotRunner {
           continue;
         } else {
           const config = {
-            diffAssets: (await this.helper.actualSnapshot()).testDefinition.getOptionsForStack(stackId)?.diffAssets,
+            diffAssets: actualApp.testSuite.getOptionsForStack(stackId)?.diffAssets,
           };
           let actualTemplate = actual[stackId].templates[templateId];
           let expectedTemplate = expected[stackId].templates[templateId];
@@ -218,7 +173,7 @@ export class IntegSnapshotRunner {
           }
           const templateDiff = fullDiff(expectedTemplate, actualTemplate);
           if (!templateDiff.isEmpty) {
-            const allowedDestroyTypes = (await this.getAllowedDestroyTypesForStack(stackId)) ?? [];
+            const allowedDestroyTypes = (await this.getAllowedDestroyTypesForStack(actualApp, stackId)) ?? [];
 
             // go through all the resource differences and check for any
             // "destructive" changes
@@ -257,7 +212,7 @@ export class IntegSnapshotRunner {
               reason: DiagnosticReason.SNAPSHOT_FAILED,
               message: writable.data,
               stackName: templateId,
-              testName: this.helper.testName,
+              testName: this.test.testName,
               config,
             });
           }
@@ -269,10 +224,6 @@ export class IntegSnapshotRunner {
       diagnostics: failures,
       destructiveChanges,
     };
-  }
-
-  private readAssembly(dir: string): AssemblyManifestReader {
-    return AssemblyManifestReader.fromPath(dir);
   }
 
   /**

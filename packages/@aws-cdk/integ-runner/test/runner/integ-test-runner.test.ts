@@ -639,7 +639,7 @@ describe('IntegTest runIntegTests', () => {
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
-        appCommand: 'node --no-warnings {filePath}',
+        appCommandTemplate: 'node --no-warnings {filePath}',
       }),
       testingUsingMocksLeaveDirectories: true,
     });
@@ -770,7 +770,7 @@ describe('IntegTest watchIntegTest', () => {
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
-        appCommand: 'node --no-warnings {filePath}',
+        appCommandTemplate: 'node --no-warnings {filePath}',
       }),
       testingUsingMocksLeaveDirectories: true,
     });
@@ -802,7 +802,7 @@ describe('IntegTest watchIntegTest', () => {
       test: new IntegTest({
         fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
         discoveryRoot: 'test/test-data',
-        appCommand: 'node --no-warnings {filePath}',
+        appCommandTemplate: 'node --no-warnings {filePath}',
       }),
       testingUsingMocksLeaveDirectories: true,
     });
