@@ -1,13 +1,25 @@
 import type { IIoHost } from './io-host';
-import type { IoMessage, IoMessageLevel, IoRequest } from './io-message';
+import type { IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from './io-message';
 import { ListenerRegistry } from './private/listener-registry';
-import type { MessageListenerResultOrPromise, MessageSelector } from './private/listener-registry';
-import type { IoMessageMaker, IoRequestMaker } from './private/message-maker';
+import type { MessageListenerResultOrPromise } from './private/listener-registry';
 
-// Re-export the listener vocabulary from the shared registry so it is part of
-// the public API alongside `withListeners`.
-export { matchAny } from './private/listener-registry';
-export type { MessageListenerResult, MessageListenerResultOrPromise, MessageSelector } from './private/listener-registry';
+// Re-export the listener result vocabulary from the shared registry so it is
+// part of the public API alongside `withListeners`.
+export type { MessageListenerResult, MessageListenerResultOrPromise } from './private/listener-registry';
+
+/**
+ * A predicate that decides whether a listener applies to a message.
+ *
+ * Use one to match a family of messages instead of a single code — e.g. every
+ * message of a given level, or any of several codes. It touches only the public
+ * `IoMessage` shape.
+ *
+ * @example
+ * ```ts
+ * host.on((msg) => msg.level === 'warn', listener);
+ * ```
+ */
+export type MessagePredicate = (msg: IoMessage<unknown>) => boolean;
 
 /**
  * An `IIoHost` that additionally lets listeners be attached to it.
@@ -15,11 +27,16 @@ export type { MessageListenerResult, MessageListenerResultOrPromise, MessageSele
  * The result of `withListeners`. It is still an `IIoHost`, so it drops straight
  * into the `ioHost` slot of a new `Toolkit`, and it exposes methods to observe,
  * reshape, or answer individual messages without subclassing a host.
+ *
+ * Listeners are keyed on a message `code` (e.g. `'CDK_TOOLKIT_I2901'`). The
+ * codes are listed in the message registry:
+ * https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-registry/
  */
 export interface IoHostWithListeners extends IIoHost {
   /**
-   * Register a listener that is invoked for every message that matches the
-   * selector.
+   * Register a listener that is invoked for every message that matches — either
+   * a single message `code` (e.g. `'CDK_TOOLKIT_I2901'`), or a
+   * `MessagePredicate` that matches a family of messages.
    *
    * The listener may return a `MessageListenerResult` to update the message
    * text and/or level or prevent the default handling (asking the wrapped host
@@ -27,26 +44,25 @@ export interface IoHostWithListeners extends IIoHost {
    * may be async (return a `Promise`); it is awaited before the message is
    * handled further. Returns a function that removes the listener again.
    *
+   * The message payload is delivered as `unknown`; see the message registry for
+   * the shape carried by each code.
+   *
    * @example
    * ```ts
-   * const dispose = host.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
-   *   myCount += msg.data.stacks.length;
+   * const dispose = host.on('CDK_TOOLKIT_I2901', async (msg) => {
+   *   myCount += (msg.data as StackDetailsPayload).stacks.length;
    *   await persist(myCount);
    * });
    * ```
    *
    * @example
    * ```ts
-   * // Match with a custom predicate instead of a code, e.g. a maker's `.is`:
-   * const dispose = host.on(IO.CDK_TOOLKIT_I7010.is, (msg) => ({ respond: true }));
+   * // A predicate matches a family of messages, e.g. every warning:
+   * const dispose = host.on((msg) => msg.level === 'warn', (msg) => { ... });
    * ```
    */
-  on<T>(
-    selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
   on(
-    predicate: (msg: IoMessage<any>) => boolean,
+    selector: IoMessageCode | MessagePredicate,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
   ): () => void;
 
@@ -54,12 +70,8 @@ export interface IoHostWithListeners extends IIoHost {
    * Like `on`, but the listener is automatically removed after it has been
    * invoked once.
    */
-  once<T>(
-    selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
   once(
-    predicate: (msg: IoMessage<any>) => boolean,
+    selector: IoMessageCode | MessagePredicate,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
   ): () => void;
 
@@ -74,13 +86,13 @@ export interface IoHostWithListeners extends IIoHost {
    *
    * @example
    * ```ts
-   * const dispose = host.rewrite(IO.CDK_TOOLKIT_I2901, (msg) =>
-   *   serializeStructure(msg.data.stacks, true));
+   * const dispose = host.rewrite('CDK_TOOLKIT_I2901', (msg) =>
+   *   serializeStructure((msg.data as StackDetailsPayload).stacks, true));
    * ```
    */
-  rewrite<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
-    formatter: (msg: IoMessage<T>) => string,
+  rewrite(
+    code: IoMessageCode,
+    formatter: (msg: IoMessage<unknown>) => string,
     level?: IoMessageLevel,
   ): () => void;
 
@@ -88,9 +100,9 @@ export interface IoHostWithListeners extends IIoHost {
    * Like `rewrite`, but the formatter is automatically removed after it has
    * been applied once.
    */
-  rewriteOnce<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
-    formatter: (msg: IoMessage<T>) => string,
+  rewriteOnce(
+    code: IoMessageCode,
+    formatter: (msg: IoMessage<unknown>) => string,
     level?: IoMessageLevel,
   ): () => void;
 
@@ -107,15 +119,15 @@ export interface IoHostWithListeners extends IIoHost {
    *
    * @example
    * ```ts
-   * const dispose = host.respond(IO.CDK_TOOLKIT_I7010, true);
+   * const dispose = host.respond('CDK_TOOLKIT_I7010', true);
    * ```
    */
-  respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion?: boolean): () => void;
+  respond(code: IoMessageCode, value: unknown, suppressQuestion?: boolean): () => void;
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion?: boolean): () => void;
+  respondOnce(code: IoMessageCode, value: unknown, suppressQuestion?: boolean): () => void;
 }
 
 /**
@@ -136,7 +148,7 @@ export interface IoHostWithListeners extends IIoHost {
  * ```ts
  * const base = new NonInteractiveIoHost();     // or your own host
  * const host = withListeners(base);
- * host.on(IO.CDK_TOOLKIT_I2901, (m) => { count += m.data.stacks.length; });
+ * host.on('CDK_TOOLKIT_I2901', (m) => { count += (m.data as StackDetailsPayload).stacks.length; });
  * const toolkit = new Toolkit({ ioHost: host });
  * ```
  */
@@ -149,7 +161,7 @@ export function withListeners(host: IIoHost): IoHostWithListeners {
  *
  * The registry is the shared listener engine (also used by the CLI's terminal
  * host); this class adds the wrapped-host plumbing that turns it into an
- * `IIoHost`.
+ * `IIoHost`, and adapts the public code-keyed API onto the registry's matchers.
  */
 class ListeningIoHost implements IoHostWithListeners {
   private readonly registry = new ListenerRegistry();
@@ -186,35 +198,46 @@ class ListeningIoHost implements IoHostWithListeners {
     return this.inner.requestResponse(message);
   }
 
-  public on(selector: MessageSelector<any>, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise): () => void {
-    return this.registry.on(selector as any, listener as any);
+  public on(selector: IoMessageCode | MessagePredicate, listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise): () => void {
+    return this.registry.on(toMatcher(selector), listener);
   }
 
-  public once(selector: MessageSelector<any>, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise): () => void {
-    return this.registry.once(selector as any, listener as any);
+  public once(selector: IoMessageCode | MessagePredicate, listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise): () => void {
+    return this.registry.once(toMatcher(selector), listener);
   }
 
-  public rewrite<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): () => void {
-    return this.registry.rewrite(code, formatter, level);
+  public rewrite(code: IoMessageCode, formatter: (msg: IoMessage<unknown>) => string, level?: IoMessageLevel): () => void {
+    return this.registry.on(byCode(code), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
-  public rewriteOnce<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): () => void {
-    return this.registry.rewriteOnce(code, formatter, level);
+  public rewriteOnce(code: IoMessageCode, formatter: (msg: IoMessage<unknown>) => string, level?: IoMessageLevel): () => void {
+    return this.registry.once(byCode(code), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
-  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.registry.respond(code, value, suppressQuestion);
+  public respond(code: IoMessageCode, value: unknown, suppressQuestion = true): () => void {
+    // Only answer requests; on a notification code there's nothing to answer, so
+    // leave it untouched rather than suppress it (which would drop the message).
+    return this.registry.on(byCode(code), (msg) =>
+      'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
   }
 
-  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.registry.respondOnce(code, value, suppressQuestion);
+  public respondOnce(code: IoMessageCode, value: unknown, suppressQuestion = true): () => void {
+    return this.registry.once(byCode(code), (msg) =>
+      'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
   }
+}
+
+/**
+ * Resolve a code-or-predicate selector into the predicate the registry matches
+ * on: a code becomes a code-equality check, a predicate is used as-is.
+ */
+function toMatcher(selector: IoMessageCode | MessagePredicate): MessagePredicate {
+  return typeof selector === 'string' ? byCode(selector) : selector;
+}
+
+/**
+ * Build a matcher that fires for messages carrying the given code.
+ */
+function byCode(code: IoMessageCode): MessagePredicate {
+  return (msg) => msg.code === code;
 }

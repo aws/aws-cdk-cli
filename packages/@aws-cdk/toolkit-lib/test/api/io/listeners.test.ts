@@ -1,5 +1,5 @@
 import type { IIoHost, IoMessage, IoRequest } from '../../../lib/api/io';
-import { matchAny, withListeners, IO } from '../../../lib/api/io';
+import { withListeners } from '../../../lib/api/io';
 
 /**
  * A minimal `IIoHost` that records what it is asked to handle, so we can assert
@@ -22,8 +22,8 @@ class RecordingIoHost implements IIoHost {
   }
 }
 
-const I2901 = IO.CDK_TOOLKIT_I2901; // list result, payload has `stacks`
-const I7010 = IO.CDK_TOOLKIT_I7010; // destroy confirmation request (boolean)
+const I2901 = 'CDK_TOOLKIT_I2901'; // list result, payload has `stacks`
+const I7010 = 'CDK_TOOLKIT_I7010'; // destroy confirmation request (boolean)
 
 function notification(over: Partial<IoMessage<any>> = {}): IoMessage<any> {
   return {
@@ -69,7 +69,7 @@ describe('withListeners', () => {
   describe('on', () => {
     test('runs the listener for a matching code and forwards the message', async () => {
       const host = withListeners(inner);
-      const seen: Array<{ stacks: unknown[] }> = [];
+      const seen: Array<unknown> = [];
       host.on(I2901, (m) => {
         seen.push(m.data);
       });
@@ -135,24 +135,13 @@ describe('withListeners', () => {
       expect(fn).toHaveBeenCalledTimes(1);
     });
 
-    test('matches on a predicate selector', async () => {
+    test('matches on a predicate selector, firing only for matching messages', async () => {
       const host = withListeners(inner);
       const fn = jest.fn();
       host.on((m) => m.level === 'warn', fn);
 
       await host.notify(notification({ level: 'warn' }));
       await host.notify(notification({ level: 'info' }));
-
-      expect(fn).toHaveBeenCalledTimes(1);
-    });
-
-    test("matches on a maker's .is type guard", async () => {
-      const host = withListeners(inner);
-      const fn = jest.fn();
-      host.on(I2901.is, fn);
-
-      await host.notify(notification());
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
 
       expect(fn).toHaveBeenCalledTimes(1);
     });
@@ -169,12 +158,23 @@ describe('withListeners', () => {
 
       expect(fn).toHaveBeenCalledTimes(1);
     });
+
+    test('accepts a predicate selector', async () => {
+      const host = withListeners(inner);
+      const fn = jest.fn();
+      host.once((m) => m.level === 'warn', fn);
+
+      await host.notify(notification({ level: 'warn' }));
+      await host.notify(notification({ level: 'warn' }));
+
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('rewrite', () => {
     test('replaces the forwarded message text, leaving the code intact', async () => {
       const host = withListeners(inner);
-      host.rewrite(I2901, (m) => `rewritten: ${m.data.stacks.length}`);
+      host.rewrite(I2901, (m) => `rewritten: ${(m.data as { stacks: unknown[] }).stacks.length}`);
 
       await host.notify(notification());
 
@@ -322,19 +322,16 @@ describe('withListeners', () => {
       expect(answer).toBe('the-default');
       expect(inner.requested).toHaveLength(0);
     });
-  });
 
-  describe('matchAny', () => {
-    test('one listener fires for any of several codes', async () => {
+    test('respond on a notification code leaves the message alone instead of suppressing it', async () => {
       const host = withListeners(inner);
-      const fn = jest.fn();
-      host.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502, IO.CDK_TOOLKIT_I5503), fn);
+      // I2901 is a notification, not a request: there is nothing to answer, so
+      // respond must not drop the message.
+      host.respond(I2901, true);
 
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I5502' }));
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I5503' }));
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I2901' }));
+      await host.notify(notification());
 
-      expect(fn).toHaveBeenCalledTimes(2);
+      expect(inner.notified).toHaveLength(1);
     });
   });
 });
