@@ -15,11 +15,6 @@
       "type": "build"
     },
     {
-      "name": "@types/express",
-      "version": "^4",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },
@@ -133,11 +128,6 @@
     {
       "name": "convert-source-map",
       "version": "^2",
-      "type": "runtime"
-    },
-    {
-      "name": "express",
-      "version": "^4",
       "type": "runtime"
     },
     {

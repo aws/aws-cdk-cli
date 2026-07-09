@@ -28,7 +28,6 @@
     "target": "es2022",
     "types": [
       "convert-source-map",
-      "express",
       "jest",
       "node"
     ],
