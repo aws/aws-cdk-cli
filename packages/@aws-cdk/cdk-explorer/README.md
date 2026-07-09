@@ -1,10 +1,11 @@
 # @aws-cdk/cdk-explorer
 
 A Language Server (LSP) for AWS CDK apps. It runs your CDK app, reads the
-synthesized cloud assembly, and surfaces that back in your editor: code lenses
-on the constructs you author, hover details from the generated CloudFormation,
-go-to-definition from a template to the construct that created it, and
-diagnostics from policy validation.
+synthesized cloud assembly from your project's `cdk.out` directory, and
+surfaces that back in your editor: code lenses on the constructs you author,
+hover details from the generated CloudFormation, go-to-definition from a
+template to the construct that created it, and diagnostics from policy
+validation.
 
 Used by the `cdk lsp` command in the AWS CDK CLI. It is for CDK developers who
 want in-editor feedback without leaving their source files.
@@ -30,7 +31,12 @@ stdin/stdout. You can also start it programmatically:
   generated template.
 - Go to definition: from a position in a synthesized `*.template.json` back to the
   construct source that produced it.
-- Diagnostics: policy validation report findings appear as squiggles in source.
+- Diagnostics: findings from the policy validation report appear as squiggles in
+  your source. The rule description and any suggested fix ride in the diagnostic
+  message, so your editor shows them when you hover the squiggle and in its
+  problems list. The report identifies a violating construct rather than a source
+  line, so a squiggle sits on the line that creates the construct, not on the
+  specific property at fault.
 
 Source-linked features (code lenses, hover, go to definition) currently work for
 TypeScript and Python.
