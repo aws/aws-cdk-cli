@@ -93,6 +93,12 @@ export interface BootstrapOptions {
    * @default false
    */
   readonly forceDeployment?: boolean;
+
+  /**
+   * Whether to deploy the bootstrap stack using CloudFormation Express mode
+   * @default false
+   */
+  readonly express?: boolean;
 }
 
 /**

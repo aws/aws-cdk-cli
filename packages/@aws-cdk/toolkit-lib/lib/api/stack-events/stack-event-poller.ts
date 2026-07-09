@@ -2,8 +2,8 @@ import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import type { ResourceError } from './resource-errors';
 import { ResourceErrors } from './resource-errors';
-import type { ResourceDeleteFailure } from '../../toolkit/types';
-import { formatErrorMessage, isRootStackEvent } from '../../util';
+import type { ResourceDeleteFailure, StabilizingResource } from '../../toolkit/types';
+import { formatErrorMessage, isRootStackEvent, isStabilizingResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
 export interface StackEventPollerProps {
@@ -160,6 +160,13 @@ export class StackEventPoller {
    */
   public readonly deleteFailures: ResourceDeleteFailure[] = [];
 
+  /**
+   * Resources that reached a `*_COMPLETE` status with a stabilization reason.
+   * Populated for Express Mode deployments, where CloudFormation reports a
+   * resource as complete while it is still stabilizing asynchronously.
+   */
+  public readonly stabilizingResources: StabilizingResource[] = [];
+
   private readonly eventIds = new Set<string>();
   private readonly nestedStackPollers: Record<string, StackEventPoller> = {};
 
@@ -203,6 +210,7 @@ export class StackEventPoller {
 
     this.errors.update(...events);
     this.updateDeleteFailures(events);
+    this.updateStabilizingResources(events);
 
     return events;
   }
@@ -215,6 +223,18 @@ export class StackEventPoller {
           physicalResourceId: event.PhysicalResourceId,
           resourceType: event.ResourceType ?? '',
           reason: event.ResourceStatusReason ?? '',
+        });
+      }
+    }
+  }
+
+  private updateStabilizingResources(events: ResourceEvent[]) {
+    for (const { event } of events) {
+      if (isStabilizingResourceEvent(event)) {
+        this.stabilizingResources.push({
+          logicalResourceId: event.LogicalResourceId!,
+          resourceType: event.ResourceType ?? '',
+          reason: event.ResourceStatusReason!,
         });
       }
     }

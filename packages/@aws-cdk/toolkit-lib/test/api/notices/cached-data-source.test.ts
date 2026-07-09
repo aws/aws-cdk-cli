@@ -1,6 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { asIoHelper } from '../../../lib/api/io/private';
 import { CachedDataSource } from '../../../lib/api/notices/cached-data-source';
 import { TestIoHost } from '../../_helpers';

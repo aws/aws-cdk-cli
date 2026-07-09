@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { CloudWatchLogEvent } from '../../payloads/logs-monitor';
 import { flatten } from '../../util';
 import type { SDK } from '../aws-auth/private';

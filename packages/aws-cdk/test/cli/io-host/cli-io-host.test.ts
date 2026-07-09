@@ -2,7 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import { IO } from '../../../lib/api-private';
@@ -375,6 +375,23 @@ describe('CliIoHost', () => {
 
       expect(mockStdout).toHaveBeenCalledWith('rewritten:first\n');
       expect(mockStdout).toHaveBeenCalledWith('rewritten:second\n');
+    });
+
+    test('a rewrite fires once through a corked replay, not again on the replayed message', async () => {
+      // Messages emitted while corked are buffered and later replayed through
+      // notify() when the cork releases. Listeners must not run on that replay
+      // (they already ran on the first pass), otherwise a rewrite would
+      // re-transform its own output.
+      let calls = 0;
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${++calls}:${msg.message}`));
+
+      await ioHost.withCorkedLogging(async () => {
+        await ioHost.notify(listMessage('first'));
+      });
+
+      expect(calls).toBe(1);
+      expect(mockStdout).toHaveBeenCalledWith('rewritten:1:first\n');
+      expect(mockStdout).not.toHaveBeenCalledWith('rewritten:2:rewritten:1:first\n');
     });
 
     test('rewriteOnce() replaces the text of only the first matching message', async () => {

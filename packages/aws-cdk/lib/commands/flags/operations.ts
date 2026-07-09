@@ -4,7 +4,7 @@ import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { formatTable } from '@aws-cdk/cloudformation-diff';
 import type { FeatureFlag, Toolkit } from '@aws-cdk/toolkit-lib';
 import { CdkAppMultiContext, MemoryContext, DiffMethod, AbortError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import PQueue from 'p-queue';
 import { OBSOLETE_FLAGS } from './obsolete-flags';

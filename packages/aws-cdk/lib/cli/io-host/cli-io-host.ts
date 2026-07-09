@@ -3,7 +3,7 @@ import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
@@ -731,7 +731,13 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     // Run any registered listeners. A listener may update the message text
     // and/or prevent the default processing (e.g. stack-activity messages are
     // routed to the activity printer and not written to a stream).
-    const { message, preventDefault } = await this.applyMessageListeners(msg);
+    //
+    // Skip this while replaying corked messages: the listeners already ran on
+    // the first pass, and running them again would re-transform an
+    // already-transformed message.
+    const { message, preventDefault } = this.corkReplaying
+      ? { message: msg, preventDefault: false }
+      : await this.applyMessageListeners(msg);
 
     // Tell observers how this message was handled (its effective form and
     // whether it was dropped). Skipped while replaying corked messages so each
@@ -889,10 +895,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
 
     const response = await this.resolveRequest(message, listenerResult);
 
-    // Tell observers how this request was handled: the effective (possibly
-    // reworded) question and the resolved response. A request is reported only
-    // once it has been answered, so it is never `dropped`.
-    this.notifyObservers({ type: 'request', emitted: msg, effective: message, dropped: false });
+    // Tell observers how this request was handled: the effective (possibly reworded) question
+    // and the resolved response. When a listener answered the request with the question suppressed
+    // (`preventDefault`, e.g. `--force` auto-confirm), it is reported as `dropped` since the user never saw it.
+    this.notifyObservers({ type: 'request', emitted: msg, effective: message, dropped: listenerResult.preventDefault });
 
     return response;
   }

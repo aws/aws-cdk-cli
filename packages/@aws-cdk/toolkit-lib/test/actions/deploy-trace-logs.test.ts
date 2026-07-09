@@ -30,6 +30,7 @@ beforeEach(() => {
     outputs: {},
     noOp: false,
     deleteFailures: [],
+    stabilizingResources: [],
   });
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',

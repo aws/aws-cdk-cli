@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { guessExecutable, synthParametersFromSettings } from '../../../lib/api/cloud-assembly/environment';
 import { Settings } from '../../../lib/api/settings';
 

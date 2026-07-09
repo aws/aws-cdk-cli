@@ -47,7 +47,7 @@ describe('CdkIntegHelper manifest error handling', () => {
     });
 
     // WHEN / THEN
-    await expect(runner.loadManifest(invalidManifestDir)).rejects.toThrow(ManifestLoadError);
+    await expect(runner._loadManifest(invalidManifestDir)).rejects.toThrow(ManifestLoadError);
   });
 
   test('loadManifest falls back to legacy mode when manifest does not exist', async () => {
@@ -64,7 +64,7 @@ describe('CdkIntegHelper manifest error handling', () => {
     });
 
     // WHEN
-    const result = await runner.loadManifest(nonExistentDir);
+    const result = await runner._loadManifest(nonExistentDir);
 
     // THEN
     expect(result instanceof LegacyIntegTestSuite).toBe(true);

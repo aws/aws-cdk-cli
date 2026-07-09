@@ -5,7 +5,7 @@
 /.prettierignore
 /.prettierrc.json
 /test/
-/tsconfig.dev.json
+/test/tsconfig.json
 !/lib/
 !/lib/**/*.js
 !/lib/**/*.d.ts

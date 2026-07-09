@@ -150,7 +150,7 @@ export class IntegTest {
    * `cdk.json#context` if not found, upstream from the test.
    */
   public async testSpecificContext(): Promise<Record<string, unknown> | undefined> {
-    return findTestSpecificContext(this.fileName);
+    return findTestSpecificContext(path.dirname(this.fileName));
   }
 }
 

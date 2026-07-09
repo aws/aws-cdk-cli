@@ -125,11 +125,12 @@ const ADDITIONAL_CLI_IGNORE_PATTERNS = [
 ];
 
 const defaultTsOptions: NonNullable<TypeScriptWorkspaceOptions['tsconfig']>['compilerOptions'] = {
-  target: 'ES2020',
-  module: 'commonjs',
-  lib: ['es2020'],
+  module: 'node18',
+  target: 'es2022',
+  lib: ['es2022'],
   incremental: true,
-  esModuleInterop: false,
+  esModuleInterop: true,
+  noEmitOnError: true,
   skipLibCheck: true,
   isolatedModules: true,
 };
@@ -167,6 +168,7 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
     // Randomize test order: this will catch tests that accidentally pass or
     // fail because they rely on shared mutable state left by other tests
     // (files on disk, global mocks, etc).
+    // @ts-ignore
     randomize: true,
   };
 }
@@ -364,7 +366,6 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   dirs: [],
   devdirs: ['projenrc', '.projenrc.ts'],
   fileExtensions: ['.ts', '.tsx'],
-  lintProjenRc: false,
 });
 
 // always lint projen files as part of the build
@@ -446,7 +447,14 @@ const cloudAssemblySchema = configureProject(
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
-    disableTsconfig: true,
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        module: 'node16',
+        stripInternal: false,
+        tsBuildInfoFile: 'tsconfig.tsbuildinfo',
+      },
+    },
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -544,14 +552,6 @@ const cloudFormationDiff = configureProject(
       'string-width@^4',
       'table@^6',
     ],
-    // FIXME: this should be a jsii project
-    // (EDIT: or should it? We're going to bundle it into aws-cdk-lib)
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
@@ -632,11 +632,6 @@ const yarnCling = configureProject(
     deps: ['@yarnpkg/parsers', 'semver'],
     devDeps: ['@types/semver', 'fast-check'],
     minNodeVersion: '20',
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
     jestOptions: jestOptionsForProject({
       jestConfig: {
         coverageThreshold: {
@@ -665,11 +660,6 @@ const yargsGen = configureProject(
     deps: ['@cdklabs/typewriter', 'prettier@^2.8', 'lodash.clonedeep'],
     devDeps: ['@types/semver', '@types/yarnpkg__lockfile', '@types/lodash.clonedeep', '@types/prettier@^2'],
     minNodeVersion: '20', // Necessary for 'structuredClone'
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
 
@@ -690,11 +680,6 @@ const cliPluginContract = configureProject(
     ],
     devDeps: [
     ],
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
 
@@ -762,20 +747,6 @@ const cdkAssetsLib = configureProject(
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
-    tsconfigDev: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-      include: ['bin/**/*.ts'],
-    },
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        rootDir: undefined,
-        outDir: undefined,
-      },
-      include: ['bin/**/*.ts'],
-    },
     jestOptions: jestOptionsForProject({
       jestConfig: {
         // We have many tests here that commonly time out
@@ -899,9 +870,7 @@ const TOOLKIT_LIB_EXCLUDE_PATTERNS = [
 
 const toolkitLibTsCompilerOptions = {
   ...defaultTsOptions,
-  target: 'es2022',
   lib: ['es2022', 'esnext.disposable'],
-  module: 'NodeNext',
   declarationMap: true,
 };
 
@@ -1011,12 +980,6 @@ const toolkitLib = configureProject(
     tsconfig: {
       compilerOptions: {
         ...toolkitLibTsCompilerOptions,
-      },
-    },
-    tsconfigDev: {
-      compilerOptions: {
-        ...toolkitLibTsCompilerOptions,
-        rootDir: '.', // shouldn't be required but something broke... check again once we have gotten rid of the tmpToolkitHelpers package
       },
     },
     nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
@@ -1305,25 +1268,10 @@ const cli = configureProject(
       'yargs@^15',
     ],
     excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-        lib: ['es2019', 'es2022.error'],
-
-        // Changes the meaning of 'import' for libraries whose top-level export is a function
-        // 'aws-cdk' has been written against `false` for interop
-        esModuleInterop: false,
-
-        // Necessary to properly compile proxy-agent and lru-cache without esModuleInterop set.
-        skipLibCheck: true,
-      },
-    },
     tsconfigDev: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2019', 'esnext.disposable', 'es2022.error'],
-        esModuleInterop: false,
-        skipLibCheck: true,
+        lib: ['es2022', 'esnext.disposable'],
       },
     },
     eslintOptions: {
@@ -1430,7 +1378,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('tsx --tsconfig tsconfig.dev.json scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('tsx --tsconfig test/tsconfig.json scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
@@ -1473,11 +1421,6 @@ const cdkAliasPackage = configureProject(
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
     majorVersion: 2,
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
   }),
 );
 void cdkAliasPackage;
@@ -1659,10 +1602,8 @@ const cliInteg = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        esModuleInterop: false,
         target: 'es2022',
         lib: ['es2022', 'esnext.disposable', 'dom'],
-        module: 'NodeNext',
       },
       include: ['**/*.ts'],
       exclude: ['resources/**/*'],

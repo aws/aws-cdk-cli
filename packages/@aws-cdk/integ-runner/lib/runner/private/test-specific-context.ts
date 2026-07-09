@@ -9,6 +9,11 @@ export type CdkContext = Record<string, unknown>;
 const CONTEXT_CACHE = new Map<string, CdkContext | undefined>();
 
 export async function findTestSpecificContext(directory: string): Promise<CdkContext | undefined> {
+  if (!path.isAbsolute(directory)) {
+    // Must be absolute path otherwise path.dirname() below will never go above working directory
+    directory = path.resolve(directory);
+  }
+
   const existing = CONTEXT_CACHE.get(directory);
   if (existing) {
     return existing;

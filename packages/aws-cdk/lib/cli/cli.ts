@@ -2,7 +2,7 @@
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
@@ -397,6 +397,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           terminationProtection: args.terminationProtection,
           usePreviousParameters: args['previous-parameters'],
           importExistingResources: args.importExistingResources,
+          express: args.express,
           parameters: {
             bucketName: configuration.settings.get(['toolkitBucket', 'bucketName']),
             kmsKeyId: configuration.settings.get(['toolkitBucket', 'kmsKeyId']),
@@ -453,6 +454,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           ignoreNoStacks: args.ignoreNoStacks,
+          express: args.express,
         });
 
       case 'validate':
@@ -549,6 +551,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           force: args.force,
           roleArn: args.roleArn,
           concurrency: args.concurrency,
+          express: args.express,
         });
 
       case 'gc':

@@ -105,6 +105,7 @@ export class MockCdkProvider {
         discoveryRoot: 'test/test-data',
       }),
       integOutDir: actualSnapshotLocation,
+      testingUsingMocksLeaveDirectories: true,
     });
 
     const results = await integTest.testSnapshot();
