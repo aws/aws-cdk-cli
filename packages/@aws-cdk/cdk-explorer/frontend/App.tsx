@@ -1,20 +1,56 @@
 import Box from '@cloudscape-design/components/box';
+import Button from '@cloudscape-design/components/button';
 import Container from '@cloudscape-design/components/container';
-import Grid from '@cloudscape-design/components/grid';
 import Header from '@cloudscape-design/components/header';
+import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
 import * as React from 'react';
-import { api, type TreeResponse, type ViolationsResponse } from './api';
+import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
+import { api, type DirEntry, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
-import { FilePane } from './components/FilePane';
+import type { Language } from './syntax';
+import { TemplateViewer } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
+import type { NavigateHandler } from './nav-types';
+export type { NavigateHandler } from './nav-types';
 
-/** Web explorer shell. Two splits: horizontal between the construct tree and the file panes, vertical between the top row and the violations panel. Each split has a draggable resizer with an arrow toggle that collapses one side. */
+/** Navigation target describing what both panes should show. */
+export interface NavTarget {
+  readonly source?: { file: string; startLine: number; endLine: number };
+  readonly template?: { file: string; logicalId: string };
+  readonly color: string;
+  readonly navCounter: number;
+}
+
+const NEUTRAL_COLOR = '#5f6b7a';
+
+/** Web explorer shell. */
 export function App(): JSX.Element {
   const [tree, setTree] = React.useState<TreeResponse | undefined>();
   const [violations, setViolations] = React.useState<ViolationsResponse | undefined>();
   const [error, setError] = React.useState<string | undefined>();
   const [appDir, setAppDir] = React.useState<string | undefined>();
+
+  // Source pane state.
+  const [sourceFile, setSourceFile] = React.useState<string | undefined>();
+  const [sourceContent, setSourceContent] = React.useState('');
+
+  // Template pane state.
+  const [templateFile, setTemplateFile] = React.useState<string | undefined>();
+  const [templateData, setTemplateData] = React.useState<TemplateResponse | undefined>();
+
+  // Refs for current values in async callbacks (avoids stale closures).
+  const sourceFileRef = React.useRef(sourceFile);
+  sourceFileRef.current = sourceFile;
+  const templateFileRef = React.useRef(templateFile);
+  templateFileRef.current = templateFile;
+  const templateDataRef = React.useRef(templateData);
+  templateDataRef.current = templateData;
+
+  // Navigation state shared across panes.
+  const [nav, setNav] = React.useState<NavTarget | undefined>();
+  const navCounterRef = React.useRef(0);
 
   const reload = React.useCallback((): void => {
     Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()])
@@ -34,6 +70,124 @@ export function App(): JSX.Element {
     return api.subscribe(reload);
   }, [reload]);
 
+  /** Navigate to a construct (from tree double-click or violation double-click). */
+  const navigate: NavigateHandler = React.useCallback(async (opts) => {
+    const counter = ++navCounterRef.current;
+    const color = opts.color ?? NEUTRAL_COLOR;
+
+    let sourceTarget: NavTarget['source'];
+    if (opts.sourceLocation) {
+      sourceTarget = { file: opts.sourceLocation.file, startLine: opts.sourceLocation.line, endLine: opts.sourceLocation.line };
+      if (sourceFileRef.current !== opts.sourceLocation.file) {
+        try {
+          const res = await api.readFile(opts.sourceLocation.file);
+          setSourceFile(res.path);
+          setSourceContent(res.content);
+        } catch {
+          setSourceFile(opts.sourceLocation.file);
+          setSourceContent(`// Could not load ${opts.sourceLocation.file}`);
+        }
+      }
+    }
+
+    let templateTarget: NavTarget['template'];
+    if (opts.templateFile && opts.logicalId) {
+      if (templateFileRef.current !== opts.templateFile) {
+        try {
+          const data = await api.getTemplate(opts.templateFile);
+          setTemplateFile(opts.templateFile);
+          setTemplateData(data);
+        } catch {
+          setTemplateFile(opts.templateFile);
+          setTemplateData(undefined);
+        }
+      }
+      // Carry identity only; TemplateViewer resolves the highlight line from the
+      // rendered format (JSON or YAML), which is the sole coordinate authority.
+      templateTarget = { file: opts.templateFile, logicalId: opts.logicalId };
+    }
+
+    setNav({ source: sourceTarget, template: templateTarget, color, navCounter: counter });
+  }, []);
+
+  /** Jump from template pane to source (the "Open in source" button). */
+  const jumpToSource = React.useCallback(async (logicalId: string) => {
+    const data = templateDataRef.current;
+    if (!data) return;
+    const resource = data.resources[logicalId];
+    if (!resource?.source) return;
+    const counter = ++navCounterRef.current;
+    if (sourceFileRef.current !== resource.source.file) {
+      try {
+        const res = await api.readFile(resource.source.file);
+        setSourceFile(res.path);
+        setSourceContent(res.content);
+      } catch { return; }
+    }
+    setNav({
+      source: { file: resource.source.file, startLine: resource.source.line, endLine: resource.source.line },
+      template: undefined,
+      color: NEUTRAL_COLOR,
+      navCounter: counter,
+    });
+  }, []);
+
+  // Per-file index of constructs navigable from source to template, built from
+  // the construct tree the app already loads. Rebuilt only when the tree changes.
+  const sourceAnchors = React.useMemo(
+    () => (tree?.status === 'ok' ? buildSourceAnchorIndex(tree.tree) : undefined),
+    [tree],
+  );
+
+  /** Double-click a line in the source pane to jump to its resource in the template. */
+  const handleSourceDoubleClick = React.useCallback((line: number) => {
+    const file = sourceFileRef.current;
+    if (!file) return;
+    const node = findConstructAtLine(sourceAnchors?.get(file), line);
+    if (!node) return;
+    void navigate({
+      sourceLocation: node.sourceLocation,
+      templateFile: node.templateFile,
+      logicalId: node.logicalId,
+    });
+  }, [sourceAnchors, navigate]);
+
+  // File picker state.
+  const [showFilePicker, setShowFilePicker] = React.useState<false | 'source' | 'template'>(false);
+  const [pickerDir, setPickerDir] = React.useState('');
+  const [pickerEntries, setPickerEntries] = React.useState<readonly DirEntry[]>([]);
+
+  const openFilePicker = React.useCallback(async (pane: 'source' | 'template') => {
+    setShowFilePicker(pane);
+    try {
+      const res = await api.listFiles('');
+      setPickerDir(res.dir);
+      setPickerEntries(res.entries);
+    } catch { /* ignore */ }
+  }, []);
+
+  const browseDir = React.useCallback(async (dir: string) => {
+    try {
+      const res = await api.listFiles(dir);
+      setPickerDir(res.dir);
+      setPickerEntries(res.entries);
+    } catch { /* ignore */ }
+  }, []);
+
+  const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
+    try {
+      const res = await api.readFile(filePath);
+      if (pane === 'source') {
+        setSourceFile(res.path);
+        setSourceContent(res.content);
+      } else {
+        setTemplateFile(res.path);
+        setTemplateData({ content: res.content, resources: {} });
+      }
+      setShowFilePicker(false);
+    } catch { /* ignore */ }
+  }, []);
+
   // Vertical split: violations row's share of the page height (default 33%).
   const vSplit = useSplit({ orientation: 'vertical', defaultFraction: 0.33, min: 0.15, max: 0.85 });
   // Horizontal split inside the top row: file panes' share of that row's width (default 75%; tree gets the remaining 25%).
@@ -50,17 +204,70 @@ export function App(): JSX.Element {
           {!hSplit.collapsed && (
             <div style={GROW_STYLE}>
               <Container fitHeight header={<Header variant="h2">Construct Tree</Header>}>
-                <ConstructTreeContent tree={tree} />
+                <ConstructTreeContent tree={tree} onNavigate={navigate} />
               </Container>
             </div>
           )}
         </div>
         <Resizer split={hSplit} />
         <div style={filesPaneStyle(hSplit)}>
-          <Grid gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}>
-            <FilePane title="file 1" />
-            <FilePane title="file 2" />
-          </Grid>
+          <div style={CODE_PANES_STYLE}>
+            <div style={CODE_PANE_STYLE}>
+              <Container fitHeight header={
+                <Header variant="h2">
+                  <span style={HEADER_WITH_ACTION_STYLE}>
+                    {sourceFile ?? 'Source'}
+                    <button type="button" style={OPEN_FILE_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : void openFilePicker('source')}>Open</button>
+                  </span>
+                </Header>
+              }>
+                {showFilePicker === 'source' ? (
+                  <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'source')} />
+                ) : sourceContent ? (
+                  <CodeViewer
+                    content={sourceContent}
+                    language={detectLanguage(sourceFile)}
+                    highlightStart={nav?.source?.startLine}
+                    highlightEnd={nav?.source?.endLine}
+                    highlightColor={nav?.color}
+                    navCounter={nav?.navCounter}
+                    scrollToLine={nav?.source?.startLine}
+                    onLineDoubleClick={handleSourceDoubleClick}
+                    diagnostics={buildDiagnostics(sourceFile, violations)}
+                  />
+                ) : (
+                  <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
+                )}
+              </Container>
+            </div>
+            <div style={CODE_PANE_STYLE}>
+              <Container fitHeight header={
+                <Header variant="h2">
+                  <span style={HEADER_WITH_ACTION_STYLE}>
+                    {templateFile ?? 'Template'}
+                    <button type="button" style={OPEN_FILE_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : void openFilePicker('template')}>Open</button>
+                  </span>
+                </Header>
+              }>
+                {showFilePicker === 'template' ? (
+                  <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'template')} />
+                ) : templateData ? (
+                  <TemplateViewer
+                    jsonContent={templateData.content}
+                    resources={templateData.resources}
+                    highlightLogicalId={nav?.template?.logicalId}
+                    highlightColor={nav?.color}
+                    navCounter={nav?.navCounter}
+                    onResourceDoubleClick={jumpToSource}
+                  />
+                ) : templateFile ? (
+                  <Box color="text-status-error">Could not load {templateFile}</Box>
+                ) : (
+                  <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
+                )}
+              </Container>
+            </div>
+          </div>
         </div>
       </div>
       <div style={bottomRowStyle(vSplit)}>
@@ -68,7 +275,7 @@ export function App(): JSX.Element {
         {!vSplit.collapsed && (
           <div style={GROW_STYLE}>
             <Container fitHeight header={<Header variant="h2">Violations</Header>}>
-              <ViolationsContent violations={violations} />
+              <ViolationsContent violations={violations} onNavigate={navigate} />
             </Container>
           </div>
         )}
@@ -77,24 +284,48 @@ export function App(): JSX.Element {
   );
 }
 
-function ConstructTreeContent({ tree }: { readonly tree?: TreeResponse }): JSX.Element {
+
+function FilePicker({ dir, entries, onBrowse, onPick }: {
+  readonly dir: string;
+  readonly entries: readonly DirEntry[];
+  readonly onBrowse: (dir: string) => void;
+  readonly onPick: (path: string) => void;
+}): JSX.Element {
+  return (
+    <SpaceBetween size="xxs">
+      <Box variant="code">/{dir}</Box>
+      {dir !== '' && <Button variant="inline-link" iconName="folder" onClick={() => onBrowse(dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '')}>../</Button>}
+      {entries.map((entry) => (
+        <Button
+          key={entry.path}
+          variant="inline-link"
+          iconName={entry.type === 'dir' ? 'folder' : 'file'}
+          onClick={() => entry.type === 'dir' ? onBrowse(entry.path) : onPick(entry.path)}
+        >
+          {entry.type === 'dir' ? `${entry.name}/` : entry.name}
+        </Button>
+      ))}
+    </SpaceBetween>
+  );
+}
+
+function ConstructTreeContent({ tree, onNavigate }: { readonly tree?: TreeResponse; readonly onNavigate: NavigateHandler }): JSX.Element {
   if (!tree) return <Spinner />;
   if (tree.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found. Run cdk synth first.</Box>;
   }
-  return <ConstructTree nodes={tree.tree} />;
+  return <ConstructTree nodes={tree.tree} onNavigate={onNavigate} />;
 }
 
-function ViolationsContent({ violations }: { readonly violations?: ViolationsResponse }): JSX.Element {
+function ViolationsContent({ violations, onNavigate }: { readonly violations?: ViolationsResponse; readonly onNavigate: NavigateHandler }): JSX.Element {
   if (!violations) return <Spinner />;
   if (violations.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found.</Box>;
   }
-  return <ViolationsPanel violations={violations.violations} />;
+  return <ViolationsPanel violations={violations.violations} onNavigate={onNavigate} />;
 }
 
 interface SplitOptions {
-  /** 'horizontal' = the resizer moves left/right (separating columns). 'vertical' = the resizer moves up/down (separating rows). */
   readonly orientation: 'horizontal' | 'vertical';
   readonly defaultFraction: number;
   readonly min: number;
@@ -102,7 +333,6 @@ interface SplitOptions {
 }
 
 interface Split extends SplitOptions {
-  /** Fraction the *trailing* pane (right column / bottom row) takes of its container; 0..1. */
   readonly fraction: number;
   readonly collapsed: boolean;
   readonly toggleCollapsed: () => void;
@@ -110,14 +340,13 @@ interface Split extends SplitOptions {
   readonly containerRef: React.RefObject<HTMLDivElement>;
 }
 
-/** Drives a resizable / collapsible split. Drag updates the fraction live; the arrow toggles full collapse of the trailing pane. */
 function useSplit(opts: SplitOptions): Split {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [fraction, setFraction] = React.useState(opts.defaultFraction);
   const [collapsed, setCollapsed] = React.useState(false);
 
   const startDrag = React.useCallback((e: React.MouseEvent) => {
-    if (collapsed) return; // Drag while collapsed makes no sense; user must expand first via the arrow.
+    if (collapsed) return;
     e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
@@ -125,7 +354,6 @@ function useSplit(opts: SplitOptions): Split {
     document.body.style.cursor = opts.orientation === 'vertical' ? 'row-resize' : 'col-resize';
     const onMove = (ev: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      // Trailing pane share grows as the pointer moves toward the leading edge.
       const frac = opts.orientation === 'vertical'
         ? (rect.bottom - ev.clientY) / rect.height
         : (rect.right - ev.clientX) / rect.width;
@@ -146,10 +374,8 @@ function useSplit(opts: SplitOptions): Split {
   return { ...opts, fraction, collapsed, toggleCollapsed, startDrag, containerRef };
 }
 
-/** Thin strip pinned to the edge of the trailing pane. The whole strip is the drag handle; a centered arrow toggles collapse. */
 function Resizer({ split }: { readonly split: Split }): JSX.Element {
   const isVertical = split.orientation === 'vertical';
-  // Arrow points the way the boundary travels on collapse, and flips once collapsed.
   const arrow = isVertical
     ? (split.collapsed ? '▲' : '▼')
     : (split.collapsed ? '▶' : '◀');
@@ -235,7 +461,6 @@ function resizerStyle(split: Split): React.CSSProperties {
     justifyContent: 'center',
     cursor: split.collapsed ? 'pointer' : 'col-resize',
     position: 'relative',
-    // Slide 4px left so the pill straddles the tree pane's border.
     marginLeft: split.collapsed ? 0 : '-4px',
   };
 }
@@ -249,8 +474,33 @@ const PAGE_STYLE: React.CSSProperties = {
   overflow: 'hidden',
 };
 const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '12px' };
-/** Wraps a Cloudscape Container so it stretches to fill its flex parent (Container is intrinsically sized). */
 const GROW_STYLE: React.CSSProperties = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' };
+
+const HEADER_WITH_ACTION_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
+const OPEN_FILE_BUTTON_STYLE: React.CSSProperties = {
+  border: '1px solid #d1d5db',
+  borderRadius: '4px',
+  background: '#fafafa',
+  cursor: 'pointer',
+  fontSize: '11px',
+  padding: '1px 6px',
+  color: '#5f6b7a',
+  lineHeight: '16px',
+};
+
+const CODE_PANES_STYLE: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+  height: '100%',
+};
+
+const CODE_PANE_STYLE: React.CSSProperties = {
+  flex: '1 1 50%',
+  minWidth: 0,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+};
 
 const RESIZER_BUTTON_BASE: React.CSSProperties = {
   display: 'inline-flex',
@@ -277,3 +527,51 @@ const RESIZER_BUTTON_VERTICAL: React.CSSProperties = {
   height: '40px',
   borderRadius: '7px',
 };
+
+function detectLanguage(file: string | undefined): Language {
+  if (!file) return 'typescript';
+  if (file.endsWith('.json')) return 'json';
+  if (file.endsWith('.yaml') || file.endsWith('.yml')) return 'yaml';
+  if (file.endsWith('.py')) return 'python';
+  if (file.endsWith('.java')) return 'java';
+  if (file.endsWith('.cs')) return 'csharp';
+  if (file.endsWith('.go')) return 'go';
+  if (file.endsWith('.js') || file.endsWith('.jsx') || file.endsWith('.mjs')) return 'javascript';
+  return 'typescript';
+}
+
+function buildDiagnostics(
+  sourceFile: string | undefined,
+  violations: ViolationsResponse | undefined,
+): Diagnostic[] | undefined {
+  if (!sourceFile || !violations || violations.status !== 'ok' || violations.violations.length === 0) {
+    return undefined;
+  }
+  const diagnostics: Diagnostic[] = [];
+  for (const violation of violations.violations) {
+    const severity = violationSeverityToDiagnostic(violation.severity);
+    for (const occ of violation.occurrences) {
+      if (occ.sourceLocation?.file === sourceFile && occ.sourceLocation.line >= 1) {
+        diagnostics.push({
+          startLine: occ.sourceLocation.line,
+          startCol: occ.sourceLocation.column >= 1 ? occ.sourceLocation.column : 1,
+          severity,
+          message: violation.description,
+        });
+      }
+    }
+  }
+  return diagnostics.length > 0 ? diagnostics : undefined;
+}
+
+function violationSeverityToDiagnostic(severity: string | undefined): 'error' | 'warning' | 'info' {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}

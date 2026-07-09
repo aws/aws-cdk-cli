@@ -3,9 +3,13 @@ import {
   type DirEntry,
   type FilesResponse,
   type FileResponse,
+  type LineRange,
+  type TemplateResource,
+  type TemplateResponse,
   type TreeResponse,
   type ViolationsResponse,
   type WebConstructNode,
+  type WebSourceLocation,
   type WebViolation,
   type WebViolationOccurrence,
 } from '../lib/web/protocol';
@@ -14,9 +18,13 @@ export type {
   DirEntry,
   FilesResponse,
   FileResponse,
+  LineRange,
+  TemplateResource,
+  TemplateResponse,
   TreeResponse,
   ViolationsResponse,
   WebConstructNode,
+  WebSourceLocation,
   WebViolation,
   WebViolationOccurrence,
 };
@@ -50,4 +58,5 @@ export const api = {
     source.addEventListener(ASSEMBLY_CHANGED, () => onChange());
     return () => source.close();
   },
+  getTemplate: (file: string): Promise<TemplateResponse> => getJson(`/api/template?file=${encodeURIComponent(file)}`),
 };

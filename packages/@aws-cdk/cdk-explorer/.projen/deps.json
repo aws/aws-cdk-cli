@@ -39,6 +39,11 @@
       "type": "build"
     },
     {
+      "name": "@types/prismjs",
+      "version": "^1",
+      "type": "build"
+    },
+    {
       "name": "@types/react-dom",
       "version": "^18",
       "type": "build"
@@ -120,6 +125,11 @@
       "type": "build"
     },
     {
+      "name": "prismjs",
+      "version": "^1",
+      "type": "build"
+    },
+    {
       "name": "projen",
       "type": "build"
     },
@@ -154,6 +164,11 @@
     {
       "name": "vscode-languageserver-protocol",
       "version": "^3",
+      "type": "build"
+    },
+    {
+      "name": "yaml",
+      "version": "^2",
       "type": "build"
     },
     {

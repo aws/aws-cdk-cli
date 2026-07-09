@@ -175,6 +175,7 @@ __metadata:
     "@types/express": "npm:^4"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
+    "@types/prismjs": "npm:^1"
     "@types/react": "npm:^18"
     "@types/react-dom": "npm:^18"
     "@types/supertest": "npm:^6"
@@ -196,6 +197,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.5"
     prettier: "npm:^2.8"
+    prismjs: "npm:^1"
     projen: "npm:^0.99.73"
     react: "npm:^18"
     react-dom: "npm:^18"
@@ -207,6 +209,7 @@ __metadata:
     vscode-languageserver: "npm:^9"
     vscode-languageserver-protocol: "npm:^3"
     vscode-languageserver-textdocument: "npm:^1"
+    yaml: "npm:^2"
   languageName: unknown
   linkType: soft
 
@@ -7202,6 +7205,13 @@ __metadata:
   version: 2.7.3
   resolution: "@types/prettier@npm:2.7.3"
   checksum: 10c0/0960b5c1115bb25e979009d0b44c42cf3d792accf24085e4bfce15aef5794ea042e04e70c2139a2c3387f781f18c89b5706f000ddb089e9a4a2ccb7536a2c5f0
+  languageName: node
+  linkType: hard
+
+"@types/prismjs@npm:^1":
+  version: 1.26.6
+  resolution: "@types/prismjs@npm:1.26.6"
+  checksum: 10c0/152a27500cb32b114edfb77f9d0dccd03bebc84828d1e92abacaf212b22d3ccdde041ce421dd58b6ec8461bbec7cd76ed5ee773cae4be7ca36a6dd4ddcf0f9e7
   languageName: node
   linkType: hard
 
@@ -16380,6 +16390,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"prismjs@npm:^1":
+  version: 1.30.0
+  resolution: "prismjs@npm:1.30.0"
+  checksum: 10c0/f56205bfd58ef71ccfcbcb691fd0eb84adc96c6ff21b0b69fc6fdcf02be42d6ef972ba4aed60466310de3d67733f6a746f89f2fb79c00bf217406d465b3e8f23
+  languageName: node
+  linkType: hard
+
 "proc-log@npm:^6.0.0, proc-log@npm:^6.1.0":
   version: 6.1.0
   resolution: "proc-log@npm:6.1.0"
@@ -19418,7 +19435,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml@npm:2.9.0, yaml@npm:^2.9.0":
+"yaml@npm:2.9.0, yaml@npm:^2, yaml@npm:^2.9.0":
   version: 2.9.0
   resolution: "yaml@npm:2.9.0"
   bin:
