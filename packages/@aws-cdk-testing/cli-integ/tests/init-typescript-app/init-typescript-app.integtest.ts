@@ -44,9 +44,9 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     // still want to test with older versions as well.
     await removeDevDependencies(context);
 
-    // The generated app compiles and runs through `tsc && node` — the TypeScript
-    // compiler itself is the only toolchain needed for `cdk synth`.
-    await shell.shell(['npm', 'install', '--save-dev', `typescript@${tsVersion}`]);
+    // The generated app type-checks with `tsc` and runs through `tsx`, so those
+    // two packages are the only toolchain needed for `cdk synth`.
+    await shell.shell(['npm', 'install', '--save-dev', `typescript@${tsVersion}`, 'tsx@^4']);
 
     await shell.shell(['npm', 'install']); // Older versions of npm require this to be a separate step from the one above
 

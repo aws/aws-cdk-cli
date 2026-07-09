@@ -24,7 +24,8 @@
     "typeRoots": [
       "./node_modules/@types"
     ],
-    "noEmitOnError": true,
+    "noEmit": true,
+    "isolatedModules": true,
     "types": [
       "jest",
       "node"

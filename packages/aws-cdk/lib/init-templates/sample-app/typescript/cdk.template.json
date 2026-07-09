@@ -1,5 +1,5 @@
 {
-  "app": "npx tsc && node bin/%name%.js",
+  "app": "npx tsc && npx tsx bin/%name%.ts",
   "watch": {
     "include": ["**"],
     "exclude": [
