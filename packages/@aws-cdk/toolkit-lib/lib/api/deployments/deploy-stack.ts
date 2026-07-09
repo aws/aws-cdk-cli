@@ -202,6 +202,13 @@ export interface DeployStackOptions {
    * Whether to use express mode to deploy
    */
   readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
@@ -691,6 +698,7 @@ class FullCloudFormationDeployment {
       changeSetCreationTime: startTime,
       envResources: this.options.envResources,
       isStackUpdate: this.update,
+      pollingInterval: this.options.stackEventPollingInterval,
     });
     await monitor.start();
 
@@ -771,6 +779,7 @@ export interface DestroyStackOptions {
   roleArn?: string;
   deployName?: string;
   express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface DestroyStackResult {
@@ -804,6 +813,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     stack: options.stack,
     stackArn: currentStack.stackId,
     ioHelper: ioHelper,
+    pollingInterval: options.stackEventPollingInterval,
   });
   await monitor.start();
 

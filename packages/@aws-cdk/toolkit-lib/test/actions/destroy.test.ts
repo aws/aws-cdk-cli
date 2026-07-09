@@ -150,6 +150,20 @@ describe('destroy', () => {
     }));
   });
 
+  test('stackEventPollingInterval option is passed in', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      stackEventPollingInterval: 10_000,
+    });
+
+    // THEN
+    expect(mockDestroyStack).toHaveBeenCalledWith(expect.objectContaining({
+      stackEventPollingInterval: 10_000,
+    }));
+  });
+
   test('action disposes of assembly produced by source', async () => {
     // GIVEN
     const [assemblySource, mockDispose, realDispose] = await disposableCloudAssemblySource(toolkit);
