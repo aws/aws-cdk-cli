@@ -1,5 +1,6 @@
 import { IoHostRecorder } from './io-recorder';
 import { asIoHelper, IO } from '../../lib/api-private';
+import type { IoMessage } from '../../lib/cli/io-host';
 import { CliIoHost } from '../../lib/cli/io-host';
 
 describe('IoHostRecorder', () => {
@@ -143,7 +144,7 @@ describe('IoHostRecorder', () => {
     const recorder = IoHostRecorder.create(ioHost);
     const ioHelper = asIoHelper(ioHost, 'destroy');
 
-    const dispose = ioHost.rewrite({ is: (m) => m.code === 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
+    const dispose = ioHost.rewrite({ is: (m: IoMessage<unknown>) => m.code === 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
 
     await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9998', message: 'original', data: undefined });
 
