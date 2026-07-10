@@ -204,10 +204,7 @@ export interface DeployStackOptions {
   readonly express?: boolean;
 
   /**
-   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation.
-   *
-   * Also governs the interval used to poll for the stack to stabilize (reach a terminal state) after the
-   * operation has been issued.
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
    *
    * @default 2000
    */
