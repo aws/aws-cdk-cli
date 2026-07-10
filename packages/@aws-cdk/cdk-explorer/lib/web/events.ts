@@ -1,5 +1,8 @@
 import type { Request, Response } from 'express';
-import type { SseEventName } from './protocol';
+import { SYNTH_STATUS, type SseEventName, type SynthStatusEvent } from './protocol';
+
+/** Max stderr we put on the wire; subprocess output is unbounded, so bound it. */
+const MAX_SYNTH_DETAILS_CHARS = 64 * 1024;
 
 /**
  * Tracks connected Server-Sent Events clients and pushes events to all of them.
@@ -32,14 +35,24 @@ export class SseBroadcaster {
   }
 
   /**
-   * Push an event to every connected client. The `data: {}` line is required:
-   * EventSource does not dispatch a named event whose data buffer is empty, so
-   * the empty payload is what makes the client's listener fire. Writing to a
-   * client that already disconnected is a harmless no-op (returns false, does
-   * not throw); the `close`/`error` handlers in `handle` do the eviction.
+   * Push a payload-less named event to every client. The `data: {}` line is
+   * required: EventSource does not dispatch a named event whose data buffer is
+   * empty, so it is what fires the client's listener. Writing to an already
+   * disconnected client is a harmless no-op; `handle`'s handlers do the eviction.
    */
   public broadcast(event: SseEventName): void {
-    const frame = `event: ${event}\ndata: {}\n\n`;
+    this.send(`event: ${event}\ndata: {}\n\n`);
+  }
+
+  /** Push a SYNTH_STATUS event carrying a failed synth's summary + stderr. */
+  public broadcastSynthStatus(payload: SynthStatusEvent): void {
+    const details = payload.details && payload.details.length > MAX_SYNTH_DETAILS_CHARS
+      ? `${payload.details.slice(0, MAX_SYNTH_DETAILS_CHARS)}\n…truncated`
+      : payload.details;
+    this.send(`event: ${SYNTH_STATUS}\ndata: ${JSON.stringify({ message: payload.message, details })}\n\n`);
+  }
+
+  private send(frame: string): void {
     for (const client of this.clients) {
       client.write(frame);
     }

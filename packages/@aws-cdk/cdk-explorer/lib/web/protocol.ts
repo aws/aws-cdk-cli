@@ -7,8 +7,21 @@
  */
 export const ASSEMBLY_CHANGED = 'assembly-changed';
 
-/** The SSE event names the server may send. One for now. */
-export type SseEventName = typeof ASSEMBLY_CHANGED;
+/**
+ * SSE event carrying a failed synth's outcome (app-failure or an unclassified
+ * error). Fired for both manual and auto synths so the SPA can surface it.
+ * Success is not sent here; it arrives as ASSEMBLY_CHANGED.
+ */
+export const SYNTH_STATUS = 'synth-status';
+
+/** Payload of a {@link SYNTH_STATUS} event: the failure summary and captured stderr. */
+export interface SynthStatusEvent {
+  readonly message: string;
+  readonly details?: string;
+}
+
+/** The SSE event names the server may send. */
+export type SseEventName = typeof ASSEMBLY_CHANGED | typeof SYNTH_STATUS;
 
 export interface DirEntry {
   readonly name: string;

@@ -2,11 +2,15 @@ import Box from '@cloudscape-design/components/box';
 import Button from '@cloudscape-design/components/button';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
+import Link from '@cloudscape-design/components/link';
+import Modal from '@cloudscape-design/components/modal';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
+import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import Toggle from '@cloudscape-design/components/toggle';
 import * as React from 'react';
 import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
-import { api, type DirEntry, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { api, type DirEntry, type SynthResult, type SynthStatusEvent, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
@@ -31,6 +35,14 @@ export function App(): JSX.Element {
   const [violations, setViolations] = React.useState<ViolationsResponse | undefined>();
   const [error, setError] = React.useState<string | undefined>();
   const [appDir, setAppDir] = React.useState<string | undefined>();
+
+  // Auto-synth + manual synth state.
+  const [autoSynthEnabled, setAutoSynthEnabled] = React.useState(false);
+  const [synthing, setSynthing] = React.useState(false);
+  const [synthFailure, setSynthFailure] = React.useState<SynthStatusEvent | undefined>();
+  const [showFailureModal, setShowFailureModal] = React.useState(false);
+  const [synthWarning, setSynthWarning] = React.useState<string | undefined>();
+  const [lastSynthTime, setLastSynthTime] = React.useState<string | undefined>();
 
   // Source pane state.
   const [sourceFile, setSourceFile] = React.useState<string | undefined>();
@@ -59,6 +71,9 @@ export function App(): JSX.Element {
         setViolations(v);
         setAppDir(info.appDir);
         setError(undefined);
+        setSynthFailure(undefined);
+        setSynthWarning(undefined);
+        setLastSynthTime(new Date().toLocaleTimeString());
       })
       // Keep the last good render on a transient read (e.g. a mid-synth write);
       // the next assembly-changed event re-fetches once the write has settled.
@@ -67,8 +82,45 @@ export function App(): JSX.Element {
 
   React.useEffect(() => {
     reload();
-    return api.subscribe(reload);
+    void api.getAutoSynth().then((r) => setAutoSynthEnabled(r.enabled)).catch(() => undefined);
+    return api.subscribe({
+      onAssemblyChanged: reload,
+      onSynthFailure: (event) => {
+        setSynthFailure(event);
+        setShowFailureModal(false);
+        setLastSynthTime(new Date().toLocaleTimeString());
+      },
+    });
   }, [reload]);
+
+  /** Toggle auto-synth-on-save; optimistic, reverts if the server rejects. */
+  const toggleAutoSynth = React.useCallback(async (enabled: boolean) => {
+    setAutoSynthEnabled(enabled);
+    try {
+      const res = await api.setAutoSynth(enabled);
+      setAutoSynthEnabled(res.enabled);
+    } catch {
+      setAutoSynthEnabled(!enabled);
+    }
+  }, []);
+
+  /** Run a manual synth. Failures surface via the SYNTH_STATUS subscription. */
+  const handleSynth = React.useCallback(async () => {
+    setSynthing(true);
+    setSynthWarning(undefined);
+    try {
+      const result: SynthResult = await api.synth();
+      if (result.status === 'lock-conflict') {
+        setSynthWarning('Synth skipped — already running');
+      } else if (result.status === 'unavailable') {
+        setSynthWarning('No app configured (missing cdk.json)');
+      }
+    } catch {
+      /* hard failures surfaced via onSynthFailure SSE */
+    } finally {
+      setSynthing(false);
+    }
+  }, []);
 
   /** Navigate to a construct (from tree double-click or violation double-click). */
   const navigate: NavigateHandler = React.useCallback(async (opts) => {
@@ -196,7 +248,37 @@ export function App(): JSX.Element {
   return (
     <div style={PAGE_STYLE} ref={vSplit.containerRef}>
       <header style={TITLE_BLOCK_STYLE}>
-        <Header variant="h1" description={appDir ?? '—'}>CDK Web Explorer</Header>
+        <Header
+          variant="h1"
+          description={appDir ?? '—'}
+          actions={
+            <div>
+              <SpaceBetween direction="horizontal" size="s" alignItems="center">
+                <Toggle checked={autoSynthEnabled} onChange={({ detail }) => void toggleAutoSynth(detail.checked)}>
+                  Auto-synth on save
+                </Toggle>
+                <Button disabled={autoSynthEnabled} loading={synthing} onClick={() => void handleSynth()}>Synth</Button>
+              </SpaceBetween>
+              {synthFailure && (
+                <Box textAlign="right" margin={{ top: 'xxs' }}>
+                  <Link onFollow={() => setShowFailureModal(true)} variant="secondary">
+                    <StatusIndicator type="error">Synth failed</StatusIndicator>
+                  </Link>
+                </Box>
+              )}
+              {!synthFailure && synthWarning && (
+                <Box textAlign="right" margin={{ top: 'xxs' }}>
+                  <StatusIndicator type="warning">{synthWarning}</StatusIndicator>
+                </Box>
+              )}
+              {lastSynthTime && (
+                <Box color="text-status-inactive" fontSize="body-s" textAlign="right">Last synth at {lastSynthTime}</Box>
+              )}
+            </div>
+          }
+        >
+          CDK Web Explorer
+        </Header>
       </header>
       {error && <Box color="text-status-error">{error}</Box>}
       <div style={topRowStyle(vSplit)} ref={hSplit.containerRef}>
@@ -280,6 +362,20 @@ export function App(): JSX.Element {
           </div>
         )}
       </div>
+      {synthFailure && showFailureModal && (
+        <Modal
+          visible
+          onDismiss={() => setShowFailureModal(false)}
+          size="large"
+          header="Synth failed"
+          footer={<Box float="right"><Button variant="primary" onClick={() => setShowFailureModal(false)}>Close</Button></Box>}
+        >
+          <SpaceBetween size="s">
+            <Box color="text-status-error">{synthFailure.message}</Box>
+            {synthFailure.details && <pre style={SYNTH_LOG_STYLE}>{synthFailure.details}</pre>}
+          </SpaceBetween>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -475,6 +571,17 @@ const PAGE_STYLE: React.CSSProperties = {
 };
 const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '12px' };
 const GROW_STYLE: React.CSSProperties = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' };
+const SYNTH_LOG_STYLE: React.CSSProperties = {
+  margin: 0,
+  maxHeight: '50vh',
+  overflow: 'auto',
+  whiteSpace: 'pre-wrap',
+  fontFamily: 'monospace',
+  fontSize: '12px',
+  background: '#f4f4f4',
+  padding: '8px',
+  borderRadius: '4px',
+};
 
 const HEADER_WITH_ACTION_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
 const OPEN_FILE_BUTTON_STYLE: React.CSSProperties = {

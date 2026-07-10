@@ -82,6 +82,10 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
 
   const app = express();
 
+  // Live-refresh + synth-status stream. Created before the synth guard so a
+  // failed synth (manual or auto) can broadcast its outcome to browsers.
+  const events = new SseBroadcaster();
+
   let autoSynthEnabled = false;
   let synthInFlight = false;
   // Drop-if-in-flight: mirrors lib/lsp/server.ts. The Toolkit's RWLock on
@@ -91,7 +95,16 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
     if (synthInFlight) return { status: 'lock-conflict' };
     synthInFlight = true;
     try {
-      return await options.synthRunner(appDir);
+      const result = await options.synthRunner(appDir);
+      // Surface failures for every synth (manual or auto); success arrives
+      // separately as an assembly-changed refresh.
+      if (result.status === 'app-failure' || result.status === 'error') {
+        events.broadcastSynthStatus({
+          message: result.message,
+          details: result.status === 'app-failure' ? result.details : undefined,
+        });
+      }
+      return result;
     } finally {
       synthInFlight = false;
     }
@@ -117,9 +130,8 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
     synth: guardedSynth,
   });
 
-  // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
-  // changes. Registered before the /api catch-all so it is not treated as unknown.
-  const events = new SseBroadcaster();
+  // Browsers subscribe here for assembly-changed + synth-status. Registered
+  // before the /api catch-all so it is not treated as unknown.
   app.get('/api/events', events.handle.bind(events));
 
   // Unknown /api routes must return JSON 404, not fall through to the SPA.
