@@ -28,9 +28,12 @@ export interface DestroyOptions {
   readonly express?: boolean;
 
   /**
-   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation.
    *
-   * Increase this value to reduce the number of `DescribeStackEvents` calls,
+   * Also governs the interval used to poll CloudFormation for the stack to stabilize (reach a terminal
+   * state) after the destroy has been issued.
+   *
+   * Increase this value to reduce the number of `DescribeStackEvents`/`DescribeStacks` calls,
    * e.g. when many concurrent stack operations are hitting CloudFormation API rate limits.
    *
    * @default 2000
