@@ -892,6 +892,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
         express: options.express,
+        stackEventPollingInterval: options.stackEventPollingInterval,
       };
 
       // When using change-set method, always create the change set upfront.
@@ -1655,6 +1656,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             deployName: stack.stackName,
             roleArn: options.roleArn,
             express: options.express,
+            stackEventPollingInterval: options.stackEventPollingInterval,
           });
 
           ret.stacks.push({

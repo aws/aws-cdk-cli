@@ -6,7 +6,13 @@ export function versionWithBuild() {
 }
 
 export function isDeveloperBuildVersion(): boolean {
-  return versionNumber() === '0.0.0';
+  try {
+    return versionNumber() === '0.0.0';
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`Error determining build version: ${e}`);
+    return false;
+  }
 }
 
 export function versionNumber(): string {
