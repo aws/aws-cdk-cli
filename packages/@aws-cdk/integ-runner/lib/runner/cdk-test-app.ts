@@ -219,8 +219,8 @@ export class CdkTestApp {
     this._legacyEnableLookups = enableLookups;
   }
 
-  public async outputExists() {
-    return fs.pathExists(this.outputDirectory);
+  public async hasOutput() {
+    return (await fs.pathExists(this.outputDirectory)) && (await fs.pathExists(path.join(this.outputDirectory, 'manifest.json')));
   }
 
   /**
@@ -270,7 +270,7 @@ export class CdkTestApp {
       return this._testSuite;
     }
 
-    if (await this.outputExists()) {
+    if (await this.hasOutput()) {
       this._testSuite = await this._loadManifest();
       return this._testSuite;
     }
@@ -278,6 +278,8 @@ export class CdkTestApp {
   }
 
   public async synthForSnapshotComparison() {
+    // Assume 'true', because we will be converging on 'true' in the future
+    this.configureLegacyEnableLookups(true);
     const suite = await this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
 
     // Check if the enableLookups value has changed between the golden
@@ -293,14 +295,15 @@ export class CdkTestApp {
     return suite;
   }
 
-  public async synthForGoldenSnapshot(destructiveChanges: DestructiveChange[]) {
+  public async synthForGoldenSnapshot(destructiveChanges: DestructiveChange[], enableLookups: LegacyEnableLookups) {
+    this.configureLegacyEnableLookups(enableLookups);
     await this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
     await this.cleanupGoldenSnapshot(destructiveChanges);
     return this.testSuite;
   }
 
   public async synthForDeployment() {
-    await this.synth({}, {});
+    await this.synth(this.getContext('deployment'), {});
     return this.testSuite;
   }
 
@@ -359,10 +362,6 @@ export class CdkTestApp {
    * different value for `enableLookups`, we will throw away the old snapshot and synth again.
    */
   private async synth(context: Record<string, any>, env: Record<string, string>): Promise<IntegTestSuite | LegacyIntegTestSuite> {
-    if (this._legacyEnableLookups === undefined) {
-      throw new Error('Must call configureLegacyEnableLookups before synthing');
-    }
-
     const output = this.outputDirectory;
 
     // Remove the target directory, so that we don't have stale files from
@@ -469,7 +468,7 @@ export class CdkTestApp {
    * @internal
    */
   private async _loadManifest(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
-    if (!await this.outputExists()) {
+    if (!await this.hasOutput()) {
       throw new Error(`Synth did not produce output directory: ${this.outputDirectory}`);
     }
     const manifestDir = this.outputDirectory;
@@ -596,13 +595,20 @@ export class CdkTestApp {
     // in the snapshot directory which can be used for the
     // update workflow. Save any legacyContext as well so that it can be read
     // the next time
-    const actualTestSuite = await this.testSuite;
-    if (actualTestSuite.type === 'legacy-test-suite') {
-      (actualTestSuite as LegacyIntegTestSuite).saveManifest(this.outputDirectory, this.legacyContext);
+    const actualTestSuite = this.testSuite;
+    actualTestSuite.enableLookups = true;
+
+    if (actualTestSuite instanceof LegacyIntegTestSuite) {
+      actualTestSuite.saveManifest(this.outputDirectory, this.legacyContext);
+    } else if (actualTestSuite instanceof IntegTestSuite) {
+      actualTestSuite.saveManifest(this.outputDirectory);
     }
   }
 
   private getContext(forSnapshot: 'snapshot' | 'deployment'): Record<string, any> {
+    if (this._legacyEnableLookups === undefined) {
+      throw new Error('Must call configureLegacyEnableLookups before synthing');
+    }
     // Load the test-specific context (from `integ.context.json` or `cdk.json#context`), if any.
     // If not found, use the built-in current feature flags (at the risk of newer feature flags changing
     // the snapshots).
@@ -637,6 +643,8 @@ export class CdkTestApp {
 // account of the exercising user.
 export const DEFAULT_SYNTH_OPTIONS = {
   context: {
+    // We have traditionally set this, but it's quite a bad idea. It makes region-agnostic stacks undeployable, and there's really no reason for that.
+    // However, if we unset this, we will break many existing snapshots so we keep it for now.
     [AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY]: ['test-region-1a', 'test-region-1b', 'test-region-1c'],
     'availability-zones:account=12345678:region=test-region': ['test-region-1a', 'test-region-1b', 'test-region-1c'],
     'ssm:account=12345678:parameterName=/aws/service/ami-amazon-linux-latest/amzn-ami-hvm-x86_64-gp2:region=test-region': 'ami-1234',

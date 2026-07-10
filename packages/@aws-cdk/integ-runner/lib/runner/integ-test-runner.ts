@@ -8,7 +8,7 @@ import * as workerpool from 'workerpool';
 import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
-import type { CdkTestAppOptions } from './cdk-test-app';
+import type { CdkTestAppOptions, LegacyEnableLookups } from './cdk-test-app';
 import { CdkTestApp, DEFAULT_ARGS } from './cdk-test-app';
 import type { IntegTest } from './integration-tests';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
@@ -152,7 +152,7 @@ export class IntegTestRunner {
 
         if (!runOptions.dryRun && (actualTestCase.cdkCommandOptions?.deploy?.enabled ?? true)) {
           try {
-            assertionResults = await this.deploy(
+            assertionResults = await this.deployTestAndAssertions(
               actual,
               actualTestCase,
               {
@@ -167,7 +167,7 @@ export class IntegTestRunner {
             );
           } finally {
             if (!runOptions.dryRun && clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
-              await this.destroy(actual, actualTestCase, {
+              await this.destroyTestAndAssertions(actual, actualTestCase, {
                 ...actualTestCase.cdkCommandOptions?.destroy?.args,
                 roleArn: runOptions.roleArn ?? actualTestCase.cdkCommandOptions?.destroy?.args?.roleArn,
                 verbose: verbosity.verbose,
@@ -181,7 +181,7 @@ export class IntegTestRunner {
       // only create the snapshot if there are no failed assertion results
       // (i.e. no failures)
       if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
-        await this.createSnapshot();
+        await this.createSnapshot(actualTestSuite.enableLookups);
       }
     } finally {
       actual.cleanup();
@@ -190,9 +190,9 @@ export class IntegTestRunner {
     return assertionResults;
   }
 
-  private async createSnapshot() {
+  private async createSnapshot(enableLookups: LegacyEnableLookups) {
     const expected = await CdkTestApp.forGoldenSnapshot(this.appOptions);
-    await expected.synthForGoldenSnapshot(this.destructiveChanges ?? []);
+    await expected.synthForGoldenSnapshot(this.destructiveChanges ?? [], enableLookups);
   }
 
   /**
@@ -368,7 +368,7 @@ export class IntegTestRunner {
   /**
    * Perform a integ test case stack destruction
    */
-  private async destroy(actualApp: CdkTestApp, actualTestCase: TestCase, destroyArgs: Partial<DestroyOptions>): Promise<void> {
+  private async destroyTestAndAssertions(actualApp: CdkTestApp, actualTestCase: TestCase, destroyArgs: Partial<DestroyOptions>): Promise<void> {
     try {
       if (actualTestCase.hooks?.preDestroy) {
         actualTestCase.hooks.preDestroy.forEach(cmd => {
@@ -379,7 +379,10 @@ export class IntegTestRunner {
       }
 
       await actualApp.destroy({
-        stacks: actualTestCase.stacks,
+        stacks: [
+          ...actualTestCase.stacks,
+          ...(actualTestCase.assertionStack ? [actualTestCase.assertionStack] : []),
+        ],
         ...destroyArgs,
       });
 
@@ -530,7 +533,7 @@ export class IntegTestRunner {
    * Perform a integ test case deployment, including
    * performing the update workflow
    */
-  private async deploy(
+  private async deployTestAndAssertions(
     app: CdkTestApp,
     testCase: TestCase,
     deployArgs: cdk.DeployOptions,
@@ -552,7 +555,7 @@ export class IntegTestRunner {
       if (updateFromTags && updateFromTags.length > 0) {
         // Tag-sequence update workflow: deploy each tag's snapshot in order
         await this.deployFromTags(app, deployArgs, testCaseName, updateFromTags, allowDeleteFailures);
-      } else if (updateWorkflowEnabled && await previousVersion.outputExists()) {
+      } else if (updateWorkflowEnabled && await previousVersion.hasOutput()) {
         // Normal merge-base update workflow
         const expectedTestSuite = await previousVersion.loadExistingSuite();
         if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite) {
@@ -567,6 +570,7 @@ export class IntegTestRunner {
           });
         }
       }
+
       // now deploy the "actual" test.
       // This is the stack update if the update workflow ran above.
       const actualDeployResult = await app.deploy({
