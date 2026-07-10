@@ -42,27 +42,21 @@ export interface WebServerOptions {
    * writing to stderr; the CLI command passes a sink that routes to its IoHost.
    */
   readonly onWatcherError?: (err: unknown) => void;
-  /**
-   * Runs a synth of the project. The CLI command handler injects the real
-   * runner; tests pass a noop or a jest.fn double.
-   */
+  /** Runs a synth of the project, returning its outcome. */
   readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
-  /**
-   * Factory for the source file watcher. Production injects the chokidar-backed
-   * watcher; tests inject a fake so the base suite doesn't spin up a real
-   * watcher on process.cwd().
-   */
+  /** Factory for the source file watcher that drives auto-synth. */
   readonly startSourceWatcher: (options: SourceWatcherOptions) => SourceWatcher;
   /**
-   * Acquires the assembly read lock (derived from the shared Toolkit). Required
-   * so read endpoints never observe a torn cdk.out mid-synth; tests inject a noop.
+   * Acquires the assembly read lock (derived from the shared Toolkit) so read
+   * endpoints never observe a torn cdk.out mid-synth.
    */
   readonly acquireAssemblyLock: AcquireAssemblyLock;
 }
 
 export interface WebServer {
   readonly url: string;
-  autoSynthEnabled: boolean;
+  /** Current auto-synth-on-save state; changed via the /api/synth/auto endpoint. */
+  readonly autoSynthEnabled: boolean;
   stop(): Promise<void>;
 }
 
@@ -175,9 +169,6 @@ export async function startWebServer(options: WebServerOptions): Promise<WebServ
     url: `http://${HOST}:${port}`,
     get autoSynthEnabled() {
       return autoSynthEnabled;
-    },
-    set autoSynthEnabled(enabled: boolean) {
-      autoSynthEnabled = enabled;
     },
     stop: async () => {
       if (stopped) return;

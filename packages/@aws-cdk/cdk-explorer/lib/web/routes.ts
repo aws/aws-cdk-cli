@@ -22,7 +22,21 @@ const LOCK_RETRIES = 10;
 const LOCK_RETRY_MS = 50;
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export interface ApiOptions {
+/** Get and set the web server's auto-synth-on-save toggle. */
+export interface AutoSynthControl {
+  get(): boolean;
+  set(enabled: boolean): void;
+}
+
+/**
+ * Synth capability wired into the API: both fields are present together or not
+ * at all, so the synth endpoints are registered only when the server can synth.
+ */
+export type SynthCapability =
+  | { readonly autoSynth: AutoSynthControl; readonly synth: () => Promise<SynthRunResult> }
+  | { readonly autoSynth?: undefined; readonly synth?: undefined };
+
+interface ApiOptionsBase {
   /** Root of the CDK app; all file listing/reading is confined to this directory. */
   readonly appDir: string;
   /**
@@ -40,11 +54,9 @@ export interface ApiOptions {
    * mid-synth assembly. Built from the Toolkit in {@link registerApi}'s caller.
    */
   readonly acquireAssemblyLock: AcquireAssemblyLock;
-  /** Get/set auto-synth state. Omit if synth is not available. */
-  readonly autoSynth?: { get(): boolean; set(enabled: boolean): void };
-  /** Trigger a manual synth. Omit if synth is not available. */
-  readonly synth?: () => Promise<SynthRunResult>;
 }
+
+export type ApiOptions = ApiOptionsBase & SynthCapability;
 
 export function createApiRouter(options: ApiOptions): Router {
   const appDir = canonicalDir(options.appDir);
@@ -210,9 +222,10 @@ export function createApiRouter(options: ApiOptions): Router {
     return res.json(body);
   });
 
-  if (options.autoSynth && options.synth) {
+  if (options.autoSynth) {
+    const { autoSynth, synth } = options;
     router.get('/synth/auto', (_req, res) => {
-      res.json({ enabled: options.autoSynth!.get() });
+      res.json({ enabled: autoSynth.get() });
     });
 
     router.post('/synth/auto', express.json(), (req, res) => {
@@ -220,12 +233,12 @@ export function createApiRouter(options: ApiOptions): Router {
       if (typeof enabled !== 'boolean') {
         return res.status(400).json({ error: 'enabled must be a boolean' });
       }
-      options.autoSynth!.set(enabled);
-      return res.json({ enabled: options.autoSynth!.get() });
+      autoSynth.set(enabled);
+      return res.json({ enabled: autoSynth.get() });
     });
 
     router.post('/synth', async (_req, res) => {
-      const result = await options.synth!();
+      const result = await synth();
       res.json(result);
     });
   }

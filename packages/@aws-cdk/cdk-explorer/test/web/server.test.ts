@@ -178,7 +178,11 @@ describe('Web Server — auto-synth', () => {
   });
 
   test('source change with auto-synth ON triggers synth', async () => {
-    server.autoSynthEnabled = true;
+    await fetch(`${server.url}/api/synth/auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    });
     capturedOnChange();
     await tick();
     expect(mockSynthRunner).toHaveBeenCalledTimes(1);

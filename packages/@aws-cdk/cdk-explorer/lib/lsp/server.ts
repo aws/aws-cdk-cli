@@ -45,8 +45,8 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
-import { SOURCE_WATCH_EXCLUDES } from '../core/synth-runner';
 import { isWithinRoot } from '../core/source-resolver';
+import { SOURCE_WATCH_EXCLUDES } from '../core/synth-runner';
 import type { SynthRunResult } from '../core/synth-runner';
 
 /**
@@ -348,7 +348,8 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     async onInitialized() {
       const projectDir = currentProjectDir();
       // Ignore non-source files (build output, deps, dotfiles). This exclude
-      // policy is shared with the web source watcher; see lib/core/source-watch.
+      // policy (SOURCE_WATCH_EXCLUDES, in lib/core/synth-runner) is shared with
+      // the web source watcher.
       shouldIgnore = createIgnoreMatcher({
         exclude: SOURCE_WATCH_EXCLUDES,
         rootDir: projectDir,

@@ -17,20 +17,15 @@ export interface SourceWatcherOptions {
   readonly onChange: () => void;
   /** Receives non-fatal watcher errors. */
   readonly onError?: (error: unknown) => void;
-  /**
-   * Factory for the underlying file watcher. Defaults to chokidar; overridden
-   * in tests with a fake.
-   */
+  /** Factory for the underlying file watcher. Defaults to chokidar. */
   readonly createWatcher?: (appDir: string) => FileWatcher;
 }
 
-// Thin wrapper over real chokidar; exercised via integration, not unit tests.
 /* c8 ignore start */
 function defaultCreateWatcher(appDir: string): FileWatcher {
-  // Perf layer: chokidar applies the same ignore policy while traversing, so it
-  // skips ignored paths at the source instead of streaming them to the handler.
-  // chokidar emits absolute paths on 'all'; the handler re-checks the same
-  // policy as the unit-tested correctness layer.
+  // chokidar applies the same ignore policy while traversing, so ignored paths
+  // are skipped at the source instead of streamed to the handler. It emits
+  // absolute paths on 'all', which the handler re-checks against the same policy.
   return chokidar.watch(appDir, {
     ignored: createIgnoreMatcher({ exclude: SOURCE_WATCH_EXCLUDES, rootDir: appDir }),
     ignoreInitial: true,
@@ -40,9 +35,8 @@ function defaultCreateWatcher(appDir: string): FileWatcher {
 
 /**
  * Watch a CDK app's source tree and fire `onChange` (debounced) when a
- * non-ignored file changes. The ignore filter runs in the handler so it is
- * unit-testable through the injected watcher; the real watcher additionally
- * skips the same paths for performance.
+ * non-ignored file changes. The ignore filter runs in the handler; the real
+ * watcher additionally skips the same paths for performance.
  */
 export function startSourceWatcher(options: SourceWatcherOptions): SourceWatcher {
   const createWatcher = options.createWatcher ?? defaultCreateWatcher;
