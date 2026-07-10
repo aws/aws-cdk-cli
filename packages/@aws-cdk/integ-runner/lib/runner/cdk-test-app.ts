@@ -579,6 +579,12 @@ export class CdkTestApp {
    * the logic should live here.
    */
   private async cleanupGoldenSnapshot(destructiveChanges: DestructiveChange[]): Promise<void> {
+    if (!await this.hasOutput()) {
+      // This should not be possible, but a lot of the tests depend on this being a no-op
+      // if no output directory got produced.
+      return;
+    }
+
     await this.removeAssetsFromSnapshot();
     this.removeAssetsCacheFromSnapshot();
     const assembly = AssemblyManifestReader.fromPath(this.outputDirectory);

@@ -719,8 +719,8 @@ export class IntegTestRunner {
 
 function analyzeVerbosity(verbosity: number = 0): { verbose?: boolean; debug?: boolean; traceLogs?: boolean } {
   return {
-    verbose: verbosity >= 1 ? true : undefined,
-    debug: verbosity >= 2 ? true : undefined,
-    traceLogs: verbosity >= 3 ? true : undefined,
+    verbose: verbosity >= 3 ? true : undefined,
+    debug: verbosity >= 4 ? true : undefined,
+    traceLogs: verbosity >= 2 ? true : false,
   };
 }
