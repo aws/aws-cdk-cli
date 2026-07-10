@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
   BasePublishProgressListener,
@@ -150,6 +150,18 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   */
+  readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -258,6 +270,8 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
+  express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface StackExistsOptions {
@@ -418,6 +432,8 @@ export class Deployments {
         topLevelStackHierarchicalId: options.stack.hierarchicalId,
         additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
       }),
+      express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
   }
 
@@ -643,6 +659,8 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
+      express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
   }
 

@@ -33,7 +33,7 @@ const STACK_C_NESTED: TestStackArtifact = {
 };
 
 let cloudExecutable: MockCloudExecutable;
-let cloudFormation: jest.Mocked<Deployments>;
+let destroyStackMock: jest.SpyInstance;
 let toolkit: CdkToolkit;
 let ioHost = CliIoHost.instance();
 let recorder: IoHostRecorder;
@@ -54,14 +54,17 @@ beforeEach(async () => {
     nestedAssemblies: [{ stacks: [STACK_C_NESTED] }],
   }, undefined, ioHost, 'destroy');
 
-  cloudFormation = instanceMockFrom(Deployments);
+  // The rerouted destroy runs through toolkit-lib, which builds its own
+  // Deployments. Intercept at the prototype so the real CFN calls never run.
+  destroyStackMock = jest.spyOn(Deployments.prototype, 'destroyStack')
+    .mockResolvedValue({ stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test' } as any);
 
   toolkit = new CdkToolkit({
     ioHost,
     cloudExecutable,
     configuration: cloudExecutable.configuration,
     sdkProvider: cloudExecutable.sdkProvider,
-    deployments: cloudFormation,
+    deployments: instanceMockFrom(Deployments),
   });
 
   // Single recorder bound to the (singleton) ioHost; `clearMocks` scopes the
@@ -84,7 +87,7 @@ describe('force: true (no confirmation prompt)', () => {
       fromDeploy: true,
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(1);
+    expect(destroyStackMock).toHaveBeenCalledTimes(1);
   });
 
   test('destroys all top-level stacks with concurrency', async () => {
@@ -95,7 +98,7 @@ describe('force: true (no confirmation prompt)', () => {
       concurrency: 5,
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(2);
+    expect(destroyStackMock).toHaveBeenCalledTimes(2);
   });
 
   test('respects dependency order with concurrency', async () => {
@@ -113,7 +116,7 @@ describe('force: true (no confirmation prompt)', () => {
     cloudExecutable = await MockCloudExecutable.create({ stacks: [stackC, stackD] }, undefined, ioHost, 'destroy');
 
     const destroyOrder: string[] = [];
-    cloudFormation.destroyStack.mockImplementation(async (options: DestroyStackOptions) => {
+    destroyStackMock.mockImplementation(async (options: DestroyStackOptions) => {
       destroyOrder.push(options.stack.stackName);
       return { stackArn: 'arn' };
     });
@@ -123,7 +126,7 @@ describe('force: true (no confirmation prompt)', () => {
       cloudExecutable,
       configuration: cloudExecutable.configuration,
       sdkProvider: cloudExecutable.sdkProvider,
-      deployments: cloudFormation,
+      deployments: instanceMockFrom(Deployments),
     });
 
     await toolkit.destroy({
@@ -145,7 +148,7 @@ describe('force: true (no confirmation prompt)', () => {
       roleArn: 'arn:aws:iam::123456789012:role/DestroyRole',
     });
 
-    expect(cloudFormation.destroyStack).toHaveBeenCalledWith(
+    expect(destroyStackMock).toHaveBeenCalledWith(
       expect.objectContaining({ roleArn: 'arn:aws:iam::123456789012:role/DestroyRole' }),
     );
   });
@@ -155,8 +158,9 @@ describe('force: false (confirmation prompt)', () => {
   test('asks for confirmation and proceeds when the user confirms', async () => {
     // Answer the confirmation prompt with a one-shot responder. The real
     // requestResponse runs (so the request is recorded in the snapshot); no
-    // spy/pass-through is needed.
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+    // spy/pass-through is needed. suppressQuestion=false: a non-forced destroy
+    // shows the prompt to the user, so it stays in the snapshot.
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true, false);
 
     await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -165,13 +169,14 @@ describe('force: false (confirmation prompt)', () => {
     });
 
     // Confirmed -> the stack is actually destroyed.
-    expect(cloudFormation.destroyStack).toHaveBeenCalledTimes(1);
+    expect(destroyStackMock).toHaveBeenCalledTimes(1);
   });
 
   test('aborts with an AbortError and destroys nothing when the user declines', async () => {
     // The IoHost returns the answer; declining is `false` and the command aborts
     // by throwing an AbortError (non-zero exit, presented softly by the CLI).
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, false);
+    // suppressQuestion=false: the prompt is shown to the user (non-forced).
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, false, false);
 
     const error = await toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
@@ -183,18 +188,64 @@ describe('force: false (confirmation prompt)', () => {
     expect(error.name).toBe('DestroyAborted');
 
     // Aborted before any destroy happened.
-    expect(cloudFormation.destroyStack).not.toHaveBeenCalled();
+    expect(destroyStackMock).not.toHaveBeenCalled();
   });
 });
 
 describe('destroy failure', () => {
   test('emits a failure message and rethrows when destroyStack fails', async () => {
-    cloudFormation.destroyStack.mockRejectedValue(new Error('Deletion failed'));
+    destroyStackMock.mockRejectedValue(new Error('Deletion failed'));
 
     await expect(toolkit.destroy({
       selector: { patterns: ['Test-Stack-B'] },
       exclusively: true,
       force: true,
     })).rejects.toThrow('Deletion failed');
+  });
+});
+
+describe('--express', () => {
+  test('warns about resources still tearing down when destroyStack reports them', async () => {
+    // Express Mode returns success while some resources are still tearing down;
+    // the destroy path surfaces this as an extra warning listing those resources.
+    destroyStackMock.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test',
+      stabilizingResources: [{
+        logicalResourceId: 'MyResource',
+        resourceType: 'AWS::S3::Bucket',
+        reason: 'Resource deletion Initiated',
+      }],
+    } as any);
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    expect(destroyStackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+
+  test('does not warn when no resources are still tearing down', async () => {
+    // Express Mode is on, but destroyStack reports an empty
+    // `stabilizingResources`, so the destroy path emits no stabilization warning.
+    destroyStackMock.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/test',
+      stabilizingResources: [],
+    } as any);
+
+    await toolkit.destroy({
+      selector: { patterns: ['Test-Stack-B'] },
+      exclusively: true,
+      force: true,
+      express: true,
+    });
+
+    expect(destroyStackMock).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
   });
 });

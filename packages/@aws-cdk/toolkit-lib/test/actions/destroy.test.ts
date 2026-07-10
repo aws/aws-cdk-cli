@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
@@ -17,7 +17,7 @@ beforeEach(() => {
   ioHost.requestSpy.mockClear();
   jest.clearAllMocks();
 
-  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({});
+  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({ stabilizingResources: [] });
 });
 
 describe('destroy', () => {
@@ -62,6 +62,48 @@ describe('destroy', () => {
     }));
   });
 
+  test('warns about resources still tearing down in Express Mode', async () => {
+    // GIVEN
+    mockDestroyStack.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      express: true,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
+      message: expect.stringContaining('still tearing down: MyBucket'),
+    }));
+  });
+
+  test('does not warn about tearing down resources when not in Express Mode', async () => {
+    // GIVEN
+    mockDestroyStack.mockResolvedValue({
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'tearing down' },
+      ],
+    });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.destroy(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
+
+    // THEN
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W7902',
+    }));
+  });
+
   test('destroy deployment fails', async () => {
     // GIVEN
     mockDestroyStack.mockRejectedValue({});
@@ -92,6 +134,34 @@ describe('destroy', () => {
 
     // THEN
     expect(mockDestroyStack).toHaveBeenCalledTimes(2);
+  });
+
+  test('express option is passed in', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      express: true,
+    });
+
+    // THEN
+    expect(mockDestroyStack).toHaveBeenCalledWith(expect.objectContaining({
+      express: true,
+    }));
+  });
+
+  test('stackEventPollingInterval option is passed in', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      stackEventPollingInterval: 10_000,
+    });
+
+    // THEN
+    expect(mockDestroyStack).toHaveBeenCalledWith(expect.objectContaining({
+      stackEventPollingInterval: 10_000,
+    }));
   });
 
   test('action disposes of assembly produced by source', async () => {

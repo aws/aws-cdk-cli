@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 
 /* c8 ignore start */
 export function prettyPrintError(error: unknown, options: { soft?: boolean; debug?: boolean } = {}) {

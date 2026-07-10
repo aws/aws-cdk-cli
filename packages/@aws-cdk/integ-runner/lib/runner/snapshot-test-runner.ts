@@ -75,7 +75,7 @@ export class IntegSnapshotRunner {
 
       // read the "actual" snapshot
       const actualSnapshot = await this.helper.actualSnapshot();
-      const actualSnapshotAssembly = this.getSnapshotAssembly(this.helper.cdkOutDir, actualSnapshot.testDefinition.stacks);
+      const actualSnapshotAssembly = this.getSnapshotAssembly(this.helper.temporarySnapshotDir, actualSnapshot.testDefinition.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
       const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
@@ -87,7 +87,7 @@ export class IntegSnapshotRunner {
         if (options.retain) {
           additionalMessages.push(
             `(Failure retained) Expected: ${path.relative(process.cwd(), this.helper.goldenSnapshotDir)}`,
-            `                   Actual:   ${path.relative(process.cwd(), this.helper.cdkOutDir)}`,
+            `                   Actual:   ${path.relative(process.cwd(), this.helper.temporarySnapshotDir)}`,
           ),
           doClean = false;
         }

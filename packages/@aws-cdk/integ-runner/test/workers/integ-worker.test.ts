@@ -1,6 +1,6 @@
-import * as builtinFs from 'fs';
+import builtinFs from 'fs';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import { IntegTestRunner } from '../../lib/runner';
 import { integTestWorker } from '../../lib/workers/extract';
@@ -92,6 +92,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([]);
@@ -117,6 +118,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([{
@@ -142,6 +144,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([{
@@ -165,6 +168,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([{
@@ -192,6 +196,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([]);
@@ -221,6 +226,7 @@ describe('integTestWorker', () => {
           discoveryRoot: 'test/test-data',
         },
       ],
+      testingUsingMocksLeaveDirectories: true,
       region: 'us-east-1',
     });
 
@@ -241,6 +247,7 @@ describe('integTestWorker', () => {
       }],
       region: 'us-west-2',
       profile: 'test-profile',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     // Verify runIntegTestCase was called (runner was created and used)
@@ -260,6 +267,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([{
@@ -288,6 +296,7 @@ describe('integTestWorker', () => {
         discoveryRoot: 'test/test-data',
       }],
       region: 'us-east-1',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(results).toEqual([{
@@ -319,6 +328,7 @@ describe('parallel worker', () => {
       tests,
       pool,
       regions: ['us-east-1', 'us-east-2'],
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(stderrMock.mock.calls[0][0]).toContain(
@@ -641,6 +651,7 @@ describe('integTestWorker roleArn', () => {
       }],
       region: 'us-east-1',
       roleArn: 'arn:aws:iam::123456789012:role/MyRole',
+      testingUsingMocksLeaveDirectories: true,
     });
 
     expect(mockRunIntegTestCase).toHaveBeenCalledWith(

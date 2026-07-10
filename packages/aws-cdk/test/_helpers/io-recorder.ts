@@ -123,6 +123,17 @@ export interface IoHostRecorderOptions {
    * @default - only the default scrubbers
    */
   readonly scrubbers?: Scrubber[];
+
+  /**
+   * Omit messages a listener prevented from being written (`dropped`) entirely,
+   * so the snapshot contains only what the user actually sees.
+   *
+   * Set to `false` to keep dropped messages (tagged `"dropped": true`) when you
+   * want listener-based suppression to stay visible.
+   *
+   * @default true
+   */
+  readonly excludeDropped?: boolean;
 }
 
 /**
@@ -233,6 +244,7 @@ export class IoHostRecorder {
 
   private readonly scrubbers: Scrubber[];
   private readonly level: IoMessageLevel;
+  private readonly excludeDropped: boolean;
 
   // The ordered stream of messages the host handled this test, collected via
   // its `observeMessages` hook. Cleared between tests by `resetObservations`.
@@ -241,6 +253,7 @@ export class IoHostRecorder {
   private constructor(options: IoHostRecorderOptions) {
     this.scrubbers = [...defaultScrubbers(), ...(options.scrubbers ?? [])];
     this.level = options.level ?? 'trace';
+    this.excludeDropped = options.excludeDropped ?? true;
   }
 
   private resetObservations(): void {
@@ -256,6 +269,11 @@ export class IoHostRecorder {
     const entries: RecordedIoEntry[] = [];
     let seq = 0;
     for (const { type, emitted, effective, dropped } of this.observations) {
+      // Optionally omit suppressed messages so the snapshot reflects only what
+      // the user sees.
+      if (dropped && this.excludeDropped) {
+        continue;
+      }
       // The single decision point for which levels are included; uses the
       // effective level so listener level-overrides are respected.
       if (!isMessageRelevantForLevel({ level: effective.level }, this.level)) {

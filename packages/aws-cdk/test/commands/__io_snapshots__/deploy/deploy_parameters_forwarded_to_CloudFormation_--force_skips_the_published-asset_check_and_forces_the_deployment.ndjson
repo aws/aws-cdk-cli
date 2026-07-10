@@ -1,0 +1,11 @@
+{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name: deploying... [1/1]"}
+{"seq":4,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
+{"seq":5,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-A-Display-Name"}
+{"seq":6,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
+{"seq":7,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
+{"seq":8,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd"}
+{"seq":9,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3001","message":"\n✨  Deploy time: <DURATION>\n"}
+{"seq":10,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Total time: <DURATION>\n"}

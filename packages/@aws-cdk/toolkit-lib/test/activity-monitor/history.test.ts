@@ -1,6 +1,6 @@
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
-import { HistoryActivityPrinter } from '../../lib/private/activity-printer';
+import chalk from 'chalk';
+import { CurrentActivityPrinter, HistoryActivityPrinter } from '../../lib/private/activity-printer';
 import { testStack } from '../_helpers/assembly';
 import { stderr } from '../_helpers/console-listener';
 
@@ -234,4 +234,55 @@ test('print failed resources because of hook failures', () => {
     'Failed resources:',
     `stack-name | ${HUMAN_TIME} | ${chalk.red('UPDATE_FAILED          ')} | AWS::CloudFormation::Stack | ${chalk.red(chalk.bold('stack1'))} ${chalk.red(chalk.bold('The following hook(s) failed: hook1 : stack1 must obey certain rules'))}`,
   ]);
+});
+
+describe('CurrentActivityPrinter Express Mode stabilization reason', () => {
+  function printActivity(status: ResourceStatus, reason?: string) {
+    const printer = new CurrentActivityPrinter({ stream: process.stderr });
+    const output = stderr.inspectSync(() => {
+      printer.start({ stack: testStack({ stackName: 'stack-name' }) });
+      printer.activity({
+        event: {
+          LogicalResourceId: 'MyResource',
+          ResourceStatus: status,
+          ResourceStatusReason: reason,
+          Timestamp: new Date(TIMESTAMP),
+          ResourceType: 'AWS::S3::Bucket',
+          StackId: 'stack-id',
+          EventId: 'event-id',
+          StackName: 'stack-name',
+          // PhysicalResourceId differs from StackId so this is not treated as a
+          // stack-level event.
+          PhysicalResourceId: 'physical-id',
+        },
+        deployment: 'test',
+        progress: {
+          completed: 1,
+          total: 2,
+          formatted: '1/2',
+        },
+      });
+    });
+    return output.join('');
+  }
+
+  test('shows the status reason for CREATE_COMPLETE', () => {
+    const reason = 'Resource creation Initiated, stabilizing';
+    expect(printActivity(ResourceStatus.CREATE_COMPLETE, reason)).toContain(reason);
+  });
+
+  test('shows the status reason for UPDATE_COMPLETE', () => {
+    const reason = 'Resource update Initiated, stabilizing';
+    expect(printActivity(ResourceStatus.UPDATE_COMPLETE, reason)).toContain(reason);
+  });
+
+  test('does not show the status reason for DELETE_COMPLETE', () => {
+    const reason = 'Resource deletion reason';
+    expect(printActivity(ResourceStatus.DELETE_COMPLETE, reason)).not.toContain(reason);
+  });
+
+  test('does not show the status reason for CREATE_IN_PROGRESS', () => {
+    const reason = 'Resource creation Initiated';
+    expect(printActivity(ResourceStatus.CREATE_IN_PROGRESS, reason)).not.toContain(reason);
+  });
 });

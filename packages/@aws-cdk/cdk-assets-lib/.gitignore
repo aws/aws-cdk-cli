@@ -43,7 +43,7 @@ jspm_packages/
 !/.prettierrc.json
 !/test/
 !/tsconfig.json
-!/tsconfig.dev.json
+!/test/tsconfig.json
 !/lib/
 /lib/**/*.js
 /lib/**/*.d.ts
@@ -54,6 +54,5 @@ jspm_packages/
 /dist/version.txt
 !/.eslintrc.js
 !/lib/private/tools.ts
-!/test/tsconfig.json
 *.js
 *.d.ts

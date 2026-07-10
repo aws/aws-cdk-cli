@@ -46,6 +46,7 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import { isWithinRoot } from '../core/source-resolver';
 import type { SynthRunResult } from '../core/synth-runner';
 
 /**
@@ -396,6 +397,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         return undefined;
       }
       const filePath = fileURLToPath(uri);
+      // Bound the client-supplied path to this project's cdk.out before reading.
+      if (!(await isWithinRoot(path.join(currentProjectDir(), 'cdk.out'), filePath))) {
+        return undefined;
+      }
       let templateText: string;
       try {
         templateText = await fs.promises.readFile(filePath, 'utf-8');

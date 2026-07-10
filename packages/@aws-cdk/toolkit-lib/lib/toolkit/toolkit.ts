@@ -5,7 +5,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { FeatureFlagReportProperties, PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { ArtifactType } from '@aws-cdk/cloud-assembly-schema';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 
@@ -112,7 +112,7 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
@@ -312,10 +312,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         );
 
         const message = bootstrapResult.noOp
-          ? ` ✅  ${environment.name} (no changes)`
-          : ` ✅  ${environment.name}`;
+          ? `✅  ${environment.name} (no changes)`
+          : `✅  ${environment.name}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I9900.msg(chalk.green('\n' + message), { environment }));
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(bootstrapResult.stabilizingResources, 'bootstrap');
+          if (warning) {
+            await ioHelper.notify(IO.CDK_TOOLKIT_W9902.msg(warning));
+          }
+        }
+
         const envTime = await bootstrapSpan.end();
         const result: EnvironmentBootstrapResult = {
           environment,
@@ -883,6 +891,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         notificationArns,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
+        express: options.express,
+        stackEventPollingInterval: options.stackEventPollingInterval,
       };
 
       // When using change-set method, always create the change set upfront.
@@ -979,7 +989,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
               const motivation = r.reason === 'replacement'
                 ? `Stack is in a paused fail state (${r.status}) and change includes a replacement which cannot be deployed with "--no-rollback"`
                 : `Stack is in a paused fail state (${r.status}) and command line arguments do not include "--no-rollback"`;
-              const question = `${motivation}. Perform a regular deployment`;
+              const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
                 motivation,
@@ -1005,7 +1015,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
             case 'replacement-requires-rollback': {
               const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
-              const question = `${motivation}. Perform a regular deployment`;
+              const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
                 motivation,
@@ -1026,11 +1036,18 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
 
         const message = deployResult.noOp
-          ? ` ✅  ${stack.displayName} (no changes)`
-          : ` ✅  ${stack.displayName}`;
+          ? `✅  ${stack.displayName} (no changes)`
+          : `✅  ${stack.displayName}`;
 
         await ioHelper.notify(IO.CDK_TOOLKIT_I5900.msg(chalk.green('\n' + message), deployResult));
         deployDuration = await deploySpan.timing(IO.CDK_TOOLKIT_I5000);
+
+        if (options.express) {
+          const warning = formatExpressStabilizationWarning(deployResult.stabilizingResources, 'deploy');
+          if (warning) {
+            await ioHelper.notify(IO.CDK_TOOLKIT_W5902.msg(warning));
+          }
+        }
 
         if (Object.keys(deployResult.outputs).length > 0) {
           const buffer = ['Outputs:'];
@@ -1580,9 +1597,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Destroys the selected Stacks.
    */
   public async destroy(cx: ICloudAssemblySource, options: DestroyOptions = {}): Promise<DestroyResult> {
-    const ioHelper = asIoHelper(this.ioHost, 'destroy');
+    return this._destroyWithAction(cx, 'destroy', options);
+  }
+
+  /**
+   * Synthesize and destroy, labelling the work with an explicit action.
+   *
+   * Kept private: the CLI reaches it (via a `// @ts-ignore`) to keep the
+   * "deployed" wording when a destroy runs as part of a deploy (rollback
+   * cleanup). Not part of the public API.
+   */
+  private async _destroyWithAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions = {}): Promise<DestroyResult> {
+    const ioHelper = asIoHelper(this.ioHost, action);
     await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
-    return await this._destroy(assembly, 'destroy', options);
+    return await this._destroy(assembly, action, options);
   }
 
   /**
@@ -1627,6 +1655,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stack,
             deployName: stack.stackName,
             roleArn: options.roleArn,
+            express: options.express,
+            stackEventPollingInterval: options.stackEventPollingInterval,
           });
 
           ret.stacks.push({
@@ -1639,7 +1669,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stackExisted: result.stackArn !== undefined,
           });
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n ✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
+          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
+
+          if (options.express) {
+            const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'destroy');
+            if (warning) {
+              await ioHelper.notify(IO.CDK_TOOLKIT_W7902.msg(warning));
+            }
+          }
+
           await singleDestroySpan.end();
         } catch (e: any) {
           await ioHelper.notify(IO.CDK_TOOLKIT_E7900.msg(`\n ❌  ${chalk.blue(stack.displayName)}: ${action} failed ${e}`, { error: e }));

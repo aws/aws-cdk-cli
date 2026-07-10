@@ -199,11 +199,6 @@
       "type": "runtime"
     },
     {
-      "name": "express",
-      "version": "^4",
-      "type": "runtime"
-    },
-    {
       "name": "vscode-jsonrpc",
       "version": "^8",
       "type": "runtime"

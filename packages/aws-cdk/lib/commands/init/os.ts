@@ -1,6 +1,6 @@
 import * as child_process from 'child_process';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { IoHelper } from '../../api-private';
 
 /**
