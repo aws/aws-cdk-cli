@@ -110,7 +110,19 @@ export interface RunOptions extends CommonOptions {
   readonly allowDeleteFailures?: boolean;
 }
 
-type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'>;
+type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'> & {
+  /**
+   * Just for testing
+   *
+   * Use the comparison output directory for deployments, instead of a separate output
+   * directory.
+   *
+   * Preferably, we synth into a separate directory so that snapshot comparison assembly and
+   * deployment assembly don't trample on each other, but the tests in this repository have
+   * been set up to use the same directory.
+   */
+  TESTING_useComparisonOutputDirectory?: boolean;
+};
 
 /**
  * An integration test runner that orchestrates executing
@@ -138,14 +150,27 @@ export class IntegTestRunner {
     let assertionResults: AssertionResults | undefined;
 
     // Set up actual
-    const actual = await CdkTestApp.forDeployment(this.appOptions);
+    let actual = await CdkTestApp.forDeployment(this.appOptions);
+    if (this.appOptions.TESTING_useComparisonOutputDirectory) {
+      actual = await CdkTestApp.forComparison(this.appOptions);
+    }
+
+    const previousVersion = await CdkTestApp.forGoldenSnapshot(this.appOptions);
 
     const actualTestSuite = await actual.synthForDeployment();
+
+    if (actualTestSuite.type === 'legacy-test-suite' && !previousVersion.hasOutput()) {
+      throw new Error(`${this.test.testName} is a new test. Please use the IntegTest construct ` +
+        'to configure the test\n' +
+        'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
+      );
+    }
+
     const clean = runOptions.clean ?? true;
     try {
       for (const [testCaseName, actualTestCase] of Object.entries(actualTestSuite.testSuite)) {
-        const updateWorkflowEnabled = (runOptions.updateWorkflow ?? true)
-          && (actualTestCase.stackUpdateWorkflow ?? true);
+        const updateWorkflowEnabled = (runOptions.updateWorkflow ?? false)
+          && (actualTestCase.stackUpdateWorkflow ?? false);
         const allowDeleteFailures = actualTestCase.allowDeleteFailures ?? runOptions.allowDeleteFailures ?? false;
 
         const verbosity = analyzeVerbosity(runOptions.verbosity);
@@ -154,6 +179,7 @@ export class IntegTestRunner {
           try {
             assertionResults = await this.deployTestAndAssertions(
               actual,
+              previousVersion,
               actualTestCase,
               {
                 roleArn: runOptions.roleArn ?? actualTestCase.cdkCommandOptions?.deploy?.args?.roleArn,
@@ -203,6 +229,7 @@ export class IntegTestRunner {
   public async watchIntegTest(options: WatchOptions): Promise<void> {
     // Set up actual
     const actual = await CdkTestApp.forDeployment(this.appOptions);
+    await actual.synthForDeployment();
 
     // Just take the first test case, that's the one we watch.
     // Not even sure how better behavior here is possible, but watch isn't used that often.
@@ -535,6 +562,7 @@ export class IntegTestRunner {
    */
   private async deployTestAndAssertions(
     app: CdkTestApp,
+    previousVersion: CdkTestApp,
     testCase: TestCase,
     deployArgs: cdk.DeployOptions,
     updateWorkflowEnabled: boolean,
@@ -542,8 +570,6 @@ export class IntegTestRunner {
     allowDeleteFailures: boolean,
     updateFromTags?: string[],
   ): Promise<AssertionResults | undefined> {
-    const previousVersion = await CdkTestApp.forGoldenSnapshot(this.appOptions);
-
     try {
       if (testCase.hooks?.preDeploy) {
         testCase.hooks.preDeploy.forEach(cmd => {

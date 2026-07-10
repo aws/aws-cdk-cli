@@ -15,6 +15,7 @@ import type { DestructiveChange } from '../workers/common';
 import { NoManifestError } from './private/integ-manifest';
 import { findTestSpecificContext, type CdkContext } from './private/test-specific-context';
 import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
+import { absAwareJoin } from '../files';
 
 const DESTRUCTIVE_CHANGES = '!!DESTRUCTIVE_CHANGES:';
 
@@ -83,12 +84,21 @@ export interface CdkTestAppOptions {
   readonly caBundlePath?: string;
 
   /**
-   * In unit test mode, leave the synth output directories, don't clean them.
+   * In unit test mode, we are using mocks for a lot of calls
    *
-   * Many of our tests use mocks and don't actually synth output directories, they are
-   * static and must not be deleted.
+   * Don't delete directories, and don't do checks whether files actually exist; the
+   * mocks will be there to produce the contents for files that are being read (although
+   * they are not there to pretend to have files themselves).
    */
-  readonly testingUsingMocksLeaveDirectories?: boolean;
+  readonly TESTING_usingMocks?: boolean;
+
+  /**
+   * We will only read the legacy test information if the test actually produced an output directory.
+   *
+   * For historical reasons the tests have been written so that they will expect to read
+   * legacy test information always. Force that behavior back for tests.
+   */
+  readonly TESTING_forceReadLegacyTestSuite?: boolean;
 }
 
 /**
@@ -114,30 +124,28 @@ export type LegacyEnableLookups = true | false | 'dont-care';
  */
 export class CdkTestApp {
   public static async forGoldenSnapshot(options: Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'>): Promise<CdkTestApp> {
-    const ret = await CdkTestApp.create({
+    return CdkTestApp.create({
       ...options,
       outputDirectoryNameTemplate: '{testBaseName}.snapshot',
     });
-    ret.configureLegacyEnableLookups('dont-care');
-    return ret;
   }
 
-  public static async forComparison(options: Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'> & { enableLookups: boolean | undefined }): Promise<CdkTestApp> {
-    const ret = await CdkTestApp.create({
+  public static async forComparison(options: Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'>): Promise<CdkTestApp> {
+    return CdkTestApp.create({
       ...options,
       outputDirectoryNameTemplate: 'cdk-integ.out.{testBaseName}.snapshot',
     });
-    ret.configureLegacyEnableLookups(options.enableLookups ?? false);
-    return ret;
+  }
+
+  public static async forSpecificDirectory(options: CdkTestAppOptions): Promise<CdkTestApp> {
+    return CdkTestApp.create(options);
   }
 
   public static async forDeployment(options: Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'>): Promise<CdkTestApp> {
-    const actual = await CdkTestApp.create({
+    return CdkTestApp.create({
       ...options,
       outputDirectoryNameTemplate: 'cdk-integ.out.deploy.{testBaseName}.snapshot',
     });
-    actual.configureLegacyEnableLookups('dont-care');
-    return actual;
   }
 
   private static async create(options: CdkTestAppOptions): Promise<CdkTestApp> {
@@ -181,17 +189,16 @@ export class CdkTestApp {
   private _testSuite?: IntegTestSuite | LegacyIntegTestSuite;
   private _legacyEnableLookups?: LegacyEnableLookups;
 
-  private readonly deleteSynthDirectories: boolean;
   public readonly appCommand: string;
   private hasValidRegion: boolean;
 
-  private constructor(options: CdkTestAppOptions, private readonly testSpecificContext?: CdkContext) {
+  private constructor(private readonly options: CdkTestAppOptions, private readonly testSpecificContext?: CdkContext) {
     this.hasValidRegion = options.region !== UNKNOWN_REGION;
 
     this.test = options.test;
 
     const outputDirectoryNameTemplate = options.outputDirectoryNameTemplate;
-    this.outputDirectory = path.resolve(this.test.testDirectory, this.test.specializeTemplate(outputDirectoryNameTemplate));
+    this.outputDirectory = absAwareJoin(this.test.testDirectory, this.test.specializeTemplate(outputDirectoryNameTemplate));
 
     this.profile = options.profile;
     this.showOutput = options.showOutput ?? false;
@@ -205,7 +212,6 @@ export class CdkTestApp {
       proxy: options.proxy,
       caBundlePath: options.caBundlePath,
     });
-    this.deleteSynthDirectories = !options.testingUsingMocksLeaveDirectories;
 
     this.appCommand = this.test.specializeTemplate(this.test.appCommandTemplate);
   }
@@ -242,27 +248,6 @@ export class CdkTestApp {
   }
 
   /**
-   * Throw if the test suite manifest is a legacy manifest
-   */
-  public get modernTestSuite(): IntegTestSuite {
-    if (!this._testSuite) {
-      throw new Error('Synthesize first!');
-    }
-
-    // We don't want new tests written in the legacy mode.
-    // If there is no existing snapshot _and_ this is a legacy
-    // test then point the user to the new `IntegTest` construct
-    if (this._testSuite.type === 'legacy-test-suite') {
-      throw new Error(`${this.test.testName} is a new test. Please use the IntegTest construct ` +
-        'to configure the test\n' +
-        'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
-      );
-    }
-
-    return this._testSuite;
-  }
-
-  /**
    * If the snapshot already exists, load it
    */
   public async loadExistingSuite(): Promise<IntegTestSuite | LegacyIntegTestSuite | undefined> {
@@ -274,12 +259,16 @@ export class CdkTestApp {
       this._testSuite = await this._loadManifest();
       return this._testSuite;
     }
+
+    if (this.options.TESTING_forceReadLegacyTestSuite) {
+      return this._loadLegacyTestSuite();
+    }
+
     return undefined;
   }
 
-  public async synthForSnapshotComparison() {
-    // Assume 'true', because we will be converging on 'true' in the future
-    this.configureLegacyEnableLookups(true);
+  public async synthForSnapshotComparison(enableLookupsGuess: LegacyEnableLookups) {
+    this.configureLegacyEnableLookups(enableLookupsGuess);
     const suite = await this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
 
     // Check if the enableLookups value has changed between the golden
@@ -303,6 +292,7 @@ export class CdkTestApp {
   }
 
   public async synthForDeployment() {
+    this.configureLegacyEnableLookups('dont-care');
     await this.synth(this.getContext('deployment'), {});
     return this.testSuite;
   }
@@ -367,7 +357,7 @@ export class CdkTestApp {
     // Remove the target directory, so that we don't have stale files from
     // previous synths. Also, the runner will re-use a directory that already
     // exists and we want force recreation (unless we are unit testing).
-    if (this.deleteSynthDirectories) {
+    if (!this.options.TESTING_usingMocks) {
       await fs.rm(output, { recursive: true, force: true });
     }
 
@@ -468,7 +458,7 @@ export class CdkTestApp {
    * @internal
    */
   private async _loadManifest(): Promise<IntegTestSuite | LegacyIntegTestSuite> {
-    if (!await this.hasOutput()) {
+    if (!await this.hasOutput() && !this.options.TESTING_usingMocks) {
       throw new Error(`Synth did not produce output directory: ${this.outputDirectory}`);
     }
     const manifestDir = this.outputDirectory;
@@ -490,21 +480,25 @@ export class CdkTestApp {
         );
       }
 
-      const testCases = await LegacyIntegTestSuite.fromLegacy({
-        cdk: this.cdk,
-        testName: this.test.testBaseName,
-        integSourceFilePath: this.test.fileName,
-        listOptions: {
-          ...this.defaultArgs,
-          all: true,
-          app: this.appCommand,
-          profile: this.profile,
-          output: this.outputDirectory,
-        },
-      });
-      this.legacyContext = LegacyIntegTestSuite.getPragmaContext(this.test.fileName);
-      return testCases;
+      return this._loadLegacyTestSuite();
     }
+  }
+
+  private async _loadLegacyTestSuite(): Promise<LegacyIntegTestSuite> {
+    const testCases = await LegacyIntegTestSuite.fromLegacy({
+      cdk: this.cdk,
+      testName: this.test.normalizedTestName,
+      integSourceFilePath: this.test.fileName,
+      listOptions: {
+        ...this.defaultArgs,
+        all: true,
+        app: this.appCommand,
+        profile: this.profile,
+        output: this.outputDirectory,
+      },
+    });
+    this.legacyContext = LegacyIntegTestSuite.getPragmaContext(this.test.fileName);
+    return testCases;
   }
 
   public cleanup(): void {

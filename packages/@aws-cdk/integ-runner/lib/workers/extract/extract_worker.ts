@@ -38,7 +38,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
-        testingUsingMocksLeaveDirectories: request.testingUsingMocksLeaveDirectories,
+        TESTING_usingMocks: request.testingUsingMocksLeaveDirectories,
       }, testInfo.destructiveChanges);
 
       try {
@@ -135,7 +135,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
     const runner = new IntegSnapshotRunner({
       test,
       showOutput: options.verbose ?? false,
-      testingUsingMocksLeaveDirectories: options.testingUsingMocksLeaveDirectories,
+      TESTING_usingMocks: options.testingUsingMocksLeaveDirectories,
     });
 
     const result = await runner.testSnapshot(options);

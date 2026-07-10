@@ -10,7 +10,12 @@ import type { IntegTest } from './integration-tests';
 import type { Diagnostic, DestructiveChange, SnapshotVerificationOptions } from '../workers/common';
 import { DiagnosticReason } from '../workers/common';
 
-type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate' | 'region'>;
+type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate' | 'region'> & {
+  /**
+   * Only used for testing
+   */
+  readonly TESTING_compareAgainstDirectory?: string;
+};
 
 export type SnapshotResult =
   | { type: 'no-shapshot' }
@@ -47,14 +52,20 @@ export class IntegSnapshotRunner {
       const expectedSnapshotAssembly = expected.snapshotAssembly(expectedSuite?.stacks);
 
       // Set up actual
-      const actual = await CdkTestApp.forComparison({
-        ...this.options,
-        enableLookups: expectedSuite?.enableLookups ?? false,
-      });
+      let actual = await CdkTestApp.forComparison(this.options);
       cleanApp = actual;
 
+      // Special mode for testing, comparing the snapshot to itself.
+      if (this.options.TESTING_compareAgainstDirectory) {
+        actual = await CdkTestApp.forSpecificDirectory({
+          ...this.options,
+          outputDirectoryNameTemplate: this.options.TESTING_compareAgainstDirectory,
+        });
+        cleanApp = undefined;
+      }
+
       // read the "actual" snapshot
-      const actualSuite = await actual.synthForSnapshotComparison();
+      const actualSuite = await actual.synthForSnapshotComparison(expectedSuite.enableLookups ?? true);
       const actualSnapshotAssembly = actual.snapshotAssembly(actualSuite.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
@@ -79,10 +90,7 @@ export class IntegSnapshotRunner {
           );
         }
 
-        diagnostics.diagnostics[0] = {
-          ...diagnostics.diagnostics[0],
-          additionalMessages,
-        };
+        Object.assign(diagnostics.diagnostics[0], { additionalMessages });
       }
 
       return {

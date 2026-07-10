@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import { absAwareJoin } from '../files';
 import { findTestSpecificContext } from './private/test-specific-context';
 
 const CDK_OUTDIR_PREFIX = 'cdk-integ.out';
@@ -39,6 +40,14 @@ export interface IntegTestInfo {
    * @default false
    */
   readonly watch?: boolean;
+}
+
+/**
+ * Return the test name from the given IntegTestInfo
+ */
+export function testNameFromInfo(test: IntegTestInfo): string {
+  const absPath = absAwareJoin(test.discoveryRoot, test.fileName);
+  return path.relative(test.discoveryRoot, absPath);
 }
 
 /**
@@ -127,10 +136,10 @@ export class IntegTest {
     // We treat the discovery root as the base for display names
     // Looks either like `integ.mytest` or `package/test/integ.mytest`
     const parsed = path.parse(this.fileName);
-    this.testName = path.relative(this.info.discoveryRoot, this.absoluteFileName);
     this.normalizedTestName = parsed.name;
     this.snapshotDir = path.join(parsed.dir, `${parsed.base}.snapshot`);
     this.temporaryOutputDir = path.join(parsed.dir, `${CDK_OUTDIR_PREFIX}.${parsed.base}.snapshot`);
+    this.testName = this.normalizedTestName;
   }
 
   public specializeTemplate(template: string) {
