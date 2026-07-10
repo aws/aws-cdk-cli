@@ -1,4 +1,4 @@
-import type { IIoHost, IoMessage, IoRequest } from '../../../lib/api/io';
+import type { IIoHost, IMessageMatcher, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
 import { withListeners } from '../../../lib/api/io';
 
 /**
@@ -22,8 +22,8 @@ class RecordingIoHost implements IIoHost {
   }
 }
 
-const I2901 = 'CDK_TOOLKIT_I2901'; // list result, payload has `stacks`
-const I7010 = 'CDK_TOOLKIT_I7010'; // destroy confirmation request (boolean)
+const I2901: IoMessageCode = 'CDK_TOOLKIT_I2901'; // list result, payload has `stacks`
+const I7010: IoMessageCode = 'CDK_TOOLKIT_I7010'; // destroy confirmation request (boolean)
 
 function notification(over: Partial<IoMessage<any>> = {}): IoMessage<any> {
   return {
@@ -144,6 +144,24 @@ describe('withListeners', () => {
       await host.notify(notification({ level: 'info' }));
 
       expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    test('matches on a matcher and delivers the payload typed', async () => {
+      const host = withListeners(inner);
+      // A matcher carries the payload type, so `msg.data` is `{ stacks }` here
+      // without a cast (the point of the matcher overload).
+      const matcher: IMessageMatcher<{ stacks: unknown[] }> = {
+        is: (m): m is IoMessage<{ stacks: unknown[] }> => m.code === I2901,
+      };
+      const seen: number[] = [];
+      host.on(matcher, (m) => {
+        seen.push(m.data.stacks.length);
+      });
+
+      await host.notify(notification());
+      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
+
+      expect(seen).toEqual([0]);
     });
   });
 
@@ -271,7 +289,7 @@ describe('withListeners', () => {
 
     test('respond with suppressQuestion=false surfaces the question but still answers', async () => {
       const host = withListeners(inner);
-      host.respond(I7010, true, false);
+      host.respond(I7010, true, { suppressQuestion: false });
 
       const answer = await host.requestResponse(request({ defaultResponse: false }));
 
@@ -328,6 +346,15 @@ describe('withListeners', () => {
       // I2901 is a notification, not a request: there is nothing to answer, so
       // respond must not drop the message.
       host.respond(I2901, true);
+
+      await host.notify(notification());
+
+      expect(inner.notified).toHaveLength(1);
+    });
+
+    test('respondOnce on a notification code leaves the message alone instead of suppressing it', async () => {
+      const host = withListeners(inner);
+      host.respondOnce(I2901, true);
 
       await host.notify(notification());
 

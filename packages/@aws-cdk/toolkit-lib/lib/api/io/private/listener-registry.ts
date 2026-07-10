@@ -1,5 +1,4 @@
-import type { IoMessage, IoMessageLevel } from '../io-message';
-import type { IoMessageMaker, IoRequestMaker } from './message-maker';
+import type { IoMessage, IoMessageLevel, IMessageMatcher, IRequestMatcher } from '../io-message';
 
 /**
  * The result a message listener may return to influence how a message is handled.
@@ -66,15 +65,12 @@ export type MessageListenerResultOrPromise = void | MessageListenerResult | Prom
 /**
  * Selects which messages a listener applies to.
  *
- * Either a message/request *maker* — the listener fires for messages with that
- * maker's `code` — or a custom *predicate* over the message. A maker's `.is`
- * type guard (e.g. `IO.CDK_TOOLKIT_I7010.is`) is a convenient predicate, but any
- * `(msg) => boolean` works (e.g. to match a family of codes, or on the message
- * level). Use `matchAny` to combine several selectors.
+ * Either an `IMessageMatcher` — the makers implement this, so a maker fires for
+ * its own messages — or a custom *predicate* over the message (e.g. to match a
+ * family of codes, or on the message level). Use `matchAny` to combine several.
  */
 export type MessageSelector<T> =
-  | IoMessageMaker<T>
-  | IoRequestMaker<T, any>
+  | IMessageMatcher<T>
   | ((msg: IoMessage<any>) => boolean);
 
 /**
@@ -144,7 +140,7 @@ export class ListenerRegistry {
    * selector. Returns a function that removes the listener again.
    */
   public on<T>(
-    selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
+    selector: IMessageMatcher<T> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
   ): () => void;
   public on(
@@ -160,7 +156,7 @@ export class ListenerRegistry {
    * invoked once.
    */
   public once<T>(
-    selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
+    selector: IMessageMatcher<T> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
   ): () => void;
   public once(
@@ -177,22 +173,22 @@ export class ListenerRegistry {
    * that returns `{ message, level? }`.
    */
   public rewrite<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
+    matcher: IMessageMatcher<T>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.on(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    return this.on(matcher, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
    * Like `rewrite`, but the formatter is removed after it has been applied once.
    */
   public rewriteOnce<T>(
-    code: IoMessageMaker<T> | IoRequestMaker<T, any>,
+    matcher: IMessageMatcher<T>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.once(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    return this.once(matcher, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
@@ -203,15 +199,15 @@ export class ListenerRegistry {
    * @param suppressQuestion - whether to also suppress surfacing the question
    *   text. Defaults to `true` (answer silently).
    */
-  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.add({ once: false, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
+  public respond<T, U>(matcher: IRequestMatcher<T, U>, value: U, suppressQuestion = true): () => void {
+    return this.add({ once: false, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(matcher) });
   }
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.add({ once: true, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
+  public respondOnce<T, U>(matcher: IRequestMatcher<T, U>, value: U, suppressQuestion = true): () => void {
+    return this.add({ once: true, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(matcher) });
   }
 
   /**
@@ -313,15 +309,14 @@ export class ListenerRegistry {
 
 /**
  * Convert a `MessageSelector` into a predicate that decides whether a listener
- * applies to a message. A maker matches messages carrying its `code`; a
- * predicate (e.g. a maker's `.is`, or any `(msg) => boolean`) is used as-is.
+ * applies to a message. A matcher uses its `is` type guard; a predicate (any
+ * `(msg) => boolean`) is used as-is.
  */
 export function messageMatcher(selector: MessageSelector<any>): (msg: IoMessage<unknown>) => boolean {
   if (typeof selector === 'function') {
     return selector;
   }
-  const { code } = selector;
-  return (msg) => msg.code === code;
+  return (msg) => selector.is(msg);
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { IIoHost } from './io-host';
-import type { IoMessage, IoMessageCode, IoMessageLevel, IoRequest } from './io-message';
+import type { IoMessage, IoRequest, IMessageMatcher, IRequestMatcher, IoMessageCode, IoMessageLevel } from './io-message';
 import { ListenerRegistry } from './private/listener-registry';
 import type { MessageListenerResultOrPromise } from './private/listener-registry';
 
@@ -20,6 +20,17 @@ export type { MessageListenerResult, MessageListenerResultOrPromise } from './pr
  * ```
  */
 export type MessagePredicate = (msg: IoMessage<unknown>) => boolean;
+
+/**
+ * Options for `respond`/ `respondOnce`.
+ */
+export interface RespondOptions {
+  /**
+   * Whether also to suppress surfacing the question text.
+   * @default true - answer silently
+   */
+  readonly suppressQuestion?: boolean;
+}
 
 /**
  * An `IIoHost` that additionally lets listeners be attached to it.
@@ -61,6 +72,10 @@ export interface IoHostWithListeners extends IIoHost {
    * const dispose = host.on((msg) => msg.level === 'warn', (msg) => { ... });
    * ```
    */
+  on<T>(
+    matcher: IMessageMatcher<T>,
+    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
+  ): () => void;
   on(
     selector: IoMessageCode | MessagePredicate,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
@@ -70,15 +85,20 @@ export interface IoHostWithListeners extends IIoHost {
    * Like `on`, but the listener is automatically removed after it has been
    * invoked once.
    */
+  once<T>(
+    matcher: IMessageMatcher<T>,
+    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
+  ): () => void;
   once(
     selector: IoMessageCode | MessagePredicate,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
   ): () => void;
 
   /**
-   * Register a formatter that replaces the printed text of messages with the
-   * given code. This lets a caller define _how_ a toolkit message is presented
-   * without the host needing to know about it.
+   * Register a formatter that replaces the printed text of matching messages —
+   * selected by a message `code`, a `MessagePredicate`, or a matcher. This lets
+   * a caller define _how_ a toolkit message is presented without the host
+   * needing to know about it.
    *
    * Optionally pass a `level` to also override the message's level. Syntactic
    * sugar for an `on` listener that returns the new `message` and `level`.
@@ -90,8 +110,13 @@ export interface IoHostWithListeners extends IIoHost {
    *   serializeStructure((msg.data as StackDetailsPayload).stacks, true));
    * ```
    */
+  rewrite<T>(
+    matcher: IMessageMatcher<T>,
+    formatter: (msg: IoMessage<T>) => string,
+    level?: IoMessageLevel,
+  ): () => void;
   rewrite(
-    code: IoMessageCode,
+    selector: IoMessageCode | MessagePredicate,
     formatter: (msg: IoMessage<unknown>) => string,
     level?: IoMessageLevel,
   ): () => void;
@@ -100,8 +125,13 @@ export interface IoHostWithListeners extends IIoHost {
    * Like `rewrite`, but the formatter is automatically removed after it has
    * been applied once.
    */
+  rewriteOnce<T>(
+    matcher: IMessageMatcher<T>,
+    formatter: (msg: IoMessage<T>) => string,
+    level?: IoMessageLevel,
+  ): () => void;
   rewriteOnce(
-    code: IoMessageCode,
+    selector: IoMessageCode | MessagePredicate,
     formatter: (msg: IoMessage<unknown>) => string,
     level?: IoMessageLevel,
   ): () => void;
@@ -122,12 +152,14 @@ export interface IoHostWithListeners extends IIoHost {
    * const dispose = host.respond('CDK_TOOLKIT_I7010', true);
    * ```
    */
-  respond(code: IoMessageCode, value: unknown, suppressQuestion?: boolean): () => void;
+  respond<T, U>(matcher: IRequestMatcher<T, U>, value: U, options?: RespondOptions): () => void;
+  respond(code: IoMessageCode, value: unknown, options?: RespondOptions): () => void;
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  respondOnce(code: IoMessageCode, value: unknown, suppressQuestion?: boolean): () => void;
+  respondOnce<T, U>(matcher: IRequestMatcher<T, U>, value: U, options?: RespondOptions): () => void;
+  respondOnce(code: IoMessageCode, value: unknown, options?: RespondOptions): () => void;
 }
 
 /**
@@ -152,8 +184,8 @@ export interface IoHostWithListeners extends IIoHost {
  * const toolkit = new Toolkit({ ioHost: host });
  * ```
  */
-export function withListeners(host: IIoHost): IoHostWithListeners {
-  return new ListeningIoHost(host);
+export function withListeners<T extends IIoHost>(host: T): T & IoHostWithListeners {
+  return new ListeningIoHost(host) as unknown as T & IoHostWithListeners;
 }
 
 /**
@@ -198,31 +230,47 @@ class ListeningIoHost implements IoHostWithListeners {
     return this.inner.requestResponse(message);
   }
 
-  public on(selector: IoMessageCode | MessagePredicate, listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise): () => void {
+  public on(
+    selector: IMessageMatcher<any> | IoMessageCode | MessagePredicate,
+    listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise,
+  ): () => void {
     return this.registry.on(toMatcher(selector), listener);
   }
 
-  public once(selector: IoMessageCode | MessagePredicate, listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise): () => void {
+  public once(
+    selector: IMessageMatcher<any> | IoMessageCode | MessagePredicate,
+    listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise,
+  ): () => void {
     return this.registry.once(toMatcher(selector), listener);
   }
 
-  public rewrite(code: IoMessageCode, formatter: (msg: IoMessage<unknown>) => string, level?: IoMessageLevel): () => void {
-    return this.registry.on(byCode(code), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+  public rewrite(
+    selector: IMessageMatcher<any> | IoMessageCode | MessagePredicate,
+    formatter: (msg: IoMessage<any>) => string,
+    level?: IoMessageLevel,
+  ): () => void {
+    return this.registry.on(toMatcher(selector), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
-  public rewriteOnce(code: IoMessageCode, formatter: (msg: IoMessage<unknown>) => string, level?: IoMessageLevel): () => void {
-    return this.registry.once(byCode(code), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+  public rewriteOnce(
+    selector: IMessageMatcher<any> | IoMessageCode | MessagePredicate,
+    formatter: (msg: IoMessage<any>) => string,
+    level?: IoMessageLevel,
+  ): () => void {
+    return this.registry.once(toMatcher(selector), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
-  public respond(code: IoMessageCode, value: unknown, suppressQuestion = true): () => void {
+  public respond(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
+    const suppressQuestion = options.suppressQuestion ?? true;
     // Only answer requests; on a notification code there's nothing to answer, so
     // leave it untouched rather than suppress it (which would drop the message).
-    return this.registry.on(byCode(code), (msg) =>
+    return this.registry.on(toMatcher(selector), (msg) =>
       'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
   }
 
-  public respondOnce(code: IoMessageCode, value: unknown, suppressQuestion = true): () => void {
-    return this.registry.once(byCode(code), (msg) =>
+  public respondOnce(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
+    const suppressQuestion = options.suppressQuestion ?? true;
+    return this.registry.once(toMatcher(selector), (msg) =>
       'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
   }
 }
@@ -231,8 +279,14 @@ class ListeningIoHost implements IoHostWithListeners {
  * Resolve a code-or-predicate selector into the predicate the registry matches
  * on: a code becomes a code-equality check, a predicate is used as-is.
  */
-function toMatcher(selector: IoMessageCode | MessagePredicate): MessagePredicate {
-  return typeof selector === 'string' ? byCode(selector) : selector;
+function toMatcher(selector: IMessageMatcher<any> | IoMessageCode | MessagePredicate): MessagePredicate {
+  if (typeof selector === 'string') {
+    return byCode(selector);
+  }
+  if (typeof selector === 'function') {
+    return selector;
+  }
+  return (msg) => selector.is(msg);
 }
 
 /**
