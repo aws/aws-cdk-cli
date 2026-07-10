@@ -10,6 +10,7 @@ import {
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
+import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
@@ -136,6 +137,39 @@ test('prepareStack returns undefined for non-success results', async () => {
 
   // THEN
   expect(result).toBeUndefined();
+});
+
+test('prepareStack forwards stackEventPollingInterval to cleanupChangeSet as the stabilization interval', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: true,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetName: 'my-cs', Status: 'CREATE_COMPLETE' },
+  });
+  givenStacks({
+    boop: { template: {}, stackStatus: 'REVIEW_IN_PROGRESS' },
+  });
+  const waitForStackDeleteSpy = jest.spyOn(cfnApi, 'waitForStackDelete');
+
+  // WHEN
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    cleanupOnNoOp: true,
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(waitForStackDeleteSpy).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    'boop',
+    10_000,
+  );
 });
 
 test('passes through stackEventPollingInterval to deployStack()', async () => {
