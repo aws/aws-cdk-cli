@@ -599,7 +599,7 @@ export class CdkTestApp {
     }
   }
 
-  private getContext(forSnapshot: 'snapshot' | 'deployment'): Record<string, any> {
+  public getContext(forSnapshot: 'snapshot' | 'deployment'): Record<string, any> {
     if (this._legacyEnableLookups === undefined) {
       throw new Error('Must call configureLegacyEnableLookups before synthing');
     }
