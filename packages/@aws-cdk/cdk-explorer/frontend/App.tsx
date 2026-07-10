@@ -252,33 +252,31 @@ export function App(): JSX.Element {
           variant="h1"
           description={appDir ?? '—'}
           actions={
-            <div>
-              <SpaceBetween direction="horizontal" size="s" alignItems="center">
-                <Toggle checked={autoSynthEnabled} onChange={({ detail }) => void toggleAutoSynth(detail.checked)}>
-                  Auto-synth on save
-                </Toggle>
-                <Button disabled={autoSynthEnabled} loading={synthing} onClick={() => void handleSynth()}>Synth</Button>
-              </SpaceBetween>
-              {synthFailure && (
-                <Box textAlign="right" margin={{ top: 'xxs' }}>
-                  <Link onFollow={() => setShowFailureModal(true)} variant="secondary">
-                    <StatusIndicator type="error">Synth failed</StatusIndicator>
-                  </Link>
-                </Box>
-              )}
-              {!synthFailure && synthWarning && (
-                <Box textAlign="right" margin={{ top: 'xxs' }}>
-                  <StatusIndicator type="warning">{synthWarning}</StatusIndicator>
-                </Box>
-              )}
-              {lastSynthTime && (
-                <Box color="text-status-inactive" fontSize="body-s" textAlign="right">Last synth at {lastSynthTime}</Box>
-              )}
-            </div>
+            <SpaceBetween direction="horizontal" size="s" alignItems="center">
+              <Toggle checked={autoSynthEnabled} onChange={({ detail }) => void toggleAutoSynth(detail.checked)}>
+                Auto-synth on save
+              </Toggle>
+              <Button disabled={autoSynthEnabled} loading={synthing} onClick={() => void handleSynth()}>Synth</Button>
+            </SpaceBetween>
           }
         >
           CDK Web Explorer
         </Header>
+        {(synthFailure || synthWarning || lastSynthTime) && (
+          <div style={SYNTH_STATUS_ROW_STYLE}>
+            {synthFailure && (
+              <Link onFollow={() => setShowFailureModal(true)} variant="secondary">
+                <StatusIndicator type="error">Synth failed</StatusIndicator>
+              </Link>
+            )}
+            {!synthFailure && synthWarning && (
+              <StatusIndicator type="warning">{synthWarning}</StatusIndicator>
+            )}
+            {lastSynthTime && (
+              <span style={{ color: '#5f6b7a' }}>Last synth at {lastSynthTime}</span>
+            )}
+          </div>
+        )}
       </header>
       {error && <Box color="text-status-error">{error}</Box>}
       <div style={topRowStyle(vSplit)} ref={hSplit.containerRef}>
@@ -569,7 +567,17 @@ const PAGE_STYLE: React.CSSProperties = {
   boxSizing: 'border-box',
   overflow: 'hidden',
 };
-const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '12px' };
+const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '12px', position: 'relative' };
+const SYNTH_STATUS_ROW_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 0,
+  right: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  fontFamily: '"Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif',
+  fontSize: '14px',
+};
 const GROW_STYLE: React.CSSProperties = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' };
 const SYNTH_LOG_STYLE: React.CSSProperties = {
   margin: 0,
