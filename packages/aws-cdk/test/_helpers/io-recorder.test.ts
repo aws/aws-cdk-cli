@@ -46,7 +46,7 @@ describe('IoHostRecorder', () => {
     // Answer the request through a listener so the real `requestResponse` runs
     // (and is therefore observed) — the recorder never spies on it. The question
     // is not suppressed, so it stays in the recorded stream.
-    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I0000' } as any, () => ({ respond: true }));
+    const dispose = ioHost.on((m) => m.code === 'CDK_TOOLKIT_I0000', () => ({ respond: true }));
 
     await ioHelper.defaults.info('before');
     await ioHelper.requestResponse({
@@ -122,7 +122,7 @@ describe('IoHostRecorder', () => {
 
     // Suppress a specific coded message, the way the CLI drops the synth/destroy
     // time lines on the destroy path.
-    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I9999' } as any, () => ({ preventDefault: true }));
+    const dispose = ioHost.on((m) => m.code === 'CDK_TOOLKIT_I9999', () => ({ preventDefault: true }));
 
     await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9999', message: 'suppressed', data: undefined });
     await ioHelper.defaults.info('shown');
@@ -143,7 +143,7 @@ describe('IoHostRecorder', () => {
     const recorder = IoHostRecorder.create(ioHost);
     const ioHelper = asIoHelper(ioHost, 'destroy');
 
-    const dispose = ioHost.rewrite({ code: 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
+    const dispose = ioHost.rewrite({ is: (m) => m.code === 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
 
     await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9998', message: 'original', data: undefined });
 
