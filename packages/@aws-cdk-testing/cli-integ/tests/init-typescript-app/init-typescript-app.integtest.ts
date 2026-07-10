@@ -40,8 +40,8 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
 
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', 'app', '--generate-only']);
 
-    // Necessary because recent versions of ts-jest require TypeScript>=4.3 but we
-    // still want to test with older versions as well.
+    // Remove devDependencies that may have peer dependency constraints incompatible
+    // with older TypeScript versions we test against.
     await removeDevDependencies(context);
 
     // The generated app type-checks with `tsc` and runs through `tsx`, so those
