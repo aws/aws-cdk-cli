@@ -185,7 +185,23 @@ export interface IoHostWithListeners extends IIoHost {
  * ```
  */
 export function withListeners<T extends IIoHost>(host: T): T & IoHostWithListeners {
-  return new ListeningIoHost(host) as unknown as T & IoHostWithListeners;
+  const wrapper = new ListeningIoHost(host);
+
+  // The wrapper owns `notify`/`requestResponse` (so listeners run) and the
+  // listener methods; any other member the caller reads falls through to the
+  // wrapped host, so the returned value genuinely behaves as `T & ...`.
+  return new Proxy(wrapper, {
+    get(target, prop, receiver) {
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
+      const value = (host as any)[prop];
+      return typeof value === 'function' ? value.bind(host) : value;
+    },
+    has(target, prop) {
+      return prop in target || prop in (host as object);
+    },
+  }) as unknown as T & IoHostWithListeners;
 }
 
 /**
