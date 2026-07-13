@@ -23,6 +23,12 @@
     "skipLibCheck": true,
     "typeRoots": [
       "./node_modules/@types"
+    ],
+    "noEmit": true,
+    "isolatedModules": true,
+    "types": [
+      "jest",
+      "node"
     ]
   },
   "exclude": [

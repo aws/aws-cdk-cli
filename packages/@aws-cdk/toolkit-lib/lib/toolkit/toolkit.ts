@@ -943,7 +943,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }));
         if (!deployConfirmed) {
           if (prepareResult?.changeSet?.ChangeSetName) {
-            await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+            await deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName, options.stackEventPollingInterval);
           }
           throw new AbortError('DeployAborted', 'Deployment cancelled');
         }
