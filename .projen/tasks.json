@@ -14,6 +14,9 @@
           "exec": "nx run-many -t build"
         },
         {
+          "exec": "tsx projenrc/check-sdk-duplication.task.ts"
+        },
+        {
           "spawn": "eslint"
         },
         {
