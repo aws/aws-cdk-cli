@@ -259,16 +259,18 @@ export class ListenerRegistry {
         continue;
       }
 
-      // Listeners may be async; await each one before running the next so the
-      // cumulative effect on the message stays order-deterministic.
-      const result = await listener.fn(current);
-
+      // Remove a `once` listener before the await, so a concurrent `apply`
+      // (e.g. parallel stacks on one host) can't fire it a second time.
       if (listener.once) {
         const index = this.listeners.indexOf(listener);
         if (index >= 0) {
           this.listeners.splice(index, 1);
         }
       }
+
+      // Listeners may be async; await each one before running the next so the
+      // cumulative effect on the message stays order-deterministic.
+      const result = await listener.fn(current);
 
       if (result) {
         if (result.message !== undefined) {

@@ -69,7 +69,9 @@ export interface IoHostWithListeners extends IIoHost {
    * @example
    * ```ts
    * // A predicate matches a family of messages, e.g. every warning:
-   * const dispose = host.on((msg) => msg.level === 'warn', (msg) => { ... });
+   * const dispose = host.on((msg) => msg.level === 'warn', (msg) => {
+   *   warnings.push(msg.message);
+   * });
    * ```
    */
   on<T>(
@@ -143,9 +145,9 @@ export interface IoHostWithListeners extends IIoHost {
    * conditional answers or to also reword the question, use `on`/`once`
    * directly. Returns a function that removes the responder again.
    *
-   * @param suppressQuestion - whether to also suppress surfacing the question
-   *   text. Defaults to `true` (answer silently). Pass `false` to still surface
-   *   the question while answering it.
+   * By default the question is answered silently; pass
+   * `{ suppressQuestion: false }` to still surface the question while answering
+   * it.
    *
    * @example
    * ```ts
