@@ -59,6 +59,23 @@ import type { SynthRunResult } from '../core/synth-runner';
 const REFRESH_LOCK_RETRIES = 10;
 const REFRESH_LOCK_RETRY_MS = 50;
 
+/**
+ * Synth concurrency latch, mirroring `cdk watch` (see toolkit.ts). 'open' = idle,
+ * 'synthing' = a synth is running, 'queued' = a save arrived mid-synth and a
+ * follow-up is owed. No 'pre-ready' (unlike watch there is no ready gate; the LSP
+ * synths on demand).
+ */
+type SynthLatch = 'open' | 'synthing' | 'queued';
+
+/**
+ * When an external writer (a terminal `cdk synth`/`cdk watch`) holds the cdk.out
+ * write lock, the synth retries with exponential backoff + full jitter rather
+ * than giving up, so the LSP always eventually synths the latest save once the
+ * writer releases. Delay is capped; attempts are not.
+ */
+const SYNTH_LOCK_RETRY_BASE_MS = 100;
+const SYNTH_LOCK_RETRY_MAX_MS = 2_000;
+
 export interface LspHandlerOptions {
   /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
@@ -177,7 +194,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
 
   let applicationDir: string | undefined;
   let shutdownRequested = false;
-  let synthInFlight = false;
+  // Concurrency latch, mirroring `cdk watch` (toolkit.ts): a synth requested
+  // while one runs is batched into a single follow-up, so synths run one at a
+  // time and the assembly catches up to the latest save.
+  let synthLatch: SynthLatch = 'open';
   // URIs (source files, or cdk.json) currently showing synth-failure diagnostics.
   let synthFailureUris = new Set<string>();
   let autoSynthEnabled = false; // off by default; user enables via the CodeLens toggle
@@ -276,20 +296,47 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     }
   }
 
-  // Shared synth invocation used by both the manual CodeLens command and
-  // auto-synth-on-save. The in-flight latch suppresses overlapping synths from
-  // the same LSP instance: a second call while the first is running is dropped
-  // (not queued) and returns lock-conflict immediately. The Toolkit's RWLock
-  // would reject it anyway, but this short-circuits before any setup work.
-  async function guardedSynth(): Promise<SynthRunResult> {
-    if (synthInFlight) return { status: 'lock-conflict' };
-    synthInFlight = true;
-    try {
+  // One synth, retrying the write lock with exponential backoff + full jitter.
+  // The latch guarantees we never contend with our own synth, so a lock-conflict
+  // here is an external writer (a terminal `cdk synth`/`cdk watch`) holding
+  // cdk.out; retry until it releases rather than dropping the synth.
+  async function runSynthWithRetry(): Promise<SynthRunResult> {
+    let delayMs = SYNTH_LOCK_RETRY_BASE_MS;
+    for (;;) {
       const result = await (synthRunner ? synthRunner(currentProjectDir()) : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
-      publishSynthDiagnostics(result);
+      if (result.status !== 'lock-conflict') {
+        publishSynthDiagnostics(result);
+        return result;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, Math.random() * delayMs));
+      delayMs = Math.min(delayMs * 2, SYNTH_LOCK_RETRY_MAX_MS);
+    }
+  }
+
+  // Shared by the manual CodeLens command and auto-synth-on-save. A call while a
+  // synth runs is batched (latch 'queued') and returns lock-conflict now, so the
+  // caller still sees "in progress" while the assembly catches up to the latest
+  // save. Any number of overlapping calls collapse into that one follow-up.
+  async function guardedSynth(): Promise<SynthRunResult> {
+    if (synthLatch !== 'open') {
+      synthLatch = 'queued';
+      return { status: 'lock-conflict' };
+    }
+    synthLatch = 'synthing';
+    try {
+      // Drain the queued slot with a loop (not recursion) so the stack stays
+      // flat. There is no await between reading the latch as not-'queued' and the
+      // finally resetting it to 'open', so under the single-threaded event loop
+      // any request that set 'queued' did so during an await and is observed
+      // here -- no wakeup is lost.
+      let result = await runSynthWithRetry();
+      while ((synthLatch as SynthLatch) === 'queued') {
+        synthLatch = 'synthing';
+        result = await runSynthWithRetry();
+      }
       return result;
     } finally {
-      synthInFlight = false;
+      synthLatch = 'open';
     }
   }
 

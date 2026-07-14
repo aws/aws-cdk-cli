@@ -587,7 +587,9 @@ describe('LSP Server -- executeCommand', () => {
     await first;
 
     expect(notify.infoMessages.some((m) => m.includes('in progress'))).toBe(true);
-    expect(synthRunner).toHaveBeenCalledTimes(1);
+    // Queue of 1: the coalesced second call is not dropped -- it runs as a
+    // trailing synth once the first completes, so synthRunner runs twice.
+    expect(synthRunner).toHaveBeenCalledTimes(2);
   });
 
   test('didSave and executeCommand share the same in-flight latch', async () => {
@@ -625,7 +627,55 @@ describe('LSP Server -- executeCommand', () => {
 
     // The manual command hit the latch → lock-conflict info message
     expect(notify.infoMessages.some((m) => m.includes('in progress'))).toBe(true);
+    // Queue of 1: the coalesced manual command runs as a trailing synth after
+    // the save-triggered synth completes, so synthRunner runs twice.
+    expect(synthRunner).toHaveBeenCalledTimes(2);
+  });
+
+  test('many overlapping calls coalesce into exactly one trailing synth', async () => {
+    let resolveFirst!: () => void;
+    const firstSynthDone = new Promise<void>((res) => {
+      resolveFirst = res;
+    });
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
+      .mockImplementationOnce(() => firstSynthDone.then(() => ({ status: 'success' } as const)))
+      .mockResolvedValue({ status: 'success' });
+    const { handlers } = createCommandClient({ synthRunner });
+
+    const first = handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    // Several requests arrive while the first synth is in flight.
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+    await handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     expect(synthRunner).toHaveBeenCalledTimes(1);
+
+    resolveFirst();
+    await first;
+
+    // The three overlapping calls collapse into a single trailing synth.
+    expect(synthRunner).toHaveBeenCalledTimes(2);
+  });
+
+  test('retries the synth with backoff until an external write lock frees', async () => {
+    jest.useFakeTimers();
+    try {
+      let calls = 0;
+      const synthRunner = jest.fn<Promise<SynthRunResult>, []>(async () => {
+        calls += 1;
+        // Simulate a terminal `cdk synth` holding the lock for the first 3 tries.
+        return calls <= 3 ? { status: 'lock-conflict' } : { status: 'success' };
+      });
+      const { handlers } = createCommandClient({ synthRunner });
+
+      const done = handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+      await jest.runAllTimersAsync(); // advance through the backoff delays
+      await done;
+
+      // Retried through the 3 lock-conflicts rather than dropping the synth.
+      expect(synthRunner).toHaveBeenCalledTimes(4);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 
