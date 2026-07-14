@@ -214,6 +214,7 @@ describe('withListeners', () => {
         await new Promise((r) => setTimeout(r, 5));
       });
 
+      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism -- fixed pair, to force overlap
       await Promise.all([host.notify(notification()), host.notify(notification())]);
 
       expect(calls).toBe(1);
