@@ -13,7 +13,6 @@ export class CheckSdkDuplication extends Component {
       this.project.tasks.tryFind(taskName)?.exec('tsx projenrc/check-sdk-duplication.task.ts');
     }
 
-    // TODO: Dhyan had some concerns around `yarn dedupe`. But if it works, we should have this component
-    // automatically insert that command into the `post-upgrade` task.
+    this.project.tasks.tryFind('post-upgrade')?.exec('yarn dedupe "@aws-sdk/*" "@smithy/*"');
   }
 }

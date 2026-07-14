@@ -112,7 +112,7 @@ async function main() {
     }
   }
 
-  console.error('To fix: run \'yarn dedupe --pattern "@aws-sdk/*" --pattern "@smithy/*"\' and verify the result.\n');
+  console.error('To fix: run \'yarn dedupe "@aws-sdk/*" "@smithy/*"\' and verify the result.\n');
   process.exitCode = 1;
 }
 
