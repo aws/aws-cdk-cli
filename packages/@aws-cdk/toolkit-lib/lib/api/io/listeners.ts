@@ -267,7 +267,7 @@ class ListeningIoHost implements IoHostWithListeners {
     formatter: (msg: IoMessage<any>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.registry.on(toMatcher(selector), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    return this.registry.rewrite(toMatcher(selector), formatter, level);
   }
 
   public rewriteOnce(
@@ -275,21 +275,15 @@ class ListeningIoHost implements IoHostWithListeners {
     formatter: (msg: IoMessage<any>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.registry.once(toMatcher(selector), (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    return this.registry.rewriteOnce(toMatcher(selector), formatter, level);
   }
 
   public respond(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
-    const suppressQuestion = options.suppressQuestion ?? true;
-    // Only answer requests; on a notification code there's nothing to answer, so
-    // leave it untouched rather than suppress it (which would drop the message).
-    return this.registry.on(toMatcher(selector), (msg) =>
-      'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
+    return this.registry.respond(toMatcher(selector), value, options.suppressQuestion);
   }
 
   public respondOnce(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
-    const suppressQuestion = options.suppressQuestion ?? true;
-    return this.registry.once(toMatcher(selector), (msg) =>
-      'defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
+    return this.registry.respondOnce(toMatcher(selector), value, options.suppressQuestion);
   }
 }
 

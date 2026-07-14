@@ -1,4 +1,4 @@
-import type { IoMessage, IoMessageLevel, IMessageMatcher, IRequestMatcher } from '../io-message';
+import type { IoMessage, IoMessageLevel, IMessageMatcher } from '../io-message';
 
 /**
  * The result a message listener may return to influence how a message is handled.
@@ -172,23 +172,25 @@ export class ListenerRegistry {
    * optionally also overriding the level. Syntactic sugar for an `on` listener
    * that returns `{ message, level? }`.
    */
-  public rewrite<T>(
-    matcher: IMessageMatcher<T>,
-    formatter: (msg: IoMessage<T>) => string,
+  public rewrite(
+    selector: MessageSelector<any>,
+    formatter: (msg: IoMessage<any>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.on(matcher, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    const fn = (msg: IoMessage<any>) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
+    return this.add({ once: false, fn, matches: messageMatcher(selector) });
   }
 
   /**
    * Like `rewrite`, but the formatter is removed after it has been applied once.
    */
-  public rewriteOnce<T>(
-    matcher: IMessageMatcher<T>,
-    formatter: (msg: IoMessage<T>) => string,
+  public rewriteOnce(
+    selector: MessageSelector<any>,
+    formatter: (msg: IoMessage<any>) => string,
     level?: IoMessageLevel,
   ): () => void {
-    return this.once(matcher, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
+    const fn = (msg: IoMessage<any>) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
+    return this.add({ once: true, fn, matches: messageMatcher(selector) });
   }
 
   /**
@@ -199,15 +201,17 @@ export class ListenerRegistry {
    * @param suppressQuestion - whether to also suppress surfacing the question
    *   text. Defaults to `true` (answer silently).
    */
-  public respond<T, U>(matcher: IRequestMatcher<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.add({ once: false, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(matcher) });
+  public respond(selector: MessageSelector<any>, value: unknown, suppressQuestion = true): () => void {
+    const fn = (msg: IoMessage<unknown>) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
+    return this.add({ once: false, fn, matches: messageMatcher(selector) });
   }
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  public respondOnce<T, U>(matcher: IRequestMatcher<T, U>, value: U, suppressQuestion = true): () => void {
-    return this.add({ once: true, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(matcher) });
+  public respondOnce(selector: MessageSelector<any>, value: unknown, suppressQuestion = true): () => void {
+    const fn = (msg: IoMessage<unknown>) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
+    return this.add({ once: true, fn, matches: messageMatcher(selector) });
   }
 
   /**
