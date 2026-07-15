@@ -154,6 +154,10 @@ const NOOP_LOGGER: LogSink = {
   },
 };
 
+async function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 /** Log auto-synth-on-save outcomes. Errors go to the Output panel; success is silent. */
 function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
   switch (result.status) {
@@ -237,7 +241,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       } catch (err) {
         if (ToolkitError.isLockError(err)) {
           if (attempt < REFRESH_LOCK_RETRIES) {
-            await new Promise<void>((resolve) => setTimeout(resolve, REFRESH_LOCK_RETRY_MS));
+            await sleep(REFRESH_LOCK_RETRY_MS);
           }
           continue;
         }
@@ -302,15 +306,18 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   // cdk.out; retry until it releases rather than dropping the synth.
   async function runSynthWithRetry(): Promise<SynthRunResult> {
     let delayMs = SYNTH_LOCK_RETRY_BASE_MS;
-    for (;;) {
+    const deadline = Date.now() + 3_600_000; // 1 hour
+    while (Date.now() < deadline) {
       const result = await (synthRunner ? synthRunner(currentProjectDir()) : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
       if (result.status !== 'lock-conflict') {
         publishSynthDiagnostics(result);
         return result;
       }
-      await new Promise<void>((resolve) => setTimeout(resolve, Math.random() * delayMs));
+      await sleep(Math.random() * delayMs);
       delayMs = Math.min(delayMs * 2, SYNTH_LOCK_RETRY_MAX_MS);
     }
+    const timeoutResult: SynthRunResult = { status: 'error', message: 'Auto-synth timed out waiting for external writer to release cdk.out' };
+    return timeoutResult;
   }
 
   // Shared by the manual CodeLens command and auto-synth-on-save. A call while a
