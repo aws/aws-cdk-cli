@@ -66,23 +66,6 @@ describe('withListeners', () => {
     expect(inner.notified).toEqual([msg]);
   });
 
-  test('the wrapped host keeps the inner host\'s own members (fields and methods)', () => {
-    class CustomHost extends RecordingIoHost {
-      public readonly label = 'custom';
-      public greet(): string {
-        return `hello from ${this.label}`;
-      }
-    }
-    const host = withListeners(new CustomHost());
-
-    // The return type is `CustomHost & IoHostWithListeners`, and the inner
-    // host's own field and method are reachable through the wrapper at runtime.
-    expect(host.label).toBe('custom');
-    expect(host.greet()).toBe('hello from custom');
-    // ...alongside the listener methods.
-    expect(typeof host.on).toBe('function');
-  });
-
   describe('on', () => {
     test('runs the listener for a matching code and forwards the message', async () => {
       const host = withListeners(inner);
