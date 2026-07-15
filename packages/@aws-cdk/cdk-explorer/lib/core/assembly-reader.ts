@@ -2,8 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { buildConstructTreeAsync, CloudAssembly, MANIFEST_FILE, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
-import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
+/* eslint-disable import/no-relative-packages */
 import { SourceMapResolver, isWithinRoot, type SourceLocation } from './source-resolver';
+import { findCreationStackTrace } from '../../../toolkit-lib/lib/api/source-tracing/private/stack-source-tracing';
 
 /**
  * A construct from the cloud assembly, decorated with the user source location
