@@ -109,7 +109,7 @@ export interface IoHostWithListeners extends IIoHost {
    * @example
    * ```ts
    * const dispose = host.rewrite('CDK_TOOLKIT_I2901', (msg) =>
-   *   serializeStructure((msg.data as StackDetailsPayload).stacks, true));
+   *   `${(msg.data as StackDetailsPayload).stacks.length} stacks`);
    * ```
    */
   rewrite<T>(
@@ -154,14 +154,30 @@ export interface IoHostWithListeners extends IIoHost {
    * const dispose = host.respond('CDK_TOOLKIT_I7010', true);
    * ```
    */
-  respond<T, U>(matcher: IRequestMatcher<T, U>, value: U, options?: RespondOptions): () => void;
-  respond(code: IoMessageCode, value: unknown, options?: RespondOptions): () => void;
+  respond<T, U>(
+    matcher: IRequestMatcher<T, U>,
+    value: U,
+    options?: RespondOptions,
+  ): () => void;
+  respond(
+    code: IoMessageCode,
+    value: unknown,
+    options?: RespondOptions,
+  ): () => void;
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  respondOnce<T, U>(matcher: IRequestMatcher<T, U>, value: U, options?: RespondOptions): () => void;
-  respondOnce(code: IoMessageCode, value: unknown, options?: RespondOptions): () => void;
+  respondOnce<T, U>(
+    matcher: IRequestMatcher<T, U>,
+    value: U,
+    options?: RespondOptions,
+  ): () => void;
+  respondOnce(
+    code: IoMessageCode,
+    value: unknown,
+    options?: RespondOptions,
+  ): () => void;
 }
 
 /**
@@ -278,11 +294,19 @@ class ListeningIoHost implements IoHostWithListeners {
     return this.registry.rewriteOnce(toMatcher(selector), formatter, level);
   }
 
-  public respond(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
+  public respond(
+    selector: IRequestMatcher<any, any> | IoMessageCode,
+    value: unknown,
+    options: RespondOptions = {},
+  ): () => void {
     return this.registry.respond(toMatcher(selector), value, options.suppressQuestion);
   }
 
-  public respondOnce(selector: IRequestMatcher<any, any> | IoMessageCode, value: unknown, options: RespondOptions = {}): () => void {
+  public respondOnce(
+    selector: IRequestMatcher<any, any> | IoMessageCode,
+    value: unknown,
+    options: RespondOptions = {},
+  ): () => void {
     return this.registry.respondOnce(toMatcher(selector), value, options.suppressQuestion);
   }
 }
