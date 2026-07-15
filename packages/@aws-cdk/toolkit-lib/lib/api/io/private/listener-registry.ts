@@ -263,13 +263,14 @@ export class ListenerRegistry {
         continue;
       }
 
-      // Remove a `once` listener before the await, so a concurrent `apply`
-      // (e.g. parallel stacks on one host) can't fire it a second time.
+      // Claim a `once` listener before the await; a concurrent `apply` that
+      // already removed it (index < 0) skips it, so it fires exactly once.
       if (listener.once) {
         const index = this.listeners.indexOf(listener);
-        if (index >= 0) {
-          this.listeners.splice(index, 1);
+        if (index < 0) {
+          continue;
         }
+        this.listeners.splice(index, 1);
       }
 
       // Listeners may be async; await each one before running the next so the

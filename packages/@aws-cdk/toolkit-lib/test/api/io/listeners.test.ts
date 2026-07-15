@@ -208,10 +208,12 @@ describe('withListeners', () => {
     test('fires only once even when two messages are handled concurrently', async () => {
       const host = withListeners(inner);
       let calls = 0;
-      // The async listener yields, so both `notify` calls overlap inside it.
-      host.once(I2901, async () => {
-        calls++;
+      // An async listener ahead of the `once` makes both notifies overlap.
+      host.on(I2901, async () => {
         await new Promise((r) => setTimeout(r, 5));
+      });
+      host.once(I2901, () => {
+        calls++;
       });
 
       // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism -- fixed pair, to force overlap
