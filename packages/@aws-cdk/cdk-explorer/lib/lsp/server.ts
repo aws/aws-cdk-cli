@@ -25,7 +25,7 @@ import {
   type Location,
   type RemoteConsole,
 } from 'vscode-languageserver/node';
-/* eslint-disable import/no-relative-packages */
+import { WATCH_EXCLUDE_DEFAULTS, createIgnoreMatcher } from '../api-private';
 import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
@@ -33,8 +33,6 @@ import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
-import { WATCH_EXCLUDE_DEFAULTS } from '../../../toolkit-lib/lib/actions/watch/private/helpers';
-import { createIgnoreMatcher } from '../../../toolkit-lib/lib/util/glob-matcher';
 import type { AssemblyLock } from '../core/assembly-lock';
 import {
   readAssembly as defaultReadAssembly,
