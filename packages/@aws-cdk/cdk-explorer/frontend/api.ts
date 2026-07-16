@@ -1,7 +1,5 @@
 import {
   ASSEMBLY_CHANGED,
-  type DirEntry,
-  type FilesResponse,
   type FileResponse,
   type LineRange,
   type TemplateResource,
@@ -15,8 +13,6 @@ import {
 } from '../lib/web/protocol';
 
 export type {
-  DirEntry,
-  FilesResponse,
   FileResponse,
   LineRange,
   TemplateResource,
@@ -43,7 +39,6 @@ export interface AppInfoResponse {
 }
 
 export const api = {
-  listFiles: (dir = ''): Promise<FilesResponse> => getJson(`/api/files?dir=${encodeURIComponent(dir)}`),
   readFile: (filePath: string): Promise<FileResponse> => getJson(`/api/file?path=${encodeURIComponent(filePath)}`),
   getTree: (): Promise<TreeResponse> => getJson('/api/tree'),
   getViolations: (): Promise<ViolationsResponse> => getJson('/api/policy-validation'),

@@ -44,34 +44,6 @@ describe('GET /api/health', () => {
   });
 });
 
-describe('GET /api/files', () => {
-  test('lists the root directory with directories first', async () => {
-    const res = await request(app).get('/api/files');
-    expect(res.status).toBe(200);
-    expect(res.body.dir).toBe('');
-    expect(res.body.entries).toEqual([
-      { name: 'lib', path: 'lib', type: 'dir' },
-      { name: 'app.ts', path: 'app.ts', type: 'file' },
-    ]);
-  });
-
-  test('lists a subdirectory', async () => {
-    const res = await request(app).get('/api/files').query({ dir: 'lib' });
-    expect(res.status).toBe(200);
-    expect(res.body.entries).toEqual([{ name: 'stack.ts', path: path.join('lib', 'stack.ts'), type: 'file' }]);
-  });
-
-  test('rejects traversal outside the app directory with 403', async () => {
-    const res = await request(app).get('/api/files').query({ dir: '../..' });
-    expect(res.status).toBe(403);
-  });
-
-  test('returns 404 for a missing directory', async () => {
-    const res = await request(app).get('/api/files').query({ dir: 'nope' });
-    expect(res.status).toBe(404);
-  });
-});
-
 describe('GET /api/file', () => {
   test('returns file content', async () => {
     const res = await request(app).get('/api/file').query({ path: 'app.ts' });

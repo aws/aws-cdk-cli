@@ -6,7 +6,7 @@ import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
 import * as React from 'react';
 import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
-import { api, type DirEntry, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
@@ -164,8 +164,6 @@ export function App(): JSX.Element {
 
   // File picker state.
   const [showFilePicker, setShowFilePicker] = React.useState<false | 'source' | 'template'>(false);
-  const [pickerDir, setPickerDir] = React.useState('');
-  const [pickerEntries, setPickerEntries] = React.useState<readonly DirEntry[]>([]);
   const pickerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -173,7 +171,6 @@ export function App(): JSX.Element {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as Node;
       if (pickerRef.current && !pickerRef.current.contains(target)) {
-        // Ignore clicks on the folder buttons themselves (they handle their own toggle)
         if ((target as HTMLElement).closest?.('[aria-label="Open file"], [aria-label="Open template file"]')) return;
         setShowFilePicker(false);
       }
@@ -182,32 +179,34 @@ export function App(): JSX.Element {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showFilePicker]);
 
-  const openFilePicker = React.useCallback(async (pane: 'source' | 'template') => {
-    setShowFilePicker(pane);
-    try {
-      const res = await api.listFiles('');
-      setPickerDir(res.dir);
-      setPickerEntries(res.entries);
-    } catch { /* ignore */ }
-  }, []);
+  const knownSourceFiles = React.useMemo(
+    () => sourceAnchors ? [...sourceAnchors.keys()].sort() : [],
+    [sourceAnchors],
+  );
 
-  const browseDir = React.useCallback(async (dir: string) => {
-    try {
-      const res = await api.listFiles(dir);
-      setPickerDir(res.dir);
-      setPickerEntries(res.entries);
-    } catch { /* ignore */ }
-  }, []);
+  const knownTemplateFiles = React.useMemo(() => {
+    if (!tree || tree.status !== 'ok') return [];
+    const files = new Set<string>();
+    const walk = (nodes: readonly import('./api').WebConstructNode[]) => {
+      for (const n of nodes) {
+        if (n.templateFile) files.add(n.templateFile);
+        walk(n.children);
+      }
+    };
+    walk(tree.tree);
+    return [...files].sort();
+  }, [tree]);
 
   const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
     try {
-      const res = await api.readFile(filePath);
       if (pane === 'source') {
+        const res = await api.readFile(filePath);
         setSourceFile(res.path);
         setSourceContent(res.content);
       } else {
-        setTemplateFile(res.path);
-        setTemplateData({ content: res.content, resources: {} });
+        const data = await api.getTemplate(filePath);
+        setTemplateFile(filePath);
+        setTemplateData(data);
       }
       setShowFilePicker(false);
     } catch { /* ignore */ }
@@ -243,13 +242,13 @@ export function App(): JSX.Element {
                   <span style={PICKER_ANCHOR_STYLE}>
                     <span style={HEADER_WITH_ACTION_STYLE}>
                       {sourceFile ?? 'Source'}
-                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : void openFilePicker('source')}>
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : setShowFilePicker('source')}>
                         <FolderIcon />
                       </button>
                     </span>
                     {showFilePicker === 'source' && (
                       <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                        <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'source')} />
+                        <KnownFileList files={knownSourceFiles} onPick={(p) => void pickFile(p, 'source')} />
                       </div>
                     )}
                   </span>
@@ -280,13 +279,13 @@ export function App(): JSX.Element {
                   <span style={PICKER_ANCHOR_STYLE}>
                     <span style={HEADER_WITH_ACTION_STYLE}>
                       {templateFile ?? 'Template'}
-                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : void openFilePicker('template')}>
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
                         <FolderIcon />
                       </button>
                     </span>
                     {showFilePicker === 'template' && (
                       <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                        <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'template')} />
+                        <KnownFileList files={knownTemplateFiles} onPick={(p) => void pickFile(p, 'template')} />
                       </div>
                     )}
                   </span>
@@ -335,24 +334,16 @@ export function App(): JSX.Element {
 }
 
 
-function FilePicker({ dir, entries, onBrowse, onPick }: {
-  readonly dir: string;
-  readonly entries: readonly DirEntry[];
-  readonly onBrowse: (dir: string) => void;
+function KnownFileList({ files, onPick }: {
+  readonly files: readonly string[];
   readonly onPick: (path: string) => void;
 }): JSX.Element {
+  if (files.length === 0) return <Box color="text-status-inactive">No files found.</Box>;
   return (
     <SpaceBetween size="xxs">
-      <Box variant="code">/{dir}</Box>
-      {dir !== '' && <Button variant="inline-link" iconName="folder" onClick={() => onBrowse(dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '')}>../</Button>}
-      {entries.map((entry) => (
-        <Button
-          key={entry.path}
-          variant="inline-link"
-          iconName={entry.type === 'dir' ? 'folder' : 'file'}
-          onClick={() => entry.type === 'dir' ? onBrowse(entry.path) : onPick(entry.path)}
-        >
-          {entry.type === 'dir' ? `${entry.name}/` : entry.name}
+      {files.map((file) => (
+        <Button key={file} variant="inline-link" iconName="file" onClick={() => onPick(file)}>
+          {file}
         </Button>
       ))}
     </SpaceBetween>
