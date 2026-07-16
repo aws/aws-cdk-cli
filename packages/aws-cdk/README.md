@@ -1824,6 +1824,7 @@ in `build` will be executed by the "watch" process before deployment.
 
 The following environment variables affect aws-cdk:
 
+- `COLUMNS`: When the CLI cannot detect the terminal width (for example, when output is piped or running in CI), this standard variable is used as the rendering width for `cdk diff` tables. If unset, tables render at their natural width.
 - `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
 - `CDK_ROLE_SESSION_NAME`: customize the session name used when the CLI assumes a role (for example `cdk-hnb659fds-deploy-role`). When unset, the CLI defaults to `aws-cdk-<username>`. Useful for attributing deployments in CloudTrail when running from a CI/CD pipeline.
@@ -1847,6 +1848,7 @@ When `--profile` is specified, the region configured in that profile is used (st
 The CLI will attempt to detect whether it is being run in CI by looking for the presence of an
 environment variable `CI=true`. This can be forced by passing the `--ci` flag. By default the CLI
 sends most of its logs to `stderr`, but when `ci=true` it will send the logs to `stdout` instead.
+When terminal width cannot be detected, `cdk diff` tables render unbounded; set [`COLUMNS`](#environment) to constrain their width.
 
 ### Changing the default TypeScript transpiler
 
