@@ -62,6 +62,7 @@ function TreeNode({ node, depth, onNavigate }: { readonly node: WebConstructNode
       sourceLocation: node.sourceLocation,
       templateFile: node.templateFile,
       logicalId: node.logicalId,
+      constructPath: node.path,
       color,
     });
   }, [node, severityColor, onNavigate]);

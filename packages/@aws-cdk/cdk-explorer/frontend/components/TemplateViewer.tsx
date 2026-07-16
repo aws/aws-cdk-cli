@@ -1,7 +1,7 @@
 import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
 import * as React from 'react';
-import type { TemplateResource } from '../api';
-import { CodeViewer } from './CodeViewer';
+import type { TemplateResource, WebViolation } from '../api';
+import { CodeViewer, type Diagnostic } from './CodeViewer';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;
@@ -10,6 +10,8 @@ export interface TemplateViewerProps {
   readonly highlightColor?: string;
   readonly navCounter?: number;
   readonly onResourceDoubleClick?: (logicalId: string) => void;
+  readonly templateFile?: string;
+  readonly violations?: readonly WebViolation[];
 }
 
 type Format = 'yaml' | 'json';
@@ -27,6 +29,8 @@ export function TemplateViewer({
   highlightColor,
   navCounter,
   onResourceDoubleClick,
+  templateFile,
+  violations,
 }: TemplateViewerProps): JSX.Element {
   const [format, setFormat] = React.useState<Format>('yaml');
 
@@ -48,6 +52,26 @@ export function TemplateViewer({
     const block = highlightLogicalId ? displayResources[highlightLogicalId]?.block : undefined;
     return block ? { start: block.startLine, end: block.endLine } : undefined;
   }, [highlightLogicalId, displayResources]);
+
+  const diagnostics = React.useMemo(() => {
+    if (!templateFile || !violations?.length) return undefined;
+    const lines = displayContent.split('\n');
+    const diags: Diagnostic[] = [];
+    for (const violation of violations) {
+      const severity = violationSeverity(violation.severity);
+      for (const occ of violation.occurrences) {
+        if (occ.templateFile === templateFile && occ.logicalId) {
+          const resource = displayResources[occ.logicalId];
+          if (resource) {
+            const line = lines[resource.block.startLine - 1];
+            const startCol = line ? line.search(/\S/) + 1 : 1;
+            diags.push({ startLine: resource.block.startLine, startCol: Math.max(1, startCol), severity, message: violation.description });
+          }
+        }
+      }
+    }
+    return diags.length > 0 ? diags : undefined;
+  }, [templateFile, violations, displayResources, displayContent]);
 
   const handleDoubleClick = React.useCallback((line: number) => {
     if (!onResourceDoubleClick) return;
@@ -82,6 +106,7 @@ export function TemplateViewer({
         navCounter={navCounter}
         scrollToLine={highlight?.start}
         onLineDoubleClick={handleDoubleClick}
+        diagnostics={diagnostics}
       />
     </div>
   );
@@ -167,3 +192,15 @@ const TOGGLE_ACTIVE_STYLE: React.CSSProperties = {
   color: '#ffffff',
   borderColor: '#0972d3',
 };
+
+function violationSeverity(severity: string | undefined): 'error' | 'warning' | 'info' {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
