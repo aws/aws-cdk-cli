@@ -864,6 +864,9 @@ $ cdk orphan --unstable=orphan MyStack/MyTable
 
 $ # Orphan multiple resources
 $ cdk orphan --unstable=orphan MyStack/MyTable MyStack/MyBucket
+
+$ # For a stack inside a Stage, use the stage-qualified path
+$ cdk orphan --unstable=orphan MyStage/MyStack/MyTable
 ```
 
 #### Example: Migrating DynamoDB Table to TableV2

@@ -91,7 +91,7 @@ import type { ElapsedTime, IoHelper } from '../api/io/private';
 import { asIoHelper, IO, SPAN, withoutColor, withoutEmojis, withTrimmedWhitespace } from '../api/io/private';
 import { CloudWatchLogEventMonitor, findCloudWatchLogGroups } from '../api/logs-monitor';
 import { ResourceOrphaner } from '../api/orphan/orphaner';
-import { parseAndValidateConstructPaths } from '../api/orphan/private/helpers';
+import { resolveStackAndConstructPaths } from '../api/orphan/private/helpers';
 import { Mode, PluginHost } from '../api/plugin';
 import {
   formatAmbiguousMappings,
@@ -1352,20 +1352,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'orphan');
 
-    // Parse construct paths into stack construct ID + construct-level paths.
-    const parsed = parseAndValidateConstructPaths(options.constructPaths);
-
-    // Synth all stacks, then find the one whose hierarchicalId matches the stack construct ID.
+    // Synth all stacks, then resolve the construct paths against the real stack IDs.
     await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
     const allStacks = await assembly.selectStacksV2(ALL_STACKS);
-    const stack = allStacks.stackArtifacts.find(s => s.hierarchicalId === parsed.stackId);
 
-    if (!stack) {
-      throw new ToolkitError(
-        'StackNotFound',
-        `No stack found with construct ID '${parsed.stackId}'. Available stacks: ${allStacks.stackArtifacts.map(s => s.hierarchicalId).join(', ')}`,
-      );
-    }
+    const parsed = resolveStackAndConstructPaths(
+      options.constructPaths,
+      allStacks.stackArtifacts.map(s => s.hierarchicalId),
+    );
+    const stack = allStacks.stackArtifacts.find(s => s.hierarchicalId === parsed.stackId)!;
+
     const deployments = await this.deploymentsForAction('orphan');
 
     const orphaner = new ResourceOrphaner({
