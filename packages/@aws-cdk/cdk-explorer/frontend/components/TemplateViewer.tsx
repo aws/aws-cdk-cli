@@ -1,7 +1,7 @@
 import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
 import * as React from 'react';
-import type { TemplateResource } from '../api';
-import { CodeViewer } from './CodeViewer';
+import type { TemplateResource, WebViolation } from '../api';
+import { CodeViewer, type Diagnostic } from './CodeViewer';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;
@@ -10,9 +10,12 @@ export interface TemplateViewerProps {
   readonly highlightColor?: string;
   readonly navCounter?: number;
   readonly onResourceDoubleClick?: (logicalId: string) => void;
+  readonly templateFile?: string;
+  readonly violations?: readonly WebViolation[];
+  readonly format: Format;
 }
 
-type Format = 'yaml' | 'json';
+export type Format = 'yaml' | 'json';
 
 interface ResourceSection {
   readonly logicalId: string;
@@ -27,8 +30,10 @@ export function TemplateViewer({
   highlightColor,
   navCounter,
   onResourceDoubleClick,
+  templateFile,
+  violations,
+  format,
 }: TemplateViewerProps): JSX.Element {
-  const [format, setFormat] = React.useState<Format>('yaml');
 
   const { displayContent, displayResources, sections } = React.useMemo(() => {
     if (format === 'json') {
@@ -49,6 +54,26 @@ export function TemplateViewer({
     return block ? { start: block.startLine, end: block.endLine } : undefined;
   }, [highlightLogicalId, displayResources]);
 
+  const diagnostics = React.useMemo(() => {
+    if (!templateFile || !violations?.length) return undefined;
+    const lines = displayContent.split('\n');
+    const diags: Diagnostic[] = [];
+    for (const violation of violations) {
+      const severity = violationSeverity(violation.severity);
+      for (const occ of violation.occurrences) {
+        if (occ.templateFile === templateFile && occ.logicalId) {
+          const resource = displayResources[occ.logicalId];
+          if (resource) {
+            const line = lines[resource.block.startLine - 1];
+            const startCol = line ? line.search(/\S/) + 1 : 1;
+            diags.push({ startLine: resource.block.startLine, startCol: Math.max(1, startCol), severity, message: violation.description });
+          }
+        }
+      }
+    }
+    return diags.length > 0 ? diags : undefined;
+  }, [templateFile, violations, displayResources, displayContent]);
+
   const handleDoubleClick = React.useCallback((line: number) => {
     if (!onResourceDoubleClick) return;
     // Map the clicked line back to the resource that owns it, so the reverse
@@ -60,30 +85,17 @@ export function TemplateViewer({
   }, [sections, onResourceDoubleClick]);
 
   return (
-    <div style={WRAPPER_STYLE}>
-      <div style={TOOLBAR_STYLE}>
-        <button
-          type="button"
-          style={format === 'yaml' ? TOGGLE_ACTIVE_STYLE : TOGGLE_STYLE}
-          onClick={() => setFormat('yaml')}
-        >YAML</button>
-        <button
-          type="button"
-          style={format === 'json' ? TOGGLE_ACTIVE_STYLE : TOGGLE_STYLE}
-          onClick={() => setFormat('json')}
-        >JSON</button>
-      </div>
-      <CodeViewer
-        content={displayContent}
-        language={format}
-        highlightStart={highlight?.start}
-        highlightEnd={highlight?.end}
-        highlightColor={highlightColor}
-        navCounter={navCounter}
-        scrollToLine={highlight?.start}
-        onLineDoubleClick={handleDoubleClick}
-      />
-    </div>
+    <CodeViewer
+      content={displayContent}
+      language={format}
+      highlightStart={highlight?.start}
+      highlightEnd={highlight?.end}
+      highlightColor={highlightColor}
+      navCounter={navCounter}
+      scrollToLine={highlight?.start}
+      onLineDoubleClick={handleDoubleClick}
+      diagnostics={diagnostics}
+    />
   );
 }
 
@@ -135,35 +147,15 @@ function jsonToYaml(jsonContent: string): YamlResult {
   return { displayContent, displayResources, sections: buildSections(displayResources) };
 }
 
-const WRAPPER_STYLE: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  height: '100%',
-  minHeight: 0,
-};
 
-const TOOLBAR_STYLE: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '4px',
-  padding: '4px 0',
-  flexShrink: 0,
-};
-
-const TOGGLE_STYLE: React.CSSProperties = {
-  border: '1px solid #d1d5db',
-  borderRadius: '4px',
-  background: '#fafafa',
-  cursor: 'pointer',
-  fontSize: '11px',
-  padding: '2px 8px',
-  color: '#5f6b7a',
-  lineHeight: '16px',
-};
-
-const TOGGLE_ACTIVE_STYLE: React.CSSProperties = {
-  ...TOGGLE_STYLE,
-  background: '#0972d3',
-  color: '#ffffff',
-  borderColor: '#0972d3',
-};
+function violationSeverity(severity: string | undefined): 'error' | 'warning' | 'info' {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}

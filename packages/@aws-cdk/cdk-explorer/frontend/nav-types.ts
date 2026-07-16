@@ -6,4 +6,5 @@ export type NavigateHandler = (opts: {
   logicalId?: string;
   propertyPaths?: readonly string[];
   color?: string;
+  constructPath?: string;
 }) => void;

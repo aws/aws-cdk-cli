@@ -6,7 +6,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { type Router, type Express, type Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
-import type { DirEntry, LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
+import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
 import { resolveWithinRoot } from './safe-path';
 import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
 import type { AcquireAssemblyLock, AssemblyLock } from '../core/assembly-lock';
@@ -103,24 +103,6 @@ export function createApiRouter(options: ApiOptions): Router {
 
   router.get('/info', (_req, res) => {
     res.json({ appDir });
-  });
-
-  router.get('/files', (req, res) => {
-    const dir = typeof req.query.dir === 'string' ? req.query.dir : '';
-    const resolved = resolveWithinRoot(appDir, dir);
-    if (!resolved) {
-      return res.status(403).json({ error: 'path escapes application directory' });
-    }
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(resolved);
-    } catch {
-      return res.status(404).json({ error: 'directory not found' });
-    }
-    if (!stat.isDirectory()) {
-      return res.status(400).json({ error: 'not a directory' });
-    }
-    return res.json({ dir: toPosix(path.relative(appDir, resolved)), entries: listDir(appDir, resolved) });
   });
 
   router.get('/file', (req, res) => {
@@ -470,21 +452,6 @@ function offsetRangeToLineRange(range: { start: number; end: number }, lineOffse
     startLine: offsetToLine(range.start, lineOffsets),
     endLine: offsetToLine(Math.max(range.start, range.end - 1), lineOffsets),
   };
-}
-
-function listDir(appDir: string, dir: string): DirEntry[] {
-  return fs.readdirSync(dir, { withFileTypes: true })
-    .map((entry): DirEntry => ({
-      name: entry.name,
-      path: toPosix(path.relative(appDir, path.join(dir, entry.name))),
-      type: entry.isDirectory() ? 'dir' : 'file',
-    }))
-    .sort(byTypeThenName);
-}
-
-function byTypeThenName(a: DirEntry, b: DirEntry): number {
-  if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-  return a.name.localeCompare(b.name);
 }
 
 /** Normalize OS separators to '/' so the API contract is stable across platforms. */

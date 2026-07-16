@@ -6,11 +6,11 @@ import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
 import * as React from 'react';
 import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
-import { api, type DirEntry, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
-import { TemplateViewer } from './components/TemplateViewer';
+import { TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
 import type { NavigateHandler } from './nav-types';
 export type { NavigateHandler } from './nav-types';
@@ -39,6 +39,7 @@ export function App(): JSX.Element {
   // Template pane state.
   const [templateFile, setTemplateFile] = React.useState<string | undefined>();
   const [templateData, setTemplateData] = React.useState<TemplateResponse | undefined>();
+  const [templateFormat, setTemplateFormat] = React.useState<Format>('yaml');
 
   // Refs for current values in async callbacks (avoids stale closures).
   const sourceFileRef = React.useRef(sourceFile);
@@ -51,6 +52,10 @@ export function App(): JSX.Element {
   // Navigation state shared across panes.
   const [nav, setNav] = React.useState<NavTarget | undefined>();
   const navCounterRef = React.useRef(0);
+
+  // Violations filter: when set, only violations affecting this construct path are shown.
+  const [violationFilter, setViolationFilter] = React.useState<string | undefined>();
+  const [violationSearch, setViolationSearch] = React.useState('');
 
   const reload = React.useCallback((): void => {
     Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()])
@@ -74,6 +79,10 @@ export function App(): JSX.Element {
   const navigate: NavigateHandler = React.useCallback(async (opts) => {
     const counter = ++navCounterRef.current;
     const color = opts.color ?? NEUTRAL_COLOR;
+
+    if (opts.constructPath) {
+      setViolationFilter(opts.constructPath);
+    }
 
     let sourceTarget: NavTarget['source'];
     if (opts.sourceLocation) {
@@ -149,40 +158,55 @@ export function App(): JSX.Element {
       sourceLocation: node.sourceLocation,
       templateFile: node.templateFile,
       logicalId: node.logicalId,
+      constructPath: node.path,
     });
   }, [sourceAnchors, navigate]);
 
   // File picker state.
   const [showFilePicker, setShowFilePicker] = React.useState<false | 'source' | 'template'>(false);
-  const [pickerDir, setPickerDir] = React.useState('');
-  const [pickerEntries, setPickerEntries] = React.useState<readonly DirEntry[]>([]);
+  const pickerRef = React.useRef<HTMLDivElement>(null);
 
-  const openFilePicker = React.useCallback(async (pane: 'source' | 'template') => {
-    setShowFilePicker(pane);
-    try {
-      const res = await api.listFiles('');
-      setPickerDir(res.dir);
-      setPickerEntries(res.entries);
-    } catch { /* ignore */ }
-  }, []);
+  React.useEffect(() => {
+    if (!showFilePicker) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (pickerRef.current && !pickerRef.current.contains(target)) {
+        if ((target as HTMLElement).closest?.('[aria-label="Open file"], [aria-label="Open template file"]')) return;
+        setShowFilePicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showFilePicker]);
 
-  const browseDir = React.useCallback(async (dir: string) => {
-    try {
-      const res = await api.listFiles(dir);
-      setPickerDir(res.dir);
-      setPickerEntries(res.entries);
-    } catch { /* ignore */ }
-  }, []);
+  const knownSourceFiles = React.useMemo(
+    () => sourceAnchors ? [...sourceAnchors.keys()].sort() : [],
+    [sourceAnchors],
+  );
+
+  const knownTemplateFiles = React.useMemo(() => {
+    if (!tree || tree.status !== 'ok') return [];
+    const files = new Set<string>();
+    const walk = (nodes: readonly import('./api').WebConstructNode[]) => {
+      for (const n of nodes) {
+        if (n.templateFile) files.add(n.templateFile);
+        walk(n.children);
+      }
+    };
+    walk(tree.tree);
+    return [...files].sort();
+  }, [tree]);
 
   const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
     try {
-      const res = await api.readFile(filePath);
       if (pane === 'source') {
+        const res = await api.readFile(filePath);
         setSourceFile(res.path);
         setSourceContent(res.content);
       } else {
-        setTemplateFile(res.path);
-        setTemplateData({ content: res.content, resources: {} });
+        const data = await api.getTemplate(filePath);
+        setTemplateFile(filePath);
+        setTemplateData(data);
       }
       setShowFilePicker(false);
     } catch { /* ignore */ }
@@ -215,56 +239,77 @@ export function App(): JSX.Element {
             <div style={CODE_PANE_STYLE}>
               <Container fitHeight header={
                 <Header variant="h2">
-                  <span style={HEADER_WITH_ACTION_STYLE}>
-                    {sourceFile ?? 'Source'}
-                    <button type="button" style={OPEN_FILE_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : void openFilePicker('source')}>Open</button>
+                  <span style={PICKER_ANCHOR_STYLE}>
+                    <span style={HEADER_WITH_ACTION_STYLE}>
+                      {sourceFile ?? 'Source'}
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : setShowFilePicker('source')}>
+                        <FolderIcon />
+                      </button>
+                    </span>
+                    {showFilePicker === 'source' && (
+                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                        <KnownFileList files={knownSourceFiles} onPick={(p) => void pickFile(p, 'source')} />
+                      </div>
+                    )}
                   </span>
                 </Header>
               }>
-                {showFilePicker === 'source' ? (
-                  <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'source')} />
-                ) : sourceContent ? (
-                  <CodeViewer
-                    content={sourceContent}
-                    language={detectLanguage(sourceFile)}
-                    highlightStart={nav?.source?.startLine}
-                    highlightEnd={nav?.source?.endLine}
-                    highlightColor={nav?.color}
-                    navCounter={nav?.navCounter}
-                    scrollToLine={nav?.source?.startLine}
-                    onLineDoubleClick={handleSourceDoubleClick}
-                    diagnostics={buildDiagnostics(sourceFile, violations)}
-                  />
-                ) : (
-                  <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
-                )}
+                <div style={CODE_PANE_INNER_STYLE}>
+                  {sourceContent ? (
+                    <CodeViewer
+                      content={sourceContent}
+                      language={detectLanguage(sourceFile)}
+                      highlightStart={nav?.source?.startLine}
+                      highlightEnd={nav?.source?.endLine}
+                      highlightColor={nav?.color}
+                      navCounter={nav?.navCounter}
+                      scrollToLine={nav?.source?.startLine}
+                      onLineDoubleClick={handleSourceDoubleClick}
+                      diagnostics={buildDiagnostics(sourceFile, violations)}
+                    />
+                  ) : (
+                    <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
+                  )}
+                </div>
               </Container>
             </div>
             <div style={CODE_PANE_STYLE}>
               <Container fitHeight header={
-                <Header variant="h2">
-                  <span style={HEADER_WITH_ACTION_STYLE}>
-                    {templateFile ?? 'Template'}
-                    <button type="button" style={OPEN_FILE_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : void openFilePicker('template')}>Open</button>
+                <Header variant="h2" actions={templateData && <FormatToggle format={templateFormat} onChange={setTemplateFormat} />}>
+                  <span style={PICKER_ANCHOR_STYLE}>
+                    <span style={HEADER_WITH_ACTION_STYLE}>
+                      {templateFile ?? 'Template'}
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
+                        <FolderIcon />
+                      </button>
+                    </span>
+                    {showFilePicker === 'template' && (
+                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                        <KnownFileList files={knownTemplateFiles} onPick={(p) => void pickFile(p, 'template')} />
+                      </div>
+                    )}
                   </span>
                 </Header>
               }>
-                {showFilePicker === 'template' ? (
-                  <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'template')} />
-                ) : templateData ? (
-                  <TemplateViewer
-                    jsonContent={templateData.content}
-                    resources={templateData.resources}
-                    highlightLogicalId={nav?.template?.logicalId}
-                    highlightColor={nav?.color}
-                    navCounter={nav?.navCounter}
-                    onResourceDoubleClick={jumpToSource}
-                  />
-                ) : templateFile ? (
-                  <Box color="text-status-error">Could not load {templateFile}</Box>
-                ) : (
-                  <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
-                )}
+                <div style={CODE_PANE_INNER_STYLE}>
+                  {templateData ? (
+                    <TemplateViewer
+                      jsonContent={templateData.content}
+                      resources={templateData.resources}
+                      highlightLogicalId={nav?.template?.logicalId}
+                      highlightColor={nav?.color}
+                      navCounter={nav?.navCounter}
+                      onResourceDoubleClick={jumpToSource}
+                      templateFile={templateFile}
+                      violations={violations?.status === 'ok' ? violations.violations : undefined}
+                      format={templateFormat}
+                    />
+                  ) : templateFile ? (
+                    <Box color="text-status-error">Could not load {templateFile}</Box>
+                  ) : (
+                    <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
+                  )}
+                </div>
               </Container>
             </div>
           </div>
@@ -274,8 +319,12 @@ export function App(): JSX.Element {
         <Resizer split={vSplit} />
         {!vSplit.collapsed && (
           <div style={GROW_STYLE}>
-            <Container fitHeight header={<Header variant="h2">Violations</Header>}>
-              <ViolationsContent violations={violations} onNavigate={navigate} />
+            <Container fitHeight header={
+              <Header variant="h2" actions={<ViolationsActions search={violationSearch} onSearchChange={setViolationSearch} />}>
+                <ViolationsTitle filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
+              </Header>
+            }>
+              <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
             </Container>
           </div>
         )}
@@ -285,24 +334,16 @@ export function App(): JSX.Element {
 }
 
 
-function FilePicker({ dir, entries, onBrowse, onPick }: {
-  readonly dir: string;
-  readonly entries: readonly DirEntry[];
-  readonly onBrowse: (dir: string) => void;
+function KnownFileList({ files, onPick }: {
+  readonly files: readonly string[];
   readonly onPick: (path: string) => void;
 }): JSX.Element {
+  if (files.length === 0) return <Box color="text-status-inactive">No files found.</Box>;
   return (
     <SpaceBetween size="xxs">
-      <Box variant="code">/{dir}</Box>
-      {dir !== '' && <Button variant="inline-link" iconName="folder" onClick={() => onBrowse(dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '')}>../</Button>}
-      {entries.map((entry) => (
-        <Button
-          key={entry.path}
-          variant="inline-link"
-          iconName={entry.type === 'dir' ? 'folder' : 'file'}
-          onClick={() => entry.type === 'dir' ? onBrowse(entry.path) : onPick(entry.path)}
-        >
-          {entry.type === 'dir' ? `${entry.name}/` : entry.name}
+      {files.map((file) => (
+        <Button key={file} variant="inline-link" iconName="file" onClick={() => onPick(file)}>
+          {file}
         </Button>
       ))}
     </SpaceBetween>
@@ -317,12 +358,47 @@ function ConstructTreeContent({ tree, onNavigate }: { readonly tree?: TreeRespon
   return <ConstructTree nodes={tree.tree} onNavigate={onNavigate} />;
 }
 
-function ViolationsContent({ violations, onNavigate }: { readonly violations?: ViolationsResponse; readonly onNavigate: NavigateHandler }): JSX.Element {
+function ViolationsContent({ violations, onNavigate, filter, onClearFilter, search }: {
+  readonly violations?: ViolationsResponse;
+  readonly onNavigate: NavigateHandler;
+  readonly filter?: string;
+  readonly onClearFilter: () => void;
+  readonly search: string;
+}): JSX.Element {
   if (!violations) return <Spinner />;
   if (violations.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found.</Box>;
   }
-  return <ViolationsPanel violations={violations.violations} onNavigate={onNavigate} />;
+  return <ViolationsPanel violations={violations.violations} onNavigate={onNavigate} filter={filter} onClearFilter={onClearFilter} search={search} />;
+}
+
+function ViolationsTitle({ filter, onClearFilter }: { readonly filter?: string; readonly onClearFilter: () => void }): JSX.Element {
+  if (!filter) return <>Violations</>;
+  const name = filter.split('/').pop() || filter;
+  return (
+    <span style={VIOLATIONS_TITLE_STYLE}>
+      Violations for
+      <span style={FILTER_PILL_STYLE}>
+        {name}
+        <button type="button" style={FILTER_CLEAR_STYLE} onClick={onClearFilter} title="Show all violations">&times;</button>
+      </span>
+    </span>
+  );
+}
+
+function ViolationsActions({ search, onSearchChange }: {
+  readonly search: string;
+  readonly onSearchChange: (value: string) => void;
+}): JSX.Element {
+  return (
+    <input
+      type="text"
+      placeholder="Search"
+      value={search}
+      onChange={(e) => onSearchChange(e.target.value)}
+      style={VIOLATIONS_SEARCH_STYLE}
+    />
+  );
 }
 
 interface SplitOptions {
@@ -477,15 +553,31 @@ const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '1
 const GROW_STYLE: React.CSSProperties = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' };
 
 const HEADER_WITH_ACTION_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
-const OPEN_FILE_BUTTON_STYLE: React.CSSProperties = {
+const FOLDER_BUTTON_STYLE: React.CSSProperties = {
+  border: 'none',
+  background: 'none',
+  cursor: 'pointer',
+  padding: '2px',
+  color: '#5f6b7a',
+  display: 'inline-flex',
+  alignItems: 'center',
+};
+const CODE_PANE_INNER_STYLE: React.CSSProperties = { height: '100%' };
+const PICKER_ANCHOR_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-flex', alignItems: 'center' };
+const PICKER_DROPDOWN_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  marginTop: '4px',
+  maxHeight: '50vh',
+  minWidth: '320px',
+  overflowY: 'auto',
+  background: '#ffffff',
   border: '1px solid #d1d5db',
   borderRadius: '4px',
-  background: '#fafafa',
-  cursor: 'pointer',
-  fontSize: '11px',
-  padding: '1px 6px',
-  color: '#5f6b7a',
-  lineHeight: '16px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+  padding: '8px',
+  zIndex: 100,
 };
 
 const CODE_PANES_STYLE: React.CSSProperties = {
@@ -526,6 +618,46 @@ const RESIZER_BUTTON_VERTICAL: React.CSSProperties = {
   width: '14px',
   height: '40px',
   borderRadius: '7px',
+};
+
+function FormatToggle({ format, onChange }: { readonly format: Format; readonly onChange: (f: Format) => void }): JSX.Element {
+  return (
+    <span style={FORMAT_TOGGLE_GROUP_STYLE}>
+      <button type="button" style={format === 'yaml' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('yaml')}>YAML</button>
+      <button type="button" style={format === 'json' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('json')}>JSON</button>
+    </span>
+  );
+}
+
+function FolderIcon(): JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1 3.5A1.5 1.5 0 012.5 2h3.172a1.5 1.5 0 011.06.44l.658.658A.5.5 0 007.744 3.25H13.5A1.5 1.5 0 0115 4.75v7.75a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 12.5v-9z" />
+    </svg>
+  );
+}
+
+const FORMAT_TOGGLE_GROUP_STYLE: React.CSSProperties = { display: 'inline-flex', gap: '2px' };
+const FORMAT_TOGGLE_STYLE: React.CSSProperties = {
+  border: '1px solid #d1d5db', borderRadius: '4px', background: '#fafafa',
+  cursor: 'pointer', fontSize: '11px', padding: '2px 8px', color: '#5f6b7a', lineHeight: '16px',
+};
+const FORMAT_TOGGLE_ACTIVE_STYLE: React.CSSProperties = {
+  ...FORMAT_TOGGLE_STYLE, background: '#0972d3', color: '#ffffff', borderColor: '#0972d3',
+};
+const VIOLATIONS_TITLE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
+const FILTER_PILL_STYLE: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: '4px',
+  background: '#f2f8fd', border: '1px solid #89bdee', borderRadius: '12px',
+  padding: '1px 8px 1px 10px', fontSize: '14px', color: '#0972d3', fontWeight: 600,
+};
+const FILTER_CLEAR_STYLE: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontSize: '14px', lineHeight: 1, color: '#0972d3', padding: '0 2px',
+};
+const VIOLATIONS_SEARCH_STYLE: React.CSSProperties = {
+  width: '160px', padding: '3px 8px', border: '1px solid #d1d5db',
+  borderRadius: '4px', fontSize: '13px', outline: 'none',
 };
 
 function detectLanguage(file: string | undefined): Language {

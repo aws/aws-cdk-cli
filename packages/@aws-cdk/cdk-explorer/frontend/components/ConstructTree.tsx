@@ -62,6 +62,7 @@ function TreeNode({ node, depth, onNavigate }: { readonly node: WebConstructNode
       sourceLocation: node.sourceLocation,
       templateFile: node.templateFile,
       logicalId: node.logicalId,
+      constructPath: node.path,
       color,
     });
   }, [node, severityColor, onNavigate]);
@@ -113,7 +114,7 @@ function friendlyType(type: string): string {
 
 function labelStyle(severityColor: string | undefined, inheritedColor: string | undefined): React.CSSProperties {
   if (severityColor) return { ...LABEL_STYLE, color: severityColor };
-  if (inheritedColor) return { ...LABEL_STYLE, color: inheritedColor, opacity: 0.7 };
+  if (inheritedColor) return { ...LABEL_STYLE, color: inheritedColor };
   return LABEL_STYLE;
 }
 
@@ -126,7 +127,7 @@ const SEVERITY_DOT_STYLE: React.CSSProperties = {
 };
 const LIST_STYLE: React.CSSProperties = { listStyle: 'none', margin: 0, paddingLeft: '12px', borderLeft: '1px solid #e9ebed' };
 const ITEM_STYLE: React.CSSProperties = { padding: '2px 0' };
-const ROW_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden' };
+const ROW_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, overflow: 'hidden', cursor: 'default' };
 const ROW_CLICKABLE_STYLE: React.CSSProperties = { ...ROW_STYLE, cursor: 'pointer' };
 const LABEL_STYLE: React.CSSProperties = {
   flex: '1 1 auto',

@@ -84,9 +84,13 @@ export function CodeViewer({
     return map;
   }, [diagnostics]);
 
+  const lastNavRef = React.useRef<number | undefined>();
+  const animateNav = navCounter !== lastNavRef.current;
+  React.useEffect(() => { lastNavRef.current = navCounter; }, [navCounter]);
+
   React.useEffect(() => {
     if (scrollToLine && scrollTargetRef.current) {
-      scrollTargetRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      scrollTargetRef.current.scrollIntoView({ block: 'start', behavior: animateNav ? 'smooth' : 'instant' });
     }
   }, [scrollToLine, navCounter]);
 
@@ -103,9 +107,9 @@ export function CodeViewer({
 
         return (
           <div
-            key={`${lineNum}-${navCounter}`}
+            key={`${lineNum}-${animateNav ? navCounter : 'stable'}`}
             ref={isScrollTarget ? scrollTargetRef : undefined}
-            className={isHighlighted ? 'nav-highlight' : undefined}
+            className={isHighlighted && animateNav ? 'nav-highlight' : undefined}
             style={{
               ...LINE_STYLE,
               ...(isHighlighted ? { ['--nav-highlight-color' as string]: highlightColor ?? '#0972d3' } : undefined),
