@@ -6,6 +6,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
+import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
@@ -352,6 +353,7 @@ repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
+new CheckSdkDuplication(repoProject);
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
