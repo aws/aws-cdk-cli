@@ -10,7 +10,7 @@ import { api, type DirEntry, type TemplateResponse, type TreeResponse, type Viol
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
-import { TemplateViewer } from './components/TemplateViewer';
+import { TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
 import type { NavigateHandler } from './nav-types';
 export type { NavigateHandler } from './nav-types';
@@ -39,6 +39,7 @@ export function App(): JSX.Element {
   // Template pane state.
   const [templateFile, setTemplateFile] = React.useState<string | undefined>();
   const [templateData, setTemplateData] = React.useState<TemplateResponse | undefined>();
+  const [templateFormat, setTemplateFormat] = React.useState<Format>('yaml');
 
   // Refs for current values in async callbacks (avoids stale closures).
   const sourceFileRef = React.useRef(sourceFile);
@@ -239,20 +240,22 @@ export function App(): JSX.Element {
             <div style={CODE_PANE_STYLE}>
               <Container fitHeight header={
                 <Header variant="h2">
-                  <span style={HEADER_WITH_ACTION_STYLE}>
-                    {sourceFile ?? 'Source'}
-                    <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : void openFilePicker('source')}>
-                      <FolderIcon />
-                    </button>
+                  <span style={PICKER_ANCHOR_STYLE}>
+                    <span style={HEADER_WITH_ACTION_STYLE}>
+                      {sourceFile ?? 'Source'}
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : void openFilePicker('source')}>
+                        <FolderIcon />
+                      </button>
+                    </span>
+                    {showFilePicker === 'source' && (
+                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                        <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'source')} />
+                      </div>
+                    )}
                   </span>
                 </Header>
               }>
                 <div style={CODE_PANE_INNER_STYLE}>
-                  {showFilePicker === 'source' && (
-                    <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                      <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'source')} />
-                    </div>
-                  )}
                   {sourceContent ? (
                     <CodeViewer
                       content={sourceContent}
@@ -273,21 +276,23 @@ export function App(): JSX.Element {
             </div>
             <div style={CODE_PANE_STYLE}>
               <Container fitHeight header={
-                <Header variant="h2">
-                  <span style={HEADER_WITH_ACTION_STYLE}>
-                    {templateFile ?? 'Template'}
-                    <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : void openFilePicker('template')}>
-                      <FolderIcon />
-                    </button>
+                <Header variant="h2" actions={templateData && <FormatToggle format={templateFormat} onChange={setTemplateFormat} />}>
+                  <span style={PICKER_ANCHOR_STYLE}>
+                    <span style={HEADER_WITH_ACTION_STYLE}>
+                      {templateFile ?? 'Template'}
+                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : void openFilePicker('template')}>
+                        <FolderIcon />
+                      </button>
+                    </span>
+                    {showFilePicker === 'template' && (
+                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                        <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'template')} />
+                      </div>
+                    )}
                   </span>
                 </Header>
               }>
                 <div style={CODE_PANE_INNER_STYLE}>
-                  {showFilePicker === 'template' && (
-                    <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                      <FilePicker dir={pickerDir} entries={pickerEntries} onBrowse={browseDir} onPick={(p) => void pickFile(p, 'template')} />
-                    </div>
-                  )}
                   {templateData ? (
                     <TemplateViewer
                       jsonContent={templateData.content}
@@ -298,6 +303,7 @@ export function App(): JSX.Element {
                       onResourceDoubleClick={jumpToSource}
                       templateFile={templateFile}
                       violations={violations?.status === 'ok' ? violations.violations : undefined}
+                      format={templateFormat}
                     />
                   ) : templateFile ? (
                     <Box color="text-status-error">Could not load {templateFile}</Box>
@@ -565,20 +571,22 @@ const FOLDER_BUTTON_STYLE: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
 };
-const CODE_PANE_INNER_STYLE: React.CSSProperties = { position: 'relative', height: '100%' };
+const CODE_PANE_INNER_STYLE: React.CSSProperties = { height: '100%' };
+const PICKER_ANCHOR_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-flex', alignItems: 'center' };
 const PICKER_DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',
-  top: 0,
+  top: '100%',
   left: 0,
-  right: 0,
-  maxHeight: '60vh',
+  marginTop: '4px',
+  maxHeight: '50vh',
+  minWidth: '320px',
   overflowY: 'auto',
   background: '#ffffff',
   border: '1px solid #d1d5db',
   borderRadius: '4px',
   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   padding: '8px',
-  zIndex: 10,
+  zIndex: 100,
 };
 
 const CODE_PANES_STYLE: React.CSSProperties = {
@@ -621,6 +629,15 @@ const RESIZER_BUTTON_VERTICAL: React.CSSProperties = {
   borderRadius: '7px',
 };
 
+function FormatToggle({ format, onChange }: { readonly format: Format; readonly onChange: (f: Format) => void }): JSX.Element {
+  return (
+    <span style={FORMAT_TOGGLE_GROUP_STYLE}>
+      <button type="button" style={format === 'yaml' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('yaml')}>YAML</button>
+      <button type="button" style={format === 'json' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('json')}>JSON</button>
+    </span>
+  );
+}
+
 function FolderIcon(): JSX.Element {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -629,6 +646,14 @@ function FolderIcon(): JSX.Element {
   );
 }
 
+const FORMAT_TOGGLE_GROUP_STYLE: React.CSSProperties = { display: 'inline-flex', gap: '2px' };
+const FORMAT_TOGGLE_STYLE: React.CSSProperties = {
+  border: '1px solid #d1d5db', borderRadius: '4px', background: '#fafafa',
+  cursor: 'pointer', fontSize: '11px', padding: '2px 8px', color: '#5f6b7a', lineHeight: '16px',
+};
+const FORMAT_TOGGLE_ACTIVE_STYLE: React.CSSProperties = {
+  ...FORMAT_TOGGLE_STYLE, background: '#0972d3', color: '#ffffff', borderColor: '#0972d3',
+};
 const VIOLATIONS_TITLE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
 const FILTER_PILL_STYLE: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '4px',
