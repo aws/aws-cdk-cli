@@ -583,8 +583,10 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      '@types/json-source-map@^0.6.0',
     ],
     deps: [
+      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -1637,6 +1639,56 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+      'vscode-jsonrpc@^8',
+      'chokidar@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+      '@types/convert-source-map@^2',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+void cdkExplorer;
+
+cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

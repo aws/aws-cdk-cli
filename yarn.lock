@@ -159,6 +159,45 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@aws-cdk/cdk-explorer@npm:^0.0.0, @aws-cdk/cdk-explorer@workspace:packages/@aws-cdk/cdk-explorer":
+  version: 0.0.0-use.local
+  resolution: "@aws-cdk/cdk-explorer@workspace:packages/@aws-cdk/cdk-explorer"
+  dependencies:
+    "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
+    "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
+    "@aws-cdk/toolkit-lib": "npm:^0.0.0"
+    "@cdklabs/eslint-plugin": "npm:^2.0.11"
+    "@jridgewell/trace-mapping": "npm:^0.3"
+    "@stylistic/eslint-plugin": "npm:^3"
+    "@types/convert-source-map": "npm:^2"
+    "@types/jest": "npm:^29.5.14"
+    "@types/node": "npm:^20"
+    "@typescript-eslint/eslint-plugin": "npm:^8"
+    "@typescript-eslint/parser": "npm:^8"
+    chokidar: "npm:^4"
+    constructs: "npm:^10.0.0"
+    convert-source-map: "npm:^2"
+    eslint: "npm:^9"
+    eslint-config-prettier: "npm:^10.1.8"
+    eslint-import-resolver-typescript: "npm:^4.4.5"
+    eslint-plugin-import: "npm:^2.32.0"
+    eslint-plugin-jest: "npm:^29.15.3"
+    eslint-plugin-jsdoc: "npm:^62.9.0"
+    eslint-plugin-prettier: "npm:^4.2.5"
+    jest: "npm:^29.7.0"
+    jest-junit: "npm:^16"
+    nx: "npm:^22.7.6"
+    prettier: "npm:^2.8"
+    projen: "npm:^0.100.7"
+    ts-jest: "npm:^29.4.11"
+    typescript: "npm:5.9"
+    vscode-jsonrpc: "npm:^8"
+    vscode-languageserver: "npm:^9"
+    vscode-languageserver-protocol: "npm:^3"
+    vscode-languageserver-textdocument: "npm:^1"
+  languageName: unknown
+  linkType: soft
+
 "@aws-cdk/cli-plugin-contract@npm:^0.0.0, @aws-cdk/cli-plugin-contract@workspace:packages/@aws-cdk/cli-plugin-contract":
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cli-plugin-contract@workspace:packages/@aws-cdk/cli-plugin-contract"
@@ -197,6 +236,7 @@ __metadata:
     "@cdklabs/eslint-plugin": "npm:^2.0.11"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
+    "@types/json-source-map": "npm:^0.6.0"
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
@@ -211,6 +251,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
+    json-source-map: "npm:^0.6.1"
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.6"
@@ -2669,7 +2710,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jridgewell/trace-mapping@npm:^0.3.12, @jridgewell/trace-mapping@npm:^0.3.18, @jridgewell/trace-mapping@npm:^0.3.24, @jridgewell/trace-mapping@npm:^0.3.28":
+"@jridgewell/trace-mapping@npm:^0.3, @jridgewell/trace-mapping@npm:^0.3.12, @jridgewell/trace-mapping@npm:^0.3.18, @jridgewell/trace-mapping@npm:^0.3.24, @jridgewell/trace-mapping@npm:^0.3.28":
   version: 0.3.31
   resolution: "@jridgewell/trace-mapping@npm:0.3.31"
   dependencies:
@@ -3808,6 +3849,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/convert-source-map@npm:^2":
+  version: 2.0.3
+  resolution: "@types/convert-source-map@npm:2.0.3"
+  checksum: 10c0/43dd8ccad61489c245342220db74c1baf3b75586074f99609943fe1bdecf7d5dcff0acd038cb0063dd7533a90cc980101d5899afa70a638883752ad8d66de20b
+  languageName: node
+  linkType: hard
+
 "@types/cors@npm:^2.8.6":
   version: 2.8.19
   resolution: "@types/cors@npm:2.8.19"
@@ -3908,6 +3956,13 @@ __metadata:
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
   checksum: 10c0/a996a745e6c5d60292f36731dd41341339d4eeed8180bb09226e5c8d23759067692b1d88e5d91d72ee83dfc00d3aca8e7bd43ea120516c17922cbcb7c3e252db
+  languageName: node
+  linkType: hard
+
+"@types/json-source-map@npm:^0.6.0":
+  version: 0.6.0
+  resolution: "@types/json-source-map@npm:0.6.0"
+  checksum: 10c0/b7db2f52735acc70b70bf49b1e945f4749ac5c9c8429c44ad23c751193f89d030400ed966c416540647745414cd450f35795395bf0be9eae94816bbe03ad0a2f
   languageName: node
   linkType: hard
 
@@ -5171,6 +5226,7 @@ __metadata:
   resolution: "aws-cdk@workspace:packages/aws-cdk"
   dependencies:
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
+    "@aws-cdk/cdk-explorer": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
@@ -6423,7 +6479,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"convert-source-map@npm:^2.0.0":
+"convert-source-map@npm:^2, convert-source-map@npm:^2.0.0":
   version: 2.0.0
   resolution: "convert-source-map@npm:2.0.0"
   checksum: 10c0/8f2f7a27a1a011cc6cc88cc4da2d7d0cfa5ee0369508baae3d98c260bb3ac520691464e5bbe4ae7cdf09860c1d69ecc6f70c63c6e7c7f7e3f18ec08484dc7d9b
@@ -10292,6 +10348,13 @@ __metadata:
   version: 1.0.0
   resolution: "json-schema-traverse@npm:1.0.0"
   checksum: 10c0/71e30015d7f3d6dc1c316d6298047c8ef98a06d31ad064919976583eb61e1018a60a0067338f0f79cabc00d84af3fcc489bd48ce8a46ea165d9541ba17fb30c6
+  languageName: node
+  linkType: hard
+
+"json-source-map@npm:^0.6.1":
+  version: 0.6.1
+  resolution: "json-source-map@npm:0.6.1"
+  checksum: 10c0/9fe819f7dfc1407caf8e36246f18376eb511b969954d457b251dfb506df74544cefc0c368f64474b512956eeb37807e03045332a9712ddd14b836d54debe03c3
   languageName: node
   linkType: hard
 
@@ -15135,6 +15198,79 @@ __metadata:
   bin:
     vm2: bin/vm2
   checksum: 10c0/0917795f8cfb9e0e4bcbb431d44546eda492165143885d448a6585c862a57e0dedb36fc0922fbe3b386a8cec5ef8c46256ef38e00749eaa53fec7b442be0a390
+  languageName: node
+  linkType: hard
+
+"vscode-jsonrpc@npm:8.2.0":
+  version: 8.2.0
+  resolution: "vscode-jsonrpc@npm:8.2.0"
+  checksum: 10c0/0789c227057a844f5ead55c84679206227a639b9fb76e881185053abc4e9848aa487245966cc2393fcb342c4541241b015a1a2559fddd20ac1e68945c95344e6
+  languageName: node
+  linkType: hard
+
+"vscode-jsonrpc@npm:9.0.1":
+  version: 9.0.1
+  resolution: "vscode-jsonrpc@npm:9.0.1"
+  checksum: 10c0/6ca63393dd78675ed33b5537c147e673865557ff93915cd5189ceae039ca7fe01808ffd9a14016732d4789f2102a037d68d4216f557c3380d1c7f3ea50fd85b4
+  languageName: node
+  linkType: hard
+
+"vscode-jsonrpc@npm:^8":
+  version: 8.2.1
+  resolution: "vscode-jsonrpc@npm:8.2.1"
+  checksum: 10c0/595e07f779112d979d9cd37a00e4b973c39da09dd7c35b149f9fb7857c87db00d0ece7772c5a6f65cc19e38afc4fc64f8130d2f0e6b5f7fc160a0fc6b94e8c07
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver-protocol@npm:3.17.5":
+  version: 3.17.5
+  resolution: "vscode-languageserver-protocol@npm:3.17.5"
+  dependencies:
+    vscode-jsonrpc: "npm:8.2.0"
+    vscode-languageserver-types: "npm:3.17.5"
+  checksum: 10c0/5f38fd80da9868d706eaa4a025f4aff9c3faad34646bcde1426f915cbd8d7e8b6c3755ce3fef6eebd256ba3145426af1085305f8a76e34276d2e95aaf339a90b
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver-protocol@npm:^3":
+  version: 3.18.2
+  resolution: "vscode-languageserver-protocol@npm:3.18.2"
+  dependencies:
+    vscode-jsonrpc: "npm:9.0.1"
+    vscode-languageserver-types: "npm:3.18.0"
+  checksum: 10c0/c77862958063b2d6edcdbab7da1abece58b251051338083296c468d5caafc2c249aba63f1a15011d8b8354e145937252520fe6a9632c146606a833bdeae9784c
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver-textdocument@npm:^1":
+  version: 1.0.13
+  resolution: "vscode-languageserver-textdocument@npm:1.0.13"
+  checksum: 10c0/1de174f1de3bfa9e1660a4b3c1b1c711497196d761e33f4d00785fdbfc556ae5a1f440db04771cbc0f6bd66c2a6f303062bc17d8dc46e76820e39fa2d5626564
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver-types@npm:3.17.5":
+  version: 3.17.5
+  resolution: "vscode-languageserver-types@npm:3.17.5"
+  checksum: 10c0/1e1260de79a2cc8de3e46f2e0182cdc94a7eddab487db5a3bd4ee716f67728e685852707d72c059721ce500447be9a46764a04f0611e94e4321ffa088eef36f8
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver-types@npm:3.18.0":
+  version: 3.18.0
+  resolution: "vscode-languageserver-types@npm:3.18.0"
+  checksum: 10c0/d8c51cd286cc55b4c1f333e87fa3cefc66d2aae8c65f6209e7ecf88032d3326308b333d62b05243c194be8a3304760445b87630b298116c6c612607f011b4de0
+  languageName: node
+  linkType: hard
+
+"vscode-languageserver@npm:^9":
+  version: 9.0.1
+  resolution: "vscode-languageserver@npm:9.0.1"
+  dependencies:
+    vscode-languageserver-protocol: "npm:3.17.5"
+  bin:
+    installServerIntoExtension: bin/installServerIntoExtension
+  checksum: 10c0/8a0838d77c98a211c76e54bd3a6249fc877e4e1a73322673fb0e921168d8e91de4f170f1d4ff7e8b6289d0698207afc6aba6662d4c1cd8e4bd7cae96afd6b0c2
   languageName: node
   linkType: hard
 

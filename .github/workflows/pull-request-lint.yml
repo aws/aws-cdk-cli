@@ -36,6 +36,7 @@ jobs:
             bootstrap
             cdk-assets
             cdk-assets-lib
+            cdk-explorer
             cli
             cli-integ
             cli-plugin-contract

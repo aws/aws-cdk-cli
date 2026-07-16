@@ -80,6 +80,9 @@
     },
     {
       "path": "packages/@aws-cdk-testing/cli-integ"
+    },
+    {
+      "path": "packages/@aws-cdk/cdk-explorer"
     }
   ]
 }

@@ -30,6 +30,7 @@ type CliAction =
   | ToolkitAction
   | 'context'
   | 'docs'
+  | 'lsp'
   | 'flags'
   | 'notices'
   | 'version'
