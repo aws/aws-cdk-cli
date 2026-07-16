@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { buildConstructTreeAsync, CloudAssembly, MANIFEST_FILE, type ConstructTreeNode } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE, type PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
-import { findCreationStackTrace } from '@aws-cdk/toolkit-lib';
+import { findCreationStackTrace } from '../api-private';
 import { SourceMapResolver, isWithinRoot, type SourceLocation } from './source-resolver';
 
 /**
