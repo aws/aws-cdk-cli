@@ -204,7 +204,7 @@ export interface DeployStackOptions {
   readonly express?: boolean;
 
   /**
-   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
    *
    * @default 2000
    */
@@ -243,7 +243,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       `Found existing stack ${deployName} that had previously failed creation. Deleting it before attempting to re-create it.`,
     );
     await cfn.deleteStack({ StackName: cloudFormationStack.stackId, ClientRequestToken: randomUUID() });
-    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId);
+    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId, options.stackEventPollingInterval);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
@@ -704,7 +704,7 @@ class FullCloudFormationDeployment {
 
     let finalState = this.cloudFormationStack;
     try {
-      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName);
+      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
@@ -819,7 +819,7 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
 
   try {
     await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID(), DeploymentConfig: { Mode: options.express ? 'EXPRESS' : 'STANDARD' } });
-    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId);
+    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId, options.stackEventPollingInterval);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }

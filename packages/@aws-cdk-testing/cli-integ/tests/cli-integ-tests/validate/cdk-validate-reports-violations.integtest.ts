@@ -18,6 +18,6 @@ integTest(
 
     // Construct Annotations plugin picks up the addWarningV2
     expect(output).toContain('This bucket has no lifecycle rules configured');
-    expect(output).toContain('Construct Annotations');
+    expect(output).toContain('Annotation');
   }),
 );

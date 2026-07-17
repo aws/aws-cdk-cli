@@ -532,9 +532,10 @@ export async function waitForStackDelete(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackNameOrArn: string,
+  stabilizationPollingInterval?: number,
 ): Promise<CloudFormationStack | undefined> {
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
-  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn);
+  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn, stabilizationPollingInterval);
   if (!stack) {
     return undefined;
   }
@@ -566,8 +567,9 @@ export async function waitForStackDeploy(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackName: string,
+  stabilizationPollingInterval?: number,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, ioHelper, stackName);
+  const stack = await stabilizeStack(cfn, ioHelper, stackName, stabilizationPollingInterval);
   if (!stack) {
     return undefined;
   }
@@ -593,6 +595,7 @@ export async function stabilizeStack(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackNameOrArn: string,
+  pollingInterval?: number,
 ) {
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
   await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackDisplayName));
@@ -617,7 +620,7 @@ export async function stabilizeStack(
     }
 
     return stack;
-  });
+  }, pollingInterval);
 }
 
 /**

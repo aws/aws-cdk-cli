@@ -36,14 +36,12 @@ class FakeWatcher implements FileWatcher {
 function setup() {
   const fake = new FakeWatcher();
   const onChange = jest.fn();
-  const onError = jest.fn();
   const watcher = startAssemblyWatcher({
     assemblyDir: '/p/cdk.out',
     onChange,
-    onError,
     createWatcher: () => fake,
   });
-  return { fake, onChange, onError, watcher };
+  return { fake, onChange, watcher };
 }
 
 describe('Assembly Watcher', () => {

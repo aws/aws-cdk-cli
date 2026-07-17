@@ -190,12 +190,16 @@ export function ensureNonEmptyResources(template: any): void {
 }
 
 /**
- * Parse construct paths like `/MyStack/MyTable` or `MyStack/MyTable` into
- * a stack construct ID and construct-level paths.
+ * Split construct paths into a stack ID and construct-level paths.
  *
- * All paths must reference the same stack.
+ * The stack is the longest `availableStackIds` entry that prefixes the path,
+ * so staged stacks (slash-delimited `hierarchicalId`) resolve correctly. All
+ * paths must reference the same stack.
  */
-export function parseAndValidateConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
+export function resolveStackAndConstructPaths(
+  paths: string[],
+  availableStackIds: string[],
+): { stackId: string; constructPaths: string[] } {
   if (paths.length === 0) {
     throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. cdk orphan MyStack/MyTable)');
   }
@@ -205,18 +209,31 @@ export function parseAndValidateConstructPaths(paths: string[]): { stackId: stri
 
   for (const raw of paths) {
     const p = raw.replace(/^\//, ''); // strip leading slash
-    const slashIdx = p.indexOf('/');
-    if (slashIdx < 0) {
-      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must include both a stack name and a construct path separated by '/' (e.g. MyStack/MyTable)`);
+
+    // Longest stack ID that prefixes the path, e.g. 'MyStage/MyStack' for 'MyStage/MyStack/MyBucket'.
+    const matchedStack = availableStackIds
+      .filter((id) => p === id || p.startsWith(`${id}/`))
+      .sort((a, b) => b.length - a.length)[0];
+
+    if (!matchedStack) {
+      throw new ToolkitError(
+        'StackNotFound',
+        `No stack found for construct path '${raw}'. Available stacks: ${availableStackIds.join(', ')}`,
+      );
     }
 
-    const thisStack = p.substring(0, slashIdx);
-    const constructPath = p.substring(slashIdx + 1);
-
-    if (stackId && thisStack !== stackId) {
-      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${thisStack}'`);
+    const constructPath = p.substring(matchedStack.length + 1);
+    if (constructPath === '') {
+      throw new ToolkitError(
+        'InvalidConstructPath',
+        `Construct path '${raw}' must include a construct path within the stack (e.g. ${matchedStack}/MyTable)`,
+      );
     }
-    stackId = thisStack;
+
+    if (stackId && matchedStack !== stackId) {
+      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${matchedStack}'`);
+    }
+    stackId = matchedStack;
     constructPaths.push(constructPath);
   }
 
