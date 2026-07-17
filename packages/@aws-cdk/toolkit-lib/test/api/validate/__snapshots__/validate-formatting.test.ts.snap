@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`formatValidateResult preambles are printed 1`] = `
+"Some Plugin: OMG there are warnings
+
+WARNING Make sure you fix this (Some Plugin)
+   Stack/Resource
+   Acknowledge with 'Some-Plugin::RULE'"
+`;

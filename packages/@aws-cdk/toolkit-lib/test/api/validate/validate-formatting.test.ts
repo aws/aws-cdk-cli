@@ -220,6 +220,25 @@ describe('formatValidateResult', () => {
     expect(output).toContain('Fake passed message');
     expect(output).toContain('Evil');
   });
+
+  test('preambles are printed', () => {
+    const result = makeResult([{
+      pluginName: 'Some Plugin',
+      conclusion: 'success',
+      preamble: 'OMG there are warnings',
+      violations: [{
+        ruleName: 'RULE',
+        description: 'Make sure you fix this',
+        severity: 'warning',
+        violatingConstructs: [{
+          constructPath: 'Stack/Resource',
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toMatchSnapshot();
+  });
 });
 
 function formatValidateResult(result: ValidateResult) {

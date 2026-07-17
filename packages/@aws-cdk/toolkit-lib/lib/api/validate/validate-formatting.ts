@@ -30,6 +30,7 @@ export function formatValidationReports(fileRoot: string, reports: PluginReportJ
 
   return [
     ...pluginFailures.map(formatPluginFailure),
+    ...successfullyExecutedPlugins.flatMap((r) => r.preamble ? [`${chalk.underline(sanitize(r.pluginName))}: ${sanitize(r.preamble)}`] : []),
     ...violations.map((v) => formatViolationBlock(fileRoot, v)),
   ];
 }
