@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs/promises';
+import * as os from 'os';
+import * as pathlib from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
@@ -89,6 +92,7 @@ export class TelemetrySession {
         telemetryVersion: '2.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
+        amznPackage: await tryDetectAmznPackage(),
       },
       event: {
         command: {
@@ -319,4 +323,48 @@ export function isValidWrapperUserAgent(value: string | undefined): value is str
   const [name, _version, mode] = parts;
   if (!VALID_USER_AGENTS.includes(name)) return false;
   return mode === 'sandbox' || mode === 'production';
+}
+
+/**
+ * Try to detect a Config file of which the first line looks like
+ *
+ * ```
+ * package.<packageName> = {
+ * ```
+ *
+ * Or a `brazil.ion` file with a line like
+ *
+ * ```
+ * name: "<projectName>"
+ * ```
+ */
+async function tryDetectAmznPackage(): Promise<string | undefined> {
+  try {
+    await fs.stat(pathlib.join(os.homedir(), '.midway'));
+  } catch {
+    // ENOENT
+    return;
+  }
+
+  try {
+    const configFile = await fs.readFile('Config', 'utf-8');
+    const m = configFile.match(/^package\.(\S+)\s*=/);
+    if (m) {
+      return m[1];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  try {
+    const ionFile = await fs.readFile('brazil.ion', 'utf-8');
+    const m = ionFile.match(/(^|\s)name:\s*"([^"]+)"/m);
+    if (m) {
+      return m[2];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  return undefined;
 }
