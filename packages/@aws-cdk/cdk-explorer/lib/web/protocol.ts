@@ -7,12 +7,25 @@
  */
 export const ASSEMBLY_CHANGED = 'assembly-changed';
 
-/** The SSE event names the server may send. One for now. */
-export type SseEventName = typeof ASSEMBLY_CHANGED;
+/**
+ * SSE event name sent when a source file under the app directory changes. Lets
+ * the SPA re-check the open file's staleness (and refresh its content) the
+ * instant it is edited, without waiting for the next assembly refresh.
+ */
+export const SOURCE_CHANGED = 'source-changed';
+
+/** The SSE event names the server may send. */
+export type SseEventName = typeof ASSEMBLY_CHANGED | typeof SOURCE_CHANGED;
 
 export interface FileResponse {
   readonly path: string;
   readonly content: string;
+  /**
+   * True when the file on disk was modified after the synth that produced the
+   * currently loaded assembly started, so its highlighted lines and violations
+   * may be out of date. Best-effort (see `StalenessTracker`).
+   */
+  readonly stale: boolean;
 }
 
 /**

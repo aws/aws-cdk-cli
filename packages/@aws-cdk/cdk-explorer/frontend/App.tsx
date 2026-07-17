@@ -1,4 +1,5 @@
 import Box from '@cloudscape-design/components/box';
+import Alert from '@cloudscape-design/components/alert';
 import Button from '@cloudscape-design/components/button';
 import Container from '@cloudscape-design/components/container';
 import Header from '@cloudscape-design/components/header';
@@ -35,6 +36,9 @@ export function App(): JSX.Element {
   // Source pane state.
   const [sourceFile, setSourceFile] = React.useState<string | undefined>();
   const [sourceContent, setSourceContent] = React.useState('');
+  // True when the open source file was edited after the current assembly's synth
+  // started, so its squiggles/nav anchors may be stale. Set from /api/file.
+  const [sourceStale, setSourceStale] = React.useState(false);
 
   // Template pane state.
   const [templateFile, setTemplateFile] = React.useState<string | undefined>();
@@ -70,10 +74,33 @@ export function App(): JSX.Element {
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
+  // Re-read the currently open source file, refreshing both its content and its
+  // staleness flag. Used after a synth (assembly changed) to clear a banner, and
+  // on a source edit to raise one, without the user re-opening the file.
+  const refreshOpenSourceFile = React.useCallback(async (): Promise<void> => {
+    const file = sourceFileRef.current;
+    if (!file) return;
+    try {
+      const res = await api.readFile(file);
+      setSourceContent(res.content);
+      setSourceStale(res.stale);
+    } catch {
+      // Keep the last good content; a later event re-tries.
+    }
+  }, []);
+
   React.useEffect(() => {
     reload();
-    return api.subscribe(reload);
-  }, [reload]);
+    return api.subscribe({
+      onAssemblyChanged: () => {
+        reload();
+        void refreshOpenSourceFile();
+      },
+      onSourceChanged: () => {
+        void refreshOpenSourceFile();
+      },
+    });
+  }, [reload, refreshOpenSourceFile]);
 
   /** Navigate to a construct (from tree double-click or violation double-click). */
   const navigate: NavigateHandler = React.useCallback(async (opts) => {
@@ -92,9 +119,11 @@ export function App(): JSX.Element {
           const res = await api.readFile(opts.sourceLocation.file);
           setSourceFile(res.path);
           setSourceContent(res.content);
+          setSourceStale(res.stale);
         } catch {
           setSourceFile(opts.sourceLocation.file);
           setSourceContent(`// Could not load ${opts.sourceLocation.file}`);
+          setSourceStale(false);
         }
       }
     }
@@ -131,6 +160,7 @@ export function App(): JSX.Element {
         const res = await api.readFile(resource.source.file);
         setSourceFile(res.path);
         setSourceContent(res.content);
+        setSourceStale(res.stale);
       } catch { return; }
     }
     setNav({
@@ -203,6 +233,7 @@ export function App(): JSX.Element {
         const res = await api.readFile(filePath);
         setSourceFile(res.path);
         setSourceContent(res.content);
+        setSourceStale(res.stale);
       } else {
         const data = await api.getTemplate(filePath);
         setTemplateFile(filePath);
@@ -256,17 +287,26 @@ export function App(): JSX.Element {
               }>
                 <div style={CODE_PANE_INNER_STYLE}>
                   {sourceContent ? (
-                    <CodeViewer
-                      content={sourceContent}
-                      language={detectLanguage(sourceFile)}
-                      highlightStart={nav?.source?.startLine}
-                      highlightEnd={nav?.source?.endLine}
-                      highlightColor={nav?.color}
-                      navCounter={nav?.navCounter}
-                      scrollToLine={nav?.source?.startLine}
-                      onLineDoubleClick={handleSourceDoubleClick}
-                      diagnostics={buildDiagnostics(sourceFile, violations)}
-                    />
+                    <div style={SOURCE_PANE_COLUMN_STYLE}>
+                      {sourceStale && (
+                        <Alert type="warning">
+                          This file has been modified since the last synth, so its violations and diagnostics may be stale. Re-run <code>cdk synth</code> to refresh.
+                        </Alert>
+                      )}
+                      <div style={GROW_STYLE}>
+                        <CodeViewer
+                          content={sourceContent}
+                          language={detectLanguage(sourceFile)}
+                          highlightStart={nav?.source?.startLine}
+                          highlightEnd={nav?.source?.endLine}
+                          highlightColor={nav?.color}
+                          navCounter={nav?.navCounter}
+                          scrollToLine={nav?.source?.startLine}
+                          onLineDoubleClick={handleSourceDoubleClick}
+                          diagnostics={buildDiagnostics(sourceFile, violations)}
+                        />
+                      </div>
+                    </div>
                   ) : (
                     <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
                   )}
@@ -563,6 +603,14 @@ const FOLDER_BUTTON_STYLE: React.CSSProperties = {
   alignItems: 'center',
 };
 const CODE_PANE_INNER_STYLE: React.CSSProperties = { height: '100%' };
+// Source pane stacks an optional staleness banner above the scrolling viewer.
+const SOURCE_PANE_COLUMN_STYLE: React.CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  gap: '8px',
+};
 const PICKER_ANCHOR_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-flex', alignItems: 'center' };
 const PICKER_DROPDOWN_STYLE: React.CSSProperties = {
   position: 'absolute',

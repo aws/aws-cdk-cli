@@ -3,6 +3,12 @@ import * as path from 'path';
 import { LockError } from '../toolkit/toolkit-error';
 
 /**
+ * The marker file a writer (i.e. a synth) creates in the locked directory for
+ * the duration of the write.
+ */
+export const SYNTH_LOCK_FILE = 'synth.lock';
+
+/**
  * A single-writer/multi-reader lock on a directory
  *
  * It uses marker files with PIDs in them as a locking marker; the PIDs will be
@@ -21,7 +27,7 @@ export class RWLock {
   constructor(public readonly directory: string) {
     this.pidString = `${process.pid}`;
 
-    this.writerFile = path.join(this.directory, 'synth.lock');
+    this.writerFile = path.join(this.directory, SYNTH_LOCK_FILE);
   }
 
   /**

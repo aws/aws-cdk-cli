@@ -1,5 +1,6 @@
 import {
   ASSEMBLY_CHANGED,
+  SOURCE_CHANGED,
   type FileResponse,
   type LineRange,
   type TemplateResource,
@@ -44,13 +45,19 @@ export const api = {
   getViolations: (): Promise<ViolationsResponse> => getJson('/api/policy-validation'),
   getAppInfo: (): Promise<AppInfoResponse> => getJson('/api/info'),
   /**
-   * Subscribe to assembly-changed events from the server, invoking `onChange`
-   * whenever the cloud assembly is rewritten. Returns an unsubscribe that closes
-   * the underlying EventSource.
+   * Subscribe to the server's live-refresh stream. `onAssemblyChanged` fires
+   * when the cloud assembly is rewritten (re-fetch tree/violations);
+   * `onSourceChanged` fires when a source file is edited (re-check the open
+   * file's staleness). Returns an unsubscribe that closes the EventSource.
    */
-  subscribe: (onChange: () => void): (() => void) => {
+  subscribe: (handlers: { onAssemblyChanged?: () => void; onSourceChanged?: () => void }): (() => void) => {
     const source = new EventSource('/api/events');
-    source.addEventListener(ASSEMBLY_CHANGED, () => onChange());
+    if (handlers.onAssemblyChanged) {
+      source.addEventListener(ASSEMBLY_CHANGED, () => handlers.onAssemblyChanged!());
+    }
+    if (handlers.onSourceChanged) {
+      source.addEventListener(SOURCE_CHANGED, () => handlers.onSourceChanged!());
+    }
     return () => source.close();
   },
   getTemplate: (file: string): Promise<TemplateResponse> => getJson(`/api/template?file=${encodeURIComponent(file)}`),
