@@ -47,6 +47,7 @@
     "lib/**/*.ts"
   ],
   "exclude": [
+    "node_modules",
     "lib/init-templates/*/typescript/*/*.template.ts",
     "test/integ/cli/sam_cdk_integ_app/**/*",
     "vendor/**/*"

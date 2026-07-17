@@ -145,6 +145,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+   */
+  readonly lsp?: {};
+
+  /**
    * Detach resources from a CloudFormation stack without deleting them
    */
   readonly orphan?: OrphanOptions;
@@ -619,6 +624,13 @@ export interface BootstrapOptions {
   readonly importExistingResources?: boolean;
 
   /**
+   * Whether creation of bootstrap stack should use CloudFormation Express mode
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
+
+  /**
    * Positional argument for bootstrap
    */
   readonly ENVIRONMENTS?: Array<string>;
@@ -897,7 +909,7 @@ export interface DeployOptions {
   readonly progress?: string;
 
   /**
-   * Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail
+   * Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deploymentsiterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail
    *
    * @default - undefined
    */
@@ -993,6 +1005,13 @@ export interface DeployOptions {
    * @default - false
    */
   readonly revertDrift?: boolean;
+
+  /**
+   * Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
 
   /**
    * Positional argument for deploy
@@ -1363,6 +1382,13 @@ export interface DestroyOptions {
    * @default - 1
    */
   readonly concurrency?: number;
+
+  /**
+   * Destroy stack(s) using Express Mode, a faster mode of tearing down stacks which skips stabilization and has automatic rollback disabled by default
+   *
+   * @default - false
+   */
+  readonly express?: boolean;
 
   /**
    * Positional argument for destroy

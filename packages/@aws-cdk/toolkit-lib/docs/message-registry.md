@@ -116,6 +116,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5900` | Deployment results on success | `result` | {@link SuccessfulDeployStackResult} |
 | `CDK_TOOLKIT_I5901` | Generic deployment success messages | `info` | n/a |
+| `CDK_TOOLKIT_W5902` | Express Mode deployment completed with resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_W5400` | Hotswap disclosure message | `warn` | n/a |
 | `CDK_TOOLKIT_E5001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E5500` | Stack Monitoring error | `error` | {@link ErrorPayload} |
@@ -129,6 +130,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
 | `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
+| `CDK_TOOLKIT_W7902` | Express Mode deletion completed with resources still tearing down | `warn` | n/a |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
@@ -140,6 +142,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9210` | Confirm the deletion of a batch of assets | `info` | {@link AssetBatchDeletionRequest} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
+| `CDK_TOOLKIT_W9902` | Bootstrap completed with Express Mode, resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link FeatureFlagChangeRequest} |
 | `CDK_TOOLKIT_I9400` | All assets are already published | `info` | n/a |

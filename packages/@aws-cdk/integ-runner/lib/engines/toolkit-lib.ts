@@ -33,7 +33,7 @@ export interface ToolkitLibEngineOptions {
   /**
    * The region the CDK app should synthesize itself for
    */
-  readonly region: string;
+  readonly region?: string;
 
   /**
    * The AWS profile to use when authenticating
@@ -208,7 +208,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       deploymentMethod: {
         method: 'change-set',
       },
-      outputsFile: options.outputsFile ? path.join(this.options.workingDirectory, options.outputsFile) : undefined,
+      outputsFile: options.outputsFile ? path.resolve(this.options.workingDirectory, options.outputsFile) : undefined,
     });
     return {
       deleteFailures: result.stacks.flatMap(s => s.deleteFailures),
@@ -261,6 +261,21 @@ export class ToolkitLibRunnerEngine implements ICdk {
    * Creates a Cloud Assembly Source from the provided options.
    */
   private async cx(options: CxOptions): Promise<ICloudAssemblySource> {
+    let outdir;
+    if (options.output) {
+      outdir = path.resolve(this.options.workingDirectory, options.output);
+    }
+
+    // If the target directory already exists, we assume it's a pre-synthesized assembly and use it directly.
+    // This helps a lot with speed if we run `cdk list` on previously synth'ed directory, which happens
+    // a bunch in the integ-runner.
+    //
+    // Ideally we would represent a previously produced assembly with an object that we pass around, but
+    // that's a bigger API change.
+    if (outdir && fs.pathExistsSync(outdir) && fs.statSync(outdir).isDirectory()) {
+      return this.toolkit.fromAssemblyDirectory(outdir);
+    }
+
     if (!options.app) {
       throw new Error('No app provided');
     }
@@ -269,11 +284,6 @@ export class ToolkitLibRunnerEngine implements ICdk {
     const potentialCxPath = path.join(this.options.workingDirectory, options.app);
     if (fs.pathExistsSync(potentialCxPath) && fs.statSync(potentialCxPath).isDirectory()) {
       return this.toolkit.fromAssemblyDirectory(potentialCxPath);
-    }
-
-    let outdir;
-    if (options.output) {
-      outdir = path.join(this.options.workingDirectory, options.output);
     }
 
     return this.toolkit.fromCdkApp(options.app, {

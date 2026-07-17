@@ -115,7 +115,7 @@ beforeEach(() => {
 
   jest.spyOn(deployments, 'deployStack').mockImplementation(async (opts: any) => {
     deployedTemplates.push(opts.overrideTemplate);
-    return { type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'arn', deleteFailures: [] };
+    return { type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'arn', deleteFailures: [], stabilizingResources: [] };
   });
 });
 
@@ -282,7 +282,7 @@ describe('ResourceOrphaner', () => {
       (deployments.deployStack as jest.Mock).mockImplementation(async (opts: any) => {
         callCount++;
         deployedTemplates.push(opts.overrideTemplate);
-        return { type: 'did-deploy-stack', noOp: callCount > 2, outputs: {}, stackArn: 'arn', deleteFailures: [] };
+        return { type: 'did-deploy-stack', noOp: callCount > 2, outputs: {}, stackArn: 'arn', deleteFailures: [], stabilizingResources: [] };
       });
 
       const plan = await orphaner.makePlan(STACK, ['MyTable']);

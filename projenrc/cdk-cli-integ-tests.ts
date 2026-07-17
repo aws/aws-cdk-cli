@@ -247,6 +247,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       storage: './storage',
       auth: { htpasswd: { file: './htpasswd' } },
       uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
+      max_body_size: '100mb',
       packages: {} as Record<string, unknown>,
     };
 
@@ -296,9 +297,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // Configure NPM to use local registry
         'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
         'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
-        // Find and locally publish all tarballs
+        // Find and locally publish all tarballs. Fail loudly if any publish fails
         `for pkg in ${tarballBashExpr}; do`,
-        '  npm publish --loglevel=warn $pkg',
+        '  npm publish --loglevel=warn $pkg || exit 1',
         'done',
       ],
     });

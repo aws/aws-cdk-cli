@@ -10,6 +10,7 @@ let mockDeployStack = jest.fn().mockResolvedValue({
   outputs: {},
   noOp: false,
   deleteFailures: [],
+  stabilizingResources: [],
 });
 
 jest.mock('../../lib/api/deployments', () => {

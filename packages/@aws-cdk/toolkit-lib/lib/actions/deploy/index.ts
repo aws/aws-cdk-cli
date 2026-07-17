@@ -203,6 +203,23 @@ export interface BaseDeployOptions {
    * @default false
    */
   readonly traceLogs?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   *
+   * @default false
+   */
+  readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
+   *
+   * Increase this value to reduce the number of `DescribeStackEvents`/`DescribeStacks` calls,
+   * e.g. when many concurrent stack operations are hitting CloudFormation API rate limits.
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export interface DeployOptions extends BaseDeployOptions {

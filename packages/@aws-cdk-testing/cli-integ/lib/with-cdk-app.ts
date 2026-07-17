@@ -601,9 +601,19 @@ export class TestFixture extends ShellHelper {
 
     const verboseLevel = options.verboseLevel ?? 1;
 
+    // When '--json' is requested, the returned output must be valid JSON. CDK writes its data
+    // output to stdout and its logs (verbose traces, notices, warnings) to stderr, so we require
+    // 'captureStderr: false' to isolate stdout. Without it, the returned output is 'stdout + stderr'
+    // and the interleaved logs would corrupt the JSON regardless of the command's actual behavior.
+    const assertJson = hasJsonFlag(args) && !options.onlyStderr;
+    if (assertJson && options.captureStderr !== false) {
+      throw new Error(`'cdk ${args.join(' ')}' uses '--json' but does not pass 'captureStderr: false'; ` +
+        'this is required so stdout (the JSON output) is isolated from logs written to stderr');
+    }
+
     await this.cli.makeCliAvailable();
 
-    return this.shell([
+    const output = await this.shell([
       'cdk',
       ...(verbose ? [`-${'v'.repeat(verboseLevel)}`] : []),
       ...args,
@@ -614,6 +624,16 @@ export class TestFixture extends ShellHelper {
         ...options.modEnv,
       },
     });
+
+    if (assertJson) {
+      try {
+        JSON.parse(output);
+      } catch (e: any) {
+        throw new Error(`Expected JSON output from 'cdk ${args.join(' ')}' but could not parse it: ${e.message}\nOutput was:\n${output}`);
+      }
+    }
+
+    return output;
   }
 
   /**
@@ -834,7 +854,7 @@ async function bootstrapWithRetryOnBucketExists(envSpecifier: string, fixture: T
     if (out.includes(`Environment ${envSpecifier} bootstrapped`)) {
       break;
     }
-    if (out.includes(`${bootstrapBucket} already exists`)) {
+    if (out.includes(`${bootstrapBucket} already exists`) || out.includes('Service: S3, Status Code: 409')) {
       // might be an s3 eventualy consistency issue due to recycled environments.
       if (Date.now() < timeoutDate.getTime()) {
         fixture.log(`Bootstrap of ${envSpecifier} failed due to bucket existence check. Retrying in ${retryAfterSeconds} seconds...`);
@@ -848,6 +868,17 @@ async function bootstrapWithRetryOnBucketExists(envSpecifier: string, fixture: T
 
 function defined<A>(x: A): x is NonNullable<A> {
   return x !== undefined;
+}
+
+/**
+ * Whether the '--json' flag appears anywhere in the CDK arguments.
+ *
+ * Arguments may be passed either as separate tokens (e.g. `['ls', '--json']`)
+ * or as a single space-joined string (e.g. `['ls --show-dependencies --json']`),
+ * so we match on word boundaries within each argument.
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.some((arg) => /(^|\s)--json(\s|=|$)/.test(arg));
 }
 
 /**

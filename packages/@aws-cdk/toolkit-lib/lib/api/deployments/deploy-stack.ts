@@ -8,6 +8,7 @@ import type {
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
   Tag,
+  DeploymentConfig,
 } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
@@ -29,6 +30,7 @@ import type { DeployStackResult, SuccessfulDeployStackResult } from './deploymen
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, ExecuteChangeSetDeployment } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
+import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
@@ -195,6 +197,18 @@ export interface DeployStackOptions {
    * The class that diagnoses CloudFormation errors
    */
   readonly diagnoser: CloudFormationStackDiagnoser;
+
+  /**
+   * Whether to use express mode to deploy
+   */
+  readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
@@ -229,7 +243,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       `Found existing stack ${deployName} that had previously failed creation. Deleting it before attempting to re-create it.`,
     );
     await cfn.deleteStack({ StackName: cloudFormationStack.stackId, ClientRequestToken: randomUUID() });
-    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId);
+    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId, options.stackEventPollingInterval);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
@@ -279,6 +293,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       outputs: cloudFormationStack.outputs,
       stackArn: cloudFormationStack.stackId,
       deleteFailures: [],
+      stabilizingResources: [],
     };
   } else {
     await ioHelper.defaults.debug(`${deployName}: deploying...`);
@@ -346,6 +361,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       await ioHelper.defaults.info('Falling back to doing a full deployment');
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
+      options = { ...options, express: true };
     } else {
       return {
         type: 'did-deploy-stack',
@@ -353,6 +369,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
         stackArn: cloudFormationStack.stackId,
         outputs: cloudFormationStack.outputs,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
   }
@@ -464,6 +481,7 @@ class FullCloudFormationDeployment {
         outputs: this.cloudFormationStack.outputs,
         stackArn: changeSetDescription.StackId!,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
 
@@ -479,6 +497,7 @@ class FullCloudFormationDeployment {
         stackArn: changeSetDescription.StackId!,
         changeSet: changeSetDescription,
         deleteFailures: [],
+        stabilizingResources: [],
       };
     }
 
@@ -499,6 +518,13 @@ class FullCloudFormationDeployment {
     return this.checkAndExecuteChangeSet(changeSetDescription);
   }
 
+  private deployConfig(): DeploymentConfig {
+    return {
+      Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
+      ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+    };
+  }
+
   /**
    * Check rollback/replacement constraints and execute the change set if all checks pass.
    */
@@ -515,13 +541,14 @@ class FullCloudFormationDeployment {
     const replacement = hasReplacement(changeSetDescription);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
+    const expressNoRollback = this.options.express && this.options.rollback !== true;
     if (isPausedFailState && replacement) {
       return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
     }
     if (isPausedFailState && rollback) {
       return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
     }
-    if (!rollback && replacement) {
+    if ((!rollback || expressNoRollback) && replacement) {
       return { type: 'replacement-requires-rollback' };
     }
 
@@ -544,6 +571,7 @@ class FullCloudFormationDeployment {
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
       ...this.commonPrepareOptions(),
+      DeploymentConfig: this.deployConfig(),
     });
 
     await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
@@ -624,6 +652,7 @@ class FullCloudFormationDeployment {
         const stack = await this.cfn.updateStack({
           StackName: this.stackName,
           ClientRequestToken: `update${this.uuid}`,
+          DeploymentConfig: this.deployConfig(),
           ...this.commonPrepareOptions(),
           ...this.commonExecuteOptions(),
         });
@@ -637,6 +666,7 @@ class FullCloudFormationDeployment {
             outputs: this.cloudFormationStack.outputs,
             stackArn: this.cloudFormationStack.stackId,
             deleteFailures: [],
+            stabilizingResources: [],
           };
         }
         throw err;
@@ -648,6 +678,7 @@ class FullCloudFormationDeployment {
       const stack = await this.cfn.createStack({
         StackName: this.stackName,
         ClientRequestToken: `create${this.uuid}`,
+        DeploymentConfig: this.deployConfig(),
         ...(terminationProtection ? { EnableTerminationProtection: true } : undefined),
         ...this.commonPrepareOptions(),
         ...this.commonExecuteOptions(),
@@ -667,12 +698,13 @@ class FullCloudFormationDeployment {
       changeSetCreationTime: startTime,
       envResources: this.options.envResources,
       isStackUpdate: this.update,
+      pollingInterval: this.options.stackEventPollingInterval,
     });
     await monitor.start();
 
     let finalState = this.cloudFormationStack;
     try {
-      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName);
+      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
@@ -702,6 +734,7 @@ class FullCloudFormationDeployment {
       outputs: finalState.outputs,
       stackArn: finalState.stackId,
       deleteFailures: this.update ? monitor.deleteFailures : [],
+      stabilizingResources: monitor.stabilizingResources,
     };
   }
 
@@ -745,6 +778,8 @@ export interface DestroyStackOptions {
   sdk: SDK;
   roleArn?: string;
   deployName?: string;
+  express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface DestroyStackResult {
@@ -755,6 +790,14 @@ export interface DestroyStackResult {
    * but this value will be undefined.
    */
   readonly stackArn?: string;
+
+  /**
+   * Resources that reported deletion as complete but are still tearing down.
+   *
+   * Non-empty only for Express Mode deletions, where CloudFormation reports a
+   * resource as `DELETE_COMPLETE` while it continues tearing down asynchronously.
+   */
+  readonly stabilizingResources: StabilizingResource[];
 }
 
 export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHelper): Promise<DestroyStackResult> {
@@ -763,24 +806,25 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
 
   const currentStack = await CloudFormationStack.lookup(cfn, deployName);
   if (!currentStack.exists) {
-    return {};
+    return { stabilizingResources: [] };
   }
   const monitor = new StackActivityMonitor({
     cfn,
     stack: options.stack,
     stackArn: currentStack.stackId,
     ioHelper: ioHelper,
+    pollingInterval: options.stackEventPollingInterval,
   });
   await monitor.start();
 
   try {
-    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID() });
-    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId);
+    await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID(), DeploymentConfig: { Mode: options.express ? 'EXPRESS' : 'STANDARD' } });
+    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId, options.stackEventPollingInterval);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }
 
-    return { stackArn: currentStack.stackId };
+    return { stackArn: currentStack.stackId, stabilizingResources: monitor.stabilizingResources };
   } catch (e: any) {
     throw new DeploymentError(suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages), monitor.errors.rootCauseErrorCode ?? 'StackDestroyFailed');
   } finally {

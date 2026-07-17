@@ -229,8 +229,8 @@ export class ResourceImporter {
       assertIsSuccessfulDeployStackResult(result);
 
       const message = result.noOp
-        ? ' ✅  %s (no changes)'
-        : ' ✅  %s';
+        ? '✅  %s (no changes)'
+        : '✅  %s';
 
       await this.ioHelper.defaults.info('\n' + chalk.green(format(message, this.stack.displayName)));
     } catch (e) {

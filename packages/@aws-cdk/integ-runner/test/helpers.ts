@@ -88,15 +88,13 @@ export class MockCdkProvider {
   /**
    * Run a test of the testSnapshot method
    * @param integTestFile - This name is used to determined the expected (committed) snapshot
-   * @param actualSnapshot - The directory of the snapshot that is used for of the actual (current) app
+   * @param compareAgainstDirectory - The directory of the snapshot that is used for of the actual (current) app
    * @returns Diagnostics as they would be returned by testSnapshot
    */
-  public async snapshotTest(integTestFile: string, actualSnapshot?: string): Promise<{
+  public async snapshotTest(integTestFile: string, compareAgainstDirectory?: string): Promise<{
     diagnostics: Diagnostic[];
     destructiveChanges: DestructiveChange[];
   }> {
-    const actualSnapshotLocation = actualSnapshot ? 'test/test-data/' + actualSnapshot : undefined;
-
     // WHEN
     const integTest = new IntegSnapshotRunner({
       cdk: this.cdk,
@@ -104,10 +102,14 @@ export class MockCdkProvider {
         fileName: 'test/test-data/' + integTestFile,
         discoveryRoot: 'test/test-data',
       }),
-      integOutDir: actualSnapshotLocation,
+      TESTING_usingMocks: true,
+      TESTING_compareAgainstDirectory: compareAgainstDirectory,
     });
 
     const results = await integTest.testSnapshot();
+    if (results.type === 'no-shapshot') {
+      throw new Error('Was expecting a snapshot, but none was found.');
+    }
 
     // THEN
     expect(this.mocks.synth).toHaveBeenCalledWith({
@@ -117,7 +119,7 @@ export class MockCdkProvider {
       }),
       context: expect.any(Object),
       app: 'node test/test-data/' + integTestFile,
-      output: actualSnapshotLocation ?? `test/test-data/cdk-integ.out.${integTestFile}.snapshot`,
+      output: expect.any(String),
     });
 
     return results;

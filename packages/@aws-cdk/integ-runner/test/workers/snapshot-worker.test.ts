@@ -35,7 +35,7 @@ describe('Snapshot tests', () => {
       fileName: path.join(directory, 'xxxxx.integ-test1.js'),
       discoveryRoot: directory,
     };
-    const result = await snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test, { testingUsingMocksLeaveDirectories: true });
 
     // THEN
     expect(result.length).toEqual(1);
@@ -48,7 +48,7 @@ describe('Snapshot tests', () => {
       fileName: path.join(directory, 'xxxxx.test-with-snapshot.js'),
       discoveryRoot: directory,
     };
-    const result = await snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test, { testingUsingMocksLeaveDirectories: true });
 
     // THEN
     expect(result.length).toEqual(1);
@@ -61,7 +61,7 @@ describe('Snapshot tests', () => {
       discoveryRoot: directory,
       destructiveChanges: [],
     };
-    const result = await snapshotTestWorker(test);
+    const result = await snapshotTestWorker(test, { testingUsingMocksLeaveDirectories: true });
 
     // THEN
     expect(result.length).toEqual(1);

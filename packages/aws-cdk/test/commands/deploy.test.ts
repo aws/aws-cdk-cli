@@ -81,6 +81,7 @@ beforeEach(async () => {
     outputs: {},
     stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
     deleteFailures: [],
+    stabilizingResources: [],
     changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
   });
   cloudFormation.deployStack.mockImplementation(async (options) => ({
@@ -89,6 +90,7 @@ beforeEach(async () => {
     noOp: false,
     outputs: {},
     deleteFailures: [],
+    stabilizingResources: [],
   }));
 
   toolkit = await makeToolkit();
@@ -257,6 +259,7 @@ describe('no-op deploy', () => {
       outputs: { BucketName: 'my-bucket' },
       stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
       deleteFailures: [],
+      stabilizingResources: [],
       changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
     });
 
@@ -280,6 +283,7 @@ describe('outputs', () => {
       noOp: false,
       outputs: { BucketName: 'my-bucket', QueueUrl: 'https://example.com/q' },
       deleteFailures: [],
+      stabilizingResources: [],
     });
 
     await toolkit.deploy({
@@ -472,5 +476,52 @@ describe('deploy failures', () => {
       '❌  Test-Stack-A failed: ResourceNotReady: Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
     );
     expect(error.name).toBe('DeployStackFailed');
+  });
+});
+
+describe('--express', () => {
+  test('warns about resources still stabilizing when deployStack reports them', async () => {
+    // Express Mode returns success while some resources are still settling; the
+    // deploy path surfaces this as an extra warning listing those resources.
+    cloudFormation.deployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd',
+      noOp: false,
+      outputs: {},
+      deleteFailures: [],
+      stabilizingResources: [{
+        logicalResourceId: 'MyResource',
+        resourceType: 'AWS::S3::Bucket',
+        reason: 'Resource operation completed using Express Mode. It may continue becoming available in the background.',
+      }],
+    });
+
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      express: true,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
+  });
+
+  test('does not warn when no resources are still stabilizing', async () => {
+    // Express Mode is on, but the default mock reports an empty
+    // `stabilizingResources`, so the deploy path emits no stabilization warning.
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      express: true,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({ express: true }),
+    );
   });
 });

@@ -2,7 +2,7 @@ import type * as workerpool from 'workerpool';
 import type { IntegBatchResponse, IntegTestOptions, IntegRunnerMetrics } from './common';
 import { printResults, printSummary } from './common';
 import * as logger from '../logger';
-import type { IntegTestInfo } from '../runner/integration-tests';
+import { testNameFromInfo, type IntegTestInfo } from '../runner/integration-tests';
 import { flatten } from '../utils';
 
 /**
@@ -18,6 +18,15 @@ export interface IntegTestBatchRequest extends IntegTestOptions {
    * The AWS profile to use when running this test
    */
   readonly profile?: string;
+
+  /**
+   * In unit test mode, leave the synth output directories, don't clean them.
+   *
+   * Many of our tests use mocks and don't actually synth output directories, they are
+   * static and must not be deleted.
+   */
+  readonly testingUsingMocksLeaveDirectories?: boolean;
+
 }
 
 /**
@@ -126,7 +135,8 @@ export async function runIntegrationTestsInParallel(
       const test = queue.pop();
       if (!test) break;
       const testStart = Date.now();
-      logger.highlight(`Running test ${test.fileName} in ${worker.profile ? worker.profile + '/' : ''}${worker.region}`);
+
+      logger.highlight(`Running test ${testNameFromInfo(test)} in ${worker.profile ? worker.profile + '/' : ''}${worker.region}`);
       const response: IntegTestInfo[][] = await options.pool.exec('integTestWorker', [{
         watch: options.watch,
         region: worker.region,

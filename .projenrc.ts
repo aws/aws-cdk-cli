@@ -6,6 +6,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
+import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
@@ -168,6 +169,7 @@ function sharedJestConfig(): pj.javascript.JestConfigOptions {
     // Randomize test order: this will catch tests that accidentally pass or
     // fail because they rely on shared mutable state left by other tests
     // (files on disk, global mocks, etc).
+    // @ts-ignore
     randomize: true,
   };
 }
@@ -351,6 +353,7 @@ repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
+new CheckSdkDuplication(repoProject);
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
@@ -365,7 +368,6 @@ repoProject.eslint = new pj.javascript.Eslint(repoProject, {
   dirs: [],
   devdirs: ['projenrc', '.projenrc.ts'],
   fileExtensions: ['.ts', '.tsx'],
-  lintProjenRc: false,
 });
 
 // always lint projen files as part of the build
@@ -447,7 +449,14 @@ const cloudAssemblySchema = configureProject(
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
     devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
-    disableTsconfig: true,
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+        module: 'node16',
+        stripInternal: false,
+        tsBuildInfoFile: 'tsconfig.tsbuildinfo',
+      },
+    },
 
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -574,8 +583,10 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      '@types/json-source-map@^0.6.0',
     ],
     deps: [
+      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -1369,7 +1380,7 @@ cli.gitignore.addPatterns('build-info.json');
 const cliPackageJson = `${cli.workspaceDirectory}/package.json`;
 
 cli.preCompileTask.prependExec('./generate.sh');
-cli.preCompileTask.prependExec('tsx --tsconfig tsconfig.dev.json scripts/user-input-gen.ts');
+cli.preCompileTask.prependExec('tsx --tsconfig test/tsconfig.json scripts/user-input-gen.ts');
 
 const includeCliResourcesCommands = [
   'cp $(node -p \'require.resolve("cdk-from-cfn/index_bg.wasm")\') ./lib/',
@@ -1628,6 +1639,56 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+      'vscode-jsonrpc@^8',
+      'chokidar@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+      '@types/convert-source-map@^2',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+void cdkExplorer;
+
+cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

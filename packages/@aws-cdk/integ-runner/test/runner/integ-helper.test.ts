@@ -1,7 +1,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { CdkIntegHelper } from '../../lib/runner';
+import { CdkTestApp } from '../../lib/runner';
 import { IntegTest } from '../../lib/runner/integration-tests';
+import { findTestSpecificContext } from '../../lib/runner/private/test-specific-context';
 
 let mockCdk: any;
 let tempDir: string;
@@ -28,7 +29,7 @@ test('can read context from integ.context.json in the same directory', async () 
   const helper = await makeHelper('test.js');
 
   // WHEN / THEN
-  expect(helper.getContext()).toMatchObject({ key: 'value' });
+  expect(helper.getContext('snapshot')).toMatchObject({ key: 'value' });
 });
 
 test('can read context from cdk.json in the same directory', async () => {
@@ -41,7 +42,7 @@ test('can read context from cdk.json in the same directory', async () => {
   const helper = await makeHelper('test.js');
 
   // WHEN / THEN
-  expect(helper.getContext()).toMatchObject({ key: 'value' });
+  expect(helper.getContext('snapshot')).toMatchObject({ key: 'value' });
 });
 
 test('integ.context.json takes precedence over cdk.json', async () => {
@@ -57,8 +58,8 @@ test('integ.context.json takes precedence over cdk.json', async () => {
   const helper = await makeHelper('test.js');
 
   // WHEN / THEN
-  expect(helper.getContext()).toMatchObject({ integJsonKey: 'integJsonValue' });
-  expect(helper.getContext()).not.toMatchObject({ cdkJsonKey: 'cdkJsonValue' });
+  expect(helper.getContext('snapshot')).toMatchObject({ integJsonKey: 'integJsonValue' });
+  expect(helper.getContext('snapshot')).not.toMatchObject({ cdkJsonKey: 'cdkJsonValue' });
 });
 
 test('can read context from parent directory', async () => {
@@ -69,11 +70,33 @@ test('can read context from parent directory', async () => {
   const helper = await makeHelper('subdir/test.js');
 
   // WHEN / THEN
-  expect(helper.getContext()).toMatchObject({ integJsonKey: 'integJsonValue' });
+  expect(helper.getContext('snapshot')).toMatchObject({ integJsonKey: 'integJsonValue' });
+});
+
+test('can read upwards from current directory', async () => {
+  // GIVEN
+  await writeJson(path.join(tempDir, 'integ.context.json'), {
+    integJsonKey: 'integJsonValue',
+  });
+
+  const oldDir = process.cwd();
+  const subdir = path.join(tempDir, 'subdir');
+  await fs.mkdir(subdir, { recursive: true });
+
+  process.chdir(subdir);
+  try {
+    // WHEN
+    const context = await findTestSpecificContext('.');
+
+    // THEN
+    expect(context).toMatchObject({ integJsonKey: 'integJsonValue' });
+  } finally {
+    process.chdir(oldDir);
+  }
 });
 
 async function makeHelper(relativePath: string) {
-  const ret = CdkIntegHelper.create({
+  const ret = await CdkTestApp.forDeployment({
     cdk: mockCdk,
     test: new IntegTest({
       fileName: path.join(tempDir, relativePath),
@@ -82,7 +105,7 @@ async function makeHelper(relativePath: string) {
     showOutput: true,
     region: 'eu-west-1',
   });
-  await ret.asyncInitialize();
+  ret.configureLegacyEnableLookups('dont-care');
   return ret;
 }
 
