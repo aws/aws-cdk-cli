@@ -1,9 +1,13 @@
 import type { CdkCliOptions } from '../../../lib';
-import { integTest, withDefaultFixture } from '../../../lib';
+import { integTest, withSpecificFixture } from '../../../lib';
 
 integTest(
   'ci=true output to stdout',
-  withDefaultFixture(async (fixture) => {
+
+  // We need to use an app that we are sure is not going to lead to
+  // CloudFormation-Validate warnings, because those will interfere
+  // with the stdout/stderr checks.
+  withSpecificFixture('simple-app', async (fixture) => {
     const execOptions: CdkCliOptions = {
       captureStderr: true,
       onlyStderr: true,
@@ -24,9 +28,11 @@ integTest(
       options: ['--no-notices'],
     };
 
-    const deployOutput = await fixture.cdkDeploy('test-2', execOptions);
-    const diffOutput = await fixture.cdk(['diff', '--no-notices', fixture.fullStackName('test-2')], execOptions);
-    const destroyOutput = await fixture.cdkDestroy('test-2', execOptions);
+    const stackName = 'simple-1';
+
+    const deployOutput = await fixture.cdkDeploy(stackName, execOptions);
+    const diffOutput = await fixture.cdk(['diff', '--no-notices', fixture.fullStackName(stackName)], execOptions);
+    const destroyOutput = await fixture.cdkDestroy(stackName, execOptions);
     expect(deployOutput).toEqual('');
     expect(destroyOutput).toEqual('');
     expect(diffOutput).toEqual('');
