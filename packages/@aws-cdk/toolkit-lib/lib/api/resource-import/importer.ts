@@ -58,6 +58,13 @@ export interface ImportDeploymentOptions {
    * @default true
    */
   readonly rollback?: boolean;
+
+  /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
 }
 
 /**

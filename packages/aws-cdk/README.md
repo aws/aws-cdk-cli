@@ -818,6 +818,10 @@ To import an existing resource to a CDK stack, follow the following steps:
 5. When `cdk import` reports success, the resource is managed by CDK. Any subsequent
    changes in the construct configuration will be reflected on the resource.
 
+Use `--notification-arns` to specify ARNs of SNS topics that CloudFormation will
+notify with stack related events during the import. These are added to ARNs
+specified with the `notificationArns` stack property.
+
 NOTE: You can also import existing resources by passing `--import-existing-resources` to `cdk deploy`.
 This parameter only works for resources that support custom physical names,
 such as S3 Buckets, DynamoDB Tables, etc...

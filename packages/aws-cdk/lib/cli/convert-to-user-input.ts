@@ -195,6 +195,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         execute: args.execute,
         changeSetName: args.changeSetName,
+        notificationArns: args.notificationArns,
         toolkitStackName: args.toolkitStackName,
         rollback: args.rollback,
         force: args.force,
@@ -510,6 +511,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
+    notificationArns: config.import?.notificationArns,
     toolkitStackName: config.import?.toolkitStackName,
     rollback: config.import?.rollback,
     force: config.import?.force,

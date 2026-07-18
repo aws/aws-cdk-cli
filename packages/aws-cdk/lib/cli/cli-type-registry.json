@@ -727,6 +727,10 @@
           "type": "string",
           "desc": "Name of the CloudFormation change set to create"
         },
+        "notification-arns": {
+          "type": "array",
+          "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
         "toolkit-stack-name": {
           "type": "string",
           "desc": "The name of the CDK toolkit stack to create",

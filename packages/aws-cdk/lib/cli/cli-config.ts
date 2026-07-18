@@ -295,6 +295,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
+          'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'rollback': {
             type: 'boolean',
