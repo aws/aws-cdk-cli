@@ -337,6 +337,9 @@ export function isValidWrapperUserAgent(value: string | undefined): value is str
  * ```
  * name: "<projectName>"
  * ```
+ *
+ * They will always be in the current working directory, and we will
+ * only do the check if it looks like we're on an Amzn developer machine.
  */
 async function tryDetectAmznPackage(): Promise<string | undefined> {
   try {
