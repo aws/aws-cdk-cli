@@ -1,4 +1,4 @@
-import { ASSEMBLY_CHANGED } from '../../lib/web/protocol';
+import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, DEFAULT_PORT, type WebServer } from '../../lib/web/server';
 
 describe('Web Server', () => {
@@ -112,6 +112,46 @@ describe('Web Server', () => {
     fireChange();
     const { value } = await reader.read();
     expect(new TextDecoder().decode(value)).toContain(`event: ${ASSEMBLY_CHANGED}`);
+
+    await reader.cancel();
+  });
+
+  test('starts a source watcher and closes it on stop', async () => {
+    let closed = false;
+    server = await startWebServer({
+      startAssemblyWatcher: () => ({ close: async () => undefined }),
+      startSourceWatcher: (opts) => {
+        expect(opts.appDir).toBeDefined();
+        return {
+          close: async () => {
+            closed = true;
+          },
+        };
+      },
+    });
+
+    await server.stop();
+    expect(closed).toBe(true);
+  });
+
+  test('broadcasts a source-changed event when the source watcher fires', async () => {
+    let fireSourceChange = (): void => undefined;
+    server = await startWebServer({
+      startAssemblyWatcher: () => ({ close: async () => undefined }),
+      startSourceWatcher: (opts) => {
+        fireSourceChange = opts.onChange;
+        return { close: async () => undefined };
+      },
+    });
+
+    const res = await fetch(`${server.url}/api/events`);
+    const body = res.body;
+    if (!body) throw new Error('SSE response had no body');
+    const reader = body.getReader();
+
+    fireSourceChange();
+    const { value } = await reader.read();
+    expect(new TextDecoder().decode(value)).toContain(`event: ${SOURCE_CHANGED}`);
 
     await reader.cancel();
   });

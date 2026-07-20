@@ -9,6 +9,7 @@ import express = require('express');
 import request = require('supertest');
 import type { AssemblyReadResult, ConstructNode } from '../../lib/core/assembly-reader';
 import { createApiRouter } from '../../lib/web/routes';
+import { StalenessTracker } from '../../lib/web/staleness';
 
 let appDir: string;
 let app: express.Express;
@@ -48,7 +49,31 @@ describe('GET /api/file', () => {
   test('returns file content', async () => {
     const res = await request(app).get('/api/file').query({ path: 'app.ts' });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ path: 'app.ts', content: 'export const x = 1;\n' });
+    expect(res.body).toEqual({ path: 'app.ts', content: 'export const x = 1;\n', stale: false });
+  });
+
+  test('flags a file modified after the staleness reference as stale', async () => {
+    const staleness = new StalenessTracker();
+    // Reference well before the fixture file was written, so it reads as stale.
+    staleness.onAssemblyRefreshed(0);
+    const a = express();
+    a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
+
+    const res = await request(a).get('/api/file').query({ path: 'app.ts' });
+    expect(res.status).toBe(200);
+    expect(res.body.stale).toBe(true);
+  });
+
+  test('does not flag a file older than the staleness reference', async () => {
+    const staleness = new StalenessTracker();
+    // Reference far in the future, so no file can be newer than it.
+    staleness.onAssemblyRefreshed(Date.now() + 60_000);
+    const a = express();
+    a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
+
+    const res = await request(a).get('/api/file').query({ path: 'app.ts' });
+    expect(res.status).toBe(200);
+    expect(res.body.stale).toBe(false);
   });
 
   test('requires a path parameter', async () => {

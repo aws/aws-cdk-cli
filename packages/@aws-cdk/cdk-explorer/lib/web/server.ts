@@ -1,11 +1,14 @@
+import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { Toolkit, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 import { SseBroadcaster } from './events';
-import { ASSEMBLY_CHANGED } from './protocol';
+import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from './protocol';
 import { registerApi } from './routes';
+import { StalenessTracker } from './staleness';
 import { indexHtml, webAsset } from './web-assets';
 import { toolkitAssemblyLock } from '../core/assembly-lock';
 import {
@@ -13,6 +16,11 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import {
+  startSourceWatcher as defaultStartSourceWatcher,
+  type SourceWatcher,
+  type SourceWatcherOptions,
+} from '../core/source-watcher';
 
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
@@ -35,6 +43,11 @@ export interface WebServerOptions {
    * overridden in tests with a fake to drive change events deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
+  /**
+   * Starts the source-tree watcher that drives live staleness. Defaults to the
+   * real chokidar-backed watcher; overridden in tests with a fake.
+   */
+  readonly startSourceWatcher?: (options: SourceWatcherOptions) => SourceWatcher;
   /**
    * Reports a non-fatal watcher error (live refresh stops updating). Defaults to
    * writing to stderr; the CLI command passes a sink that routes to its IoHost.
@@ -61,16 +74,38 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // both the read endpoints and the change watcher, so the two never disagree.
   const assemblyDir = options.assemblyDir ?? path.join(appDir, 'cdk.out');
 
+  // mtime of the assembly manifest (undefined when none exists yet). Used as the
+  // staleness fallback reference (synth-finish time) when no synth-start lock was
+  // observed for a generation.
+  const manifestMtimeMs = (): number | undefined => {
+    try {
+      return fs.statSync(path.join(assemblyDir, MANIFEST_FILE)).mtimeMs;
+    } catch {
+      return undefined;
+    }
+  };
+
   const app = express();
 
   // The Toolkit provides the assembly read lock (via fromAssemblyDirectory().
   // produce()); a non-interactive IoHost is fine here since stdout/stderr are
   // free in the web process, unlike the LSP's stdio channel.
   const toolkit = new Toolkit({ ioHost: new NonInteractiveIoHost() });
+  // Owns source-file staleness: the assembly watcher advances its per-generation
+  // reference (see onChange below) and feeds it synth-start activity, and
+  // /api/file reads it.
+  const staleness = new StalenessTracker();
+  // Anchor to the assembly present at startup. The watcher uses ignoreInitial so
+  // it never fires for an already-synthesized assembly; without this, a file
+  // edited before the server started would not read as stale until the next
+  // synth. No synth-start was observed, so this uses the manifest-mtime fallback.
+  const initialManifestMtime = manifestMtimeMs();
+  if (initialManifestMtime !== undefined) staleness.onAssemblyRefreshed(initialManifestMtime);
   registerApi(app, {
     appDir,
     assemblyDir,
     acquireAssemblyLock: toolkitAssemblyLock(toolkit),
+    staleness,
   });
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
@@ -109,9 +144,28 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
   const watcher = startWatcher({
     assemblyDir,
-    onChange: () => events.broadcast(ASSEMBLY_CHANGED),
+    onChange: () => {
+      // Advance the staleness reference to this new generation before waking
+      // browsers, so the /api/file they re-fetch reads the current reference.
+      // The watcher is the single owner of the reference: it observes both the
+      // synth-start lock (onSynthActivity) and the generation change here.
+      const mtime = manifestMtimeMs();
+      if (mtime !== undefined) staleness.onAssemblyRefreshed(mtime);
+      events.broadcast(ASSEMBLY_CHANGED);
+    },
+    onSynthActivity: (atMs) => staleness.noteSynthActivity(atMs),
     onError: options.onWatcherError ?? ((err) =>
       process.stderr.write(`assembly watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
+  });
+
+  // Watch the app's source tree so an edit re-checks the open file's staleness
+  // (and refreshes its content) immediately, without waiting for the next synth.
+  const startSource = options.startSourceWatcher ?? defaultStartSourceWatcher;
+  const sourceWatcher = startSource({
+    appDir,
+    onChange: () => events.broadcast(SOURCE_CHANGED),
+    onError: options.onWatcherError ?? ((err) =>
+      process.stderr.write(`source watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
   });
 
   let stopped = false;
@@ -121,6 +175,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       if (stopped) return;
       stopped = true;
       await watcher.close();
+      await sourceWatcher.close();
       events.close();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());

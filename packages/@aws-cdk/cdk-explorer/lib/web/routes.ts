@@ -9,6 +9,7 @@ import express = require('express');
 import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
 import { resolveWithinRoot } from './safe-path';
 import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
+import { StalenessTracker } from './staleness';
 import type { AcquireAssemblyLock, AssemblyLock } from '../core/assembly-lock';
 import { readAssembly as defaultReadAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
@@ -39,6 +40,14 @@ export interface ApiOptions {
    * mid-synth assembly. Built from the Toolkit in {@link registerApi}'s caller.
    */
   readonly acquireAssemblyLock: AcquireAssemblyLock;
+  /**
+   * Tracks source-file staleness against synth timing; `/api/file` reads it to
+   * stamp each response. Injected by the server, which owns the reference: the
+   * assembly watcher advances it once per generation and feeds it synth-start
+   * activity. Defaults to a private tracker (never stale) for a standalone
+   * router with no watcher driving it.
+   */
+  readonly staleness?: StalenessTracker;
 }
 
 export function createApiRouter(options: ApiOptions): Router {
@@ -46,6 +55,7 @@ export function createApiRouter(options: ApiOptions): Router {
   const assemblyDir = options.assemblyDir ?? path.join(options.appDir, 'cdk.out');
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
   const acquireAssemblyLock = options.acquireAssemblyLock;
+  const staleness = options.staleness ?? new StalenessTracker();
   let cachedAssembly: { result: AssemblyReadResult; mtimeMs: number } | undefined;
 
   /** mtime of the assembly's manifest, or undefined when no assembly exists yet. */
@@ -130,7 +140,11 @@ export function createApiRouter(options: ApiOptions): Router {
     if (isBinary(buffer)) {
       return res.status(415).json({ error: 'binary file cannot be displayed' });
     }
-    return res.json({ path: toPosix(path.relative(appDir, resolved)), content: buffer.toString('utf-8') });
+    return res.json({
+      path: toPosix(path.relative(appDir, resolved)),
+      content: buffer.toString('utf-8'),
+      stale: staleness.isStale(stat.mtimeMs),
+    });
   });
 
   router.get('/tree', async (_req, res) => {
