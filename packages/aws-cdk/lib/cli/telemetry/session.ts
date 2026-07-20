@@ -348,7 +348,7 @@ async function tryDetectAmznPackage(): Promise<string | undefined> {
 
   try {
     const configFile = await fs.readFile('Config', 'utf-8');
-    const m = configFile.match(/^package\.(\S+)\s*=/);
+    const m = configFile.match(/^package\.(\S+)\s*=/m);
     if (m) {
       return m[1];
     }
