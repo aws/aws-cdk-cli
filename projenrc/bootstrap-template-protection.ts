@@ -75,7 +75,10 @@ export class BootstrapTemplateProtection extends Component {
         },
         {
           name: 'Checkout base branch',
-          run: 'git fetch origin ${{ github.event.pull_request.base.ref }}',
+          env: {
+            BASE_REF: '${{ github.event.pull_request.base.ref }}',
+          },
+          run: 'git fetch origin "$BASE_REF"',
         },
         {
           name: 'Check if bootstrap template changed',
