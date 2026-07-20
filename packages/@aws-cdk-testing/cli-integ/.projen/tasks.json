@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "env": {
     "PATH": "$(yarn exec node --print process.env.PATH)"
   },
@@ -36,8 +36,6 @@
         "RELEASE_TAG_PREFIX": "@aws-cdk-testing/cli-integ@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
         "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -- .",
         "MAJOR": "3"
       },
       "steps": [
@@ -45,10 +43,49 @@
           "spawn": "gather-versions"
         },
         {
-          "builtin": "release/bump-version"
+          "builtin": "release/resolve-latest-tag",
+          "outputEnv": "LATEST_TAG"
+        },
+        {
+          "spawn": "bump:releasable-commits",
+          "outputEnv": "RELEASABLE_COMMITS",
+          "condition": "git rev-parse --verify --quiet \"refs/tags/$LATEST_TAG\""
+        },
+        {
+          "builtin": "release/suggest-version-bump",
+          "outputEnv": "SUGGESTED_BUMP"
+        },
+        {
+          "exec": "node -e \"process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.OUTFILE,'utf8')).version)\"",
+          "outputEnv": "VERSION"
+        },
+        {
+          "spawn": "bump:next-version",
+          "outputEnv": "BUMP_TYPE"
+        },
+        {
+          "builtin": "release/apply-version-bump"
         }
       ],
-      "condition": "git log --oneline -1 | grep -qv \"chore(release):\""
+      "condition": "git log --oneline -1 | grep -v \"chore(release):\" > /dev/null"
+    },
+    "bump:next-version": {
+      "name": "bump:next-version",
+      "description": "Determine the next version to release",
+      "steps": [
+        {
+          "exec": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc"
+        }
+      ]
+    },
+    "bump:releasable-commits": {
+      "name": "bump:releasable-commits",
+      "description": "Print the releasable commits since the latest release",
+      "steps": [
+        {
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -- ."
+        }
+      ]
     },
     "check-for-updates": {
       "name": "check-for-updates",
@@ -56,12 +93,7 @@
         "CI": "0",
         "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
         "YARN_NPM_MINIMAL_AGE_GATE": "4320"
-      },
-      "steps": [
-        {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,nx,projen,ts-jest,@cdklabs/cdk-atmosphere-client,fast-glob,node-pty,proxy-agent"
-        }
-      ]
+      }
     },
     "check-licenses": {
       "name": "check-licenses",
@@ -219,9 +251,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk-testing/cli-integ@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -- ."
+        "BUMP_PACKAGE": "commit-and-tag-version@^12"
       },
       "steps": [
         {
