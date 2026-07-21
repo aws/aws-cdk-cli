@@ -25,7 +25,7 @@ export function formatErrorMessage(error: any): string {
     return error.message;
   }
 
-  // Some service errors carry no `message` at all. 
+  // Some service errors carry no `message` at all.
   // Surface whatever the AWS SDK gives us
   const fromSdk = formatSdkError(error);
   if (fromSdk) {
