@@ -1,3 +1,6 @@
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
@@ -552,3 +555,89 @@ describe('isValidWrapperUserAgent', () => {
     expect(isValidWrapperUserAgent(value)).toBe(expected);
   });
 });
+
+describe('with midway present', () => {
+  let origDir: string;
+
+  beforeEach(async () => {
+    const midwayPath = path.join(os.homedir(), '.midway');
+    if (!await pathExists(midwayPath)) {
+      await fs.mkdir(midwayPath, { recursive: true });
+    }
+    origDir = process.cwd();
+    process.chdir(await fs.mkdtemp(path.join(os.tmpdir(), 'mw-')));
+  });
+
+  afterEach(() => {
+    process.chdir(origDir);
+  });
+
+  async function doEmit() {
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+
+    session = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await session.begin();
+    const spy = jest.spyOn(client, 'emit');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    return spy.mock.calls[0][0];
+  }
+
+  test('Config file', async () => {
+    await fs.writeFile('Config', [
+      '# -*-perl-*-',
+      '',
+      'package.SomePackage = {',
+      '    flavors = {',
+    ].join('\n'), 'utf-8');
+
+    const telemetryObject = await doEmit();
+    expect(telemetryObject).toEqual(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        amznPackage: 'SomePackage',
+      }),
+    }));
+  });
+
+  test('Ion file', async () => {
+    await fs.writeFile('brazil.ion', [
+      "'brazil_package_spec@1.0'",
+      '',
+      'common::{',
+      '  name: "SomePackage",',
+      '  major_version: "1.0",',
+    ].join('\n'), 'utf-8');
+
+    const telemetryObject = await doEmit();
+    expect(telemetryObject).toEqual(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        amznPackage: 'SomePackage',
+      }),
+    }));
+  });
+});
+
+async function pathExists(x: string) {
+  try {
+    await fs.stat(x);
+    return true;
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      return false;
+    }
+    throw e;
+  }
+}
