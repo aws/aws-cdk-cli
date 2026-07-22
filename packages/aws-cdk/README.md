@@ -349,7 +349,7 @@ The following shows a sample `cdk.json` where the `outputsFile` key is set to *o
 
 ```json
 {
-  "app": "npx ts-node bin/myproject.ts",
+  "app": "npx tsx bin/myproject.ts",
   "context": {
     "@aws-cdk/core:enableStackNameDuplicates": "true",
     "aws-cdk:enableDiffNoFail": "true",
@@ -413,7 +413,7 @@ When `cdk deploy` is executed, deployment events will include the complete histo
 
 ```json
 {
-  "app": "npx ts-node bin/myproject.ts",
+  "app": "npx tsx bin/myproject.ts",
   "context": {
     "@aws-cdk/core:enableStackNameDuplicates": "true",
     "aws-cdk:enableDiffNoFail": "true",
