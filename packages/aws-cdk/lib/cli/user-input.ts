@@ -147,7 +147,7 @@ export interface UserInput {
   /**
    * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
    */
-  readonly lsp?: {};
+  readonly lsp?: LspOptions;
 
   /**
    * Detach resources from a CloudFormation stack without deleting them
@@ -1772,6 +1772,20 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+ *
+ * @struct
+ */
+export interface LspOptions {
+  /**
+   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
+   *
+   * @default - false
+   */
+  readonly features?: boolean;
 }
 
 /**

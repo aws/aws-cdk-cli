@@ -29,6 +29,7 @@ import { WATCH_EXCLUDE_DEFAULTS, createIgnoreMatcher } from '../api-private';
 import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
+import { cdkLspManifest } from './features';
 import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
@@ -378,7 +379,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     onInitialize(params) {
       applicationDir = params.initializationOptions?.applicationDir;
       codeLensRefreshSupported = params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
+      const manifest = cdkLspManifest();
       return {
+        serverInfo: { name: 'cdk-lsp', version: manifest.version },
         capabilities: {
           textDocumentSync: {
             openClose: false,
@@ -394,6 +397,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
           executeCommandProvider: { commands: [...SUPPORTED_COMMANDS] },
           // Hover a construct's creation line to see its resolved CFN properties.
           hoverProvider: true,
+          // Non-standard: lets a client discover CDK-specific features and the
+          // wire protocol version ahead of use; also backs `cdk lsp --features`.
+          experimental: { cdk: manifest },
         },
       };
     },

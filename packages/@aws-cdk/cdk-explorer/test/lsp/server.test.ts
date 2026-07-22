@@ -153,6 +153,52 @@ describe('LSP Server', () => {
     });
   });
 
+  test('initialize advertises serverInfo and the experimental.cdk feature manifest', () => {
+    const client = createTestClient();
+    const result = client.handlers.onInitialize({
+      processId: null,
+      capabilities: {},
+      rootUri: null,
+      initializationOptions: {},
+    });
+    expect(result.serverInfo).toMatchObject({ name: 'cdk-lsp' });
+    expect(typeof result.serverInfo?.version).toBe('string');
+    expect(result.capabilities.experimental).toMatchObject({
+      cdk: {
+        protocol: 1,
+        version: result.serverInfo?.version,
+        features: expect.arrayContaining(['hover', 'codeLens', 'definition', 'synth', 'autoSynth']),
+        commands: expect.arrayContaining([COMMAND_SYNTH_NOW]),
+      },
+    });
+  });
+
+  test('every advertised cdk feature is backed by a real capability (guards manifest drift)', () => {
+    const client = createTestClient();
+    const result = client.handlers.onInitialize({
+      processId: null,
+      capabilities: {},
+      rootUri: null,
+      initializationOptions: {},
+    });
+    const caps = result.capabilities;
+    const commands = caps.executeCommandProvider?.commands ?? [];
+    const backing: Record<string, boolean> = {
+      hover: !!caps.hoverProvider,
+      codeLens: !!caps.codeLensProvider,
+      definition: !!caps.definitionProvider,
+      synth: commands.includes('cdk.explorer.synthNow'),
+      autoSynth: commands.includes('cdk.explorer.enableAutoSynth') && commands.includes('cdk.explorer.disableAutoSynth'),
+    };
+    const manifest = (caps.experimental as { cdk: { features: string[]; commands: string[] } }).cdk;
+    // An advertised feature with no backing capability means the list is lying.
+    for (const feature of manifest.features) {
+      expect(backing[feature]).toBe(true);
+    }
+    // The manifest's command list must mirror the wire executeCommandProvider list.
+    expect(manifest.commands).toEqual(commands);
+  });
+
   test('didSave triggers auto-synth for non-ignored source files when auto-synth is enabled', async () => {
     const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'success' });
     const client = createTestClient({ synthRunner });
