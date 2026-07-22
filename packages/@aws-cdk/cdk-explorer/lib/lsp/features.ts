@@ -1,4 +1,3 @@
-import { VERSION } from '../index';
 import { SUPPORTED_COMMANDS } from './commands';
 
 /**
@@ -23,11 +22,14 @@ export const CDK_LSP_FEATURES = ['hover', 'codeLens', 'definition', 'synth', 'au
  * The CDK-specific manifest advertised in the `initialize` response
  * (`capabilities.experimental.cdk`) and printed by `cdk lsp --features`. This
  * function is the single source of truth for both surfaces so they cannot drift.
+ *
+ * `version` is supplied by the `cdk` CLI entrypoint; the server is a library
+ * and does not know its own shipped version, so the CLI injects it.
  */
-export function cdkLspManifest() {
+export function cdkLspManifest(version?: string) {
   return {
     protocol: CDK_LSP_PROTOCOL,
-    version: VERSION,
+    version,
     features: [...CDK_LSP_FEATURES],
     // Deliberately mirrors executeCommandProvider.commands on the wire so the
     // `cdk lsp --features` probe (which has no LSP session) can see them too.

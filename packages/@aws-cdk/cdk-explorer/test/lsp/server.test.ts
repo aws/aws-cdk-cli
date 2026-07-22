@@ -53,6 +53,7 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
     acquireAssemblyLock: opts?.acquireAssemblyLock ?? mockAssemblyLock,
     synthRunner: opts?.synthRunner,
     notify: opts?.notify,
+    version: opts?.version,
     logger: log,
     onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
     onRefreshCodeLenses: refreshCodeLens,
@@ -154,19 +155,18 @@ describe('LSP Server', () => {
   });
 
   test('initialize advertises serverInfo and the experimental.cdk feature manifest', () => {
-    const client = createTestClient();
+    const client = createTestClient({ version: '9.9.9' });
     const result = client.handlers.onInitialize({
       processId: null,
       capabilities: {},
       rootUri: null,
       initializationOptions: {},
     });
-    expect(result.serverInfo).toMatchObject({ name: 'cdk-lsp' });
-    expect(typeof result.serverInfo?.version).toBe('string');
+    expect(result.serverInfo).toEqual({ name: 'cdk-lsp', version: '9.9.9' });
     expect(result.capabilities.experimental).toMatchObject({
       cdk: {
         protocol: 1,
-        version: result.serverInfo?.version,
+        version: '9.9.9',
         features: expect.arrayContaining(['hover', 'codeLens', 'definition', 'synth', 'autoSynth']),
         commands: expect.arrayContaining([COMMAND_SYNTH_NOW]),
       },

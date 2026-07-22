@@ -1,5 +1,6 @@
 import * as process from 'process';
 import { cdkLspManifest, startLspServer } from '@aws-cdk/cdk-explorer';
+import { versionNumber } from '../cli/version';
 
 /**
  * Runs the CDK Language Server command.
@@ -15,11 +16,11 @@ export async function lsp(options: { readonly features?: boolean } = {}): Promis
   // without starting the server, so a client can detect LSP presence and
   // features without opening a session.
   if (options.features) {
-    process.stdout.write(JSON.stringify(cdkLspManifest()) + '\n');
+    process.stdout.write(JSON.stringify(cdkLspManifest(versionNumber())) + '\n');
     return 0;
   }
 
-  startLspServer();
+  startLspServer(versionNumber());
 
   await new Promise<void>((resolve) => {
     const done = () => resolve();
