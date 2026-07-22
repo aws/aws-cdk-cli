@@ -118,7 +118,7 @@ function formatConstructInfo(fileRoot: string, construct: ViolatingConstructJson
 
   if (construct.constructPath) {
     const cPath = sanitize(construct.constructPath);
-    parts.push(logicalId ? `${chalk.bold(cPath)} (${logicalId})` : chalk.bold(cPath));
+    parts.push(logicalId ? `${cPath} (${logicalId})` : cPath);
   } else {
     // No construct information, show template path and logical ID
     if (construct.cloudFormationResource?.templatePath) {

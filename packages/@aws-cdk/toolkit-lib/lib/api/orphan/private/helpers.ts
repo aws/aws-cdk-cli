@@ -1,5 +1,3 @@
-import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
-
 /**
  * Walk an object tree depth-first, calling visitor on every node.
  */
@@ -98,69 +96,6 @@ export function removeDependsOn(template: any, logicalId: string): void {
       delete res.DependsOn;
     }
   }
-}
-
-/**
- * Find all resources whose aws:cdk:path starts with `<stackName>/<constructPath>/`.
- */
-export function findResourcesByPath(resources: Record<string, any>, stackName: string, constructPath: string): string[] {
-  const prefix = `${stackName}/${constructPath}/`;
-  const ids: string[] = [];
-  for (const [id, resource] of Object.entries(resources)) {
-    const cdkPath = resource.Metadata?.[PATH_METADATA_KEY] ?? '';
-    if (cdkPath.startsWith(prefix)) {
-      ids.push(id);
-    }
-  }
-  return ids;
-}
-
-/**
- * Find resources in the remaining template that still reference any of the orphaned logical IDs.
- */
-export function findBlockingResources(remainingTemplate: any, orphanedIds: string[], fullTemplate: any): string[] {
-  const blockers: string[] = [];
-  const remaining = remainingTemplate.Resources ?? {};
-  const full = fullTemplate.Resources ?? {};
-
-  for (const [id, resource] of Object.entries(full) as [string, any][]) {
-    if (orphanedIds.includes(id)) continue;
-    if (!remaining[id]) continue;
-
-    let references = false;
-    walkObject(resource, (value) => {
-      if (references) return;
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        if (value.Ref && orphanedIds.includes(value.Ref)) references = true;
-        const getAtt = value['Fn::GetAtt'];
-        if (Array.isArray(getAtt) && orphanedIds.includes(getAtt[0])) references = true;
-      }
-    });
-
-    const deps = resource.DependsOn;
-    if (typeof deps === 'string' && orphanedIds.includes(deps)) references = true;
-    if (Array.isArray(deps) && deps.some((d: string) => orphanedIds.includes(d))) references = true;
-
-    if (references) {
-      const path = (resource as any).Metadata?.[PATH_METADATA_KEY] ?? id;
-      blockers.push(path);
-    }
-  }
-
-  return blockers;
-}
-
-/**
- * Check if any resources in the template have aws:cdk:path metadata at all.
- * Used to detect if metadata has been disabled.
- */
-export function hasAnyCdkPathMetadata(resources: Record<string, any>): boolean {
-  for (const resource of Object.values(resources)) {
-    if ((resource as any).Metadata?.[PATH_METADATA_KEY]) {
-      return true;
-    }
-  }
-  return false;
 }
 
 import { ToolkitError } from '../../../toolkit/toolkit-error';
