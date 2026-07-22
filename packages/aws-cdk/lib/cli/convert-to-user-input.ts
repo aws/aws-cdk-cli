@@ -329,7 +329,9 @@ export function convertYargsToUserInput(args: any): UserInput {
       break;
 
     case 'lsp':
-      commandOptions = {};
+      commandOptions = {
+        features: args.features,
+      };
       break;
 
     case 'orphan':
@@ -593,7 +595,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
-  const lspOptions = {};
+  const lspOptions = {
+    features: config.lsp?.features,
+  };
   const orphanOptions = {};
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,

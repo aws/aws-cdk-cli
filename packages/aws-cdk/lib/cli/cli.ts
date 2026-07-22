@@ -327,7 +327,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'lsp':
         ioHost.currentAction = 'lsp';
-        return lsp();
+        return lsp({ features: argv.features });
 
       case 'ls':
       case 'list':

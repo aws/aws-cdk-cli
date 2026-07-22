@@ -9,10 +9,11 @@ import { runSynth } from '../core/synth-runner';
  * Toolkit-backed bindings the handlers need. This is the single entrypoint
  * used by the `cdk lsp` CLI command.
  */
-export function startLspServer(): void {
+export function startLspServer(version?: string): void {
   startServer({
     readable: process.stdin,
     writable: process.stdout,
+    version,
     // Build the Toolkit once connection.console exists (so output reaches the
     // editor Output panel), then bind the two ops the handlers need. The read
     // lock comes from fromAssemblyDirectory().produce(), so we never touch RWLock.

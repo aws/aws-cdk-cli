@@ -529,6 +529,13 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'lsp': {
         description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
+        options: {
+          features: {
+            type: 'boolean',
+            default: false,
+            desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+          },
+        },
       },
       'orphan': {
         arg: {
