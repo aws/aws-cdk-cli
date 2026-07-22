@@ -513,6 +513,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           selector,
           toolkitStackName,
           roleArn: args.roleArn,
+          notificationArns: args.notificationArns,
           deploymentMethod: {
             method: 'change-set',
             execute: args.execute,

@@ -1178,6 +1178,13 @@ export interface ImportOptions {
   readonly changeSetName?: string;
 
   /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.
+   *
+   * @default - undefined
+   */
+  readonly notificationArns?: Array<string>;
+
+  /**
    * The name of the CDK toolkit stack to create
    *
    * @default - undefined
