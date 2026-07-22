@@ -2,6 +2,7 @@ import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';
+import { isAccessDeniedError } from '../aws-auth/util';
 import type { IoHelper } from '../io/private';
 import { Notices } from '../notices';
 import { type EcrRepositoryInfo, ToolkitInfo } from '../toolkit-info';
@@ -85,7 +86,7 @@ export class EnvironmentResources {
         doValidate(await this.versionFromSsmParameter(ssmParameterName), this.environment);
         return;
       } catch (e: any) {
-        if (e.name !== 'AccessDeniedException') {
+        if (!isAccessDeniedError(e)) {
           throw e;
         }
 
