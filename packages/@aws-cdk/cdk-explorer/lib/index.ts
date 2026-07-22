@@ -5,5 +5,6 @@ export type { AssemblyData, AssemblyReadResult, ConstructNode } from './core/ass
 export type { SourceLocation } from './core/source-resolver';
 
 export { startLspServer } from './lsp/main';
+export { cdkLspManifest } from './lsp/features';
 export { startServer, createLspHandlers } from './lsp/server';
 export type { LspHandlers, LspHandlerOptions, LspServerOptions } from './lsp/server';

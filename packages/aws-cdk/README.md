@@ -785,6 +785,37 @@ $ cdk watch --concurrency 5
 It is not recommended to use `watch` for production deployments. See the
 *Hotswap deployments for faster development* section for more information.
 
+### `cdk lsp`
+
+Starts the CDK Language Server, which brings information from your synthesized
+cloud assembly into your editor. It is a standard [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
+server that communicates over stdio, so any LSP-capable editor (or AI agent)
+can connect to it.
+
+```console
+$ # Normally started by your editor's LSP client, which talks to it over stdin/stdout.
+$ cdk lsp
+```
+
+Once connected, it surfaces:
+
+- **Code lenses** on the source lines that create resources, linking each construct to the resource it produces in the synthesized template.
+- **Hover** details showing a construct's resolved CloudFormation properties.
+- **Go to definition** from a synthesized `*.template.json` back to the construct source that created it.
+- **Diagnostics** from policy validation, shown as squiggles on the constructs that violate a rule.
+
+Source-linked features currently work for TypeScript and Python.
+
+The server can run your app to keep the cloud assembly current (for example, an
+"auto-synth on save" mode offered through your editor). Because that runs your
+project's `app` command with your shell environment and AWS credentials, enable
+it only for projects you trust. This is the same trust model that `cdk synth`
+and `cdk watch` already use.
+
+`cdk lsp` is designed to be driven by an editor extension rather than run by hand.
+For the full feature list, the editor-integration protocol, and the programmatic
+API, see the [`@aws-cdk/cdk-explorer` package README](https://github.com/aws/aws-cdk-cli/blob/main/packages/%40aws-cdk/cdk-explorer/README.md).
+
 ### `cdk import`
 
 Sometimes you want to import AWS resources that were created using other means

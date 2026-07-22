@@ -53,6 +53,7 @@ function createTestClient(opts?: Partial<LspHandlerOptions>): CapturedClient {
     acquireAssemblyLock: opts?.acquireAssemblyLock ?? mockAssemblyLock,
     synthRunner: opts?.synthRunner,
     notify: opts?.notify,
+    version: opts?.version,
     logger: log,
     onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
     onRefreshCodeLenses: refreshCodeLens,
@@ -151,6 +152,51 @@ describe('LSP Server', () => {
         definitionProvider: true,
       },
     });
+  });
+
+  test('initialize advertises serverInfo and the experimental.cdk feature manifest', () => {
+    const client = createTestClient({ version: '9.9.9' });
+    const result = client.handlers.onInitialize({
+      processId: null,
+      capabilities: {},
+      rootUri: null,
+      initializationOptions: {},
+    });
+    expect(result.serverInfo).toEqual({ name: 'cdk-lsp', version: '9.9.9' });
+    expect(result.capabilities.experimental).toMatchObject({
+      cdk: {
+        protocol: 1,
+        version: '9.9.9',
+        features: expect.arrayContaining(['hover', 'codeLens', 'definition', 'synth', 'autoSynth']),
+        commands: expect.arrayContaining([COMMAND_SYNTH_NOW]),
+      },
+    });
+  });
+
+  test('every advertised cdk feature is backed by a real capability (guards manifest drift)', () => {
+    const client = createTestClient();
+    const result = client.handlers.onInitialize({
+      processId: null,
+      capabilities: {},
+      rootUri: null,
+      initializationOptions: {},
+    });
+    const caps = result.capabilities;
+    const commands = caps.executeCommandProvider?.commands ?? [];
+    const backing: Record<string, boolean> = {
+      hover: !!caps.hoverProvider,
+      codeLens: !!caps.codeLensProvider,
+      definition: !!caps.definitionProvider,
+      synth: commands.includes('cdk.explorer.synthNow'),
+      autoSynth: commands.includes('cdk.explorer.enableAutoSynth') && commands.includes('cdk.explorer.disableAutoSynth'),
+    };
+    const manifest = (caps.experimental as { cdk: { features: string[]; commands: string[] } }).cdk;
+    // An advertised feature with no backing capability means the list is lying.
+    for (const feature of manifest.features) {
+      expect(backing[feature]).toBe(true);
+    }
+    // The manifest's command list must mirror the wire executeCommandProvider list.
+    expect(manifest.commands).toEqual(commands);
   });
 
   test('didSave triggers auto-synth for non-ignored source files when auto-synth is enabled', async () => {
@@ -902,5 +948,100 @@ describe('LSP Server -- synth-failure diagnostics', () => {
     const uri = pathToFileURL('/p/lib/stack.ts').toString();
     const entriesForFile = client.published.filter((p) => p.uri === uri);
     expect(entriesForFile[entriesForFile.length - 1].diagnostics).toEqual([]);
+  });
+});
+
+describe('getConstructTree request', () => {
+  const emptyViolations = { version: '1.0.0', pluginReports: [] };
+
+  it('flattens the source-resolved tree in pre-order', async () => {
+    const tree = [
+      {
+        path: 'Stack1',
+        id: 'Stack1',
+        children: [
+          {
+            path: 'Stack1/MyBucket',
+            id: 'MyBucket',
+            type: 'AWS::S3::Bucket',
+            logicalId: 'MyBucket123',
+            templateFile: path.join('/p', 'cdk.out', 'Stack1.template.json'),
+            sourceLocation: { file: '/p/lib/stack.ts', line: 12, column: 5 },
+            children: [],
+          },
+        ],
+      },
+    ];
+    const client = createTestClient({
+      readAssembly: async () => ({ status: 'success', data: { warnings: ['bad source map'], tree, violations: emptyViolations } }),
+    });
+    await initializeClient(client, { applicationDir: '/p' });
+
+    const result = client.handlers.onGetConstructTree();
+
+    expect(result.status).toBe('ok');
+    expect(result.assemblyDir).toBe(path.join('/p', 'cdk.out'));
+    expect(result.warnings).toEqual(['bad source map']);
+    // Pre-order: parent before child.
+    expect(result.entries.map((e) => e.path)).toEqual(['Stack1', 'Stack1/MyBucket']);
+    const bucket = result.entries.find((e) => e.path === 'Stack1/MyBucket');
+    expect(bucket).toMatchObject({
+      id: 'MyBucket',
+      type: 'AWS::S3::Bucket',
+      logicalId: 'MyBucket123',
+      sourceLocation: { file: '/p/lib/stack.ts', line: 12, column: 5 },
+      templateFile: path.join('/p', 'cdk.out', 'Stack1.template.json'),
+    });
+  });
+
+  it('includes the template offset of the resource block', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-tree-'));
+    const outDir = path.join(dir, 'cdk.out');
+    fs.mkdirSync(outDir, { recursive: true });
+    const templateFile = path.join(outDir, 'Stack1.template.json');
+    const text = JSON.stringify({ Resources: { MyBucket123: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
+    fs.writeFileSync(templateFile, text);
+    try {
+      const client = createTestClient({
+        readAssembly: async () => ({
+          status: 'success',
+          data: {
+            tree: [{
+              path: 'Stack1/MyBucket',
+              id: 'MyBucket',
+              type: 'AWS::S3::Bucket',
+              logicalId: 'MyBucket123',
+              templateFile,
+              children: [],
+            }],
+            violations: emptyViolations,
+            warnings: [],
+          },
+        }),
+      });
+      await initializeClient(client, { applicationDir: dir });
+
+      const result = client.handlers.onGetConstructTree();
+
+      // The offset is the start of the resource's value block: the first `{`
+      // after the logical id key.
+      const expectedStart = text.indexOf('{', text.indexOf('"MyBucket123"'));
+      const bucket = result.entries.find((e) => e.path === 'Stack1/MyBucket');
+      expect(bucket?.templateOffset).toBe(expectedStart);
+      expect(text[bucket!.templateOffset!]).toBe('{');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports no-assembly before the app is synthesized', async () => {
+    const client = createTestClient({ readAssembly: async () => ({ status: 'not-found' }) });
+    await initializeClient(client, { applicationDir: '/p' });
+
+    const result = client.handlers.onGetConstructTree();
+
+    expect(result.status).toBe('no-assembly');
+    expect(result.entries).toEqual([]);
+    expect(result.assemblyDir).toBe(path.join('/p', 'cdk.out'));
   });
 });
