@@ -198,6 +198,10 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-cdk/cdk-explorer",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },

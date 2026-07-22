@@ -1,5 +1,3 @@
-import { PATH_METADATA_KEY } from '@aws-cdk/cloud-assembly-api';
-
 /**
  * Walk an object tree depth-first, calling visitor on every node.
  */
@@ -100,69 +98,6 @@ export function removeDependsOn(template: any, logicalId: string): void {
   }
 }
 
-/**
- * Find all resources whose aws:cdk:path starts with `<stackName>/<constructPath>/`.
- */
-export function findResourcesByPath(resources: Record<string, any>, stackName: string, constructPath: string): string[] {
-  const prefix = `${stackName}/${constructPath}/`;
-  const ids: string[] = [];
-  for (const [id, resource] of Object.entries(resources)) {
-    const cdkPath = resource.Metadata?.[PATH_METADATA_KEY] ?? '';
-    if (cdkPath.startsWith(prefix)) {
-      ids.push(id);
-    }
-  }
-  return ids;
-}
-
-/**
- * Find resources in the remaining template that still reference any of the orphaned logical IDs.
- */
-export function findBlockingResources(remainingTemplate: any, orphanedIds: string[], fullTemplate: any): string[] {
-  const blockers: string[] = [];
-  const remaining = remainingTemplate.Resources ?? {};
-  const full = fullTemplate.Resources ?? {};
-
-  for (const [id, resource] of Object.entries(full) as [string, any][]) {
-    if (orphanedIds.includes(id)) continue;
-    if (!remaining[id]) continue;
-
-    let references = false;
-    walkObject(resource, (value) => {
-      if (references) return;
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        if (value.Ref && orphanedIds.includes(value.Ref)) references = true;
-        const getAtt = value['Fn::GetAtt'];
-        if (Array.isArray(getAtt) && orphanedIds.includes(getAtt[0])) references = true;
-      }
-    });
-
-    const deps = resource.DependsOn;
-    if (typeof deps === 'string' && orphanedIds.includes(deps)) references = true;
-    if (Array.isArray(deps) && deps.some((d: string) => orphanedIds.includes(d))) references = true;
-
-    if (references) {
-      const path = (resource as any).Metadata?.[PATH_METADATA_KEY] ?? id;
-      blockers.push(path);
-    }
-  }
-
-  return blockers;
-}
-
-/**
- * Check if any resources in the template have aws:cdk:path metadata at all.
- * Used to detect if metadata has been disabled.
- */
-export function hasAnyCdkPathMetadata(resources: Record<string, any>): boolean {
-  for (const resource of Object.values(resources)) {
-    if ((resource as any).Metadata?.[PATH_METADATA_KEY]) {
-      return true;
-    }
-  }
-  return false;
-}
-
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import type { DeployStackResult, SuccessfulDeployStackResult } from '../../deployments/deployment-result';
 
@@ -190,12 +125,16 @@ export function ensureNonEmptyResources(template: any): void {
 }
 
 /**
- * Parse construct paths like `/MyStack/MyTable` or `MyStack/MyTable` into
- * a stack construct ID and construct-level paths.
+ * Split construct paths into a stack ID and construct-level paths.
  *
- * All paths must reference the same stack.
+ * The stack is the longest `availableStackIds` entry that prefixes the path,
+ * so staged stacks (slash-delimited `hierarchicalId`) resolve correctly. All
+ * paths must reference the same stack.
  */
-export function parseAndValidateConstructPaths(paths: string[]): { stackId: string; constructPaths: string[] } {
+export function resolveStackAndConstructPaths(
+  paths: string[],
+  availableStackIds: string[],
+): { stackId: string; constructPaths: string[] } {
   if (paths.length === 0) {
     throw new ToolkitError('MissingConstructPath', 'At least one construct path is required (e.g. cdk orphan MyStack/MyTable)');
   }
@@ -205,18 +144,31 @@ export function parseAndValidateConstructPaths(paths: string[]): { stackId: stri
 
   for (const raw of paths) {
     const p = raw.replace(/^\//, ''); // strip leading slash
-    const slashIdx = p.indexOf('/');
-    if (slashIdx < 0) {
-      throw new ToolkitError('InvalidConstructPath', `Construct path '${raw}' must include both a stack name and a construct path separated by '/' (e.g. MyStack/MyTable)`);
+
+    // Longest stack ID that prefixes the path, e.g. 'MyStage/MyStack' for 'MyStage/MyStack/MyBucket'.
+    const matchedStack = availableStackIds
+      .filter((id) => p === id || p.startsWith(`${id}/`))
+      .sort((a, b) => b.length - a.length)[0];
+
+    if (!matchedStack) {
+      throw new ToolkitError(
+        'StackNotFound',
+        `No stack found for construct path '${raw}'. Available stacks: ${availableStackIds.join(', ')}`,
+      );
     }
 
-    const thisStack = p.substring(0, slashIdx);
-    const constructPath = p.substring(slashIdx + 1);
-
-    if (stackId && thisStack !== stackId) {
-      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${thisStack}'`);
+    const constructPath = p.substring(matchedStack.length + 1);
+    if (constructPath === '') {
+      throw new ToolkitError(
+        'InvalidConstructPath',
+        `Construct path '${raw}' must include a construct path within the stack (e.g. ${matchedStack}/MyTable)`,
+      );
     }
-    stackId = thisStack;
+
+    if (stackId && matchedStack !== stackId) {
+      throw new ToolkitError('MultipleStacks', `All construct paths must reference the same stack, but got '${stackId}' and '${matchedStack}'`);
+    }
+    stackId = matchedStack;
     constructPaths.push(constructPath);
   }
 

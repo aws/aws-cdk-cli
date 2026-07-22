@@ -1,4 +1,5 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/api/deployments/deploy-stack';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
@@ -29,6 +30,15 @@ jest.mock('../../../lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('../../../lib/api/deployments/cfn-api', () => {
+  const actual = jest.requireActual('../../../lib/api/deployments/cfn-api');
+  return {
+    ...actual,
+    waitForStackDeploy: jest.fn(actual.waitForStackDeploy),
+    waitForStackDelete: jest.fn(actual.waitForStackDelete),
+  };
+});
+
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('deploy');
 
@@ -57,6 +67,8 @@ beforeEach(() => {
   sdk = new MockSdk();
   sdk.getUrlSuffix = () => Promise.resolve('amazonaws.com');
   (StackActivityMonitor as unknown as jest.Mock).mockClear();
+  (cfnApi.waitForStackDeploy as jest.Mock).mockClear();
+  (cfnApi.waitForStackDelete as jest.Mock).mockClear();
 
   restoreSdkMocksToDefault();
   fakeCfn.installUsingAwsMock(mockCloudFormationClient);
@@ -118,6 +130,23 @@ describe('deployStack', () => {
     const monitor = (StackActivityMonitor as unknown as jest.Mock).mock.results[0].value;
     expect((monitor as any).pollingInterval).toEqual(2_000);
   });
+
+  test('passes stackEventPollingInterval to waitForStackDeploy as the stabilization interval', async () => {
+    // WHEN
+    await advanceTime(deployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'direct' },
+      stackEventPollingInterval: 10_000,
+    }, ioHelper));
+
+    // THEN
+    expect(cfnApi.waitForStackDeploy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      10_000,
+    );
+  });
 });
 
 describe('destroyStack', () => {
@@ -152,5 +181,25 @@ describe('destroyStack', () => {
     expect(monitorConstructorProps().pollingInterval).toBeUndefined();
     const monitor = (StackActivityMonitor as unknown as jest.Mock).mock.results[0].value;
     expect((monitor as any).pollingInterval).toEqual(2_000);
+  });
+
+  test('passes stackEventPollingInterval to waitForStackDelete as the stabilization interval', async () => {
+    // GIVEN
+    fakeCfn.createStackSync({ StackName: 'withouterrors' });
+
+    // WHEN
+    await advanceTime(destroyStack({
+      stack: FAKE_STACK,
+      sdk,
+      stackEventPollingInterval: 10_000,
+    }, ioHelper));
+
+    // THEN
+    expect(cfnApi.waitForStackDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      10_000,
+    );
   });
 });

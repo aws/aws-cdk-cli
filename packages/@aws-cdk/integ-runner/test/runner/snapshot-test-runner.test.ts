@@ -2,7 +2,7 @@ import child_process from 'child_process';
 import builtinFs from 'fs';
 import * as path from 'path';
 import fs from 'fs-extra';
-import { IntegSnapshotRunner, IntegTest } from '../../lib/runner';
+import { CdkTestApp, IntegTest } from '../../lib/runner';
 import { DiagnosticReason } from '../../lib/workers/common';
 import { MockCdkProvider } from '../helpers';
 
@@ -75,14 +75,14 @@ describe('IntegTest runSnapshotTests', () => {
     const results = await cdkMock.snapshotTest('xxxxx.test-with-snapshot.js', 'xxxxx.test-with-snapshot-diff.js.snapshot');
 
     // THEN
-    expect(results.diagnostics).toEqual(expect.arrayContaining([
+    expect(results.diagnostics).toEqual([
       expect.objectContaining({
         reason: DiagnosticReason.SNAPSHOT_FAILED,
         testName: 'xxxxx.test-with-snapshot',
         message: expect.stringContaining('foobar'),
         config: { diffAssets: true },
       }),
-    ]));
+    ]);
     expect(results.destructiveChanges).not.toEqual([{
       impact: 'WILL_DESTROY',
       logicalId: 'MyFunction1ServiceRole9852B06B',
@@ -178,18 +178,19 @@ describe('IntegTest runSnapshotTests', () => {
   describe('Legacy Integ Tests', () => {
     test('determine test stack via pragma', async () => {
       // WHEN
-      const integTest = new IntegSnapshotRunner({
+      const test = await CdkTestApp.forComparison({
         cdk: cdkMock.cdk,
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.integ-test1.js',
           discoveryRoot: 'test',
         }),
-        integOutDir: 'does/not/exist',
+        TESTING_forceReadLegacyTestSuite: true,
       });
-      integTest.dontCareAboutLegacyLookupsForTests();
+
+      const suite = await test.loadExistingSuite();
 
       // THEN
-      expect(await integTest.actualTests()).toEqual(expect.objectContaining({
+      expect(suite?.testSuite).toEqual(expect.objectContaining({
         'xxxxx.integ-test1': {
           diffAssets: false,
           stackUpdateWorkflow: true,
@@ -201,34 +202,25 @@ describe('IntegTest runSnapshotTests', () => {
 
     test('get stacks from list, no pragma', async () => {
       // WHEN
-      const integTest = new IntegSnapshotRunner({
+      const test = await CdkTestApp.forGoldenSnapshot({
         cdk: cdkMock.cdk,
         test: new IntegTest({
           fileName: 'test/test-data/xxxxx.integ-test2.js',
           discoveryRoot: 'test',
         }),
-        integOutDir: 'does/not/exist',
+        TESTING_forceReadLegacyTestSuite: true,
       });
-      integTest.dontCareAboutLegacyLookupsForTests();
+
+      const suite = await test.loadExistingSuite();
 
       // THEN
-      expect(await integTest.actualTests()).toEqual(expect.objectContaining({
+      expect(suite?.testSuite).toEqual(expect.objectContaining({
         'xxxxx.integ-test2': {
           diffAssets: false,
           stackUpdateWorkflow: true,
           stacks: ['stackabc'],
         },
       }));
-      expect(cdkMock.mocks.synth).toHaveBeenCalledTimes(1);
-      expect(cdkMock.mocks.synth).toHaveBeenCalledWith({
-        app: 'node test/test-data/xxxxx.integ-test2.js',
-        env: expect.objectContaining({
-          CDK_INTEG_ACCOUNT: '12345678',
-          CDK_INTEG_REGION: 'test-region',
-        }),
-        context: expect.any(Object),
-        output: 'does/not/exist',
-      });
     });
   });
 });

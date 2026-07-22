@@ -30,6 +30,7 @@ type CliAction =
   | ToolkitAction
   | 'context'
   | 'docs'
+  | 'lsp'
   | 'flags'
   | 'notices'
   | 'version'
@@ -1007,9 +1008,15 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   private formatMessage(msg: IoMessage<unknown>): string {
     // apply provided style or a default style if we're in TTY mode
-    let message_text = this.isTTY
-      ? styleMap[msg.level](msg.message)
-      : msg.message;
+    let message_text;
+    if (msg.code === 'CDK_TOOLKIT_E9600') {
+      // Message is pre-styled
+      message_text = msg.message;
+    } else {
+      message_text = this.isTTY
+        ? styleMap[msg.level](msg.message)
+        : msg.message;
+    }
 
     // prepend timestamp if IoMessageLevel is DEBUG or TRACE. Postpend a newline.
     return ((msg.level === 'debug' || msg.level === 'trace')
