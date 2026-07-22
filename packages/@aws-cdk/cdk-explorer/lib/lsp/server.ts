@@ -25,7 +25,7 @@ import {
   type Location,
   type RemoteConsole,
 } from 'vscode-languageserver/node';
-import { WATCH_EXCLUDE_DEFAULTS, createIgnoreMatcher } from '../api-private';
+import { createIgnoreMatcher } from '../api-private';
 import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { mapViolationsToDiagnostics } from './diagnostics';
@@ -45,6 +45,7 @@ import {
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
 import { isWithinRoot } from '../core/source-resolver';
+import { SOURCE_WATCH_EXCLUDES } from '../core/source-watcher';
 import type { SynthRunResult } from '../core/synth-runner';
 
 /**
@@ -399,18 +400,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onInitialized() {
       const projectDir = currentProjectDir();
-      // Same exclusion logic as toolkit-lib's watch():
-      // WATCH_EXCLUDE_DEFAULTS covers common non-source dirs, then we add cdk.out
-      // (our own output) and dotfiles (editor configs, .git, etc.)
+      // Ignore non-source paths (deps, cdk.out, dotfiles) using the same policy
+      // the web explorer's source watcher applies.
       shouldIgnore = createIgnoreMatcher({
-        exclude: [
-          ...WATCH_EXCLUDE_DEFAULTS,
-          '**/node_modules/**',
-          '**/cdk.out/**',
-          '.*',
-          '**/.*',
-          '**/.*/**',
-        ],
+        exclude: SOURCE_WATCH_EXCLUDES,
         rootDir: projectDir,
       });
       await refreshFromAssembly(projectDir);

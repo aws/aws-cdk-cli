@@ -32,6 +32,7 @@ import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { explore } from '../commands/explore';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getLanguageFromAlias } from '../commands/language';
@@ -323,6 +324,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return doctor({
           ioHelper,
           settings: configuration.settings,
+        });
+
+      case 'explore':
+        ioHost.currentAction = 'explore';
+        return explore({
+          ioHelper,
+          port: args.port,
         });
 
       case 'lsp':

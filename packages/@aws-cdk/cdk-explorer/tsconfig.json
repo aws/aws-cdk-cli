@@ -28,8 +28,13 @@
     "target": "es2022",
     "types": [
       "convert-source-map",
+      "express",
       "jest",
-      "node"
+      "node",
+      "prismjs",
+      "react-dom",
+      "react",
+      "supertest"
     ],
     "incremental": true,
     "skipLibCheck": true,
@@ -40,7 +45,8 @@
     "lib/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "frontend"
   ],
   "references": [
     {

@@ -527,6 +527,12 @@ export async function makeConfig(): Promise<CliConfig> {
       'doctor': {
         description: 'Check your set-up for potential problems',
       },
+      'explore': {
+        description: 'Opens an interactive web explorer for your CDK app',
+        options: {
+          port: { type: 'number', desc: 'Port to bind the web server on', default: 4200 },
+        },
+      },
       'lsp': {
         description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
       },
