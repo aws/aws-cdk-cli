@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
+import { ConstructIndex, indexTemplateRanges, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
@@ -28,6 +28,7 @@ import {
 import { WATCH_EXCLUDE_DEFAULTS, createIgnoreMatcher } from '../api-private';
 import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
+import { GetConstructTreeRequest, type ConstructSourceEntry, type GetConstructTreeResult } from './construct-tree-request';
 import { mapViolationsToDiagnostics } from './diagnostics';
 import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
@@ -137,6 +138,8 @@ export interface LspHandlers {
   onDefinition(params: DefinitionParams): Promise<Location | undefined>;
   onExecuteCommand(params: ExecuteCommandParams): Promise<void>;
   onHover(params: HoverParams): Promise<Hover | undefined>;
+  /** Serve the source-resolved construct tree (flattened) for a client overlay. */
+  onGetConstructTree(): GetConstructTreeResult;
   onShutdown(): void;
 }
 
@@ -208,6 +211,12 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
   // and whenever the cdk.out watcher detects a re-synth.
   let cachedIndex: ConstructIndex<ConstructNode> = ConstructIndex.fromTree<ConstructNode>([]);
+  // The decorated tree, its warnings, and the source dir behind cachedIndex,
+  // retained so the getConstructTree request serves source locations without a
+  // re-read. undefined assemblyDir means no successful read has happened yet.
+  let cachedTree: readonly ConstructNode[] = [];
+  let cachedWarnings: readonly string[] = [];
+  let cachedAssemblyDir: string | undefined;
   // URIs that currently have published diagnostics. On each refresh we publish
   // an empty array for any URI that no longer has diagnostics, otherwise a
   // resolved violation would leave a stale squiggle behind.
@@ -272,6 +281,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     }
 
     cachedIndex = ConstructIndex.fromTree(tree);
+    cachedTree = tree;
+    cachedWarnings = warnings;
+    cachedAssemblyDir = assemblyDir;
 
     const { byUri, dropped } = mapViolationsToDiagnostics(violations, cachedIndex);
 
@@ -479,6 +491,46 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       return hoverForPosition(cachedIndex, params.textDocument.uri, params.position,
         (file) => fs.promises.readFile(file, 'utf-8').catch(() => undefined));
     },
+    onGetConstructTree() {
+      const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');
+      if (cachedAssemblyDir === undefined) {
+        return { status: 'no-assembly', assemblyDir, entries: [], warnings: [] };
+      }
+      // Flatten the already-decorated tree in pre-order; the client joins on `path`.
+      // Parse each template's resource ranges at most once per request.
+      const rangesByTemplate = new Map<string, TemplateRanges | undefined>();
+      const templateRangesFor = (templateFile: string): TemplateRanges | undefined => {
+        if (!rangesByTemplate.has(templateFile)) {
+          try {
+            rangesByTemplate.set(templateFile, indexTemplateRanges(fs.readFileSync(templateFile, 'utf-8')));
+          } catch {
+            rangesByTemplate.set(templateFile, undefined);
+          }
+        }
+        return rangesByTemplate.get(templateFile);
+      };
+      const entries: ConstructSourceEntry[] = [];
+      const collect = (nodes: readonly ConstructNode[]): void => {
+        for (const node of nodes) {
+          const templateOffset =
+            node.templateFile && node.logicalId
+              ? templateRangesFor(node.templateFile)?.block(node.logicalId)?.start
+              : undefined;
+          entries.push({
+            path: node.path,
+            id: node.id,
+            type: node.type,
+            logicalId: node.logicalId,
+            sourceLocation: node.sourceLocation,
+            templateFile: node.templateFile,
+            templateOffset,
+          });
+          collect(node.children);
+        }
+      };
+      collect(cachedTree);
+      return { status: 'ok', assemblyDir, entries, warnings: [...cachedWarnings] };
+    },
     onShutdown() {
       shutdownRequested = true;
       void assemblyWatcher?.close();
@@ -554,6 +606,7 @@ export function startServer(options: LspServerOptions): void {
   connection.onDefinition((params) => handlers.onDefinition(params));
   connection.onExecuteCommand((params) => handlers.onExecuteCommand(params));
   connection.onHover((params) => handlers.onHover(params));
+  connection.onRequest(GetConstructTreeRequest, () => handlers.onGetConstructTree());
   connection.onShutdown(() => handlers.onShutdown());
   connection.onExit(() => process.exit(0));
 
