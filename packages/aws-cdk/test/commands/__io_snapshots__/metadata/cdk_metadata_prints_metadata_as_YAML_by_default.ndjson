@@ -1,3 +1,3 @@
 {"seq":0,"type":"notify","action":"metadata","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
 {"seq":1,"type":"notify","action":"metadata","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
-{"seq":2,"type":"notify","action":"metadata","level":"result","code":null,"message":"/Test-Stack:\n  - type: aws:cdk:stack-tags\n    data:\n      - key: environment\n        value: test\n/Test-Stack/MyBucket:\n  - type: aws:cdk:logicalId\n    data: MyBucketF68F3FF0\n  - type: aws:cdk:info\n    data: Metadata about the test bucket\n"}
+{"seq":2,"type":"notify","action":"metadata","level":"result","code":"CDK_TOOLKIT_I2901","message":"/Test-Stack:\n  - type: aws:cdk:stack-tags\n    data:\n      - key: environment\n        value: test\n/Test-Stack/MyBucket:\n  - type: aws:cdk:logicalId\n    data: MyBucketF68F3FF0\n  - type: aws:cdk:info\n    data: Metadata about the test bucket\n"}
