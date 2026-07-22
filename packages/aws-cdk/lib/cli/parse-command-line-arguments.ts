@@ -1118,7 +1118,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration')
+    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration', (yargs: Argv) =>
+      yargs.option('features', {
+        default: false,
+        type: 'boolean',
+        desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+      }),
+    )
     .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs

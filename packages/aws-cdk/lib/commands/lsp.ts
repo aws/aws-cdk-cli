@@ -1,16 +1,26 @@
 import * as process from 'process';
-import { startLspServer } from '@aws-cdk/cdk-explorer';
+import { cdkLspManifest, startLspServer } from '@aws-cdk/cdk-explorer';
+import { versionNumber } from '../cli/version';
 
 /**
- * Starts the CDK Language Server over stdio.
+ * Runs the CDK Language Server command.
  *
- * The server speaks LSP/JSON-RPC on stdin/stdout, so this command must not
- * write anything else to stdout. CDK CLI logs go to stderr by default, which
- * keeps the protocol channel clean. The process runs until the LSP client
- * closes the stdio channel (stdin end), then exits 0.
+ * With `--features`, prints the LSP capability manifest as JSON and exits.
+ * Otherwise starts the server, which speaks LSP/JSON-RPC on stdin/stdout -- in
+ * that mode the command must not write anything else to stdout (CDK CLI logs go
+ * to stderr, keeping the protocol channel clean). The server runs until the LSP
+ * client closes the stdio channel (stdin end), then exits 0.
  */
-export async function lsp(): Promise<number> {
-  startLspServer();
+export async function lsp(options: { readonly features?: boolean } = {}): Promise<number> {
+  // `--features` is a probe: print the capability manifest as JSON and exit
+  // without starting the server, so a client can detect LSP presence and
+  // features without opening a session.
+  if (options.features) {
+    process.stdout.write(JSON.stringify(cdkLspManifest(versionNumber())) + '\n');
+    return 0;
+  }
+
+  startLspServer(versionNumber());
 
   await new Promise<void>((resolve) => {
     const done = () => resolve();
