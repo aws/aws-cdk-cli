@@ -30,6 +30,7 @@ import { codeLensesForFile } from './codelens';
 import { executeCommand, SUPPORTED_COMMANDS, type NotifySink } from './commands';
 import { GetConstructTreeRequest, type ConstructSourceEntry, type GetConstructTreeResult } from './construct-tree-request';
 import { mapViolationsToDiagnostics } from './diagnostics';
+import { cdkLspManifest } from './features';
 import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
@@ -80,6 +81,8 @@ export interface LspHandlerOptions {
   readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
   /** Acquire a read lock on the assembly dir; throws a `LockError` on writer contention. */
   readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
+  /** Shipped CDK CLI version to advertise (serverInfo + manifest). Injected by the entrypoint; omitted in tests. */
+  readonly version?: string;
   /**
    * Sink for non-fatal messages. In production, the connection's console writes
    * to the editor's Output panel; in tests, capture into an array.
@@ -127,6 +130,8 @@ export interface LspServerOptions {
   readonly writable: NodeJS.WritableStream;
   /** Builds the Toolkit-backed bindings once `connection.console` exists. Required; main.ts always wires it. */
   readonly toolkitBindingsFactory: ToolkitBindingsFactory;
+  /** Shipped CDK CLI version to advertise. Injected by main.ts from the CLI. */
+  readonly version?: string;
 }
 
 /** Pure handler functions for LSP messages, extracted for direct unit testing. */
@@ -390,7 +395,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     onInitialize(params) {
       applicationDir = params.initializationOptions?.applicationDir;
       codeLensRefreshSupported = params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
+      const manifest = cdkLspManifest(options.version);
       return {
+        serverInfo: { name: 'cdk-lsp', version: manifest.version },
         capabilities: {
           textDocumentSync: {
             openClose: false,
@@ -406,6 +413,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
           executeCommandProvider: { commands: [...SUPPORTED_COMMANDS] },
           // Hover a construct's creation line to see its resolved CFN properties.
           hoverProvider: true,
+          // Non-standard: lets a client discover CDK-specific features and the
+          // wire protocol version ahead of use; also backs `cdk lsp --features`.
+          experimental: { cdk: manifest },
         },
       };
     },
@@ -565,6 +575,7 @@ export function startServer(options: LspServerOptions): void {
         void connection.sendRequest(CodeLensRefreshRequest.type);
       }
     },
+    version: options.version,
     synthRunner,
     acquireAssemblyLock,
     notify: {
