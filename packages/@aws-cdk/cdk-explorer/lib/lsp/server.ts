@@ -400,7 +400,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         serverInfo: { name: 'cdk-lsp', version: manifest.version },
         capabilities: {
           textDocumentSync: {
-            openClose: false,
+            // Accept didOpen/didClose: IntelliJ only attaches diagnostics, hover,
+            // and definition to documents opened against the server.
+            openClose: true,
             // No keystroke-level edits needed yet. Upgrade to Incremental when
             // we need didChange to mark diagnostics as stale on edit.
             change: TextDocumentSyncKind.None,

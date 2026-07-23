@@ -14,6 +14,11 @@ import { groupBy } from './codelens';
 import type { ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
 
+// Range end character: max valid LSP uinteger (2^31-1); clients clamp it to the
+// line length. Not Number.MAX_VALUE, which VS Code tolerates but IntelliJ's
+// lsp4j rejects as out-of-range, silently dropping the diagnostic.
+const END_OF_LINE_CHARACTER = 2_147_483_647;
+
 export interface MapViolationsResult {
   /** One entry per file URI, ready for connection.sendDiagnostics. */
   readonly byUri: Map<string, Diagnostic[]>;
@@ -94,16 +99,15 @@ function anchorViolation(
 }
 
 /**
- * LSP range for a source location. Anchors at the resolved line/column, or at
- * the top of the file when the file is known but the line/column aren't. LSP
- * positions are 0-based; sourceLocation is 1-based. The end spans to
- * Number.MAX_VALUE so the squiggle covers the rest of the line.
+ * LSP range for a source location. Anchors at the resolved line/column, or the
+ * top of the file when line/column aren't known. LSP positions are 0-based;
+ * sourceLocation is 1-based. The end spans the rest of the line.
  */
 function toRange(loc: SourceLocation): Range {
   const hasLineCol = loc.line >= 1 && loc.column >= 1;
   const line = hasLineCol ? loc.line - 1 : 0;
   const character = hasLineCol ? loc.column - 1 : 0;
-  return { start: { line, character }, end: { line, character: Number.MAX_VALUE } };
+  return { start: { line, character }, end: { line, character: END_OF_LINE_CHARACTER } };
 }
 
 function buildDiagnostic(violation: PolicyViolationJson, range: Range, pluginName: string): Diagnostic {
