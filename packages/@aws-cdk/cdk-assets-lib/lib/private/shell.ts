@@ -22,20 +22,24 @@ export interface ShellOptions {
  */
 export async function shell(command: string[], options: ShellOptions): Promise<string> {
   const displayCommand = renderForDisplay(command);
-  handleShellOutput(displayCommand, options, 'open');
+  handleShellOutput({ chunk: displayCommand, options, shellEventType: 'open' });
 
   try {
     const result = await run(command, {
       cwd: options.cwd,
       env: options.env,
       input: options.input,
-      onOutput: (stream, data) => handleShellOutput(data, options, stream === 'stdout' ? 'data_stdout' : 'data_stderr'),
+      onOutput: (stream, data) => handleShellOutput({
+        chunk: data,
+        options,
+        shellEventType: stream === 'stdout' ? 'data_stdout' : 'data_stderr',
+      }),
     });
-    handleShellOutput(displayCommand, options, 'close');
+    handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
     return result.stdout;
   } catch (e: any) {
     if (e instanceof SubprocessError) {
-      handleShellOutput(displayCommand, options, 'close');
+      handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
       throw new ProcessFailed(
         e.exitCode,
         e.signal,
@@ -46,11 +50,17 @@ export async function shell(command: string[], options: ShellOptions): Promise<s
   }
 }
 
-function handleShellOutput(
-  chunk: string,
-  options: ShellOptions,
-  shellEventType: ShellEventType,
-): void {
+interface HandleShellOutputProps {
+  /** The output chunk or, for 'open'/'close' events, the rendered command. */
+  readonly chunk: string;
+  /** The options of the surrounding `shell()` call. */
+  readonly options: ShellOptions;
+  /** Which event this chunk belongs to. */
+  readonly shellEventType: ShellEventType;
+}
+
+function handleShellOutput(props: HandleShellOutputProps): void {
+  const { chunk, options, shellEventType } = props;
   switch (options.subprocessOutputDestination) {
     case 'ignore':
       return;
