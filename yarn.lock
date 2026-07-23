@@ -277,6 +277,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-cdk/cloud-assembly-api@npm:^2.2.6":
+  version: 2.3.0
+  resolution: "@aws-cdk/cloud-assembly-api@npm:2.3.0"
+  dependencies:
+    json-source-map: "npm:^0.6.1"
+    jsonschema: "npm:^1.5.0"
+    semver: "npm:^7.8.5"
+  peerDependencies:
+    "@aws-cdk/cloud-assembly-schema": ">=54.12.0"
+  checksum: 10c0/a720cfda736db119e6db510f58d213d0c46041af7d458f58b501b032f6446c6f65861ef9f283b3b41b3cb60dfd53a951530f0c38acca9c4d6e63b5646f6c5fb0
+  languageName: node
+  linkType: hard
+
 "@aws-cdk/cloud-assembly-schema@npm:^0.0.0, @aws-cdk/cloud-assembly-schema@workspace:packages/@aws-cdk/cloud-assembly-schema":
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloud-assembly-schema@workspace:packages/@aws-cdk/cloud-assembly-schema"
@@ -325,6 +338,16 @@ __metadata:
     jsonschema: "npm:^1.5.0"
     semver: "npm:^7.8.1"
   checksum: 10c0/58d32d77d8fd412ede8f482c2e1d78bd3eba9786bcdd9861039ce258c3dad6d15dc940cd2cf1e754529d087ca2179d2e538dc4815cca31ff602aa7148f34ab3e
+  languageName: node
+  linkType: hard
+
+"@aws-cdk/cloud-assembly-schema@npm:^54.11.0":
+  version: 54.13.0
+  resolution: "@aws-cdk/cloud-assembly-schema@npm:54.13.0"
+  dependencies:
+    jsonschema: "npm:^1.5.0"
+    semver: "npm:^7.8.5"
+  checksum: 10c0/55d777cdb4c4e00709ed1b1bf12283889022b12ef1ec46bc8a1a90b6f6c5ddd52f26ecd64a45772f52c9b183bdf1b49e48d132bb60c66cd78bc8f9f0d641062a
   languageName: node
   linkType: hard
 
@@ -1411,6 +1434,13 @@ __metadata:
     "@smithy/types": "npm:^4.15.1"
     tslib: "npm:^2.6.2"
   checksum: 10c0/58d9b21b16cb81180e90f2af9f28fba070086d08e84473fd1cb0bb5afd502ec1e847436ddf73fc08934512e867389f246d31bd0d61d280e10937e0f775710989
+  languageName: node
+  linkType: hard
+
+"@aws/cloudformation-validate@npm:1.5.0-beta":
+  version: 1.5.0-beta
+  resolution: "@aws/cloudformation-validate@npm:1.5.0-beta"
+  checksum: 10c0/3a7c118f3f5f4111ff262d8cba92aca8e19fdad62bc84529744a13602059e3fe949a923739531e4c06d27feb5a2a10344948e1443f73ea34005e8b4f28a57595
   languageName: node
   linkType: hard
 
@@ -5197,27 +5227,28 @@ __metadata:
   languageName: node
   linkType: hard
 
-"aws-cdk-lib@npm:2.261.0":
-  version: 2.261.0
-  resolution: "aws-cdk-lib@npm:2.261.0"
+"aws-cdk-lib@npm:2.262.0":
+  version: 2.262.0
+  resolution: "aws-cdk-lib@npm:2.262.0"
   dependencies:
     "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
-    "@aws-cdk/cloud-assembly-api": "npm:^2.2.5"
-    "@aws-cdk/cloud-assembly-schema": "npm:^54.0.0"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
+    "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
+    "@aws/cloudformation-validate": "npm:1.5.0-beta"
     "@balena/dockerignore": "npm:^1.0.2"
     case: "npm:1.6.3"
-    fs-extra: "npm:^11.3.5"
+    fs-extra: "npm:^11.3.6"
     ignore: "npm:^5.3.2"
     jsonschema: "npm:^1.5.0"
     mime-types: "npm:^2.1.35"
     minimatch: "npm:^10.2.5"
     punycode: "npm:^2.3.1"
-    semver: "npm:^7.8.1"
+    semver: "npm:^7.8.5"
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/281bfb887a130948cfe4318e341713dee58f562272fab3ce6d0ea4d1bdc8e96f2956bc22dcca1ad71923b611981753c96fd5ebe4978b443fbc1bba2b93d0a640
+  checksum: 10c0/ff2c65607e743d279b5b1a8e6733081d9703d9e45bb513551a2ca378435f940ce6c1fafaa29bb49ca12e9d10247067acacf1140d260532fdf67510dc0a72fcc4
   languageName: node
   linkType: hard
 
@@ -5278,7 +5309,7 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.261.0"
+    aws-cdk-lib: "npm:2.262.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
@@ -8304,6 +8335,17 @@ __metadata:
     jsonfile: "npm:^6.0.1"
     universalify: "npm:^2.0.0"
   checksum: 10c0/33e80bad6b5d17308faa197e5ede99ecba4b6f6cb4aa4645d52745476c75afc57665bdf39ec75b2ebb38b97b7110f634a8dcc0a546e248eb4de059275cf5ac90
+  languageName: node
+  linkType: hard
+
+"fs-extra@npm:^11.3.6":
+  version: 11.3.6
+  resolution: "fs-extra@npm:11.3.6"
+  dependencies:
+    graceful-fs: "npm:^4.2.0"
+    jsonfile: "npm:^6.0.1"
+    universalify: "npm:^2.0.0"
+  checksum: 10c0/191c96bf71519fe08595f7920b6e568f6e44b48ed968624f35cb3bb7f4f9b05718b99cd6bf81938c0f7b1daa6d151383c33e0cbfdfe4d95419d7ea121de8e91a
   languageName: node
   linkType: hard
 
