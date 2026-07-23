@@ -60,10 +60,6 @@
       "type": "build"
     },
     {
-      "name": "@types/split2",
-      "type": "build"
-    },
-    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -359,6 +355,11 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
+      "type": "runtime"
+    },
+    {
       "name": "fast-deep-equal",
       "type": "runtime"
     },
@@ -383,10 +384,6 @@
     },
     {
       "name": "semver",
-      "type": "runtime"
-    },
-    {
-      "name": "split2",
       "type": "runtime"
     },
     {

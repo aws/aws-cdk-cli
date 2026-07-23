@@ -1,7 +1,5 @@
-import * as child_process from 'child_process';
 import { readFileSync } from 'fs';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import split = require('split2');
+import { runUserCommandLine, SubprocessError } from '../../../private/tools';
 import { AssemblyError } from '../../../toolkit/toolkit-error';
 
 type EventPublisher = (event: 'open' | 'data_stdout' | 'data_stderr' | 'close', line: string) => void;
@@ -28,94 +26,83 @@ interface ExecOptions {
 export async function execInChildProcess(commandAndArgs: string, options: ExecOptions = {}) {
   const captureOutput = options.captureOutput ?? true;
 
-  return new Promise<void>((ok, fail) => {
-    // We use a slightly lower-level interface to:
+  const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
+    switch (type) {
+      case 'data_stdout':
+        process.stdout.write(line + '\n');
+        return;
+      case 'data_stderr':
+        process.stderr.write(line + '\n');
+        return;
+      case 'open':
+      case 'close':
+        return;
+    }
+  });
+
+  const stderr = new Array<string>();
+
+  try {
+    // The command line is the user's own `app`/`build` setting. This runs 
+    // through the shell verbatim; on Windows the shell is also what resolves
+    // .bat and .cmd files. Code scanning tools will flag this as a risk, but
+    // the input comes from the user's own configuration.
     //
-    // - Pass arguments in an array instead of a string, to get around a
-    //   number of quoting issues introduced by the intermediate shell layer
-    //   (which would be different between Linux and Windows).
-    //
-    // - We have to capture any output to stdout and stderr sp we can pass it on to the IoHost
-    //   To ensure messages get to the user fast, we will emit every full line we receive.
-    const proc = child_process.spawn(commandAndArgs, {
-      stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'],
-      detached: false,
+    // Output is captured and re-emitted per full line, so messages get to the
+    // user fast and the IoHost receives whole lines.
+    await runUserCommandLine(commandAndArgs, {
+      stdio: captureOutput ? 'capture' : 'inherit',
+      buffering: 'lines',
+      onOutput: (stream, line) => {
+        if (stream === 'stderr') {
+          stderr.push(line);
+        }
+        eventPublisher(stream === 'stdout' ? 'data_stdout' : 'data_stderr', line);
+      },
       cwd: options.cwd,
       env: {
-        // On Windwows, Python will default to cp1252 when not connected to a terminal, but we
+        // On Windows, Python will default to cp1252 when not connected to a terminal, but we
         // expect it to be UTF-8 below (to be able to split on lines).
         PYTHONIOENCODING: 'utf-8',
         ...options.env,
       },
-
-      // We are using 'shell: true' on purprose. Traditionally we have allowed shell features in
-      // this string, so we have to continue to do so into the future. On Windows, this is simply
-      // necessary to run .bat and .cmd files properly.
-      // Code scanning tools will flag this as a risk. The input comes from a trusted source,
-      // so it does not represent a security risk.
-      shell: true,
     });
-
-    const eventPublisher: EventPublisher = options.eventPublisher ?? ((type, line) => {
-      switch (type) {
-        case 'data_stdout':
-          process.stdout.write(line + '\n');
-          return;
-        case 'data_stderr':
-          process.stderr.write(line + '\n');
-          return;
-        case 'open':
-        case 'close':
-          return;
-      }
-    });
-
-    const stderr = new Array<string>();
-
-    if (captureOutput) {
-      proc.stdout!.pipe(split()).on('data', (line) => eventPublisher('data_stdout', line));
-      proc.stderr!.pipe(split()).on('data', (line) => {
-        stderr.push(line);
-        return eventPublisher('data_stderr', line);
-      });
+  } catch (e: any) {
+    if (!(e instanceof SubprocessError)) {
+      throw e;
     }
 
-    proc.on('error', (e) => {
-      fail(AssemblyError.withCause(`Failed to execute CDK app: ${commandAndArgs}`, e));
-    });
+    // The process never spawned (e.g. the shell itself could not start)
+    if (e.exitCode == null && e.signal == null) {
+      throw AssemblyError.withCause(`Failed to execute CDK app: ${commandAndArgs}`, e.cause ?? e);
+    }
 
-    proc.on('exit', code => {
-      if (code === 0) {
-        return ok();
-      } else {
-        const stdErrString = stderr.join('\n');
+    const stdErrString = stderr.join('\n');
 
-        let cause: Error | undefined;
-        if (stderr.length) {
-          cause = new Error(stdErrString);
-          cause.name = 'ExecutionError';
+    let cause: Error | undefined;
+    if (stderr.length) {
+      cause = new Error(stdErrString);
+      cause.name = 'ExecutionError';
+    }
+
+    const error = AssemblyError.withCause(`${commandAndArgs}: Subprocess exited with error ${e.exitCode ?? e.signal}`, cause);
+
+    // Search for an error code, and throw that if we have it
+    if (options.errorCodeFile) {
+      const contents = tryReadFile(options.errorCodeFile);
+      if (contents) {
+        const errorInStdErr = contents.split('\n')[0];
+
+        if (errorInStdErr) {
+          // Attach the synth error code. We don't need to change the message; the underlying error will already have been
+          // printed to stderr.
+          error.attachSynthesisErrorCode(errorInStdErr);
         }
-
-        let error = AssemblyError.withCause(`${commandAndArgs}: Subprocess exited with error ${code}`, cause);
-
-        // Search for an error code, and throw that if we have it
-        if (options.errorCodeFile) {
-          const contents = tryReadFile(options.errorCodeFile);
-          if (contents) {
-            const errorInStdErr = contents.split('\n')[0];
-
-            if (errorInStdErr) {
-              // Attach the synth error code. We don't need to change the message; the underlying error will already have been
-              // printed to stderr.
-              error.attachSynthesisErrorCode(errorInStdErr);
-            }
-          }
-        }
-
-        return fail(error);
       }
-    });
-  });
+    }
+
+    throw error;
+  }
 }
 
 function tryReadFile(name: string): string | undefined {

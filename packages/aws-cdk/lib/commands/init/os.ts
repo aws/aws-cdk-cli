@@ -1,4 +1,4 @@
-import * as child_process from 'child_process';
+import { run, renderForDisplay, SubprocessError } from '@aws-cdk/private-tools/lib/subprocess';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import type { IoHelper } from '../../api-private';
@@ -6,92 +6,24 @@ import type { IoHelper } from '../../api-private';
 /**
  * OS helpers
  *
- * Shell function which both prints to stdout and collects the output into a
- * string.
+ * Executes the given command (argv array, never through a shell) while both
+ * printing its stdout in real-time and collecting it into the returned
+ * string. stderr goes straight to the terminal.
  */
 export async function shell(ioHelper: IoHelper, command: string[]): Promise<string> {
-  const commandLine = renderCommandLine(command);
-  await ioHelper.defaults.debug(`Executing ${chalk.blue(commandLine)}`);
-  const child = child_process.spawn(command[0], renderArguments(command.slice(1)), {
-    // Need this for Windows where we want .cmd and .bat to be found as well.
-    shell: true,
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
+  await ioHelper.defaults.debug(`Executing ${chalk.blue(renderForDisplay(command))}`);
 
-  return new Promise<string>((resolve, reject) => {
-    const stdout = new Array<any>();
-
-    // Both write to stdout and collect
-    child.stdout.on('data', chunk => {
-      process.stdout.write(chunk);
-      stdout.push(chunk);
+  try {
+    const result = await run(command, {
+      onOutput: (stream, data) => {
+        (stream === 'stdout' ? process.stdout : process.stderr).write(data);
+      },
     });
-
-    child.once('error', reject);
-
-    child.once('exit', code => {
-      if (code === 0) {
-        resolve(Buffer.from(stdout).toString('utf-8'));
-      } else {
-        reject(new ToolkitError('CommandFailed', `${commandLine} exited with error code ${code}`));
-      }
-    });
-  });
-}
-
-function renderCommandLine(cmd: string[]) {
-  return renderArguments(cmd).join(' ');
-}
-
-/**
- * Render the arguments to include escape characters for each platform.
- */
-function renderArguments(cmd: string[]) {
-  if (process.platform !== 'win32') {
-    return doRender(cmd, hasAnyChars(' ', '\\', '!', '"', "'", '&', '$'), posixEscape);
-  } else {
-    return doRender(cmd, hasAnyChars(' ', '"', '&', '^', '%'), windowsEscape);
+    return result.stdout;
+  } catch (e: any) {
+    if (e instanceof SubprocessError && e.exitCode != null) {
+      throw new ToolkitError('CommandFailed', e.message);
+    }
+    throw e;
   }
-}
-
-/**
- * Render a UNIX command line
- */
-function doRender(cmd: string[], needsEscaping: (x: string) => boolean, doEscape: (x: string) => string): string[] {
-  return cmd.map(x => needsEscaping(x) ? doEscape(x) : x);
-}
-
-/**
- * Return a predicate that checks if a string has any of the indicated chars in it
- */
-function hasAnyChars(...chars: string[]): (x: string) => boolean {
-  return (str: string) => {
-    return chars.some(c => str.indexOf(c) !== -1);
-  };
-}
-
-/**
- * Escape a shell argument for POSIX shells
- *
- * Wrapping in single quotes and escaping single quotes inside will do it for us.
- */
-function posixEscape(x: string) {
-  // Turn ' -> '"'"'
-  x = x.replace(/'/g, "'\"'\"'");
-  return `'${x}'`;
-}
-
-/**
- * Escape a shell argument for cmd.exe
- *
- * This is how to do it right, but I'm not following everything:
- *
- * https://blogs.msdn.microsoft.com/twistylittlepassagesallalike/2011/04/23/everyone-quotes-command-line-arguments-the-wrong-way/
- */
-function windowsEscape(x: string): string {
-  // First surround by double quotes, ignore the part about backslashes
-  x = `"${x}"`;
-  // Now escape all special characters
-  const shellMeta = new Set<string>(['"', '&', '^', '%']);
-  return x.split('').map(c => shellMeta.has(x) ? '^' + c : c).join('');
 }

@@ -1,12 +1,14 @@
-import * as child_process from 'child_process';
 import type { SubprocessOutputDestination } from './asset-handler';
+import { run, renderForDisplay, SubprocessError } from './tools';
 
 export type ShellEventType = 'open' | 'data_stdout' | 'data_stderr' | 'close';
 
 export type ShellEventPublisher = (event: ShellEventType, message: string) => void;
 
-export interface ShellOptions extends child_process.SpawnOptions {
+export interface ShellOptions {
   readonly shellEventPublisher: ShellEventPublisher;
+  readonly cwd?: string;
+  readonly env?: Record<string, string | undefined>;
   readonly input?: string;
   readonly subprocessOutputDestination?: SubprocessOutputDestination;
 }
@@ -14,66 +16,56 @@ export interface ShellOptions extends child_process.SpawnOptions {
 /**
  * OS helpers
  *
- * Shell function which both prints to stdout and collects the output into a
- * string.
+ * Executes the given command as an argv array (never through a shell) and
+ * returns its stdout, routing intermediate output to the configured
+ * destination.
  */
 export async function shell(command: string[], options: ShellOptions): Promise<string> {
-  handleShellOutput(renderCommandLine(command), options, 'open');
-  const child = child_process.spawn(command[0], command.slice(1), {
-    ...options,
-    stdio: [options.input ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-  });
+  const displayCommand = renderForDisplay(command);
+  handleShellOutput({ chunk: displayCommand, options, shellEventType: 'open' });
 
-  return new Promise<string>((resolve, reject) => {
-    if (options.input) {
-      child.stdin!.write(options.input);
-      child.stdin!.end();
+  try {
+    const result = await run(command, {
+      cwd: options.cwd,
+      env: options.env,
+      input: options.input,
+      onOutput: (stream, data) => handleShellOutput({
+        chunk: data,
+        options,
+        shellEventType: stream === 'stdout' ? 'data_stdout' : 'data_stderr',
+      }),
+    });
+    handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
+    return result.stdout;
+  } catch (e: any) {
+    if (e instanceof SubprocessError) {
+      handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
+      throw new ProcessFailed(
+        e.exitCode,
+        e.signal,
+        `${displayCommand} exited with ${e.exitCode != null ? 'error code' : 'signal'} ${e.exitCode ?? e.signal}: ${e.stderr.trim()}`,
+      );
     }
-
-    const stdout = new Array<any>();
-    const stderr = new Array<any>();
-
-    // Both emit event and collect output
-    child.stdout!.on('data', (chunk) => {
-      handleShellOutput(chunk, options, 'data_stdout');
-      stdout.push(chunk);
-    });
-
-    child.stderr!.on('data', (chunk) => {
-      handleShellOutput(chunk, options, 'data_stderr');
-      stderr.push(chunk);
-    });
-
-    child.once('error', reject);
-
-    child.once('close', (code, signal) => {
-      handleShellOutput(renderCommandLine(command), options, 'close');
-      if (code === 0) {
-        resolve(Buffer.concat(stdout).toString('utf-8'));
-      } else {
-        const out = Buffer.concat(stderr).toString('utf-8').trim();
-        reject(
-          new ProcessFailed(
-            code,
-            signal,
-            `${renderCommandLine(command)} exited with ${code != null ? 'error code' : 'signal'} ${code ?? signal}: ${out}`,
-          ),
-        );
-      }
-    });
-  });
+    throw e;
+  }
 }
 
-function handleShellOutput(
-  chunk: Buffer | string,
-  options: ShellOptions,
-  shellEventType: ShellEventType,
-): void {
+interface HandleShellOutputProps {
+  /** The output chunk or, for 'open'/'close' events, the rendered command. */
+  readonly chunk: string;
+  /** The options of the surrounding `shell()` call. */
+  readonly options: ShellOptions;
+  /** Which event this chunk belongs to. */
+  readonly shellEventType: ShellEventType;
+}
+
+function handleShellOutput(props: HandleShellOutputProps): void {
+  const { chunk, options, shellEventType } = props;
   switch (options.subprocessOutputDestination) {
     case 'ignore':
       return;
     case 'publish':
-      options.shellEventPublisher(shellEventType, chunk.toString('utf-8'));
+      options.shellEventPublisher(shellEventType, chunk);
       break;
     case 'stdio':
     default:
@@ -85,7 +77,7 @@ function handleShellOutput(
           process.stderr.write(chunk);
           break;
         case 'open':
-          options.shellEventPublisher(shellEventType, chunk.toString('utf-8'));
+          options.shellEventPublisher(shellEventType, chunk);
           break;
       }
       break;
@@ -103,66 +95,4 @@ class ProcessFailed extends Error {
   ) {
     super(message);
   }
-}
-
-/**
- * Render the given command line as a string
- *
- * Probably missing some cases but giving it a good effort.
- */
-function renderCommandLine(cmd: string[]) {
-  if (process.platform !== 'win32') {
-    return doRender(cmd, hasAnyChars(' ', '\\', '!', '"', "'", '&', '$'), posixEscape);
-  } else {
-    return doRender(cmd, hasAnyChars(' ', '"', '&', '^', '%'), windowsEscape);
-  }
-}
-
-/**
- * Render a UNIX command line
- */
-function doRender(
-  cmd: string[],
-  needsEscaping: (x: string) => boolean,
-  doEscape: (x: string) => string,
-): string {
-  return cmd.map((x) => (needsEscaping(x) ? doEscape(x) : x)).join(' ');
-}
-
-/**
- * Return a predicate that checks if a string has any of the indicated chars in it
- */
-function hasAnyChars(...chars: string[]): (x: string) => boolean {
-  return (str: string) => {
-    return chars.some((c) => str.indexOf(c) !== -1);
-  };
-}
-
-/**
- * Escape a shell argument for POSIX shells
- *
- * Wrapping in single quotes and escaping single quotes inside will do it for us.
- */
-function posixEscape(x: string) {
-  // Turn ' -> '"'"'
-  x = x.replace(/'/g, "'\"'\"'");
-  return `'${x}'`;
-}
-
-/**
- * Escape a shell argument for cmd.exe
- *
- * This is how to do it right, but I'm not following everything:
- *
- * https://blogs.msdn.microsoft.com/twistylittlepassagesallalike/2011/04/23/everyone-quotes-command-line-arguments-the-wrong-way/
- */
-function windowsEscape(x: string): string {
-  // First surround by double quotes, ignore the part about backslashes
-  x = `"${x}"`;
-  // Now escape all special characters
-  const shellMeta = new Set<string>(['"', '&', '^', '%']);
-  return x
-    .split('')
-    .map((c) => (shellMeta.has(x) ? '^' + c : c))
-    .join('');
 }
