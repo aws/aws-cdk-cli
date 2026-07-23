@@ -43,12 +43,10 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
   const stderr = new Array<string>();
 
   try {
-    // The command line is the user's own `app`/`build` setting. Traditionally
-    // we have allowed shell features in this string, so it runs through the
-    // shell verbatim; on Windows the shell is also what resolves .bat and .cmd
-    // files. Code scanning tools will flag this as a risk: the input comes
-    // from a trusted source (the user's own configuration), so it does not
-    // represent a security risk.
+    // The command line is the user's own `app`/`build` setting. This runs 
+    // through the shell verbatim; on Windows the shell is also what resolves
+    // .bat and .cmd files. Code scanning tools will flag this as a risk, but
+    // the input comes from the user's own configuration.
     //
     // Output is captured and re-emitted per full line, so messages get to the
     // user fast and the IoHost receives whole lines.
