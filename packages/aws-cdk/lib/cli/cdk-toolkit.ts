@@ -226,8 +226,33 @@ export class CdkToolkit {
   }
 
   public async metadata(stackName: string, json: boolean) {
-    const stacks = await this.selectSingleStackByName(stackName);
-    await printSerializedObject(this.ioHost.asIoHelper(), stacks.firstStack.metadata ?? {}, json);
+    this.ioHost.once(
+      IO.CDK_TOOLKIT_I2901,
+      (msg) => ({
+        action: 'metadata',
+        message: serializeStructure(msg.data.stacks[0]?.metadata ?? {}, json),
+      }),
+    );
+    this.ioHost.once(
+      IO.CDK_TOOLKIT_I1001,
+      () => ({ preventDefault: true }),
+    );
+    this.ioHost.once(
+      IO.CDK_TOOLKIT_I1000,
+      () => ({ preventDefault: true }),
+    );
+
+    try {
+      await this.toolkit.list(this.props.cloudExecutable, {
+        stacks: {
+          patterns: [stackName],
+          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+          expand: ExpandStackSelection.NONE,
+        },
+      });
+    } finally {
+      this.ioHost.removeAllListeners();
+    }
   }
 
   public async acknowledge(noticeId: string) {
@@ -1344,28 +1369,6 @@ export class CdkToolkit {
     if (stackNames.length != 0 && stacks.stackCount == 0) {
       throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
     }
-  }
-
-  /**
-   * Select a single stack by its name
-   */
-  private async selectSingleStackByName(stackName: string) {
-    const assembly = await this.assembly();
-
-    const stacks = await assembly.selectStacks(
-      { patterns: [stackName] },
-      {
-        extend: ExtendedStackSelection.None,
-        defaultBehavior: DefaultSelection.None,
-      },
-    );
-
-    // Could have been a glob so check that we evaluated to exactly one
-    if (stacks.stackCount > 1) {
-      throw new ToolkitError('MultipleStacksMatched', `This command requires exactly one stack and we matched more than one: ${stacks.stackIds}`);
-    }
-
-    return assembly.stackById(stacks.firstStack.id);
   }
 
   public assembly(cacheCloudAssembly?: boolean): Promise<CloudAssembly> {
