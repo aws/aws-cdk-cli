@@ -110,6 +110,21 @@ export interface RunResult {
   readonly stderr: string;
 }
 
+export interface SubprocessErrorProps {
+  /** The command, rendered for display. */
+  readonly command: string;
+  /** Exit code, or `null` if the process was killed or never spawned. */
+  readonly exitCode: number | null;
+  /** Terminating signal, or `null` if the process exited or never spawned. */
+  readonly signal: NodeJS.Signals | null;
+  /** Collected stdout up to the failure (empty in 'inherit' mode). */
+  readonly stdout: string;
+  /** Collected stderr up to the failure (empty in 'inherit' mode). */
+  readonly stderr: string;
+  /** The underlying spawn failure, if the process never started. */
+  readonly cause?: unknown;
+}
+
 /**
  * Raised when a subprocess could not be spawned, was killed, or exited non-zero.
  *
@@ -118,32 +133,30 @@ export interface RunResult {
  */
 export class SubprocessError extends Error {
   public readonly code = 'SUBPROCESS_FAILED';
+  public readonly command: string;
+  public readonly exitCode: number | null;
+  public readonly signal: NodeJS.Signals | null;
+  public readonly stdout: string;
+  public readonly stderr: string;
 
-  constructor(
-    /** The command, rendered for display. */
-    public readonly command: string,
-    /** Exit code, or `null` if the process was killed or never spawned. */
-    public readonly exitCode: number | null,
-    /** Terminating signal, or `null` if the process exited or never spawned. */
-    public readonly signal: NodeJS.Signals | null,
-    /** Collected stdout up to the failure (empty in 'inherit' mode). */
-    public readonly stdout: string,
-    /** Collected stderr up to the failure (empty in 'inherit' mode). */
-    public readonly stderr: string,
-    options?: { cause?: unknown },
-  ) {
-    super(subprocessErrorMessage(command, exitCode, signal, options?.cause), options);
+  constructor(props: SubprocessErrorProps) {
+    super(subprocessErrorMessage(props), props.cause !== undefined ? { cause: props.cause } : undefined);
+    this.command = props.command;
+    this.exitCode = props.exitCode;
+    this.signal = props.signal;
+    this.stdout = props.stdout;
+    this.stderr = props.stderr;
   }
 }
 
-function subprocessErrorMessage(command: string, exitCode: number | null, signal: NodeJS.Signals | null, cause?: unknown): string {
-  if (exitCode != null) {
-    return `${command} exited with error code ${exitCode}`;
+function subprocessErrorMessage(props: SubprocessErrorProps): string {
+  if (props.exitCode != null) {
+    return `${props.command} exited with error code ${props.exitCode}`;
   }
-  if (signal != null) {
-    return `${command} exited with signal ${signal}`;
+  if (props.signal != null) {
+    return `${props.command} exited with signal ${props.signal}`;
   }
-  return `${command} failed to start: ${cause instanceof Error ? cause.message : cause}`;
+  return `${props.command} failed to start: ${props.cause instanceof Error ? props.cause.message : props.cause}`;
 }
 
 /**
@@ -200,10 +213,23 @@ export function runSync(argv: readonly string[], options: RunSyncOptions = {}): 
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   if (result.error) {
-    throw new SubprocessError(renderForDisplay(argv), null, null, result.stdout ?? '', '', { cause: result.error });
+    throw new SubprocessError({
+      command: renderForDisplay(argv),
+      exitCode: null,
+      signal: null,
+      stdout: result.stdout ?? '',
+      stderr: '',
+      cause: result.error,
+    });
   }
   if (result.status !== 0) {
-    throw new SubprocessError(renderForDisplay(argv), result.status, result.signal, result.stdout ?? '', '');
+    throw new SubprocessError({
+      command: renderForDisplay(argv),
+      exitCode: result.status,
+      signal: result.signal,
+      stdout: result.stdout ?? '',
+      stderr: '',
+    });
   }
   return result.stdout;
 }
@@ -310,7 +336,14 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
     });
 
     child.once('error', (cause) => {
-      reject(new SubprocessError(displayCommand, null, null, stdout.join(''), stderr.join(''), { cause }));
+      reject(new SubprocessError({
+        command: displayCommand,
+        exitCode: null,
+        signal: null,
+        stdout: stdout.join(''),
+        stderr: stderr.join(''),
+        cause,
+      }));
     });
 
     child.once('close', (exitCode, signal) => {
@@ -318,7 +351,13 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
       if (exitCode === 0) {
         resolve({ stdout: stdout.join(''), stderr: stderr.join('') });
       } else {
-        reject(new SubprocessError(displayCommand, exitCode, signal, stdout.join(''), stderr.join('')));
+        reject(new SubprocessError({
+          command: displayCommand,
+          exitCode,
+          signal,
+          stdout: stdout.join(''),
+          stderr: stderr.join(''),
+        }));
       }
     });
   });

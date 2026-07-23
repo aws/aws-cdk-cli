@@ -1203,7 +1203,7 @@ describe('constructs version', () => {
         workDir: projectDir,
       });
 
-      const dotnetCalls = runSpy.mock.calls.filter(([argv]) => argv[0] === 'dotnet');
+      const dotnetCalls = runSpy.mock.calls.filter(([argv]: any[]) => argv[0] === 'dotnet');
       const expectedCwd = path.join(projectDir, 'src');
       expect(dotnetCalls).toEqual([
         [['dotnet', 'restore'], expect.objectContaining({ cwd: expectedCwd })],
