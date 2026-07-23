@@ -103,10 +103,19 @@ export function synthParametersFromSettings(settings: Settings): {
     debugEnvVars.JSII_HOST_STACK_TRACES = '1';
   }
 
+  // When validation is disabled (e.g. via the CLI's `--no-validation`), forward
+  // it to the app process as an environment variable so framework-side validation
+  // layers can honor it. This is read in framework code that has no access to a
+  // construct tree, which is why it is an environment variable rather than context.
+  const validationEnvVars: Record<string, string> = settings.get(['validation']) === false
+    ? { CDK_VALIDATION: 'false' }
+    : {};
+
   return {
     context: contextFromSettings(settings),
     env: {
       ...settings.get(['debugApp']) ? debugEnvVars : {},
+      ...validationEnvVars,
     },
   };
 }

@@ -322,6 +322,7 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     language: argv.language,
     pathMetadata: argv.pathMetadata,
     assetMetadata: argv.assetMetadata,
+    validation: argv.validation,
     profile: argv.profile,
     region: argv.region,
     plugin: argv.plugin,
