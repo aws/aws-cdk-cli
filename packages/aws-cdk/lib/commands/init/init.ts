@@ -1,5 +1,5 @@
-import * as childProcess from 'child_process';
 import * as path from 'path';
+import { run, SubprocessError } from '@aws-cdk/private-tools/lib/subprocess';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
@@ -782,7 +782,7 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   try {
     await execute(ioHelper, 'git', ['init'], { cwd: workDir });
     await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
-    await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['commit', '--message=Initial commit', '--no-gpg-sign'], { cwd: workDir });
   } catch {
     await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
   }
@@ -962,26 +962,26 @@ function isRoot(dir: string) {
  * @returns STDOUT (if successful).
  */
 async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
-  const child = childProcess.spawn(cmd, args, {
-    cwd,
-    shell: true,
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
   let stdout = '';
-  child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
-  return new Promise<string>((ok, fail) => {
-    child.once('error', (err) => fail(err));
-    child.once('exit', (status) => {
-      if (status === 0) {
-        return ok(stdout);
-      } else {
-        return fail(new ToolkitError('CommandFailed', `${cmd} exited with status ${status}`));
-      }
+  try {
+    const result = await run([cmd, ...args], {
+      cwd,
+      onOutput: (stream, data) => {
+        if (stream === 'stdout') {
+          stdout += data;
+        } else {
+          process.stderr.write(data);
+        }
+      },
     });
-  }).catch(async (err) => {
+    return result.stdout;
+  } catch (err: any) {
     await ioHelper.defaults.error(stdout);
+    if (err instanceof SubprocessError && err.exitCode != null) {
+      throw new ToolkitError('CommandFailed', `${cmd} exited with status ${err.exitCode}`);
+    }
     throw err;
-  });
+  }
 }
 
 interface Versions {

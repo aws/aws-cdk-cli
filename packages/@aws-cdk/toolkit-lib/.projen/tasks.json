@@ -59,7 +59,7 @@
       },
       "steps": [
         {
-          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/jest,@types/jest-when,@types/picomatch,@types/split2,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,nx,projen,ts-jest,tsx,cdk-from-cfn,fast-deep-equal,picomatch,semver,split2"
+          "exec": "yarn dlx npm-check-updates@20 --upgrade --target=minor --cooldown=3 --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@aws-cdk/aws-service-spec,@cdklabs/eslint-plugin,@jest/environment,@jest/globals,@jest/types,@microsoft/api-extractor,@smithy/util-stream,@types/jest,@types/jest-when,@types/picomatch,aws-cdk-lib,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-when,license-checker,nx,projen,ts-jest,tsx,cdk-from-cfn,fast-deep-equal,picomatch,semver"
         }
       ]
     },

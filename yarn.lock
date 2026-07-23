@@ -132,6 +132,7 @@ __metadata:
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     esbuild: "npm:^0.28.1"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -472,12 +473,14 @@ __metadata:
   dependencies:
     "@cdklabs/eslint-plugin": "npm:^2.0.11"
     "@stylistic/eslint-plugin": "npm:^3"
+    "@types/cross-spawn": "npm:^6.0.6"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
@@ -559,7 +562,6 @@ __metadata:
     "@types/jest-when": "npm:^3.5.5"
     "@types/node": "npm:^20"
     "@types/picomatch": "npm:^4"
-    "@types/split2": "npm:^4.2.3"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     aws-cdk-lib: "npm:2.260.0"
@@ -570,6 +572,7 @@ __metadata:
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     esbuild: "npm:^0.28.1"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -594,7 +597,6 @@ __metadata:
     prettier: "npm:^2.8"
     projen: "npm:^0.100.7"
     semver: "npm:^7.8.5"
-    split2: "npm:^4.2.0"
     ts-jest: "npm:^29.4.11"
     tsx: "npm:^4.22.4"
     typescript: "npm:5.9"
@@ -3895,6 +3897,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/cross-spawn@npm:^6.0.6":
+  version: 6.0.6
+  resolution: "@types/cross-spawn@npm:6.0.6"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/e3d476bb6b3a54a8934a97fe6ee4bd13e2e5eb29073929a4be76a52466602ffaea420b20774ffe8503f9fa24f3ae34817e95e7f625689fb0d1c10404f5b2889c
+  languageName: node
+  linkType: hard
+
 "@types/deep-eql@npm:*":
   version: 4.0.2
   resolution: "@types/deep-eql@npm:4.0.2"
@@ -4135,15 +4146,6 @@ __metadata:
   version: 15.0.1
   resolution: "@types/sinonjs__fake-timers@npm:15.0.1"
   checksum: 10c0/be8daa4e19746f4c249ce4926b83676bb2e5500a8c33b61d81cd303495b56697c28c910f7c57c0ecfd1d7c8ead87449570586d9568b0b5c6fd94c45f116197f4
-  languageName: node
-  linkType: hard
-
-"@types/split2@npm:^4.2.3":
-  version: 4.2.3
-  resolution: "@types/split2@npm:4.2.3"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/92326872b1f6f2e5a0808682a3f0630efb98bed51b1e40e2133e740f664bbde7a21af54e2a1f1a1f6eac218a70d7a9bae22d3e6d614950c06ddab391b7a1dfca
   languageName: node
   linkType: hard
 
@@ -14072,13 +14074,6 @@ __metadata:
   dependencies:
     readable-stream: "npm:^3.0.0"
   checksum: 10c0/2dad5603c52b353939befa3e2f108f6e3aff42b204ad0f5f16dd12fd7c2beab48d117184ce6f7c8854f9ee5ffec6faae70d243711dd7d143a9f635b4a285de4e
-  languageName: node
-  linkType: hard
-
-"split2@npm:^4.2.0":
-  version: 4.2.0
-  resolution: "split2@npm:4.2.0"
-  checksum: 10c0/b292beb8ce9215f8c642bb68be6249c5a4c7f332fc8ecadae7be5cbdf1ea95addc95f0459ef2e7ad9d45fd1064698a097e4eb211c83e772b49bc0ee423e91534
   languageName: node
   linkType: hard
 

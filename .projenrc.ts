@@ -704,6 +704,10 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
+    subprocess: {
+      deps: ['cross-spawn@^7.0.6'],
+      devDeps: ['@types/cross-spawn'],
+    },
     zip: {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
@@ -764,6 +768,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.subprocess);
 cdkAssetsLib.with(tools.zip);
 fixupTestTask(cdkAssetsLib);
 
@@ -929,7 +934,6 @@ const toolkitLib = configureProject(
       'picomatch',
       'p-limit@^3',
       'semver',
-      'split2',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -942,7 +946,6 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra@^11',
       '@types/picomatch',
-      '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
@@ -988,6 +991,7 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.subprocess);
 toolkitLib.with(tools.zip);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
