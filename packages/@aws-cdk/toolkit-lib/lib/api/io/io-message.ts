@@ -82,3 +82,21 @@ export interface IoRequest<T, U> extends IoMessage<T> {
 
   readonly code: IoMessageCode;
 }
+
+/**
+ * A message matcher
+ *
+ * Decides whether a message matches a listener, narrowing its payload type `T`.
+ */
+export interface IMessageMatcher<T> {
+  is(msg: IoMessage<unknown>): msg is IoMessage<T>;
+}
+
+/**
+ * A request matcher.
+ *
+ * Carries the response type `U` so an answer can be typed.
+ */
+export interface IRequestMatcher<T, U> extends IMessageMatcher<T> {
+  is(msg: IoMessage<unknown>): msg is IoRequest<T, U>;
+}
