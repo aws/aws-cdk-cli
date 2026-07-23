@@ -541,14 +541,19 @@ class FullCloudFormationDeployment {
     const replacement = hasReplacement(changeSetDescription);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
-    const expressNoRollback = this.options.express && this.options.rollback !== true;
+
+    // Route express mode deployments directly to executeChangeset, express mode stacks cannot use rollback API
+    if (this.options.express) {
+      return this.executeChangeSet(changeSetDescription);
+    }
+
     if (isPausedFailState && replacement) {
       return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
     }
     if (isPausedFailState && rollback) {
       return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
     }
-    if ((!rollback || expressNoRollback) && replacement) {
+    if (!rollback && replacement) {
       return { type: 'replacement-requires-rollback' };
     }
 
