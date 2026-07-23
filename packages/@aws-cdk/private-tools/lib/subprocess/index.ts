@@ -4,10 +4,10 @@
  * Every child process in this repository is spawned in exactly one of two shapes:
  *
  * 1. `run(argv)` — an argv-array spawn with **no shell**. No shell ever parses
- *    the arguments, so no escaping is needed (or performed): shell injection is
- *    impossible by construction. Windows `.cmd`/`.bat` shims (npm, yarn, …) are
- *    handled by cross-spawn, which spawns `cmd.exe /d /s /c` with correct
- *    quoting — modern Node refuses to spawn batch shims directly (CVE-2024-27980).
+ *    the arguments, so shell injection is impossible by construction.
+ *    Windows `.cmd`/`.bat` shims (npm, yarn, …) are handled by cross-spawn,
+ *    which spawns `cmd.exe /d /s /c` with correct quoting — modern Node does
+ *    not spawn batch shims directly (CVE-2024-27980).
  *
  * 2. `runUserCommandLine(line)` — an opaque command line **the user themselves
  *    authored** (e.g. the `app` command from `cdk.json`, the `--browser` flag),
@@ -15,10 +15,6 @@
  *    here and the input is trusted by definition; this function is deliberately
  *    the only path to a shell and takes no argv form, so command lines can
  *    never be assembled from parts by this codebase.
- *
- * There is intentionally no third shape. In particular, "argv array + shell +
- * hand-rolled escaping" — the pattern that produced repeated escaping bugs in
- * this codebase — cannot be expressed with this API.
  */
 import * as child_process from 'child_process';
 import spawn from 'cross-spawn';
@@ -149,8 +145,8 @@ function subprocessErrorMessage(command: string, exitCode: number | null, signal
 /**
  * Run a program with the given arguments, without a shell.
  *
- * The safe default for everything this codebase spawns itself (docker, npm,
- * git, asset bundlers, …). Arguments are passed to the OS as an argv array and
+ * The safe default for everything the codebase spawns itself (docker, npm,
+ * git, asset bundlers, etc.). Arguments are passed to the OS as an argv array and
  * are never parsed by a shell, so no escaping is needed and shell injection is
  * impossible. Windows `.cmd`/`.bat` shims are resolved by cross-spawn.
  *
@@ -183,10 +179,6 @@ export interface RunSyncOptions {
 
 /**
  * Synchronous variant of `run()` for the rare call sites that cannot be async.
- *
- * Same guarantees: argv array, no shell, cross-spawn shim handling. stderr is
- * discarded; stdout is returned. Rejects (throws) with `SubprocessError` on
- * non-zero exit, signal, or spawn failure.
  */
 export function runSync(argv: readonly string[], options: RunSyncOptions = {}): string {
   if (argv.length === 0 || !argv[0]) {
@@ -231,7 +223,7 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
 /**
  * Render an argv array as a single string for logs and error messages.
  *
- * DISPLAY ONLY — this is not a security mechanism and its output must never be
+ * DISPLAY ONLY — this is not a security mechanism and its output should never be
  * executed. Nothing in this module ever passes a rendered string to a shell;
  * quoting exists purely so a human reading a log can tell where one argument
  * ends and the next begins.
