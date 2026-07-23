@@ -71,7 +71,7 @@ describe('mapViolationsToDiagnostics', () => {
     // to LSP's end-of-line sentinel so the squiggle is visible.
     expect(diag.range).toEqual({
       start: { line: 11, character: 4 },
-      end: { line: 11, character: Number.MAX_VALUE },
+      end: { line: 11, character: 2147483647 },
     });
   });
 

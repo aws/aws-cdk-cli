@@ -147,7 +147,7 @@ describe('LSP Server', () => {
     });
     expect(result).toMatchObject({
       capabilities: {
-        textDocumentSync: { openClose: false, change: 0, save: { includeText: false } },
+        textDocumentSync: { openClose: true, change: 0, save: { includeText: false } },
         codeLensProvider: { resolveProvider: false },
         definitionProvider: true,
       },
