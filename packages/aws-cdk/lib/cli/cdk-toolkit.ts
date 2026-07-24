@@ -584,12 +584,39 @@ export class CdkToolkit {
   /**
    * Validate synthesized templates against policy rules
    */
-  public async validate(options: ValidateOptions): Promise<number> {
+  public async validate(options: CliValidateOptions): Promise<number | void> {
     // Implicitly switch 'debug' mode to true; more stack traces = more useful.
     this.props.cloudExecutable.switchOnDebugging();
 
+    if (options.watch) {
+      return this.validateWatch(options);
+    }
+
     const result = await this.toolkit.validate(this.props.cloudExecutable, options);
     return result.conclusion === 'failure' ? 1 : 0;
+  }
+
+  /**
+   * Continuously validate the project, re-running on every file change.
+   *
+   * Never deploys; only synthesizes and validates.
+   */
+  private async validateWatch(options: CliValidateOptions): Promise<void> {
+    // Re-synthesize on every iteration, so file changes are picked up
+    const uncachedSource = this.props.cloudExecutable.uncachedSource();
+
+    await this.watchProjectFiles({
+      command: 'cdk validate',
+      activity: 'validation',
+      invoke: async () => {
+        try {
+          await this.toolkit.validate(uncachedSource, options);
+        } catch (e: any) {
+          // Report and continue watching: synth errors are expected while the user is mid-edit
+          await this.ioHost.asIoHelper().defaults.error(formatErrorMessage(e));
+        }
+      },
+    });
   }
 
   /**
@@ -655,8 +682,54 @@ export class CdkToolkit {
   }
 
   public async watch(options: WatchOptions) {
-    const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
     const ioHelper = asIoHelper(this.ioHost, 'watch');
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({
+      ioHelper,
+    }) : undefined;
+
+    await this.watchProjectFiles({
+      command: 'cdk deploy',
+      activity: 'deployment',
+      invoke: () => this.invokeDeployFromWatch(options, cloudWatchLogMonitor),
+      onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
+      onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
+    });
+  }
+
+  /**
+   * Continuously observe project files, and invoke a command every time changes are detected.
+   *
+   * The files to observe are configured with the "watch" key of `cdk.json`.
+   * Used by both 'cdk deploy --watch' and 'cdk validate --watch'.
+   */
+  private async watchProjectFiles(props: {
+    /**
+     * The command invoked on file changes, e.g. "cdk deploy". Used in user-facing messages.
+     */
+    command: string;
+
+    /**
+     * The noun describing a single run of the command, e.g. "deployment". Used in user-facing messages.
+     */
+    activity: string;
+
+    /**
+     * Invoked for the initial run and again for every batch of file changes.
+     * Must not throw: any error should be reported and swallowed, so watching continues.
+     */
+    invoke: () => Promise<void>;
+
+    /**
+     * Called before the first invocation of a batch of file changes
+     */
+    onBatchStart?: () => Promise<void>;
+
+    /**
+     * Called after the last invocation of a batch of file changes
+     */
+    onBatchEnd?: () => Promise<void>;
+  }) {
+    const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
     await this.ioHost.asIoHelper().defaults.debug("root directory used for 'watch' is: %s", rootDir);
 
     const watchSettings: { include?: string | string[]; exclude: string | string[] } | undefined =
@@ -696,39 +769,36 @@ export class CdkToolkit {
     }).concat(`${outputDir}/**`, '**/.*', '**/.*/**', '**/node_modules/**');
     await this.ioHost.asIoHelper().defaults.debug("'exclude' patterns for 'watch': %s", watchExcludes);
 
-    // Since 'cdk deploy' is a relatively slow operation for a 'watch' process,
+    // Since the invoked command is a relatively slow operation for a 'watch' process,
     // introduce a concurrency latch that tracks the state.
-    // This way, if file change events arrive when a 'cdk deploy' is still executing,
-    // we will batch them, and trigger another 'cdk deploy' after the current one finishes,
-    // making sure 'cdk deploy's  always execute one at a time.
+    // This way, if file change events arrive when an invocation is still executing,
+    // we will batch them, and trigger another invocation after the current one finishes,
+    // making sure invocations always execute one at a time.
     // Here's a diagram showing the state transitions:
     // --------------                --------    file changed     --------------    file changed     --------------  file changed
     // |            |  ready event   |      | ------------------> |            | ------------------> |            | --------------|
-    // | pre-ready  | -------------> | open |                     | deploying  |                     |   queued   |               |
+    // | pre-ready  | -------------> | open |                     |  running   |                     |   queued   |               |
     // |            |                |      | <------------------ |            | <------------------ |            | <-------------|
-    // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
-    let latch: 'pre-ready' | 'open' | 'deploying' | 'queued' = 'pre-ready';
+    // --------------                --------   invocation done   --------------   invocation done   --------------
+    let latch: 'pre-ready' | 'open' | 'running' | 'queued' = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({
-      ioHelper,
-    }) : undefined;
-    const deployAndWatch = async () => {
-      latch = 'deploying';
-      await cloudWatchLogMonitor?.deactivate();
+    const invokeAndWatch = async () => {
+      latch = 'running';
+      await props.onBatchStart?.();
 
-      await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
+      await props.invoke();
 
-      // If latch is still 'deploying' after the 'await', that's fine,
-      // but if it's 'queued', that means we need to deploy again
-      while ((latch as 'deploying' | 'queued') === 'queued') {
+      // If latch is still 'running' after the 'await', that's fine,
+      // but if it's 'queued', that means we need to invoke again
+      while ((latch as 'running' | 'queued') === 'queued') {
         // TypeScript doesn't realize latch can change between 'awaits',
         // and thinks the above 'while' condition is always 'false' without the cast
-        latch = 'deploying';
-        await this.ioHost.asIoHelper().defaults.info("Detected file changes during deployment. Invoking 'cdk deploy' again");
-        await this.invokeDeployFromWatch(options, cloudWatchLogMonitor);
+        latch = 'running';
+        await this.ioHost.asIoHelper().defaults.info(`Detected file changes during ${props.activity}. Invoking '${props.command}' again`);
+        await props.invoke();
       }
       latch = 'open';
-      await cloudWatchLogMonitor?.activate();
+      await props.onBatchEnd?.();
     };
 
     // Create ignore matcher for chokidar v4 compatibility
@@ -747,9 +817,9 @@ export class CdkToolkit {
       })
       .on('ready', async () => {
         latch = 'open';
-        await this.ioHost.asIoHelper().defaults.debug("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment");
-        await this.ioHost.asIoHelper().defaults.info("Triggering initial 'cdk deploy'");
-        await deployAndWatch();
+        await this.ioHost.asIoHelper().defaults.debug(`'watch' received the 'ready' event. From now on, all file changes will trigger a ${props.activity}`);
+        await this.ioHost.asIoHelper().defaults.info(`Triggering initial '${props.command}'`);
+        await invokeAndWatch();
       })
       .on('all', async (event: EventName, filePath?: string) => {
         if (!isFileEvent(event)) {
@@ -758,14 +828,14 @@ export class CdkToolkit {
         if (latch === 'pre-ready') {
           await this.ioHost.asIoHelper().defaults.info(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '%s' for changes`, filePath);
         } else if (latch === 'open') {
-          await this.ioHost.asIoHelper().defaults.info("Detected change to '%s' (type: %s). Triggering 'cdk deploy'", filePath, event);
-          await deployAndWatch();
+          await this.ioHost.asIoHelper().defaults.info(`Detected change to '%s' (type: %s). Triggering '${props.command}'`, filePath, event);
+          await invokeAndWatch();
         } else {
-          // this means latch is either 'deploying' or 'queued'
+          // this means latch is either 'running' or 'queued'
           latch = 'queued';
           await this.ioHost.asIoHelper().defaults.info(
-            "Detected change to '%s' (type: %s) while 'cdk deploy' is still running. " +
-            'Will queue for another deployment after this one finishes',
+            `Detected change to '%s' (type: %s) while '${props.command}' is still running. ` +
+            `Will queue for another ${props.activity} after this one finishes`,
             filePath,
             event,
           );
@@ -1564,6 +1634,18 @@ interface CfnDeployOptions {
    * @default true
    */
   readonly rollback?: boolean;
+}
+
+/**
+ * Options for the validate command
+ */
+export interface CliValidateOptions extends ValidateOptions {
+  /**
+   * Continuously observe the project files, and re-validate automatically when changes are detected
+   *
+   * @default false
+   */
+  readonly watch?: boolean;
 }
 
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {

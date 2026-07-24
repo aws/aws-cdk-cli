@@ -67,7 +67,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -2220,6 +2220,161 @@ describe('watch', () => {
         );
       });
     });
+  });
+});
+
+describe('validate --watch', () => {
+  let toolkitValidateSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    toolkitValidateSpy = jest.spyOn(Toolkit.prototype, 'validate').mockResolvedValue({
+      conclusion: 'success',
+      pluginReports: [],
+    });
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.validate({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+        watch: true,
+      });
+    }).rejects.toThrow(
+      "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+  });
+
+  test("an initial 'validate' is triggered by the 'ready' event, without any file changes", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+
+    expect(toolkitValidateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("does trigger a 'validate' for a file change", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'my-file');
+
+    expect(toolkitValidateSpy).toHaveBeenCalledTimes(
+      1 // from ready event
+      + 1, // from file event
+    );
+  });
+
+  test('passes the validate options through to each invocation', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      online: false,
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+
+    expect(toolkitValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        online: false,
+      }),
+    );
+  });
+
+  test("never triggers a 'deploy'", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    const cdkDeployMock = jest.fn();
+    toolkit.deploy = cdkDeployMock;
+    const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy');
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'my-file');
+
+    expect(cdkDeployMock).not.toHaveBeenCalled();
+    expect(toolkitDeploySpy).not.toHaveBeenCalled();
+  });
+
+  test('keeps watching after a validation error', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    toolkitValidateSpy.mockRejectedValueOnce(new Error('synth failed'));
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'my-file');
+
+    expect(toolkitValidateSpy).toHaveBeenCalledTimes(
+      1 // from ready event, which failed
+      + 1, // from file event, still watching
+    );
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'error',
+      message: expect.stringContaining('synth failed'),
+    }));
+  });
+
+  test("batches file changes that happen during 'validate'", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+
+    // The next time a validation is triggered, we want to simulate it
+    // taking some time, so we can queue up additional file changes.
+    const validation = promiseWithResolvers<any>();
+    toolkitValidateSpy.mockImplementationOnce(() => {
+      return validation.promise;
+    });
+
+    // Send the initial file event, this will start the validation.
+    const firstEvent = fakeChokidarWatcherOn.fileEventCallback('add', 'my-file1');
+    await new Promise(r => setTimeout(r, 10));
+
+    // Because the validation is still ongoing these will be queued.
+    const otherEvents = [
+      fakeChokidarWatcherOn.fileEventCallback('change', 'my-file2'),
+      fakeChokidarWatcherOn.fileEventCallback('unlink', 'my-file3'),
+    ];
+
+    // Now complete the initial validation, which kicks off one more for the queued events.
+    validation.resolve({ conclusion: 'success', pluginReports: [] });
+
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    await Promise.all([firstEvent, ...otherEvents]);
+
+    expect(toolkitValidateSpy).toHaveBeenCalledTimes(
+      1 // from ready event
+      + 1 // from first add event
+      + 1, // from the queued events
+    );
   });
 });
 

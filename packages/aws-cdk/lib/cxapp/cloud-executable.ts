@@ -59,6 +59,21 @@ export class CloudExecutable implements ICloudAssemblySource {
   }
 
   /**
+   * An `ICloudAssemblySource` that re-synthesizes on every `produce()` call.
+   *
+   * Used by 'validate --watch', which needs a fresh assembly each time it detects
+   * a change to the project files.
+   */
+  public uncachedSource(): ICloudAssemblySource {
+    return {
+      produce: async () => {
+        const synthesisResult = await this.synthesize(false);
+        return new BorrowedAssembly(synthesisResult.assembly);
+      },
+    };
+  }
+
+  /**
    * Return whether there is an app command from the configuration
    */
   public get hasApp() {
