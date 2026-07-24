@@ -899,6 +899,7 @@ const toolkitLib = configureProject(
       sdkDep('@aws-sdk/client-cloudformation'),
       sdkDep('@aws-sdk/client-cloudwatch-logs'),
       sdkDep('@aws-sdk/client-cloudcontrol'),
+      sdkDep('@aws-sdk/client-cloudtrail'),
       sdkDep('@aws-sdk/client-codebuild'),
       sdkDep('@aws-sdk/client-ec2'),
       sdkDep('@aws-sdk/client-ecr'),
