@@ -1420,6 +1420,7 @@ const cdkAliasPackage = configureProject(
     name: 'cdk',
     description: 'AWS CDK Toolkit',
     srcdir: 'lib',
+    entrypoint: '',
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
