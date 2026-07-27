@@ -1511,10 +1511,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws/cloudformation-validate@npm:1.5.0-beta":
-  version: 1.5.0-beta
-  resolution: "@aws/cloudformation-validate@npm:1.5.0-beta"
-  checksum: 10c0/3a7c118f3f5f4111ff262d8cba92aca8e19fdad62bc84529744a13602059e3fe949a923739531e4c06d27feb5a2a10344948e1443f73ea34005e8b4f28a57595
+"@aws/cloudformation-validate@npm:1.5.1-beta":
+  version: 1.5.1-beta
+  resolution: "@aws/cloudformation-validate@npm:1.5.1-beta"
+  checksum: 10c0/aebf7c2922f1ddc8afb74e9aae4e9f101869325153cfc25fcdea6b94bce755c9e8712cdae5fd2c8502caa707a82a32c6c08128b03eb60dcb0f35ffe3d7224fcd
   languageName: node
   linkType: hard
 
@@ -5330,15 +5330,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"aws-cdk-lib@npm:2.262.0":
-  version: 2.262.0
-  resolution: "aws-cdk-lib@npm:2.262.0"
+"aws-cdk-lib@npm:2.262.1":
+  version: 2.262.1
+  resolution: "aws-cdk-lib@npm:2.262.1"
   dependencies:
     "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
     "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
     "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
-    "@aws/cloudformation-validate": "npm:1.5.0-beta"
+    "@aws/cloudformation-validate": "npm:1.5.1-beta"
     "@balena/dockerignore": "npm:^1.0.2"
     case: "npm:1.6.3"
     fs-extra: "npm:^11.3.6"
@@ -5351,7 +5351,7 @@ __metadata:
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/ff2c65607e743d279b5b1a8e6733081d9703d9e45bb513551a2ca378435f940ce6c1fafaa29bb49ca12e9d10247067acacf1140d260532fdf67510dc0a72fcc4
+  checksum: 10c0/3e50e4c8dc7213fb1288a7e9633f045f995e048a4654dc1b6d44358259e5fb1dde3b8738845e5a69bf5b57232150fc8dcb9b3690ee74166cc13cc0a21ef7d6f3
   languageName: node
   linkType: hard
 
@@ -5412,7 +5412,7 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.262.0"
+    aws-cdk-lib: "npm:2.262.1"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
