@@ -277,7 +277,31 @@ describe('watch', () => {
   });
 });
 
-// @todo unit test watch with file events
+describe('watch re-synthesis', () => {
+  test('re-produces the assembly on each file-change iteration', async () => {
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const produceSpy = jest.spyOn(cx, 'produce');
+
+    await toolkit.watch(cx, { include: [] });
+
+    // Initial deployment (ready event)
+    await fakeChokidarWatcherOn.readyCallback();
+    const producesAfterReady = produceSpy.mock.calls.length;
+
+    // Two file-change iterations
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'lib.ts');
+
+    const producesTotal = produceSpy.mock.calls.length;
+
+    // 3 deployments (1 ready + 2 changes) must each produce a fresh assembly.
+    // The initial assembly produced for outdir discovery is an extra produce(),
+    // so we expect at least 4 total.
+    expect(deploySpy).toHaveBeenCalledTimes(3);
+    expect(producesAfterReady).toBeGreaterThanOrEqual(2); // 1 for outdir + 1 for first deploy
+    expect(producesTotal).toBeGreaterThanOrEqual(4); // 1 for outdir + 3 for each deployment
+  });
+});
 
 describe('watch chokidar configuration', () => {
   test('watches root directory (.) instead of glob patterns', async () => {

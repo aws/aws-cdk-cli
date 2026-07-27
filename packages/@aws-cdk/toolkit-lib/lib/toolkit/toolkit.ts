@@ -59,7 +59,7 @@ import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { ValidateOptions, ValidateResult } from '../actions/validate';
-import type { IWatcher, WatchOptions } from '../actions/watch';
+import type { IWatcher, WatchFileOptions, WatchOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
@@ -1145,27 +1145,71 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Continuously observe project files and deploy the selected stacks
    * automatically when changes are detected. Defaults to hotswap deployments.
    *
-   * This function returns immediately, starting a watcher in the background.
+   * @deprecated Use `watchDeploy()` instead.
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
+    return this.watchDeploy(cx, options);
+  }
+
+  /**
+   * Continuously observe project files and deploy the selected stacks
+   * automatically when changes are detected. Defaults to hotswap deployments.
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchDeploy(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
-    await using assembly = await assemblyFromSource(ioHelper, cx, false);
-    const rootDir = options.watchDir ?? process.cwd();
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({ ioHelper }) : undefined;
+
+    return this._watch(cx, options, {
+      command: 'cdk deploy',
+      activity: 'deployment',
+      invoke: async () => {
+        await using assembly = await assemblyFromSource(ioHelper, cx, false);
+        await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+      },
+      onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
+      onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
+      onDispose: async () => cloudWatchLogMonitor?.deactivate(),
+    });
+  }
+
+  /**
+   * The generic file-watching loop. Observes project files and invokes a callback
+   * on each change, batching concurrent changes into a single follow-up invocation.
+   *
+   * Each invocation re-produces the assembly from the source (via `invoke`), so
+   * file changes between iterations are picked up.
+   */
+  private async _watch(cx: ICloudAssemblySource, fileOptions: WatchFileOptions, props: {
+    command: string;
+    activity: string;
+    invoke: () => Promise<void>;
+    onBatchStart?: () => Promise<void>;
+    onBatchEnd?: () => Promise<void>;
+    onDispose?: () => Promise<void>;
+  }): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'watch');
+    const rootDir = fileOptions.watchDir ?? process.cwd();
+
+    // Determine the output directory to exclude from watching. We need to
+    // produce the assembly once here to discover the outdir path.
+    await using initialAssembly = await assemblyFromSource(ioHelper, cx, false);
 
     // For the "include" setting, the behavior is:
     // 1. "watch" setting without an "include" key? We default to observing "**".
     // 2. "watch" setting with an empty "include" key? We default to observing "**".
     // 3. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = options.include ?? [];
+    const watchIncludes = fileOptions.include ?? [];
     if (watchIncludes.length <= 0) {
       watchIncludes.push('**');
     }
 
     // For the "exclude" setting, the behavior is to add some default excludes in addition to
     // patterns specified by the user sensible default patterns:
-    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
+    const watchExcludes = fileOptions.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
     // 1. The CDK output directory, if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, assembly.directory);
+    const relativeOutDir = path.relative(rootDir, initialAssembly.directory);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
@@ -1187,38 +1231,36 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       excludes: watchExcludes,
     }));
 
-    // Since 'cdk deploy' is a relatively slow operation for a 'watch' process,
-    // introduce a concurrency latch that tracks the state.
-    // This way, if file change events arrive when a 'cdk deploy' is still executing,
-    // we will batch them, and trigger another 'cdk deploy' after the current one finishes,
-    // making sure 'cdk deploy's  always execute one at a time.
-    // Here's a diagram showing the state transitions:
+    // The invoked command is a relatively slow operation for a 'watch' process,
+    // so we use a concurrency latch that tracks the state.
+    // If file change events arrive while an invocation is still executing,
+    // we batch them and trigger another invocation after the current one finishes,
+    // ensuring invocations always execute one at a time.
+    //
+    // State transitions:
     // --------------                --------    file changed     --------------    file changed     --------------  file changed
     // |            |  ready event   |      | ------------------> |            | ------------------> |            | --------------|
-    // | pre-ready  | -------------> | open |                     | deploying  |                     |   queued   |               |
+    // | pre-ready  | -------------> | open |                     |  running   |                     |   queued   |               |
     // |            |                |      | <------------------ |            | <------------------ |            | <-------------|
-    // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
-    type LatchState = 'pre-ready' | 'open' | 'deploying' | 'queued';
+    // --------------                --------   invocation done   --------------   invocation done   --------------
+    type LatchState = 'pre-ready' | 'open' | 'running' | 'queued';
     let latch: LatchState = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({ ioHelper }) : undefined;
-    const deployAndWatch = async () => {
-      latch = 'deploying' as LatchState;
-      await cloudWatchLogMonitor?.deactivate();
+    const invokeAndWatch = async () => {
+      latch = 'running' as LatchState;
+      await props.onBatchStart?.();
 
-      await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+      await props.invoke();
 
-      // If latch is still 'deploying' after the 'await', that's fine,
-      // but if it's 'queued', that means we need to deploy again
+      // If latch is still 'running' after the 'await', that's fine,
+      // but if it's 'queued', that means we need to invoke again
       while (latch === 'queued') {
-        // TypeScript doesn't realize latch can change between 'awaits',
-        // and thinks the above 'while' condition is always 'false' without the cast
-        latch = 'deploying';
-        await ioHelper.notify(IO.CDK_TOOLKIT_I5315.msg("Detected file changes during deployment. Invoking 'cdk deploy' again"));
-        await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+        latch = 'running';
+        await ioHelper.notify(IO.CDK_TOOLKIT_I5315.msg(`Detected file changes during ${props.activity}. Invoking '${props.command}' again`));
+        await props.invoke();
       }
       latch = 'open';
-      await cloudWatchLogMonitor?.activate();
+      await props.onBatchEnd?.();
     };
 
     // Create ignore matcher for chokidar v4 compatibility
@@ -1237,13 +1279,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       })
       .on('ready', async () => {
         latch = 'open';
-        await ioHelper.defaults.debug("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment");
-        await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg("Triggering initial 'cdk deploy'"));
-        await deployAndWatch();
+        await ioHelper.defaults.debug(`'watch' received the 'ready' event. From now on, all file changes will trigger a ${props.activity}`);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg(`Triggering initial '${props.command}'`));
+        await invokeAndWatch();
       })
       .on('all', async (event: EventName, filePath: string) => {
         // Filter out non-file events (e.g., 'error', 'raw', 'ready', 'all')
-        // These are handled separately or not relevant for watch deployments
+        // These are handled separately or not relevant for watch
         if (!isFileEvent(event)) {
           return;
         }
@@ -1254,13 +1296,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         if (latch === 'pre-ready') {
           await ioHelper.notify(IO.CDK_TOOLKIT_I5311.msg(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '${filePath}' for changes`, watchEvent));
         } else if (latch === 'open') {
-          await ioHelper.notify(IO.CDK_TOOLKIT_I5312.msg(`Detected change to '${filePath}' (type: ${event}). Triggering 'cdk deploy'`, watchEvent));
-          await deployAndWatch();
+          await ioHelper.notify(IO.CDK_TOOLKIT_I5312.msg(`Detected change to '${filePath}' (type: ${event}). Triggering '${props.command}'`, watchEvent));
+          await invokeAndWatch();
         } else {
-          // this means latch is either 'deploying' or 'queued'
+          // this means latch is either 'running' or 'queued'
           latch = 'queued';
           await ioHelper.notify(IO.CDK_TOOLKIT_I5313.msg(
-            `Detected change to '${filePath}' (type: ${event}) while 'cdk deploy' is still running. Will queue for another deployment after this one finishes'`,
+            `Detected change to '${filePath}' (type: ${event}) while '${props.command}' is still running. Will queue for another ${props.activity} after this one finishes`,
             watchEvent,
           ));
         }
@@ -1270,9 +1312,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
-        // stop the logs monitor, if it exists
-        await cloudWatchLogMonitor?.deactivate();
-        // close the watcher itself
+        await props.onDispose?.();
         await watcher.close();
         stoppedPromise.resolve();
         return stoppedPromise.promise;
