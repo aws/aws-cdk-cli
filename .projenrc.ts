@@ -18,6 +18,7 @@ import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
+import { YarnVersion } from './projenrc/yarn-version';
 
 // #region shared config
 
@@ -245,6 +246,7 @@ const repoProject = new yarn.Monorepo({
     'eslint-config-prettier',
     'eslint-plugin-prettier',
   ],
+  allowScripts: ['node-pty', 'esbuild'],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
     includeRootWorkspace: true,
@@ -1110,7 +1112,7 @@ toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test exported js files
-toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/index.js &>/dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1164,6 +1166,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('docs', {
     // Zip the API model and docs files
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
+  shell: pj.TaskShell.bash(),
 });
 // Add the API Extractor docs task to the package task
 toolkitLib.packageTask.spawn(apiExtractorDocsTask);
@@ -1836,6 +1839,8 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
 // enforce same node types everywhere
 [repo, ...repo.subprojects].forEach(p => p.addDevDeps('@types/node@^20'));
 
-repo.synth();
+(repo
+  .with(new YarnVersion('4.17.1')) as yarn.Monorepo)
+  .synth();
 
 // #endregion
