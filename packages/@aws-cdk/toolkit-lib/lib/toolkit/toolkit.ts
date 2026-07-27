@@ -1164,7 +1164,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     return this._watch(cx, options, {
       command: 'cdk deploy',
       activity: 'deployment',
-      invoke: async () => {
+      invoke: async (initialAssembly) => {
+        // The first invocation reuses the assembly produced at watch startup
+        // (it is fresh by definition: no file has changed yet). Subsequent
+        // invocations are triggered by file changes and re-produce the
+        // assembly so the changes are picked up.
+        if (initialAssembly) {
+          await this.invokeDeployFromWatch(initialAssembly, options, cloudWatchLogMonitor);
+          return;
+        }
         await using assembly = await assemblyFromSource(ioHelper, cx, false);
         await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
       },
@@ -1184,7 +1192,16 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _watch(cx: ICloudAssemblySource, fileOptions: WatchFileOptions, props: {
     command: string;
     activity: string;
-    invoke: () => Promise<void>;
+    /**
+     * Run the action once.
+     *
+     * For the initial invocation (before any file has changed) the assembly
+     * produced at watch startup is passed in and may be used directly; it is
+     * fresh by definition. For subsequent invocations it is `undefined` and
+     * the action must re-produce the assembly from the source, so that file
+     * changes are picked up.
+     */
+    invoke: (initialAssembly?: StackAssembly) => Promise<void>;
     onBatchStart?: () => Promise<void>;
     onBatchEnd?: () => Promise<void>;
     onDispose?: () => Promise<void>;
@@ -1192,9 +1209,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
     const rootDir = fileOptions.watchDir ?? process.cwd();
 
-    // Determine the output directory to exclude from watching. We need to
-    // produce the assembly once here to discover the outdir path.
-    await using initialAssembly = await assemblyFromSource(ioHelper, cx, false);
+    // Produce the assembly once at startup: it determines the output directory
+    // to exclude from watching, and is reused for the initial invocation (no
+    // file has changed yet, so it cannot be stale). Its lifetime is managed
+    // manually: disposed after the initial invocation consumes it, or on
+    // watcher dispose if the initial invocation never ran.
+    let initialAssembly: StackAssembly | undefined = await assemblyFromSource(ioHelper, cx, false);
+    const assemblyOutDir = initialAssembly.directory;
+    const consumeInitialAssembly = (): StackAssembly | undefined => {
+      const assembly = initialAssembly;
+      initialAssembly = undefined;
+      return assembly;
+    };
+    const disposeInitialAssembly = async () => {
+      await consumeInitialAssembly()?.dispose();
+    };
 
     // For the "include" setting, the behavior is:
     // 1. "watch" setting without an "include" key? We default to observing "**".
@@ -1209,7 +1238,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // patterns specified by the user sensible default patterns:
     const watchExcludes = fileOptions.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
     // 1. The CDK output directory, if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, initialAssembly.directory);
+    const relativeOutDir = path.relative(rootDir, assemblyOutDir);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
@@ -1246,21 +1275,54 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     type LatchState = 'pre-ready' | 'open' | 'running' | 'queued';
     let latch: LatchState = 'pre-ready';
 
+    // Whether the watcher has been disposed. Once set, no new invocations start.
+    let stopped = false;
+    // The currently executing invocation batch (if any). `dispose()` awaits this
+    // so that in-flight work (e.g. a synthesis subprocess) completes before the
+    // watcher reports itself as stopped and resources are cleaned up.
+    let inFlight: Promise<void> = Promise.resolve();
+
+    // Run one invocation, reporting (never propagating) failures: this runs
+    // inside chokidar event callbacks, where a rejection would be unhandled
+    // and crash the process. Synthesis failures are expected while the user
+    // is mid-edit; watching must survive them and try again on the next change.
+    //
+    // The first invocation receives the assembly produced at watch startup
+    // (fresh by definition); every later invocation re-produces from source.
+    const invokeSafe = async () => {
+      const assembly = consumeInitialAssembly();
+      try {
+        await props.invoke(assembly);
+      } catch (e: any) {
+        await ioHelper.defaults.error(formatErrorMessage(e));
+      } finally {
+        await assembly?.dispose();
+      }
+    };
+
     const invokeAndWatch = async () => {
       latch = 'running' as LatchState;
       await props.onBatchStart?.();
 
-      await props.invoke();
+      await invokeSafe();
 
       // If latch is still 'running' after the 'await', that's fine,
       // but if it's 'queued', that means we need to invoke again
-      while (latch === 'queued') {
+      while (latch === 'queued' && !stopped) {
         latch = 'running';
         await ioHelper.notify(IO.CDK_TOOLKIT_I5315.msg(`Detected file changes during ${props.activity}. Invoking '${props.command}' again`));
-        await props.invoke();
+        await invokeSafe();
       }
       latch = 'open';
       await props.onBatchEnd?.();
+    };
+
+    const startInvocation = async () => {
+      if (stopped) {
+        return;
+      }
+      inFlight = invokeAndWatch();
+      await inFlight;
     };
 
     // Create ignore matcher for chokidar v4 compatibility
@@ -1281,7 +1343,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         latch = 'open';
         await ioHelper.defaults.debug(`'watch' received the 'ready' event. From now on, all file changes will trigger a ${props.activity}`);
         await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg(`Triggering initial '${props.command}'`));
-        await invokeAndWatch();
+        await startInvocation();
       })
       .on('all', async (event: EventName, filePath: string) => {
         // Filter out non-file events (e.g., 'error', 'raw', 'ready', 'all')
@@ -1297,7 +1359,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await ioHelper.notify(IO.CDK_TOOLKIT_I5311.msg(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '${filePath}' for changes`, watchEvent));
         } else if (latch === 'open') {
           await ioHelper.notify(IO.CDK_TOOLKIT_I5312.msg(`Detected change to '${filePath}' (type: ${event}). Triggering '${props.command}'`, watchEvent));
-          await invokeAndWatch();
+          await startInvocation();
         } else {
           // this means latch is either 'running' or 'queued'
           latch = 'queued';
@@ -1312,6 +1374,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
+        // Prevent new invocations, then wait for any in-flight invocation to
+        // complete so we don't tear down resources under running work.
+        stopped = true;
+        await inFlight.catch(() => {});
+        // Dispose the startup assembly if no invocation ever consumed it.
+        await disposeInitialAssembly();
         await props.onDispose?.();
         await watcher.close();
         stoppedPromise.resolve();

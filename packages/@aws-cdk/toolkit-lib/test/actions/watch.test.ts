@@ -294,12 +294,12 @@ describe('watch re-synthesis', () => {
 
     const producesTotal = produceSpy.mock.calls.length;
 
-    // 3 deployments (1 ready + 2 changes) must each produce a fresh assembly.
-    // The initial assembly produced for outdir discovery is an extra produce(),
-    // so we expect at least 4 total.
+    // 3 deployments: the initial one (ready event) reuses the assembly
+    // produced at watch startup (fresh by definition), while every
+    // file-change iteration must re-produce so the changes are picked up.
     expect(deploySpy).toHaveBeenCalledTimes(3);
-    expect(producesAfterReady).toBeGreaterThanOrEqual(2); // 1 for outdir + 1 for first deploy
-    expect(producesTotal).toBeGreaterThanOrEqual(4); // 1 for outdir + 3 for each deployment
+    expect(producesAfterReady).toBe(1); // startup produce, reused by the initial deployment
+    expect(producesTotal).toBe(3); // startup + one per file-change iteration
   });
 });
 
