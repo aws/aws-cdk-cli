@@ -26,7 +26,9 @@ import spawn from 'cross-spawn';
 export type OutputStream = 'stdout' | 'stderr';
 
 /**
- * Receives subprocess output as it is produced (only in 'capture' mode).
+ * Receives subprocess output as it is produced, for streams that are piped
+ * (both streams in 'capture' mode, stdout only in 'inherit-stderr' mode,
+ * neither in 'inherit' mode).
  */
 export type OutputHandler = (stream: OutputStream, data: string) => void;
 
