@@ -1377,7 +1377,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // Prevent new invocations, then wait for any in-flight invocation to
         // complete so we don't tear down resources under running work.
         stopped = true;
-        await inFlight.catch(() => {});
+        await inFlight.catch(() => {
+        });
         // Dispose the startup assembly if no invocation ever consumed it.
         await disposeInitialAssembly();
         await props.onDispose?.();
