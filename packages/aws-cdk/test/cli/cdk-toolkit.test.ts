@@ -67,7 +67,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -2221,6 +2221,96 @@ describe('watch', () => {
         );
       });
     });
+  });
+});
+
+describe('validate --watch', () => {
+  let watchValidateSpy: jest.SpyInstance;
+  const fakeWatcher = {
+    dispose: jest.fn().mockResolvedValue(undefined),
+    waitForEnd: jest.fn().mockResolvedValue(undefined),
+    [Symbol.asyncDispose]: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    watchValidateSpy = jest.spyOn(Toolkit.prototype, 'watchValidate').mockResolvedValue(fakeWatcher);
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.validate({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+        watch: true,
+      });
+    }).rejects.toThrow(
+      "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+
+    expect(watchValidateSpy).not.toHaveBeenCalled();
+  });
+
+  test('delegates to toolkit-lib watchValidate with the validate options', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      online: false,
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        online: false,
+        include: ['**'],
+        exclude: [],
+      }),
+    );
+    expect(fakeWatcher.waitForEnd).toHaveBeenCalled();
+  });
+
+  test("passes the 'watch' include and exclude settings from cdk.json", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {
+      include: ['lib/**'],
+      exclude: ['lib/generated/**'],
+    });
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include: ['lib/**'],
+        exclude: ['lib/generated/**'],
+      }),
+    );
+  });
+
+  test('passes an uncached assembly source so every iteration re-synthesizes', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    // The source handed to watchValidate must re-synthesize on every produce().
+    const source = watchValidateSpy.mock.calls[0][0];
+    const synthesizeSpy = jest.spyOn(cloudExecutable, 'synthesize');
+    await source.produce();
+    await source.produce();
+    expect(synthesizeSpy).toHaveBeenCalledTimes(2);
+    expect(synthesizeSpy).toHaveBeenCalledWith(false);
   });
 });
 

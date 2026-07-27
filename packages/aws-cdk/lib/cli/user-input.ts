@@ -1033,6 +1033,13 @@ export interface ValidateOptions {
   readonly online?: boolean;
 
   /**
+   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
+
+  /**
    * Positional argument for validate
    */
   readonly STACKS?: Array<string>;

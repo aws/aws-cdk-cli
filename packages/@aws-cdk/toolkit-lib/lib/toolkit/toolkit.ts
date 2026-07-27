@@ -59,7 +59,7 @@ import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { ValidateOptions, ValidateResult } from '../actions/validate';
-import type { IWatcher, WatchFileOptions, WatchOptions } from '../actions/watch';
+import type { IWatcher, WatchFileOptions, WatchOptions, WatchValidateOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
@@ -1179,6 +1179,34 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
       onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
       onDispose: async () => cloudWatchLogMonitor?.deactivate(),
+    });
+  }
+
+  /**
+   * Continuously observe project files and validate the selected stacks
+   * automatically when changes are detected.
+   *
+   * Never deploys: each iteration re-synthesizes the app and runs the same
+   * checks as the `validate` action (policy plugin reports and, unless
+   * disabled, online CloudFormation validation).
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchValidate(cx: ICloudAssemblySource, options: WatchValidateOptions = {}): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'watch');
+
+    return this._watch(cx, options, {
+      command: 'cdk validate',
+      activity: 'validation',
+      invoke: async () => {
+        try {
+          await this.validate(cx, options);
+        } catch (e: any) {
+          // Report and continue watching: synth errors are expected while the
+          // user is mid-edit, and validation must resume on the next change.
+          await ioHelper.defaults.error(formatErrorMessage(e));
+        }
+      },
     });
   }
 
