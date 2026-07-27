@@ -7,8 +7,8 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Useful commands
 
-* `%pm-cmd% build`   compile typescript to js
-* `%pm-cmd% watch`   watch for changes and compile
+* `%pm-cmd% build`   type-check the project
+* `%pm-cmd% watch`   watch for changes and type-check
 * `%pm-cmd% test`    perform the jest unit tests
 * `cdk deploy`      deploy this stack to your default AWS account/region
 * `cdk diff`        compare deployed stack with current state

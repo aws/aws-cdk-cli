@@ -854,7 +854,7 @@ async function bootstrapWithRetryOnBucketExists(envSpecifier: string, fixture: T
     if (out.includes(`Environment ${envSpecifier} bootstrapped`)) {
       break;
     }
-    if (out.includes(`${bootstrapBucket} already exists`)) {
+    if (out.includes(`${bootstrapBucket} already exists`) || out.includes('Service: S3, Status Code: 409')) {
       // might be an s3 eventualy consistency issue due to recycled environments.
       if (Date.now() < timeoutDate.getTime()) {
         fixture.log(`Bootstrap of ${envSpecifier} failed due to bucket existence check. Retrying in ${retryAfterSeconds} seconds...`);

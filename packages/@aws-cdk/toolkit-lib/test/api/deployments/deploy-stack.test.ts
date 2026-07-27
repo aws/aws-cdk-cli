@@ -1507,11 +1507,15 @@ test.each([
   },
 );
 
-// Express mode disables rollback by default, so a replacement still requires a
-// rollback-enabled deployment unless the user explicitly opted into rollback.
+// CloudFormation's RollbackStack API is not supported for stacks last deployed
+// with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
+// must never route through the rollback path. It always fix-forwards via the
+// change set / UpdateStack and lets CloudFormation surface any error (including a
+// rejected replacement on a disable-rollback stack). `--express --rollback`
+// explicitly opts back into the rollback-enabled path.
 test.each([
-  // --express alone (rollback defaults off): replacement needs a rollback-enabled deployment
-  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
+  // --express alone (rollback defaults off): always fix-forward, never divert to rollback
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
@@ -1523,6 +1527,37 @@ test.each([
     });
     givenTemplateIs(FAKE_STACK.template);
     givenChangeSetContainsReplacement(true);
+
+    // WHEN
+    const result = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK),
+      forceDeployment: true, // Bypass 'canSkipDeploy'
+      ...options,
+    }));
+
+    // THEN
+    expect(result.type).toEqual(expectedType);
+  },
+);
+
+// A stack last deployed with express mode that is in a paused fail state
+// (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
+// --express` must therefore always fix-forward via createChangeSet/UpdateStack
+// instead of routing to the rollback path.
+test.each([
+  ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
+  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
+  ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
+  ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
+] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(
+  'failed express stack does not route to rollback: %s -> %s',
+  async (_name, options, replacement, expectedType) => {
+    // GIVEN
+    givenStackExists({
+      StackStatus: StackStatus.UPDATE_FAILED,
+    });
+    givenTemplateIs(FAKE_STACK.template);
+    givenChangeSetContainsReplacement(replacement === 'replacement');
 
     // WHEN
     const result = await advanceTime(testDeployStack({

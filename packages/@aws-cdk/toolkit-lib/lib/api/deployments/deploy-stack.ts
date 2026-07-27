@@ -202,6 +202,13 @@ export interface DeployStackOptions {
    * Whether to use express mode to deploy
    */
   readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
 }
 
 export async function deployStack(options: DeployStackOptions, ioHelper: IoHelper): Promise<DeployStackResult> {
@@ -236,7 +243,7 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       `Found existing stack ${deployName} that had previously failed creation. Deleting it before attempting to re-create it.`,
     );
     await cfn.deleteStack({ StackName: cloudFormationStack.stackId, ClientRequestToken: randomUUID() });
-    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId);
+    const deletedStack = await waitForStackDelete(cfn, ioHelper, cloudFormationStack.stackId, options.stackEventPollingInterval);
     if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(
         `Failed deleting stack ${deployName} that had previously failed creation (current state: ${deletedStack.stackStatus})`,
@@ -534,14 +541,19 @@ class FullCloudFormationDeployment {
     const replacement = hasReplacement(changeSetDescription);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
-    const expressNoRollback = this.options.express && this.options.rollback !== true;
+
+    // Route express mode deployments directly to executeChangeset, express mode stacks cannot use rollback API
+    if (this.options.express) {
+      return this.executeChangeSet(changeSetDescription);
+    }
+
     if (isPausedFailState && replacement) {
       return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
     }
     if (isPausedFailState && rollback) {
       return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
     }
-    if ((!rollback || expressNoRollback) && replacement) {
+    if (!rollback && replacement) {
       return { type: 'replacement-requires-rollback' };
     }
 
@@ -691,12 +703,13 @@ class FullCloudFormationDeployment {
       changeSetCreationTime: startTime,
       envResources: this.options.envResources,
       isStackUpdate: this.update,
+      pollingInterval: this.options.stackEventPollingInterval,
     });
     await monitor.start();
 
     let finalState = this.cloudFormationStack;
     try {
-      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName);
+      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
@@ -771,6 +784,7 @@ export interface DestroyStackOptions {
   roleArn?: string;
   deployName?: string;
   express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface DestroyStackResult {
@@ -804,12 +818,13 @@ export async function destroyStack(options: DestroyStackOptions, ioHelper: IoHel
     stack: options.stack,
     stackArn: currentStack.stackId,
     ioHelper: ioHelper,
+    pollingInterval: options.stackEventPollingInterval,
   });
   await monitor.start();
 
   try {
     await cfn.deleteStack({ StackName: currentStack.stackId, RoleARN: options.roleArn, ClientRequestToken: randomUUID(), DeploymentConfig: { Mode: options.express ? 'EXPRESS' : 'STANDARD' } });
-    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId);
+    const destroyedStack = await waitForStackDelete(cfn, ioHelper, currentStack.stackId, options.stackEventPollingInterval);
     if (destroyedStack && destroyedStack.stackStatus.name !== 'DELETE_COMPLETE') {
       throw new DeploymentError(`Failed to destroy ${deployName}: ${destroyedStack.stackStatus}`, 'StackDestroyFailed');
     }

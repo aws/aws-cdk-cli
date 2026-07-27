@@ -75,6 +75,13 @@ export interface PluginReportJson {
   readonly metadata?: { readonly [key: string]: string };
 
   /**
+   * Any preamble text that the plugin wants to include in the report that is not a violation itself.
+   *
+   * @default - no preamble
+   */
+  readonly preamble?: string;
+
+  /**
    * Violations found by this plugin.
    */
   readonly violations: PolicyViolationJson[];
@@ -112,6 +119,11 @@ export type PolicyValidationReportConclusion = 'success' | 'failure';
 export interface PolicyViolationJson {
   /**
    * The name of the rule that was violated.
+   *
+   * This may include a namespace: `'<namespace>::<rule-name>'`. If it does not,
+   * the plugin name will be used as the namespace.
+   *
+   * The namespace must be included when acknowledging the violation.
    */
   readonly ruleName: string;
 
@@ -256,6 +268,8 @@ export interface SuppressedViolationJson extends PolicyViolationJson {
 export interface CloudFormationResourceJson {
   /**
    * The path to the CloudFormation template containing this resource.
+   *
+   * This path is relative to the Cloud Assembly root directory.
    */
   readonly templatePath: string;
 
