@@ -28,6 +28,7 @@
     "target": "es2022",
     "types": [
       "jest",
+      "json-source-map",
       "node"
     ],
     "incremental": true,

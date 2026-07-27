@@ -94,7 +94,8 @@ export function parseCliArgs(args: string[] = []) {
     throw new Error('--disable-update-workflow and --[no-]update-workflow cannot be used together');
   }
 
-  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
+  // No update workflow by default
+  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : false;
 
   const updateFromTags: string[] | undefined = argv['update-from-tags']
     ? argv['update-from-tags'].split(',').map((t: string) => t.trim())
