@@ -219,7 +219,10 @@ Integration tests live in `packages/@aws-cdk-testing/cli-integ/` and deploy real
 cd packages/@aws-cdk-testing/cli-integ
 bin/run-suite cli-integ-tests
 
-# Run a specific test
+# Run a specific test by file name (preferred; one test per file)
+bin/run-suite -a cli-integ-tests -F cdk-deploy-new-stack.integtest
+
+# Run a specific test by name
 bin/run-suite -a cli-integ-tests -t 'test name substring'
 ```
 
