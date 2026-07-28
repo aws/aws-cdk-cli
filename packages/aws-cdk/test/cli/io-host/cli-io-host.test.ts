@@ -425,6 +425,27 @@ describe('CliIoHost', () => {
       expect(mockStdout).not.toHaveBeenCalled();
     });
 
+    test('on() can override the effective action', async () => {
+      let actionSeenByLaterListener: string | undefined;
+      let emittedAction: string | undefined;
+      let effectiveAction: string | undefined;
+
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ action: 'metadata' })));
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        actionSeenByLaterListener = msg.action;
+      }));
+      track(ioHost.observeMessages((observation) => {
+        emittedAction = observation.emitted.action;
+        effectiveAction = observation.effective.action;
+      }));
+
+      await ioHost.notify(listMessage('first'));
+
+      expect(actionSeenByLaterListener).toBe('metadata');
+      expect(emittedAction).toBe('list');
+      expect(effectiveAction).toBe('metadata');
+    });
+
     test('the returned dispose function removes the listener', async () => {
       const observed: string[] = [];
       const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
