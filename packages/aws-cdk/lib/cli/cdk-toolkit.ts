@@ -434,136 +434,150 @@ export class CdkToolkit {
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
     this.ioHost.requireDeployApproval = requireApproval;
 
-    // execute-change-set is a new flow that we can just delegate to toolkit-lib
-    if (options.deploymentMethod?.method === 'execute-change-set') {
-      await this.toolkit.deploy(this.props.cloudExecutable, {
-        deploymentMethod: options.deploymentMethod,
-        stacks: {
-          patterns: options.selector.patterns,
-          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-          expand: ExpandStackSelection.NONE,
-        },
-        roleArn: options.roleArn,
-        forceDeployment: options.force,
-        rollback: options.rollback,
-        reuseAssets: options.reuseAssets,
-        concurrency: options.concurrency,
-        traceLogs: options.traceLogs,
-        notificationArns: options.notificationArns,
-        tags: options.tags,
-        outputsFile: options.outputsFile,
-        assetParallelism: options.assetParallelism,
-        assetBuildConcurrency: options.assetBuildConcurrency,
-        assetBuildTime: options.assetBuildTime,
-        parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
-      });
-      return;
-    }
-
-    const startSynthTime = new Date().getTime();
-    const stackCollection = await this.selectStacksForDeploy(
-      options.selector,
-      options.exclusively,
-      options.cacheCloudAssembly,
-      options.ignoreNoStacks,
-    );
-    const elapsedSynthTime = new Date().getTime() - startSynthTime;
-    await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
-
-    if (stackCollection.stackCount === 0) {
-      await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
-      return;
-    }
-
-    const migrator = new ResourceMigrator({
-      deployments: this.props.deployments,
-      ioHelper: asIoHelper(this.ioHost, 'deploy'),
-    });
-    await migrator.tryMigrateResources(stackCollection, {
-      toolkitStackName: this.toolkitStackName,
-      ...options,
+    // toolkit-lib emits the approval request (I5060) without mentioning
+    // `--require-approval`. The CLI owns that flag, so it adds the framing here.
+    // Both deploy paths resolve through this host, so one listener covers both.
+    this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+      const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
+        ? 'security-sensitive updates'
+        : 'updates';
+      return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
-    if (options.deploymentMethod?.method === 'hotswap') {
-      await this.ioHost.asIoHelper().defaults.warn(
-        '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
-      );
-      await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
-    }
-
-    const stacks = stackCollection.stackArtifacts;
-
-    const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
-    const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
-    const concurrency = options.concurrency || 1;
-    if (concurrency > 1) {
-      // always force "events" progress output when we have concurrency
-      this.ioHost.stackProgress = StackActivityProgress.EVENTS;
-
-      // ...but only warn if the user explicitly requested "bar" progress
-      if (options.progress && options.progress != StackActivityProgress.EVENTS) {
-        await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
+    try {
+      // execute-change-set is a new flow that we can just delegate to toolkit-lib
+      if (options.deploymentMethod?.method === 'execute-change-set') {
+        await this.toolkit.deploy(this.props.cloudExecutable, {
+          deploymentMethod: options.deploymentMethod,
+          stacks: {
+            patterns: options.selector.patterns,
+            strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+            expand: ExpandStackSelection.NONE,
+          },
+          roleArn: options.roleArn,
+          forceDeployment: options.force,
+          rollback: options.rollback,
+          reuseAssets: options.reuseAssets,
+          concurrency: options.concurrency,
+          traceLogs: options.traceLogs,
+          notificationArns: options.notificationArns,
+          tags: options.tags,
+          outputsFile: options.outputsFile,
+          assetParallelism: options.assetParallelism,
+          assetBuildConcurrency: options.assetBuildConcurrency,
+          assetBuildTime: options.assetBuildTime,
+          parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
+        });
+        return;
       }
+
+      const startSynthTime = new Date().getTime();
+      const stackCollection = await this.selectStacksForDeploy(
+        options.selector,
+        options.exclusively,
+        options.cacheCloudAssembly,
+        options.ignoreNoStacks,
+      );
+      const elapsedSynthTime = new Date().getTime() - startSynthTime;
+      await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
+
+      if (stackCollection.stackCount === 0) {
+        await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
+        return;
+      }
+
+      const migrator = new ResourceMigrator({
+        deployments: this.props.deployments,
+        ioHelper: asIoHelper(this.ioHost, 'deploy'),
+      });
+      await migrator.tryMigrateResources(stackCollection, {
+        toolkitStackName: this.toolkitStackName,
+        ...options,
+      });
+
+      if (options.deploymentMethod?.method === 'hotswap') {
+        await this.ioHost.asIoHelper().defaults.warn(
+          '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
+        );
+        await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
+      }
+
+      const stacks = stackCollection.stackArtifacts;
+
+      const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
+      const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
+      const concurrency = options.concurrency || 1;
+      if (concurrency > 1) {
+        // always force "events" progress output when we have concurrency
+        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+
+        // ...but only warn if the user explicitly requested "bar" progress
+        if (options.progress && options.progress != StackActivityProgress.EVENTS) {
+          await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
+        }
+      }
+
+      const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+        stack,
+        ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+      ]);
+      const workGraph = new WorkGraphBuilder(
+        asIoHelper(this.ioHost, 'deploy'),
+        prebuildAssets,
+      ).build(stacksAndTheirAssetManifests);
+
+      // Unless we are running with '--force', skip already published assets
+      if (!options.force) {
+        await this.removePublishedAssets(workGraph, options);
+      }
+
+      const graphConcurrency: Concurrency = {
+        'stack': concurrency,
+        'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+        'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+        'marker': 1,
+      };
+
+      const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
+        roleArn: options.roleArn,
+        force: options.force,
+        stackCount: stackCollection.stackCount,
+        notificationArns: options.notificationArns,
+        deploymentMethod: options.deploymentMethod,
+        toolkitStackName: this.toolkitStackName,
+        reuseAssets: options.reuseAssets,
+        tags: options.tags,
+        parameters: options.parameters,
+        usePreviousParameters: options.usePreviousParameters,
+        rollback: options.rollback,
+        concurrency,
+        requireApproval,
+        assetParallelism: options.assetParallelism,
+        extraUserAgent: options.extraUserAgent,
+        cloudWatchLogMonitor: options.cloudWatchLogMonitor,
+        sdkProvider: this.props.sdkProvider,
+        express: options.express,
+      });
+
+      const startDeployTime = Date.now();
+
+      await workGraph.doParallel(graphConcurrency, deploymentActions);
+
+      if (options.outputsFile) {
+        // If an outputs file has been specified, create the file path and write stack outputs to it once.
+        // Outputs are written after all stacks have been deployed. If a stack deployment fails,
+        // all of the outputs from successfully deployed stacks before the failure will still be written.
+        await deploymentActions.writeOutputs(options.outputsFile);
+      }
+
+      // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
+      // spans because of parallelism).
+      this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
+
+      await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
+    } finally {
+      this.ioHost.removeAllListeners();
     }
-
-    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
-      stack,
-      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
-    ]);
-    const workGraph = new WorkGraphBuilder(
-      asIoHelper(this.ioHost, 'deploy'),
-      prebuildAssets,
-    ).build(stacksAndTheirAssetManifests);
-
-    // Unless we are running with '--force', skip already published assets
-    if (!options.force) {
-      await this.removePublishedAssets(workGraph, options);
-    }
-
-    const graphConcurrency: Concurrency = {
-      'stack': concurrency,
-      'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
-      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
-      'marker': 1,
-    };
-
-    const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
-      roleArn: options.roleArn,
-      force: options.force,
-      stackCount: stackCollection.stackCount,
-      notificationArns: options.notificationArns,
-      deploymentMethod: options.deploymentMethod,
-      toolkitStackName: this.toolkitStackName,
-      reuseAssets: options.reuseAssets,
-      tags: options.tags,
-      parameters: options.parameters,
-      usePreviousParameters: options.usePreviousParameters,
-      rollback: options.rollback,
-      concurrency,
-      requireApproval,
-      assetParallelism: options.assetParallelism,
-      extraUserAgent: options.extraUserAgent,
-      cloudWatchLogMonitor: options.cloudWatchLogMonitor,
-      sdkProvider: this.props.sdkProvider,
-      express: options.express,
-    });
-
-    const startDeployTime = Date.now();
-
-    await workGraph.doParallel(graphConcurrency, deploymentActions);
-
-    if (options.outputsFile) {
-      // If an outputs file has been specified, create the file path and write stack outputs to it once.
-      // Outputs are written after all stacks have been deployed. If a stack deployment fails,
-      // all of the outputs from successfully deployed stacks before the failure will still be written.
-      await deploymentActions.writeOutputs(options.outputsFile);
-    }
-
-    // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
-    // spans because of parallelism).
-    this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
-
-    await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
   }
 
   /**
@@ -2312,16 +2326,18 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       const securityDiff = formatter.formatSecurityDiff();
       if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType)) {
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
+        // Bare-fact motivation. The I5060 listener registered in `deploy()` adds
+        // the `--require-approval` framing for terminal users.
         const motivation = hasSecurityChanges
-          ? '"--require-approval" is enabled and stack includes security-sensitive updates'
-          : `"--require-approval" is set to '${RequireApproval.ANYCHANGE}'`;
+          ? 'Stack includes security-sensitive updates'
+          : 'Stack includes updates';
         const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
         await this.ioHost.asIoHelper().defaults.info(diffOutput);
 
         try {
           await askUserConfirmation(
             this.ioHost,
-            IO.CDK_TOOLKIT_I5060.req(`${motivation}: Do you wish to deploy these changes?`, {
+            IO.CDK_TOOLKIT_I5060.req(`${motivation}. Do you wish to deploy these changes?`, {
               motivation,
               concurrency: this.options.concurrency,
               permissionChangeType: securityDiff.permissionChangeType,
