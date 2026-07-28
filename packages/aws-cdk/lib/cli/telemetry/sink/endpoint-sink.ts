@@ -1,6 +1,6 @@
+import type { Agent } from 'https';
 import { spawn } from 'node:child_process';
 import * as os from 'node:os';
-import type { Agent } from 'https';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { NetworkDetector } from '../../../api/network-detector';
 import { IoHelper } from '../../../api-private';
@@ -189,8 +189,10 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       });
 
       // The child is on its own from here; a spawn failure must not surface anywhere.
-      child.on('error', () => {});
-      child.stdin?.on('error', () => {});
+      child.on('error', () => {
+      });
+      child.stdin?.on('error', () => {
+      });
 
       child.stdin?.end(payload);
       child.unref();

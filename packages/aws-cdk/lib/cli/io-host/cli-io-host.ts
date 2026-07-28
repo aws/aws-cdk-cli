@@ -9,8 +9,8 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, 
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
-import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { cliBinPath } from '../telemetry/cli-bin-path';
+import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';

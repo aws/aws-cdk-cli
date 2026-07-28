@@ -9,8 +9,8 @@
 import * as http from 'node:http';
 import * as https from 'node:https';
 import * as net from 'node:net';
-import { resolveProxy, sendTelemetry } from '../../../lib/cli/telemetry/sender';
 import { generateTestCa, type TestCa } from './test-tls';
+import { resolveProxy, sendTelemetry } from '../../../lib/cli/telemetry/sender';
 
 jest.setTimeout(30_000);
 
