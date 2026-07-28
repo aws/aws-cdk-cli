@@ -1,4 +1,4 @@
-import type { IoMessage, IoMessageCode, IoMessageLevel } from '../io-message';
+import type { IoMessage, IoRequest, IMessageMatcher, IRequestMatcher, IoMessageCode, IoMessageLevel } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 
 /**
@@ -40,7 +40,7 @@ interface MessageInfo extends CodeInfo {
 /**
  * An interface that can produce messages for a specific code.
  */
-export interface IoMessageMaker<T> extends MessageInfo {
+export interface IoMessageMaker<T> extends MessageInfo, IMessageMatcher<T> {
   /**
    * Create a message for this code, with or without payload.
    */
@@ -109,7 +109,7 @@ interface RequestInfo<U> extends CodeInfo {
 /**
  * An interface that can produce requests for a specific code.
  */
-export interface IoRequestMaker<T, U> extends MessageInfo {
+export interface IoRequestMaker<T, U> extends MessageInfo, IRequestMatcher<T, U> {
   /**
    * Create a message for this code, with or without payload.
    */
@@ -122,7 +122,7 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
    * Returns whether the given `IoMessage` instance matches this request definition
    */
-  is(x: IoMessage<unknown>): x is IoMessage<T>;
+  is(x: IoMessage<unknown>): x is IoRequest<T, U>;
 }
 
 /**
@@ -142,7 +142,7 @@ function request<T = AbsentData, U = ImpossibleType>(level: IoMessageLevel, deta
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoMessage<T> => m.code === details.code,
+    is: (m): m is IoRequest<T, U> => m.code === details.code,
   };
 }
 
@@ -172,6 +172,6 @@ export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoMessage<T> => m.code === details.code,
+    is: (m): m is IoRequest<T, string> => m.code === details.code,
   };
 }
