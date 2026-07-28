@@ -244,7 +244,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     // Do PSAs here
     if (shouldDisplayVersionMessage()) {
-      await displayVersionMessage(ioHelper);
+      await displayVersionMessage(ioHelper, { agent: proxyAgent });
     }
 
     await refreshNotices;
@@ -323,6 +323,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return doctor({
           ioHelper,
           settings: configuration.settings,
+          agent: proxyAgent,
         });
 
       case 'lsp':

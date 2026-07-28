@@ -1,13 +1,18 @@
 import {
   ChangeSetStatus,
+  DescribeStackResourcesCommand,
+  GetHookResultCommand,
+  ListHookResultsCommand,
+  ResourceStatus,
 } from '@aws-sdk/client-cloudformation';
+import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import type { StackDiagnosis } from '../../../lib/actions/diagnose';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import type { ISourceTracer } from '../../../lib/api/source-tracing/private/source-tracing';
 import type { SourceTrace } from '../../../lib/api/source-tracing/types';
 import { ResourceErrors } from '../../../lib/api/stack-events/resource-errors';
 import { FakeCloudFormation } from '../../_helpers/fake-aws/fake-cloudformation';
-import { mockCloudFormationClient, MockSdk, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
+import { mockCloudFormationClient, mockCloudTrailClient, MockSdk, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
 let sdk: MockSdk;
@@ -114,6 +119,66 @@ describe('CloudFormationStackDiagnoser', () => {
           logicalId: 'MyBucket',
           message: 'Access Denied',
           resourceType: 'AWS::S3::Bucket',
+        })],
+      });
+    });
+
+    test('finds the failure on a rolled-back stack, across the rollback and create operations', async () => {
+      // A rolled-back deployment spans two CloudFormation operations: the failed create
+      // (operation A) and the rollback that follows (operation B). describeStackEvents returns
+      // newest-first, so the rollback's (successful) DELETE events come first and the actual
+      // CREATE_FAILED belongs to the older operation A. The poll range must include both.
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'ROLLBACK_COMPLETE' });
+      const stack = fakeCfn.accessStack('MyStack');
+      const opCreate = 'op-create-aaaa';
+      const opRollback = 'op-rollback-bbbb';
+
+      // Pushed oldest-first; unshift makes the final array newest-first.
+      // Operation A (create): the real failure.
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-create-failed',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'phys-1',
+        ResourceType: 'Custom::MyThing',
+        ResourceStatus: 'CREATE_FAILED',
+        ResourceStatusReason: 'Received response status [FAILED] from custom resource',
+        OperationId: opCreate,
+        Timestamp: new Date('2026-06-25T18:32:12Z'),
+      });
+      // Operation B (rollback): only successful deletes — no failure signal here.
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-delete',
+        LogicalResourceId: 'MyResource',
+        PhysicalResourceId: 'phys-1',
+        ResourceType: 'Custom::MyThing',
+        ResourceStatus: 'DELETE_COMPLETE',
+        OperationId: opRollback,
+        Timestamp: new Date('2026-06-25T18:32:16Z'),
+      });
+      stack.events.unshift({
+        StackId: stack.id,
+        StackName: 'MyStack',
+        EventId: 'evt-rollback-complete',
+        LogicalResourceId: 'MyStack',
+        PhysicalResourceId: stack.id,
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'ROLLBACK_COMPLETE',
+        OperationId: opRollback,
+        Timestamp: new Date('2026-06-25T18:32:31Z'),
+      });
+
+      const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
+
+      expect(result).toMatchObject({
+        type: 'problem',
+        detectedBy: { type: 'deployment' },
+        problems: [expect.objectContaining({
+          logicalId: 'MyResource',
+          message: 'Received response status [FAILED] from custom resource',
         })],
       });
     });
@@ -423,6 +488,175 @@ describe('CloudFormationStackDiagnoser', () => {
     });
   });
 
+  describe('change set hook failures', () => {
+    const CS_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-cs/00000000-0000-0000-0000-000000000000';
+    const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/123';
+    const HOOK_RESULT_ID = '00000000-0000-0000-0000-000000000000';
+    const LAMBDA_HOOK_REASON = '22dict Ingress May Not Allow All IPs to Non-HTTP(s) or Syslog Ports, ';
+
+    function failedChangeSet() {
+      return {
+        ChangeSetId: CS_ARN,
+        ChangeSetName: 'my-cs',
+        StackId: STACK_ARN,
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'Change set creation failed. The following hook(s) failed: [Example::CFNHook::Full]',
+      };
+    }
+
+    function lambdaHookResultSummary() {
+      return {
+        HookResultId: HOOK_RESULT_ID,
+        InvocationPoint: 'PRE_PROVISION' as const,
+        FailureMode: 'FAIL' as const,
+        TypeName: 'Example::CFNHook::Full',
+        Status: 'HOOK_COMPLETE_FAILED' as const,
+        HookStatusReason: LAMBDA_HOOK_REASON,
+        TargetType: 'CHANGE_SET' as const,
+        TargetId: CS_ARN,
+      };
+    }
+
+    test('surfaces the detailed HookStatusReason of a failed Lambda hook (no annotations)', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: HOOK_RESULT_ID,
+        InvocationPoint: 'PRE_PROVISION',
+        FailureMode: 'FAIL',
+        TypeName: 'Example::CFNHook::Full',
+        OriginalTypeName: 'AWS::Hooks::LambdaHook',
+        Status: 'HOOK_COMPLETE_FAILED',
+        HookStatusReason: LAMBDA_HOOK_REASON,
+        Target: {
+          TargetType: 'CHANGE_SET',
+          TargetTypeName: 'CHANGE_SET',
+          TargetId: CS_ARN,
+          Action: 'CREATE',
+        },
+        Annotations: [],
+      } as any);
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      expect(mockCloudFormationClient).toHaveReceivedCommandWith(ListHookResultsCommand, {
+        TargetType: 'CHANGE_SET',
+        TargetId: CS_ARN,
+      });
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        errorCode: 'HookFailed',
+        message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
+        stackArn: STACK_ARN,
+      })]);
+    });
+
+    test('formats annotations of a failed Guard hook', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [{ ...lambdaHookResultSummary(), TypeName: 'Private::Guard::TestHook' }],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: HOOK_RESULT_ID,
+        Status: 'HOOK_COMPLETE_FAILED',
+        Annotations: [{
+          AnnotationName: 'AWS_S3_Bucket_AccessControl',
+          Status: 'FAILED',
+          StatusMessage: 'Check was not compliant.',
+          RemediationMessage: 'AccessControl is deprecated',
+        }],
+      } as any);
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems[0].message).toContain("Hook 'Private::Guard::TestHook' failed");
+      expect(result.problems[0].message).toContain('NonCompliant Rules:');
+      expect(result.problems[0].message).toContain('[AWS_S3_Bucket_AccessControl]');
+      expect(result.problems[0].message).toContain('Remediation: AccessControl is deprecated');
+    });
+
+    test('falls back to the summary HookStatusReason when GetHookResult fails', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).rejects(new Error('not authorized'));
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        errorCode: 'HookFailed',
+        message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
+      })]);
+    });
+
+    test('ignores failed hooks with failure mode WARN', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [{ ...lambdaHookResultSummary(), FailureMode: 'WARN' }],
+      });
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      // Falls through to the non-specific change set error
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        message: expect.stringContaining('The following hook(s) failed'),
+      })]);
+      expect(result.problems[0].errorCode).not.toEqual('HookFailed');
+    });
+
+    test('reports the non-specific change set error when ListHookResults fails', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).rejects(new Error('not authorized'));
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        message: expect.stringContaining('The following hook(s) failed'),
+      })]);
+    });
+
+    test('errors from DescribeEvents take precedence over hook results', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack' });
+      fakeCfn.createChangeSetSync({
+        StackName: 'MyStack',
+        ChangeSetName: 'my-cs',
+        Status: 'FAILED',
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+      fakeCfn.accessChangeSet('MyStack', 'my-cs').changeSetFailureEvents = [{
+        EventId: 'evt-1',
+        StackId: STACK_ARN,
+        OperationType: 'CREATE_CHANGESET',
+        EventType: 'VALIDATION_ERROR',
+        LogicalResourceId: 'BadPolicy',
+        ResourceType: 'AWS::IAM::Policy',
+        Timestamp: new Date(),
+        ValidationFailureMode: 'FAIL',
+        ValidationName: 'PROPERTY_VALIDATION',
+        ValidationStatus: 'FAILED',
+        ValidationStatusReason: 'Required property [PolicyDocument] not found',
+        ValidationPath: '/Resources/BadPolicy/Properties',
+      }];
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+
+      const result = await makeDiagnoser().diagnoseChangeSet({
+        ChangeSetName: 'my-cs',
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({ logicalId: 'BadPolicy' })]);
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(ListHookResultsCommand);
+    });
+  });
+
   describe('diagnoseFromErrorCollection', () => {
     test('returns no-problem for empty errors', async () => {
       const errors = new ResourceErrors();
@@ -468,6 +702,90 @@ describe('CloudFormationStackDiagnoser', () => {
           sourceTrace: { constructPath: 'MyStack/MyFunc/Resource' },
         })],
       });
+    });
+  });
+
+  describe('CloudTrail investigation wiring', () => {
+    const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/abc';
+    const FAILURE_TIME = new Date('2026-06-19T12:00:00.000Z');
+
+    function makeErrors(): ResourceErrors {
+      const errors = new ResourceErrors();
+      errors.update({
+        event: {
+          EventId: 'evt-1',
+          StackId: STACK_ARN,
+          StackName: 'MyStack',
+          LogicalResourceId: 'CrHandler',
+          PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
+          ResourceType: 'AWS::Lambda::Function',
+          ResourceStatus: 'CREATE_FAILED',
+          ResourceStatusReason: 'Handler error',
+          Timestamp: FAILURE_TIME,
+        },
+        parentStackLogicalIds: [],
+        isRootStackEvent: false,
+      });
+      return errors;
+    }
+
+    function makeExploringDiagnoser() {
+      return new CloudFormationStackDiagnoser({
+        sdk,
+        sourceTracer: fakeTracer,
+        ioHelper: ioHost.asHelper('diagnose'),
+        topLevelStackHierarchicalId: 'MyStack',
+        additionalExplorationSdkProvider: async () => sdk,
+      });
+    }
+
+    test('attaches correlated CloudTrail errors to the failed resource on any path', async () => {
+      // No cloudTrailEnabled gating anymore: the investigation runs for deploy-originating
+      // error collections too (a recent failure just yields fewer delivered events).
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
+      mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+        StackResources: [{
+          LogicalResourceId: 'CrHandler',
+          ResourceType: 'AWS::Lambda::Function',
+          PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
+          ResourceStatus: ResourceStatus.CREATE_FAILED,
+          Timestamp: FAILURE_TIME,
+        }],
+      });
+      mockCloudTrailClient.on(LookupEventsCommand).resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventTime: '2026-06-19T11:59:00Z',
+            eventSource: 's3.amazonaws.com',
+            eventName: 'CreateBucket',
+            errorCode: 'AccessDenied',
+            errorMessage: 'not authorized to perform: s3:CreateBucket',
+            userIdentity: { arn: 'arn:aws:sts::123456789012:assumed-role/some-role/MyStack-CrHandler-abc123def456' },
+          }),
+        }],
+      });
+
+      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      const context = result.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      expect(context).toBeDefined();
+      expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('does not run the investigation without an exploration SDK', async () => {
+      const result = await makeDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
     });
   });
 });

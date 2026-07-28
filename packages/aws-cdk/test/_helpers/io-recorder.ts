@@ -64,7 +64,7 @@ export interface RecordedIoEntry {
   readonly type: 'notify' | 'request';
 
   /**
-   * The toolkit action that was active when the message was emitted.
+   * The effective toolkit action, after any listener override.
    */
   readonly action?: string;
 
@@ -155,9 +155,10 @@ export interface IoHostRecorderOptions {
  * `observeMessages` hook (the `ObservableIoHost` contract the `CliIoHost`
  * implements). The host reports every message it handles — both `notify`
  * notifications and `requestResponse` requests — in the order it handled them,
- * along with the *effective* disposition of each one: the text/level after any
- * registered listeners ran, whether a listener prevented a notification from
- * being written (`dropped`), and the resolved response for a request.
+ * along with the *effective* disposition of each one: the text, level, and
+ * action after any registered listeners ran, whether a listener prevented a
+ * notification from being written (`dropped`), and the resolved response for a
+ * request.
  *
  * Because the recorder only *observes* and never replaces (`spyOn`) the host's
  * methods, the real `notify`/`requestResponse` always run. This is what makes
@@ -283,7 +284,7 @@ export class IoHostRecorder {
       const entry: RecordedIoEntry = {
         seq: seq++,
         type,
-        action: emitted.action,
+        action: effective.action,
         level: effective.level,
         code: emitted.code ?? null,
         message: this.normalize(String(effective.message ?? '')),

@@ -107,9 +107,9 @@ export type TargetStream = 'stdout' | 'stderr' | 'drop';
 /**
  * The result a message listener may return to influence how a message is handled.
  *
- * A listener may update the message _text_ and/or its _level_; it cannot change
- * any other field of the message (such as its `code`), which keeps the
- * code-keyed listener registry valid.
+ * A listener may update the message _text_, _level_, and/or _action_; it cannot
+ * change other fields (such as its `code`), which keeps the code-keyed listener
+ * registry valid.
  */
 export interface MessageListenerResult {
   /**
@@ -129,6 +129,17 @@ export interface MessageListenerResult {
    * @default - the message level is left unchanged
    */
   readonly level?: IoMessageLevel;
+
+  /**
+   * Override the action associated with this message.
+   *
+   * The override affects subsequent listeners and presentation/observation of
+   * the effective message. Matching and telemetry continue to use the action
+   * on the originally emitted message.
+   *
+   * @default - the message action is left unchanged
+   */
+  readonly action?: ToolkitAction;
 
   /**
    * Skip the default handling of the message.
@@ -168,7 +179,8 @@ export type MessageListenerResultOrPromise = void | MessageListenerResult | Prom
 
 /**
  * A registered message listener. Its return value (if any) may update the
- * message text and/or prevent the default processing. It may be async.
+ * message text, level, and/or action or prevent the default processing. It may
+ * be async.
  */
 type MessageListenerFn = (msg: IoMessage<any>) => MessageListenerResultOrPromise;
 interface MessageListener {
@@ -227,7 +239,7 @@ export interface IoMessageObservation {
   readonly emitted: IoMessage<unknown>;
 
   /**
-   * The message after the host's listeners ran (text and/or level may differ).
+   * The message after the host's listeners ran (text, level, and/or action may differ).
    */
   readonly effective: IoMessage<unknown>;
 
@@ -503,10 +515,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Register a listener that is invoked for every message with the given code.
    *
    * The listener may return a `MessageListenerResult` to update the message
-   * text and/or prevent the default processing (writing it to a stream);
-   * returning nothing leaves the message untouched. The listener may be async
-   * (return a `Promise`); the host awaits it before processing the message
-   * further. Returns a function that removes the listener again.
+   * text, level, and/or action or prevent the default processing (writing it to
+   * a stream); returning nothing leaves the message untouched. The listener may
+   * be async (return a `Promise`); the host awaits it before processing the
+   * message further. Returns a function that removes the listener again.
    *
    * @example
    * const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
@@ -663,11 +675,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Run every registered listener that matches the message, in registration
    * order. A listener matches by its code (maker) or its custom predicate.
    *
-   * A listener may update the message text/level (passed on to subsequent
-   * listeners and the rest of the pipeline), prevent the default processing, or
-   * (for requests) answer it. `once` listeners are removed after they have run.
-   * Matching is decided against the message as emitted, so a rewrite by an
-   * earlier listener does not change which later listeners apply.
+   * A listener may update the message text, level, and/or action (passed on to
+   * subsequent listeners and the rest of the pipeline), prevent the default
+   * processing, or (for requests) answer it. `once` listeners are removed after
+   * they have run. Matching is decided against the message as emitted, so a
+   * transformation by an earlier listener does not change which later listeners
+   * apply.
    *
    * Returns the (possibly updated) message, whether the default processing was
    * prevented, and whether a listener answered the request (and with what).
@@ -706,6 +719,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         if (result.level !== undefined) {
           current = { ...current, level: result.level };
         }
+        if (result.action !== undefined) {
+          current = { ...current, action: result.action };
+        }
         if (result.preventDefault) {
           preventDefault = true;
         }
@@ -728,9 +744,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     await this.maybeEmitTelemetry(msg);
 
-    // Run any registered listeners. A listener may update the message text
-    // and/or prevent the default processing (e.g. stack-activity messages are
-    // routed to the activity printer and not written to a stream).
+    // Run any registered listeners. A listener may update the message text,
+    // level, and/or action or prevent the default processing (e.g.
+    // stack-activity messages are routed to the activity printer and not
+    // written to a stream).
     //
     // Skip this while replaying corked messages: the listeners already ran on
     // the first pass, and running them again would re-transform an
@@ -890,7 +907,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
     // Listeners run exactly once here (so we don't go back through `notify`):
-    // they may answer the request, or reword/relevel the question shown below.
+    // they may answer the request, or reword/relevel/retag the question shown below.
     const { message, ...listenerResult } = await this.applyMessageListeners(msg);
 
     const response = await this.resolveRequest(message, listenerResult);
