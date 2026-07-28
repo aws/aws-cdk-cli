@@ -1,7 +1,7 @@
 // We need to mock the chokidar library, used by 'cdk watch'
-// This needs to happen ABOVE the import statements due to quirks with how jest works
-// Apparently, they hoist jest.mock commands just below the import statements so we
-// need to make sure that the constants they access are initialized before the imports.
+// This needs to happen ABOVE the import statements because
+// jest.mock commands are hoisted just below the import statements,
+// which would otherwise bring in the real chokidar.
 const mockChokidarWatcherOn = jest.fn();
 const mockChokidarWatcherClose = jest.fn();
 const fakeChokidarWatcher = {
