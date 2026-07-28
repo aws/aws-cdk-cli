@@ -22,20 +22,17 @@ export interface ShellOptions {
  */
 export async function shell(command: string[], options: ShellOptions): Promise<string> {
   const displayCommand = renderForDisplay(command);
-  handleShellOutput({ chunk: displayCommand, options, shellEventType: 'open' });
+  handleShellOutput(displayCommand, options, 'open');
 
   try {
     const result = await run(command, {
       cwd: options.cwd,
       env: options.env,
       input: options.input,
-      onOutput: (stream, data) => handleShellOutput({
-        chunk: data,
-        options,
-        shellEventType: stream === 'stdout' ? 'data_stdout' : 'data_stderr',
-      }),
+      onOutput: (stream, data) =>
+        handleShellOutput(data, options, stream === 'stdout' ? 'data_stdout' : 'data_stderr'),
     });
-    handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
+    handleShellOutput(displayCommand, options, 'close');
     return result.stdout;
   } catch (e: any) {
     if (e instanceof SubprocessError) {
@@ -47,7 +44,7 @@ export async function shell(command: string[], options: ShellOptions): Promise<s
       if (e.kind === 'spawn-failed' && e.cause != null) {
         throw e.cause;
       }
-      handleShellOutput({ chunk: displayCommand, options, shellEventType: 'close' });
+      handleShellOutput(displayCommand, options, 'close');
       const stderr = e.stderr.trim();
       throw new ProcessFailed(
         e.exitCode,
@@ -59,17 +56,11 @@ export async function shell(command: string[], options: ShellOptions): Promise<s
   }
 }
 
-interface HandleShellOutputProps {
-  /** The output chunk or, for 'open'/'close' events, the rendered command. */
-  readonly chunk: string;
-  /** The options of the surrounding `shell()` call. */
-  readonly options: ShellOptions;
-  /** Which event this chunk belongs to. */
-  readonly shellEventType: ShellEventType;
-}
-
-function handleShellOutput(props: HandleShellOutputProps): void {
-  const { chunk, options, shellEventType } = props;
+function handleShellOutput(
+  chunk: string,
+  options: ShellOptions,
+  shellEventType: ShellEventType,
+): void {
   switch (options.subprocessOutputDestination) {
     case 'ignore':
       return;
