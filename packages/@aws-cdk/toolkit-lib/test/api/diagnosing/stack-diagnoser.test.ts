@@ -1,6 +1,8 @@
 import {
   ChangeSetStatus,
   DescribeStackResourcesCommand,
+  GetHookResultCommand,
+  ListHookResultsCommand,
   ResourceStatus,
 } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
@@ -483,6 +485,175 @@ describe('CloudFormationStackDiagnoser', () => {
           },
         ],
       } satisfies StackDiagnosis);
+    });
+  });
+
+  describe('change set hook failures', () => {
+    const CS_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-cs/00000000-0000-0000-0000-000000000000';
+    const STACK_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/123';
+    const HOOK_RESULT_ID = '00000000-0000-0000-0000-000000000000';
+    const LAMBDA_HOOK_REASON = '22dict Ingress May Not Allow All IPs to Non-HTTP(s) or Syslog Ports, ';
+
+    function failedChangeSet() {
+      return {
+        ChangeSetId: CS_ARN,
+        ChangeSetName: 'my-cs',
+        StackId: STACK_ARN,
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'Change set creation failed. The following hook(s) failed: [Example::CFNHook::Full]',
+      };
+    }
+
+    function lambdaHookResultSummary() {
+      return {
+        HookResultId: HOOK_RESULT_ID,
+        InvocationPoint: 'PRE_PROVISION' as const,
+        FailureMode: 'FAIL' as const,
+        TypeName: 'Example::CFNHook::Full',
+        Status: 'HOOK_COMPLETE_FAILED' as const,
+        HookStatusReason: LAMBDA_HOOK_REASON,
+        TargetType: 'CHANGE_SET' as const,
+        TargetId: CS_ARN,
+      };
+    }
+
+    test('surfaces the detailed HookStatusReason of a failed Lambda hook (no annotations)', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: HOOK_RESULT_ID,
+        InvocationPoint: 'PRE_PROVISION',
+        FailureMode: 'FAIL',
+        TypeName: 'Example::CFNHook::Full',
+        OriginalTypeName: 'AWS::Hooks::LambdaHook',
+        Status: 'HOOK_COMPLETE_FAILED',
+        HookStatusReason: LAMBDA_HOOK_REASON,
+        Target: {
+          TargetType: 'CHANGE_SET',
+          TargetTypeName: 'CHANGE_SET',
+          TargetId: CS_ARN,
+          Action: 'CREATE',
+        },
+        Annotations: [],
+      } as any);
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      expect(mockCloudFormationClient).toHaveReceivedCommandWith(ListHookResultsCommand, {
+        TargetType: 'CHANGE_SET',
+        TargetId: CS_ARN,
+      });
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        errorCode: 'HookFailed',
+        message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
+        stackArn: STACK_ARN,
+      })]);
+    });
+
+    test('formats annotations of a failed Guard hook', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [{ ...lambdaHookResultSummary(), TypeName: 'Private::Guard::TestHook' }],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: HOOK_RESULT_ID,
+        Status: 'HOOK_COMPLETE_FAILED',
+        Annotations: [{
+          AnnotationName: 'AWS_S3_Bucket_AccessControl',
+          Status: 'FAILED',
+          StatusMessage: 'Check was not compliant.',
+          RemediationMessage: 'AccessControl is deprecated',
+        }],
+      } as any);
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems[0].message).toContain("Hook 'Private::Guard::TestHook' failed");
+      expect(result.problems[0].message).toContain('NonCompliant Rules:');
+      expect(result.problems[0].message).toContain('[AWS_S3_Bucket_AccessControl]');
+      expect(result.problems[0].message).toContain('Remediation: AccessControl is deprecated');
+    });
+
+    test('falls back to the summary HookStatusReason when GetHookResult fails', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+      mockCloudFormationClient.on(GetHookResultCommand).rejects(new Error('not authorized'));
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        errorCode: 'HookFailed',
+        message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
+      })]);
+    });
+
+    test('ignores failed hooks with failure mode WARN', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [{ ...lambdaHookResultSummary(), FailureMode: 'WARN' }],
+      });
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      // Falls through to the non-specific change set error
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        message: expect.stringContaining('The following hook(s) failed'),
+      })]);
+      expect(result.problems[0].errorCode).not.toEqual('HookFailed');
+    });
+
+    test('reports the non-specific change set error when ListHookResults fails', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).rejects(new Error('not authorized'));
+
+      const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({
+        message: expect.stringContaining('The following hook(s) failed'),
+      })]);
+    });
+
+    test('errors from DescribeEvents take precedence over hook results', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack' });
+      fakeCfn.createChangeSetSync({
+        StackName: 'MyStack',
+        ChangeSetName: 'my-cs',
+        Status: 'FAILED',
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+      fakeCfn.accessChangeSet('MyStack', 'my-cs').changeSetFailureEvents = [{
+        EventId: 'evt-1',
+        StackId: STACK_ARN,
+        OperationType: 'CREATE_CHANGESET',
+        EventType: 'VALIDATION_ERROR',
+        LogicalResourceId: 'BadPolicy',
+        ResourceType: 'AWS::IAM::Policy',
+        Timestamp: new Date(),
+        ValidationFailureMode: 'FAIL',
+        ValidationName: 'PROPERTY_VALIDATION',
+        ValidationStatus: 'FAILED',
+        ValidationStatusReason: 'Required property [PolicyDocument] not found',
+        ValidationPath: '/Resources/BadPolicy/Properties',
+      }];
+      mockCloudFormationClient.on(ListHookResultsCommand).resolves({
+        HookResults: [lambdaHookResultSummary()],
+      });
+
+      const result = await makeDiagnoser().diagnoseChangeSet({
+        ChangeSetName: 'my-cs',
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.FAILED,
+        StatusReason: 'AWS::EarlyValidation failed',
+      });
+
+      assertProblem(result);
+      expect(result.problems).toEqual([expect.objectContaining({ logicalId: 'BadPolicy' })]);
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(ListHookResultsCommand);
     });
   });
 

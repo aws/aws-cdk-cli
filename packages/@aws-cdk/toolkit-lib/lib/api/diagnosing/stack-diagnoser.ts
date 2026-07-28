@@ -1,4 +1,4 @@
-import type { ChangeSetSummary, Stack } from '@aws-sdk/client-cloudformation';
+import type { ChangeSetSummary, HookResultSummary, Stack } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
@@ -10,6 +10,7 @@ import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ISourceTracer } from '../source-tracing/private/source-tracing';
 import { PollRange, StackEventPoller } from '../stack-events';
+import { formatHookResultDetails, isFailedHookStatus } from '../stack-events/hook-result-details';
 import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
 import { StackStatus } from '../stack-events/stack-status';
 
@@ -315,8 +316,9 @@ export class CloudFormationStackDiagnoser {
   /**
    * Try to read the resource-specific reasons for a changeset failure from `DescribeEvents`.
    *
-   * If we couldn't read the events or there are 0 errors returned by that API, return a generic
-   * error.
+   * If we couldn't read the events or there are 0 errors returned by that API, check whether
+   * the change set was failed by CloudFormation Hooks and report those. Otherwise, return a
+   * generic error.
    */
   private async _reportChangeSetFailureFromEvents(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
     const ev = await new ChangeSetResourceErrorFetcher(this.props.sdk, this.props.envResources)
@@ -337,7 +339,77 @@ export class CloudFormationStackDiagnoser {
       await this.props.ioHelper.defaults.warn(ev.message);
     }
 
+    // The change set may have been failed by a CloudFormation Hook (e.g. a Lambda Hook
+    // targeting change set operations). Those failures don't produce events; their
+    // details are only available through the hook results APIs.
+    const hookErrors = await this._changeSetHookErrors(changeSet);
+    if (hookErrors.length > 0) {
+      return {
+        type: 'problem',
+        detectedBy,
+        problems: await this.enhanceErrors(hookErrors),
+      };
+    }
+
     return this._nonSpecificChangeSetError(changeSet, detectedBy);
+  }
+
+  /**
+   * Find the hooks that failed this change set, and return their failure details as resource errors.
+   *
+   * Failures of hooks with failure mode WARN don't fail a change set, so those are excluded.
+   * Returns an empty array if hook results can't be listed (e.g. for lack of permissions).
+   */
+  private async _changeSetHookErrors(changeSet: ChangeSetSummary): Promise<ResourceError[]> {
+    let hookResults: HookResultSummary[];
+    try {
+      hookResults = (await this.cfn.listHookResults({
+        TargetType: 'CHANGE_SET',
+        TargetId: changeSet.ChangeSetId,
+      })).HookResults ?? [];
+    } catch (e: any) {
+      await this.props.ioHelper.defaults.debug(`Could not list hook results for change set ${changeSet.ChangeSetName}: ${e.message}`);
+      return [];
+    }
+
+    const failedHooks = hookResults.filter((r) => isFailedHookStatus(r.Status) && r.FailureMode === 'FAIL');
+
+    const errors: ResourceError[] = [];
+    for (const hook of failedHooks) {
+      const details = await this._hookResultDetails(hook);
+      errors.push({
+        // It's about the stack, not a specific resource
+        logicalId: undefined,
+        message: `Hook '${hook.TypeName ?? 'unknown'}' failed${details ? `: ${details}` : ''}`,
+        errorCode: 'HookFailed',
+        parentStackLogicalIds: this.parentStackLogicalIds,
+        stackArn: changeSet.StackId ?? '',
+        physicalId: changeSet.StackId,
+        resourceType: 'AWS::CloudFormation::Stack',
+      });
+    }
+    return errors;
+  }
+
+  /**
+   * Get the failure details for a hook result summary.
+   *
+   * Tries `GetHookResult` first, which includes annotations (Guard Hooks). Falls back
+   * to the summary itself, whose `HookStatusReason` carries the details for other hooks.
+   */
+  private async _hookResultDetails(hook: HookResultSummary): Promise<string | undefined> {
+    if (hook.HookResultId) {
+      try {
+        const result = await this.cfn.getHookResult({ HookResultId: hook.HookResultId });
+        const details = formatHookResultDetails(result);
+        if (details) {
+          return details;
+        }
+      } catch (e: any) {
+        await this.props.ioHelper.defaults.debug(`Could not fetch hook result ${hook.HookResultId}: ${e.message}`);
+      }
+    }
+    return formatHookResultDetails(hook);
   }
 
   private async enhanceErrors(errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
