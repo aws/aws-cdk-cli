@@ -1,4 +1,4 @@
-import * as https from 'https';
+import { spawn } from 'node:child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
@@ -10,9 +10,10 @@ import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoi
 import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 import { Funnel } from '../../../../lib/cli/telemetry/sink/funnel';
 
-// Mock the https module
-jest.mock('https', () => ({
-  request: jest.fn(),
+// The endpoint sink hands the payload to a detached child process rather than making the request
+// itself, so this is what has to be intercepted.
+jest.mock('node:child_process', () => ({
+  spawn: jest.fn(),
 }));
 
 // Mock NetworkDetector
@@ -22,16 +23,27 @@ jest.mock('../../../../lib/api/network-detector', () => ({
   },
 }));
 
+const BIN_CDK = '/fake/pkg/bin/cdk';
+
 describe('Funnel', () => {
   let tempDir: string;
   let logFilePath: string;
   let ioHost: CliIoHost;
+  let child: { pid: number; on: jest.Mock; unref: jest.Mock; stdin: { on: jest.Mock; end: jest.Mock } };
 
   beforeEach(() => {
     jest.resetAllMocks();
 
     // Mock NetworkDetector to return true by default for all tests
     (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
+
+    child = {
+      pid: 4242,
+      on: jest.fn(),
+      unref: jest.fn(),
+      stdin: { on: jest.fn(), end: jest.fn() },
+    };
+    (spawn as jest.Mock).mockReturnValue(child);
 
     // Create a fresh temp directory for each test
     tempDir = path.join(os.tmpdir(), `telemetry-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
@@ -51,33 +63,6 @@ describe('Funnel', () => {
     jest.restoreAllMocks();
   });
 
-  // Helper to create a mock request object with the necessary event handlers
-  function setupMockRequest() {
-    // Create a mock response object with a successful status code
-    const mockResponse = {
-      statusCode: 200,
-      statusMessage: 'OK',
-    };
-
-    // Create the mock request object
-    const mockRequest = {
-      on: jest.fn(),
-      end: jest.fn(),
-      setTimeout: jest.fn(),
-    };
-
-    // Mock the https.request to return our mockRequest
-    (https.request as jest.Mock).mockImplementation((_, callback) => {
-      // If a callback was provided, call it with our mock response
-      if (callback) {
-        setTimeout(() => callback(mockResponse), 0);
-      }
-      return mockRequest;
-    });
-
-    return mockRequest;
-  }
-
   describe('File and Endpoint', () => {
     let fileSink: FileTelemetrySink;
     let endpointSink: EndpointTelemetrySink;
@@ -95,8 +80,15 @@ describe('Funnel', () => {
       jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
 
       fileSink = new FileTelemetrySink({ ioHost, logFilePath });
-      endpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
+      endpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry', binCdkPath: BIN_CDK });
     });
+
+    /**
+     * The JSON that was piped to the detached sender on the Nth spawn.
+     */
+    function pipedPayload(nth = 0) {
+      return JSON.parse(child.stdin.end.mock.calls[nth][0]);
+    }
 
     test('saves data to a file', async () => {
       // GIVEN
@@ -107,14 +99,16 @@ describe('Funnel', () => {
       await client.emit(testEvent);
 
       // THEN
+      // The file sink is deliberately still synchronous: the data must be on disk as soon as
+      // `emit` resolves, because `--telemetry-file` consumers read it immediately after the CLI
+      // exits.
       expect(fs.existsSync(logFilePath)).toBe(true);
       const fileJson = fs.readJSONSync(logFilePath, 'utf8');
       expect(fileJson).toEqual([testEvent]);
     });
 
-    test('makes a POST request to the specified endpoint', async () => {
+    test('dispatches the batch to a detached sender', async () => {
       // GIVEN
-      const mockRequest = setupMockRequest();
       const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
       const client = new Funnel({ sinks: [fileSink, endpointSink] });
 
@@ -123,33 +117,27 @@ describe('Funnel', () => {
       await client.flush();
 
       // THEN
-      const expectedPayload = JSON.stringify({ events: [testEvent] });
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
-
-      expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(spawn).toHaveBeenCalledWith(process.execPath, [BIN_CDK], expect.objectContaining({
+        detached: true,
+        stdio: ['pipe', 'ignore', 'ignore'],
+      }));
+      expect(pipedPayload()).toEqual({
+        endpoint: 'https://example.com/telemetry',
+        body: { events: [testEvent] },
+        timeoutMs: 500,
+      });
     });
 
     test('flush is called every 30 seconds on the endpoint sink only', async () => {
       // GIVEN
       jest.useFakeTimers();
-      setupMockRequest();
 
       // Spy on the EndpointTelemetrySink prototype flush method BEFORE creating any instances
       const flushSpy = jest.spyOn(EndpointTelemetrySink.prototype, 'flush').mockResolvedValue();
 
       // Create a fresh endpoint sink for this test - the setInterval will be set up in constructor
-      const testEndpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
+      const testEndpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry', binCdkPath: BIN_CDK });
       new Funnel({ sinks: [fileSink, testEndpointSink] });
 
       // Reset the spy call count since the constructor might have called flush
@@ -177,31 +165,10 @@ describe('Funnel', () => {
     });
 
     test('failed flush does not clear events cache', async () => {
-      // GIVEN
-      const mockRequest = {
-        on: jest.fn(),
-        end: jest.fn(),
-        setTimeout: jest.fn(),
-      };
-      // Mock the https.request to return the first response as 503
-      (https.request as jest.Mock).mockImplementationOnce((_, callback) => {
-        // If a callback was provided, call it with our mock response
-        if (callback) {
-          setTimeout(() => callback({
-            statusCode: 503,
-            statusMessage: 'Service Unavailable',
-          }), 0);
-        }
-        return mockRequest;
-      }).mockImplementation((_, callback) => {
-        if (callback) {
-          setTimeout(() => callback({
-            statusCode: 200,
-            statusMessage: 'Success',
-          }), 0);
-        }
-        return mockRequest;
-      });
+      // GIVEN a first dispatch that cannot be handed off, and a second one that can
+      (spawn as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('EAGAIN');
+      }).mockImplementation(() => child);
 
       const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
       const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
@@ -218,35 +185,10 @@ describe('Funnel', () => {
       // mocked to succeed
       await client.flush();
 
-      // THEN
-      const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
-      expect(https.request).toHaveBeenCalledTimes(2);
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload1.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
-
-      const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2] });
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload2.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
+      // THEN both events are still delivered together on the retry
+      expect(spawn).toHaveBeenCalledTimes(2);
+      expect(child.stdin.end).toHaveBeenCalledTimes(1);
+      expect(pipedPayload().body).toEqual({ events: [testEvent1, testEvent2] });
     });
 
     test('handles errors gracefully and logs to trace without throwing', async () => {
@@ -255,20 +197,19 @@ describe('Funnel', () => {
 
       const client = new Funnel({ sinks: [fileSink, endpointSink] });
 
-      // Mock https.request to throw an error
-      (https.request as jest.Mock).mockImplementation(() => {
-        throw new Error('Network error');
+      // Spawning the sender fails
+      (spawn as jest.Mock).mockImplementation(() => {
+        throw new Error('Spawn error');
       });
 
       await client.emit(testEvent);
 
-      // WHEN & THEN - flush should not throw even when https.request fails
+      // WHEN & THEN - flush should not throw even when spawning fails
       await client.flush();
 
-      // Verify that the error was lt
-      // logged to trace
+      // Verify that the error was logged to trace
       expect(traceSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
+        expect.stringContaining('Telemetry Error: spawning sender for POST example.com/telemetry'),
       );
     });
 

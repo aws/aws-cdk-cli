@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+// Publish our own location so the CLI can respawn us as a detached telemetry sender.
+// This is the only place that knows it reliably; process.argv[1] may be a .bin symlink,
+// the `cdk` alias package's wrapper, or an embedding script.
+process.env.CDK_CLI_BIN_PATH = __filename;
+
+// That detached sender is this same script with a flag. Dispatch before requiring the CLI,
+// whose bundle costs ~600ms to load and which the sender does not need.
+if (process.env.CDK_TELEMETRY_SENDER === '1') {
+  require("../lib/cli/telemetry/sender").main();
+  return;
+}
+
 // source maps must be enabled before importing files
 process.setSourceMapsEnabled(true);
 const { cli } = require("../lib");

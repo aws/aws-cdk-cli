@@ -10,6 +10,7 @@ import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, Hist
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
+import { cliBinPath } from '../telemetry/cli-bin-path';
 import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
@@ -36,6 +37,36 @@ type CliAction =
   | 'version'
   | 'cli-telemetry'
   | 'none';
+
+/**
+ * How telemetry should reach the network.
+ *
+ * The endpoint sink does not make the request itself -- it hands off to a detached child process
+ * that only has Node built-ins available. That child cannot be given an `Agent`, so the proxy and
+ * certificate configuration have to travel as plain data alongside it.
+ */
+export interface TelemetryNetworkOptions {
+  /**
+   * Agent used for in-process requests, such as the connectivity pre-check.
+   *
+   * @default - Uses the shared global node agent
+   */
+  readonly agent?: Agent;
+
+  /**
+   * Proxy configured via `--proxy` or the `proxy` setting.
+   *
+   * @default - the sender resolves it from the environment
+   */
+  readonly proxyUrl?: string;
+
+  /**
+   * Contents of the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   *
+   * @default - only the system trust store
+   */
+  readonly caCert?: string;
+}
 
 export interface CliIoHostProps {
   /**
@@ -364,7 +395,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.routeStackActivityToPrinter();
   }
 
-  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+  public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const config = require('../cli-type-registry.json');
     const validCommands = Object.keys(config.commands);
@@ -395,8 +426,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       try {
         sinks.push(new EndpointTelemetrySink({
           ioHost: this,
-          agent: proxyAgent,
+          agent: network.agent,
           endpoint: telemetryEndpoint,
+          binCdkPath: cliBinPath(),
+          proxyUrl: network.proxyUrl,
+          caCert: network.caCert,
         }));
         await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
       } catch (e: any) {
