@@ -627,11 +627,15 @@ export class CdkToolkit {
     // Implicitly switch 'debug' mode to true; more stack traces = more useful.
     this.props.cloudExecutable.switchOnDebugging();
 
-    if (options.watch) {
-      return this.validateWatch(options);
+    // `watch` is a CLI-only flag; strip it before crossing into toolkit-lib so
+    // it does not leak into the library's validate action.
+    const { watch, ...validateOptions } = options;
+
+    if (watch) {
+      return this.validateWatch(validateOptions);
     }
 
-    const result = await this.toolkit.validate(this.props.cloudExecutable, options);
+    const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
     return result.conclusion === 'failure' ? 1 : 0;
   }
 
@@ -642,7 +646,7 @@ export class CdkToolkit {
    * The files to observe are configured with the "watch" key of `cdk.json`,
    * exactly like `cdk deploy --watch`.
    */
-  private async validateWatch(options: CliValidateOptions): Promise<void> {
+  private async validateWatch(options: ValidateOptions): Promise<void> {
     const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
 
     const watchSettings: { include?: string | string[]; exclude?: string | string[] } | undefined =
@@ -650,7 +654,7 @@ export class CdkToolkit {
     if (!watchSettings) {
       throw new ToolkitError(
         'WatchConfigMissing',
-        "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
+        "Cannot use '--watch' without specifying at least one directory to monitor. " +
         'Make sure to add a "watch" key to your cdk.json',
       );
     }

@@ -39,7 +39,9 @@ import { builderFixture, TestIoHost } from '../_helpers';
 
 const ioHost = new TestIoHost();
 const toolkit = new Toolkit({ ioHost });
-const validateSpy = jest.spyOn(toolkit, 'validate').mockResolvedValue({
+// watchValidate reuses the assembly produced by the watch loop and calls the
+// private `_validate(assembly, options)` directly, so we spy on that.
+const validateSpy = jest.spyOn(toolkit as any, '_validate').mockResolvedValue({
   conclusion: 'success',
   pluginReports: [],
 });
@@ -111,7 +113,8 @@ describe('watchValidate', () => {
     await fakeChokidarWatcherOn.readyCallback();
 
     // THEN
-    expect(validateSpy).toHaveBeenCalledWith(cx, expect.objectContaining({
+    // match anything but null or undefined, since we are only testing for options here
+    expect(validateSpy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       online: false,
       stacks: { patterns: ['Stack1'], strategy: StackSelectionStrategy.PATTERN_MATCH },
     }));
@@ -143,15 +146,23 @@ describe('watchValidate', () => {
     await toolkit.watchValidate(cx, { include: [] });
     await fakeChokidarWatcherOn.readyCallback();
 
-    // Simulate a slow validation so subsequent changes queue up
+    // Simulate a slow validation so subsequent changes queue up. `started`
+    // resolves once the validation is actually running (each iteration first
+    // synthesizes, so we cannot rely on a fixed delay), and `resolveValidation`
+    // lets us release it on demand.
     let resolveValidation!: () => void;
+    let signalStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
+    });
     validateSpy.mockImplementationOnce(() => new Promise((resolve) => {
       resolveValidation = () => resolve({ conclusion: 'success', pluginReports: [] });
+      signalStarted();
     }));
 
     // WHEN: a file change starts the slow validation ...
     const firstEvent = fakeChokidarWatcherOn.fileEventCallback('change', 'file1.ts');
-    await new Promise((r) => setTimeout(r, 10));
+    await started;
 
     // ... and more changes arrive while it is still running
     const queuedEvents = [
@@ -187,5 +198,29 @@ describe('watchValidate', () => {
 
     // THEN
     expect(mockChokidarWatcherClose).toHaveBeenCalled();
+  });
+
+  test('reuses the startup assembly for the initial validation, re-produces on file changes', async () => {
+    // GIVEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const produceSpy = jest.spyOn(cx, 'produce');
+
+    await toolkit.watchValidate(cx, { include: [] });
+
+    // WHEN: initial validation (ready event) ...
+    await fakeChokidarWatcherOn.readyCallback();
+    const producesAfterReady = produceSpy.mock.calls.length;
+
+    // ... then two file-change iterations
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'lib.ts');
+    const producesTotal = produceSpy.mock.calls.length;
+
+    // THEN: the initial validation reuses the assembly produced at watch startup
+    // (fresh by definition), so no extra synth happens for it; every file-change
+    // iteration re-produces so the changes are picked up.
+    expect(validateSpy).toHaveBeenCalledTimes(3);
+    expect(producesAfterReady).toBe(1); // startup produce, reused by the initial validation
+    expect(producesTotal).toBe(3); // startup + one per file-change iteration
   });
 });

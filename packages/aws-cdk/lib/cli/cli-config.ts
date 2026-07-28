@@ -234,7 +234,8 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'boolean',
             desc: 'Continuously observe the project files, ' +
               'and validate the given stack(s) automatically when changes are detected. ' +
-              'Never deploys',
+              'Never deploys. Consider pairing with --no-online to skip CloudFormation ' +
+              'validation on every change',
           },
         },
         arg: {

@@ -2245,7 +2245,7 @@ describe('validate --watch', () => {
         watch: true,
       });
     }).rejects.toThrow(
-      "Cannot use the 'watch' command without specifying at least one directory to monitor. " +
+      "Cannot use '--watch' without specifying at least one directory to monitor. " +
       'Make sure to add a "watch" key to your cdk.json',
     );
 

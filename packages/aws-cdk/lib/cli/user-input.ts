@@ -1033,7 +1033,7 @@ export interface ValidateOptions {
   readonly online?: boolean;
 
   /**
-   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys
+   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change
    *
    * @default - undefined
    */

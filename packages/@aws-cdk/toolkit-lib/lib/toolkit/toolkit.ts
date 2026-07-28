@@ -676,9 +676,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
     const ioHelper = asIoHelper(this.ioHost, 'validate');
-    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    return await this._validate(assembly, options);
+  }
 
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+  /**
+   * Helper to allow validate being called with an already-produced assembly,
+   * e.g. as part of the watch action which reuses the startup assembly.
+   */
+  private async _validate(assembly: StackAssembly, options: ValidateOptions = {}): Promise<ValidateResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+    const selectStacks = stacksOpt(options);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
 
@@ -1193,19 +1201,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * This function returns immediately, starting a watcher in the background.
    */
   public async watchValidate(cx: ICloudAssemblySource, options: WatchValidateOptions = {}): Promise<IWatcher> {
-    const ioHelper = asIoHelper(this.ioHost, 'watch');
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
 
     return this._watch(cx, options, {
       command: 'cdk validate',
       activity: 'validation',
-      invoke: async () => {
-        try {
-          await this.validate(cx, options);
-        } catch (e: any) {
-          // Report and continue watching: synth errors are expected while the
-          // user is mid-edit, and validation must resume on the next change.
-          await ioHelper.defaults.error(formatErrorMessage(e));
+      // `_watch` runs this inside `invokeSafe`, which reports (and swallows)
+      // failures so the loop survives synth errors while the user is mid-edit.
+      invoke: async (initialAssembly) => {
+        // Reuse the initial assembly, for the same reason as watchDeploy()
+        if (initialAssembly) {
+          await this._validate(initialAssembly, options);
+          return;
         }
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+        await this._validate(assembly, options);
       },
     });
   }

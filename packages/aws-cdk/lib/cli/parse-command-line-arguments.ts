@@ -653,7 +653,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('watch', {
           default: undefined,
           type: 'boolean',
-          desc: 'Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys',
+          desc: 'Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change',
         }),
     )
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
