@@ -230,6 +230,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-cloudtrail",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-cloudwatch-logs",
       "version": "^3",
       "type": "runtime"

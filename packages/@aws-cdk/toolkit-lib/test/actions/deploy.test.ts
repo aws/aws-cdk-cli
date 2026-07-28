@@ -309,6 +309,21 @@ IAM Statement Changes
       successfulDeployment();
     });
 
+    test('stackEventPollingInterval option is passed in', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        stackEventPollingInterval: 10_000,
+      });
+
+      // passed through correctly to Deployments
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        stackEventPollingInterval: 10_000,
+      }));
+
+      successfulDeployment();
+    });
+
     test('warns about resources still stabilizing in Express Mode', async () => {
       // GIVEN
       mockDeployStack.mockResolvedValueOnce({

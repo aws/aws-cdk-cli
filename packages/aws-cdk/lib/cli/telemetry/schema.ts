@@ -5,6 +5,7 @@ interface SessionIdentifiers {
   readonly sessionId: string;
   readonly installationId: string;
   readonly region?: string;
+  readonly amznPackage?: string;
 }
 
 export interface Identifiers extends SessionIdentifiers {

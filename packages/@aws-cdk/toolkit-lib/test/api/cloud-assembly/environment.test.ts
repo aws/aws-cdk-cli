@@ -112,3 +112,20 @@ describe('synthParametersFromSettings sets CDK_DEBUG from debugApp', () => {
     delete process.env.JSII_HOST_STACK_TRACES;
   });
 });
+
+describe('synthParametersFromSettings sets CDK_VALIDATION from validation', () => {
+  test('validation: false sets CDK_VALIDATION to false', () => {
+    const { env } = synthParametersFromSettings(new Settings({ validation: false }));
+    expect(env.CDK_VALIDATION).toBe('false');
+  });
+
+  test('validation: true does not set CDK_VALIDATION', () => {
+    const { env } = synthParametersFromSettings(new Settings({ validation: true }));
+    expect(env.CDK_VALIDATION).toBeUndefined();
+  });
+
+  test('no validation setting does not set CDK_VALIDATION', () => {
+    const { env } = synthParametersFromSettings(new Settings({}));
+    expect(env.CDK_VALIDATION).toBeUndefined();
+  });
+});

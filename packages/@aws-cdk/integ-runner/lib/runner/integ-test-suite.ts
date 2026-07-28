@@ -40,7 +40,7 @@ export class IntegTestSuite {
   public readonly type: TestSuiteType = 'test-suite';
 
   constructor(
-    public readonly enableLookups: boolean,
+    public enableLookups: boolean,
     public readonly testSuite: TestSuite,
     public readonly synthContext?: { [name: string]: string },
   ) {
@@ -79,6 +79,19 @@ export class IntegTestSuite {
    */
   public get stacks(): string[] {
     return Object.values(this.testSuite).flatMap(testCase => testCase.stacks);
+  }
+
+  /**
+   * Save the integ manifest to a directory
+   */
+  public saveManifest(directory: string, context?: Record<string, any>): void {
+    const manifest: IntegManifest = {
+      version: Manifest.version(),
+      testCases: this.testSuite,
+      synthContext: context,
+      enableLookups: this.enableLookups,
+    };
+    Manifest.saveIntegManifest(manifest, osPath.join(directory, IntegManifestReader.DEFAULT_FILENAME));
   }
 }
 
@@ -235,23 +248,10 @@ export class LegacyIntegTestSuite extends IntegTestSuite {
   public readonly type: TestSuiteType = 'legacy-test-suite';
 
   constructor(
-    public readonly enableLookups: boolean,
-    public readonly testSuite: TestSuite,
-    public readonly synthContext?: { [name: string]: string },
+    enableLookups: boolean,
+    testSuite: TestSuite,
+    synthContext?: { [name: string]: string },
   ) {
-    super(enableLookups, testSuite);
-  }
-
-  /**
-   * Save the integ manifest to a directory
-   */
-  public saveManifest(directory: string, context?: Record<string, any>): void {
-    const manifest: IntegManifest = {
-      version: Manifest.version(),
-      testCases: this.testSuite,
-      synthContext: context,
-      enableLookups: this.enableLookups,
-    };
-    Manifest.saveIntegManifest(manifest, osPath.join(directory, IntegManifestReader.DEFAULT_FILENAME));
+    super(enableLookups, testSuite, synthContext ?? {});
   }
 }

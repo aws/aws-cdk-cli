@@ -5,8 +5,8 @@ import {
   extractLogStreamName,
   logStreamNameFromPhysicalId,
 } from './resource-identifiers';
+import { getStackTemplate } from './stack-template';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
-import { deserializeStructure } from '../../util';
 import type { ICloudFormationClient, ICloudWatchLogsClient, ILambdaClient, SDK } from '../aws-auth/sdk';
 import type { ResourceError } from '../stack-events/resource-errors';
 
@@ -86,27 +86,6 @@ export async function investigateCustomResource(
   const streamName = extractLogStreamName(err.message) ?? logStreamNameFromPhysicalId(err.physicalId);
 
   return fetchCustomResourceLogs(cwl, lambda, functionName, templateLogGroup, streamName, err.timestamp, region, debug);
-}
-
-/**
- * Fetch and parse the stack's (original) template. Returns `undefined` if it can't be read.
- */
-async function getStackTemplate(
-  cfn: ICloudFormationClient,
-  stackName: string,
-  debug: (msg: string) => Promise<void>,
-): Promise<any | undefined> {
-  try {
-    const resp = await cfn.getTemplate({ StackName: stackName, TemplateStage: 'Original' });
-    if (!resp.TemplateBody) {
-      await debug('Custom resource investigation: empty template body');
-      return undefined;
-    }
-    return deserializeStructure(resp.TemplateBody);
-  } catch (e: any) {
-    await debug(`Custom resource investigation: failed to read template: ${e.message}`);
-    return undefined;
-  }
 }
 
 /**

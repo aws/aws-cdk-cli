@@ -6,6 +6,7 @@ import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
+import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
 import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
@@ -17,6 +18,7 @@ import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
+import { YarnVersion } from './projenrc/yarn-version';
 
 // #region shared config
 
@@ -244,6 +246,7 @@ const repoProject = new yarn.Monorepo({
     'eslint-config-prettier',
     'eslint-plugin-prettier',
   ],
+  allowScripts: ['node-pty', 'esbuild'],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
     includeRootWorkspace: true,
@@ -352,6 +355,7 @@ repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
+new CheckSdkDuplication(repoProject);
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
@@ -581,8 +585,10 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
+      '@types/json-source-map@^0.6.0',
     ],
     deps: [
+      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -700,6 +706,10 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
+    subprocess: {
+      deps: ['cross-spawn@^7.0.6'],
+      devDeps: ['@types/cross-spawn'],
+    },
     zip: {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
@@ -895,6 +905,7 @@ const toolkitLib = configureProject(
       sdkDep('@aws-sdk/client-cloudformation'),
       sdkDep('@aws-sdk/client-cloudwatch-logs'),
       sdkDep('@aws-sdk/client-cloudcontrol'),
+      sdkDep('@aws-sdk/client-cloudtrail'),
       sdkDep('@aws-sdk/client-codebuild'),
       sdkDep('@aws-sdk/client-ec2'),
       sdkDep('@aws-sdk/client-ecr'),
@@ -1105,7 +1116,7 @@ toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test exported js files
-toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/index.js &>/dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1159,6 +1170,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('docs', {
     // Zip the API model and docs files
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
+  shell: pj.TaskShell.bash(),
 });
 // Add the API Extractor docs task to the package task
 toolkitLib.packageTask.spawn(apiExtractorDocsTask);
@@ -1638,6 +1650,56 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+      'vscode-jsonrpc@^8',
+      'chokidar@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+      '@types/convert-source-map@^2',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+void cdkExplorer;
+
+cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region shared setup
 
 // The pj.github.Dependabot component is only for a single Node project,
@@ -1781,6 +1843,8 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
 // enforce same node types everywhere
 [repo, ...repo.subprojects].forEach(p => p.addDevDeps('@types/node@^20'));
 
-repo.synth();
+(repo
+  .with(new YarnVersion('4.17.1')) as yarn.Monorepo)
+  .synth();
 
 // #endregion

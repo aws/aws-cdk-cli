@@ -214,3 +214,68 @@ describe('poll', () => {
     expect(poller.deleteFailures).toEqual([]);
   });
 });
+
+describe('PollRange.mostRecentDeploymentAttempt', () => {
+  // The decider only looks at event.OperationId and ResourceStatus; isRootStackEvent is
+  // irrelevant here.
+  const ev = (operationId: string | undefined, status?: string) => ({
+    event: { OperationId: operationId, ResourceStatus: status } as StackEvent,
+    parentStackLogicalIds: [],
+    isRootStackEvent: false,
+  });
+
+  const decisions = (
+    range: ReturnType<typeof PollRange.mostRecentDeploymentAttempt>,
+    ops: Array<[string | undefined, string?]>,
+  ) => ops.map(([op, status]) => range.shouldStop(ev(op, status)));
+
+  test('spans a rollback and the create it rolled back, then stops at a third operation', () => {
+    const range = PollRange.mostRecentDeploymentAttempt();
+    // Newest-first: rollback op B (3 events), then create op A (2 events), then an older op C.
+    expect(decisions(range, [
+      ['B', 'ROLLBACK_COMPLETE'], ['B', 'DELETE_COMPLETE'], ['B', 'ROLLBACK_IN_PROGRESS'],
+      ['A', 'CREATE_FAILED'], ['A', 'CREATE_IN_PROGRESS'],
+      ['C', 'UPDATE_COMPLETE'],
+    ])).toEqual([
+      'continue', 'continue', 'continue', // op B (the rollback)
+      'continue', 'continue', // op A (the create that triggered it)
+      'stop-exclude', // op C — third distinct operation
+    ]);
+  });
+
+  test('stops at the first operation boundary when the newest operation is not a rollback', () => {
+    // Regression: a `--no-rollback` failure is a single operation with no rollback following
+    // it. Continuing into the next (older) operation would report a previous, unrelated
+    // deployment attempt's failures as part of this one.
+    const range = PollRange.mostRecentDeploymentAttempt();
+    expect(decisions(range, [
+      ['Y', 'UPDATE_FAILED'], ['Y', 'UPDATE_IN_PROGRESS'],
+      ['X', 'UPDATE_FAILED'],
+    ])).toEqual([
+      'continue', 'continue', // op Y (the --no-rollback failure)
+      'stop-exclude', // op X — a previous deployment attempt, not part of this one
+    ]);
+  });
+
+  test('stops at an operation boundary even when events have no OperationId', () => {
+    // Regression: undefined OperationId must still count toward the boundary, otherwise the
+    // poller scans the entire stack history.
+    const range = PollRange.mostRecentDeploymentAttempt();
+    expect(decisions(range, [
+      [undefined, 'ROLLBACK_COMPLETE'], [undefined, 'DELETE_COMPLETE'],
+      ['A', 'CREATE_FAILED'],
+      ['B', 'UPDATE_COMPLETE'],
+    ])).toEqual([
+      'continue', 'continue', // the (single) undefined operation, a rollback
+      'continue', // op A — the operation the rollback rolled back
+      'stop-exclude', // op B — third distinct
+    ]);
+  });
+
+  test('never stops within a single operation', () => {
+    const range = PollRange.mostRecentDeploymentAttempt();
+    expect(decisions(range, [
+      ['A', 'ROLLBACK_COMPLETE'], ['A', 'CREATE_FAILED'], ['A', 'CREATE_IN_PROGRESS'], ['A', 'CREATE_IN_PROGRESS'],
+    ])).toEqual(['continue', 'continue', 'continue', 'continue']);
+  });
+});
