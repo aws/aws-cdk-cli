@@ -303,7 +303,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
         'npm install -g verdaccio pm2',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
+        // Start Verdaccio through pm2 by pointing at its JS entrypoint with an
+        // explicit Node interpreter. On Windows the global `verdaccio` bin is a
+        // `.cmd` shim, which pm2's fork mode cannot execute; the resolved JS
+        // file works on every platform.
+        'VERDACCIO_BIN="$(npm root -g)/verdaccio/bin/verdaccio"',
+        'pm2 start "$VERDACCIO_BIN" --interpreter node -- --config $HOME/.config/verdaccio/config.yaml',
         'sleep 5', // Wait for Verdaccio to start
         // Configure NPM to use local registry
         'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
