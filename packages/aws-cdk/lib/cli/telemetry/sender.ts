@@ -116,9 +116,13 @@ export interface TelemetrySenderConfig {
   readonly proxyUrl?: string;
 
   /**
-   * Contents (not path) of a CA bundle to trust in addition to the system store.
+   * Contents (not path) of a CA bundle to trust.
    *
-   * @default - only the system store, plus anything in `NODE_EXTRA_CA_CERTS`
+   * Note that Node's `ca` option REPLACES the default trust set rather than adding to it, so when
+   * this is present the bundled roots are no longer consulted. That is what we want for a
+   * TLS-terminating corporate proxy, and it matches what the parent does with the same bytes.
+   *
+   * @default - the default Node trust store, plus anything in `NODE_EXTRA_CA_CERTS`
    */
   readonly ca?: string;
 
@@ -262,7 +266,11 @@ export async function sendTelemetry(cfg: TelemetrySenderConfig, env: NodeJS.Proc
     const timeoutMs = cfg.timeoutMs ?? NETWORK_TIMEOUT_MS;
     const payload = JSON.stringify(cfg.body ?? {});
 
-    const proxyUrl = cfg.proxyUrl || resolveProxy(cfg.endpoint, proxyEnv(cfg, env));
+    // `??`, not `||`: the parent forces its configured value whenever `--proxy` (or the `proxy`
+    // setting) is present at all -- including as an empty string, which means "no proxy" -- and
+    // never falls back to the environment in that case. Only auto-detect when nothing was
+    // forwarded, so the child reaches the same decision the parent would.
+    const proxyUrl = cfg.proxyUrl ?? resolveProxy(cfg.endpoint, proxyEnv(cfg, env));
     if (!proxyUrl) {
       return await postDirect(url, payload, cfg.ca, timeoutMs);
     }
@@ -490,11 +498,18 @@ function openTunnel(proxy: URL, host: string, port: number, ca: string | undefin
 
     function onData(chunk: Buffer) {
       buffered = Buffer.concat([buffered, chunk]);
+
+      // Hard cap on what we will buffer before the tunnel is open. Checked unconditionally so it
+      // still fires when a terminator arrives inside an otherwise oversized chunk. Nothing
+      // legitimate can be large here: we have not sent a ClientHello yet, so there is no TLS
+      // traffic to pipeline.
+      if (buffered.length > MAX_PROXY_RESPONSE_BYTES) {
+        fail(error('ProxyResponseTooLarge', 'Proxy sent an oversized CONNECT response'));
+        return;
+      }
+
       const headerEnd = buffered.indexOf('\r\n\r\n');
       if (headerEnd === -1) {
-        if (buffered.length > MAX_PROXY_RESPONSE_BYTES) {
-          fail(error('ProxyResponseTooLarge', 'Proxy sent an oversized CONNECT response'));
-        }
         return;
       }
 
@@ -505,6 +520,17 @@ function openTunnel(proxy: URL, host: string, port: number, ca: string | undefin
       }
 
       cleanup();
+
+      // A proxy may deliver bytes belonging to the tunnel in the same chunk as its response. Put
+      // them back so the TLS handshake that follows sees them, rather than dropping them. The
+      // socket must be paused first: removing our listener does not stop it flowing, and
+      // unshifting into a flowing stream silently discards the data.
+      const trailing = buffered.subarray(headerEnd + 4);
+      if (trailing.length > 0) {
+        socket.pause();
+        socket.unshift(trailing);
+      }
+
       ok(socket);
     }
 
@@ -535,10 +561,17 @@ function connectRequest(proxy: URL, host: string, port: number): string {
 
 /**
  * Upgrade an established tunnel to TLS against the *endpoint* (not the proxy).
+ *
+ * `host` matters as much as `servername` here, and for a different reason: `servername` drives the
+ * SNI extension (and is deliberately omitted for IP literals, which may not be sent as SNI), while
+ * `host` is what Node's `checkServerIdentity` matches the certificate against. With neither set,
+ * Node falls back to the underlying socket's host -- which on this path is the *proxy* -- so a
+ * certificate valid for the proxy's name would be accepted for a connection intended for the
+ * endpoint. Always pass the real destination.
  */
 function upgradeToTls(socket: net.Socket, hostname: string, ca: string | undefined, timeoutMs: number): Promise<tls.TLSSocket> {
   return new Promise<tls.TLSSocket>((ok, ko) => {
-    const secure = tls.connect({ socket, servername: sni(hostname), ca, ALPNProtocols: ['http/1.1'] });
+    const secure = tls.connect({ socket, host: hostname, servername: sni(hostname), ca, ALPNProtocols: ['http/1.1'] });
     const timer = setTimeout(() => {
       secure.destroy();
       ko(error('TlsHandshakeTimeout', `TLS handshake did not complete within ${timeoutMs}ms`));
@@ -570,6 +603,14 @@ function postOverSocket(socket: tls.TLSSocket, host: string, path: string, paylo
     let response = '';
     const onData = (chunk: Buffer) => {
       response += chunk.toString('latin1');
+      // Symmetric with the CONNECT response cap: bound what we accumulate so a server that never
+      // terminates its headers cannot grow this without limit inside the timeout window.
+      if (response.length > MAX_PROXY_RESPONSE_BYTES) {
+        clearTimeout(timer);
+        socket.removeListener('data', onData);
+        ko(error('ResponseTooLarge', 'Endpoint sent an oversized response header'));
+        return;
+      }
       if (response.includes('\r\n\r\n')) {
         clearTimeout(timer);
         socket.removeListener('data', onData);

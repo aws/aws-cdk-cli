@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../../api-private';
@@ -183,10 +184,14 @@ export class EndpointTelemetrySink implements ITelemetrySink {
         },
       });
 
-      // The child is on its own from here; a spawn failure must not surface anywhere.
-      child.on('error', () => {
+      // The child is on its own from here; a spawn failure must not surface anywhere. These fire
+      // after the CLI may already have exited, so they cannot go through the IoHost -- see
+      // `debugTrace`.
+      child.on('error', (e: Error) => {
+        debugTrace(`failed to spawn sender: ${e.message}`);
       });
-      child.stdin?.on('error', () => {
+      child.stdin?.on('error', (e: Error) => {
+        debugTrace(`failed to write payload to sender: ${e.message}`);
       });
 
       child.stdin?.end(payload);
@@ -198,5 +203,24 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       await this.ioHelper.defaults.trace(`Telemetry Error: spawning sender for POST ${url.hostname}${url.pathname} failed: ${e.message}`);
       return false;
     }
+  }
+}
+
+/**
+ * Diagnostics for failures that surface after the CLI may already have exited.
+ *
+ * The child's `error` events fire asynchronously, potentially once the IoHost is gone and the
+ * process is on its way out, so they cannot be reported through the normal trace channel. Written
+ * synchronously to fd 2 for the same reason the sender does it, and gated behind the same variable
+ * so it is silent unless somebody is deliberately debugging telemetry delivery.
+ */
+function debugTrace(message: string): void {
+  if (process.env.CDK_TELEMETRY_SENDER_DEBUG !== '1') {
+    return;
+  }
+  try {
+    fs.writeSync(2, `[cdk-telemetry-dispatch] ${message}\n`);
+  } catch {
+    // Diagnostics must never be the reason anything fails.
   }
 }

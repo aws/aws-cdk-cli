@@ -8,6 +8,8 @@ process.env.CDK_CLI_BIN_PATH = __filename;
 // whose bundle costs ~600ms to load and which the sender does not need.
 if (process.env.CDK_TELEMETRY_SENDER === '1') {
   require("../lib/cli/telemetry/sender").main();
+  // Relies on the CommonJS module wrapper (modules are functions); would be a SyntaxError if this
+  // file ever became native ESM.
   return;
 }
 

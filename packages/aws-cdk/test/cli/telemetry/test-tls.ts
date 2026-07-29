@@ -24,7 +24,30 @@ export interface TestCa {
 }
 
 /**
- * Mint a fresh CA and `localhost` leaf certificate for use by a test HTTPS server.
+ * Options for `generateTestCa`.
+ */
+export interface TestCaOptions {
+  /**
+   * OpenSSL `subjectAltName` value for the leaf certificate.
+   *
+   * Override this to mint a certificate that deliberately does NOT cover the host under test, which
+   * is how the identity-verification tests prove a mismatch is rejected. Note that modern TLS
+   * ignores the subject CN entirely, so the SAN is the only thing that matters.
+   *
+   * @default 'DNS:localhost,IP:127.0.0.1'
+   */
+  readonly subjectAltName?: string;
+
+  /**
+   * Subject common name for the leaf certificate.
+   *
+   * @default 'localhost'
+   */
+  readonly commonName?: string;
+}
+
+/**
+ * Mint a fresh CA and leaf certificate for use by a test HTTPS server.
  *
  * Generated at runtime rather than committed as a fixture: this repository ships no key material,
  * and a checked-in private key would be both a bad precedent and something that expires. This is
@@ -33,7 +56,10 @@ export interface TestCa {
  *
  * Requires `openssl` on PATH, which is present on every platform this package is tested on.
  */
-export function generateTestCa(): TestCa {
+export function generateTestCa(options: TestCaOptions = {}): TestCa {
+  const subjectAltName = options.subjectAltName ?? 'DNS:localhost,IP:127.0.0.1';
+  const commonName = options.commonName ?? 'localhost';
+
   // The jest setup chdir's into a deliberately read-only directory, so be explicit about where we
   // write.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-telemetry-tls-'));
@@ -48,10 +74,10 @@ export function generateTestCa(): TestCa {
 
     openssl('req', '-newkey', 'rsa:2048', '-nodes',
       '-keyout', file('server.key'), '-out', file('server.csr'),
-      '-subj', '/CN=localhost');
+      '-subj', `/CN=${commonName}`);
 
     fs.writeFileSync(file('server.ext'), [
-      'subjectAltName=DNS:localhost,IP:127.0.0.1',
+      `subjectAltName=${subjectAltName}`,
       'basicConstraints=CA:FALSE',
       'extendedKeyUsage=serverAuth',
       '',

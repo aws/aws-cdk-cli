@@ -21,21 +21,21 @@ interface Endpoint {
   close(): Promise<void>;
 }
 
-async function startEndpoint(ca: TestCa, statusCode = 200): Promise<Endpoint> {
+async function startEndpoint(ca: TestCa, options: { statusCode?: number; urlHost?: string } = {}): Promise<Endpoint> {
   const received: Array<{ body: string; headers: http.IncomingHttpHeaders }> = [];
   const server = https.createServer({ key: ca.serverKey, cert: ca.serverCert }, (req, res) => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       received.push({ body, headers: req.headers });
-      res.writeHead(statusCode, { 'content-type': 'application/json' });
+      res.writeHead(options.statusCode ?? 200, { 'content-type': 'application/json' });
       res.end('{"ok":true}');
     });
   });
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const port = (server.address() as net.AddressInfo).port;
   return {
-    url: `https://localhost:${port}/metrics`,
+    url: `https://${options.urlHost ?? 'localhost'}:${port}/metrics`,
     received,
     close: () => new Promise<void>((ok) => server.close(() => ok())),
   };
@@ -48,7 +48,13 @@ interface Proxy {
   close(): Promise<void>;
 }
 
-async function startConnectProxy(options: { requireAuth?: string; delayConnectResponseMs?: number } = {}): Promise<Proxy> {
+interface ConnectProxyOptions {
+  readonly requireAuth?: string;
+  readonly delayConnectResponseMs?: number;
+  readonly appendAfterConnectResponse?: string;
+}
+
+async function startConnectProxy(options: ConnectProxyOptions = {}): Promise<Proxy> {
   const connects: string[] = [];
   const authHeaders: Array<string | undefined> = [];
   const server = http.createServer((_req, res) => {
@@ -71,7 +77,7 @@ async function startConnectProxy(options: { requireAuth?: string; delayConnectRe
     const [host, port] = req.url!.split(':');
     const upstream = net.connect(Number(port), host, () => {
       const established = () => {
-        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        clientSocket.write(`HTTP/1.1 200 Connection Established\r\n\r\n${options.appendAfterConnectResponse ?? ''}`);
         if (head?.length) {
           upstream.write(head);
         }
@@ -123,7 +129,7 @@ describe('sender', () => {
     });
 
     test('reports a non-2xx status as not sent', async () => {
-      const endpoint = await startEndpoint(ca, 500);
+      const endpoint = await startEndpoint(ca, { statusCode: 500 });
       try {
         const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, ca: ca.caCert, timeoutMs: 5000 }, {});
 
@@ -304,6 +310,148 @@ describe('sender', () => {
         expect(result.sent).toBe(false);
         expect(result.reason).toContain('ProxyConnectTimeout');
         expect(endpoint.received).toHaveLength(0);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    test('an explicitly empty proxy means direct, not environment auto-detect', async () => {
+      // The parent forces whatever `--proxy` was set to, even an empty string, and does not consult
+      // the environment in that case. The child has to agree, or the two disagree about whether a
+      // proxy applies.
+      const endpoint = await startEndpoint(ca);
+      const proxy = await startConnectProxy();
+      try {
+        const result = await sendTelemetry(
+          { endpoint: endpoint.url, body: BODY, ca: ca.caCert, timeoutMs: 5000, proxyUrl: '' },
+          { HTTPS_PROXY: proxy.url },
+        );
+
+        expect(result.via).toBe('direct');
+        expect(result.sent).toBe(true);
+        expect(proxy.connects).toHaveLength(0);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    test('replays bytes a proxy sends in the same chunk as its CONNECT response', async () => {
+      // A proxy may coalesce tunnel bytes into the same write as `200 Connection Established`.
+      // Those belong to the TLS stream and must not be dropped. Asserting that is awkward directly,
+      // so this injects bytes that are NOT valid TLS: if they are replayed the handshake breaks
+      // (which is what we assert), whereas if they were silently discarded it would succeed.
+      const endpoint = await startEndpoint(ca);
+      const proxy = await startConnectProxy({ appendAfterConnectResponse: 'NOT-TLS' });
+      try {
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: ca.caCert,
+          timeoutMs: 5000,
+        }, {});
+
+        expect(result.sent).toBe(false);
+        expect(result.via).toBe('connect-tunnel');
+        expect(endpoint.received).toHaveLength(0);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+  });
+
+  describe('certificate identity', () => {
+    // Trusting the signer is not enough -- the certificate also has to cover the host we asked for.
+    // Only the signer half used to be tested, which let a real gap through on the proxied path:
+    // `tls.connect` was given no `host`, so for an IP-literal endpoint (where SNI must be omitted)
+    // Node fell back to the underlying socket's host -- the PROXY -- and happily accepted a
+    // certificate issued for the proxy's name.
+
+    test('rejects a hostname mismatch on the direct path', async () => {
+      const wrongCa = generateTestCa({ subjectAltName: 'DNS:not-the-endpoint.example.com' });
+      const endpoint = await startEndpoint(wrongCa);
+      try {
+        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, ca: wrongCa.caCert, timeoutMs: 5000 }, {});
+
+        expect(result.sent).toBe(false);
+        expect(result.via).toBe('direct');
+        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
+        expect(endpoint.received).toHaveLength(0);
+      } finally {
+        await endpoint.close();
+      }
+    });
+
+    test('rejects a hostname mismatch through a proxy', async () => {
+      const wrongCa = generateTestCa({ subjectAltName: 'DNS:not-the-endpoint.example.com' });
+      const endpoint = await startEndpoint(wrongCa);
+      const proxy = await startConnectProxy();
+      try {
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: wrongCa.caCert,
+          timeoutMs: 5000,
+        }, {});
+
+        expect(result.sent).toBe(false);
+        expect(result.via).toBe('connect-tunnel');
+        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
+        // The tunnel opened, but the handshake to the endpoint must not have.
+        expect(proxy.connects).toHaveLength(1);
+        expect(endpoint.received).toHaveLength(0);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    test('rejects an IP-literal endpoint whose certificate omits that IP, through a proxy', async () => {
+      // The regression case. The certificate covers DNS:localhost but NOT IP:127.0.0.1, and the
+      // proxy is reached as `localhost` -- so if identity were checked against the proxy's host
+      // instead of the destination, this would be wrongly accepted.
+      const localhostOnlyCa = generateTestCa({ subjectAltName: 'DNS:localhost' });
+      const endpoint = await startEndpoint(localhostOnlyCa, { urlHost: '127.0.0.1' });
+      const proxy = await startConnectProxy();
+      try {
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: localhostOnlyCa.caCert,
+          timeoutMs: 5000,
+        }, {});
+
+        expect(result.sent).toBe(false);
+        expect(result.via).toBe('connect-tunnel');
+        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
+        expect(proxy.connects[0]).toMatch(/^127\.0\.0\.1:\d+$/);
+        expect(endpoint.received).toHaveLength(0);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    test('accepts an IP-literal endpoint whose certificate does cover that IP, through a proxy', async () => {
+      // The mirror image, so the test above is not just asserting that IP literals never work.
+      const endpoint = await startEndpoint(ca, { urlHost: '127.0.0.1' });
+      const proxy = await startConnectProxy();
+      try {
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: ca.caCert,
+          timeoutMs: 5000,
+        }, {});
+
+        expect(result).toEqual({ sent: true, via: 'connect-tunnel', statusCode: 200, reason: undefined });
+        expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
       } finally {
         await proxy.close();
         await endpoint.close();
