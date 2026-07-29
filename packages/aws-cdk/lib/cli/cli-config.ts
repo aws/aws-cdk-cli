@@ -230,6 +230,13 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Validate synthesized CloudFormation templates against policy rules',
         options: {
           online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and validate the given stack(s) automatically when changes are detected. ' +
+              'Never deploys. Consider pairing with --no-online to skip CloudFormation ' +
+              'validation on every change',
+          },
         },
         arg: {
           name: 'STACKS',

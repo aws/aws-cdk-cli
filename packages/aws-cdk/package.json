@@ -38,7 +38,9 @@
     "organization": true
   },
   "devDependencies": {
+    "@aws-cdk/cdk-explorer": "^0.0.0",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
+    "@aws-cdk/private-tools": "^0.0.0",
     "@aws-cdk/user-input-gen": "^0.0.0",
     "@cdklabs/eslint-plugin": "^2.0.15",
     "@stylistic/eslint-plugin": "^3",
@@ -59,6 +61,7 @@
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^12",
     "constructs": "^10.0.0",
+    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
@@ -86,12 +89,10 @@
   },
   "dependencies": {
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
-    "@aws-cdk/cdk-explorer": "^0.0.0",
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-cdk/cloudformation-diff": "^0.0.0",
     "@aws-cdk/cx-api": "^2",
-    "@aws-cdk/private-tools": "^0.0.0",
     "@aws-cdk/toolkit-lib": "^0.0.0",
     "@aws-sdk/client-appsync": "^3",
     "@aws-sdk/client-bedrock-agentcore-control": "^3",

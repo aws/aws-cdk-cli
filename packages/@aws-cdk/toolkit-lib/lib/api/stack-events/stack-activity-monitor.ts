@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import { formatHookResultDetails } from './hook-result-details';
 import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
@@ -244,45 +245,17 @@ export class StackActivityMonitor {
   }
 
   /**
-   * Trims leading/trailing whitespace, collapses all internal whitespace
-   * (including newlines) to a single space, and truncates to `maxChars`
-   * characters, appending `[...truncated]` when the original was longer.
+   * Fetches hook failure details via the GetHookResult API and formats them into
+   * a human-readable string.
+   *
+   * For Guard Hooks the details come from the failed annotations; for other hooks
+   * (e.g. Lambda Hooks) they come from the hook result's own status reason.
+   * Returns undefined if the fetch fails or the result carries no failure details.
    */
-  private normalizeMessage(message: string, maxChars: number = 400): string {
-    const normalized = message.trim().replace(/\s+/g, ' ');
-    return normalized.length > maxChars
-      ? normalized.substring(0, maxChars) + '[...truncated]'
-      : normalized;
-  }
-
-  /**
-   * Fetches Guard Hook annotation details via GetHookResult API and formats them
-   * into a human-readable string. Returns undefined if the fetch fails or there
-   * are no failed annotations.
-   */
-  private async fetchGuardHookAnnotations(hookInvocationId: string): Promise<string | undefined> {
+  private async fetchHookResultDetails(hookInvocationId: string): Promise<string | undefined> {
     try {
       const result = await this.cfn.getHookResult({ HookResultId: hookInvocationId });
-      const annotations = result.Annotations ?? [];
-      const failedAnnotations = annotations.filter((a) => a.Status === 'FAILED');
-      if (failedAnnotations.length === 0) {
-        return undefined;
-      }
-
-      const lines: string[] = ['NonCompliant Rules:', ''];
-      for (const annotation of failedAnnotations) {
-        if (annotation.AnnotationName) {
-          lines.push(`[${annotation.AnnotationName}]`);
-        }
-        if (annotation.StatusMessage) {
-          lines.push(`• ${this.normalizeMessage(annotation.StatusMessage)}`);
-        }
-        if (annotation.RemediationMessage) {
-          lines.push(`Remediation: ${this.normalizeMessage(annotation.RemediationMessage)}`);
-        }
-        lines.push('');
-      }
-      return lines.join('\n').trimEnd();
+      return formatHookResultDetails(result);
     } catch (e: any) {
       const errorMessage = e instanceof Error ? e.message : String(e);
 
@@ -306,7 +279,7 @@ export class StackActivityMonitor {
         );
       } else {
         await this.ioHelper.defaults.warn(
-          util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
+          util.format('Failed to fetch Hook details for invocation %s: %s', hookInvocationId, errorMessage),
         );
       }
 
@@ -325,11 +298,11 @@ export class StackActivityMonitor {
     for (const resourceEvent of pollEvents) {
       this.progressMonitor.process(resourceEvent);
 
-      // If this is a failed Guard Hook event with an invocation ID, fetch annotations
+      // If this is a failed hook event with an invocation ID, fetch the failure details
       if (resourceEvent.event.HookInvocationId) {
-        const annotations = await this.fetchGuardHookAnnotations(resourceEvent.event.HookInvocationId);
-        if (annotations) {
-          resourceEvent.event.HookStatusReason = annotations;
+        const details = await this.fetchHookResultDetails(resourceEvent.event.HookInvocationId);
+        if (details) {
+          resourceEvent.event.HookStatusReason = details;
         }
       }
 

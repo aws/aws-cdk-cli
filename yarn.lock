@@ -415,7 +415,7 @@ __metadata:
     "@types/yargs": "npm:^17.0.35"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.262.0"
+    aws-cdk-lib: "npm:2.262.1"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -462,12 +462,14 @@ __metadata:
   dependencies:
     "@cdklabs/eslint-plugin": "npm:^2.0.15"
     "@stylistic/eslint-plugin": "npm:^3"
+    "@types/cross-spawn": "npm:^6.0.6"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
@@ -553,7 +555,7 @@ __metadata:
     "@types/split2": "npm:^4.2.3"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.262.0"
+    aws-cdk-lib: "npm:2.262.1"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     cdk-from-cfn: "npm:^0.317.0"
@@ -1481,13 +1483,6 @@ __metadata:
     "@smithy/types": "npm:^4.16.1"
     tslib: "npm:^2.6.2"
   checksum: 10c0/e698ce740d0bfe4726c09dfa0e2d4c63b69ba6f2b33752d4c8d9085ac407b1237fbfc97c0d1ae3ba0668b1c7cb3ad520404fc65767fe689bcdac4cd6a40c126f
-  languageName: node
-  linkType: hard
-
-"@aws/cloudformation-validate@npm:1.5.0-beta":
-  version: 1.5.0-beta
-  resolution: "@aws/cloudformation-validate@npm:1.5.0-beta"
-  checksum: 10c0/3a7c118f3f5f4111ff262d8cba92aca8e19fdad62bc84529744a13602059e3fe949a923739531e4c06d27feb5a2a10344948e1443f73ea34005e8b4f28a57595
   languageName: node
   linkType: hard
 
@@ -3995,6 +3990,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/cross-spawn@npm:^6.0.6":
+  version: 6.0.6
+  resolution: "@types/cross-spawn@npm:6.0.6"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/e3d476bb6b3a54a8934a97fe6ee4bd13e2e5eb29073929a4be76a52466602ffaea420b20774ffe8503f9fa24f3ae34817e95e7f625689fb0d1c10404f5b2889c
+  languageName: node
+  linkType: hard
+
 "@types/deep-eql@npm:*":
   version: 4.0.2
   resolution: "@types/deep-eql@npm:4.0.2"
@@ -5402,31 +5406,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"aws-cdk-lib@npm:2.262.0":
-  version: 2.262.0
-  resolution: "aws-cdk-lib@npm:2.262.0"
-  dependencies:
-    "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
-    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
-    "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
-    "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
-    "@aws/cloudformation-validate": "npm:1.5.0-beta"
-    "@balena/dockerignore": "npm:^1.0.2"
-    case: "npm:1.6.3"
-    fs-extra: "npm:^11.3.6"
-    ignore: "npm:^5.3.2"
-    jsonschema: "npm:^1.5.0"
-    mime-types: "npm:^2.1.35"
-    minimatch: "npm:^10.2.5"
-    punycode: "npm:^2.3.1"
-    semver: "npm:^7.8.5"
-    yaml: "npm:1.10.3"
-  peerDependencies:
-    constructs: ^10.5.0
-  checksum: 10c0/ff2c65607e743d279b5b1a8e6733081d9703d9e45bb513551a2ca378435f940ce6c1fafaa29bb49ca12e9d10247067acacf1140d260532fdf67510dc0a72fcc4
-  languageName: node
-  linkType: hard
-
 "aws-cdk-lib@npm:2.262.1":
   version: 2.262.1
   resolution: "aws-cdk-lib@npm:2.262.1"
@@ -5520,6 +5499,7 @@ __metadata:
     constructs: "npm:^10.0.0"
     decamelize: "npm:^5"
     enquirer: "npm:^2.4.1"
+    esbuild: "npm:^0.28.1"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"

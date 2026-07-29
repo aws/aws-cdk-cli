@@ -1,7 +1,15 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/cdk-explorer",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/cli-plugin-contract",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/private-tools",
       "type": "build"
     },
     {
@@ -90,6 +98,10 @@
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -198,10 +210,6 @@
       "type": "runtime"
     },
     {
-      "name": "@aws-cdk/cdk-explorer",
-      "type": "runtime"
-    },
-    {
       "name": "@aws-cdk/cloud-assembly-api",
       "type": "runtime"
     },
@@ -216,10 +224,6 @@
     {
       "name": "@aws-cdk/cx-api",
       "version": "^2",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/private-tools",
       "type": "runtime"
     },
     {
