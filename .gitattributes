@@ -22,6 +22,7 @@
 /.github/workflows/self-mutation.yml linguist-generated
 /.github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml linguist-generated
 /.github/workflows/upgrade.yml linguist-generated
+/.github/workflows/windows-build.yml linguist-generated
 /.gitignore linguist-generated
 /.npmignore linguist-generated
 /.pnp.* binary linguist-vendored

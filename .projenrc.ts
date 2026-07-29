@@ -18,6 +18,7 @@ import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
+import { WindowsBuildWorkflow } from './projenrc/windows-build';
 import { YarnVersion } from './projenrc/yarn-version';
 
 // #region shared config
@@ -1809,6 +1810,19 @@ new CdkCliIntegTestsWorkflow(repo, {
 new CodeCovWorkflow(repo, {
   restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
+});
+
+new WindowsBuildWorkflow(repo, {
+  packages: [toolkitLib.name, cli.name],
+  preTestSteps: [
+    {
+      // Tests read the version/feature-flag files that `generate.sh` produces
+      // during a full build; the script is bash-only but runs fine in Git Bash
+      name: 'Generate CLI version files',
+      run: './generate.sh',
+      workingDirectory: `${cli.workspaceDirectory}`,
+    },
+  ],
 });
 
 new IssueLabeler(repo);

@@ -64,6 +64,7 @@ jspm_packages/
 !/.github/workflows/integ.yml
 /.projen/prepare-verdaccio.sh
 !/.github/workflows/codecov.yml
+!/.github/workflows/windows-build.yml
 !/.github/workflows/issue-label-assign.yml
 !/.github/workflows/issue-regression-labeler.yml
 !/.github/workflows/pr-labeler.yml

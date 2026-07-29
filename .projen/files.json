@@ -20,6 +20,7 @@
     ".github/workflows/self-mutation.yml",
     ".github/workflows/upgrade-aws-cdk-lib_aws-cdk.yml",
     ".github/workflows/upgrade.yml",
+    ".github/workflows/windows-build.yml",
     ".gitignore",
     ".npmignore",
     ".projen/deps.json",
