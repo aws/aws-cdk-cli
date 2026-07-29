@@ -1182,6 +1182,53 @@ toolkitLib.addTask('publish-local', {
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+      'vscode-jsonrpc@^8',
+      'chokidar@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+      '@types/convert-source-map@^2',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region aws-cdk
 
 const cli = configureProject(
@@ -1192,12 +1239,10 @@ const cli = configureProject(
     description: 'AWS CDK CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
-    // The CLI bundles all of its dependencies, so it may depend on the private
-    // `@aws-cdk/private-tools` package directly (it is inlined on bundle).
-    allowPrivateDeps: true,
     devDeps: [
       yargsGen,
       cliPluginContract,
+      cdkExplorer,
       '@types/yazl',
       '@types/fs-extra@^11',
       '@types/mockery',
@@ -1215,6 +1260,7 @@ const cli = configureProject(
       'jest-mock',
       'nock@13',
       'sinon',
+      'ts-node',
       'ts-mock-imports',
       'tsx',
     ],
@@ -1224,9 +1270,6 @@ const cli = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
-      // Already bundled by the CLI: depend on the private tools package
-      // directly (the bundler inlines it and dedupes its transitive deps).
-      tools,
       'yazl',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
@@ -1321,9 +1364,8 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+cli.with(tools.zip);
 
-// Necessary to add 'ts-node' to be able to run the upgrades 'yarn projen upgrade-aws-cdk-lib' since we have a .projenrc.ts
-cli.addDevDeps('ts-node');
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
   semanticCommit: 'feat',
@@ -1472,7 +1514,6 @@ const integRunner = configureProject(
       'constructs@^10',
       '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
     ],
-    allowPrivateDeps: true,
     tsconfig: {
       compilerOptions: {
         ...toolkitLibTsCompilerOptions,
@@ -1647,56 +1688,6 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
-
-// #endregion
-//////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-explorer
-
-const cdkExplorer = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-explorer',
-    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      toolkitLib.customizeReference({ versionType: 'exact' }),
-      'vscode-languageserver@^9',
-      'vscode-languageserver-textdocument@^1',
-      'vscode-jsonrpc@^8',
-      'chokidar@^4',
-      '@jridgewell/trace-mapping@^0.3',
-      'convert-source-map@^2',
-    ],
-    devDeps: [
-      'vscode-languageserver-protocol@^3',
-      '@types/convert-source-map@^2',
-    ],
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
-      },
-    }),
-  }),
-);
-fixupTestTask(cdkExplorer);
-void cdkExplorer;
-
-cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
