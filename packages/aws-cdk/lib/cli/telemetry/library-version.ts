@@ -1,11 +1,13 @@
+import { exec } from 'child_process';
 import * as path from 'path';
-import { run } from '@aws-cdk/private-tools/lib/subprocess';
+import { promisify } from 'util';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../api-private';
 
 export async function getLibraryVersion(ioHelper: IoHelper): Promise<string | undefined> {
   try {
-    const { stdout } = await run([process.execPath, '-e', 'process.stdout.write(require.resolve("aws-cdk-lib"))']);
+    const command = "node -e 'process.stdout.write(require.resolve(\"aws-cdk-lib\"))'";
+    const { stdout } = await promisify(exec)(command);
 
     // stdout should be a file path but lets double check
     if (!fs.existsSync(stdout)) {
