@@ -1,6 +1,6 @@
-import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { platform } from 'node:os';
+import { runSync } from '../../private/tools';
 
 /**
  * Detect whether we are running on an EC2 instance by inspecting local system
@@ -68,10 +68,12 @@ function detectEc2Linux(): boolean {
 
 function detectEc2Windows(): boolean {
   // On Windows EC2 instances the board asset tag is an instance ID, readable
-  // from the registry without elevated privileges.
-  const tag = execSync(
-    'reg query "HKLM\\SYSTEM\\HardwareConfig\\Current" /v BaseBoardAssetTag 2>nul',
-    { encoding: 'utf-8', timeout: 500 },
+  // from the registry without elevated privileges. stderr is discarded (the
+  // key does not exist off EC2); a non-zero exit throws, which detectEc2()
+  // treats as "assume EC2".
+  const tag = runSync(
+    ['reg', 'query', 'HKLM\\SYSTEM\\HardwareConfig\\Current', '/v', 'BaseBoardAssetTag'],
+    { timeoutMs: 500 },
   ).trim();
   // Output contains "BaseBoardAssetTag    REG_SZ    i-0abc..."
   if (/i-[0-9a-f]+/i.test(tag)) {

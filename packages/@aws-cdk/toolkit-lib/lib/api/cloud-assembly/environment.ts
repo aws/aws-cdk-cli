@@ -181,7 +181,7 @@ function guessInterpreter(file: FileInfo): string {
     return handler(file.fileName);
   }
 
-  return quoteSpaces(file.fileName);
+  return quoteShellPart(file.fileName);
 }
 
 /**
@@ -197,7 +197,7 @@ type CommandGenerator = (file: string) => string;
  * Execute the given file with the same 'node' process as is running the current process
  */
 function executeNode(scriptFile: string): string {
-  return `${quoteSpaces(process.execPath)} ${quoteSpaces(scriptFile)}`;
+  return `${quoteShellPart(process.execPath)} ${quoteShellPart(scriptFile)}`;
 }
 
 /**
@@ -238,13 +238,29 @@ interface FileInfo {
 }
 
 /**
- * Quote a shell part if it contains spaces
+ * Quote a file path for inclusion in the shell command line we synthesize
+ * around the user's `app` setting.
  *
- * We're only interested in spaces, nothing else.
+ * This is quoting FOR EXECUTION (the result is run through the shell by
+ * `runUserCommandLine`), which is why it lives here at the command-line
+ * assembly boundary and not in the subprocess module, whose rendering is
+ * display-only. Only the file paths we discover ourselves pass through this;
+ * the rest of the user's command line is theirs verbatim.
+ *
+ * Parts made purely of safe characters pass through unquoted. Anything else
+ * is double-quoted — not just spaces: `&`, `(`, `;`, … in an unquoted path
+ * would be interpreted by the shell. Inside POSIX double quotes, `\`, `"`,
+ * `$` and backtick stay special and are escaped; on Windows, `"` is not a
+ * legal filename character, so plain wrapping suffices for paths.
  */
-function quoteSpaces(part: string) {
-  if (part.includes(' ')) {
+function quoteShellPart(part: string) {
+  const isWindows = process.platform === 'win32';
+  const safe = isWindows ? /^[A-Za-z0-9_+=:,.@\\/-]+$/ : /^[A-Za-z0-9_+=:,.@/-]+$/;
+  if (safe.test(part)) {
+    return part;
+  }
+  if (isWindows) {
     return `"${part}"`;
   }
-  return part;
+  return `"${part.replace(/([\\"$`])/g, '\\$1')}"`;
 }
