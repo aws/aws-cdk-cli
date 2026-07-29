@@ -131,6 +131,17 @@ export interface CdkCliIntegTestsWorkflowProps {
   readonly testRunsOn: string;
 
   /**
+   * If given, additionally run every integ test matrix job on this Windows
+   * runner (in addition to the `testRunsOn` runner).
+   *
+   * The Windows jobs are suffixed with `_windows` and run all steps under Git
+   * Bash so the shared bash step scripts keep working.
+   *
+   * @default - integ tests only run on `testRunsOn`
+   */
+  readonly windowsTestRunsOn?: string;
+
+  /**
    * GitHub environment name for approvals
    *
    * MUST be configured to require manual approval.
@@ -449,36 +460,37 @@ export class CdkCliIntegTestsWorkflow extends Component {
     // Ensure this is an array
     const additionalNodeVersionsToTest = this.props.additionalNodeVersionsToTest ?? [];
 
-    const testJobs = [
+    // The integ test suites, defined once and instantiated per platform.
+    const suites: Array<[string, MatrixIntegTestProps]> = [
       // cli-integ-tests
-      this.addMatrixJob('cli', {
+      ['cli', {
         domain: {
           suite: ['cli-integ-tests'],
           shards: 12,
         },
-      }),
+      }],
 
       // toolkit-lib
-      this.addMatrixJob('toolkit-lib', {
+      ['toolkit-lib', {
         domain: {
           suite: [
             'toolkit-lib-integ-tests',
           ],
           node: ['lts/*', ...additionalNodeVersionsToTest],
         },
-      }),
+      }],
 
       // telemetry
-      this.addMatrixJob('telemetry', {
+      ['telemetry', {
         domain: {
           suite: [
             'telemetry-integ-tests',
           ],
         },
-      }),
+      }],
 
       // init-templates
-      this.addMatrixJob('init-templates', {
+      ['init-templates', {
         domain: {
           suite: [
             'init-csharp',
@@ -497,15 +509,27 @@ export class CdkCliIntegTestsWorkflow extends Component {
           suite: 'init-typescript-app',
           node,
         })),
-      }),
+      }],
 
       // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
-      this.addMatrixJob('tool-integrations', {
+      ['tool-integrations', {
         domain: {
           suite: ['tool-integrations'],
           node: ['20'],
         },
-      }),
+      }],
+    ];
+
+    const testJobs = [
+      ...suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+        runsOn: this.props.testRunsOn,
+      })),
+      ...(this.props.windowsTestRunsOn
+        ? suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+          runsOn: this.props.windowsTestRunsOn!,
+          suffix: '_windows',
+        }))
+        : []),
     ];
 
     // Add a job that collates all matrix jobs into a single status
@@ -532,12 +556,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
     });
   }
 
-  private addMatrixJob(testName: string, props: MatrixIntegTestProps): string {
-    const jobName = `integ_${testName}`;
+  private addMatrixJob(testName: string, props: MatrixIntegTestProps, platform: PlatformOptions): string {
+    const suffix = platform.suffix ?? '';
+    const jobName = `integ_${testName}${suffix}`;
 
     let shard: any;
     let shardArg = '';
-    let logName = 'logs-${{ matrix.suite }}-${{ matrix.node }}';
+    let logName = `logs${suffix}-\${{ matrix.suite }}-\${{ matrix.node }}`;
     if (props.domain.shards) {
       shard = Array(props.domain.shards).fill(0).map((_, i) => i + 1);
       shardArg = ` --shard="\${{ matrix.shard }}/${props.domain.shards}"`;
@@ -546,11 +571,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     this.workflow.addJob(jobName, {
       environment: this.props.testEnvironment,
-      runsOn: [this.props.testRunsOn],
+      runsOn: [platform.runsOn],
       needs: [this.JOB_PREPARE],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
+      },
+      // The step scripts are written for bash; on Windows runners use Git Bash
+      // (preinstalled) so they run unchanged while still exercising Windows.
+      defaults: {
+        run: {
+          shell: 'bash',
+        },
       },
       env: {
         // Integ tests heavily rely on processing stdout, node warnings (mostly deprecations) are muddying this.
@@ -688,4 +720,19 @@ interface MatrixIntegTestProps {
   readonly include?: github.workflows.JobMatrix['include'];
   readonly exclude?: github.workflows.JobMatrix['exclude'];
   readonly extraEnv?: Record<string, string | undefined>;
+}
+
+interface PlatformOptions {
+  /**
+   * The runner label to run this instance of the job on.
+   */
+  readonly runsOn: string;
+
+  /**
+   * Suffix appended to the job name and log artifact names, to disambiguate
+   * multiple platform instances of the same suite.
+   *
+   * @default - no suffix
+   */
+  readonly suffix?: string;
 }
