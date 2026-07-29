@@ -48,7 +48,7 @@ interface Proxy {
   close(): Promise<void>;
 }
 
-async function startConnectProxy(options: { requireAuth?: string } = {}): Promise<Proxy> {
+async function startConnectProxy(options: { requireAuth?: string; delayConnectResponseMs?: number } = {}): Promise<Proxy> {
   const connects: string[] = [];
   const authHeaders: Array<string | undefined> = [];
   const server = http.createServer((_req, res) => {
@@ -70,12 +70,19 @@ async function startConnectProxy(options: { requireAuth?: string } = {}): Promis
     connects.push(req.url!);
     const [host, port] = req.url!.split(':');
     const upstream = net.connect(Number(port), host, () => {
-      clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-      if (head?.length) {
-        upstream.write(head);
+      const established = () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        if (head?.length) {
+          upstream.write(head);
+        }
+        upstream.pipe(clientSocket);
+        clientSocket.pipe(upstream);
+      };
+      if (options.delayConnectResponseMs) {
+        setTimeout(established, options.delayConnectResponseMs);
+      } else {
+        established();
       }
-      upstream.pipe(clientSocket);
-      clientSocket.pipe(upstream);
     });
     upstream.on('error', () => clientSocket.destroy());
     clientSocket.on('error', () => upstream.destroy());
@@ -252,6 +259,51 @@ describe('sender', () => {
 
         expect(result.via).toBe('connect-tunnel');
         expect(proxy.connects).toHaveLength(1);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    // Regression: the sender used to inherit the parent's 500ms exit budget and apply it to EVERY
+    // step of a proxied send, so a proxy that took longer than that to establish the tunnel was
+    // silently dropped. That is what broke this path on loaded CI runners.
+    test('tolerates a proxy handshake slower than the old 500ms budget', async () => {
+      const endpoint = await startEndpoint(ca);
+      const proxy = await startConnectProxy({ delayConnectResponseMs: 800 });
+      try {
+        // Deliberately no `timeoutMs`: this exercises the sender's own default budget.
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: ca.caCert,
+        }, {});
+
+        expect(result).toEqual({ sent: true, via: 'connect-tunnel', statusCode: 200, reason: undefined });
+        expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
+      } finally {
+        await proxy.close();
+        await endpoint.close();
+      }
+    });
+
+    test('still honours an explicit timeout when the proxy is too slow', async () => {
+      // The budget was widened, not removed.
+      const endpoint = await startEndpoint(ca);
+      const proxy = await startConnectProxy({ delayConnectResponseMs: 1500 });
+      try {
+        const result = await sendTelemetry({
+          endpoint: endpoint.url,
+          body: BODY,
+          proxyUrl: proxy.url,
+          ca: ca.caCert,
+          timeoutMs: 300,
+        }, {});
+
+        expect(result.sent).toBe(false);
+        expect(result.reason).toContain('ProxyConnectTimeout');
+        expect(endpoint.received).toHaveLength(0);
       } finally {
         await proxy.close();
         await endpoint.close();

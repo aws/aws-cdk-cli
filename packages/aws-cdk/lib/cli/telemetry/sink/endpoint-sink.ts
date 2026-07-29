@@ -6,8 +6,6 @@ import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
 import type { ITelemetrySink } from './sink-interface';
 
-const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
-
 /**
  * Largest payload we are willing to hand to the detached sender.
  *
@@ -80,6 +78,11 @@ export interface EndpointTelemetrySinkProps {
  * itself a network call on the CLI's exit path, which is what this sink exists to avoid. When the
  * machine is offline we simply spawn a child that fails and exits: the child has its own timeouts
  * and swallows every error, so the cost of being wrong is one short-lived process.
+ *
+ * For the same reason this sink imposes no network timeout on the child. The old 500ms per-attempt
+ * budget existed to keep a synchronous POST from delaying the user's prompt; nothing waits on the
+ * sender now, so it owns a budget appropriate to actually completing a request (see
+ * `NETWORK_TIMEOUT_MS` in `../sender`).
  */
 export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
@@ -156,7 +159,6 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       body,
       proxyUrl: this.proxyUrl,
       ca: this.caCert,
-      timeoutMs: REQUEST_ATTEMPT_TIMEOUT_MS,
     });
 
     const payloadBytes = Buffer.byteLength(payload);

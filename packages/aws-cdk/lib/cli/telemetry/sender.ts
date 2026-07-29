@@ -26,11 +26,23 @@ import * as tls from 'node:tls';
  */
 
 /**
- * Fallback request timeout, matching the parent's `REQUEST_ATTEMPT_TIMEOUT_MS`.
+ * Budget for each individual network step.
  *
- * The parent forwards its own value, so this only applies to a malformed payload.
+ * Emphatically NOT the parent's old `REQUEST_ATTEMPT_TIMEOUT_MS` of 500ms. That number existed to
+ * stop a synchronous POST from holding up the user's prompt; now that the send happens in a
+ * detached process that nobody waits on, a tight budget buys the user nothing and costs us
+ * telemetry. It was also applied to *each* step of a proxied send -- connect + CONNECT, then the
+ * TLS handshake to the endpoint, then the response -- so proxied users had to complete two TLS
+ * handshakes inside 500ms each and were silently dropped when they could not. On a loaded CI runner
+ * that is exactly what happened.
+ *
+ * The three steps are sequential, so the worst case is 3x this value; keep that comfortably under
+ * `HARD_KILL_MS` so the ceiling stays a backstop against a genuinely stuck socket rather than
+ * something that can fire during a slow-but-progressing handshake. 3s per step also matches what
+ * the rest of the CLI already considers a reasonable background network budget (`NetworkDetector`
+ * uses 3s in production).
  */
-const DEFAULT_TIMEOUT_MS = 500;
+const NETWORK_TIMEOUT_MS = 3_000;
 
 /**
  * Upper bound on the lifetime of this process.
@@ -38,8 +50,12 @@ const DEFAULT_TIMEOUT_MS = 500;
  * A hung read on stdin, or a TCP connection that neither completes nor errors, would otherwise
  * keep a detached process alive indefinitely after the CLI has exited. The timer is `unref`ed so
  * it never keeps the process alive by itself, but it still fires if something else does.
+ *
+ * Must exceed the worst-case send (3 x `NETWORK_TIMEOUT_MS`) plus reading stdin, which has no
+ * timeout of its own. Nobody waits on this process -- its stdio is discarded and it is `unref`ed --
+ * so a generous ceiling costs the user nothing.
  */
-const HARD_KILL_MS = 10_000;
+const HARD_KILL_MS = 20_000;
 
 /**
  * Refuse to buffer an unreasonable amount of stdin.
@@ -114,9 +130,9 @@ export interface TelemetrySenderConfig {
   readonly noProxy?: string;
 
   /**
-   * Per-attempt network timeout in milliseconds.
+   * Budget for each network step, in milliseconds.
    *
-   * @default 500
+   * @default 3000
    */
   readonly timeoutMs?: number;
 }
@@ -243,7 +259,7 @@ export async function sendTelemetry(cfg: TelemetrySenderConfig, env: NodeJS.Proc
     }
 
     const url = new URL(cfg.endpoint);
-    const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const timeoutMs = cfg.timeoutMs ?? NETWORK_TIMEOUT_MS;
     const payload = JSON.stringify(cfg.body ?? {});
 
     const proxyUrl = cfg.proxyUrl || resolveProxy(cfg.endpoint, proxyEnv(cfg, env));

@@ -114,7 +114,6 @@ describe('Funnel', () => {
       expect(pipedPayload()).toEqual({
         endpoint: 'https://example.com/telemetry',
         body: { events: [testEvent] },
-        timeoutMs: 500,
       });
     });
 

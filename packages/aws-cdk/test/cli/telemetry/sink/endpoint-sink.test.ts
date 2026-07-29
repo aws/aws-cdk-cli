@@ -90,8 +90,18 @@ describe('EndpointTelemetrySink', () => {
       expect(pipedPayload()).toEqual({
         endpoint: 'https://example.com/telemetry',
         body: { events: [testEvent] },
-        timeoutMs: 500,
       });
+    });
+
+    test('does not impose the parent\'s exit budget on the child', async () => {
+      // The 500ms per-attempt timeout the synchronous POST used was there to protect the user's
+      // prompt. Nothing waits on the sender now, so forwarding it would only cut off slow (and
+      // especially proxied) deliveries -- the sender picks its own budget.
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      expect(pipedPayload()).not.toHaveProperty('timeoutMs');
     });
 
     test('marks the child as the sender and lets it outlive us', async () => {
