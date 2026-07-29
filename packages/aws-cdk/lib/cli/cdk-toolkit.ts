@@ -623,12 +623,60 @@ export class CdkToolkit {
   /**
    * Validate synthesized templates against policy rules
    */
-  public async validate(options: ValidateOptions): Promise<number> {
+  public async validate(options: CliValidateOptions): Promise<number | void> {
     // Implicitly switch 'debug' mode to true; more stack traces = more useful.
     this.props.cloudExecutable.switchOnDebugging();
 
-    const result = await this.toolkit.validate(this.props.cloudExecutable, options);
+    // `watch` is a CLI-only flag; strip it before crossing into toolkit-lib so
+    // it does not leak into the library's validate action.
+    const { watch, ...validateOptions } = options;
+
+    if (watch) {
+      return this.validateWatch(validateOptions);
+    }
+
+    const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
     return result.conclusion === 'failure' ? 1 : 0;
+  }
+
+  /**
+   * Continuously validate the project, re-synthesizing and re-validating on
+   * every file change. Never deploys.
+   *
+   * The files to observe are configured with the "watch" key of `cdk.json`,
+   * exactly like `cdk deploy --watch`.
+   */
+  private async validateWatch(options: ValidateOptions): Promise<void> {
+    const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
+
+    const watchSettings: { include?: string | string[]; exclude?: string | string[] } | undefined =
+      this.props.configuration.settings.get(['watch']);
+    if (!watchSettings) {
+      throw new ToolkitError(
+        'WatchConfigMissing',
+        "Cannot use '--watch' without specifying at least one directory to monitor. " +
+        'Make sure to add a "watch" key to your cdk.json',
+      );
+    }
+
+    const include = this.patternsArrayForWatch(watchSettings.include, {
+      defaultPattern: '**',
+      returnDefaultIfEmpty: true,
+    });
+    // Pass the user's excludes explicitly; toolkit-lib always appends the
+    // outdir, dot-file, and node_modules excludes on top of these.
+    const exclude = this.patternsArrayForWatch(watchSettings.exclude, {
+      defaultPattern: '',
+      returnDefaultIfEmpty: false,
+    });
+
+    const watcher = await this.toolkit.watchValidate(this.props.cloudExecutable.uncachedSource(), {
+      ...options,
+      watchDir: rootDir,
+      include,
+      exclude,
+    });
+    return watcher.waitForEnd();
   }
 
   /**
@@ -1581,6 +1629,18 @@ interface CfnDeployOptions {
    * @default true
    */
   readonly rollback?: boolean;
+}
+
+/**
+ * Options for the validate command
+ */
+export interface CliValidateOptions extends ValidateOptions {
+  /**
+   * Continuously observe the project files, and re-validate automatically when changes are detected
+   *
+   * @default false
+   */
+  readonly watch?: boolean;
 }
 
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {

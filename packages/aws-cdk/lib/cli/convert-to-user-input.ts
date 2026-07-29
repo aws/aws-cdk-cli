@@ -158,6 +158,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'validate':
       commandOptions = {
         online: args.online,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -491,6 +492,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const validateOptions = {
     online: config.validate?.online,
+    watch: config.validate?.watch,
   };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,

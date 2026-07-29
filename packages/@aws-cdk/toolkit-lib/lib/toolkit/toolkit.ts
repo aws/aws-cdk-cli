@@ -59,7 +59,7 @@ import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { ValidateOptions, ValidateResult } from '../actions/validate';
-import type { IWatcher, WatchFileOptions, WatchOptions } from '../actions/watch';
+import type { IWatcher, WatchFileOptions, WatchOptions, WatchValidateOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
@@ -676,9 +676,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
     const ioHelper = asIoHelper(this.ioHost, 'validate');
-    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    return await this._validate(assembly, options);
+  }
 
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+  /**
+   * Helper to allow validate being called with an already-produced assembly,
+   * e.g. as part of the watch action which reuses the startup assembly.
+   */
+  private async _validate(assembly: StackAssembly, options: ValidateOptions = {}): Promise<ValidateResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+    const selectStacks = stacksOpt(options);
 
     const stacks = await assembly.selectStacksV2(selectStacks);
 
@@ -1179,6 +1187,36 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
       onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
       onDispose: async () => cloudWatchLogMonitor?.deactivate(),
+    });
+  }
+
+  /**
+   * Continuously observe project files and validate the selected stacks
+   * automatically when changes are detected.
+   *
+   * Never deploys: each iteration re-synthesizes the app and runs the same
+   * checks as the `validate` action (policy plugin reports and, unless
+   * disabled, online CloudFormation validation).
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchValidate(cx: ICloudAssemblySource, options: WatchValidateOptions = {}): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+
+    return this._watch(cx, options, {
+      command: 'cdk validate',
+      activity: 'validation',
+      // `_watch` runs this inside `invokeSafe`, which reports (and swallows)
+      // failures so the loop survives synth errors while the user is mid-edit.
+      invoke: async (initialAssembly) => {
+        // Reuse the initial assembly, for the same reason as watchDeploy()
+        if (initialAssembly) {
+          await this._validate(initialAssembly, options);
+          return;
+        }
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+        await this._validate(assembly, options);
+      },
     });
   }
 

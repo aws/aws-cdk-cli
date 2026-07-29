@@ -465,6 +465,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           online: args.online,
+          watch: args.watch,
         });
 
       case 'diagnose':
