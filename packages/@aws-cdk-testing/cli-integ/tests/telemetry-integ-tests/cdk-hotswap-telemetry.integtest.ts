@@ -23,8 +23,8 @@ integTest(
       modEnv: { DYNAMIC_LAMBDA_PROPERTY_VALUE: 'updated' },
     });
 
-    // Check the trace that telemetry was executed successfully
-    expect(deployOutput).toContain('Telemetry Sent Successfully');
+    // Check the trace that telemetry was handed to the detached sender that delivers it
+    expect(deployOutput).toContain('Telemetry dispatched');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual(

@@ -159,38 +159,55 @@ export function main(): void {
   const hardKill = setTimeout(() => process.exit(0), HARD_KILL_MS);
   hardKill.unref();
 
-  let input = '';
-  let overflowed = false;
-
   const finish = () => {
     clearTimeout(hardKill);
     process.exit(0);
   };
 
   try {
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('error', finish);
-    process.stdin.on('data', (chunk: string) => {
-      if (overflowed) {
-        return;
-      }
-      if (input.length + chunk.length > MAX_STDIN_BYTES) {
-        overflowed = true;
-        input = '';
-        return;
-      }
-      input += chunk;
-    });
-    process.stdin.on('end', () => {
-      if (overflowed) {
-        finish();
-        return;
-      }
-      void deliver(input).then(finish, finish);
-    });
+    void readAll(process.stdin, MAX_STDIN_BYTES)
+      .then((input) => (input === undefined ? undefined : deliver(input)))
+      .then(finish, finish);
   } catch {
     finish();
   }
+}
+
+/**
+ * Read a stream to completion as UTF-8, giving up if it exceeds `maxBytes`.
+ *
+ * Chunks are measured and joined as `Buffer`s rather than strings: a string's `length` counts
+ * UTF-16 code units, so a cap applied to it would let a multi-byte payload through at up to three
+ * times the intended size. Buffering the raw bytes and decoding once at the end also avoids having
+ * to reason about multi-byte sequences that straddle a chunk boundary.
+ *
+ * Never rejects. Resolves `undefined` if the limit was exceeded or the stream errored, meaning
+ * "there is nothing here worth sending".
+ */
+export function readAll(stream: NodeJS.ReadableStream, maxBytes: number): Promise<string | undefined> {
+  return new Promise<string | undefined>((ok) => {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    let overflowed = false;
+
+    stream.on('data', (chunk: Buffer | string) => {
+      if (overflowed) {
+        return;
+      }
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buf.byteLength;
+      if (bytes > maxBytes) {
+        overflowed = true;
+        chunks.length = 0;
+        trace(`Input exceeded ${maxBytes} bytes, discarding`);
+        return;
+      }
+      chunks.push(buf);
+    });
+
+    stream.on('error', () => ok(undefined));
+    stream.on('end', () => ok(overflowed ? undefined : Buffer.concat(chunks).toString('utf-8')));
+  });
 }
 
 /**

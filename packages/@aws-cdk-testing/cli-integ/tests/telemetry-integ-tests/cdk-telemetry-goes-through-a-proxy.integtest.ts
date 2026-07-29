@@ -1,5 +1,3 @@
-import { promises as fs } from 'fs';
-import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../lib';
 import { startProxyServer } from '../../lib/proxy';
 
@@ -17,13 +15,6 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const proxyServer = await startProxyServer();
     try {
-      // Matches CDK_HOME below.
-      const cdkCacheDir = path.join(fixture.integTestDir, 'cache');
-      // The endpoint sink skips the send when it believes there is no connectivity, and that answer
-      // is cached; make sure it is recomputed through the proxy.
-      await fs.rm(path.join(cdkCacheDir, 'connection.json'), { force: true });
-      await fs.rm(path.join(cdkCacheDir, 'notices.json'), { force: true });
-
       const output = await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
@@ -37,7 +28,7 @@ integTest(
       });
 
       // The parent reports the hand-off, not the delivery.
-      expect(output).toContain('Telemetry dispatched to detached sender');
+      expect(output).toContain('Telemetry dispatched');
 
       // Delivery happens after the CLI exits, so poll rather than asserting immediately.
       const telemetryRequest = await waitFor(

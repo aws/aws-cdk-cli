@@ -1,8 +1,6 @@
-import type { Agent } from 'https';
 import { spawn } from 'node:child_process';
 import * as os from 'node:os';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { NetworkDetector } from '../../../api/network-detector';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
@@ -22,6 +20,15 @@ const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
 const MAX_DISPATCH_PAYLOAD_BYTES = 65_536;
 
 /**
+ * Stable prefix of the trace emitted once a batch has been handed to the sender.
+ *
+ * Integration tests match on this literal, so it must not change casually. Note that it reports a
+ * successful hand-off, not a successful delivery -- by design nobody in this process ever learns
+ * whether the POST succeeded.
+ */
+const DISPATCHED_TRACE = 'Telemetry dispatched';
+
+/**
  * Properties for the Endpoint Telemetry Client
  */
 export interface EndpointTelemetrySinkProps {
@@ -34,15 +41,6 @@ export interface EndpointTelemetrySinkProps {
    * Where messages are going to be sent
    */
   readonly ioHost: IIoHost;
-
-  /**
-   * The agent responsible for making the network requests.
-   *
-   * Use this to set up a proxy connection.
-   *
-   * @default - Uses the shared global node agent
-   */
-  readonly agent?: Agent;
 
   /**
    * Absolute path to this CLI's `bin/cdk` script, used to respawn ourselves as a telemetry sender.
@@ -77,12 +75,16 @@ export interface EndpointTelemetrySinkProps {
  * The HTTP POST itself does not happen in this process. Events are handed to a detached child
  * process (`bin/cdk` re-invoked with `CDK_TELEMETRY_SENDER=1`) which outlives us, so the CLI can
  * exit without waiting on the network.
+ *
+ * Deliberately nothing here checks first whether the network is reachable. Any such check is
+ * itself a network call on the CLI's exit path, which is what this sink exists to avoid. When the
+ * machine is offline we simply spawn a child that fails and exits: the child has its own timeouts
+ * and swallows every error, so the cost of being wrong is one short-lived process.
  */
 export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
   private endpoint: URL;
   private ioHelper: IoHelper;
-  private agent?: Agent;
   private binCdkPath?: string;
   private proxyUrl?: string;
   private caCert?: string;
@@ -95,7 +97,6 @@ export class EndpointTelemetrySink implements ITelemetrySink {
     }
 
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
-    this.agent = props.agent;
     this.binCdkPath = props.binCdkPath;
     this.proxyUrl = props.proxyUrl;
     this.caCert = props.caCert;
@@ -145,14 +146,6 @@ export class EndpointTelemetrySink implements ITelemetrySink {
     url: URL,
     body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
-    // Check connectivity before spawning anything. This is a cache read in the common case: the
-    // notices refresh earlier in the same invocation has already primed it.
-    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
-    if (!hasConnectivity) {
-      await this.ioHelper.defaults.trace('No internet connectivity detected, skipping telemetry');
-      return false;
-    }
-
     if (!this.binCdkPath) {
       await this.ioHelper.defaults.trace('Telemetry not sent: unable to locate the CLI entrypoint to spawn a sender');
       return false;
@@ -197,10 +190,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
       child.stdin?.end(payload);
       child.unref();
 
-      await this.ioHelper.defaults.trace(`Telemetry dispatched to detached sender (pid ${child.pid}, ${payloadBytes} bytes)`);
-      // Retained for backwards compatibility: several integration tests assert on this exact
-      // string. Delivery is now asynchronous, so this reports a successful hand-off.
-      await this.ioHelper.defaults.trace('Telemetry Sent Successfully');
+      await this.ioHelper.defaults.trace(`${DISPATCHED_TRACE} (pid ${child.pid}, ${payloadBytes} bytes)`);
       return true;
     } catch (e: any) {
       await this.ioHelper.defaults.trace(`Telemetry Error: spawning sender for POST ${url.hostname}${url.pathname} failed: ${e.message}`);

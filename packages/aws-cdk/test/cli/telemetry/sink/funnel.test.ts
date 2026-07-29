@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { createTestEvent } from './util';
-import { NetworkDetector } from '../../../../lib/api/network-detector';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
@@ -16,13 +15,6 @@ jest.mock('node:child_process', () => ({
   spawn: jest.fn(),
 }));
 
-// Mock NetworkDetector
-jest.mock('../../../../lib/api/network-detector', () => ({
-  NetworkDetector: {
-    hasConnectivity: jest.fn(),
-  },
-}));
-
 const BIN_CDK = '/fake/pkg/bin/cdk';
 
 describe('Funnel', () => {
@@ -33,9 +25,6 @@ describe('Funnel', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-
-    // Mock NetworkDetector to return true by default for all tests
-    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 
     child = {
       pid: 4242,

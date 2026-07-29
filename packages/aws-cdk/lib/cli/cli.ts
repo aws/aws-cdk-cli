@@ -123,7 +123,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context, { agent: proxyAgent, proxyUrl, caCert });
+    await ioHost.startTelemetry(argv, configuration.context, { proxyUrl, caCert });
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }

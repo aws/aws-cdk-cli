@@ -1,19 +1,12 @@
 import { spawn } from 'node:child_process';
 import * as os from 'node:os';
 import { createTestEvent } from './util';
-import { NetworkDetector } from '../../../../lib/api/network-detector';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
 
 jest.mock('node:child_process', () => ({
   spawn: jest.fn(),
-}));
-
-jest.mock('../../../../lib/api/network-detector', () => ({
-  NetworkDetector: {
-    hasConnectivity: jest.fn(),
-  },
 }));
 
 const BIN_CDK = '/fake/pkg/bin/cdk';
@@ -31,8 +24,6 @@ describe('EndpointTelemetrySink', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-
-    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
 
     child = {
       pid: 4242,
@@ -72,7 +63,6 @@ describe('EndpointTelemetrySink', () => {
       sink();
 
       expect(spawn).not.toHaveBeenCalled();
-      expect(NetworkDetector.hasConnectivity).not.toHaveBeenCalled();
     });
 
     test('does not spawn when there are no events', async () => {
@@ -194,30 +184,14 @@ describe('EndpointTelemetrySink', () => {
   });
 
   describe('failure handling', () => {
-    test('skips and retains events when there is no connectivity', async () => {
-      (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(false);
-      const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
+    test('dispatches without first probing the network', async () => {
+      // Any reachability probe would itself be a network call on the CLI's exit path, which is what
+      // this sink exists to avoid. Offline machines just spawn a child that fails and exits.
       const client = sink();
-
-      await client.emit(testEvent);
-      await client.flush();
-
-      expect(NetworkDetector.hasConnectivity).toHaveBeenCalledWith(undefined);
-      expect(spawn).not.toHaveBeenCalled();
-
-      // Retained, so a later flush can still deliver them.
-      (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
-      await client.flush();
-      expect(pipedPayload().body).toEqual({ events: [testEvent] });
-    });
-
-    test('passes the agent to the connectivity check', async () => {
-      const agent = {} as any;
-      const client = sink({ agent });
       await client.emit(createTestEvent('INVOKE'));
       await client.flush();
 
-      expect(NetworkDetector.hasConnectivity).toHaveBeenCalledWith(agent);
+      expect(spawn).toHaveBeenCalledTimes(1);
     });
 
     test('skips when the CLI entrypoint could not be located', async () => {
@@ -266,10 +240,9 @@ describe('EndpointTelemetrySink', () => {
     await client.emit(createTestEvent('INVOKE'));
     await client.flush();
 
-    expect(traceSpy).toHaveBeenCalledWith(expect.stringContaining('Telemetry dispatched to detached sender'));
-    // Several integration tests assert on this exact string; it must survive the move to a
-    // detached sender.
-    expect(traceSpy).toHaveBeenCalledWith('Telemetry Sent Successfully');
+    // Integration tests match on the 'Telemetry dispatched' prefix, so it must survive refactors.
+    expect(traceSpy).toHaveBeenCalledWith(expect.stringContaining('Telemetry dispatched'));
+    expect(traceSpy).toHaveBeenCalledWith(expect.stringMatching(/^Telemetry dispatched \(pid 4242, \d+ bytes\)$/));
   });
 
   test('flush is called every 30 seconds', async () => {

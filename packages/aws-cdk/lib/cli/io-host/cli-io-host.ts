@@ -1,4 +1,3 @@
-import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -43,16 +42,9 @@ type CliAction =
  *
  * The endpoint sink does not make the request itself -- it hands off to a detached child process
  * that only has Node built-ins available. That child cannot be given an `Agent`, so the proxy and
- * certificate configuration have to travel as plain data alongside it.
+ * certificate configuration have to travel as plain data instead.
  */
 export interface TelemetryNetworkOptions {
-  /**
-   * Agent used for in-process requests, such as the connectivity pre-check.
-   *
-   * @default - Uses the shared global node agent
-   */
-  readonly agent?: Agent;
-
   /**
    * Proxy configured via `--proxy` or the `proxy` setting.
    *
@@ -426,7 +418,6 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       try {
         sinks.push(new EndpointTelemetrySink({
           ioHost: this,
-          agent: network.agent,
           endpoint: telemetryEndpoint,
           binCdkPath: cliBinPath(),
           proxyUrl: network.proxyUrl,

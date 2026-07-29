@@ -9,8 +9,9 @@
 import * as http from 'node:http';
 import * as https from 'node:https';
 import * as net from 'node:net';
+import { Readable } from 'node:stream';
 import { generateTestCa, type TestCa } from './test-tls';
-import { resolveProxy, sendTelemetry } from '../../../lib/cli/telemetry/sender';
+import { readAll, resolveProxy, sendTelemetry } from '../../../lib/cli/telemetry/sender';
 
 jest.setTimeout(30_000);
 
@@ -320,6 +321,62 @@ describe('sender', () => {
 
     test('does not use HTTP_PROXY for an https endpoint', () => {
       expect(resolveProxy('https://example.com/x', { HTTP_PROXY: 'http://corp:8080' })).toBe('');
+    });
+  });
+
+  describe('readAll', () => {
+    test('joins chunks and decodes as UTF-8', async () => {
+      const stream = Readable.from([Buffer.from('{"a":'), Buffer.from('1}')]);
+
+      await expect(readAll(stream, 1024)).resolves.toBe('{"a":1}');
+    });
+
+    test('decodes a multi-byte character split across two chunks', async () => {
+      // '€' is E2 82 AC; feeding it as two chunks would corrupt a naive per-chunk decode.
+      const euro = Buffer.from('€', 'utf-8');
+      const stream = Readable.from([euro.subarray(0, 1), euro.subarray(1)]);
+
+      await expect(readAll(stream, 1024)).resolves.toBe('€');
+    });
+
+    test('measures the cap in bytes, not UTF-16 code units', async () => {
+      // 10 x '€' is 10 UTF-16 code units but 30 bytes. A cap compared against string `.length`
+      // would wave this through at a 20 byte limit; it must not.
+      const payload = Buffer.from('€'.repeat(10), 'utf-8');
+      expect(payload.byteLength).toBe(30);
+
+      await expect(readAll(Readable.from([payload]), 20)).resolves.toBeUndefined();
+      await expect(readAll(Readable.from([payload]), 30)).resolves.toBe('€'.repeat(10));
+    });
+
+    test('gives up once the running total exceeds the cap', async () => {
+      const stream = Readable.from([Buffer.alloc(8, 0x61), Buffer.alloc(8, 0x61)]);
+
+      await expect(readAll(stream, 10)).resolves.toBeUndefined();
+    });
+
+    test('accepts a payload exactly at the cap', async () => {
+      const stream = Readable.from([Buffer.alloc(10, 0x61)]);
+
+      await expect(readAll(stream, 10)).resolves.toBe('a'.repeat(10));
+    });
+
+    test('resolves undefined on a stream error rather than rejecting', async () => {
+      const stream = new Readable({
+        read() {
+          this.destroy(new Error('EPIPE'));
+        },
+      });
+
+      await expect(readAll(stream, 1024)).resolves.toBeUndefined();
+    });
+
+    test('tolerates string chunks', async () => {
+      // Defensive: nothing calls setEncoding today, but a future change must not silently break
+      // the byte accounting.
+      const stream = Readable.from(['hello']);
+
+      await expect(readAll(stream, 1024)).resolves.toBe('hello');
     });
   });
 });
