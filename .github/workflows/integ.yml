@@ -91,6 +91,9 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
+    defaults:
+      run:
+        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download artifact
@@ -213,6 +216,9 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
+    defaults:
+      run:
+        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download artifact
@@ -325,6 +331,9 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
+    defaults:
+      run:
+        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download artifact
@@ -434,6 +443,9 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
+    defaults:
+      run:
+        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download artifact
@@ -557,6 +569,9 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
+    defaults:
+      run:
+        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Download artifact
@@ -654,6 +669,596 @@ jobs:
           - tool-integrations
         node:
           - "20"
+  integ_cli_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --shard="${{ matrix.shard }}/12" --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}-${{ matrix.shard }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - cli-integ-tests
+        node:
+          - lts/*
+        shard:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
+          - 10
+          - 11
+          - 12
+  integ_toolkit-lib_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - toolkit-lib-integ-tests
+        node:
+          - lts/*
+          - "20"
+          - "22"
+          - "24"
+  integ_telemetry_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - telemetry-integ-tests
+        node:
+          - lts/*
+  integ_init-templates_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: init-typescript-app
+            node: "20"
+          - suite: init-typescript-app
+            node: "22"
+          - suite: init-typescript-app
+            node: "24"
+        suite:
+          - init-csharp
+          - init-fsharp
+          - init-go
+          - init-java
+          - init-javascript
+          - init-python
+          - init-typescript-app
+          - init-typescript-lib
+        node:
+          - lts/*
+  integ_tool-integrations_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - tool-integrations
+        node:
+          - "20"
   integ:
     needs:
       - integ_cli
@@ -661,6 +1266,11 @@ jobs:
       - integ_telemetry
       - integ_init-templates
       - integ_tool-integrations
+      - integ_cli_windows
+      - integ_toolkit-lib_windows
+      - integ_telemetry_windows
+      - integ_init-templates_windows
+      - integ_tool-integrations_windows
     runs-on: ubuntu-latest
     permissions: {}
     if: always()
@@ -675,6 +1285,16 @@ jobs:
         run: echo ${{ needs.integ_init-templates.result }}
       - name: integ_tool-integrations result
         run: echo ${{ needs.integ_tool-integrations.result }}
+      - name: integ_cli_windows result
+        run: echo ${{ needs.integ_cli_windows.result }}
+      - name: integ_toolkit-lib_windows result
+        run: echo ${{ needs.integ_toolkit-lib_windows.result }}
+      - name: integ_telemetry_windows result
+        run: echo ${{ needs.integ_telemetry_windows.result }}
+      - name: integ_init-templates_windows result
+        run: echo ${{ needs.integ_init-templates_windows.result }}
+      - name: integ_tool-integrations_windows result
+        run: echo ${{ needs.integ_tool-integrations_windows.result }}
       - name: Set status based on test results
-        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result)) }}
+        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_cli_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations_windows.result)) }}
         run: exit 1
