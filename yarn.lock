@@ -463,14 +463,12 @@ __metadata:
   dependencies:
     "@cdklabs/eslint-plugin": "npm:^2.0.15"
     "@stylistic/eslint-plugin": "npm:^3"
-    "@types/cross-spawn": "npm:^6.0.6"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     constructs: "npm:^10.0.0"
-    cross-spawn: "npm:^7.0.6"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
@@ -3987,15 +3985,6 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/b5dd407040db7d8aa1bd36e79e5f3f32292f6b075abc287529e9f48df1a25fda3e3799ba30b4656667ffb931d3b75690c1d6ca71e39f7337ea6dfda8581916d0
-  languageName: node
-  linkType: hard
-
-"@types/cross-spawn@npm:^6.0.6":
-  version: 6.0.6
-  resolution: "@types/cross-spawn@npm:6.0.6"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/e3d476bb6b3a54a8934a97fe6ee4bd13e2e5eb29073929a4be76a52466602ffaea420b20774ffe8503f9fa24f3ae34817e95e7f625689fb0d1c10404f5b2889c
   languageName: node
   linkType: hard
 

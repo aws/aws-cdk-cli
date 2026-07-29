@@ -10,10 +10,6 @@
       "type": "build"
     },
     {
-      "name": "@types/cross-spawn",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },
@@ -108,11 +104,6 @@
       "name": "typescript",
       "version": "5.9",
       "type": "build"
-    },
-    {
-      "name": "cross-spawn",
-      "version": "^7.0.6",
-      "type": "runtime"
     },
     {
       "name": "fast-glob",
