@@ -199,11 +199,6 @@
       "type": "runtime"
     },
     {
-      "name": "cross-spawn",
-      "version": "^7.0.6",
-      "type": "runtime"
-    },
-    {
       "name": "fast-glob",
       "version": "^3.3.3",
       "type": "runtime"
