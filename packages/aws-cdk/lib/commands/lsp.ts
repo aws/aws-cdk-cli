@@ -1,6 +1,6 @@
 import * as process from 'process';
-import { cdkLspManifest, startLspServer } from '@aws-cdk/cdk-explorer';
 import { versionNumber } from '../cli/version';
+import { cdkLspManifest, startLspServer } from '../private/explorer';
 
 /**
  * Runs the CDK Language Server command.
