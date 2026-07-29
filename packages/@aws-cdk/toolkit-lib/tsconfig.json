@@ -32,7 +32,8 @@
       "jest",
       "jest-when",
       "node",
-      "picomatch"
+      "picomatch",
+      "split2"
     ],
     "incremental": true,
     "skipLibCheck": true,
