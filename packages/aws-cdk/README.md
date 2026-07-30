@@ -1884,24 +1884,32 @@ environment variable `CI=true`. This can be forced by passing the `--ci` flag. B
 sends most of its logs to `stderr`, but when `ci=true` it will send the logs to `stdout` instead.
 When terminal width cannot be detected, `cdk diff` tables render unbounded; set [`COLUMNS`](#environment) to constrain their width.
 
-### Changing the default TypeScript transpiler
+### Changing how TypeScript apps are executed
 
-The ts-node package used to synthesize and deploy CDK apps supports an alternate transpiler that might improve transpile times. The SWC transpiler is written in Rust and has no type checking. The SWC transpiler should be enabled by experienced TypeScript developers.
+The CDK CLI does not run your TypeScript code itself. It executes the command configured
+under the `app` key in `cdk.json` (see [JSON Configuration files](#json-configuration-files))
+and reads the resulting cloud assembly. This means you are free to choose any tool to
+execute your TypeScript app.
 
-To enable the SWC transpiler, install the package in the CDK app.
-
-```sh
-npm i -D @swc/core @swc/helpers regenerator-runtime
-```
-
-And, update the `tsconfig.json` file to add the `ts-node` property.
+Projects created with `cdk init` use [tsx](https://tsx.is/) to execute the app, with a
+separate `tsc` invocation for type checking:
 
 ```json
 {
-  "ts-node": {
-    "swc": true
-  }
+  "app": "npx tsc && npx tsx bin/my-app.ts"
 }
 ```
 
-The documentation may be found at <https://typestrong.org/ts-node/docs/swc/>
+To use a different runner (for example [ts-node](https://typestrong.org/ts-node/), possibly
+with its [SWC integration](https://typestrong.org/ts-node/docs/swc/) for faster transpilation),
+install it as a dev dependency and update the `app` command accordingly:
+
+```json
+{
+  "app": "npx ts-node --prefer-ts-exts bin/my-app.ts"
+}
+```
+
+If synthesis feels slow, the type checking step is usually the biggest contributor. You can
+remove `npx tsc &&` from the `app` command and run type checking separately (e.g. in CI or
+your editor) to speed up iteration.

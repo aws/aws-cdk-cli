@@ -5,7 +5,7 @@ import * as path from 'path';
  * The subset of `cdk.json` the explorer cares about.
  *
  * `app` is the command CDK runs to produce a cloud assembly (e.g.
- * `npx ts-node bin/app.ts`). We need it to invoke `Toolkit.synth()`
+ * `npx tsx bin/app.ts`). We need it to invoke `Toolkit.synth()`
  * via `fromCdkApp`.
  */
 export interface CdkConfig {

@@ -231,6 +231,7 @@ const repoProject = new yarn.Monorepo({
   description: "Monorepo for the AWS CDK's CLI",
   repository: 'https://github.com/aws/aws-cdk-cli',
 
+  runner: pj.typescript.TypeScriptRunner.tsx(),
   defaultReleaseBranch: 'main',
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
@@ -1260,7 +1261,6 @@ const cli = configureProject(
       'jest-mock',
       'nock@13',
       'sinon',
-      'ts-node',
       'ts-mock-imports',
       'tsx',
     ],
@@ -1513,6 +1513,7 @@ const integRunner = configureProject(
       '@types/yargs',
       'constructs@^10',
       '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
+      'ts-node', // integ-runner defaults to ts-node to execute test fixtures
     ],
     tsconfig: {
       compilerOptions: {
