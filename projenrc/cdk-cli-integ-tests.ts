@@ -12,6 +12,29 @@ export function fixupTestTask(project: Project, taskName = 'test'): void {
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
+/**
+ * Tests that build or run Linux Docker images.
+ *
+ * GitHub-hosted Windows runners run Docker in Windows-containers mode and
+ * cannot pull or build Linux images ('no matching manifest for windows/amd64'),
+ * so these tests are skipped on Windows.
+ */
+const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
+  'deploy same docker asset to multiple regions',
+  'deploy same docker asset to multiple stacks',
+  'deploy stack with multiple docker assets',
+  'deploy stack with docker asset',
+  'cdk-assets smoke test',
+  'deploy new style synthesis to new style bootstrap (with docker image)',
+  'Garbage Collection untags in-use ecr images',
+  'Garbage Collection keeps in use ecr images',
+  'Garbage Collection deletes unused ecr images',
+  'Garbage Collection tags unused ecr images',
+  'all calls from isolated container go through proxy',
+  'docker-credential-cdk-assets can assume role and fetch ECR credentials',
+  'toolkit deploy stack with multiple docker assets',
+];
+
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
@@ -596,6 +619,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        ...platform.windows ? {
+          CDK_INTEG_SKIP_TESTS: DOCKER_TESTS_SKIPPED_ON_WINDOWS.join(','),
+        } : {},
         // add extra env at end so it can override
         ...props.extraEnv,
       },
