@@ -687,13 +687,15 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Set up Dev Drive for TEMP
+      - name: Set up Dev Drive for TEMP and npm cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
-          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
           New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
           echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -821,13 +823,15 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Set up Dev Drive for TEMP
+      - name: Set up Dev Drive for TEMP and npm cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
-          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
           New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
           echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -945,13 +949,15 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Set up Dev Drive for TEMP
+      - name: Set up Dev Drive for TEMP and npm cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
-          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
           New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
           echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1066,13 +1072,15 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Set up Dev Drive for TEMP
+      - name: Set up Dev Drive for TEMP and npm cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
-          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
           New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
           echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1201,13 +1209,15 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Set up Dev Drive for TEMP
+      - name: Set up Dev Drive for TEMP and npm cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
-          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
           New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
           echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8

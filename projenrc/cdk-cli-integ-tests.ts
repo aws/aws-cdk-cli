@@ -647,14 +647,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
           // A Dev Drive (ReFS VHDX) is much faster for this pattern. Create one
           // and point TEMP at it, which is where all test fixtures live
           // (the harness creates its working directories under os.tmpdir()).
-          name: 'Set up Dev Drive for TEMP',
+          name: 'Set up Dev Drive for TEMP and npm cache',
           shell: 'powershell',
           run: [
             '$vhd = "C:\\devdrive.vhdx"',
-            '$drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter',
+            '$drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter',
             'New-Item -ItemType Directory -Path "${drive}:\\temp" | Out-Null',
+            'New-Item -ItemType Directory -Path "${drive}:\\npm-cache" | Out-Null',
             'echo "TEMP=${drive}:\\temp" >> $env:GITHUB_ENV',
             'echo "TMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            // Every npm invocation in the job (global installs, per-test installs)
+            // reads and writes the cache, so move it onto the Dev Drive too
+            'echo "npm_config_cache=${drive}:\\npm-cache" >> $env:GITHUB_ENV',
           ].join('\n'),
         }] : [],
         github.WorkflowSteps.downloadArtifact({
