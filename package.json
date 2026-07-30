@@ -48,7 +48,6 @@
     "prettier": "^2.8",
     "projen": "^0.101.20",
     "semver": "^7.8.5",
-    "ts-node": "^10.9.2",
     "tsx": "^4.23.1",
     "typescript": "5.9"
   },

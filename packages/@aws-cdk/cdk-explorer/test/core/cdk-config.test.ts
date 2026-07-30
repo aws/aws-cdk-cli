@@ -19,8 +19,8 @@ function writeCdkJson(dir: string, contents: string): void {
 describe('readCdkConfig', () => {
   test('returns the app command when present', () => {
     withTempDir((dir) => {
-      writeCdkJson(dir, JSON.stringify({ app: 'npx ts-node bin/app.ts' }));
-      expect(readCdkConfig(dir)).toEqual({ app: 'npx ts-node bin/app.ts' });
+      writeCdkJson(dir, JSON.stringify({ app: 'npx tsx bin/app.ts' }));
+      expect(readCdkConfig(dir)).toEqual({ app: 'npx tsx bin/app.ts' });
     });
   });
 

@@ -74,8 +74,17 @@
       "steps": [
         {
           "execArgs": [
-            "ts-node",
-            "--project",
+            "tsc",
+            "--noEmit",
+            "-p",
+            "projenrc/tsconfig.json"
+          ],
+          "name": "typecheck"
+        },
+        {
+          "execArgs": [
+            "tsx",
+            "--tsconfig",
             "projenrc/tsconfig.json",
             ".projenrc.ts"
           ]
