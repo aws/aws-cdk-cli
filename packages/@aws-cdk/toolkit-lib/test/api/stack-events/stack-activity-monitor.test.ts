@@ -494,8 +494,10 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
+        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. ` +
+          'Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment ' +
+          "by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. " +
+          `Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,

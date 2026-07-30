@@ -12,7 +12,7 @@ import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ISourceTracer } from '../source-tracing/private/source-tracing';
 import { PollRange, StackEventPoller } from '../stack-events';
-import { formatHookResultDetails, isFailedHookStatus } from '../stack-events/hook-result-details';
+import { fetchHookResultDetails, formatHookResultDetails, isFailedHookStatus, normalizeHookMessage } from '../stack-events/hook-result-details';
 import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
 import { StackStatus } from '../stack-events/stack-status';
 
@@ -36,6 +36,18 @@ export interface CloudFormationStackDiagnoserProps {
    * level and their information is simply not added to the output.
    */
   readonly additionalExplorationSdkProvider?: SdkProvider;
+
+  /**
+   * Whether to fetch the failure details of hooks that failed resources, via the
+   * `GetHookResult` API, and attach them to the diagnosis.
+   *
+   * During a deployment the activity stream already shows these details live, so
+   * `cdk deploy` leaves this off to avoid repeating them. `cdk diagnose` has no
+   * live stream and enables it.
+   *
+   * @default false
+   */
+  readonly fetchHookFailureDetails?: boolean;
 }
 
 export type SdkProvider = () => Promise<SDK>;
@@ -417,14 +429,12 @@ export class CloudFormationStackDiagnoser {
    */
   private async _hookResultDetails(hook: HookResultSummary): Promise<string | undefined> {
     if (hook.HookResultId) {
-      try {
-        const result = await this.cfn.getHookResult({ HookResultId: hook.HookResultId });
-        const details = formatHookResultDetails(result);
-        if (details) {
-          return details;
-        }
-      } catch (e: any) {
-        await this.props.ioHelper.defaults.debug(`Could not fetch hook result ${hook.HookResultId}: ${e.message}`);
+      const details = await fetchHookResultDetails(this.cfn, hook.HookResultId, {
+        ioHelper: this.props.ioHelper,
+        envResources: this.props.envResources,
+      });
+      if (details) {
+        return details;
       }
     }
     return formatHookResultDetails(hook);
@@ -443,17 +453,53 @@ export class CloudFormationStackDiagnoser {
       : this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const [sourceTrace, additionalContext] = await Promise.all([
+    const [sourceTrace, additionalContext, hookContext] = await Promise.all([
       sourceTracePromise,
       this.investigateResourceBestEffort(err),
+      this.hookFailureContext(err),
     ]);
 
+    const allContext = [...hookContext, ...additionalContext];
     return {
       ...err,
       sourceTrace,
       topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId,
-      ...(additionalContext.length > 0 ? { additionalContext } : {}),
+      ...(allContext.length > 0 ? { additionalContext: allContext } : {}),
     };
+  }
+
+  /**
+   * Fetch the failure details of the hooks that caused the given resource error.
+   *
+   * The resource's own status reason only names the hooks that failed it (e.g.
+   * "The following hook(s) failed: [X]"); the actual failure details live in the
+   * hook results API. Falls back to the hook event's status reason if the fetch
+   * fails or returns no details.
+   *
+   * Only active when `fetchHookFailureDetails` is set (i.e. for `cdk diagnose`);
+   * during a deployment the activity stream already shows these details.
+   */
+  private async hookFailureContext(err: ResourceError): Promise<AdditionalDiagnosticContext[]> {
+    if (!this.props.fetchHookFailureDetails) {
+      return [];
+    }
+    const ret: AdditionalDiagnosticContext[] = [];
+    for (const hook of err.hookFailures ?? []) {
+      let details = hook.hookInvocationId
+        ? await fetchHookResultDetails(this.cfn, hook.hookInvocationId, {
+          ioHelper: this.props.ioHelper,
+          envResources: this.props.envResources,
+        })
+        : undefined;
+      details = details ?? (hook.hookStatusReason ? normalizeHookMessage(hook.hookStatusReason) : undefined);
+      if (details) {
+        ret.push({
+          source: `CloudFormation Hook (${hook.hookType})`,
+          messages: details.split('\n').map((line, i) => i === 0 ? `Hook '${hook.hookType}' failed: ${line}` : line),
+        });
+      }
+    }
+    return ret;
   }
 
   private async investigateResourceBestEffort(err: ResourceError) {

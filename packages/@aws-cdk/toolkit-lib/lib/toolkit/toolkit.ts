@@ -648,6 +648,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ioHelper,
         topLevelStackHierarchicalId: stack.hierarchicalId,
         additionalExplorationSdkProvider: () => Promise.resolve(stackEnv.sdk),
+        fetchHookFailureDetails: true,
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 
