@@ -533,6 +533,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         ? suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
           runsOn: this.props.windowsTestRunsOn!,
           suffix: '_windows',
+          windows: true,
         }))
         : []),
     ];
@@ -618,6 +619,15 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       },
       steps: [
+        ...platform.windows ? [{
+          // Defender's real-time scanning hooks every file write; npm-heavy tests
+          // create tens of thousands of small files, and scanning slows them down
+          // 3-10x. The runner VM is ephemeral and job-isolated, so exclude the
+          // work, tool and temp directories from scanning.
+          name: 'Exclude work directories from Windows Defender',
+          shell: 'powershell',
+          run: 'Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\\npm", "C:\\hostedtoolcache"',
+        }] : [],
         github.WorkflowSteps.downloadArtifact({
           with: {
             artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.packagesArtifact}}`],
@@ -740,4 +750,13 @@ interface PlatformOptions {
    * @default - no suffix
    */
   readonly suffix?: string;
+
+  /**
+   * Whether this job runs on a Windows runner.
+   *
+   * Adds Windows-specific setup steps.
+   *
+   * @default false
+   */
+  readonly windows?: boolean;
 }
