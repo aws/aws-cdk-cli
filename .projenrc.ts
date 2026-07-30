@@ -23,6 +23,7 @@ import { YarnVersion } from './projenrc/yarn-version';
 // #region shared config
 
 const TYPESCRIPT_VERSION = '5.9';
+const DEPENDENCY_COOLDOWN = 3;
 
 /**
  * Global note on customizeReference
@@ -295,7 +296,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   depsUpgradeOptions: {
-    cooldown: 3,
+    cooldown: DEPENDENCY_COOLDOWN,
     workflowOptions: {
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
@@ -1368,6 +1369,7 @@ cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
+  cooldown: DEPENDENCY_COOLDOWN,
   semanticCommit: 'feat',
   pullRequestTitle: 'upgrade aws-cdk-lib',
   target: 'minor',
@@ -1705,9 +1707,9 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
 
-// for PRs resolving security alerts we accept a shorter cooldown
+// for PRs resolving security alerts we accept the shorter standard cooldown
 // given those are normally patch versions on top of already "cold" versions.
-const dependabotSecurityCooldown = 3;
+const dependabotSecurityCooldown = DEPENDENCY_COOLDOWN;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
