@@ -60,11 +60,6 @@ function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string):
     uses: 'aws-actions/configure-aws-credentials@v6',
     with: {
       'aws-region': 'us-east-1',
-      // The Atmosphere OIDC role's MaxSessionDuration is 1 hour; requesting more
-      // fails the assume-role call outright. Tests running past expiry in
-      // long-running (Windows) jobs will fail with 403s; the fix has to come
-      // from a longer MaxSessionDuration on the role or credential refresh in
-      // the Atmosphere client, not from this request.
       'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
       // Expect this in Environment Variables
       'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
