@@ -38,6 +38,16 @@ function makeDiagnoser(topLevelStackHierarchicalId = 'TestStack') {
   });
 }
 
+function makeHookFetchingDiagnoser() {
+  return new CloudFormationStackDiagnoser({
+    sdk,
+    sourceTracer: fakeTracer,
+    ioHelper: ioHost.asHelper('diagnose'),
+    topLevelStackHierarchicalId: 'TestStack',
+    fetchHookFailureDetails: true,
+  });
+}
+
 /**
  * A fake source tracer that records all calls and returns a fixed trace
  */
@@ -702,6 +712,175 @@ describe('CloudFormationStackDiagnoser', () => {
           sourceTrace: { constructPath: 'MyStack/MyFunc/Resource' },
         })],
       });
+    });
+
+    test('enriches a resource error with fetched hook failure details', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'terse reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: 'hook-invocation-1',
+        Status: 'HOOK_COMPLETE_FAILED',
+        Annotations: [{
+          AnnotationName: 'AWS_S3_Bucket_AccessControl',
+          Status: 'FAILED',
+          StatusMessage: 'Check was not compliant.',
+          RemediationMessage: 'AccessControl is deprecated',
+        }],
+      } as any);
+
+      const result = await makeHookFetchingDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+        HookResultId: 'hook-invocation-1',
+      });
+      assertProblem(result);
+      const context = result.problems[0].additionalContext ?? [];
+      expect(context).toEqual([
+        expect.objectContaining({
+          source: 'CloudFormation Hook (Private::Guard::TestHook)',
+          messages: expect.arrayContaining([
+            expect.stringContaining("Hook 'Private::Guard::TestHook' failed"),
+            '[AWS_S3_Bucket_AccessControl]',
+          ]),
+        }),
+      ]);
+    });
+
+    test('does not fetch hook details when fetchHookFailureDetails is off (deploy)', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'terse reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      const result = await makeDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(GetHookResultCommand);
+      assertProblem(result);
+      expect(result.problems[0].additionalContext).toBeUndefined();
+    });
+
+    test('falls back to the hook status reason when GetHookResult returns no details', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'the terse fallback reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      mockCloudFormationClient.on(GetHookResultCommand).rejects(new Error('not authorized'));
+
+      const result = await makeHookFetchingDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      const context = result.problems[0].additionalContext ?? [];
+      expect(context).toEqual([
+        expect.objectContaining({
+          messages: ["Hook 'Private::Guard::TestHook' failed: the terse fallback reason"],
+        }),
+      ]);
     });
   });
 
