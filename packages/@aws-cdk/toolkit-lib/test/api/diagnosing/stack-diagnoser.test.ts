@@ -788,8 +788,8 @@ describe('CloudFormationStackDiagnoser', () => {
       expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
         HookResultId: 'hook-invocation-1',
       });
-      assertProblem(result);
-      const context = result.problems[0].additionalContext ?? [];
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext ?? [];
       expect(context).toEqual([
         expect.objectContaining({
           source: 'CloudFormation Hook (Private::Guard::TestHook)',
@@ -844,8 +844,8 @@ describe('CloudFormationStackDiagnoser', () => {
       });
 
       expect(mockCloudFormationClient).not.toHaveReceivedCommand(GetHookResultCommand);
-      assertProblem(result);
-      expect(result.problems[0].additionalContext).toBeUndefined();
+      const problem = assertProblem(result);
+      expect(problem.problems[0].additionalContext).toBeUndefined();
     });
 
     test('falls back to the hook status reason when GetHookResult returns no details', async () => {
@@ -892,8 +892,8 @@ describe('CloudFormationStackDiagnoser', () => {
         CreationTime: new Date(),
       });
 
-      assertProblem(result);
-      const context = result.problems[0].additionalContext ?? [];
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext ?? [];
       expect(context).toEqual([
         expect.objectContaining({
           messages: ["Hook 'Private::Guard::TestHook' failed: the terse fallback reason"],
