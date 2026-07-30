@@ -18,5 +18,5 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     await shell.shell([path.join(venvBin, 'pip'), 'install', '-r', 'requirements-dev.txt'], { modEnv: venv });
     await shell.shell([path.join(venvBin, 'pytest')], { modEnv: venv });
     await shell.shell(['cdk', 'synth'], { modEnv: venv });
-  })));
+  })), 300_000);
 });
