@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -11,7 +10,6 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
-  waitForChangeSet,
   waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
@@ -23,6 +21,8 @@ import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/dep
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type {
   Template,
   RootTemplateWithNestedStacks,
@@ -508,11 +508,15 @@ export class Deployments {
     stack: cxapi.CloudFormationStackArtifact,
     changeSetName: string,
     stackArn?: string,
-  ): Promise<DescribeChangeSetCommandOutput> {
+  ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stackArn ?? stack.stackName, changeSetName, {
-      fetchAll: true,
+    return new ChangeSetDescriber({
+      cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: stackArn ?? stack.stackName,
+      changeSetNameOrArn: changeSetName,
+    }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
         envResources: env.resources,

@@ -43,6 +43,13 @@ export function allBut(exclude: string[]): string[] {
 }
 
 /**
+ * Only the given regions, restricted to the ones atmosphere can hand out
+ */
+export function only(include: string[]): string[] {
+  return Array.from(new Set(ALL_REGIONS.filter((r) => include.includes(r))));
+}
+
+/**
  * Regions that don't support CloudFormation Stack Refactoring
  */
 export const STACK_REFACTORING_REGIONS = allBut([
@@ -65,4 +72,16 @@ export const BEDROCK_AGENT_REGIONS = allBut([
   'il-central-1',
   'mx-central-1',
   'us-west-1',
+]);
+
+/**
+ * Regions that support AWS::QBusiness resources
+ *
+ * Listed rather than excluded, because Amazon Q Business exists in only a handful of regions.
+ */
+export const QBUSINESS_REGIONS = only([
+  'us-east-1',
+  'us-west-2',
+  'eu-west-1',
+  'ap-southeast-2',
 ]);

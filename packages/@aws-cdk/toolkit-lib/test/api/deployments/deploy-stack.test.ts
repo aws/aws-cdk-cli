@@ -351,6 +351,25 @@ test('execute-change-set throws if change set is not ready', async () => {
     Stacks: [{ ...baseResponse }],
   });
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+    Status: 'CREATE_IN_PROGRESS',
+    StatusReason: 'doing stuff',
+  });
+
+  // WHEN/THEN
+  await expect(
+    testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+    }),
+  ).rejects.toThrow('still being created');
+});
+
+test('execute-change-set throws if change set failed', async () => {
+  // GIVEN
+  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+    Stacks: [{ ...baseResponse }],
+  });
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'FAILED',
     StatusReason: 'some reason',
   });
@@ -361,7 +380,7 @@ test('execute-change-set throws if change set is not ready', async () => {
       ...standardDeployStackArguments(),
       deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
     }),
-  ).rejects.toThrow('not ready for execution');
+  ).rejects.toThrow('Failed to create change set');
 });
 
 test('call UpdateStack when method=direct and the stack exists already', async () => {
@@ -825,7 +844,7 @@ test('deployStack reports no change if describeChangeSet returns an error that i
 });
 
 test('deployStack throws error in case of early validation failures', async () => {
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     ChangeSetName: 'cdk-deploy-change-set',
     Status: ChangeSetStatus.FAILED,
     StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
@@ -849,7 +868,7 @@ test('deployStack throws error in case of early validation failures', async () =
 });
 
 test('deployStack warns when it cannot get the events in case of early validation errors', async () => {
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     ChangeSetName: 'cdk-deploy-change-set',
     Status: ChangeSetStatus.FAILED,
     StatusReason: '(AWS::EarlyValidation::SomeError). Blah blah blah.',
@@ -867,7 +886,7 @@ test('deployStack warns when it cannot get the events in case of early validatio
 });
 
 test('even if ChangeSet error does not match pattern, DescribeEvents is called', async () => {
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolvesOnce({
+  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     ChangeSetName: 'cdk-deploy-change-set',
     Status: ChangeSetStatus.FAILED,
     StatusReason: 'Something somewhere went wrong, cannot be more specific than that.',
@@ -1597,7 +1616,7 @@ describe('execute-change-set deployment method', () => {
     expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
   });
 
-  test('throws when change set is not in CREATE_COMPLETE status', async () => {
+  test('reports the diagnosis when change set failed to create', async () => {
     // GIVEN
     givenStackExists();
     givenChangeSetExists({
@@ -1612,7 +1631,7 @@ describe('execute-change-set deployment method', () => {
         ...standardDeployStackArguments(),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
       }),
-    ).rejects.toThrow(/not ready for execution.*FAILED.*Something went wrong/);
+    ).rejects.toThrow(/Failed to create change set my-change-set[\s\S]*Something went wrong/);
   });
 
   test('throws when change set is in CREATE_PENDING status', async () => {
@@ -1623,13 +1642,13 @@ describe('execute-change-set deployment method', () => {
       ChangeSetName: 'my-change-set',
     });
 
-    // THEN
+    // THEN - we report that it hasn't settled rather than waiting for it
     await expect(
       testDeployStack({
         ...standardDeployStackArguments(),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
       }),
-    ).rejects.toThrow(/not ready for execution.*CREATE_PENDING/);
+    ).rejects.toThrow(/still being created.*CREATE_PENDING/);
   });
 
   test('throws without reason when status reason is absent', async () => {
@@ -1646,7 +1665,7 @@ describe('execute-change-set deployment method', () => {
         ...standardDeployStackArguments(),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
       }),
-    ).rejects.toThrow(/not ready for execution.*DELETE_COMPLETE(?!.*:)/);
+    ).rejects.toThrow(/cannot be executed \(DELETE_COMPLETE\)$/);
   });
 
   test('returns replacement-requires-rollback when change set has replacement and rollback is disabled', async () => {

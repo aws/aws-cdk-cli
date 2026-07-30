@@ -654,7 +654,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const ret: DiagnosedStack = {
         stackName: stack.stackName,
         hierarchicalId: stack.hierarchicalId,
-        result: diagnosis,
+        result: diagnosis.result,
       };
 
       await this.ioHost.notify({
@@ -733,12 +733,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           stack,
           parameters: {},
           uuid: randomUUID(),
-          willExecute: false,
           failOnError: true,
         });
 
-        if (report.diagnosis.type === 'problem') {
-          for (const problem of report.diagnosis.problems) {
+        const diagnosis = report.diagnosis.result;
+        if (diagnosis.type === 'problem') {
+          for (const problem of diagnosis.problems) {
             violations.push({
               ruleName: problem.errorCode ?? 'CloudFormationValidation',
               description: problem.message.replace(/\s*\(at\s+\/Resources\/[^)]+\)\s*$/, ''),
@@ -920,7 +920,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       if (!prepareResult?.noOp) {
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)
+          ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)).changeSet
           : prepareResult?.changeSet;
 
         const formatter = new DiffFormatter({
