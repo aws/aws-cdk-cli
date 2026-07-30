@@ -48,11 +48,18 @@ export class Process {
    * Spawn a process with a TTY attached.
    */
   public static spawnTTY(command: string, args: string[], options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {}): IProcess {
-    const process = pty.spawn(command, args, {
+    // ConPTY resolves the spawned file with SearchPath, which only finds real
+    // executables — not the .cmd shims npm creates for CLI entrypoints. Route
+    // the command through the shell, like Process.spawn does with 'shell: true'.
+    if (process.platform === 'win32') {
+      args = ['/c', command, ...args];
+      command = process.env.ComSpec ?? 'cmd.exe';
+    }
+    const ptyProcess = pty.spawn(command, args, {
       name: 'xterm-color',
       ...options,
     });
-    return new PtyProcess(process);
+    return new PtyProcess(ptyProcess);
   }
 
   /**
