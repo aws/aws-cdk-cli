@@ -310,13 +310,13 @@ export function rimraf(fsPath: string): boolean {
 }
 
 export function addToShellPath(x: string) {
-  const parts = process.env.PATH?.split(':') ?? [];
+  const parts = process.env.PATH?.split(path.delimiter) ?? [];
 
   if (!parts.includes(x)) {
     parts.unshift(x);
   }
 
-  process.env.PATH = parts.join(':');
+  process.env.PATH = parts.join(path.delimiter);
 }
 
 /**

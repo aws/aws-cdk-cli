@@ -13,7 +13,7 @@ import type { ITestCliSource, ITestLibrarySource } from './package-sources/sourc
 import { testSource } from './package-sources/subprocess';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
-import { shell, ShellHelper, rimraf } from './shell';
+import { ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
@@ -279,9 +279,10 @@ export interface CdkDestroyCliOptions extends CdkCliOptions {
  * Prepare a target dir byreplicating a source directory
  */
 export async function cloneDirectory(source: string, target: string, output?: NodeJS.WritableStream) {
-  await shell(['rm', '-rf', target], { outputs: output ? [output] : [] });
-  await shell(['mkdir', '-p', target], { outputs: output ? [output] : [] });
-  await shell(['cp', '-R', source + '/*', target], { outputs: output ? [output] : [] });
+  output?.write(`Cloning ${source} into ${target}\n`);
+  await fs.promises.rm(target, { recursive: true, force: true });
+  await fs.promises.mkdir(target, { recursive: true });
+  await fs.promises.cp(source, target, { recursive: true });
 }
 
 interface CommonCdkBootstrapCommandOptions {
