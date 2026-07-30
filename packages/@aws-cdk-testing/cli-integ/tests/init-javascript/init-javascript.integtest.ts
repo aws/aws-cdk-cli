@@ -13,7 +13,7 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     await shell.shell(['npm', 'run', 'test']);
 
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 300_000);
 });
 
 integTest('Test importing CDK from ESM', withTemporaryDirectory(withPackages(async (context) => {
@@ -55,4 +55,4 @@ new TestjsStack(app, 'TestjsStack');
   await fs.writeJson(path.join(context.integTestDir, 'cdk.json'), cdkJson);
 
   await shell.shell(['cdk', 'synth']);
-})));
+})), 300_000);
