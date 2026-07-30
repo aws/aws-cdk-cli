@@ -681,7 +681,7 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CDK_INTEG_SKIP_TESTS: deploy same docker asset to multiple regions,deploy same docker asset to multiple stacks,deploy stack with multiple docker assets,deploy stack with docker asset,cdk-assets smoke test,deploy new style synthesis to new style bootstrap (with docker image),Garbage Collection untags in-use ecr images,Garbage Collection keeps in use ecr images,Garbage Collection deletes unused ecr images,Garbage Collection tags unused ecr images,all calls from isolated container go through proxy,docker-credential-cdk-assets can assume role and fetch ECR credentials,toolkit deploy stack with multiple docker assets,CDK synth bundled functions as expected,CDK synth add the metadata properties expected by sam,can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles,generating and loading assembly
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
         shell: bash
@@ -697,6 +697,29 @@ jobs:
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
+      - name: Write Windows skip-tests file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -817,7 +840,7 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CDK_INTEG_SKIP_TESTS: deploy same docker asset to multiple regions,deploy same docker asset to multiple stacks,deploy stack with multiple docker assets,deploy stack with docker asset,cdk-assets smoke test,deploy new style synthesis to new style bootstrap (with docker image),Garbage Collection untags in-use ecr images,Garbage Collection keeps in use ecr images,Garbage Collection deletes unused ecr images,Garbage Collection tags unused ecr images,all calls from isolated container go through proxy,docker-credential-cdk-assets can assume role and fetch ECR credentials,toolkit deploy stack with multiple docker assets,CDK synth bundled functions as expected,CDK synth add the metadata properties expected by sam,can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles,generating and loading assembly
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
         shell: bash
@@ -833,6 +856,29 @@ jobs:
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
+      - name: Write Windows skip-tests file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -943,7 +989,7 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CDK_INTEG_SKIP_TESTS: deploy same docker asset to multiple regions,deploy same docker asset to multiple stacks,deploy stack with multiple docker assets,deploy stack with docker asset,cdk-assets smoke test,deploy new style synthesis to new style bootstrap (with docker image),Garbage Collection untags in-use ecr images,Garbage Collection keeps in use ecr images,Garbage Collection deletes unused ecr images,Garbage Collection tags unused ecr images,all calls from isolated container go through proxy,docker-credential-cdk-assets can assume role and fetch ECR credentials,toolkit deploy stack with multiple docker assets,CDK synth bundled functions as expected,CDK synth add the metadata properties expected by sam,can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles,generating and loading assembly
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
         shell: bash
@@ -959,6 +1005,29 @@ jobs:
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
+      - name: Write Windows skip-tests file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1066,7 +1135,7 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CDK_INTEG_SKIP_TESTS: deploy same docker asset to multiple regions,deploy same docker asset to multiple stacks,deploy stack with multiple docker assets,deploy stack with docker asset,cdk-assets smoke test,deploy new style synthesis to new style bootstrap (with docker image),Garbage Collection untags in-use ecr images,Garbage Collection keeps in use ecr images,Garbage Collection deletes unused ecr images,Garbage Collection tags unused ecr images,all calls from isolated container go through proxy,docker-credential-cdk-assets can assume role and fetch ECR credentials,toolkit deploy stack with multiple docker assets,CDK synth bundled functions as expected,CDK synth add the metadata properties expected by sam,can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles,generating and loading assembly
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
         shell: bash
@@ -1082,6 +1151,29 @@ jobs:
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
+      - name: Write Windows skip-tests file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1203,7 +1295,7 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      CDK_INTEG_SKIP_TESTS: deploy same docker asset to multiple regions,deploy same docker asset to multiple stacks,deploy stack with multiple docker assets,deploy stack with docker asset,cdk-assets smoke test,deploy new style synthesis to new style bootstrap (with docker image),Garbage Collection untags in-use ecr images,Garbage Collection keeps in use ecr images,Garbage Collection deletes unused ecr images,Garbage Collection tags unused ecr images,all calls from isolated container go through proxy,docker-credential-cdk-assets can assume role and fetch ECR credentials,toolkit deploy stack with multiple docker assets,CDK synth bundled functions as expected,CDK synth add the metadata properties expected by sam,can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles,generating and loading assembly
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
         shell: bash
@@ -1219,6 +1311,29 @@ jobs:
           echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
+      - name: Write Windows skip-tests file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:

@@ -40,6 +40,8 @@ const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'CDK synth add the metadata properties expected by sam',
   'can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles',
   'generating and loading assembly',
+  'test resource import with construct that requires bundling',
+  'hotswap deployment supports Bedrock AgentCore Runtime',
 ];
 
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
@@ -627,7 +629,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
         IS_CANARY: 'true',
         CI: 'true',
         ...platform.windows ? {
-          CDK_INTEG_SKIP_TESTS: DOCKER_TESTS_SKIPPED_ON_WINDOWS.join(','),
+          // The skip file is newline-separated; the CDK_INTEG_SKIP_TESTS
+          // environment variable is comma-separated and cannot express
+          // test names that contain commas.
+          CDK_INTEG_SKIP_TESTS_FILE: '${{ github.workspace }}\\windows-skip-tests.txt',
         } : {},
         // add extra env at end so it can override
         ...props.extraEnv,
@@ -666,6 +671,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
             // Every npm invocation in the job (global installs, per-test installs)
             // reads and writes the cache, so move it onto the Dev Drive too
             'echo "npm_config_cache=${drive}:\\npm-cache" >> $env:GITHUB_ENV',
+          ].join('\n'),
+        }, {
+          name: 'Write Windows skip-tests file',
+          run: [
+            'cat > windows-skip-tests.txt << \'EOF\'',
+            ...DOCKER_TESTS_SKIPPED_ON_WINDOWS,
+            'EOF',
           ].join('\n'),
         }] : [],
         github.WorkflowSteps.downloadArtifact({
