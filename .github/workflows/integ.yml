@@ -686,6 +686,9 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
+      - name: Exclude work directories from Windows Defender
+        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+        shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -811,6 +814,9 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
+      - name: Exclude work directories from Windows Defender
+        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+        shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -926,6 +932,9 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
+      - name: Exclude work directories from Windows Defender
+        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+        shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1038,6 +1047,9 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
+      - name: Exclude work directories from Windows Defender
+        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+        shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1164,6 +1176,9 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
+      - name: Exclude work directories from Windows Defender
+        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+        shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
