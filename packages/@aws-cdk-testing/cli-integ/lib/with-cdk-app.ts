@@ -506,32 +506,36 @@ export class TestFixture extends ShellHelper {
     const tokenResponse = await this.aws.ecrPublic.send(new GetAuthorizationTokenCommand({}));
     const authData = tokenResponse.authorizationData?.authorizationToken;
 
-    const docker = process.env.CDK_DOCKER ?? 'docker';
-
     if (!authData) {
       throw new Error('Could not retrieve ECR public auth token.');
     }
+
+    if (process.platform === 'win32') {
+      // `docker login` on Windows stores credentials through the wincred credential
+      // helper (auto-detected even if `credsStore` is empty in the config file), and
+      // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
+      // 2560-byte limit ('The stub received bad data'). Write the auth directly into
+      // the per-test Docker config file instead, which is exactly what `docker login`
+      // produces on the Linux runners, where no credential helper is installed.
+      // The plaintext `auths` entry takes precedence over any credential helper.
+      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(this.dockerConfigDir, 'config.json'),
+        JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
+      );
+      return;
+    }
+
+    const docker = process.env.CDK_DOCKER ?? 'docker';
 
     const decoded = Buffer.from(authData, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
 
     // Reference the password via an environment variable so it doesn't leak into
-    // process listings. The expansion syntax depends on the shell interpreting it
-    // (cmd.exe on Windows, /bin/sh elsewhere).
-    const passwordRef = process.platform === 'win32' ? '%ECR_PASSWORD%' : '${ECR_PASSWORD}';
-
-    // On Windows, Docker defaults to the 'wincred' credential helper, which fails
-    // under concurrent logins from parallel tests ('The stub received bad data').
-    // Disable it so credentials are stored in the per-test config file, matching
-    // the behavior on Linux runners (which have no credential helper installed).
-    if (process.platform === 'win32') {
-      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
-      await fs.promises.writeFile(path.join(this.dockerConfigDir, 'config.json'), JSON.stringify({ credsStore: '' }));
-    }
-
+    // process listings; the shell expands it.
     await this.shell([docker, 'login',
       '--username', username,
-      '--password', passwordRef,
+      '--password', '${ECR_PASSWORD}',
       'public.ecr.aws'], {
       shell: true,
       modEnv: {
