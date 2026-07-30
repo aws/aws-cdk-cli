@@ -5431,6 +5431,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-cdk-lib@npm:2.262.2":
+  version: 2.262.2
+  resolution: "aws-cdk-lib@npm:2.262.2"
+  dependencies:
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
+    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
+    "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
+    "@aws/cloudformation-validate": "npm:1.5.1-beta"
+    "@balena/dockerignore": "npm:^1.0.2"
+    case: "npm:1.6.3"
+    fs-extra: "npm:^11.3.6"
+    ignore: "npm:^5.3.2"
+    jsonschema: "npm:^1.5.0"
+    mime-types: "npm:^2.1.35"
+    minimatch: "npm:^10.2.5"
+    punycode: "npm:^2.3.1"
+    semver: "npm:^7.8.5"
+    yaml: "npm:1.10.3"
+  peerDependencies:
+    constructs: ^10.5.0
+  checksum: 10c0/428cff3c14f912c2b9732262bcef5f77a1a41d1ab50cf2d0dc4af28fcf490c7767abe1e3e3d0d53edc1b9d5b3b642e3e2ae6f92b3acc595ec01d5a6fa0b9f908
+  languageName: node
+  linkType: hard
+
 "aws-cdk@npm:^0.0.0, aws-cdk@workspace:packages/aws-cdk":
   version: 0.0.0-use.local
   resolution: "aws-cdk@workspace:packages/aws-cdk"
@@ -5488,7 +5513,7 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.262.1"
+    aws-cdk-lib: "npm:2.262.2"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
