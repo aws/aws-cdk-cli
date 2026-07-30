@@ -520,6 +520,15 @@ export class TestFixture extends ShellHelper {
     // (cmd.exe on Windows, /bin/sh elsewhere).
     const passwordRef = process.platform === 'win32' ? '%ECR_PASSWORD%' : '${ECR_PASSWORD}';
 
+    // On Windows, Docker defaults to the 'wincred' credential helper, which fails
+    // under concurrent logins from parallel tests ('The stub received bad data').
+    // Disable it so credentials are stored in the per-test config file, matching
+    // the behavior on Linux runners (which have no credential helper installed).
+    if (process.platform === 'win32') {
+      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
+      await fs.promises.writeFile(path.join(this.dockerConfigDir, 'config.json'), JSON.stringify({ credsStore: '' }));
+    }
+
     await this.shell([docker, 'login',
       '--username', username,
       '--password', passwordRef,
