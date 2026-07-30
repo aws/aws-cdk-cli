@@ -1369,7 +1369,7 @@ cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
-  cooldown: DEPENDENCY_COOLDOWN,
+  cooldown: 1, // we trust aws-cdk-lib (it's us!) more than other deps, but 1 day wait time is still a good idea
   semanticCommit: 'feat',
   pullRequestTitle: 'upgrade aws-cdk-lib',
   target: 'minor',
