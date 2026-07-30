@@ -740,7 +740,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
-          role-duration-seconds: 3600
+          role-duration-seconds: 14400
           role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
@@ -876,7 +876,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
-          role-duration-seconds: 3600
+          role-duration-seconds: 14400
           role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
@@ -1002,7 +1002,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
-          role-duration-seconds: 3600
+          role-duration-seconds: 14400
           role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
@@ -1125,7 +1125,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
-          role-duration-seconds: 3600
+          role-duration-seconds: 14400
           role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
@@ -1262,7 +1262,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
-          role-duration-seconds: 3600
+          role-duration-seconds: 14400
           role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
