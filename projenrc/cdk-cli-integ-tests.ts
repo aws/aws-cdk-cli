@@ -33,6 +33,13 @@ const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'all calls from isolated container go through proxy',
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
   'toolkit deploy stack with multiple docker assets',
+  // These do not have 'docker' in the name, but build Linux images as a side
+  // effect: python lambda bundling, SAM asset bundling, a DockerImageAsset in
+  // the fixture stack, and a docker-app deploy from a copied assembly.
+  'CDK synth bundled functions as expected',
+  'CDK synth add the metadata properties expected by sam',
+  'can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles',
+  'generating and loading assembly',
 ];
 
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
