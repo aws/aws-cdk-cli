@@ -642,13 +642,20 @@ export class CdkCliIntegTestsWorkflow extends Component {
       },
       steps: [
         ...platform.windows ? [{
-          // Defender's real-time scanning hooks every file write; npm-heavy tests
-          // create tens of thousands of small files, and scanning slows them down
-          // 3-10x. The runner VM is ephemeral and job-isolated, so exclude the
-          // work, tool and temp directories from scanning.
-          name: 'Exclude work directories from Windows Defender',
+          // The integ tests are dominated by npm installs and toolchain builds:
+          // many small file writes, which are slow on the runner's NTFS OS disk.
+          // A Dev Drive (ReFS VHDX) is much faster for this pattern. Create one
+          // and point TEMP at it, which is where all test fixtures live
+          // (the harness creates its working directories under os.tmpdir()).
+          name: 'Set up Dev Drive for TEMP',
           shell: 'powershell',
-          run: 'Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\\npm", "C:\\hostedtoolcache"',
+          run: [
+            '$vhd = "C:\\devdrive.vhdx"',
+            '$drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter',
+            'New-Item -ItemType Directory -Path "${drive}:\\temp" | Out-Null',
+            'echo "TEMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            'echo "TMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+          ].join('\n'),
         }] : [],
         github.WorkflowSteps.downloadArtifact({
           with: {

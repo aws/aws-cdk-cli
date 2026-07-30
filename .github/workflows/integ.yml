@@ -687,8 +687,13 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Exclude work directories from Windows Defender
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+      - name: Set up Dev Drive for TEMP
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -816,8 +821,13 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Exclude work directories from Windows Defender
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+      - name: Set up Dev Drive for TEMP
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -935,8 +945,13 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Exclude work directories from Windows Defender
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+      - name: Set up Dev Drive for TEMP
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1051,8 +1066,13 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Exclude work directories from Windows Defender
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+      - name: Set up Dev Drive for TEMP
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1181,8 +1201,13 @@ jobs:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Exclude work directories from Windows Defender
-        run: Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE", "$env:TEMP", "$env:USERPROFILE", "C:\npm", "C:\hostedtoolcache"
+      - name: Set up Dev Drive for TEMP
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 20GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
         shell: powershell
       - name: Download artifact
         uses: actions/download-artifact@v8
