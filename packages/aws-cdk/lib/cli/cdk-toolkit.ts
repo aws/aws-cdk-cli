@@ -356,7 +356,7 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
@@ -435,7 +435,6 @@ export class CdkToolkit {
       stack,
       uuid: randomUUID(),
       deployments: this.props.deployments,
-      willExecute: false,
       sdkProvider: this.props.sdkProvider,
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       resourcesToImport,

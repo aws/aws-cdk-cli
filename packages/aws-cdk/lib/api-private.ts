@@ -2,6 +2,9 @@
 export { deployStack } from '../../@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 export type { DeployStackOptions as DeployStackApiOptions, DestroyStackResult } from '../../@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
 export * as cfnApi from '../../@aws-cdk/toolkit-lib/lib/api/deployments/cfn-api';
+export { ChangeSetDescriber } from '../../@aws-cdk/toolkit-lib/lib/api/change-sets';
+export { Diagnosis } from '../../@aws-cdk/toolkit-lib/lib/api/diagnosing/diagnosis';
+export type { ChangeSetReport } from '../../@aws-cdk/toolkit-lib/lib/api/change-sets';
 export { createIgnoreMatcher } from '../../@aws-cdk/toolkit-lib/lib/util/glob-matcher';
 export { formatExpressStabilizationWarning } from '../../@aws-cdk/toolkit-lib/lib/util/cfn-express';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/io/private';

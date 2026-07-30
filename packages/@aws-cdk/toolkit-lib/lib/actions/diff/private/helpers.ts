@@ -5,6 +5,7 @@ import * as fs from 'fs-extra';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
 import type { SdkProvider } from '../../../api/aws-auth/private';
+import { ChangeSetDescriber } from '../../../api/change-sets';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
 import type { NestedStackTemplates } from '../../../api/cloudformation';
 import type { Deployments } from '../../../api/deployments';
@@ -89,7 +90,7 @@ async function cfnDiff(
       removeNonImportResources(stack);
     }
 
-    const changeSet = includeChangeSet ? await cfnApi.createDiffChangeSet(ioHelper, {
+    const changeSet = includeChangeSet ? (await cfnApi.createDiffChangeSet(ioHelper, {
       deployments,
       stack,
       sdkProvider,
@@ -98,13 +99,12 @@ async function cfnDiff(
       failOnError: !(methodOptions.fallbackToTemplate ?? true),
       importExistingResources: methodOptions.importExistingResources,
       uuid: randomUUID(),
-      willExecute: false,
-    }) : undefined;
+    }))?.changeSet : undefined;
 
     // If the changeset includes nested stacks, describe each nested changeset
     // and attach it to the corresponding entry in nestedStacks.
     if (changeSet) {
-      await attachNestedChangeSetData(deployments, stack, changeSet, nestedStacks);
+      await attachNestedChangeSetData(ioHelper, deployments, stack, changeSet, nestedStacks);
     }
 
     const mappings = allMappings.find(m =>
@@ -130,6 +130,7 @@ async function cfnDiff(
  * attach it to the matching entry in the nestedStacks map.
  */
 async function attachNestedChangeSetData(
+  ioHelper: IoHelper,
   deployments: Deployments,
   stack: cxapi.CloudFormationStackArtifact,
   rootChangeSet: DescribeChangeSetCommandOutput,
@@ -149,10 +150,12 @@ async function attachNestedChangeSetData(
       continue;
     }
 
-    const nestedChangeSet = await cfn.describeChangeSet({
-      ChangeSetName: rc.ChangeSetId,
-      StackName: rc.PhysicalResourceId ?? rc.LogicalResourceId,
-    });
+    const nestedChangeSet = await new ChangeSetDescriber({
+      cfn,
+      ioHelper,
+      stackNameOrArn: rc.PhysicalResourceId ?? rc.LogicalResourceId,
+      changeSetNameOrArn: rc.ChangeSetId,
+    }).waitForSettled();
 
     // Replace the entry with one that includes the changeset
     (nestedStacks as any)[rc.LogicalResourceId] = {
@@ -162,7 +165,7 @@ async function attachNestedChangeSetData(
 
     // Recurse into deeper nesting levels
     if (nestedChangeSet && Object.keys(nested.nestedStackTemplates).length > 0) {
-      await attachNestedChangeSetData(deployments, stack, nestedChangeSet, nested.nestedStackTemplates);
+      await attachNestedChangeSetData(ioHelper, deployments, stack, nestedChangeSet, nested.nestedStackTemplates);
     }
   }
 }

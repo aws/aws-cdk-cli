@@ -6,6 +6,7 @@ import { DiffMethod } from '../../lib/actions/diff';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
+import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
 import { mockCloudFormationClient, mockSSMClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
@@ -405,15 +406,18 @@ describe('diff', () => {
       // Setup mock BEFORE calling the function
       const createDiffChangeSetMock = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
         return {
-          $metadata: {},
-          Changes: [
-            {
-              ResourceChange: {
-                Action: 'Import',
-                LogicalResourceId: 'MyBucketF68F3FF0',
+          changeSet: {
+            $metadata: {},
+            Changes: [
+              {
+                ResourceChange: {
+                  Action: 'Import',
+                  LogicalResourceId: 'MyBucketF68F3FF0',
+                },
               },
-            },
-          ],
+            ],
+          },
+          diagnosis: Diagnosis.noProblem(),
         };
       });
 
@@ -516,6 +520,81 @@ describe('diff', () => {
       const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
       expect(describeCalls.length).toBeGreaterThan(0);
       expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
+    });
+
+    test('ChangeSet diff keeps changes that CloudFormation drops from the IncludePropertyValues description (issue #1780)', async () => {
+      // GIVEN - an existing stack whose deployed template differs from the new template
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+        deployedRootTemplate: {
+          Resources: {
+            MyBucketF68F3FF0: {
+              Type: 'AWS::S3::Bucket',
+              Properties: { BucketName: 'old-name' },
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          },
+        },
+        nestedStacks: [] as any,
+      });
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+        Stacks: [{ StackName: 'Stack1', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+      });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+
+      // CloudFormation drops the ResourceChange from the IncludePropertyValues response...
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({
+        Status: 'CREATE_COMPLETE',
+        StatusReason: '[WARN] --include-property-values option can return incomplete ChangeSet data because: Logical Id: MyBucketF68F3FF0, failed property validation',
+        Changes: [],
+      });
+      // ...while the plain response still reports the change
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'MyBucketF68F3FF0',
+              ResourceType: 'AWS::S3::Bucket',
+              Replacement: 'True',
+              Scope: ['Properties'],
+              Details: [{
+                Target: { Attribute: 'Properties', Name: 'BucketName', RequiresRecreation: 'Always' },
+                Evaluation: 'Static',
+                ChangeSource: 'DirectModification',
+              }],
+            },
+          },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the change set was described both with and without property values
+      const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === false)).toBe(true);
+
+      // THEN - the property change is not erased from the diff
+      const bucketChange = result.Stack1.resources.get('MyBucketF68F3FF0');
+      expect(bucketChange.isDifferent).toBe(true);
+      expect(bucketChange.propertyUpdates.BucketName.isDifferent).toBe(true);
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'result',
+        code: 'CDK_TOOLKIT_I4001',
+        message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      }));
     });
 
     test('ChangeSet diff treats DELETE_IN_PROGRESS stack as non-existent', async () => {

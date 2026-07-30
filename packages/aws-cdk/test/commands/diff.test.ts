@@ -3,11 +3,10 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from '../../lib/api';
 import { Deployments } from '../../lib/api';
-import type { IoHelper } from '../../lib/api-private';
-import { cfnApi } from '../../lib/api-private';
+import type { ChangeSetReport, IoHelper } from '../../lib/api-private';
+import { ChangeSetDescriber, cfnApi, Diagnosis } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
@@ -117,7 +116,7 @@ describe('fixed template', () => {
 
 describe('import existing resources', () => {
   let createDiffChangeSet: jest.SpyInstance<
-    Promise<DescribeChangeSetCommandOutput | undefined>,
+    Promise<ChangeSetReport | undefined>,
     [ioHelper: IoHelper, options: cfnApi.PrepareChangeSetOptions],
     any
   >;
@@ -173,15 +172,18 @@ describe('import existing resources', () => {
   test('import action in change set output', async () => {
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -211,15 +213,18 @@ Resources
   test('import action in change set output when not using --import-exsting-resources', async () => {
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Add',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -250,15 +255,18 @@ Resources
     // WHEN
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Add',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -311,7 +319,7 @@ Resources
 
 describe('imports', () => {
   let createDiffChangeSet: jest.SpyInstance<
-    Promise<DescribeChangeSetCommandOutput | undefined>,
+    Promise<ChangeSetReport | undefined>,
     [ioHelper: IoHelper, options: cfnApi.PrepareChangeSetOptions],
     any
   >;
@@ -325,27 +333,30 @@ describe('imports', () => {
     fs.writeFileSync('migrate.json', JSON.stringify(outputToJson, null, 2));
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Queue',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Queue',
+              },
             },
-          },
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Bucket',
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Bucket',
+              },
             },
-          },
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Queue2',
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Queue2',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
     cloudExecutable = await MockCloudExecutable.create({
@@ -1147,7 +1158,7 @@ There were no differences`);
 
   test('diff falls back to non-changeset diff for nested stacks', async () => {
     // GIVEN
-    const changeSetSpy = jest.spyOn(cfnApi, 'waitForChangeSet');
+    const changeSetSpy = jest.spyOn(ChangeSetDescriber.prototype, 'waitAndThrowOnProblem');
 
     // WHEN
     const exitCode = await toolkit.diff({
