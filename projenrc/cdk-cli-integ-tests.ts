@@ -53,14 +53,19 @@ function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   };
 }
 
-function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string, durationSeconds?: number): github.workflows.JobStep {
+function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string): github.workflows.JobStep {
   return {
     name: 'Authenticate Via OIDC Role',
     id: 'creds',
     uses: 'aws-actions/configure-aws-credentials@v6',
     with: {
       'aws-region': 'us-east-1',
-      'role-duration-seconds': durationSeconds ?? (props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60),
+      // The Atmosphere OIDC role's MaxSessionDuration is 1 hour; requesting more
+      // fails the assume-role call outright. Tests running past expiry in
+      // long-running (Windows) jobs will fail with 403s; the fix has to come
+      // from a longer MaxSessionDuration on the role or credential refresh in
+      // the Atmosphere client, not from this request.
+      'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
       // Expect this in Environment Variables
       'role-to-assume': props.enableAtmosphere ? props.enableAtmosphere.oidcRoleArn : '${{ vars.AWS_ROLE_TO_ASSUME_FOR_TESTING }}',
       'role-session-name': sessionName,
@@ -700,10 +705,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // Run AWS OIDC auth after everything else, so creds are only easily accessible then.
         // This is defense in depth. Since the workflow's ambient identify is trusted, any script at any point can assume the OIDC role.
         // The OIDC role is designed to not be able to do anything else but vending Atmosphere creds.
-        // Windows jobs run considerably longer than the 1-hour default session;
-        // tests still running past expiry fail with 403s. Request a longer
-        // session there (subject to the role's maximum session duration).
-        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ', platform.windows ? 4 * 60 * 60 : undefined),
+        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
           run: `npx run-suite${this.maxWorkersArg}${shardArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
