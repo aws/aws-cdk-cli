@@ -515,9 +515,14 @@ export class TestFixture extends ShellHelper {
     const decoded = Buffer.from(authData, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
 
+    // Reference the password via an environment variable so it doesn't leak into
+    // process listings. The expansion syntax depends on the shell interpreting it
+    // (cmd.exe on Windows, /bin/sh elsewhere).
+    const passwordRef = process.platform === 'win32' ? '%ECR_PASSWORD%' : '${ECR_PASSWORD}';
+
     await this.shell([docker, 'login',
       '--username', username,
-      '--password', '${ECR_PASSWORD}',
+      '--password', passwordRef,
       'public.ecr.aws'], {
       shell: true,
       modEnv: {
