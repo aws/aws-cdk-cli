@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -13,7 +14,7 @@ import type { ITestCliSource, ITestLibrarySource } from './package-sources/sourc
 import { testSource } from './package-sources/subprocess';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
-import { ShellHelper, rimraf } from './shell';
+import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
@@ -1064,6 +1065,70 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     devDependencies: packages,
   }, undefined, 2), { encoding: 'utf-8' });
 
+  if (process.platform === 'win32') {
+    // Installing aws-cdk-lib means writing out tens of thousands of small
+    // files, which is very slow on Windows (minutes instead of seconds),
+    // and every concurrent jest worker doing so at once makes it slower
+    // still. Install every distinct package set only once per machine and
+    // junction it into the test directory.
+    const sharedNodeModules = await sharedPackageSetInstall(fixture, packages);
+    fs.symlinkSync(sharedNodeModules, path.join(fixture.integTestDir, 'node_modules'), 'junction');
+    return;
+  }
+
+  await npmInstallWithRetry(fixture, fixture.integTestDir);
+}
+
+/**
+ * Install the given package set into a machine-shared directory, once.
+ *
+ * Concurrent callers (jest workers are separate processes) coordinate via an
+ * atomically-created lock directory; whoever wins installs while the rest
+ * poll for the completion marker.
+ *
+ * @returns the path of the installed `node_modules` directory.
+ */
+async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<string, string>): Promise<string> {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(packages)).digest('hex').slice(0, 16);
+  const sharedDir = path.join(os.tmpdir(), `cdk-integ-shared-${hash}`);
+  const nodeModules = path.join(sharedDir, 'node_modules');
+  const completeMarker = path.join(sharedDir, '.install-complete');
+  const lockDir = `${sharedDir}.lock`;
+
+  const deadline = Date.now() + 30 * 60 * 1000;
+  while (true) {
+    if (fs.existsSync(completeMarker)) {
+      return nodeModules;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`Timed out waiting for shared install of ${JSON.stringify(packages)} in '${sharedDir}'`);
+    }
+
+    try {
+      fs.mkdirSync(lockDir);
+    } catch {
+      // Another worker is installing; wait for it to finish.
+      await sleep(5_000);
+      continue;
+    }
+
+    try {
+      if (fs.existsSync(completeMarker)) {
+        return nodeModules;
+      }
+      fixture.log(`Installing shared package set into '${sharedDir}'`);
+      fs.mkdirSync(sharedDir, { recursive: true });
+      fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+      await npmInstallWithRetry(fixture, sharedDir);
+      fs.writeFileSync(completeMarker, '');
+      return nodeModules;
+    } finally {
+      fs.rmdirSync(lockDir);
+    }
+  }
+}
+
+async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
   // we often ECONNRESET from NPM so lets retry. this might be because of high concurrency
   // which overwhelmes system resources.
   const timeoutMinutes = 10;
@@ -1073,7 +1138,10 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
   while (true) {
     try {
       // Now install that `package.json` using NPM7
-      await fixture.shell(['node', require.resolve('npm'), 'install']);
+      await shell(['node', require.resolve('npm'), 'install'], {
+        cwd,
+        outputs: [fixture.output],
+      });
       break;
     } catch (e: any) {
       if (Date.now() < timeoutDate.getTime() && fixture.output.toString().includes('ECONNRESET' )) {
