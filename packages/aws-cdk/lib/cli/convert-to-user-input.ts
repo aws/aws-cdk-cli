@@ -348,6 +348,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         overrideFile: args.overrideFile,
         revert: args.revert,
         force: args.force,
+        toolkitStackName: args.toolkitStackName,
         STACKS: args.STACKS,
       };
       break;
@@ -607,6 +608,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
     force: config.refactor?.force,
+    toolkitStackName: config.refactor?.toolkitStackName,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,

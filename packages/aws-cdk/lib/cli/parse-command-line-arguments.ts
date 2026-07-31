@@ -1160,6 +1160,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to do the refactor without asking for confirmation',
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

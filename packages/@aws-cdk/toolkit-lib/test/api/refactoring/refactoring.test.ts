@@ -1659,4 +1659,103 @@ describe(generateStackDefinitions, () => {
     const templateSize = JSON.stringify(smallResources).length;
     expect(templateSize).toBeLessThan(50 * 1024);
   });
+
+  test('looks up the toolkit stack under the given custom name', async () => {
+    const largeResources: any = {};
+    for (let i = 0; i < 500; i++) {
+      largeResources[`Bucket${i}`] = {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: `my-bucket-${i}`,
+          Tags: [
+            { Key: 'Environment', Value: 'Production' },
+            { Key: 'Application', Value: 'MyApp' },
+            { Key: 'Owner', Value: 'TeamA' },
+            { Key: 'CostCenter', Value: '12345' },
+          ],
+        },
+      };
+    }
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: largeResources,
+      },
+    };
+
+    const result = await generateStackDefinitions(
+      [], [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper, 'MyCustomToolkit',
+    );
+
+    expect(result[0].TemplateURL).toBeDefined();
+    expect(ToolkitInfo.lookup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'MyCustomToolkit',
+    );
+  });
+
+  test('falls back to the default toolkit stack name when none is given', async () => {
+    const largeResources: any = {};
+    for (let i = 0; i < 500; i++) {
+      largeResources[`Bucket${i}`] = {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: `my-bucket-${i}`,
+          Tags: [
+            { Key: 'Environment', Value: 'Production' },
+            { Key: 'Application', Value: 'MyApp' },
+            { Key: 'Owner', Value: 'TeamA' },
+            { Key: 'CostCenter', Value: '12345' },
+          ],
+        },
+      };
+    }
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: largeResources,
+      },
+    };
+
+    await generateStackDefinitions(
+      [], [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper,
+    );
+
+    expect(ToolkitInfo.lookup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+    );
+  });
 });

@@ -1621,6 +1621,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           localStacks,
           assumeRoleArn: options.roleArn,
           overrides: getOverrides(environment, deployedStacks, localStacks),
+          toolkitStackName: this.toolkitStackName,
         });
 
         const mappings = context.mappings;
@@ -1637,7 +1638,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
+        const stackDefinitions = await generateStackDefinitions(
+          mappings,
+          deployedStacks,
+          localStacks,
+          environment,
+          sdkProvider,
+          ioHelper,
+          this.toolkitStackName,
+        );
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
