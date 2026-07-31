@@ -282,7 +282,22 @@ export class ShellHelper {
 export function rimraf(fsPath: string): boolean {
   try {
     let success = true;
-    const isDir = fs.lstatSync(fsPath).isDirectory();
+    const stat = fs.lstatSync(fsPath);
+
+    // Remove links without recursing into their target: a directory may
+    // link to shared content that other tests are still using (e.g. the
+    // shared 'node_modules' on Windows).
+    if (stat.isSymbolicLink()) {
+      try {
+        fs.unlinkSync(fsPath);
+      } catch {
+        // On Windows, directory links (junctions) must be removed with rmdir
+        fs.rmdirSync(fsPath);
+      }
+      return true;
+    }
+
+    const isDir = stat.isDirectory();
 
     if (isDir) {
       for (const file of fs.readdirSync(fsPath)) {
