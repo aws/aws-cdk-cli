@@ -57,6 +57,11 @@ export class Process {
     }
     const ptyProcess = pty.spawn(command, args, {
       name: 'xterm-color',
+      // Wide enough that no output line ever hits the terminal width: ConPTY
+      // (unlike Unix ptys) renders the screen buffer and inserts hard line
+      // breaks at the width, which splits long prompts across lines and
+      // breaks the line-based prompt matching in shell().
+      cols: 512,
       ...options,
     });
     return new PtyProcess(ptyProcess);
