@@ -1849,6 +1849,13 @@ export interface RefactorOptions {
   readonly force?: boolean;
 
   /**
+   * The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
+
+  /**
    * Positional argument for refactor
    */
   readonly STACKS?: Array<string>;
