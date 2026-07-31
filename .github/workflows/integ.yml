@@ -719,6 +719,7 @@ jobs:
           generating and loading assembly
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -878,6 +879,7 @@ jobs:
           generating and loading assembly
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1027,6 +1029,7 @@ jobs:
           generating and loading assembly
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1173,6 +1176,7 @@ jobs:
           generating and loading assembly
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
         uses: actions/download-artifact@v8
@@ -1333,6 +1337,7 @@ jobs:
           generating and loading assembly
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
         uses: actions/download-artifact@v8

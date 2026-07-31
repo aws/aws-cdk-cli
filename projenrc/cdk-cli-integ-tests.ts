@@ -42,6 +42,7 @@ const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'generating and loading assembly',
   'test resource import with construct that requires bundling',
   'hotswap deployment supports Bedrock AgentCore Runtime',
+  'sam can locally test the synthesized cdk application',
 ];
 
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
