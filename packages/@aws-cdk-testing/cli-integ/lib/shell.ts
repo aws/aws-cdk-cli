@@ -354,7 +354,28 @@ export function addToShellPath(x: string) {
 class LastLine {
   private lastLine: string = '';
 
+  // win32 only: the last completed line that had visible content, see below
+  private lastVisibleLine: string = '';
+
   public append(chunk: string): void {
+    if (process.platform === 'win32') {
+      // ConPTY renders the screen buffer instead of streaming plain text:
+      // prompts are drawn with cursor-positioning escape sequences, padded
+      // with spaces to the terminal width, and followed by "lines" that
+      // contain nothing but more escape sequences. Match against the last
+      // line that had visible content, so control-only lines don't erase a
+      // prompt that was just drawn.
+      const lines = stripAnsi(chunk).split(/\r?\n/);
+      this.lastLine += lines[0];
+      for (const line of lines.slice(1)) {
+        if (this.lastLine.trim().length > 0) {
+          this.lastVisibleLine = this.lastLine;
+        }
+        this.lastLine = line;
+      }
+      return;
+    }
+
     const lines = chunk.split(os.EOL);
     if (lines.length === 1) {
       // chunk doesn't contain a new line so just append
@@ -366,10 +387,30 @@ class LastLine {
   }
 
   public get(): string {
+    if (process.platform === 'win32' && this.lastLine.trim().length === 0) {
+      return this.lastVisibleLine;
+    }
     return this.lastLine;
   }
 
   public reset() {
     this.lastLine = '';
+    this.lastVisibleLine = '';
   }
+}
+
+const ESC = '\u001b';
+// CSI sequences (cursor movement, erase, colors) and OSC sequences (window title)
+const ANSI_REGEX = new RegExp(`${ESC}\\[[0-9;?]*[@-~]|${ESC}\\][^${ESC}\\u0007]*(?:\\u0007|${ESC}\\\\)`, 'g');
+
+/**
+ * Remove ANSI escape sequences from terminal output.
+ *
+ * Windows ConPTY renders the screen buffer rather than streaming plain text:
+ * once the cursor reaches the bottom of the buffer, lines arrive as absolute
+ * cursor-positioning sequences instead of newline-terminated text. Prompt
+ * matching must look at the text only.
+ */
+function stripAnsi(chunk: string): string {
+  return chunk.replace(ANSI_REGEX, '');
 }
