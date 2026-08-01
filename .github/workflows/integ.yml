@@ -91,21 +91,11 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
     defaults:
       run:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-linux-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-linux-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -226,21 +216,11 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
     defaults:
       run:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-linux-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-linux-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -351,21 +331,11 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
     defaults:
       run:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-linux-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-linux-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -473,21 +443,11 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
     defaults:
       run:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-linux-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-linux-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -609,21 +569,11 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
     defaults:
       run:
         shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-cache-linux-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-linux-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -731,7 +681,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
       CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
@@ -772,15 +721,6 @@ jobs:
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
           EOF
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.npm_config_cache }}
-          key: npm-cache-windows-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-windows-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -901,7 +841,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
       CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
@@ -942,15 +881,6 @@ jobs:
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
           EOF
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.npm_config_cache }}
-          key: npm-cache-windows-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-windows-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1061,7 +991,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
       CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
@@ -1102,15 +1031,6 @@ jobs:
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
           EOF
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.npm_config_cache }}
-          key: npm-cache-windows-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-windows-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1218,7 +1138,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
       CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
@@ -1259,15 +1178,6 @@ jobs:
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
           EOF
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.npm_config_cache }}
-          key: npm-cache-windows-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-windows-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
@@ -1389,7 +1299,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-      npm_config_prefer_online: "true"
       CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
     defaults:
       run:
@@ -1430,15 +1339,6 @@ jobs:
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
           EOF
-      - name: Compute cache key
-        id: cachekey
-        run: echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.npm_config_cache }}
-          key: npm-cache-windows-${{ steps.cachekey.outputs.week }}
-          restore-keys: npm-cache-windows-
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
