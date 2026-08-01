@@ -64,6 +64,11 @@ jobs:
         env:
           RELEASE: "true"
         run: yarn projen build
+      - name: Bundle Verdaccio for the test jobs
+        run: |-
+          mkdir -p /tmp/verdaccio-bundle
+          (cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio)
+          tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules
       - name: Upload artifact
         id: build-artifact
         uses: actions/upload-artifact@v7
@@ -76,7 +81,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: script-artifact
-          path: .projen/*.sh
+          path: |-
+            .projen/*.sh
+            .projen/verdaccio-bundle.tgz
           overwrite: true
           include-hidden-files: true
   integ_cli:
