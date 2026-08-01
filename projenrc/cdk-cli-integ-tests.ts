@@ -333,15 +333,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
       committed: false,
       lines: [
         '#!/bin/bash',
-        // No process manager: Verdaccio only has to outlive this job, and the
-        // runner kills leftover processes at job teardown. A plain detached
-        // spawn avoids installing pm2, which used to double the install time.
-        'npm install -g --no-audit --no-fund --loglevel=error verdaccio',
+        // Verdaccio was installed once in the 'prepare' job and shipped here
+        // as a tarball; extracting it is much faster than an npm install,
+        // especially on Windows. No process manager: Verdaccio only has to
+        // outlive this job, and the runner kills leftover processes at job
+        // teardown.
+        'mkdir -p $HOME/verdaccio-app',
+        'tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        // Point at Verdaccio's JS entrypoint: on Windows the global bin is a
-        // `.cmd` shim that cannot be spawned from bash directly.
-        'VERDACCIO_BIN="$(npm root -g)/verdaccio/bin/verdaccio"',
+        // Point at Verdaccio's JS entrypoint; bin shims were not created
+        // (--no-bin-links) and would not be bash-spawnable on Windows anyway.
+        'VERDACCIO_BIN="$HOME/verdaccio-app/node_modules/verdaccio/bin/verdaccio"',
         'nohup node "$VERDACCIO_BIN" --config $HOME/.config/verdaccio/config.yaml > verdaccio.log 2>&1 &',
         // Wait for Verdaccio to accept requests instead of sleeping a fixed time
         'for i in $(seq 1 60); do',
@@ -481,6 +484,21 @@ export class CdkCliIntegTestsWorkflow extends Component {
             RELEASE: 'true',
           },
         },
+        {
+          // Install Verdaccio once here and ship it to the test jobs as a
+          // tarball. Installing it in every job through npm costs ~60s on
+          // Windows runners (thousands of small file writes); extracting a
+          // single archive is much faster. Verdaccio has no native or
+          // platform-specific dependencies, so a Linux-built tree runs
+          // anywhere; --no-bin-links keeps symlinks out of the archive
+          // (jobs invoke the JS entrypoint directly).
+          name: 'Bundle Verdaccio for the test jobs',
+          run: [
+            'mkdir -p /tmp/verdaccio-bundle',
+            '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio)',
+            'tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules',
+          ].join('\n'),
+        },
         github.WorkflowSteps.uploadArtifact({
           id: 'build-artifact',
           with: {
@@ -493,7 +511,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           id: 'script-artifact',
           with: {
             name: 'script-artifact',
-            path: '.projen/*.sh',
+            path: [
+              '.projen/*.sh',
+              '.projen/verdaccio-bundle.tgz',
+            ].join('\n'),
             overwrite: true,
             includeHiddenFiles: true,
           },
