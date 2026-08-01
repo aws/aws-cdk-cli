@@ -23,6 +23,7 @@ import { YarnVersion } from './projenrc/yarn-version';
 // #region shared config
 
 const TYPESCRIPT_VERSION = '5.9';
+const DEPENDENCY_COOLDOWN = 3;
 
 /**
  * Global note on customizeReference
@@ -231,6 +232,7 @@ const repoProject = new yarn.Monorepo({
   description: "Monorepo for the AWS CDK's CLI",
   repository: 'https://github.com/aws/aws-cdk-cli',
 
+  runner: pj.typescript.TypeScriptRunner.tsx(),
   defaultReleaseBranch: 'main',
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
@@ -295,7 +297,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   depsUpgradeOptions: {
-    cooldown: 3,
+    cooldown: DEPENDENCY_COOLDOWN,
     workflowOptions: {
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
@@ -1260,7 +1262,6 @@ const cli = configureProject(
       'jest-mock',
       'nock@13',
       'sinon',
-      'ts-node',
       'ts-mock-imports',
       'tsx',
     ],
@@ -1368,6 +1369,7 @@ cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
+  cooldown: 1, // we trust aws-cdk-lib (it's us!) more than other deps, but 1 day wait time is still a good idea
   semanticCommit: 'feat',
   pullRequestTitle: 'upgrade aws-cdk-lib',
   target: 'minor',
@@ -1513,6 +1515,7 @@ const integRunner = configureProject(
       '@types/yargs',
       'constructs@^10',
       '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
+      'ts-node', // integ-runner defaults to ts-node to execute test fixtures
     ],
     tsconfig: {
       compilerOptions: {
@@ -1705,9 +1708,9 @@ cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 // since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
 
-// for PRs resolving security alerts we accept a shorter cooldown
+// for PRs resolving security alerts we accept the shorter standard cooldown
 // given those are normally patch versions on top of already "cold" versions.
-const dependabotSecurityCooldown = 3;
+const dependabotSecurityCooldown = DEPENDENCY_COOLDOWN;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {

@@ -3,14 +3,16 @@ import { ChangeSetStatus, ChangeType } from '@aws-sdk/client-cloudformation';
 import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
 import { attributedCloudTrailContexts, investigateStackViaCloudTrail } from './cloudtrail-investigation';
+import { Diagnosis } from './diagnosis';
 import { investigateResource } from './resource-investigation';
-import type { AdditionalDiagnosticContext, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
+import type { AdditionalDiagnosticContext, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
+import { ChangeSetDescriber } from '../change-sets';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ISourceTracer } from '../source-tracing/private/source-tracing';
 import { PollRange, StackEventPoller } from '../stack-events';
-import { formatHookResultDetails, isFailedHookStatus } from '../stack-events/hook-result-details';
+import { fetchHookResultDetails, formatHookResultDetails, isFailedHookStatus, normalizeHookMessage } from '../stack-events/hook-result-details';
 import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
 import { StackStatus } from '../stack-events/stack-status';
 
@@ -34,6 +36,18 @@ export interface CloudFormationStackDiagnoserProps {
    * level and their information is simply not added to the output.
    */
   readonly additionalExplorationSdkProvider?: SdkProvider;
+
+  /**
+   * Whether to fetch the failure details of hooks that failed resources, via the
+   * `GetHookResult` API, and attach them to the diagnosis.
+   *
+   * During a deployment the activity stream already shows these details live, so
+   * `cdk deploy` leaves this off to avoid repeating them. `cdk diagnose` has no
+   * live stream and enables it.
+   *
+   * @default false
+   */
+  readonly fetchHookFailureDetails?: boolean;
 }
 
 export type SdkProvider = () => Promise<SDK>;
@@ -67,6 +81,20 @@ export interface DiagnoseOptions {
   readonly rollbackEnabled?: boolean;
 }
 
+export interface DiagnoseChangeSetOptions {
+  /**
+   * Report a change set that cannot be executed as a problem.
+   *
+   * By default only a change set that failed to create is a problem: one that contains no changes,
+   * or that has since been deleted, is reported as healthy because for `deploy` those are normal
+   * outcomes. Set this when you are about to execute the change set, so that anything other than
+   * `CREATE_COMPLETE` is reported as a problem instead.
+   *
+   * @default false
+   */
+  readonly requireExecutable?: boolean;
+}
+
 export class CloudFormationStackDiagnoser {
   private readonly cfn: ICloudFormationClient;
   private parentStackLogicalIds: string[];
@@ -81,23 +109,17 @@ export class CloudFormationStackDiagnoser {
   /**
    * Diagnose a stack's root cause given no pre-existing state
    */
-  public async diagnoseFromFresh(stackName: string): Promise<StackDiagnosis> {
+  public async diagnoseFromFresh(stackName: string): Promise<Diagnosis> {
     try {
       const response = await this.cfn.describeStacks({ StackName: stackName });
       const stack = response.Stacks?.[0];
       if (!stack) {
-        return {
-          type: 'error-diagnosing',
-          message: `Stack with name ${stackName} not found`,
-        };
+        return Diagnosis.errorDiagnosing(`Stack with name ${stackName} not found`);
       }
 
       const status = StackStatus.fromStackDescription(stack);
       if (status.isInProgress) {
-        return {
-          type: 'error-diagnosing',
-          message: `Stack with name ${stackName} is currently being updated (${status.name}). Try again when it's finished.`,
-        };
+        return Diagnosis.errorDiagnosing(`Stack with name ${stackName} is currently being updated (${status.name}). Try again when it's finished.`);
       }
 
       if (status.isFailure || status.isRollbackSuccess) {
@@ -106,18 +128,18 @@ export class CloudFormationStackDiagnoser {
 
       return await this._diagnoseChangeSetFailureFromStackName(stack);
     } catch (e: any) {
-      return { type: 'error-diagnosing', message: e.message };
+      return Diagnosis.errorDiagnosing(e.message);
     }
   }
 
   /**
    * Diagnose potential problems with the change set
    */
-  public async diagnoseChangeSet(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+  public async diagnoseChangeSet(changeSet: ChangeSetSummary, options: DiagnoseChangeSetOptions = {}): Promise<Diagnosis> {
     try {
-      return await this._diagnoseChangeSetFailure(changeSet);
+      return await this._diagnoseChangeSetFailure(changeSet, options);
     } catch (e: any) {
-      return { type: 'error-diagnosing', message: e.message };
+      return Diagnosis.errorDiagnosing(e.message);
     }
   }
 
@@ -129,7 +151,7 @@ export class CloudFormationStackDiagnoser {
     stack: Stack,
     allowFallback = true,
     options: DiagnoseOptions = {},
-  ): Promise<StackDiagnosis> {
+  ): Promise<Diagnosis> {
     this.rollbackEnabled = options.rollbackEnabled ?? true;
     if (errors.isEmpty()) {
       if (allowFallback) {
@@ -141,18 +163,17 @@ export class CloudFormationStackDiagnoser {
           await this.props.ioHelper.defaults.debug(`Fallback diagnosis failed: ${e.message}`);
         }
       }
-      return { type: 'no-problem' };
+      return Diagnosis.noProblem();
     }
 
-    return {
-      type: 'problem',
-      detectedBy: {
+    return Diagnosis.problem(
+      {
         type: 'deployment',
         stackStatus: stack.StackStatus ?? '',
         statusReason: stack.StackStatusReason ?? '',
       },
-      problems: await this.addCloudTrailContext(await this.enhanceErrors(errors.all), errors.all),
-    };
+      await this.addCloudTrailContext(await this.enhanceErrors(errors.all), errors.all),
+    );
   }
 
   /**
@@ -220,7 +241,7 @@ export class CloudFormationStackDiagnoser {
    *
    * This is the same logic that the deployment monitor uses.
    */
-  private async _diagnoseViaStackEvents(stack: Stack): Promise<StackDiagnosis> {
+  private async _diagnoseViaStackEvents(stack: Stack): Promise<Diagnosis> {
     const poller = new StackEventPoller(this.cfn, {
       stackArn: stack.StackId!,
       initialPollRange: PollRange.mostRecentDeploymentAttempt(),
@@ -233,22 +254,19 @@ export class CloudFormationStackDiagnoser {
     return this.diagnoseFromErrorCollection(poller.errors, stack, false, { rollbackEnabled: this.rollbackEnabled });
   }
 
-  private async _diagnoseChangeSetFailureFromStackName(stack: Stack): Promise<StackDiagnosis> {
+  private async _diagnoseChangeSetFailureFromStackName(stack: Stack): Promise<Diagnosis> {
     const cs = (await this.cfn.listChangeSets({
       StackName: stack.StackId!,
     })).Summaries ?? [];
 
     const pending = cs.filter(x => x.Status === ChangeSetStatus.CREATE_IN_PROGRESS || x.Status === ChangeSetStatus.CREATE_PENDING);
     if (pending.length > 0) {
-      return {
-        type: 'error-diagnosing',
-        message: `Stack with name ${stack.StackName} has change sets currently being created (${pending[0].ChangeSetName}). Try again when it's finished.`,
-      };
+      return Diagnosis.errorDiagnosing(`Stack with name ${stack.StackName} has change sets currently being created (${pending[0].ChangeSetName}). Try again when it's finished.`);
     }
 
     const failed = cs.filter(x => x.Status === ChangeSetStatus.FAILED);
     if (failed.length === 0) {
-      return { type: 'no-problem' };
+      return Diagnosis.noProblem();
     }
 
     return this._diagnoseChangeSetFailure(failed[0]);
@@ -262,14 +280,32 @@ export class CloudFormationStackDiagnoser {
    * Usually this starts from trying to detect an error message pattern in the change set status reason,
    * and then potentially going to fetch additional information using additional API calls.
    */
-  private async _diagnoseChangeSetFailure(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+  private async _diagnoseChangeSetFailure(changeSet: ChangeSetSummary, options: DiagnoseChangeSetOptions = {}): Promise<Diagnosis> {
+    const diagnosis = await this._diagnoseChangeSetProblems(changeSet);
+
+    // Nothing is wrong with the change set, but it still cannot be executed: it is either still
+    // being created, contains no changes, or has been deleted. (A change set that *did* fail keeps
+    // its own diagnosis, which explains the failure in much more detail than we could here.)
+    if (options.requireExecutable && diagnosis.isNoProblem && changeSet.Status !== ChangeSetStatus.CREATE_COMPLETE) {
+      return Diagnosis.problem({
+        type: 'change-set-not-ready',
+        changeSetName: changeSet.ChangeSetName ?? '',
+        changeSetStatus: changeSet.Status ?? 'UNKNOWN',
+        statusReason: changeSet.StatusReason ?? '',
+      }, []);
+    }
+
+    return diagnosis;
+  }
+
+  private async _diagnoseChangeSetProblems(changeSet: ChangeSetSummary): Promise<Diagnosis> {
     if (changeSet.Status !== ChangeSetStatus.FAILED) {
-      return { type: 'no-problem' };
+      return Diagnosis.noProblem();
     }
 
     if (changeSetHasNoChanges(changeSet)) {
       // This will lead to a change set that is FAILED but it's not actually a problem
-      return { type: 'no-problem' };
+      return Diagnosis.noProblem();
     }
 
     // We report early validation errors differently than generic changeset errors. Mostly
@@ -291,16 +327,15 @@ export class CloudFormationStackDiagnoser {
     // status reason, and nowhere else. We parse it specifically.
     const failedAutoErrors = this._tryDetectFailedAutoImport(changeSet);
     if (failedAutoErrors) {
-      return {
-        type: 'problem',
-        detectedBy: {
+      return Diagnosis.problem(
+        {
           type: 'change-set',
           changeSetStatus: changeSet.Status ?? '',
           changeSetName: changeSet.ChangeSetName ?? '',
           statusReason: changeSet.StatusReason ?? '',
         },
-        problems: await this.enhanceErrors(failedAutoErrors),
-      };
+        await this.enhanceErrors(failedAutoErrors),
+      );
     }
 
     // Otherwise, a generic change set creation error where `DescribeEvents`
@@ -320,17 +355,16 @@ export class CloudFormationStackDiagnoser {
    * the change set was failed by CloudFormation Hooks and report those. Otherwise, return a
    * generic error.
    */
-  private async _reportChangeSetFailureFromEvents(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
+  private async _reportChangeSetFailureFromEvents(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<Diagnosis> {
     const ev = await new ChangeSetResourceErrorFetcher(this.props.sdk, this.props.envResources)
       .fetchDetailsStructured(changeSet.ChangeSetName!, changeSet.StackName!);
 
     // If we have errors to return, return them
     if (ev.type === 'resource-errors' && ev.errors.length > 0) {
-      return {
-        type: 'problem',
+      return Diagnosis.problem(
         detectedBy,
-        problems: await this.enhanceErrors(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
-      };
+        await this.enhanceErrors(ev.errors.map((e) => resourceErrorFromEarlyValidationError(changeSet.StackId ?? '', this.parentStackLogicalIds, e))),
+      );
     }
 
     // Otherwise, we will return a generic changeset error message. If there was a problem
@@ -344,11 +378,7 @@ export class CloudFormationStackDiagnoser {
     // details are only available through the hook results APIs.
     const hookErrors = await this._changeSetHookErrors(changeSet);
     if (hookErrors.length > 0) {
-      return {
-        type: 'problem',
-        detectedBy,
-        problems: await this.enhanceErrors(hookErrors),
-      };
+      return Diagnosis.problem(detectedBy, await this.enhanceErrors(hookErrors));
     }
 
     return this._nonSpecificChangeSetError(changeSet, detectedBy);
@@ -399,14 +429,12 @@ export class CloudFormationStackDiagnoser {
    */
   private async _hookResultDetails(hook: HookResultSummary): Promise<string | undefined> {
     if (hook.HookResultId) {
-      try {
-        const result = await this.cfn.getHookResult({ HookResultId: hook.HookResultId });
-        const details = formatHookResultDetails(result);
-        if (details) {
-          return details;
-        }
-      } catch (e: any) {
-        await this.props.ioHelper.defaults.debug(`Could not fetch hook result ${hook.HookResultId}: ${e.message}`);
+      const details = await fetchHookResultDetails(this.cfn, hook.HookResultId, {
+        ioHelper: this.props.ioHelper,
+        envResources: this.props.envResources,
+      });
+      if (details) {
+        return details;
       }
     }
     return formatHookResultDetails(hook);
@@ -425,17 +453,53 @@ export class CloudFormationStackDiagnoser {
       : this.props.sourceTracer.traceStack(err.stackArn, err.parentStackLogicalIds);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const [sourceTrace, additionalContext] = await Promise.all([
+    const [sourceTrace, additionalContext, hookContext] = await Promise.all([
       sourceTracePromise,
       this.investigateResourceBestEffort(err),
+      this.hookFailureContext(err),
     ]);
 
+    const allContext = [...hookContext, ...additionalContext];
     return {
       ...err,
       sourceTrace,
       topLevelStackHierarchicalId: this.props.topLevelStackHierarchicalId,
-      ...(additionalContext.length > 0 ? { additionalContext } : {}),
+      ...(allContext.length > 0 ? { additionalContext: allContext } : {}),
     };
+  }
+
+  /**
+   * Fetch the failure details of the hooks that caused the given resource error.
+   *
+   * The resource's own status reason only names the hooks that failed it (e.g.
+   * "The following hook(s) failed: [X]"); the actual failure details live in the
+   * hook results API. Falls back to the hook event's status reason if the fetch
+   * fails or returns no details.
+   *
+   * Only active when `fetchHookFailureDetails` is set (i.e. for `cdk diagnose`);
+   * during a deployment the activity stream already shows these details.
+   */
+  private async hookFailureContext(err: ResourceError): Promise<AdditionalDiagnosticContext[]> {
+    if (!this.props.fetchHookFailureDetails) {
+      return [];
+    }
+    const ret: AdditionalDiagnosticContext[] = [];
+    for (const hook of err.hookFailures ?? []) {
+      let details = hook.hookInvocationId
+        ? await fetchHookResultDetails(this.cfn, hook.hookInvocationId, {
+          ioHelper: this.props.ioHelper,
+          envResources: this.props.envResources,
+        })
+        : undefined;
+      details = details ?? (hook.hookStatusReason ? normalizeHookMessage(hook.hookStatusReason) : undefined);
+      if (details) {
+        ret.push({
+          source: `CloudFormation Hook (${hook.hookType})`,
+          messages: details.split('\n').map((line, i) => i === 0 ? `Hook '${hook.hookType}' failed: ${line}` : line),
+        });
+      }
+    }
+    return ret;
   }
 
   private async investigateResourceBestEffort(err: ResourceError) {
@@ -458,28 +522,24 @@ export class CloudFormationStackDiagnoser {
    *
    * We can't point to a specific resource.
    */
-  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<StackDiagnosis> {
-    return {
-      type: 'problem',
-      detectedBy,
-      problems: [
-        await this.enhanceError({
-          // It's about a stack
-          logicalId: undefined,
-          message: changeSet.StatusReason ?? '',
-          parentStackLogicalIds: this.parentStackLogicalIds,
-          stackArn: changeSet.StackId ?? '',
-          physicalId: changeSet.StackId,
-          resourceType: 'AWS::CloudFormation::Stack',
-        }),
-      ],
-    };
+  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<Diagnosis> {
+    return Diagnosis.problem(detectedBy, [
+      await this.enhanceError({
+        // It's about a stack
+        logicalId: undefined,
+        message: changeSet.StatusReason ?? '',
+        parentStackLogicalIds: this.parentStackLogicalIds,
+        stackArn: changeSet.StackId ?? '',
+        physicalId: changeSet.StackId,
+        resourceType: 'AWS::CloudFormation::Stack',
+      }),
+    ]);
   }
 
   /**
    * Look for nested change sets that have failed, and diagnose those.
    */
-  private async _diagnoseNestedChangeSetFailure(changeSet: ChangeSetSummary): Promise<StackDiagnosis> {
+  private async _diagnoseNestedChangeSetFailure(changeSet: ChangeSetSummary): Promise<Diagnosis> {
     const nested = await this._findFailedNestedStack(changeSet);
     if (!nested) {
       // That's weird. Let's return the change set's status reason as a non-specific error
@@ -491,10 +551,12 @@ export class CloudFormationStackDiagnoser {
       });
     }
 
-    const nestedCs = await this.cfn.describeChangeSet({
-      ChangeSetName: nested.changeSetArn,
-      StackName: nested.stackArn,
-    });
+    const nestedCs = await new ChangeSetDescriber({
+      cfn: this.cfn,
+      ioHelper: this.props.ioHelper,
+      stackNameOrArn: nested.stackArn,
+      changeSetNameOrArn: nested.changeSetArn,
+    }).describeCurrentState();
 
     const nestedDiag = new CloudFormationStackDiagnoser(this.props);
     nestedDiag.parentStackLogicalIds = [...this.parentStackLogicalIds, nested.logicalId];
@@ -509,27 +571,22 @@ export class CloudFormationStackDiagnoser {
     // The status reason only includes the change set ID, but we also need the stack name. The way to get this is
     // describe the current change set, then from the Changes find the stack whose ChangeSetId is mentioned in the
     // status reason, then look up that change set and recurse into a regular change set diagnosis.
-    let nextToken = undefined;
-    do {
-      // Changes in this response might be paginated
-      const resp = await this.cfn.describeChangeSet({
-        StackName: changeSet.StackId,
-        ChangeSetName: changeSet.ChangeSetId,
-        ...nextToken ? { NextToken: nextToken } : {},
-      });
+    const resp = await new ChangeSetDescriber({
+      cfn: this.cfn,
+      ioHelper: this.props.ioHelper,
+      stackNameOrArn: changeSet.StackId!,
+      changeSetNameOrArn: changeSet.ChangeSetId!,
+    }).describeCurrentState();
 
-      for (const change of resp.Changes ?? []) {
-        if (change.Type === ChangeType.Resource && change.ResourceChange?.ResourceType === 'AWS::CloudFormation::Stack' && change.ResourceChange?.ChangeSetId && changeSet.StatusReason?.includes(change.ResourceChange?.ChangeSetId)) {
-          return {
-            changeSetArn: change.ResourceChange.ChangeSetId,
-            stackArn: change.ResourceChange.PhysicalResourceId ?? '',
-            logicalId: change.ResourceChange.LogicalResourceId ?? '',
-          };
-        }
+    for (const change of resp.Changes ?? []) {
+      if (change.Type === ChangeType.Resource && change.ResourceChange?.ResourceType === 'AWS::CloudFormation::Stack' && change.ResourceChange?.ChangeSetId && changeSet.StatusReason?.includes(change.ResourceChange?.ChangeSetId)) {
+        return {
+          changeSetArn: change.ResourceChange.ChangeSetId,
+          stackArn: change.ResourceChange.PhysicalResourceId ?? '',
+          logicalId: change.ResourceChange.LogicalResourceId ?? '',
+        };
       }
-
-      nextToken = resp.NextToken;
-    } while (nextToken);
+    }
 
     return undefined;
   }

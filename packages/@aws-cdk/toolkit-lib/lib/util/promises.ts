@@ -17,3 +17,26 @@ interface PromiseAndResolvers<A> {
   resolve: (value: A) => void;
   reject: (reason: any) => void;
 }
+
+/**
+ * Waits for a function to return non-+undefined+ before returning.
+ *
+ * @param valueProvider - a function that will return a value that is not +undefined+ once the wait should be over
+ * @param timeout     - the time to wait between two calls to +valueProvider+
+ *
+ * @returns       the value that was returned by +valueProvider+
+ */
+export async function waitFor<T>(
+  valueProvider: () => Promise<T | null | undefined>,
+  timeout: number = 5000,
+): Promise<T | undefined> {
+  while (true) {
+    const result = await valueProvider();
+    if (result === null) {
+      return undefined;
+    } else if (result !== undefined) {
+      return result;
+    }
+    await new Promise((cb) => setTimeout(cb, timeout));
+  }
+}

@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import { formatHookResultDetails } from './hook-result-details';
+import { fetchHookResultDetails } from './hook-result-details';
 import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import { stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
-import { isAccessDeniedError } from '../aws-auth/util';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
@@ -245,49 +244,6 @@ export class StackActivityMonitor {
   }
 
   /**
-   * Fetches hook failure details via the GetHookResult API and formats them into
-   * a human-readable string.
-   *
-   * For Guard Hooks the details come from the failed annotations; for other hooks
-   * (e.g. Lambda Hooks) they come from the hook result's own status reason.
-   * Returns undefined if the fetch fails or the result carries no failure details.
-   */
-  private async fetchHookResultDetails(hookInvocationId: string): Promise<string | undefined> {
-    try {
-      const result = await this.cfn.getHookResult({ HookResultId: hookInvocationId });
-      return formatHookResultDetails(result);
-    } catch (e: any) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-
-      const isPermissionsError =
-        isAccessDeniedError(e) ||
-        (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
-
-      if (isPermissionsError && this.envResources) {
-        let currentVersion: number | undefined = undefined;
-        try {
-          currentVersion = (await this.envResources.lookupToolkit()).version;
-        } catch {
-          // ignore errors looking up the bootstrap version
-        }
-
-        await this.ioHelper.defaults.warn(
-          util.format(
-            `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
-          ),
-        );
-      } else {
-        await this.ioHelper.defaults.warn(
-          util.format('Failed to fetch Hook details for invocation %s: %s', hookInvocationId, errorMessage),
-        );
-      }
-
-      return undefined;
-    }
-  }
-
-  /**
    * Reads all new events from the stack history
    *
    * The events are returned in chronological order by the underlying poller.
@@ -300,7 +256,10 @@ export class StackActivityMonitor {
 
       // If this is a failed hook event with an invocation ID, fetch the failure details
       if (resourceEvent.event.HookInvocationId) {
-        const details = await this.fetchHookResultDetails(resourceEvent.event.HookInvocationId);
+        const details = await fetchHookResultDetails(this.cfn, resourceEvent.event.HookInvocationId, {
+          ioHelper: this.ioHelper,
+          envResources: this.envResources,
+        });
         if (details) {
           resourceEvent.event.HookStatusReason = details;
         }

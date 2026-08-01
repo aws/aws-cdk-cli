@@ -63,6 +63,7 @@
     "prettier": "^2.8",
     "projen": "^0.101.20",
     "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
     "typescript": "5.9"
   },
   "dependencies": {

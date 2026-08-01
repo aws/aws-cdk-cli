@@ -28,6 +28,7 @@ export interface RefactoringContextOptions {
   overrides?: ResourceMapping[];
   assumeRoleArn?: string;
   ignoreModifications?: boolean;
+  toolkitStackName?: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export class RefactoringContext {
   private readonly ambiguousMoves: ResourceMove[] = [];
   private readonly localStacks: CloudFormationStack[];
   private readonly assumeRoleArn?: string;
+  private readonly toolkitStackName?: string;
   public readonly environment: Environment;
 
   constructor(props: RefactoringContextOptions) {
@@ -49,6 +51,7 @@ export class RefactoringContext {
     this.ambiguousMoves = ambiguousMoves;
     this.localStacks = props.localStacks;
     this.assumeRoleArn = props.assumeRoleArn;
+    this.toolkitStackName = props.toolkitStackName;
 
     this._mappings = resourceMappings(nonAmbiguousMoves);
   }
@@ -102,7 +105,7 @@ export class RefactoringContext {
   }
 
   private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
-    const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+    const environmentResourcesRegistry = new EnvironmentResourcesRegistry(this.toolkitStackName);
     const envResources = environmentResourcesRegistry.for(this.environment, sdk, ioHelper);
     let bootstrapVersion: number | undefined = undefined;
     try {

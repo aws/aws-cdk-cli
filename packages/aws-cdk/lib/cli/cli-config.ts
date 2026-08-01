@@ -580,6 +580,11 @@ export async function makeConfig(): Promise<CliConfig> {
             default: false,
             desc: 'Whether to do the refactor without asking for confirmation',
           },
+          'toolkit-stack-name': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
+          },
         },
         arg: {
           name: 'STACKS',
