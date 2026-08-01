@@ -77,7 +77,7 @@ jobs:
       - name: Bundle Verdaccio for the test jobs
         run: |-
           mkdir -p /tmp/verdaccio-bundle
-          (cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio)
+          (cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)
           tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules
       - name: Upload artifact
         id: build-artifact
