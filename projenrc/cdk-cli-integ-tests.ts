@@ -333,16 +333,22 @@ export class CdkCliIntegTestsWorkflow extends Component {
       committed: false,
       lines: [
         '#!/bin/bash',
-        'npm install -g verdaccio pm2',
+        // No process manager: Verdaccio only has to outlive this job, and the
+        // runner kills leftover processes at job teardown. A plain detached
+        // spawn avoids installing pm2, which used to double the install time.
+        'npm install -g --no-audit --no-fund --loglevel=error verdaccio',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        // Start Verdaccio through pm2 by pointing at its JS entrypoint with an
-        // explicit Node interpreter. On Windows the global `verdaccio` bin is a
-        // `.cmd` shim, which pm2's fork mode cannot execute; the resolved JS
-        // file works on every platform.
+        // Point at Verdaccio's JS entrypoint: on Windows the global bin is a
+        // `.cmd` shim that cannot be spawned from bash directly.
         'VERDACCIO_BIN="$(npm root -g)/verdaccio/bin/verdaccio"',
-        'pm2 start "$VERDACCIO_BIN" --interpreter node -- --config $HOME/.config/verdaccio/config.yaml',
-        'sleep 5', // Wait for Verdaccio to start
+        'nohup node "$VERDACCIO_BIN" --config $HOME/.config/verdaccio/config.yaml > verdaccio.log 2>&1 &',
+        // Wait for Verdaccio to accept requests instead of sleeping a fixed time
+        'for i in $(seq 1 60); do',
+        '  if curl -fsS -o /dev/null http://localhost:4873/; then break; fi',
+        '  if [ $i -eq 60 ]; then echo "Verdaccio did not start:"; cat verdaccio.log; exit 1; fi',
+        '  sleep 1',
+        'done',
         // Configure NPM to use local registry
         'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
         'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
