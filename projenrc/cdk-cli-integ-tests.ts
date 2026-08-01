@@ -491,7 +491,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Bundle Verdaccio for the test jobs',
           run: [
             'mkdir -p /tmp/verdaccio-bundle',
-            '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio)',
+            // The bundle is built once but runs under every Node version in
+            // the test matrix, so Verdaccio's engine range must include the
+            // oldest of them: 6.9 requires Node >= 22, 6.8 still allows 20.
+            // (A per-job npm install used to hide this by resolving an
+            // engines-compatible version for each job's own Node.)
+            '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)',
             'tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules',
           ].join('\n'),
         },
