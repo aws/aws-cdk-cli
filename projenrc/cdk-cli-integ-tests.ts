@@ -635,6 +635,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        // The npm cache is shared across runs (see the cache step below), but
+        // the locally published '.999' candidate packages change content while
+        // keeping the same version number. Always revalidate metadata against
+        // the registry (it is localhost, so this is cheap); tarballs that
+        // still match their integrity hash are served from the cache.
+        npm_config_prefer_online: 'true',
         ...platform.windows ? {
           // The skip file is newline-separated; the CDK_INTEG_SKIP_TESTS
           // environment variable is comma-separated and cannot express
@@ -687,6 +693,30 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'EOF',
           ].join('\n'),
         }] : [],
+        {
+          name: 'Compute cache key',
+          id: 'cachekey',
+          // Rotate the cache weekly so it follows dependency updates without
+          // growing unboundedly; correctness does not depend on freshness
+          // because npm revalidates metadata (npm_config_prefer_online).
+          run: 'echo "week=$(date +%G-%V)" >> $GITHUB_OUTPUT',
+        },
+        {
+          // The npm cache makes the Verdaccio global install, the cli-integ
+          // install, and the per-test framework installs mostly network-free.
+          // All jobs of a platform share one weekly cache entry: the first
+          // job to finish on a cache miss saves it, concurrent saves of the
+          // same key are rejected and harmless.
+          name: 'Restore npm cache',
+          uses: 'actions/cache@v4',
+          with: {
+            // On Windows this is the Dev Drive path exported by the setup
+            // step above; on Linux it is npm's default cache location.
+            'path': platform.windows ? '${{ env.npm_config_cache }}' : '~/.npm',
+            'key': `npm-cache-${platform.windows ? 'windows' : 'linux'}-\${{ steps.cachekey.outputs.week }}`,
+            'restore-keys': `npm-cache-${platform.windows ? 'windows' : 'linux'}-`,
+          },
+        },
         github.WorkflowSteps.downloadArtifact({
           with: {
             artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.packagesArtifact}}`],
