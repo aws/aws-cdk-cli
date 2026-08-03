@@ -16,21 +16,28 @@ jobs:
     if: github.repository == 'aws/aws-cdk-cli'
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@v6
       - name: Enable corepack
+        id: enable_corepack
         run: corepack enable
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Install dependencies
+        id: install_dependencies
         run: yarn install --immutable
       - name: Reset coverage thresholds
+        id: reset_coverage_thresholds
         run: find . -name "jest.config.json" -type f -exec chmod +w {} \; -exec node -e "const fs=require('fs'); const file=process.argv[1]; const data=JSON.parse(fs.readFileSync(file)); data.coverageThreshold={ }; fs.writeFileSync(file, JSON.stringify(data, null, 2));" {} \;
       - name: Build and test CLI
+        id: build_and_test_cli
         run: yarn nx run aws-cdk:build
       - name: Upload results to Codecov
+        id: upload_results_to_codecov
         uses: codecov/codecov-action@v5
         with:
           disable_search: true
