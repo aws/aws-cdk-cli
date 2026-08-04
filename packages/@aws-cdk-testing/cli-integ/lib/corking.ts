@@ -13,15 +13,10 @@ const SECRETS = new Set<string>();
 
 /**
  * Register values to be replaced with a placeholder in all buffered output
- *
- * Short values are ignored: they are unlikely to be real secrets and are likely to occur
- * as substrings of legitimate output, where redacting them would corrupt the log.
  */
-export function registerSecrets(...values: Array<string | undefined>) {
+export function registerSecrets(...values: Array<string>) {
   for (const value of values) {
-    if (value && value.length >= 8) {
-      SECRETS.add(value);
-    }
+    SECRETS.add(value);
   }
 }
 

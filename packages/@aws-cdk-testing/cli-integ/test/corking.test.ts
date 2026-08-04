@@ -19,16 +19,6 @@ describe('redactSecrets', () => {
   test('leaves unregistered text alone', () => {
     expect(redactSecrets('nothing to see here')).toEqual('nothing to see here');
   });
-
-  test('ignores values too short to be a credential', () => {
-    registerSecrets('abc');
-
-    expect(redactSecrets('abcdef')).toEqual('abcdef');
-  });
-
-  test('tolerates undefined, so callers can pass unset environment variables', () => {
-    expect(() => registerSecrets(undefined)).not.toThrow();
-  });
 });
 
 describe('MemoryStream', () => {
