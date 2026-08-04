@@ -406,6 +406,16 @@ Set the `--progress` flag to request the complete history which includes all Clo
 $ cdk deploy --progress events
 ```
 
+Set the `--progress` flag to `quiet` to print nothing during the deployment, except errors:
+
+```console
+$ cdk deploy --progress quiet
+```
+
+Quiet progress is recommended for AI agents and other automated consumers, where progress
+updates are not useful and consume tokens. If the CLI detects it is being run by an AI agent
+and no progress preference is configured, it defaults to `quiet` automatically.
+
 Alternatively, the `progress` key can be specified in the project config (`cdk.json`).
 
 The following shows a sample `cdk.json` where the `progress` key is set to *events*.
