@@ -40,7 +40,7 @@ import { changeSetHasNoChanges } from '../diagnosing/stack-diagnoser';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
-import { invalidateHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
+import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
@@ -926,6 +926,18 @@ async function canSkipDeploy(
   if (cloudFormationStack.stackStatus.isFailure) {
     await ioHelper.defaults.debug(`${deployName}: stack is in a failure state`);
     return false;
+  }
+
+  if (deployStackOptions.deploymentMethod?.method === 'hotswap') {
+    const hotswapCache = await readHotswapTemplateCache(
+      deployStackOptions.stack.assembly.directory,
+      deployStackOptions.stack.stackName,
+      deployStackOptions.stack.template,
+    );
+    if (hotswapCache && JSON.stringify(deployStackOptions.stack.template) !== JSON.stringify(hotswapCache.deployedRootTemplate)) {
+      await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
+      return false;
+    }
   }
 
   // We can skip deploy
