@@ -371,6 +371,19 @@ describe('multi-stack selection', () => {
 
     expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
   });
+
+  test('--concurrency > 1 with --progress=quiet keeps "quiet" progress', async () => {
+    await toolkit.deploy({
+      selector: { allTopLevel: true, patterns: [] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      concurrency: 5,
+      progress: StackActivityProgress.QUIET,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
+    expect(ioHost.stackProgress).toBe(StackActivityProgress.QUIET);
+  });
 });
 
 describe('deploy parameters forwarded to CloudFormation', () => {

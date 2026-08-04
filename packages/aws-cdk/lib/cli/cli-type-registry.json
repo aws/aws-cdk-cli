@@ -534,7 +534,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "quiet"
           ],
           "desc": "Display mode for stack activity events"
         },
@@ -800,7 +801,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "quiet"
           ],
           "desc": "Display mode for stack activity events"
         },
