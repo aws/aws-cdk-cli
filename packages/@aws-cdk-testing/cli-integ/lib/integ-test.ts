@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MemoryStream } from './corking';
+import { CREDENTIAL_ENV_VARS } from './aws';
+import { MemoryStream, registerSecrets } from './corking';
+
+registerSecrets(...CREDENTIAL_ENV_VARS.map(v => process.env[v]));
 
 const SKIP_TESTS = [
   ...readSkipFile(path.join(__dirname, '..', 'skip-tests.txt')),
