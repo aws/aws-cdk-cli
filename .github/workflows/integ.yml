@@ -74,6 +74,7 @@ jobs:
           RELEASE: "true"
         run: yarn projen build
       - name: Bundle Verdaccio for the test jobs
+        id: bundle_verdaccio_for_the_test_jobs
         run: |-
           mkdir -p /tmp/verdaccio-bundle
           (cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)
@@ -754,6 +755,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
           $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
@@ -764,6 +766,7 @@ jobs:
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
         run: |-
           cat > windows-skip-tests.txt << 'EOF'
           deploy same docker asset to multiple regions
@@ -788,33 +791,40 @@ jobs:
           sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
+        id: download_artifact
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
+        id: download_artifact_2
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - name: Set up JDK 18
+        id: set_up_jdk_18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
       - name: Set git identity
+        id: set_git_identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
+        id: prepare_verdaccio
         run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
         id: versions
@@ -835,6 +845,7 @@ jobs:
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
@@ -849,6 +860,7 @@ jobs:
           INTEG_LOGS: logs
         run: npx run-suite --shard="${{ matrix.shard }}/12" --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
+        id: set_workflow_summary
         if: always()
         run: |-
           if compgen -G "logs/md/*.md" > /dev/null; then
@@ -871,6 +883,7 @@ jobs:
           path: logs/
           overwrite: true
       - name: Append artifact URL
+        id: append_artifact_url
         if: always()
         run: |-
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -914,6 +927,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
           $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
@@ -924,6 +938,7 @@ jobs:
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
         run: |-
           cat > windows-skip-tests.txt << 'EOF'
           deploy same docker asset to multiple regions
@@ -948,33 +963,40 @@ jobs:
           sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
+        id: download_artifact
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
+        id: download_artifact_2
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - name: Set up JDK 18
+        id: set_up_jdk_18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
       - name: Set git identity
+        id: set_git_identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
+        id: prepare_verdaccio
         run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
         id: versions
@@ -995,6 +1017,7 @@ jobs:
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
@@ -1009,6 +1032,7 @@ jobs:
           INTEG_LOGS: logs
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
+        id: set_workflow_summary
         if: always()
         run: |-
           if compgen -G "logs/md/*.md" > /dev/null; then
@@ -1031,6 +1055,7 @@ jobs:
           path: logs/
           overwrite: true
       - name: Append artifact URL
+        id: append_artifact_url
         if: always()
         run: |-
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1064,6 +1089,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
           $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
@@ -1074,6 +1100,7 @@ jobs:
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
         run: |-
           cat > windows-skip-tests.txt << 'EOF'
           deploy same docker asset to multiple regions
@@ -1098,33 +1125,40 @@ jobs:
           sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
+        id: download_artifact
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
+        id: download_artifact_2
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - name: Set up JDK 18
+        id: set_up_jdk_18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
       - name: Set git identity
+        id: set_git_identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
+        id: prepare_verdaccio
         run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
         id: versions
@@ -1145,6 +1179,7 @@ jobs:
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
@@ -1159,6 +1194,7 @@ jobs:
           INTEG_LOGS: logs
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
+        id: set_workflow_summary
         if: always()
         run: |-
           if compgen -G "logs/md/*.md" > /dev/null; then
@@ -1181,6 +1217,7 @@ jobs:
           path: logs/
           overwrite: true
       - name: Append artifact URL
+        id: append_artifact_url
         if: always()
         run: |-
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1211,6 +1248,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
           $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
@@ -1221,6 +1259,7 @@ jobs:
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
         run: |-
           cat > windows-skip-tests.txt << 'EOF'
           deploy same docker asset to multiple regions
@@ -1245,33 +1284,40 @@ jobs:
           sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
+        id: download_artifact
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
+        id: download_artifact_2
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - name: Set up JDK 18
+        id: set_up_jdk_18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
       - name: Set git identity
+        id: set_git_identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
+        id: prepare_verdaccio
         run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
         id: versions
@@ -1292,6 +1338,7 @@ jobs:
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
@@ -1306,6 +1353,7 @@ jobs:
           INTEG_LOGS: logs
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
+        id: set_workflow_summary
         if: always()
         run: |-
           if compgen -G "logs/md/*.md" > /dev/null; then
@@ -1328,6 +1376,7 @@ jobs:
           path: logs/
           overwrite: true
       - name: Append artifact URL
+        id: append_artifact_url
         if: always()
         run: |-
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1372,6 +1421,7 @@ jobs:
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
     steps:
       - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
         run: |-
           $vhd = "C:\devdrive.vhdx"
           $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
@@ -1382,6 +1432,7 @@ jobs:
           echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
         shell: powershell
       - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
         run: |-
           cat > windows-skip-tests.txt << 'EOF'
           deploy same docker asset to multiple regions
@@ -1406,33 +1457,40 @@ jobs:
           sam can locally test the synthesized cdk application
           EOF
       - name: Download artifact
+        id: download_artifact
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
+        id: download_artifact_2
         uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
       - name: Setup Node.js
+        id: setup_node_js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
       - name: Set up JDK 18
+        id: set_up_jdk_18
         if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
         uses: actions/setup-java@v5
         with:
           java-version: "18"
           distribution: corretto
       - name: Set git identity
+        id: set_git_identity
         run: |-
           git config --global user.name "aws-cdk-cli-integ"
           git config --global user.email "noreply@example.com"
       - name: Prepare Verdaccio
+        id: prepare_verdaccio
         run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
       - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
         run: npm install @aws-cdk-testing/cli-integ
       - name: Determine latest package versions
         id: versions
@@ -1453,6 +1511,7 @@ jobs:
           role-session-name: run-tests@aws-cdk-cli-integ
           output-credentials: true
       - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
         env:
           JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
           JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
@@ -1467,6 +1526,7 @@ jobs:
           INTEG_LOGS: logs
         run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
+        id: set_workflow_summary
         if: always()
         run: |-
           if compgen -G "logs/md/*.md" > /dev/null; then
@@ -1489,6 +1549,7 @@ jobs:
           path: logs/
           overwrite: true
       - name: Append artifact URL
+        id: append_artifact_url
         if: always()
         run: |-
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1532,16 +1593,21 @@ jobs:
         id: integ_tool-integrations_result
         run: echo ${{ needs.integ_tool-integrations.result }}
       - name: integ_cli_windows result
+        id: integ_cli_windows_result
         run: echo ${{ needs.integ_cli_windows.result }}
       - name: integ_toolkit-lib_windows result
+        id: integ_toolkit-lib_windows_result
         run: echo ${{ needs.integ_toolkit-lib_windows.result }}
       - name: integ_telemetry_windows result
+        id: integ_telemetry_windows_result
         run: echo ${{ needs.integ_telemetry_windows.result }}
       - name: integ_init-templates_windows result
+        id: integ_init-templates_windows_result
         run: echo ${{ needs.integ_init-templates_windows.result }}
       - name: integ_tool-integrations_windows result
+        id: integ_tool-integrations_windows_result
         run: echo ${{ needs.integ_tool-integrations_windows.result }}
       - name: Set status based on test results
-        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_cli_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations_windows.result)) }}
         id: set_status_based_on_test_results
+        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_cli_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations_windows.result)) }}
         run: exit 1
