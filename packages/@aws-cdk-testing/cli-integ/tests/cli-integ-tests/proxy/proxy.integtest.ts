@@ -141,8 +141,11 @@ function isolatedDockerCommands(proxyPort: number, caBundlePath: string) {
 
 function renderEnv(env: Record<string, string | undefined>) {
   return Object.entries(env)
-    .filter(([k, v]) => v && !CREDENTIAL_ENV_VARS.includes(k))
-    .map(([k, v]) => `${k}='${v}'`)
+    .filter(([_, v]) => v)
+    .map(([k, v]) => {
+      const redVal = CREDENTIAL_ENV_VARS.includes(k) ? '<REDACTED>' : v;
+      `${k}='${redVal}'`
+    })
     .join(' ');
 }
 
