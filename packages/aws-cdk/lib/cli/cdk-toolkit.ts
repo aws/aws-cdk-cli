@@ -531,9 +531,11 @@ export class CdkToolkit {
       const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
       const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
       const concurrency = options.concurrency || 1;
-      if (concurrency > 1 && this.ioHost.stackProgress !== StackActivityProgress.QUIET) {
+      if (concurrency > 1) {
         // the "bar" progress output doesn't support concurrency, fall back to "events"
-        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+        if (this.ioHost.stackProgress === StackActivityProgress.BAR) {
+          this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+        }
 
         // ...but only warn if the user explicitly requested "bar" progress
         if (options.progress === StackActivityProgress.BAR) {
@@ -1001,7 +1003,7 @@ export class CdkToolkit {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
 
-    if ((options.concurrency || 1) > 1 && this.ioHost.stackProgress !== StackActivityProgress.QUIET) {
+    if ((options.concurrency || 1) > 1 && this.ioHost.stackProgress === StackActivityProgress.BAR) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
