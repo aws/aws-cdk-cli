@@ -91,7 +91,6 @@ async function testDockerCredential(fixture: TestFixture, credSource: DockerDoma
       },
       stdio: [fs.openSync(input, 'r')],
       captureStderr: false,
-      show: 'never',
     });
     const secret = /"Secret"\s*:\s*"(^")+"/.exec(output)?.[1];
     if (secret) {
