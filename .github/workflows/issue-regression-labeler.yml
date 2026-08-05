@@ -26,6 +26,7 @@ jobs:
                       const match = regressionPattern.test(template);
                       core.setOutput('is_regression', match);
       - name: Manage regression label
+        id: manage_regression_label
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
