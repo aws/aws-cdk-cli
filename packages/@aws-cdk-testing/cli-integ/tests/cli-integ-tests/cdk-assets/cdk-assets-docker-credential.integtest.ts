@@ -92,10 +92,7 @@ async function testDockerCredential(fixture: TestFixture, credSource: DockerDoma
       stdio: [fs.openSync(input, 'r')],
       captureStderr: false,
     });
-    const secret = /"Secret"\s*:\s*"(^")+"/.exec(output)?.[1];
-    if (secret) {
-      registerSecrets(secret);
-    }
+    registerSecrets(JSON.parse(output).Secret);
   });
 
   const response = JSON.parse(output);
