@@ -144,7 +144,7 @@ function renderEnv(env: Record<string, string | undefined>) {
     .filter(([_, v]) => v)
     .map(([k, v]) => {
       const redVal = CREDENTIAL_ENV_VARS.includes(k) ? '<REDACTED>' : v;
-      `${k}='${redVal}'`
+      `${k}='${redVal}'`;
     })
     .join(' ');
 }
