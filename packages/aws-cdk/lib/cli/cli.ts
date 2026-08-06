@@ -116,8 +116,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       },
     });
 
-  // If we are being run by an AI agent and there is no explicit progress preference
-  // (CLI argument or config file), default to "quiet" progress to save on tokens
+  // Progress updates are wasted tokens for AI agents
   if (guessAgent() && configuration.settings.get(['progress']) === undefined) {
     ioHost.stackProgress = StackActivityProgress.QUIET;
     await ioHost.defaults.debug('AI agent detected, defaulting to --progress "quiet"');

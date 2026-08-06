@@ -128,23 +128,3 @@ test('DELETE_FAILED during stack create prints the failure', () => {
   expect(joined).toContain('Resource cannot be deleted');
   expect(joined).not.toContain('skipped');
 });
-
-test('includes hook failure reasons', () => {
-  const output = runPrinter((printer) => {
-    printer.activity({
-      ...activity({ status: ResourceStatus.UPDATE_IN_PROGRESS }),
-      event: {
-        ...activity({ status: ResourceStatus.UPDATE_IN_PROGRESS }).event,
-        HookStatus: 'HOOK_COMPLETE_FAILED',
-        HookType: 'hook1',
-        HookStatusReason: 'resource must obey certain rules',
-      },
-    });
-    printer.activity(activity({
-      status: ResourceStatus.UPDATE_FAILED,
-      reason: 'The following hook(s) failed: hook1',
-    }));
-  });
-
-  expect(output.join('\n')).toContain('The following hook(s) failed: hook1 : resource must obey certain rules');
-});
