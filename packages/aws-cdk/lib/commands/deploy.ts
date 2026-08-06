@@ -18,5 +18,5 @@ export enum StackActivityProgress {
    * Recommended for AI agents and other consumers that don't benefit
    * from continuous progress updates.
    */
-  QUIET = 'quiet',
+  ERRORS_ONLY = 'errors-only',
 }

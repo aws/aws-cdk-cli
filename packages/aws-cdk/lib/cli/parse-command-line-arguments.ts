@@ -560,7 +560,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('progress', {
           default: undefined,
           type: 'string',
-          choices: ['bar', 'events', 'quiet'],
+          choices: ['bar', 'events', 'errors-only'],
           desc: 'Display mode for stack activity events',
         })
         .option('rollback', {
@@ -814,7 +814,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('progress', {
           default: undefined,
           type: 'string',
-          choices: ['bar', 'events', 'quiet'],
+          choices: ['bar', 'events', 'errors-only'],
           desc: 'Display mode for stack activity events',
         })
         .option('rollback', {

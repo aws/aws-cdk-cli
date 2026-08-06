@@ -1,4 +1,4 @@
 export * from './base';
 export * from './history';
 export * from './current';
-export * from './quiet';
+export * from './errors-only';

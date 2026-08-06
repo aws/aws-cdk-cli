@@ -167,7 +167,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.QUIET], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
@@ -345,7 +345,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
           'force': { alias: 'f', type: 'boolean', desc: 'Always deploy stack even if templates are identical', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.QUIET], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +

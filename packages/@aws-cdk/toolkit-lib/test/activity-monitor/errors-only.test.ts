@@ -1,6 +1,6 @@
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
-import { QuietActivityPrinter } from '../../lib/private/activity-printer';
+import { ErrorsOnlyActivityPrinter } from '../../lib/private/activity-printer';
 import { testStack } from '../_helpers/assembly';
 import { stderr } from '../_helpers/console-listener';
 
@@ -38,8 +38,8 @@ function activity(props: {
   };
 }
 
-function runPrinter(block: (printer: QuietActivityPrinter) => void) {
-  const printer = new QuietActivityPrinter({ stream: process.stderr });
+function runPrinter(block: (printer: ErrorsOnlyActivityPrinter) => void) {
+  const printer = new ErrorsOnlyActivityPrinter({ stream: process.stderr });
   return stderr.inspectSync(() => {
     printer.start({ stack: testStack({ stackName: 'stack-name' }) });
     block(printer);

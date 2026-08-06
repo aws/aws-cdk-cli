@@ -535,7 +535,7 @@
           "choices": [
             "bar",
             "events",
-            "quiet"
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },
@@ -802,7 +802,7 @@
           "choices": [
             "bar",
             "events",
-            "quiet"
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },

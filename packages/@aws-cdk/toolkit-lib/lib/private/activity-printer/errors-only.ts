@@ -10,7 +10,7 @@ import type { StackActivity } from '../../payloads';
  * Intended for consumers like AI agents that don't need continuous progress
  * updates, where any output that is not an error is a waste of tokens.
  */
-export class QuietActivityPrinter extends ActivityPrinterBase {
+export class ErrorsOnlyActivityPrinter extends ActivityPrinterBase {
   private printedFailures = 0;
 
   public start(state: { stack: CloudFormationStackArtifact }) {

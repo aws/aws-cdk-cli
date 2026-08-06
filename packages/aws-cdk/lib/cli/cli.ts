@@ -118,8 +118,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   // Progress updates are wasted tokens for AI agents
   if (guessAgent() && configuration.settings.get(['progress']) === undefined) {
-    ioHost.stackProgress = StackActivityProgress.QUIET;
-    await ioHost.defaults.debug('AI agent detected, defaulting to --progress "quiet"');
+    ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
+    await ioHost.defaults.debug('AI agent detected, defaulting to --progress "errors-only"');
   }
 
   // Always create and use ProxyAgent to support configuration via env vars

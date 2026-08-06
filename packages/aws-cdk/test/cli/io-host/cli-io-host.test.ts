@@ -567,6 +567,7 @@ describe('CliIoHost', () => {
       expect(makeSpy).toHaveBeenCalledTimes(1);
       expect(fakePrinter.notify).toHaveBeenCalledTimes(2);
     });
+
   });
 
   describe('message formatting', () => {
@@ -1535,13 +1536,13 @@ describe('CliIoHost', () => {
       expect(ioHost.stackProgress).toBe(StackActivityProgress.EVENTS);
     });
 
-    test('"quiet" is preserved regardless of TTY, CI and log level', () => {
+    test('"errors-only" is preserved regardless of TTY, CI and log level', () => {
       ioHost.isTTY = false;
       ioHost.isCI = true;
       ioHost.logLevel = 'trace';
-      ioHost.stackProgress = StackActivityProgress.QUIET;
+      ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
 
-      expect(ioHost.stackProgress).toBe(StackActivityProgress.QUIET);
+      expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
     });
   });
 });
