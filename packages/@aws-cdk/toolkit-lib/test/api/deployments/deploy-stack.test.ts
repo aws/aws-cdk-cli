@@ -1455,7 +1455,7 @@ describe('express mode', () => {
     });
   });
 
-  test('hotswap fallback enables express mode automatically', async () => {
+  test('hotswap fallback uses standard mode', async () => {
     // GIVEN - hotswap returns undefined (failure), triggering fallback
     (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
 
@@ -1465,16 +1465,16 @@ describe('express mode', () => {
       deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
     });
 
-    // THEN - the fallback change-set deployment uses express mode
+    // THEN
     expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
       ...expect.anything,
       DeploymentConfig: expect.objectContaining({
-        Mode: 'EXPRESS',
+        Mode: 'STANDARD',
       }),
     } as CreateChangeSetCommandInput);
   });
 
-  test('hotswap fallback with method=direct enables express mode automatically', async () => {
+  test('hotswap fallback with method=direct uses standard mode', async () => {
     // GIVEN - hotswap returns undefined (failure), triggering fallback
     (tryHotswapDeployment as jest.Mock).mockResolvedValue(undefined);
 
@@ -1484,11 +1484,11 @@ describe('express mode', () => {
       deploymentMethod: { method: 'hotswap', fallback: { method: 'direct' } },
     });
 
-    // THEN - the fallback direct deployment uses express mode
+    // THEN
     expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateStackCommand, {
       ...expect.anything,
       DeploymentConfig: expect.objectContaining({
-        Mode: 'EXPRESS',
+        Mode: 'STANDARD',
       }),
     } as CreateStackCommandInput);
   });
