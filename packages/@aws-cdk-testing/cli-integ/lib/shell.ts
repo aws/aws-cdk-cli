@@ -282,7 +282,22 @@ export class ShellHelper {
 export function rimraf(fsPath: string): boolean {
   try {
     let success = true;
-    const isDir = fs.lstatSync(fsPath).isDirectory();
+    const stat = fs.lstatSync(fsPath);
+
+    // Remove links without recursing into their target: a directory may
+    // link to shared content that other tests are still using (e.g. the
+    // shared 'node_modules' on Windows).
+    if (stat.isSymbolicLink()) {
+      try {
+        fs.unlinkSync(fsPath);
+      } catch {
+        // On Windows, directory links (junctions) must be removed with rmdir
+        fs.rmdirSync(fsPath);
+      }
+      return true;
+    }
+
+    const isDir = stat.isDirectory();
 
     if (isDir) {
       for (const file of fs.readdirSync(fsPath)) {
@@ -310,13 +325,13 @@ export function rimraf(fsPath: string): boolean {
 }
 
 export function addToShellPath(x: string) {
-  const parts = process.env.PATH?.split(':') ?? [];
+  const parts = process.env.PATH?.split(path.delimiter) ?? [];
 
   if (!parts.includes(x)) {
     parts.unshift(x);
   }
 
-  process.env.PATH = parts.join(':');
+  process.env.PATH = parts.join(path.delimiter);
 }
 
 /**
@@ -339,7 +354,28 @@ export function addToShellPath(x: string) {
 class LastLine {
   private lastLine: string = '';
 
+  // win32 only: the last completed line that had visible content, see below
+  private lastVisibleLine: string = '';
+
   public append(chunk: string): void {
+    if (process.platform === 'win32') {
+      // ConPTY renders the screen buffer instead of streaming plain text:
+      // prompts are drawn with cursor-positioning escape sequences, padded
+      // with spaces to the terminal width, and followed by "lines" that
+      // contain nothing but more escape sequences. Match against the last
+      // line that had visible content, so control-only lines don't erase a
+      // prompt that was just drawn.
+      const lines = stripAnsi(chunk).split(/\r?\n/);
+      this.lastLine += lines[0];
+      for (const line of lines.slice(1)) {
+        if (this.lastLine.trim().length > 0) {
+          this.lastVisibleLine = this.lastLine;
+        }
+        this.lastLine = line;
+      }
+      return;
+    }
+
     const lines = chunk.split(os.EOL);
     if (lines.length === 1) {
       // chunk doesn't contain a new line so just append
@@ -351,10 +387,30 @@ class LastLine {
   }
 
   public get(): string {
+    if (process.platform === 'win32' && this.lastLine.trim().length === 0) {
+      return this.lastVisibleLine;
+    }
     return this.lastLine;
   }
 
   public reset() {
     this.lastLine = '';
+    this.lastVisibleLine = '';
   }
+}
+
+const ESC = '\u001b';
+// CSI sequences (cursor movement, erase, colors) and OSC sequences (window title)
+const ANSI_REGEX = new RegExp(`${ESC}\\[[0-9;?]*[@-~]|${ESC}\\][^${ESC}\\u0007]*(?:\\u0007|${ESC}\\\\)`, 'g');
+
+/**
+ * Remove ANSI escape sequences from terminal output.
+ *
+ * Windows ConPTY renders the screen buffer rather than streaming plain text:
+ * once the cursor reaches the bottom of the buffer, lines arrive as absolute
+ * cursor-positioning sequences instead of newline-terminated text. Prompt
+ * matching must look at the text only.
+ */
+function stripAnsi(chunk: string): string {
+  return chunk.replace(ANSI_REGEX, '');
 }

@@ -12,6 +12,39 @@ export function fixupTestTask(project: Project, taskName = 'test'): void {
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
+/**
+ * Tests that build or run Linux Docker images.
+ *
+ * GitHub-hosted Windows runners run Docker in Windows-containers mode and
+ * cannot pull or build Linux images ('no matching manifest for windows/amd64'),
+ * so these tests are skipped on Windows.
+ */
+const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
+  'deploy same docker asset to multiple regions',
+  'deploy same docker asset to multiple stacks',
+  'deploy stack with multiple docker assets',
+  'deploy stack with docker asset',
+  'cdk-assets smoke test',
+  'deploy new style synthesis to new style bootstrap (with docker image)',
+  'Garbage Collection untags in-use ecr images',
+  'Garbage Collection keeps in use ecr images',
+  'Garbage Collection deletes unused ecr images',
+  'Garbage Collection tags unused ecr images',
+  'all calls from isolated container go through proxy',
+  'docker-credential-cdk-assets can assume role and fetch ECR credentials',
+  'toolkit deploy stack with multiple docker assets',
+  // These do not have 'docker' in the name, but build Linux images as a side
+  // effect: python lambda bundling, SAM asset bundling, a DockerImageAsset in
+  // the fixture stack, and a docker-app deploy from a copied assembly.
+  'CDK synth bundled functions as expected',
+  'CDK synth add the metadata properties expected by sam',
+  'can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles',
+  'generating and loading assembly',
+  'test resource import with construct that requires bundling',
+  'hotswap deployment supports Bedrock AgentCore Runtime',
+  'sam can locally test the synthesized cdk application',
+];
+
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
@@ -129,6 +162,17 @@ export interface CdkCliIntegTestsWorkflowProps {
    * Runners for the workflow
    */
   readonly testRunsOn: string;
+
+  /**
+   * If given, additionally run every integ test matrix job on this Windows
+   * runner (in addition to the `testRunsOn` runner).
+   *
+   * The Windows jobs are suffixed with `_windows` and run all steps under Git
+   * Bash so the shared bash step scripts keep working.
+   *
+   * @default - integ tests only run on `testRunsOn`
+   */
+  readonly windowsTestRunsOn?: string;
 
   /**
    * GitHub environment name for approvals
@@ -289,11 +333,25 @@ export class CdkCliIntegTestsWorkflow extends Component {
       committed: false,
       lines: [
         '#!/bin/bash',
-        'npm install -g verdaccio pm2',
+        // Verdaccio was installed once in the 'prepare' job and shipped here
+        // as a tarball; extracting it is much faster than an npm install,
+        // especially on Windows. No process manager: Verdaccio only has to
+        // outlive this job, and the runner kills leftover processes at job
+        // teardown.
+        'mkdir -p $HOME/verdaccio-app',
+        'tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
-        'sleep 5', // Wait for Verdaccio to start
+        // Point at Verdaccio's JS entrypoint; bin shims were not created
+        // (--no-bin-links) and would not be bash-spawnable on Windows anyway.
+        'VERDACCIO_BIN="$HOME/verdaccio-app/node_modules/verdaccio/bin/verdaccio"',
+        'nohup node "$VERDACCIO_BIN" --config $HOME/.config/verdaccio/config.yaml > verdaccio.log 2>&1 &',
+        // Wait for Verdaccio to accept requests instead of sleeping a fixed time
+        'for i in $(seq 1 60); do',
+        '  if curl -fsS -o /dev/null http://localhost:4873/; then break; fi',
+        '  if [ $i -eq 60 ]; then echo "Verdaccio did not start:"; cat verdaccio.log; exit 1; fi',
+        '  sleep 1',
+        'done',
         // Configure NPM to use local registry
         'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
         'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
@@ -422,6 +480,26 @@ export class CdkCliIntegTestsWorkflow extends Component {
             RELEASE: 'true',
           },
         },
+        {
+          // Install Verdaccio once here and ship it to the test jobs as a
+          // tarball. Installing it in every job through npm costs ~60s on
+          // Windows runners (thousands of small file writes); extracting a
+          // single archive is much faster. Verdaccio has no native or
+          // platform-specific dependencies, so a Linux-built tree runs
+          // anywhere; --no-bin-links keeps symlinks out of the archive
+          // (jobs invoke the JS entrypoint directly).
+          name: 'Bundle Verdaccio for the test jobs',
+          run: [
+            'mkdir -p /tmp/verdaccio-bundle',
+            // The bundle is built once but runs under every Node version in
+            // the test matrix, so Verdaccio's engine range must include the
+            // oldest of them: 6.9 requires Node >= 22, 6.8 still allows 20.
+            // (A per-job npm install used to hide this by resolving an
+            // engines-compatible version for each job's own Node.)
+            '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)',
+            'tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules',
+          ].join('\n'),
+        },
         github.WorkflowSteps.uploadArtifact({
           id: 'build-artifact',
           with: {
@@ -434,7 +512,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
           id: 'script-artifact',
           with: {
             name: 'script-artifact',
-            path: '.projen/*.sh',
+            path: [
+              '.projen/*.sh',
+              '.projen/verdaccio-bundle.tgz',
+            ].join('\n'),
             overwrite: true,
             includeHiddenFiles: true,
           },
@@ -445,36 +526,37 @@ export class CdkCliIntegTestsWorkflow extends Component {
     // Ensure this is an array
     const additionalNodeVersionsToTest = this.props.additionalNodeVersionsToTest ?? [];
 
-    const testJobs = [
+    // The integ test suites, defined once and instantiated per platform.
+    const suites: Array<[string, MatrixIntegTestProps]> = [
       // cli-integ-tests
-      this.addMatrixJob('cli', {
+      ['cli', {
         domain: {
           suite: ['cli-integ-tests'],
           shards: 12,
         },
-      }),
+      }],
 
       // toolkit-lib
-      this.addMatrixJob('toolkit-lib', {
+      ['toolkit-lib', {
         domain: {
           suite: [
             'toolkit-lib-integ-tests',
           ],
           node: ['lts/*', ...additionalNodeVersionsToTest],
         },
-      }),
+      }],
 
       // telemetry
-      this.addMatrixJob('telemetry', {
+      ['telemetry', {
         domain: {
           suite: [
             'telemetry-integ-tests',
           ],
         },
-      }),
+      }],
 
       // init-templates
-      this.addMatrixJob('init-templates', {
+      ['init-templates', {
         domain: {
           suite: [
             'init-csharp',
@@ -493,15 +575,28 @@ export class CdkCliIntegTestsWorkflow extends Component {
           suite: 'init-typescript-app',
           node,
         })),
-      }),
+      }],
 
       // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
-      this.addMatrixJob('tool-integrations', {
+      ['tool-integrations', {
         domain: {
           suite: ['tool-integrations'],
           node: ['20'],
         },
-      }),
+      }],
+    ];
+
+    const testJobs = [
+      ...suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+        runsOn: this.props.testRunsOn,
+      })),
+      ...(this.props.windowsTestRunsOn
+        ? suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+          runsOn: this.props.windowsTestRunsOn!,
+          suffix: '_windows',
+          windows: true,
+        }))
+        : []),
     ];
 
     // Add a job that collates all matrix jobs into a single status
@@ -528,12 +623,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
     });
   }
 
-  private addMatrixJob(testName: string, props: MatrixIntegTestProps): string {
-    const jobName = `integ_${testName}`;
+  private addMatrixJob(testName: string, props: MatrixIntegTestProps, platform: PlatformOptions): string {
+    const suffix = platform.suffix ?? '';
+    const jobName = `integ_${testName}${suffix}`;
 
     let shard: any;
     let shardArg = '';
-    let logName = 'logs-${{ matrix.suite }}-${{ matrix.node }}';
+    let logName = `logs${suffix}-\${{ matrix.suite }}-\${{ matrix.node }}`;
     if (props.domain.shards) {
       shard = Array(props.domain.shards).fill(0).map((_, i) => i + 1);
       shardArg = ` --shard="\${{ matrix.shard }}/${props.domain.shards}"`;
@@ -542,11 +638,18 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     this.workflow.addJob(jobName, {
       environment: this.props.testEnvironment,
-      runsOn: [this.props.testRunsOn],
+      runsOn: [platform.runsOn],
       needs: [this.JOB_PREPARE],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
+      },
+      // The step scripts are written for bash; on Windows runners use Git Bash
+      // (preinstalled) so they run unchanged while still exercising Windows.
+      defaults: {
+        run: {
+          shell: 'bash',
+        },
       },
       env: {
         // Integ tests heavily rely on processing stdout, node warnings (mostly deprecations) are muddying this.
@@ -558,6 +661,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        ...platform.windows ? {
+          // The skip file is newline-separated; the CDK_INTEG_SKIP_TESTS
+          // environment variable is comma-separated and cannot express
+          // test names that contain commas.
+          CDK_INTEG_SKIP_TESTS_FILE: '${{ github.workspace }}\\windows-skip-tests.txt',
+        } : {},
         // add extra env at end so it can override
         ...props.extraEnv,
       },
@@ -577,6 +686,33 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       },
       steps: [
+        ...platform.windows ? [{
+          // The integ tests are dominated by npm installs and toolchain builds:
+          // many small file writes, which are slow on the runner's NTFS OS disk.
+          // A Dev Drive (ReFS VHDX) is much faster for this pattern. Create one
+          // and point TEMP at it, which is where all test fixtures live
+          // (the harness creates its working directories under os.tmpdir()).
+          name: 'Set up Dev Drive for TEMP and npm cache',
+          shell: 'powershell',
+          run: [
+            '$vhd = "C:\\devdrive.vhdx"',
+            '$drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter',
+            'New-Item -ItemType Directory -Path "${drive}:\\temp" | Out-Null',
+            'New-Item -ItemType Directory -Path "${drive}:\\npm-cache" | Out-Null',
+            'echo "TEMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            'echo "TMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            // Every npm invocation in the job (global installs, per-test installs)
+            // reads and writes the cache, so move it onto the Dev Drive too
+            'echo "npm_config_cache=${drive}:\\npm-cache" >> $env:GITHUB_ENV',
+          ].join('\n'),
+        }, {
+          name: 'Write Windows skip-tests file',
+          run: [
+            'cat > windows-skip-tests.txt << \'EOF\'',
+            ...DOCKER_TESTS_SKIPPED_ON_WINDOWS,
+            'EOF',
+          ].join('\n'),
+        }] : [],
         github.WorkflowSteps.downloadArtifact({
           with: {
             artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.packagesArtifact}}`],
@@ -684,4 +820,28 @@ interface MatrixIntegTestProps {
   readonly include?: github.workflows.JobMatrix['include'];
   readonly exclude?: github.workflows.JobMatrix['exclude'];
   readonly extraEnv?: Record<string, string | undefined>;
+}
+
+interface PlatformOptions {
+  /**
+   * The runner label to run this instance of the job on.
+   */
+  readonly runsOn: string;
+
+  /**
+   * Suffix appended to the job name and log artifact names, to disambiguate
+   * multiple platform instances of the same suite.
+   *
+   * @default - no suffix
+   */
+  readonly suffix?: string;
+
+  /**
+   * Whether this job runs on a Windows runner.
+   *
+   * Adds Windows-specific setup steps.
+   *
+   * @default false
+   */
+  readonly windows?: boolean;
 }
