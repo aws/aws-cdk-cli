@@ -1,14 +1,31 @@
-import type { IncomingMessage } from 'http';
-import type { Agent } from 'https';
-import { request } from 'https';
+import { spawn } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { NetworkDetector } from '../../../api/network-detector';
 import { IoHelper } from '../../../api-private';
 import type { IIoHost } from '../../io-host';
 import type { TelemetrySchema } from '../schema';
 import type { ITelemetrySink } from './sink-interface';
 
-const REQUEST_ATTEMPT_TIMEOUT_MS = 500;
+/**
+ * Largest payload we are willing to hand to the detached sender.
+ *
+ * The payload is written to the child's stdin. Once it exceeds the OS pipe buffer plus libuv's
+ * own buffering, `write()` no longer completes eagerly and the parent ends up waiting for the
+ * child to drain -- which is exactly the blocking behaviour the detached sender exists to remove.
+ * Measured on Linux/Node 20, the parent still exits in ~37ms at 200KB but stalls for seconds at
+ * 400KB, so 64KB leaves a wide margin. Realistic batches are 3-10KB.
+ */
+const MAX_DISPATCH_PAYLOAD_BYTES = 65_536;
+
+/**
+ * Stable prefix of the trace emitted once a batch has been handed to the sender.
+ *
+ * Integration tests match on this literal, so it must not change casually. Note that it reports a
+ * successful hand-off, not a successful delivery -- by design nobody in this process ever learns
+ * whether the POST succeeded.
+ */
+const DISPATCHED_TRACE = 'Telemetry dispatched';
 
 /**
  * Properties for the Endpoint Telemetry Client
@@ -25,23 +42,56 @@ export interface EndpointTelemetrySinkProps {
   readonly ioHost: IIoHost;
 
   /**
-   * The agent responsible for making the network requests.
+   * Absolute path to this CLI's `bin/cdk` script, used to respawn ourselves as a telemetry sender.
    *
-   * Use this to set up a proxy connection.
+   * Without it we cannot dispatch, and telemetry is silently skipped.
    *
-   * @default - Uses the shared global node agent
+   * @default - telemetry is not sent
    */
-  readonly agent?: Agent;
+  readonly binCdkPath?: string;
+
+  /**
+   * Proxy the sender should tunnel through, as configured by `--proxy` or the `proxy` setting.
+   *
+   * When absent, the sender falls back to the inherited proxy environment variables, which is the
+   * same behaviour `proxy-agent` gives the rest of the CLI.
+   *
+   * @default - resolved from the environment by the sender
+   */
+  readonly proxyUrl?: string;
+
+  /**
+   * Contents of the CA bundle to trust, as configured by `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   *
+   * @default - only the system trust store
+   */
+  readonly caCert?: string;
 }
 
 /**
  * The telemetry client that hits an external endpoint.
+ *
+ * The HTTP POST itself does not happen in this process. Events are handed to a detached child
+ * process (`bin/cdk` re-invoked with `CDK_TELEMETRY_SENDER=1`) which outlives us, so the CLI can
+ * exit without waiting on the network.
+ *
+ * Deliberately nothing here checks first whether the network is reachable. Any such check is
+ * itself a network call on the CLI's exit path, which is what this sink exists to avoid. When the
+ * machine is offline we simply spawn a child that fails and exits: the child has its own timeouts
+ * and swallows every error, so the cost of being wrong is one short-lived process.
+ *
+ * For the same reason this sink imposes no network timeout on the child. The old 500ms per-attempt
+ * budget existed to keep a synchronous POST from delaying the user's prompt; nothing waits on the
+ * sender now, so it owns a budget appropriate to actually completing a request (see
+ * `NETWORK_TIMEOUT_MS` in `../sender`).
  */
 export class EndpointTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
   private endpoint: URL;
   private ioHelper: IoHelper;
-  private agent?: Agent;
+  private binCdkPath?: string;
+  private proxyUrl?: string;
+  private caCert?: string;
 
   public constructor(props: EndpointTelemetrySinkProps) {
     this.endpoint = new URL(props.endpoint);
@@ -51,7 +101,9 @@ export class EndpointTelemetrySink implements ITelemetrySink {
     }
 
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
-    this.agent = props.agent;
+    this.binCdkPath = props.binCdkPath;
+    this.proxyUrl = props.proxyUrl;
+    this.caCert = props.caCert;
 
     // Batch events every 30 seconds
     setInterval(() => this.flush(), 30000).unref();
@@ -75,7 +127,7 @@ export class EndpointTelemetrySink implements ITelemetrySink {
         return;
       }
 
-      const res = await this.https(this.endpoint, { events: this.events });
+      const res = await this.dispatch(this.endpoint, { events: this.events });
 
       // Clear the events array after successful output
       if (res) {
@@ -88,67 +140,87 @@ export class EndpointTelemetrySink implements ITelemetrySink {
   }
 
   /**
-   * Returns true if telemetry successfully posted, false otherwise.
+   * Hand the batch to a detached sender process.
+   *
+   * Returns true if the batch reached a terminal state (either handed off, or dropped because it
+   * can never be delivered) and should therefore be cleared. Returns false if it is worth
+   * retrying on the next flush.
    */
-  private async https(
+  private async dispatch(
     url: URL,
     body: { events: TelemetrySchema[] },
   ): Promise<boolean> {
-    // Check connectivity before attempting network request
-    const hasConnectivity = await NetworkDetector.hasConnectivity(this.agent);
-    if (!hasConnectivity) {
-      await this.ioHelper.defaults.trace('No internet connectivity detected, skipping telemetry');
+    if (!this.binCdkPath) {
+      await this.ioHelper.defaults.trace('Telemetry not sent: unable to locate the CLI entrypoint to spawn a sender');
       return false;
     }
 
+    const payload = JSON.stringify({
+      endpoint: url.href,
+      body,
+      proxyUrl: this.proxyUrl,
+      ca: this.caCert,
+    });
+
+    const payloadBytes = Buffer.byteLength(payload);
+    if (payloadBytes > MAX_DISPATCH_PAYLOAD_BYTES) {
+      // Writing this much to the child's stdin would block our own exit. Drop the batch; it is
+      // not going to get smaller on a retry.
+      await this.ioHelper.defaults.trace(`Telemetry dropped: payload of ${payloadBytes} bytes exceeds ${MAX_DISPATCH_PAYLOAD_BYTES}`);
+      return true;
+    }
+
     try {
-      const res = await doRequest(url, body, this.agent);
+      const child = spawn(process.execPath, [this.binCdkPath], {
+        detached: true,
+        stdio: ['pipe', 'ignore', 'ignore'],
+        windowsHide: true,
+        shell: false,
+        // Do not hold a reference to the user's working directory; they may want to delete it.
+        cwd: os.tmpdir(),
+        env: {
+          ...process.env,
+          CDK_TELEMETRY_SENDER: '1',
+        },
+      });
 
-      // Successfully posted
-      if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-        await this.ioHelper.defaults.trace('Telemetry Sent Successfully');
-        return true;
-      }
+      // The child is on its own from here; a spawn failure must not surface anywhere. These fire
+      // after the CLI may already have exited, so they cannot go through the IoHost -- see
+      // `debugTrace`.
+      child.on('error', (e: Error) => {
+        debugTrace(`failed to spawn sender: ${e.message}`);
+      });
+      child.stdin?.on('error', (e: Error) => {
+        debugTrace(`failed to write payload to sender: ${e.message}`);
+      });
 
-      await this.ioHelper.defaults.trace(`Telemetry Unsuccessful: POST ${url.hostname}${url.pathname}: ${res.statusCode}:${res.statusMessage}`);
+      child.stdin?.end(payload);
+      child.unref();
 
-      return false;
+      await this.ioHelper.defaults.trace(`${DISPATCHED_TRACE} (pid ${child.pid}, ${payloadBytes} bytes)`);
+      return true;
     } catch (e: any) {
-      await this.ioHelper.defaults.trace(`Telemetry Error: POST ${url.hostname}${url.pathname}: ${JSON.stringify(e)}`);
+      await this.ioHelper.defaults.trace(`Telemetry Error: spawning sender for POST ${url.hostname}${url.pathname} failed: ${e.message}`);
       return false;
     }
   }
 }
 
 /**
- * A Promisified version of `https.request()`
+ * Diagnostics for failures that surface after the CLI may already have exited.
+ *
+ * The child's `error` events fire asynchronously, potentially once the IoHost is gone and the
+ * process is on its way out, so they cannot be reported through the normal trace channel. Written
+ * synchronously to fd 2 for the same reason the sender does it, and gated behind the same variable
+ * so it is silent unless somebody is deliberately debugging telemetry delivery.
  */
-function doRequest(
-  url: URL,
-  data: { events: TelemetrySchema[] },
-  agent?: Agent,
-) {
-  return new Promise<IncomingMessage>((ok, ko) => {
-    const payload: string = JSON.stringify(data);
-    const req = request({
-      hostname: url.hostname,
-      port: url.port || null,
-      path: url.pathname,
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': payload.length,
-      },
-      agent,
-      timeout: REQUEST_ATTEMPT_TIMEOUT_MS,
-    }, ok);
-
-    req.on('error', ko);
-    req.on('timeout', () => {
-      const error = new ToolkitError('RequestTimeout', `Timeout after ${REQUEST_ATTEMPT_TIMEOUT_MS}ms, aborting request`);
-      req.destroy(error);
-    });
-
-    req.end(payload);
-  });
+function debugTrace(message: string): void {
+  if (process.env.CDK_TELEMETRY_SENDER_DEBUG !== '1') {
+    return;
+  }
+  try {
+    fs.writeSync(2, `[cdk-telemetry-dispatch] ${message}\n`);
+  } catch {
+    // Diagnostics must never be the reason anything fails.
+  }
 }

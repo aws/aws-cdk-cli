@@ -1,30 +1,37 @@
-import * as https from 'https';
+import { spawn } from 'node:child_process';
+import * as os from 'node:os';
 import { createTestEvent } from './util';
-import { NetworkDetector } from '../../../../lib/api/network-detector';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
 
-// Mock the https module
-jest.mock('https', () => ({
-  request: jest.fn(),
+jest.mock('node:child_process', () => ({
+  spawn: jest.fn(),
 }));
 
-// Mock NetworkDetector
-jest.mock('../../../../lib/api/network-detector', () => ({
-  NetworkDetector: {
-    hasConnectivity: jest.fn(),
-  },
-}));
+const BIN_CDK = '/fake/pkg/bin/cdk';
+
+interface MockChild {
+  pid: number;
+  on: jest.Mock;
+  unref: jest.Mock;
+  stdin: { on: jest.Mock; end: jest.Mock };
+}
 
 describe('EndpointTelemetrySink', () => {
   let ioHost: CliIoHost;
+  let child: MockChild;
 
   beforeEach(() => {
     jest.resetAllMocks();
 
-    // Mock NetworkDetector to return true by default for existing tests
-    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
+    child = {
+      pid: 4242,
+      on: jest.fn(),
+      unref: jest.fn(),
+      stdin: { on: jest.fn(), end: jest.fn() },
+    };
+    (spawn as jest.Mock).mockReturnValue(child);
 
     ioHost = CliIoHost.instance();
   });
@@ -33,310 +40,237 @@ describe('EndpointTelemetrySink', () => {
     jest.restoreAllMocks();
   });
 
-  // Helper to create a mock request object with the necessary event handlers
-  function setupMockRequest() {
-    // Create a mock response object with a successful status code
-    const mockResponse = {
-      statusCode: 200,
-      statusMessage: 'OK',
-    };
-
-    // Create the mock request object
-    const mockRequest = {
-      on: jest.fn(),
-      end: jest.fn(),
-      setTimeout: jest.fn(),
-    };
-
-    // Mock the https.request to return our mockRequest
-    (https.request as jest.Mock).mockImplementation((_, callback) => {
-      // If a callback was provided, call it with our mock response
-      if (callback) {
-        setTimeout(() => callback(mockResponse), 0);
-      }
-      return mockRequest;
+  function sink(props: Partial<ConstructorParameters<typeof EndpointTelemetrySink>[0]> = {}) {
+    return new EndpointTelemetrySink({
+      endpoint: 'https://example.com/telemetry',
+      ioHost,
+      binCdkPath: BIN_CDK,
+      ...props,
     });
-
-    return mockRequest;
   }
 
-  test('makes a POST request to the specified endpoint', async () => {
-    // GIVEN
-    const mockRequest = setupMockRequest();
-    const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
+  /**
+   * The JSON that was piped to the detached sender on the Nth spawn.
+   */
+  function pipedPayload(nth = 0) {
+    return JSON.parse(child.stdin.end.mock.calls[nth][0]);
+  }
 
-    // WHEN
-    await client.emit(testEvent);
-    await client.flush();
+  describe('dispatching', () => {
+    test('does not spawn anything at construction time', () => {
+      // Constructing a sink must be free of side effects: `startTelemetry` builds one against the
+      // real production endpoint even in unit tests.
+      sink();
 
-    // THEN
-    const expectedPayload = JSON.stringify({ events: [testEvent] });
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
-
-    expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
-  });
-
-  test('silently catches request errors', async () => {
-    // GIVEN
-    const mockRequest = setupMockRequest();
-    const testEvent = createTestEvent('INVOKE');
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    mockRequest.on.mockImplementation((event, callback) => {
-      if (event === 'error') {
-        callback(new Error('Network error'));
-      }
-      return mockRequest;
+      expect(spawn).not.toHaveBeenCalled();
     });
 
-    await client.emit(testEvent);
+    test('does not spawn when there are no events', async () => {
+      await sink().flush();
 
-    // THEN
-    await expect(client.flush()).resolves.not.toThrow();
-  });
-
-  test('multiple events sent as one', async () => {
-    // GIVEN
-    const mockRequest = setupMockRequest();
-    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
-    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    // WHEN
-    await client.emit(testEvent1);
-    await client.emit(testEvent2);
-    await client.flush();
-
-    // THEN
-    const expectedPayload = JSON.stringify({ events: [testEvent1, testEvent2] });
-    expect(https.request).toHaveBeenCalledTimes(1);
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
-
-    expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
-  });
-
-  test('successful flush clears events cache', async () => {
-    // GIVEN
-    setupMockRequest();
-    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
-    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    // WHEN
-    await client.emit(testEvent1);
-    await client.flush();
-    await client.emit(testEvent2);
-    await client.flush();
-
-    // THEN
-    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
-    expect(https.request).toHaveBeenCalledTimes(2);
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload1.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
-
-    const expectedPayload2 = JSON.stringify({ events: [testEvent2] });
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload2.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
-  });
-
-  test('failed flush does not clear events cache', async () => {
-    // GIVEN
-    const mockRequest = {
-      on: jest.fn(),
-      end: jest.fn(),
-      setTimeout: jest.fn(),
-    };
-    // Mock the https.request to return the first response as 503
-    (https.request as jest.Mock).mockImplementationOnce((_, callback) => {
-      // If a callback was provided, call it with our mock response
-      if (callback) {
-        setTimeout(() => callback({
-          statusCode: 503,
-          statusMessage: 'Service Unavailable',
-        }), 0);
-      }
-      return mockRequest;
-    }).mockImplementation((_, callback) => {
-      if (callback) {
-        setTimeout(() => callback({
-          statusCode: 200,
-          statusMessage: 'Success',
-        }), 0);
-      }
-      return mockRequest;
+      expect(spawn).not.toHaveBeenCalled();
     });
 
-    const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
-    const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
+    test('spawns a detached sender and pipes the payload to it', async () => {
+      const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
+      const client = sink();
 
-    // WHEN
-    await client.emit(testEvent1);
+      await client.emit(testEvent);
+      await client.flush();
 
-    // mocked to fail
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(spawn).toHaveBeenCalledWith(process.execPath, [BIN_CDK], expect.objectContaining({
+        detached: true,
+        stdio: ['pipe', 'ignore', 'ignore'],
+        windowsHide: true,
+        shell: false,
+        cwd: os.tmpdir(),
+      }));
+
+      expect(pipedPayload()).toEqual({
+        endpoint: 'https://example.com/telemetry',
+        body: { events: [testEvent] },
+      });
+    });
+
+    test('does not impose the parent\'s exit budget on the child', async () => {
+      // The 500ms per-attempt timeout the synchronous POST used was there to protect the user's
+      // prompt. Nothing waits on the sender now, so forwarding it would only cut off slow (and
+      // especially proxied) deliveries -- the sender picks its own budget.
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      expect(pipedPayload()).not.toHaveProperty('timeoutMs');
+    });
+
+    test('marks the child as the sender and lets it outlive us', async () => {
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      const options = (spawn as jest.Mock).mock.calls[0][2];
+      expect(options.env.CDK_TELEMETRY_SENDER).toBe('1');
+      expect(child.unref).toHaveBeenCalledTimes(1);
+      // A spawn failure must not surface as an unhandled 'error' event.
+      expect(child.on).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(child.stdin.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
+    test('forwards the proxy and CA configuration the child cannot rediscover', async () => {
+      const client = sink({ proxyUrl: 'http://corp:8080', caCert: '-----BEGIN CERTIFICATE-----\nxx\n' });
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      expect(pipedPayload()).toMatchObject({
+        proxyUrl: 'http://corp:8080',
+        ca: '-----BEGIN CERTIFICATE-----\nxx\n',
+      });
+    });
+
+    test('batches multiple events into a single sender', async () => {
+      const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+      const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
+      const client = sink();
+
+      await client.emit(testEvent1);
+      await client.emit(testEvent2);
+      await client.flush();
+
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(pipedPayload().body).toEqual({ events: [testEvent1, testEvent2] });
+    });
+
+    test('successful dispatch clears the events cache', async () => {
+      const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
+      const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
+      const client = sink();
+
+      await client.emit(testEvent1);
+      await client.flush();
+      await client.emit(testEvent2);
+      await client.flush();
+
+      expect(spawn).toHaveBeenCalledTimes(2);
+      expect(pipedPayload(0).body).toEqual({ events: [testEvent1] });
+      expect(pipedPayload(1).body).toEqual({ events: [testEvent2] });
+    });
+  });
+
+  describe('back-pressure guard', () => {
+    test('drops a payload too large to hand over without blocking our own exit', async () => {
+      const traceSpy = jest.fn();
+      jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue({ defaults: { trace: traceSpy } } as any);
+
+      const client = sink();
+      // ~200KB of events, comfortably past the 64KB guard.
+      for (let i = 0; i < 200; i++) {
+        await client.emit(createTestEvent('INVOKE', { padding: 'x'.repeat(1000) }));
+      }
+
+      await client.flush();
+
+      expect(spawn).not.toHaveBeenCalled();
+      expect(traceSpy).toHaveBeenCalledWith(expect.stringContaining('Telemetry dropped'));
+
+      // The batch is undeliverable, so it must be discarded rather than grown forever.
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(pipedPayload().body.events).toHaveLength(1);
+    });
+
+    test('a normal batch is nowhere near the guard', async () => {
+      const client = sink();
+      for (let i = 0; i < 3; i++) {
+        await client.emit(createTestEvent('INVOKE'));
+      }
+
+      await client.flush();
+
+      expect(spawn).toHaveBeenCalledTimes(1);
+      expect(Buffer.byteLength(child.stdin.end.mock.calls[0][0])).toBeLessThan(65_536);
+    });
+  });
+
+  describe('failure handling', () => {
+    test('dispatches without first probing the network', async () => {
+      // Any reachability probe would itself be a network call on the CLI's exit path, which is what
+      // this sink exists to avoid. Offline machines just spawn a child that fails and exits.
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      expect(spawn).toHaveBeenCalledTimes(1);
+    });
+
+    test('skips when the CLI entrypoint could not be located', async () => {
+      const traceSpy = jest.fn();
+      jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue({ defaults: { trace: traceSpy } } as any);
+
+      const client = sink({ binCdkPath: undefined });
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      expect(spawn).not.toHaveBeenCalled();
+      expect(traceSpy).toHaveBeenCalledWith(expect.stringContaining('unable to locate the CLI entrypoint'));
+    });
+
+    test('swallows a spawn failure, traces it, and retains the events', async () => {
+      const traceSpy = jest.fn();
+      jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue({ defaults: { trace: traceSpy } } as any);
+      (spawn as jest.Mock).mockImplementation(() => {
+        throw new Error('EMFILE');
+      });
+
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+
+      await expect(client.flush()).resolves.not.toThrow();
+      expect(traceSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Telemetry Error: spawning sender for POST example.com/telemetry'),
+      );
+
+      // Retained for a retry.
+      (spawn as jest.Mock).mockReturnValue(child);
+      await client.flush();
+      expect(child.stdin.end).toHaveBeenCalledTimes(1);
+    });
+
+    test('rejects a malformed endpoint at construction', () => {
+      expect(() => sink({ endpoint: 'not-a-url' })).toThrow();
+    });
+  });
+
+  test('reports a successful hand-off on the trace channel', async () => {
+    const traceSpy = jest.fn();
+    jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue({ defaults: { trace: traceSpy } } as any);
+
+    const client = sink();
+    await client.emit(createTestEvent('INVOKE'));
     await client.flush();
 
-    await client.emit(testEvent2);
-
-    // mocked to succeed
-    await client.flush();
-
-    // THEN
-    const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
-    expect(https.request).toHaveBeenCalledTimes(2);
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload1.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
-
-    const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2] });
-    expect(https.request).toHaveBeenCalledWith({
-      hostname: 'example.com',
-      port: null,
-      path: '/telemetry',
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': expectedPayload2.length,
-      },
-      agent: undefined,
-      timeout: 500,
-    }, expect.anything());
+    // Integration tests match on the 'Telemetry dispatched' prefix, so it must survive refactors.
+    expect(traceSpy).toHaveBeenCalledWith(expect.stringContaining('Telemetry dispatched'));
+    expect(traceSpy).toHaveBeenCalledWith(expect.stringMatching(/^Telemetry dispatched \(pid 4242, \d+ bytes\)$/));
   });
 
   test('flush is called every 30 seconds', async () => {
-    // GIVEN
     jest.useFakeTimers();
-    setupMockRequest(); // Setup the mock request but we don't need the return value
-
-    // Create a spy on setInterval
     const setIntervalSpy = jest.spyOn(global, 'setInterval');
 
-    // Create the client
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    // Create a spy on the flush method
+    const client = sink();
     const flushSpy = jest.spyOn(client, 'flush');
 
-    // WHEN
-    // Advance the timer by 30 seconds
     jest.advanceTimersByTime(30000);
 
-    // THEN
-    // Verify setInterval was called with the correct interval
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 30000);
-
-    // Verify flush was called
     expect(flushSpy).toHaveBeenCalledTimes(1);
 
-    // Advance the timer by another 30 seconds
     jest.advanceTimersByTime(30000);
-
-    // Verify flush was called again
     expect(flushSpy).toHaveBeenCalledTimes(2);
 
-    // Clean up
     jest.useRealTimers();
     setIntervalSpy.mockRestore();
-  });
-
-  test('handles errors gracefully and logs to trace without throwing', async () => {
-    // GIVEN
-    const testEvent = createTestEvent('INVOKE');
-
-    // Create a mock IoHelper with trace spy
-    const traceSpy = jest.fn();
-    const mockIoHelper = {
-      defaults: {
-        trace: traceSpy,
-      },
-    };
-
-    // Mock IoHelper.fromActionAwareIoHost to return our mock
-    jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
-
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    // Mock https.request to throw an error
-    (https.request as jest.Mock).mockImplementation(() => {
-      throw new Error('Network error');
-    });
-
-    await client.emit(testEvent);
-
-    // WHEN & THEN - flush should not throw even when https.request fails
-    await expect(client.flush()).resolves.not.toThrow();
-
-    // Verify that the error was logged to trace
-    expect(traceSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
-    );
-  });
-
-  test('skips request when no connectivity detected', async () => {
-    // GIVEN
-    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(false);
-
-    const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
-    const client = new EndpointTelemetrySink({ endpoint: 'https://example.com/telemetry', ioHost });
-
-    // WHEN
-    await client.emit(testEvent);
-    await client.flush();
-
-    // THEN
-    expect(NetworkDetector.hasConnectivity).toHaveBeenCalledWith(undefined);
-    expect(https.request).not.toHaveBeenCalled();
   });
 });

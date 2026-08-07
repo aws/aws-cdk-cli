@@ -1,4 +1,3 @@
-import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -9,6 +8,7 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, 
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
+import { cliBinPath } from '../telemetry/cli-bin-path';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
@@ -36,6 +36,29 @@ type CliAction =
   | 'version'
   | 'cli-telemetry'
   | 'none';
+
+/**
+ * How telemetry should reach the network.
+ *
+ * The endpoint sink does not make the request itself -- it hands off to a detached child process
+ * that only has Node built-ins available. That child cannot be given an `Agent`, so the proxy and
+ * certificate configuration have to travel as plain data instead.
+ */
+export interface TelemetryNetworkOptions {
+  /**
+   * Proxy configured via `--proxy` or the `proxy` setting.
+   *
+   * @default - the sender resolves it from the environment
+   */
+  readonly proxyUrl?: string;
+
+  /**
+   * Contents of the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   *
+   * @default - only the system trust store
+   */
+  readonly caCert?: string;
+}
 
 export interface CliIoHostProps {
   /**
@@ -376,7 +399,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.routeStackActivityToPrinter();
   }
 
-  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+  public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const config = require('../cli-type-registry.json');
     const validCommands = Object.keys(config.commands);
@@ -407,8 +430,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       try {
         sinks.push(new EndpointTelemetrySink({
           ioHost: this,
-          agent: proxyAgent,
           endpoint: telemetryEndpoint,
+          binCdkPath: cliBinPath(),
+          proxyUrl: network.proxyUrl,
+          caCert: network.caCert,
         }));
         await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
       } catch (e: any) {

@@ -21,6 +21,26 @@ interface ProxyAgentOptions {
   readonly caBundlePath?: string;
 }
 
+/**
+ * The proxy configuration resolved for this invocation.
+ */
+export interface ResolvedProxyAgent {
+  /**
+   * The agent to pass to anything making HTTPS requests in this process.
+   */
+  readonly agent: ProxyAgent;
+
+  /**
+   * Contents of the resolved CA bundle, if one was configured.
+   *
+   * Exposed because the detached telemetry sender cannot use `agent` -- it runs in another process
+   * and only has Node built-ins -- so it needs the certificate itself.
+   *
+   * @default - no CA bundle was configured
+   */
+  readonly caCert?: string;
+}
+
 export class ProxyAgentProvider {
   private readonly ioHelper: IoHelper;
 
@@ -28,17 +48,22 @@ export class ProxyAgentProvider {
     this.ioHelper = ioHelper;
   }
 
-  public async create(options: ProxyAgentOptions) {
+  public async create(options: ProxyAgentOptions): Promise<ResolvedProxyAgent> {
     // Force it to use the proxy provided through the command line.
     // Otherwise, let the ProxyAgent auto-detect the proxy using environment variables.
     const getProxyForUrl = options.proxyAddress != null
       ? () => Promise.resolve(options.proxyAddress!)
       : undefined;
 
-    return new ProxyAgent({
-      ca: await this.tryGetCACert(options.caBundlePath),
-      getProxyForUrl,
-    });
+    const caCert = await this.tryGetCACert(options.caBundlePath);
+
+    return {
+      agent: new ProxyAgent({
+        ca: caCert,
+        getProxyForUrl,
+      }),
+      caCert,
+    };
   }
 
   private async tryGetCACert(bundlePath?: string) {
