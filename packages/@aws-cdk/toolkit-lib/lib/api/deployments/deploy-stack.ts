@@ -715,10 +715,16 @@ class FullCloudFormationDeployment {
     } catch (e: any) {
       // If this is a deployment error, route the diagnosis and error reporting through the central code for that
       if (ToolkitError.isDeploymentError(e)) {
-        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, finalState.wrapped, true, {
-          rollbackEnabled: this.options.rollback !== false,
-        });
-        diagnosis.throwOnError();
+        // `finalState` is still the pre-deploy lookup, which holds no stack at all when we were creating one from
+        // scratch, and describes a state the deployment has since left when it does. Describe the stack we actually
+        // deployed instead. Diagnosing is best-effort: if it cannot tell us anything, report the deployment error.
+        const deployedState = await CloudFormationStack.lookup(this.cfn, stackArn).catch(() => undefined);
+        if (deployedState?.exists) {
+          const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, deployedState.wrapped, true, {
+            rollbackEnabled: this.options.rollback !== false,
+          });
+          diagnosis.throwOnError();
+        }
       }
 
       // Otherwise rethrow the current error and hope it has enough information.
