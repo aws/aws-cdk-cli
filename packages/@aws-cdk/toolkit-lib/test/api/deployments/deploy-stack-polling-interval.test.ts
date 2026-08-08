@@ -145,6 +145,7 @@ describe('deployStack', () => {
       expect.anything(),
       expect.anything(),
       10_000,
+      expect.anything(),
     );
   });
 });

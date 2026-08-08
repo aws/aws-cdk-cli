@@ -24,6 +24,12 @@ import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
+/**
+ * How many consecutive REVIEW_IN_PROGRESS reads to attribute to DescribeStacks eventual consistency
+ * before accepting the status as genuine.
+ */
+const STALE_REVIEW_READ_TOLERANCE = 5;
+
 export type PrepareChangeSetOptions = {
   stack: cxapi.CloudFormationStackArtifact;
   deployments: Deployments;
@@ -382,8 +388,9 @@ export async function waitForStackDeploy(
   ioHelper: IoHelper,
   stackName: string,
   stabilizationPollingInterval?: number,
+  executingStackId?: string,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, ioHelper, stackName, stabilizationPollingInterval);
+  const stack = await stabilizeStack(cfn, ioHelper, stackName, stabilizationPollingInterval, executingStackId);
   if (!stack) {
     return undefined;
   }
@@ -404,15 +411,25 @@ export async function waitForStackDeploy(
 
 /**
  * Wait for a stack to become stable (no longer _IN_PROGRESS), returning it
+ *
+ * @param executingStackId - the id of a stack whose ChangeSet execution has already been issued. `REVIEW_IN_PROGRESS`
+ * reported for that stack is a stale read rather than a stable status, because execution has moved it on already.
  */
 export async function stabilizeStack(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackNameOrArn: string,
   pollingInterval?: number,
+  executingStackId?: string,
 ) {
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
   await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackDisplayName));
+
+  // The stack we have seen an operation in progress on. Compared by id, because polling by name can otherwise
+  // observe a different stack that a concurrent operation created under the same name.
+  let inProgressStackId = executingStackId;
+  let staleReviewReads = 0;
+
   return waitFor(async () => {
     const stack = await CloudFormationStack.lookup(cfn, stackNameOrArn);
     if (!stack.exists) {
@@ -421,9 +438,20 @@ export async function stabilizeStack(
     }
     const status = stack.stackStatus;
     if (status.isInProgress) {
+      inProgressStackId = stack.stackId;
+      staleReviewReads = 0;
       await ioHelper.defaults.debug(format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackDisplayName, status));
       return undefined;
     } else if (status.isReviewInProgress) {
+      // A stack cannot go from an in-progress state back to REVIEW_IN_PROGRESS, so for the same stack id this is a
+      // stale read from an eventually consistent DescribeStacks replica. Tolerate a bounded number of them so that
+      // a stack genuinely left in review - which nothing will move on its own - still terminates the wait.
+      if (stack.stackId === inProgressStackId && staleReviewReads < STALE_REVIEW_READ_TOLERANCE) {
+        staleReviewReads++;
+        await ioHelper.defaults.debug(format('Stack %s reported REVIEW_IN_PROGRESS after being in progress; treating as a stale read (%s)', stackDisplayName, status));
+        return undefined;
+      }
+
       // This may happen if a stack creation operation is interrupted before the ChangeSet execution starts. Recovering
       // from this would requiring manual intervention (deleting or executing the pending ChangeSet), and failing to do
       // so will result in an endless wait here (the ChangeSet wont delete or execute itself). Instead of blocking
