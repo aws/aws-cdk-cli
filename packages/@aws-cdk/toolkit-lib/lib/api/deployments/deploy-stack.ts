@@ -705,7 +705,7 @@ class FullCloudFormationDeployment {
 
     let finalState = this.cloudFormationStack;
     try {
-      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
+      const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval, stackArn);
 
       // This shouldn't really happen, but catch it anyway. You never know.
       if (!successStack) {
