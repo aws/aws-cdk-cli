@@ -10,6 +10,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { equalSets, setDiff } from '../../util/sets';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
+import { stabilizeStack } from '../deployments/cfn-api';
 import { EnvironmentResourcesRegistry } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
@@ -102,6 +103,14 @@ export class RefactoringContext {
     await cfn.waitUntilStackRefactorExecuteComplete({
       StackRefactorId: refactor.StackRefactorId,
     });
+
+    // The refactor reaches EXECUTE_COMPLETE while the affected stacks may still
+    // be in UPDATE_IN_PROGRESS for a few more seconds. Wait for them to
+    // stabilize, so that callers can immediately start another stack operation.
+    const stackNames = [...new Set(mappings.flatMap((m) => [m.source.stack.stackName, m.destination.stack.stackName]))];
+    for (const stackName of stackNames) {
+      await stabilizeStack(cfn, ioHelper, stackName);
+    }
   }
 
   private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
