@@ -94,16 +94,23 @@ describe('execute', () => {
       .resolves(stackResponse('Foo', StackStatus.UPDATE_COMPLETE));
 
     // WHEN
-    const promise = context.execute([{ StackName: 'Foo', TemplateBody: '{}' }], new MockSdkProvider(), ioHelper);
+    let resolved = false;
+    const promise = context
+      .execute([{ StackName: 'Foo', TemplateBody: '{}' }], new MockSdkProvider(), ioHelper)
+      .then(() => {
+        resolved = true;
+      });
 
-    // THEN the refactor was executed, but execute() is still waiting for the
-    // stack to stabilize
-    await jest.advanceTimersByTimeAsync(4999);
+    // THEN the refactor was executed and the stack was seen in progress, so
+    // execute() is still waiting for it to stabilize
+    await jest.advanceTimersByTimeAsync(0);
     expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ExecuteStackRefactorCommand, 1);
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(1);
+    expect(resolved).toBe(false);
 
     // and it only resolves after the stack has reached UPDATE_COMPLETE
     await advanceTime(promise);
+    expect(resolved).toBe(true);
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(2);
   });
 
