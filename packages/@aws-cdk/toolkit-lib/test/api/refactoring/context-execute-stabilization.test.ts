@@ -102,7 +102,9 @@ describe('execute', () => {
       });
 
     // THEN the refactor was executed and the stack was seen in progress, so
-    // execute() is still waiting for it to stabilize
+    // execute() is still waiting for it to stabilize.
+    // Advancing by 0 flushes the mocked API call chain up to the first
+    // DescribeStacks poll (microtasks only), without firing any timer.
     await jest.advanceTimersByTimeAsync(0);
     expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ExecuteStackRefactorCommand, 1);
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(1);
