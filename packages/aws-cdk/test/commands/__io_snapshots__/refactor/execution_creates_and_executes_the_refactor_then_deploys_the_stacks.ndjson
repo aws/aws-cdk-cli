@@ -7,16 +7,15 @@
 {"seq":6,"type":"notify","action":"refactor","level":"info","code":null,"message":"Refactoring..."}
 {"seq":7,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Waiting for stack CDKToolkit to finish creating or updating..."}
 {"seq":8,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Waiting for stack Stack1 to finish creating or updating..."}
-{"seq":9,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Stack Stack1 does not exist"}
-{"seq":10,"type":"notify","action":"refactor","level":"info","code":null,"message":"✅  Stack refactor complete"}
-{"seq":11,"type":"notify","action":"refactor","level":"info","code":null,"message":"Deploying updated stacks to finalize refactor..."}
-{"seq":12,"type":"notify","action":"deploy","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
-{"seq":13,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
-{"seq":14,"type":"notify","action":"deploy","level":"debug","code":null,"message":"Checking for previously published assets"}
-{"seq":15,"type":"notify","action":"deploy","level":"debug","code":null,"message":"0 total assets, 0 still need to be published"}
-{"seq":16,"type":"request","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5060","message":"Stack Stack1\nResources\n[+] AWS::S3::Bucket NewBucket NewBucket\n\n\n\nStack includes updates. Do you wish to deploy these changes?","response":true}
-{"seq":17,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5100","message":"Stack1: deploying... [1/1]"}
-{"seq":18,"type":"notify","action":"deploy","level":"result","code":"CDK_TOOLKIT_I5900","message":"\n✅  Stack1"}
-{"seq":19,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5000","message":"✨  Deployment time: <DURATION>"}
-{"seq":20,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5901","message":"Stack ARN:\narn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Stack1/abcd"}
-{"seq":21,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5001","message":"✨  Total time: <DURATION>"}
+{"seq":9,"type":"notify","action":"refactor","level":"info","code":null,"message":"✅  Stack refactor complete"}
+{"seq":10,"type":"notify","action":"refactor","level":"info","code":null,"message":"Deploying updated stacks to finalize refactor..."}
+{"seq":11,"type":"notify","action":"deploy","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":12,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
+{"seq":13,"type":"notify","action":"deploy","level":"debug","code":null,"message":"Checking for previously published assets"}
+{"seq":14,"type":"notify","action":"deploy","level":"debug","code":null,"message":"0 total assets, 0 still need to be published"}
+{"seq":15,"type":"request","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5060","message":"Stack Stack1\nResources\n[+] AWS::S3::Bucket NewBucket NewBucket\n\n\n\nStack includes updates. Do you wish to deploy these changes?","response":true}
+{"seq":16,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5100","message":"Stack1: deploying... [1/1]"}
+{"seq":17,"type":"notify","action":"deploy","level":"result","code":"CDK_TOOLKIT_I5900","message":"\n✅  Stack1"}
+{"seq":18,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5000","message":"✨  Deployment time: <DURATION>"}
+{"seq":19,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5901","message":"Stack ARN:\narn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Stack1/abcd"}
+{"seq":20,"type":"notify","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5001","message":"✨  Total time: <DURATION>"}

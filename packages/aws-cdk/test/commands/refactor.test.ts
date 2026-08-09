@@ -411,6 +411,18 @@ describe('execution', () => {
       ExecutionStatus: 'EXECUTE_COMPLETE',
     });
     mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
+    // The stabilization check right after the refactor sees the stack as
+    // stable. Later DescribeStacks calls fall through to the "no stacks"
+    // default, so the finalizing deployment exercises the simple create path.
+    mockCloudFormationClient.on(DescribeStacksCommand, { StackName: 'Stack1' }).resolvesOnce({
+      Stacks: [
+        {
+          StackName: 'Stack1',
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+        },
+      ],
+    });
 
     const toolkit = await makeToolkit([{
       stackName: 'Stack1',
