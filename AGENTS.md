@@ -239,7 +239,7 @@ Integration test output is captured and written to logs, and on PR runs it can e
 - `registerSecrets(...values)` adds each value to a process-global `Set<string>`. It is process-global because a `MemoryStream` is created per test, while credentials are established once per worker process.
 - `redactSecrets(text)` returns `text` with every registered secret replaced by `<REDACTED>`. Each replacement is a plain `text.split(secret).join('<REDACTED>')` — exact substring matching, no regex, no case folding, no partial matches.
 - `MemoryStream.buffer()` calls `redactSecrets()` on the concatenated chunks, so redaction happens on **read**, not on write — the raw bytes stay in the buffer. `toString()` and `flushTo()` both go through `buffer()`, so every consumer of a test's buffered output is covered by that one call: the `INTEG_LOGS` text log, the `::group::Failure details` block on GitHub Actions, and the local `console.log` dump on failure.
-- Because redaction is deferred to read time, a value registered *after* it was written to the stream is still scrubbed. Don't rely on it — register as early as possible, since anything read before registration escapes permanently.
+- Because redaction is deferred to read time, a value registered *after* it was written to the stream is still scrubbed.
 - Only text flowing through a `MemoryStream` is redacted. `context.output` and `context.log()` do; direct `process.stdout` / `process.stderr` writes do not. If you add an output path that bypasses `MemoryStream`, call `redactSecrets()` on the text yourself.
 
 Rules:
