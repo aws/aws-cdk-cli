@@ -232,15 +232,24 @@ Integration tests require AWS credentials and run against real accounts. During 
 
 ### Redacting Secrets from Integration Test Output
 
-Integration test output is captured and written to logs, and on PR runs it can end up in a public GitHub Actions job log. Secrets must never appear there. [`lib/corking.ts`](./packages/@aws-cdk-testing/cli-integ/lib/corking.ts) provides `registerSecrets()` and `redactSecrets()` for this.
+Integration test output is captured and written to logs, and on PR runs it can end up in a public GitHub Actions job log. Secrets must never appear there. [`lib/corking.ts`](./packages/@aws-cdk-testing/cli-integ/lib/corking.ts) provides the two halves of the mechanism: `registerSecrets()` records the values, and `redactSecrets()` scrubs them out of text.
+
+#### How redaction works
+
+- `registerSecrets(...values)` adds each value to a process-global `Set<string>`. It is process-global because a `MemoryStream` is created per test, while credentials are established once per worker process.
+- `redactSecrets(text)` returns `text` with every registered secret replaced by `<REDACTED>`. Each replacement is a plain `text.split(secret).join('<REDACTED>')` — exact substring matching, no regex, no case folding, no partial matches.
+- `MemoryStream.buffer()` calls `redactSecrets()` on the concatenated chunks, so redaction happens on **read**, not on write — the raw bytes stay in the buffer. `toString()` and `flushTo()` both go through `buffer()`, so every consumer of a test's buffered output is covered by that one call: the `INTEG_LOGS` text log, the `::group::Failure details` block on GitHub Actions, and the local `console.log` dump on failure.
+- Because redaction is deferred to read time, a value registered *after* it was written to the stream is still scrubbed. Don't rely on it — register as early as possible, since anything read before registration escapes permanently.
+- Only text flowing through a `MemoryStream` is redacted. `context.output` and `context.log()` do; direct `process.stdout` / `process.stderr` writes do not. If you add an output path that bypasses `MemoryStream`, call `redactSecrets()` on the text yourself.
 
 Rules:
 
-- **MUST register any secret a test obtains at runtime** — call `registerSecrets(value)` (exported from `../../../lib`) as soon as the value is available. This covers credentials fetched from a service, generated passwords, and role-assumption results. Registered values are replaced with `<REDACTED>` in test output.
+- **MUST register any secret a test obtains at runtime** — call `registerSecrets(value)` (exported from `../../../lib`) as soon as the value is available. This covers credentials fetched from a service, generated passwords, and role-assumption results.
 - **MUST NOT re-register the standard credentials.** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` (`CREDENTIAL_ENV_VARS` in `lib/aws.ts`) and Atmosphere allocation credentials are already registered by the test framework.
 - **SHOULD avoid emitting the secret in the first place.** Redaction is a safety net, not the primary defense. Pass credentials by name rather than by value where the interface allows it — e.g. `docker run -e AWS_ACCESS_KEY_ID` inherits the value without printing it.
-- **MUST register each encoding separately.** Matching is exact substring only — no regex or partial matching. A base64-encoded, URL-encoded, or truncated form of a registered secret passes through unredacted.
-- **MUST NOT put secrets in error messages or test names.** Redaction applies to captured test output, not to exception text or test banners written directly to stderr.
+- **MUST register each encoding separately.** Because `redactSecrets()` matches exact substrings, a base64-encoded, URL-encoded, JSON-escaped, or truncated form of a registered secret passes through unredacted. Register every form the test might emit.
+- **SHOULD NOT register short or common strings.** `redactSecrets()` replaces a registered value everywhere it occurs, so a short secret also mangles unrelated output and makes failures hard to read.
+- **MUST NOT put secrets in error messages or test names.** `redactSecrets()` only runs on `MemoryStream` output; the test banner, the `[INTEG TEST::…] Failed:` line, and the GitHub Actions `::error title=…` line are written straight to `process.stderr` and are never scrubbed.
 - **MUST use a value unique to the file** in unit tests that register secrets ([`test/corking.test.ts`](./packages/@aws-cdk-testing/cli-integ/test/corking.test.ts)). The registry is process-global with no deregistration, and the suite runs in randomized order.
 
 ## Code Style
