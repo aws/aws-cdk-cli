@@ -230,6 +230,19 @@ Integration tests require AWS credentials and run against real accounts. During 
 
 **MUST: one `integTest` per file.** Each integration test lives in its own `*.integtest.ts` file containing exactly one `integTest(...)` call. Do not group multiple `integTest` calls in a single file. The file name should describe the scenario (e.g. `cdk-cdk-diff---method-change-set-detects-ssm-parameter-driven-changes.integtest.ts`). The runner discovers and parallelizes tests by file, so combining tests in one file serializes them and breaks isolation.
 
+### Redacting Secrets from Integration Test Output
+
+Integration test output is captured and written to logs, and on PR runs it can end up in a public GitHub Actions job log. Secrets must never appear there. [`lib/corking.ts`](./packages/@aws-cdk-testing/cli-integ/lib/corking.ts) provides `registerSecrets()` and `redactSecrets()` for this.
+
+Rules:
+
+- **MUST register any secret a test obtains at runtime** — call `registerSecrets(value)` (exported from `../../../lib`) as soon as the value is available. This covers credentials fetched from a service, generated passwords, and role-assumption results. Registered values are replaced with `<REDACTED>` in test output.
+- **MUST NOT re-register the standard credentials.** `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` (`CREDENTIAL_ENV_VARS` in `lib/aws.ts`) and Atmosphere allocation credentials are already registered by the test framework.
+- **SHOULD avoid emitting the secret in the first place.** Redaction is a safety net, not the primary defense. Pass credentials by name rather than by value where the interface allows it — e.g. `docker run -e AWS_ACCESS_KEY_ID` inherits the value without printing it.
+- **MUST register each encoding separately.** Matching is exact substring only — no regex or partial matching. A base64-encoded, URL-encoded, or truncated form of a registered secret passes through unredacted.
+- **MUST NOT put secrets in error messages or test names.** Redaction applies to captured test output, not to exception text or test banners written directly to stderr.
+- **MUST use a value unique to the file** in unit tests that register secrets ([`test/corking.test.ts`](./packages/@aws-cdk-testing/cli-integ/test/corking.test.ts)). The registry is process-global with no deregistration, and the suite runs in randomized order.
+
 ## Code Style
 
 ### General Rules
