@@ -123,6 +123,56 @@ test('prepareStack calls deployStack with execute: false and returns successful 
   }));
 });
 
+test('prepareStack announces the change set when the user asked for --no-execute', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — no cleanupOnNoOp means the change set is the final result (--no-execute)
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('waiting in review for manual execution (--no-execute)'),
+  }));
+});
+
+test('prepareStack does not announce the change set for the internal prepare of an executing deployment', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — cleanupOnNoOp marks this prepare as the internal first phase of
+  // a two-phase (create + execute) deployment
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    cleanupOnNoOp: true,
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('waiting in review for manual execution (--no-execute)'),
+  }));
+});
+
 test('prepareStack returns undefined for non-success results', async () => {
   // GIVEN
   (deployStack as jest.Mock).mockResolvedValue({

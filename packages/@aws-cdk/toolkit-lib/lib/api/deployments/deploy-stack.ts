@@ -484,10 +484,6 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
-      await this.ioHelper.defaults.info(format(
-        'Changeset %s created and waiting in review for manual execution (--no-execute)',
-        changeSetDescription.ChangeSetId,
-      ));
       return {
         type: 'did-deploy-stack',
         noOp: false,

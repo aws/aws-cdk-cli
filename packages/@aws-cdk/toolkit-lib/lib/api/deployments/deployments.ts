@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { format } from 'node:util';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import chalk from 'chalk';
@@ -465,6 +466,14 @@ export class Deployments {
       await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
     }
 
+    // Announce the created change set only when the user explicitly asked for
+    // --no-execute (the change set is the final result). When the caller forced
+    // execute: false internally (two-phase deploy), the change set is about to
+    // be executed and the announcement would be misleading.
+    if (!result.noOp && !options.cleanupOnNoOp) {
+      await announceChangeSetAwaitingExecution(this.ioHelper, result.changeSet?.ChangeSetId);
+    }
+
     return result;
   }
 
@@ -810,4 +819,15 @@ class ParallelSafeAssetProgress extends BasePublishProgressListener {
 
 function suffixWithErrors(msg: string, errors?: string[]) {
   return errors && errors.length > 0 ? `${msg}: ${errors.join(', ')}` : msg;
+}
+
+/**
+ * Announce a change set that was deliberately created without being executed
+ * (--no-execute) and is now waiting for manual execution.
+ */
+export async function announceChangeSetAwaitingExecution(ioHelper: IoHelper, changeSetId: string | undefined): Promise<void> {
+  await ioHelper.defaults.info(format(
+    'Changeset %s created and waiting in review for manual execution (--no-execute)',
+    changeSetId,
+  ));
 }
