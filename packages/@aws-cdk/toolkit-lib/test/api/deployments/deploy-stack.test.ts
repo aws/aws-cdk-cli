@@ -32,6 +32,7 @@ import { NoBootstrapStackEnvironmentResources } from '../../../lib/api/environme
 import { tryHotswapDeployment } from '../../../lib/api/hotswap/hotswap-deployments';
 import {
   invalidateHotswapTemplateCache,
+  readHotswapTemplateCache,
   writeHotswapTemplateCache,
 } from '../../../lib/api/hotswap/hotswap-template-cache';
 import { StackArtifactSourceTracer } from '../../../lib/api/source-tracing/private/stack-source-tracing';
@@ -674,6 +675,31 @@ test('deploy is not skipped if notificationArns are different', async () => {
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if we are deploying with hotswap and there is a change from the last hotswap deployment', async () => {
+  // GIVEN
+  // The synthesized template matches what CloudFormation currently has stored, so every normal
+  // canSkipDeploy check would say "skip". But a previous hotswap mutated the live resources without
+  // updating the CFN template, and the hotswap cache recorded that different template. The live
+  // resources therefore no longer match what we are about to deploy, so we must not skip.
+  givenStackExists();
+  givenTemplateIs(defaultTargetTemplate());
+  (readHotswapTemplateCache as jest.Mock).mockResolvedValue({
+    deployedRootTemplate: { Resources: { Different: { Type: 'Test::Resource::Type' } } },
+    nestedStacks: {},
+  });
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'hotswap' },
+  });
+
+  // THEN
+  // canSkipDeploy consulted the hotswap cache and returned false, so we proceeded to attempt the hotswap
+  expect(readHotswapTemplateCache).toHaveBeenCalled();
+  expect(tryHotswapDeployment).toHaveBeenCalled();
 });
 
 test('if existing stack failed to create, it is deleted and recreated', async () => {
