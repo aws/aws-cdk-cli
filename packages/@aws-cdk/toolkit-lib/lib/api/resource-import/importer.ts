@@ -8,7 +8,7 @@ import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { Deployments } from '../deployments';
-import { announceChangeSetAwaitingExecution, assertIsSuccessfulDeployStackResult } from '../deployments';
+import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
 import type { Tag } from '../tags';
@@ -227,13 +227,6 @@ export class ResourceImporter {
       });
 
       assertIsSuccessfulDeployStackResult(result);
-
-      // With --no-execute, the change set is created but purposely not executed,
-      // so announce it as awaiting manual execution.
-      const method = options.deploymentMethod;
-      if (method?.method === 'change-set' && method.execute === false && result.changeSet) {
-        await announceChangeSetAwaitingExecution(this.ioHelper, result.changeSet.ChangeSetId);
-      }
 
       const message = result.noOp
         ? '✅  %s (no changes)'

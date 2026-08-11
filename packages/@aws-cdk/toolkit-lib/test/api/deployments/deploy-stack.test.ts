@@ -993,6 +993,35 @@ test('not executed and no error if --no-execute is given', async () => {
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
 });
 
+test('announces the change set as awaiting manual execution if --no-execute is given', async () => {
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('waiting in review for manual execution (--no-execute)'),
+  }));
+});
+
+test('does not announce the change set if the announcement is suppressed', async () => {
+  // WHEN — announceNoExecuteChangeSet: false marks this change set as the
+  // internal first phase of an executing deployment
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+    announceNoExecuteChangeSet: false,
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('waiting in review for manual execution (--no-execute)'),
+  }));
+});
+
 test('empty change set is deleted if --execute is given', async () => {
   givenNoUpdatesAreToBePerformed();
 

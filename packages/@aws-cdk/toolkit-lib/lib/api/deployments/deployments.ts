@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { format } from 'node:util';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import chalk from 'chalk';
@@ -97,6 +96,19 @@ export interface DeployStackOptions {
    * @default - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Whether to announce a change set that is created but deliberately not
+   * executed (change-set method with `execute: false`) as waiting for manual
+   * execution.
+   *
+   * Set to false when the change set is the internal first phase of an
+   * executing deployment (two-phase deploy), where the announcement would be
+   * misleading: the change set is about to be executed.
+   *
+   * @default true
+   */
+  readonly announceNoExecuteChangeSet?: boolean;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -417,6 +429,7 @@ export class Deployments {
       envResources: env.resources,
       tags: options.tags,
       deploymentMethod: options.deploymentMethod,
+      announceNoExecuteChangeSet: options.announceNoExecuteChangeSet,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
@@ -450,6 +463,12 @@ export class Deployments {
     const result = await this.deployStack({
       ...options,
       deploymentMethod: { ...options.deploymentMethod, execute: false },
+      // Announce the created change set only when the user explicitly asked
+      // for --no-execute (the change set is the final result). When this
+      // prepare is the internal first phase of an executing deployment
+      // (cleanupOnNoOp), the change set is about to be executed and the
+      // announcement would be misleading.
+      announceNoExecuteChangeSet: !options.cleanupOnNoOp,
     });
 
     // With execute: false, the only possible result type is did-deploy-stack
@@ -464,14 +483,6 @@ export class Deployments {
     if (result.noOp && options.cleanupOnNoOp) {
       const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
       await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
-    }
-
-    // Announce the created change set only when the user explicitly asked for
-    // --no-execute (the change set is the final result). When the caller forced
-    // execute: false internally (two-phase deploy), the change set is about to
-    // be executed and the announcement would be misleading.
-    if (!result.noOp && !options.cleanupOnNoOp) {
-      await announceChangeSetAwaitingExecution(this.ioHelper, result.changeSet?.ChangeSetId);
     }
 
     return result;
@@ -819,15 +830,4 @@ class ParallelSafeAssetProgress extends BasePublishProgressListener {
 
 function suffixWithErrors(msg: string, errors?: string[]) {
   return errors && errors.length > 0 ? `${msg}: ${errors.join(', ')}` : msg;
-}
-
-/**
- * Announce a change set that was deliberately created without being executed
- * (--no-execute) and is now waiting for manual execution.
- */
-export async function announceChangeSetAwaitingExecution(ioHelper: IoHelper, changeSetId: string | undefined): Promise<void> {
-  await ioHelper.defaults.info(format(
-    'Changeset %s created and waiting in review for manual execution (--no-execute)',
-    changeSetId,
-  ));
 }

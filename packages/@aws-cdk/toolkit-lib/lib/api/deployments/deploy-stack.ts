@@ -132,6 +132,19 @@ export interface DeployStackOptions {
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
+   * Whether to announce a change set that is created but deliberately not
+   * executed (change-set method with `execute: false`) as waiting for manual
+   * execution.
+   *
+   * Set to false when the change set is the internal first phase of an
+   * executing deployment (two-phase deploy), where the announcement would be
+   * misleading: the change set is about to be executed.
+   *
+   * @default true
+   */
+  readonly announceNoExecuteChangeSet?: boolean;
+
+  /**
    * The collection of extra parameters
    * (in addition to those used for assets)
    * to pass to the deployed template.
@@ -484,6 +497,12 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
+      if (this.options.announceNoExecuteChangeSet ?? true) {
+        await this.ioHelper.defaults.info(format(
+          'Changeset %s created and waiting in review for manual execution (--no-execute)',
+          changeSetDescription.ChangeSetId,
+        ));
+      }
       return {
         type: 'did-deploy-stack',
         noOp: false,
