@@ -35,7 +35,6 @@ if (process.env.PACKAGE_LAYOUT_VERSION === '1') {
     aws_bedrockagentcore: bedrockagentcore,
     aws_events: events,
     aws_dynamodb: dynamodb,
-    aws_bedrock: bedrock,
     Stack
   } = require('aws-cdk-lib');
 }
@@ -789,17 +788,27 @@ class CloudControlHotswapStack extends cdk.Stack {
     cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
     cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
 
-    // Bedrock Agent — hotswapped via CCAPI, references the DynamoDB table name
-    const agentRole = new iam.Role(this, 'AgentRole', {
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
-    });
-    const agent = new bedrock.CfnAgent(this, 'Agent', {
-      agentName: `${cdk.Stack.of(this).stackName}-agent`.substring(0, 40),
-      agentResourceRoleArn: agentRole.roleArn,
-      instruction: process.env.DYNAMIC_CC_PROPERTY_VALUE
-        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
-        : `You help query the table ${table.tableName}. original. original`,
-      foundationModel: 'anthropic.claude-instant-v1',
+    // CloudWatch Dashboard — hotswapped via CCAPI, references the DynamoDB table name.
+    // (This used to be an AWS::Bedrock::Agent, but Bedrock Agents Classic went into
+    // maintenance mode on 2026-07-30 and CreateAgent is rejected in accounts without
+    // prior service usage, which includes fresh test environments:
+    // https://docs.aws.amazon.com/bedrock/latest/userguide/agents-classic-maintenance-mode.html)
+    const dashboard = new cdk.CfnResource(this, 'Dashboard', {
+      type: 'AWS::CloudWatch::Dashboard',
+      properties: {
+        DashboardName: `${cdk.Stack.of(this).stackName}-dashboard`.substring(0, 40),
+        DashboardBody: this.toJsonString({
+          widgets: [{
+            type: 'text',
+            x: 0, y: 0, width: 24, height: 2,
+            properties: {
+              markdown: process.env.DYNAMIC_CC_PROPERTY_VALUE
+                ? `Table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
+                : `Table ${table.tableName}. original. original`,
+            },
+          }],
+        }),
+      },
     });
 
     // Events Rule — hotswapped via CCAPI, references the ElastiCache cache ARN
@@ -811,7 +820,7 @@ class CloudControlHotswapStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'QueueUrl', { value: queue.queueUrl });
-    new cdk.CfnOutput(this, 'AgentName', { value: agent.ref });
+    new cdk.CfnOutput(this, 'DashboardName', { value: dashboard.ref });
     new cdk.CfnOutput(this, 'RuleName', { value: rule.ruleName });
   }
 }

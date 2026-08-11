@@ -24,6 +24,7 @@ jobs:
           path: ${{ runner.temp }}
         continue-on-error: true
       - name: Checkout PR
+        id: checkout_pr
         if: steps.download_patch.outcome == 'success'
         uses: actions/checkout@v6
         with:
@@ -31,6 +32,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch }}
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
       - name: Apply patch to PR
+        id: apply_patch_to_pr
         if: steps.download_patch.outcome == 'success'
         run: |-
           set -e

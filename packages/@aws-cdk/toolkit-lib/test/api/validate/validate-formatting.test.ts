@@ -161,6 +161,22 @@ describe('formatValidateResult', () => {
     expect(output).toContain("Acknowledge with 'SillyGoose::no-public-buckets'");
   });
 
+  test('correctly render ID of unacknowledgeable rules', () => {
+    const result = makeResult([{
+      pluginName: 'Security Plugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'no-public-buckets',
+        description: 'bad bucket',
+        severity: 'fatal',
+        violatingConstructs: [{ constructPath: 'Stack/Bucket' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('Rule Security-Plugin::no-public-buckets');
+  });
+
   test('includes constructFqn when present', () => {
     const result = makeResult([{
       pluginName: 'TestPlugin',
@@ -203,6 +219,25 @@ describe('formatValidateResult', () => {
     expect(output).not.toMatch(/\r/);
     expect(output).toContain('Fake passed message');
     expect(output).toContain('Evil');
+  });
+
+  test('preambles are printed', () => {
+    const result = makeResult([{
+      pluginName: 'Some Plugin',
+      conclusion: 'success',
+      preamble: 'OMG there are warnings',
+      violations: [{
+        ruleName: 'RULE',
+        description: 'Make sure you fix this',
+        severity: 'warning',
+        violatingConstructs: [{
+          constructPath: 'Stack/Resource',
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toMatchSnapshot();
   });
 });
 

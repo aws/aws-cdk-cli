@@ -1,7 +1,15 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/cdk-explorer",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/cli-plugin-contract",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/private-tools",
       "type": "build"
     },
     {
@@ -93,6 +101,10 @@
       "type": "build"
     },
     {
+      "name": "esbuild",
+      "type": "build"
+    },
+    {
       "name": "eslint-config-prettier",
       "type": "build"
     },
@@ -181,10 +193,6 @@
       "type": "build"
     },
     {
-      "name": "ts-node",
-      "type": "build"
-    },
-    {
       "name": "tsx",
       "type": "build"
     },
@@ -212,10 +220,6 @@
     {
       "name": "@aws-cdk/cx-api",
       "version": "^2",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/private-tools",
       "type": "runtime"
     },
     {

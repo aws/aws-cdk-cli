@@ -30,6 +30,7 @@ export function formatValidationReports(fileRoot: string, reports: PluginReportJ
 
   return [
     ...pluginFailures.map(formatPluginFailure),
+    ...successfullyExecutedPlugins.flatMap((r) => r.preamble ? [`${chalk.underline(sanitize(r.pluginName))}: ${sanitize(r.preamble)}`] : []),
     ...violations.map((v) => formatViolationBlock(fileRoot, v)),
   ];
 }
@@ -87,12 +88,12 @@ function formatViolationBlock(fileRoot: string, v: FlattenedViolation): string {
     lines.push(`   Suggested fix: ${sanitize(v.suggestedFix).replace(/\n/g, '\n   ')}`);
   }
 
+  const ackId = `${sanitize(ruleName)}`.replace(/ /g, '-');
   if (isSuppressibleViolation(v)) {
-    const ackId = `${sanitize(ruleName)}`.replace(/ /g, '-');
     lines.push(`   ${chalk.grey(`Acknowledge with '${ackId}'`)}`);
   } else {
     // If not acknowledgeable, we should still show the rule name for reference.
-    lines.push(`   ${chalk.grey(`Rule ${sanitize(ruleName)}`)}`);
+    lines.push(`   ${chalk.grey(`Rule ${sanitize(ackId)}`)}`);
   }
 
   return lines.join('\n');
@@ -117,7 +118,7 @@ function formatConstructInfo(fileRoot: string, construct: ViolatingConstructJson
 
   if (construct.constructPath) {
     const cPath = sanitize(construct.constructPath);
-    parts.push(logicalId ? `${chalk.bold(cPath)} (${logicalId})` : chalk.bold(cPath));
+    parts.push(logicalId ? `${cPath} (${logicalId})` : cPath);
   } else {
     // No construct information, show template path and logical ID
     if (construct.cloudFormationResource?.templatePath) {

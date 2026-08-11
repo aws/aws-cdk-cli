@@ -1,6 +1,7 @@
 import type { Constraint } from '@cdklabs/cdk-atmosphere-client';
 import { AtmosphereClient } from '@cdklabs/cdk-atmosphere-client';
 import { AwsClients } from './aws';
+import { registerSecrets } from './corking';
 import type { TestContext } from './integ-test';
 import { ResourcePool } from './resource-pool';
 import type { DisableBootstrapContext } from './with-cdk-app';
@@ -82,6 +83,12 @@ export function withAws<A extends TestContext>(
       });
       let outcome = 'success';
       context.reportWaitTime(Date.now() - start);
+
+      registerSecrets(
+        allocation.credentials.accessKeyId,
+        allocation.credentials.secretAccessKey,
+        allocation.credentials.sessionToken,
+      );
 
       try {
         const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, {

@@ -349,7 +349,7 @@ The following shows a sample `cdk.json` where the `outputsFile` key is set to *o
 
 ```json
 {
-  "app": "npx ts-node bin/myproject.ts",
+  "app": "npx tsx bin/myproject.ts",
   "context": {
     "@aws-cdk/core:enableStackNameDuplicates": "true",
     "aws-cdk:enableDiffNoFail": "true",
@@ -413,7 +413,7 @@ When `cdk deploy` is executed, deployment events will include the complete histo
 
 ```json
 {
-  "app": "npx ts-node bin/myproject.ts",
+  "app": "npx tsx bin/myproject.ts",
   "context": {
     "@aws-cdk/core:enableStackNameDuplicates": "true",
     "aws-cdk:enableDiffNoFail": "true",
@@ -785,6 +785,37 @@ $ cdk watch --concurrency 5
 It is not recommended to use `watch` for production deployments. See the
 *Hotswap deployments for faster development* section for more information.
 
+### `cdk lsp`
+
+Starts the CDK Language Server, which brings information from your synthesized
+cloud assembly into your editor. It is a standard [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
+server that communicates over stdio, so any LSP-capable editor (or AI agent)
+can connect to it.
+
+```console
+$ # Normally started by your editor's LSP client, which talks to it over stdin/stdout.
+$ cdk lsp
+```
+
+Once connected, it surfaces:
+
+- **Code lenses** on the source lines that create resources, linking each construct to the resource it produces in the synthesized template.
+- **Hover** details showing a construct's resolved CloudFormation properties.
+- **Go to definition** from a synthesized `*.template.json` back to the construct source that created it.
+- **Diagnostics** from policy validation, shown as squiggles on the constructs that violate a rule.
+
+Source-linked features currently work for TypeScript and Python.
+
+The server can run your app to keep the cloud assembly current (for example, an
+"auto-synth on save" mode offered through your editor). Because that runs your
+project's `app` command with your shell environment and AWS credentials, enable
+it only for projects you trust. This is the same trust model that `cdk synth`
+and `cdk watch` already use.
+
+`cdk lsp` is designed to be driven by an editor extension rather than run by hand.
+For the full feature list, the editor-integration protocol, and the programmatic
+API, see the [`@aws-cdk/cdk-explorer` package README](https://github.com/aws/aws-cdk-cli/blob/main/packages/%40aws-cdk/cdk-explorer/README.md).
+
 ### `cdk import`
 
 Sometimes you want to import AWS resources that were created using other means
@@ -864,6 +895,9 @@ $ cdk orphan --unstable=orphan MyStack/MyTable
 
 $ # Orphan multiple resources
 $ cdk orphan --unstable=orphan MyStack/MyTable MyStack/MyBucket
+
+$ # For a stack inside a Stage, use the stage-qualified path
+$ cdk orphan --unstable=orphan MyStage/MyStack/MyTable
 ```
 
 #### Example: Migrating DynamoDB Table to TableV2
@@ -1824,6 +1858,7 @@ in `build` will be executed by the "watch" process before deployment.
 
 The following environment variables affect aws-cdk:
 
+- `COLUMNS`: When the CLI cannot detect the terminal width (for example, when output is piped or running in CI), this standard variable is used as the rendering width for `cdk diff` tables. If unset, tables render at their natural width.
 - `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
 - `CDK_ROLE_SESSION_NAME`: customize the session name used when the CLI assumes a role (for example `cdk-hnb659fds-deploy-role`). When unset, the CLI defaults to `aws-cdk-<username>`. Useful for attributing deployments in CloudTrail when running from a CI/CD pipeline.
@@ -1847,25 +1882,34 @@ When `--profile` is specified, the region configured in that profile is used (st
 The CLI will attempt to detect whether it is being run in CI by looking for the presence of an
 environment variable `CI=true`. This can be forced by passing the `--ci` flag. By default the CLI
 sends most of its logs to `stderr`, but when `ci=true` it will send the logs to `stdout` instead.
+When terminal width cannot be detected, `cdk diff` tables render unbounded; set [`COLUMNS`](#environment) to constrain their width.
 
-### Changing the default TypeScript transpiler
+### Changing how TypeScript apps are executed
 
-The ts-node package used to synthesize and deploy CDK apps supports an alternate transpiler that might improve transpile times. The SWC transpiler is written in Rust and has no type checking. The SWC transpiler should be enabled by experienced TypeScript developers.
+The CDK CLI does not run your TypeScript code itself. It executes the command configured
+under the `app` key in `cdk.json` (see [JSON Configuration files](#json-configuration-files))
+and reads the resulting cloud assembly. This means you are free to choose any tool to
+execute your TypeScript app.
 
-To enable the SWC transpiler, install the package in the CDK app.
-
-```sh
-npm i -D @swc/core @swc/helpers regenerator-runtime
-```
-
-And, update the `tsconfig.json` file to add the `ts-node` property.
+Projects created with `cdk init` use [tsx](https://tsx.is/) to execute the app, with a
+separate `tsc` invocation for type checking:
 
 ```json
 {
-  "ts-node": {
-    "swc": true
-  }
+  "app": "npx tsc && npx tsx bin/my-app.ts"
 }
 ```
 
-The documentation may be found at <https://typestrong.org/ts-node/docs/swc/>
+To use a different runner (for example [ts-node](https://typestrong.org/ts-node/), possibly
+with its [SWC integration](https://typestrong.org/ts-node/docs/swc/) for faster transpilation),
+install it as a dev dependency and update the `app` command accordingly:
+
+```json
+{
+  "app": "npx ts-node --prefer-ts-exts bin/my-app.ts"
+}
+```
+
+If synthesis feels slow, the type checking step is usually the biggest contributor. You can
+remove `npx tsc &&` from the `app` command and run type checking separately (e.g. in CI or
+your editor) to speed up iteration.

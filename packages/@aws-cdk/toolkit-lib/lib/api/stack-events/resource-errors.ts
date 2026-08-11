@@ -1,7 +1,32 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import { isFailedHookStatus } from './hook-result-details';
 import type { ResourceEvent } from './stack-event-poller';
 import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
 import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util/cloudformation';
+
+/**
+ * A failed CloudFormation Hook invocation that caused a resource error.
+ */
+export interface ResourceHookFailure {
+  /**
+   * The type name of the hook that failed (e.g. `Private::Guard::TestHook`)
+   */
+  readonly hookType: string;
+
+  /**
+   * The unique identifier of the hook invocation.
+   *
+   * Can be used to fetch the full failure details via the `GetHookResult` API.
+   */
+  readonly hookInvocationId?: string;
+
+  /**
+   * The status reason reported on the hook's stack event.
+   *
+   * This is usually a terse summary; the `GetHookResult` API has richer details.
+   */
+  readonly hookStatusReason?: string;
+}
 
 export interface ResourceError {
   /**
@@ -56,6 +81,15 @@ export interface ResourceError {
    * and early-validation errors.
    */
   readonly timestamp?: Date;
+
+  /**
+   * CloudFormation Hook failures that caused this resource error, if any.
+   *
+   * Hook failures are reported on separate stack events from the resource failure
+   * itself; they are correlated to the resource error by logical ID and by the
+   * hook type appearing in the resource's status reason.
+   */
+  readonly hookFailures?: ResourceHookFailure[];
 }
 
 /**
@@ -68,6 +102,16 @@ export class ResourceErrors {
    * By the nature of the order we see events in, will be ordered from oldest to newest.
    */
   private readonly _errors: ResourceError[] = [];
+
+  /**
+   * Failed hook invocations seen so far, keyed by stack ARN + logical ID of the
+   * resource they were invoked on.
+   *
+   * Hook failures are reported on their own events (usually with an `IN_PROGRESS`
+   * resource status), before the resource failure event they cause. We remember
+   * them here so they can be attached to that resource error when it arrives.
+   */
+  private readonly seenHookFailures = new Map<string, ResourceHookFailure[]>();
 
   public isEmpty() {
     return this._errors.length === 0;
@@ -86,14 +130,42 @@ export class ResourceErrors {
    */
   public update(...events: ResourceEvent[]) {
     for (const event of events) {
+      this.trackHookFailure(event.event);
       if (isErrorEvent(event.event)) {
         // Cancelled is not an interesting failure reason, nor is the stack message (stack
         // message will just say something like "stack failed to update")
         if (!isCancellationEvent(event.event) && isRegularResourceEvent(event.event)) {
-          this._errors.push(errorFromEvent(event));
+          this._errors.push(errorFromEvent(event, this.hookFailuresFor(event.event)));
         }
       }
     }
+  }
+
+  private trackHookFailure(event: StackEvent) {
+    if (!isFailedHookStatus(event.HookStatus) || !event.HookType || !event.LogicalResourceId || !event.StackId) {
+      return;
+    }
+    const key = hookFailureKey(event);
+    const failures = this.seenHookFailures.get(key) ?? [];
+    failures.push({
+      hookType: event.HookType,
+      hookInvocationId: event.HookInvocationId,
+      hookStatusReason: event.HookStatusReason,
+    });
+    this.seenHookFailures.set(key, failures);
+  }
+
+  /**
+   * Return the hook failures that caused the given resource failure, if any.
+   *
+   * A hook failure belongs to a resource failure when it was recorded for the same
+   * resource, and its hook type is mentioned in the resource's status reason (e.g.
+   * "The following hook(s) failed: [Private::Guard::TestHook]").
+   */
+  private hookFailuresFor(event: StackEvent): ResourceHookFailure[] {
+    const recorded = this.seenHookFailures.get(hookFailureKey(event)) ?? [];
+    const reason = event.ResourceStatusReason ?? '';
+    return recorded.filter((h) => reason.includes(h.hookType));
   }
 
   /**
@@ -123,9 +195,7 @@ export class ResourceErrors {
   }
 }
 
-function errorFromEvent(ev: ResourceEvent): ResourceError {
-  // FIXME: Check hooks
-
+function errorFromEvent(ev: ResourceEvent, hookFailures: ResourceHookFailure[]): ResourceError {
   return {
     logicalId: ev.event.LogicalResourceId ?? '',
     message: ev.event.ResourceStatusReason ?? '',
@@ -135,7 +205,12 @@ function errorFromEvent(ev: ResourceEvent): ResourceError {
     errorCode: extractErrorCode(ev.event),
     physicalId: ev.event.PhysicalResourceId,
     timestamp: ev.event.Timestamp,
+    ...(hookFailures.length > 0 ? { hookFailures } : {}),
   };
+}
+
+function hookFailureKey(event: StackEvent): string {
+  return `${event.StackId ?? ''}|${event.LogicalResourceId ?? ''}`;
 }
 
 /**

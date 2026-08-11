@@ -644,11 +644,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
-      yargs.option('online', {
-        default: true,
-        type: 'boolean',
-        desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
-      }),
+      yargs
+        .option('online', {
+          default: true,
+          type: 'boolean',
+          desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
+        })
+        .option('watch', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change',
+        }),
     )
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
       yargs
@@ -1118,6 +1124,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration', (yargs: Argv) =>
+      yargs.option('features', {
+        default: false,
+        type: 'boolean',
+        desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+      }),
+    )
     .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
@@ -1147,6 +1160,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to do the refactor without asking for confirmation',
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

@@ -145,6 +145,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+   */
+  readonly lsp?: LspOptions;
+
+  /**
    * Detach resources from a CloudFormation stack without deleting them
    */
   readonly orphan?: OrphanOptions;
@@ -1028,6 +1033,13 @@ export interface ValidateOptions {
   readonly online?: boolean;
 
   /**
+   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
+
+  /**
    * Positional argument for validate
    */
   readonly STACKS?: Array<string>;
@@ -1770,6 +1782,20 @@ export interface DocsOptions {
 }
 
 /**
+ * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+ *
+ * @struct
+ */
+export interface LspOptions {
+  /**
+   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
+   *
+   * @default - false
+   */
+  readonly features?: boolean;
+}
+
+/**
  * Detach resources from a CloudFormation stack without deleting them
  *
  * @struct
@@ -1821,6 +1847,13 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+
+  /**
+   * The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
 
   /**
    * Positional argument for refactor

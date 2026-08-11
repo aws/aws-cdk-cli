@@ -230,6 +230,13 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Validate synthesized CloudFormation templates against policy rules',
         options: {
           online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and validate the given stack(s) automatically when changes are detected. ' +
+              'Never deploys. Consider pairing with --no-online to skip CloudFormation ' +
+              'validation on every change',
+          },
         },
         arg: {
           name: 'STACKS',
@@ -527,6 +534,16 @@ export async function makeConfig(): Promise<CliConfig> {
       'doctor': {
         description: 'Check your set-up for potential problems',
       },
+      'lsp': {
+        description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
+        options: {
+          features: {
+            type: 'boolean',
+            default: false,
+            desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+          },
+        },
+      },
       'orphan': {
         arg: {
           name: 'PATHS',
@@ -562,6 +579,11 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'boolean',
             default: false,
             desc: 'Whether to do the refactor without asking for confirmation',
+          },
+          'toolkit-stack-name': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
           },
         },
         arg: {

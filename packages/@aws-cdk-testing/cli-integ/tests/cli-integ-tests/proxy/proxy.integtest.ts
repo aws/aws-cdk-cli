@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { CREDENTIAL_ENV_VARS } from '../../../lib/aws';
 import { integTest } from '../../../lib/integ-test';
 import { startProxyServer } from '../../../lib/proxy';
 import type { TestFixture } from '../../../lib/with-cdk-app';
@@ -62,7 +63,8 @@ async function runInIsolatedContainer(fixture: TestFixture, pathsToMount: string
     await fixture.shell([
       docker, 'run', '--net=bridge', '--rm',
       ...pathsToMount.flatMap(p => ['-v', `${p}:${p}`]),
-      ...['HOME', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN'].flatMap(e => ['-e', e]),
+      // Pass credentials by name only
+      ...['HOME', ...CREDENTIAL_ENV_VARS].flatMap(e => ['-e', e]),
       '-w', fixture.integTestDir,
       '--cap-add=NET_ADMIN',
       'public.ecr.aws/ubuntu/ubuntu:24.04_stable',
@@ -138,7 +140,10 @@ function isolatedDockerCommands(proxyPort: number, caBundlePath: string) {
 }
 
 function renderEnv(env: Record<string, string | undefined>) {
-  return Object.entries(env).filter(([_, v]) => v).map(([k, v]) => `${k}='${v}'`).join(' ');
+  return Object.entries(env)
+    .filter(([k, v]) => v && !CREDENTIAL_ENV_VARS.includes(k))
+    .map(([k, v]) => `${k}='${v}'`)
+    .join(' ');
 }
 
 /**

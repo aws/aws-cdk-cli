@@ -70,6 +70,9 @@
       "path": "packages/@aws-cdk/toolkit-lib"
     },
     {
+      "path": "packages/@aws-cdk/cdk-explorer"
+    },
+    {
       "path": "packages/aws-cdk"
     },
     {

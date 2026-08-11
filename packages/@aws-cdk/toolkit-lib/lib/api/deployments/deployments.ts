@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -11,7 +10,6 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
-  waitForChangeSet,
   waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
@@ -23,6 +21,8 @@ import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/dep
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type {
   Template,
   RootTemplateWithNestedStacks,
@@ -157,7 +157,7 @@ export interface DeployStackOptions {
   readonly express?: boolean;
 
   /**
-   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring a stack operation
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
    *
    * @default 2000
    */
@@ -462,7 +462,7 @@ export class Deployments {
     // execute: false internally, not when the user explicitly asked for --no-execute).
     if (result.noOp && options.cleanupOnNoOp) {
       const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
-      await this.cleanupChangeSet(options.stack, changeSetName);
+      await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
     }
 
     return result;
@@ -472,7 +472,11 @@ export class Deployments {
    * Clean up a change set that was created by prepareStack but never executed.
    * If the stack was created in REVIEW_IN_PROGRESS state (new stack), delete the stack too.
    */
-  public async cleanupChangeSet(stack: cxapi.CloudFormationStackArtifact, changeSetName: string): Promise<void> {
+  public async cleanupChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+    stackEventPollingInterval?: number,
+  ): Promise<void> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
     const deployName = stack.stackName;
@@ -488,7 +492,7 @@ export class Deployments {
     // Delete it and wait for the deletion to complete so we don't leave an empty stack behind.
     if (cloudFormationStack.stackStatus.name === 'REVIEW_IN_PROGRESS') {
       await cfn.deleteStack({ StackName: deployName, ClientRequestToken: randomUUID() });
-      await waitForStackDelete(cfn, this.ioHelper, deployName);
+      await waitForStackDelete(cfn, this.ioHelper, deployName, stackEventPollingInterval);
     }
   }
 
@@ -504,11 +508,15 @@ export class Deployments {
     stack: cxapi.CloudFormationStackArtifact,
     changeSetName: string,
     stackArn?: string,
-  ): Promise<DescribeChangeSetCommandOutput> {
+  ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stackArn ?? stack.stackName, changeSetName, {
-      fetchAll: true,
+    return new ChangeSetDescriber({
+      cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: stackArn ?? stack.stackName,
+      changeSetNameOrArn: changeSetName,
+    }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
         envResources: env.resources,

@@ -1,6 +1,12 @@
 import type { DeploymentMethod, BaseDeployOptions } from '../deploy';
+import type { ValidateOptions } from '../validate';
 
-export interface WatchOptions extends BaseDeployOptions {
+/**
+ * Options that control which files the watch loop observes.
+ *
+ * These are shared between all watch modes (deploy, validate, etc.).
+ */
+export interface WatchFileOptions {
   /**
    * Watch the files in this list
    *
@@ -24,13 +30,24 @@ export interface WatchOptions extends BaseDeployOptions {
    * @default - Current working directory
    */
   readonly watchDir?: string;
+}
 
+/**
+ * Options for watch-deploy mode.
+ */
+export interface WatchOptions extends WatchFileOptions, BaseDeployOptions {
   /**
    * Deployment method
    *
    * @default HotswapDeployment
    */
   readonly deploymentMethod?: DeploymentMethod;
+}
+
+/**
+ * Options for watch-validate mode.
+ */
+export interface WatchValidateOptions extends WatchFileOptions, ValidateOptions {
 }
 
 /**

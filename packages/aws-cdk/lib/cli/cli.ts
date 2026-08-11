@@ -35,6 +35,7 @@ import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getLanguageFromAlias } from '../commands/language';
+import { lsp } from '../commands/lsp';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { StackSelector, Synthesizer } from '../cxapp';
@@ -243,7 +244,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     // Do PSAs here
     if (shouldDisplayVersionMessage()) {
-      await displayVersionMessage(ioHelper);
+      await displayVersionMessage(ioHelper, { agent: proxyAgent });
     }
 
     await refreshNotices;
@@ -322,7 +323,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return doctor({
           ioHelper,
           settings: configuration.settings,
+          agent: proxyAgent,
         });
+
+      case 'lsp':
+        ioHost.currentAction = 'lsp';
+        return lsp({ features: argv.features });
 
       case 'ls':
       case 'list':
@@ -459,6 +465,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           online: args.online,
+          watch: args.watch,
         });
 
       case 'diagnose':
