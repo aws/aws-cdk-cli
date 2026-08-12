@@ -911,7 +911,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ? await deployments.prepareStack({
           ...sharedDeployOptions,
           deploymentMethod: options.deploymentMethod,
-          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+          willExecuteChangeSet: isExecutingChangeSetDeployment(options.deploymentMethod),
         })
         : undefined;
 

@@ -132,17 +132,17 @@ export interface DeployStackOptions {
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
-   * Whether to announce a change set that is created but deliberately not
-   * executed (change-set method with `execute: false`) as waiting for manual
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
+   *
+   * When a change set is created without being executed (change-set method
+   * with `execute: false`) and this is false, the change set is the user's
+   * final artifact (`--no-execute`) and is announced as waiting for manual
    * execution.
    *
-   * Set to false when the change set is the internal first phase of an
-   * executing deployment (two-phase deploy), where the announcement would be
-   * misleading: the change set is about to be executed.
-   *
-   * @default true
+   * @default false
    */
-  readonly announceNoExecuteChangeSet?: boolean;
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * The collection of extra parameters
@@ -497,7 +497,7 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
-      if (this.options.announceNoExecuteChangeSet ?? true) {
+      if (!this.options.willExecuteChangeSet) {
         await this.ioHelper.defaults.info(format(
           'Changeset %s created and waiting in review for manual execution (--no-execute)',
           changeSetDescription.ChangeSetId,

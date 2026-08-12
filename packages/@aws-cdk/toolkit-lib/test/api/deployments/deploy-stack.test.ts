@@ -1006,13 +1006,13 @@ test('announces the change set as awaiting manual execution if --no-execute is g
   }));
 });
 
-test('does not announce the change set if the announcement is suppressed', async () => {
-  // WHEN — announceNoExecuteChangeSet: false marks this change set as the
-  // internal first phase of an executing deployment
+test('does not announce the change set if the caller will execute it afterwards', async () => {
+  // WHEN — willExecuteChangeSet marks this change set as the internal first
+  // phase of an executing deployment
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'change-set', execute: false },
-    announceNoExecuteChangeSet: false,
+    willExecuteChangeSet: true,
   });
 
   // THEN

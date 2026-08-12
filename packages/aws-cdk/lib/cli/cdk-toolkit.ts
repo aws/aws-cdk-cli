@@ -2369,7 +2369,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       ? await this.deployments.prepareStack({
         ...sharedDeployOptions,
         deploymentMethod: this.options.deploymentMethod,
-        cleanupOnNoOp: isExecutingChangeSetDeployment(this.options.deploymentMethod),
+        willExecuteChangeSet: isExecutingChangeSetDeployment(this.options.deploymentMethod),
       })
       : undefined;
 

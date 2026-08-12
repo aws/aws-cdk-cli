@@ -98,17 +98,20 @@ export interface DeployStackOptions {
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
-   * Whether to announce a change set that is created but deliberately not
-   * executed (change-set method with `execute: false`) as waiting for manual
-   * execution.
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
    *
-   * Set to false when the change set is the internal first phase of an
-   * executing deployment (two-phase deploy), where the announcement would be
-   * misleading: the change set is about to be executed.
+   * Only relevant when the change set is created without being executed
+   * (change-set method with `execute: false`):
+   * - `false`: the change set is the user's final artifact (`--no-execute`);
+   *   it is announced as waiting for manual execution, and `prepareStack()`
+   *   keeps it even if it contains no changes.
+   * - `true`: the change set is about to be executed by the caller; it is not
+   *   announced, and `prepareStack()` cleans it up if it contains no changes.
    *
-   * @default true
+   * @default false
    */
-  readonly announceNoExecuteChangeSet?: boolean;
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -182,17 +185,6 @@ export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymen
    * The change-set deployment method to use.
    */
   readonly deploymentMethod: ChangeSetDeployment;
-
-  /**
-   * Whether to clean up the change set if it has no changes.
-   *
-   * Set to true when the caller forced execute: false internally
-   * (two-phase deploy). Set to false when the user explicitly
-   * asked for --no-execute (prepare-change-set).
-   *
-   * @default false
-   */
-  readonly cleanupOnNoOp?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -429,7 +421,7 @@ export class Deployments {
       envResources: env.resources,
       tags: options.tags,
       deploymentMethod: options.deploymentMethod,
-      announceNoExecuteChangeSet: options.announceNoExecuteChangeSet,
+      willExecuteChangeSet: options.willExecuteChangeSet,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
@@ -463,12 +455,6 @@ export class Deployments {
     const result = await this.deployStack({
       ...options,
       deploymentMethod: { ...options.deploymentMethod, execute: false },
-      // Announce the created change set only when the user explicitly asked
-      // for --no-execute (the change set is the final result). When this
-      // prepare is the internal first phase of an executing deployment
-      // (cleanupOnNoOp), the change set is about to be executed and the
-      // announcement would be misleading.
-      announceNoExecuteChangeSet: !options.cleanupOnNoOp,
     });
 
     // With execute: false, the only possible result type is did-deploy-stack
@@ -478,9 +464,10 @@ export class Deployments {
       return undefined;
     }
 
-    // Clean up empty change sets if requested (i.e. when the caller forced
-    // execute: false internally, not when the user explicitly asked for --no-execute).
-    if (result.noOp && options.cleanupOnNoOp) {
+    // Clean up empty change sets that are about to be superseded by the
+    // executing second phase. A user-requested --no-execute keeps its change
+    // set even when empty: the change set is the user's final artifact.
+    if (result.noOp && options.willExecuteChangeSet) {
       const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
       await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
     }
