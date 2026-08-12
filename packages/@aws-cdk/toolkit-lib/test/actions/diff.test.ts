@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
@@ -441,6 +441,42 @@ describe('diff', () => {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
       })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
+    });
+
+    test('ChangeSet diff cleans up the failed change set and empty stack when validation fails', async () => {
+      // GIVEN - a new stack whose CREATE change set fails early validation
+      // (e.g. a resource that already exists), which would otherwise leave the
+      // change set orphaned and the stack stuck in REVIEW_IN_PROGRESS.
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff-change-set/abc',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/def',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'FAILED',
+        StatusReason: "Resource of type 'AWS::S3::Bucket' with identifier 'mybucket' already exists.",
+        ExecutionStatus: 'UNAVAILABLE',
+        Changes: [],
+      });
+
+      // WHEN - the diff falls back to a template diff (default fallbackToTemplate = true)
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet(),
+      });
+
+      // THEN - the failed change set is deleted and the empty stack is cleaned up
+      const deleteChangeSetCalls = mockCloudFormationClient.commandCalls(DeleteChangeSetCommand);
+      expect(deleteChangeSetCalls.length).toBeGreaterThan(0);
+      expect(deleteChangeSetCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetName: expect.stringContaining('cdk-diff-change-set'),
+      }));
+
+      const deleteStackCalls = mockCloudFormationClient.commandCalls(DeleteStackCommand);
+      expect(deleteStackCalls.length).toBeGreaterThan(0);
     });
 
     test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {

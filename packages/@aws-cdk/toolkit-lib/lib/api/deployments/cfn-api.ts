@@ -223,32 +223,50 @@ async function createChangeSetAndCleanup(
   });
 
   await ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-  // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await new ChangeSetDescriber({
-    cfn: options.cfn,
-    ioHelper,
-    stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
-    changeSetNameOrArn: changeSet.Id ?? options.changeSetName,
-  }).waitAndThrowOnProblem({
-    diagnoser: options.diagnoser,
-  });
 
-  await cleanupOldChangeset(
-    options.cfn,
-    ioHelper,
-    changeSet.Id ?? options.changeSetName,
-    changeSet.StackId ?? options.stack.stackName,
-  );
+  const changeSetId = changeSet.Id ?? options.changeSetName;
+  const stackId = changeSet.StackId ?? options.stack.stackName;
 
-  // If the stack didn't exist before, creating a CREATE changeset will have
-  // put it in REVIEW_IN_PROGRESS state. Delete the empty stack to clean up.
-  if (!options.exists) {
-    await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', changeSet.StackId ?? options.stack.stackName));
-    await options.cfn.deleteStack({
-      StackName: changeSet.StackId ?? options.stack.stackName,
-      ClientRequestToken: randomUUID(),
+  // Remove the change set (and, for a brand new stack, the empty stack that a
+  // CREATE change set leaves in REVIEW_IN_PROGRESS). This has to run whether the
+  // change set succeeds or fails validation: otherwise a change set that fails
+  // early validation is orphaned and leaves the stack stuck in REVIEW_IN_PROGRESS,
+  // which then blocks subsequent change set creation.
+  const cleanup = async () => {
+    await cleanupOldChangeset(options.cfn, ioHelper, changeSetId, stackId);
+
+    if (!options.exists) {
+      await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', stackId));
+      await options.cfn.deleteStack({
+        StackName: stackId,
+        ClientRequestToken: randomUUID(),
+      });
+    }
+  };
+
+  let createdChangeSet: ChangeSetReport;
+  try {
+    // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    createdChangeSet = await new ChangeSetDescriber({
+      cfn: options.cfn,
+      ioHelper,
+      stackNameOrArn: stackId,
+      changeSetNameOrArn: changeSetId,
+    }).waitAndThrowOnProblem({
+      diagnoser: options.diagnoser,
     });
+  } catch (e) {
+    // Best-effort cleanup so a failed change set doesn't leak; don't let a
+    // cleanup failure mask the original creation/validation error.
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      await ioHelper.defaults.debug(format('Failed to clean up change set after a creation error: %s', cleanupError));
+    }
+    throw e;
   }
+
+  await cleanup();
 
   return createdChangeSet;
 }
