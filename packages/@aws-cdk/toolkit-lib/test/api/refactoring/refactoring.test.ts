@@ -392,6 +392,35 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Q1']).toBe(result['Stack1.Q2']);
   });
 
+  test('a shared property hash cache does not change the digests it produces', () => {
+    const template = {
+      Resources: {
+        Bucket: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+          Metadata: { 'aws:cdk:path': 'Stack/Bucket/Resource' },
+        },
+        Topic: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket',
+          Properties: { DisplayName: 'my-topic', Sub: { Ref: 'Bucket' } },
+        },
+      },
+    };
+    const stacks = makeStacks([template]);
+
+    for (const direction of ['direct', 'opposite'] as const) {
+      const uncached = computeResourceDigests(stacks, direction);
+
+      // The same cache is reused across both directions, as RefactoringContext does
+      const cache = new Map();
+      computeResourceDigests(stacks, direction === 'direct' ? 'opposite' : 'direct', cache);
+      const cached = computeResourceDigests(stacks, direction, cache);
+
+      expect(cached).toEqual(uncached);
+    }
+  });
+
   test('different physical IDs lead to different digests', () => {
     mockLoadResourceModel.mockReturnValue({
       primaryIdentifier: ['FooName'],

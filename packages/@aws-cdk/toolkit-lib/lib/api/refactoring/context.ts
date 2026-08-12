@@ -4,7 +4,7 @@ import { EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
-import type { GraphDirection } from './digest';
+import type { GraphDirection, PropertyHashCache } from './digest';
 import { computeResourceDigests } from './digest';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { equalSets, setDiff } from '../../util/sets';
@@ -44,8 +44,10 @@ export class RefactoringContext {
 
   constructor(props: RefactoringContextOptions) {
     this.environment = props.environment;
-    const moves = resourceMoves(props.deployedStacks, props.localStacks, 'direct', props.ignoreModifications);
-    const additionalOverrides = structuralOverrides(props.deployedStacks, props.localStacks);
+    // Both passes below hash the same resources; share the property hashes.
+    const propertyHashes: PropertyHashCache = new Map();
+    const moves = resourceMoves(props.deployedStacks, props.localStacks, 'direct', props.ignoreModifications, propertyHashes);
+    const additionalOverrides = structuralOverrides(props.deployedStacks, props.localStacks, propertyHashes);
     const overrides = (props.overrides ?? []).concat(additionalOverrides);
     const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(overrides, moves);
     this.ambiguousMoves = ambiguousMoves;
@@ -186,8 +188,11 @@ export class RefactoringContext {
  * opposite graph, we can use them as a set of overrides to disambiguate the original moves.
  *
  */
-function structuralOverrides(deployedStacks: CloudFormationStack[], localStacks: CloudFormationStack[]): ResourceMapping[] {
-  const moves = resourceMoves(deployedStacks, localStacks, 'opposite', true);
+function structuralOverrides(
+  deployedStacks: CloudFormationStack[],
+  localStacks: CloudFormationStack[],
+  propertyHashes?: PropertyHashCache): ResourceMapping[] {
+  const moves = resourceMoves(deployedStacks, localStacks, 'opposite', true, propertyHashes);
   const [nonAmbiguousMoves] = partitionByAmbiguity([], moves);
   return resourceMappings(nonAmbiguousMoves);
 }
@@ -196,9 +201,10 @@ function resourceMoves(
   before: CloudFormationStack[],
   after: CloudFormationStack[],
   direction: GraphDirection = 'direct',
-  ignoreModifications: boolean = false): ResourceMove[] {
-  const digestsBefore = resourceDigests(before, direction);
-  const digestsAfter = resourceDigests(after, direction);
+  ignoreModifications: boolean = false,
+  propertyHashes?: PropertyHashCache): ResourceMove[] {
+  const digestsBefore = resourceDigests(before, direction, propertyHashes);
+  const digestsAfter = resourceDigests(after, direction, propertyHashes);
 
   if (!(ignoreModifications || isomorphic(digestsBefore, digestsAfter))) {
     const message = ['A refactor operation cannot add, remove or update resources. Only resource moves and renames are allowed.'];
@@ -307,14 +313,17 @@ function zip(
 /**
  * Computes a list of pairs [digest, location] for each resource in the stack.
  */
-function resourceDigests(stacks: CloudFormationStack[], direction: GraphDirection): Record<string, ResourceLocation[]> {
+function resourceDigests(
+  stacks: CloudFormationStack[],
+  direction: GraphDirection,
+  propertyHashes?: PropertyHashCache): Record<string, ResourceLocation[]> {
   // index stacks by name
   const stacksByName = new Map<string, CloudFormationStack>();
   for (const stack of stacks) {
     stacksByName.set(stack.stackName, stack);
   }
 
-  const digests = computeResourceDigests(stacks, direction);
+  const digests = computeResourceDigests(stacks, direction, propertyHashes);
 
   return groupByKey(
     Object.entries(digests).map(([loc, digest]) => {
