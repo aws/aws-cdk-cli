@@ -44,6 +44,7 @@ import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hot
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 
 export interface DeployStackOptions {
   /**
@@ -934,7 +935,7 @@ async function canSkipDeploy(
       deployStackOptions.stack.stackName,
       deployStackOptions.stack.template,
     );
-    if (hotswapCache && JSON.stringify(deployStackOptions.stack.template) !== JSON.stringify(hotswapCache.deployedRootTemplate)) {
+    if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
       await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
       return false;
     }

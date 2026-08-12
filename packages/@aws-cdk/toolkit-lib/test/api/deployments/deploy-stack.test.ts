@@ -702,6 +702,27 @@ test('deploy is not skipped if we are deploying with hotswap and there is a chan
   expect(tryHotswapDeployment).toHaveBeenCalled();
 });
 
+test('deploy is skipped if no changes detected between current and previous hotswap templates', async () => {
+  // GIVEN
+  givenStackExists();
+  givenTemplateIs(defaultTargetTemplate());
+  (readHotswapTemplateCache as jest.Mock).mockResolvedValue({
+    deployedRootTemplate: defaultTargetTemplate(),
+    nestedStacks: {},
+  });
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'hotswap' },
+  });
+
+  // THEN
+  // canSkipDeploy consulted the hotswap cache and returned true, we don't attempt to hotswap
+  expect(readHotswapTemplateCache).toHaveBeenCalled();
+  expect(tryHotswapDeployment).toHaveBeenCalledTimes(0);
+});
+
 test('if existing stack failed to create, it is deleted and recreated', async () => {
   // GIVEN
   givenStackExists({
