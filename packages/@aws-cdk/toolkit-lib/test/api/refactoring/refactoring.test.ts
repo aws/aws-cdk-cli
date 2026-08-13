@@ -259,6 +259,63 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
+  test('different resources - DependsOn with different properties', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        // These topics have the same dependency, but different properties.
+        // Therefore, they should have different digests.
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'topic-one',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'topic-two',
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
+  });
+
+  test('different resources - DependsOn with different deletion policies', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        // These queues have the same dependency and the same properties,
+        // but different deletion policies. Therefore, they should have
+        // different digests.
+        Q1: {
+          Type: 'AWS::SQS::Queue',
+          DependsOn: 'Bucket1',
+          Properties: { QueueName: 'my-queue' },
+          DeletionPolicy: 'Retain',
+        },
+        Q2: {
+          Type: 'AWS::SQS::Queue',
+          DependsOn: 'Bucket1',
+          Properties: { QueueName: 'my-queue' },
+          DeletionPolicy: 'Delete',
+        },
+      },
+    };
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).not.toEqual(result['Stack1.Q2']);
+  });
+
   test('almost identical resources - dependency via different intrinsic functions', () => {
     const template = {
       Resources: {
