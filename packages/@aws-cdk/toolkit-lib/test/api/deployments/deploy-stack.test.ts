@@ -696,7 +696,7 @@ test('deploy is not skipped if we are deploying and there is a change from the l
   });
 
   // THEN
-  // canSkipDeploy consulted the hotswap cache and returned false, so we proceeded to attempt the hotswap
+  // canSkipDeploy consulted the hotswap cache and returned false, so we proceeded to attempt to deploy
   expect(readHotswapTemplateCache).toHaveBeenCalled();
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
