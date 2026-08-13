@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
@@ -40,7 +41,7 @@ import { changeSetHasNoChanges } from '../diagnosing/stack-diagnoser';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
-import { invalidateHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
+import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
@@ -924,6 +925,17 @@ async function canSkipDeploy(
   // Existing stack is in a failed state
   if (cloudFormationStack.stackStatus.isFailure) {
     await ioHelper.defaults.debug(`${deployName}: stack is in a failure state`);
+    return false;
+  }
+
+  // treat template in the hotswap cache as the source of truth
+  const hotswapCache = await readHotswapTemplateCache(
+    deployStackOptions.stack.assembly.directory,
+    deployStackOptions.stack.stackName,
+    deployStackOptions.stack.template,
+  );
+  if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
+    await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
     return false;
   }
 
