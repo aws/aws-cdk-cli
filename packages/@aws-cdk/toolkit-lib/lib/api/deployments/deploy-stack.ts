@@ -359,7 +359,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       await ioHelper.defaults.info('Falling back to doing a full deployment');
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
-      options = { ...options, express: true };
     } else {
       return {
         type: 'did-deploy-stack',

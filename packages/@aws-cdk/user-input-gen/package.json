@@ -36,7 +36,7 @@
     "@types/lodash.clonedeep": "^4.5.9",
     "@types/node": "^20",
     "@types/prettier": "^2",
-    "@types/semver": "^7.7.1",
+    "@types/semver": "^7.8.0",
     "@types/yarnpkg__lockfile": "^1.1.9",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
@@ -52,7 +52,7 @@
     "jest-junit": "^16",
     "nx": "^22.7.8",
     "prettier": "^2.8",
-    "projen": "^0.101.22",
+    "projen": "^0.101.27",
     "ts-jest": "^29.4.12",
     "typescript": "5.9"
   },
