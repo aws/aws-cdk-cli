@@ -677,7 +677,7 @@ test('deploy is not skipped if notificationArns are different', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
-test('deploy is not skipped if we are deploying with hotswap and there is a change from the last hotswap deployment', async () => {
+test('deploy is not skipped if we are deploying and there is a change from the last hotswap deployment', async () => {
   // GIVEN
   // The synthesized template matches what CloudFormation currently has stored, so every normal
   // canSkipDeploy check would say "skip". But a previous hotswap mutated the live resources without
@@ -693,13 +693,12 @@ test('deploy is not skipped if we are deploying with hotswap and there is a chan
   // WHEN
   await testDeployStack({
     ...standardDeployStackArguments(),
-    deploymentMethod: { method: 'hotswap' },
   });
 
   // THEN
   // canSkipDeploy consulted the hotswap cache and returned false, so we proceeded to attempt the hotswap
   expect(readHotswapTemplateCache).toHaveBeenCalled();
-  expect(tryHotswapDeployment).toHaveBeenCalled();
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy is skipped if no changes detected between current and previous hotswap templates', async () => {
