@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
@@ -44,7 +45,6 @@ import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hot
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
-import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 
 export interface DeployStackOptions {
   /**
