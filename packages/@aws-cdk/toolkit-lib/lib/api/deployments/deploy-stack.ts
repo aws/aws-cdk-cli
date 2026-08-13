@@ -929,16 +929,15 @@ async function canSkipDeploy(
     return false;
   }
 
-  if (deployStackOptions.deploymentMethod?.method === 'hotswap') {
-    const hotswapCache = await readHotswapTemplateCache(
-      deployStackOptions.stack.assembly.directory,
-      deployStackOptions.stack.stackName,
-      deployStackOptions.stack.template,
-    );
-    if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
-      await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
-      return false;
-    }
+  // treat template in the hotswap cache as the source of truth
+  const hotswapCache = await readHotswapTemplateCache(
+    deployStackOptions.stack.assembly.directory,
+    deployStackOptions.stack.stackName,
+    deployStackOptions.stack.template,
+  );
+  if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
+    await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
+    return false;
   }
 
   // We can skip deploy
