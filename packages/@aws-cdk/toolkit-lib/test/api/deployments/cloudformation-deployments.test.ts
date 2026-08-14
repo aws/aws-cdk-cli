@@ -123,6 +123,58 @@ test('prepareStack calls deployStack with execute: false and returns successful 
   }));
 });
 
+test('prepareStack passes willExecuteChangeSet through to deployStack', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — willExecuteChangeSet marks this prepare as the internal first
+  // phase of a two-phase (create + execute) deployment
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN — deployStack suppresses the "waiting in review for manual
+  // execution (--no-execute)" announcement based on this flag
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      willExecuteChangeSet: true,
+    }),
+    expect.anything(),
+  );
+});
+
+test('prepareStack leaves willExecuteChangeSet unset for a user-requested --no-execute prepare', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — no willExecuteChangeSet means the change set is the final result (--no-execute)
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN — deployStack announces the change set as awaiting manual execution
+  expect((deployStack as jest.Mock).mock.calls[0][0].willExecuteChangeSet).toBeUndefined();
+});
+
 test('prepareStack returns undefined for non-success results', async () => {
   // GIVEN
   (deployStack as jest.Mock).mockResolvedValue({
@@ -159,7 +211,7 @@ test('prepareStack forwards stackEventPollingInterval to cleanupChangeSet as the
   await deployments.prepareStack({
     stack: testStack({ stackName: 'boop' }),
     deploymentMethod: { method: 'change-set' },
-    cleanupOnNoOp: true,
+    willExecuteChangeSet: true,
     stackEventPollingInterval: 10_000,
   });
 
