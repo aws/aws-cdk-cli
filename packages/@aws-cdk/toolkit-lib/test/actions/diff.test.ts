@@ -477,6 +477,12 @@ describe('diff', () => {
 
       const deleteStackCalls = mockCloudFormationClient.commandCalls(DeleteStackCommand);
       expect(deleteStackCalls.length).toBeGreaterThan(0);
+
+      // AND - the reason the change set failed is surfaced (not just hidden behind -v)
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'warn',
+        message: expect.stringContaining('failed'),
+      }));
     });
 
     test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {

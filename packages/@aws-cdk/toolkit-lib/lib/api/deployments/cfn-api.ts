@@ -256,12 +256,19 @@ async function createChangeSetAndCleanup(
       diagnoser: options.diagnoser,
     });
   } catch (e) {
-    // Best-effort cleanup so a failed change set doesn't leak; don't let a
-    // cleanup failure mask the original creation/validation error.
+    // Surface why the change set failed. createDiffChangeSet (the only caller)
+    // otherwise consumes this error at debug level before falling back to a
+    // template-only diff, so without this the reason is invisible unless -v is set.
+    await ioHelper.defaults.warn(format('Change set %s failed: %s', changeSetId, e));
+
+    // Best-effort cleanup so a failed change set doesn't leak (which would leave a
+    // new stack stuck in REVIEW_IN_PROGRESS). Deletion can legitimately fail -- e.g.
+    // missing cloudformation:DeleteChangeSet/DeleteStack permissions -- so we log
+    // that but must not let it mask the original failure surfaced above.
     try {
       await cleanup();
     } catch (cleanupError) {
-      await ioHelper.defaults.debug(format('Failed to clean up change set after a creation error: %s', cleanupError));
+      await ioHelper.defaults.warn(format('Failed to clean up change set %s after a creation error: %s', changeSetId, cleanupError));
     }
     throw e;
   }
