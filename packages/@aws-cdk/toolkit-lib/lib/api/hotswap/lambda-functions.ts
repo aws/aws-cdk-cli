@@ -234,8 +234,9 @@ async function evaluateLambdaFunctionProps(
     }
   }
 
-  const configurations = description || environment ? { description, environment } : undefined;
-  return code || configurations ? { code, configurations } : undefined;
+  const configurations =
+    description !== undefined || environment !== undefined ? { description, environment } : undefined;
+  return code !== undefined || configurations !== undefined ? { code, configurations } : undefined;
 }
 
 interface LambdaFunctionCode {
