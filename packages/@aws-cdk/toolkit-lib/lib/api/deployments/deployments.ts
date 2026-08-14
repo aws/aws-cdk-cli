@@ -319,7 +319,7 @@ export class Deployments {
    */
   private readonly deployStackSdkProvider: SdkProvider;
 
-  private readonly publisherCache = new Map<cdk_assets.AssetManifest, cdk_assets.AssetPublishing>();
+  private readonly publisherCache = new Map<cdk_assets.AssetManifest, Map<string, cdk_assets.AssetPublishing>>();
 
   private _allowCrossAccountAssetPublishing: boolean | undefined;
 
@@ -783,7 +783,19 @@ export class Deployments {
   }
 
   private cachedPublisher(assetManifest: cdk_assets.AssetManifest, env: cxapi.Environment, stackName?: string) {
-    const existing = this.publisherCache.get(assetManifest);
+    // Cache by both the manifest and the resolved environment: an AssetManifest object is
+    // normally only ever seen with a single environment, but if the same instance is ever
+    // passed in for a different account/region (e.g. a long-lived Deployments/Toolkit reusing
+    // the same parsed cloud assembly to deploy to multiple accounts), we must not silently
+    // reuse a publisher built with the wrong account's credentials for asset uploads.
+    const envKey = `${env.account}:${env.region}`;
+    let byEnv = this.publisherCache.get(assetManifest);
+    if (!byEnv) {
+      byEnv = new Map();
+      this.publisherCache.set(assetManifest, byEnv);
+    }
+
+    const existing = byEnv.get(envKey);
     if (existing) {
       return existing;
     }
@@ -794,7 +806,7 @@ export class Deployments {
       aws: new PublishingAws(this.assetSdkProvider, env),
       progressListener: new ParallelSafeAssetProgress(prefix, this.ioHelper),
     });
-    this.publisherCache.set(assetManifest, publisher);
+    byEnv.set(envKey, publisher);
     return publisher;
   }
 }
