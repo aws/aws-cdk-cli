@@ -338,8 +338,16 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // especially on Windows. No process manager: Verdaccio only has to
         // outlive this job, and the runner kills leftover processes at job
         // teardown.
+        //
+        // Fallback: if the tarball is not present (e.g. when pull_request_target
+        // uses the base branch workflow which lacks the bundle step), install
+        // Verdaccio on the fly. Slower, but keeps the run working.
         'mkdir -p $HOME/verdaccio-app',
-        'tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
+        'if [ -f .projen/verdaccio-bundle.tgz ]; then',
+        '  tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
+        'else',
+        '  npm install --prefix $HOME/verdaccio-app --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8',
+        'fi',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
         // Point at Verdaccio's JS entrypoint; bin shims were not created
