@@ -806,6 +806,14 @@ describe('formatStackDrift', () => {
     // UNKNOWN resources should be treated as unchecked, not as drift
     expect(result.unchecked).toContain('AWS::IAM::Role');
     expect(result.unchecked).toContain('Resource2');
+
+    // Regression test: numResourcesUnchecked used to be computed as
+    // `allStackResources.size - resourceDriftResults.length`, which only
+    // counts resources CloudFormation returned no drift record for at all.
+    // Resource2 has a drift record (status UNKNOWN), so that formula
+    // reported 0 unchecked here even though `unchecked` (above) lists it -
+    // a self-contradictory summary vs. detail output.
+    expect(result.numResourcesUnchecked).toBe(1);
   });
 
   test('formatting with only UNKNOWN drift status', () => {
@@ -868,6 +876,10 @@ describe('formatStackDrift', () => {
     expect(result.unchecked).toContain('Resource1');
     expect(result.unchecked).toContain('AWS::IAM::Role');
     expect(result.unchecked).toContain('Resource2');
+
+    // Both resources have UNKNOWN-status drift records (not missing entirely),
+    // so the naive size-minus-length formula previously reported 0 here.
+    expect(result.numResourcesUnchecked).toBe(2);
   });
 
   test('filters out AWS::CDK::Metadata resources from drift count', () => {
