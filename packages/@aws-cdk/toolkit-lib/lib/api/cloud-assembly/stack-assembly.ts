@@ -140,7 +140,7 @@ async function includeDownstreamStacks(
 
     for (const [id, stack] of allStacks) {
       // Select this stack if it's not selected yet AND it depends on a stack that's in the selected set
-      if (!selectedStacks.has(id) && (stack.dependencies || []).some(dep => selectedStacks.has(dep.id))) {
+      if (!selectedStacks.has(id) && (stack.dependencies || []).some(dep => selectedStacks.has(dep.hierarchicalId))) {
         selectedStacks.set(id, stack);
         added.push(id);
         madeProgress = true;
