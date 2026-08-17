@@ -87,6 +87,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-cdk/asset-awscli-v1@npm:2.2.292":
+  version: 2.2.292
+  resolution: "@aws-cdk/asset-awscli-v1@npm:2.2.292"
+  checksum: 10c0/faa9047369433175b67ba88c2d5c3040c164e64f07c0c567fce590b2e4ba58ff72ba5daf89e453ba36232b4c0cae2b6bac6e5382e75a8ee6110ff6c825945296
+  languageName: node
+  linkType: hard
+
 "@aws-cdk/asset-node-proxy-agent-v6@npm:^2.1.2":
   version: 2.1.2
   resolution: "@aws-cdk/asset-node-proxy-agent-v6@npm:2.1.2"
@@ -1491,6 +1498,13 @@ __metadata:
   version: 1.6.0-beta
   resolution: "@aws/cloudformation-validate@npm:1.6.0-beta"
   checksum: 10c0/73444c7f69ac93943cab27e3d1f92d2eb655fe8165ec14e785e27fcb44ecc7d61a52a82b3e60b7858fe301cb36518881331cfd00d0e18deb141d020f6497d761
+  languageName: node
+  linkType: hard
+
+"@aws/cloudformation-validate@npm:1.7.0-beta":
+  version: 1.7.0-beta
+  resolution: "@aws/cloudformation-validate@npm:1.7.0-beta"
+  checksum: 10c0/3d86cc956f479216bcbbe8feab300320ac49d1d77e26f86eeb30b61041454d3f83f10cac7574e04957cb54b623e61ceb0b1f21ffe55cbcf1eca73556d34fd664
   languageName: node
   linkType: hard
 
@@ -5438,15 +5452,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"aws-cdk-lib@npm:2.264.0":
-  version: 2.264.0
-  resolution: "aws-cdk-lib@npm:2.264.0"
+"aws-cdk-lib@npm:2.265.0":
+  version: 2.265.0
+  resolution: "aws-cdk-lib@npm:2.265.0"
   dependencies:
-    "@aws-cdk/asset-awscli-v1": "npm:2.2.282"
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.292"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
     "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
     "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
-    "@aws/cloudformation-validate": "npm:1.6.0-beta"
+    "@aws/cloudformation-validate": "npm:1.7.0-beta"
     "@balena/dockerignore": "npm:^1.0.2"
     case: "npm:1.6.3"
     fs-extra: "npm:^11.3.6"
@@ -5459,7 +5473,7 @@ __metadata:
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/c8ec4982b858737d83197161a78f23b5234933fb207f45bfff7d79d945747544fce33dbe81433d29826919b9addc6b79446a1c4508d241c921dc91be5f5659d7
+  checksum: 10c0/0593884718e5b50a192ab4b2fb6e255d66bdcc327b73f2a27bbd2b615f9d0811a71932503454d5d0ae7a4e78648d900ad41b2500689f603d4a0274fc84534131
   languageName: node
   linkType: hard
 
@@ -5520,7 +5534,7 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.264.0"
+    aws-cdk-lib: "npm:2.265.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
