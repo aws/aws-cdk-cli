@@ -1,4 +1,4 @@
-import * as s3 from '@aws-sdk/client-s3';
+import s3 from '@aws-sdk/client-s3';
 import { MockSdk } from '../../_helpers/mock-sdk';
 
 describe('S3 path-style addressing', () => {

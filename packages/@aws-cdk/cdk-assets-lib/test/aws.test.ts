@@ -1,6 +1,6 @@
 import 'aws-sdk-client-mock-jest';
 
-import * as s3 from '@aws-sdk/client-s3';
+import s3 from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import { mockSTS } from './mock-aws';
