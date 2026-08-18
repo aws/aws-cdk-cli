@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import type { StackDiagnosis } from '../../../lib/actions/diagnose';
+import type { Diagnosis } from '../../../lib/api/diagnosing/diagnosis';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import type { ISourceTracer } from '../../../lib/api/source-tracing/private/source-tracing';
 import type { SourceTrace } from '../../../lib/api/source-tracing/types';
@@ -38,6 +39,16 @@ function makeDiagnoser(topLevelStackHierarchicalId = 'TestStack') {
   });
 }
 
+function makeHookFetchingDiagnoser() {
+  return new CloudFormationStackDiagnoser({
+    sdk,
+    sourceTracer: fakeTracer,
+    ioHelper: ioHost.asHelper('diagnose'),
+    topLevelStackHierarchicalId: 'TestStack',
+    fetchHookFailureDetails: true,
+  });
+}
+
 /**
  * A fake source tracer that records all calls and returns a fixed trace
  */
@@ -58,10 +69,14 @@ class FakeSourceTracer implements ISourceTracer {
 }
 
 /**
- * Type guard to narrow a StackDiagnosis to the 'problem' variant
+ * Assert the diagnosis is the 'problem' variant, and return it narrowed to that variant
  */
-function assertProblem(result: StackDiagnosis): asserts result is Extract<StackDiagnosis, { type: 'problem' }> {
-  expect(result.type).toBe('problem');
+function assertProblem(diagnosis: Diagnosis): Extract<StackDiagnosis, { type: 'problem' }> {
+  expect(diagnosis.type).toBe('problem');
+  if (diagnosis.result.type !== 'problem') {
+    throw new Error(`Expected a 'problem' diagnosis, got '${diagnosis.type}'`);
+  }
+  return diagnosis.result;
 }
 
 describe('CloudFormationStackDiagnoser', () => {
@@ -71,13 +86,13 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({ type: 'no-problem' });
+      expect(result.result).toMatchObject({ type: 'no-problem' });
     });
 
     test('returns error-diagnosing when stack does not exist', async () => {
       const result = await makeDiagnoser().diagnoseFromFresh('NonExistent');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'error-diagnosing',
         message: expect.stringContaining('NonExistent'),
       });
@@ -88,7 +103,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'error-diagnosing',
         message: expect.stringContaining('currently being updated'),
       });
@@ -112,7 +127,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: { type: 'deployment' },
         problems: [expect.objectContaining({
@@ -173,7 +188,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: { type: 'deployment' },
         problems: [expect.objectContaining({
@@ -194,7 +209,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: {
           type: 'change-set',
@@ -215,7 +230,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({ type: 'no-problem' });
+      expect(result.result).toMatchObject({ type: 'no-problem' });
     });
 
     test('diagnoses auto-import failure', async () => {
@@ -228,16 +243,16 @@ describe('CloudFormationStackDiagnoser', () => {
       });
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
-      assertProblem(result);
+      const problem = assertProblem(result);
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         detectedBy: { type: 'change-set' },
         problems: [expect.objectContaining({
           logicalId: 'MyBucket',
           message: expect.stringContaining('DeletionPolicy'),
         })],
       });
-      expect(result.problems[0].message).toContain('RemovalPolicy.RETAIN');
+      expect(problem.problems[0].message).toContain('RemovalPolicy.RETAIN');
     });
 
     test('diagnoses nested change set failure', async () => {
@@ -271,7 +286,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('ParentStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: { type: 'change-set' },
         problems: [expect.anything()],
@@ -301,7 +316,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: { type: 'early-validation' },
         problems: [expect.objectContaining({
@@ -329,12 +344,12 @@ describe('CloudFormationStackDiagnoser', () => {
       fakeTracer.traceToReturn = { constructPath: 'MyStack/MyBucket/Resource' };
 
       const result = await makeDiagnoser().diagnoseFromFresh('MyStack');
-      assertProblem(result);
+      const problem = assertProblem(result);
 
       expect(fakeTracer.resourceCalls).toEqual([
         expect.objectContaining({ logicalId: 'MyBucket', nestedStackLogicalIds: [] }),
       ]);
-      expect(result.problems[0].sourceTrace).toEqual({ constructPath: 'MyStack/MyBucket/Resource' });
+      expect(problem.problems[0].sourceTrace).toEqual({ constructPath: 'MyStack/MyBucket/Resource' });
     });
 
     test('calls source tracer for non-specific change set errors (stack-level)', async () => {
@@ -368,7 +383,7 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser('MyApp/MyStack').diagnoseFromFresh('MyStack');
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         problems: [expect.objectContaining({ topLevelStackHierarchicalId: 'MyApp/MyStack' })],
       });
@@ -383,7 +398,20 @@ describe('CloudFormationStackDiagnoser', () => {
         Status: ChangeSetStatus.CREATE_COMPLETE,
       });
 
-      expect(result).toMatchObject({ type: 'no-problem' });
+      expect(result.result).toMatchObject({ type: 'no-problem' });
+    });
+
+    test('reports a change set that has not settled yet as not executable', async () => {
+      const result = await makeDiagnoser().diagnoseChangeSet({
+        ChangeSetName: 'my-cs',
+        StackName: 'MyStack',
+        Status: ChangeSetStatus.CREATE_IN_PROGRESS,
+      }, { requireExecutable: true });
+
+      expect(result.result).toMatchObject({
+        type: 'problem',
+        detectedBy: { type: 'change-set-not-ready', changeSetStatus: 'CREATE_IN_PROGRESS' },
+      });
     });
 
     test('diagnoses a failed change set', async () => {
@@ -396,7 +424,7 @@ describe('CloudFormationStackDiagnoser', () => {
         StatusReason: 'Template error: something went wrong',
       });
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: { type: 'change-set' },
       });
@@ -454,7 +482,7 @@ describe('CloudFormationStackDiagnoser', () => {
         StatusReason: 'AWS::EarlyValidation failed',
       });
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         detectedBy: {
           type: 'early-validation',
@@ -545,8 +573,8 @@ describe('CloudFormationStackDiagnoser', () => {
         TargetType: 'CHANGE_SET',
         TargetId: CS_ARN,
       });
-      assertProblem(result);
-      expect(result.problems).toEqual([expect.objectContaining({
+      const problem = assertProblem(result);
+      expect(problem.problems).toEqual([expect.objectContaining({
         errorCode: 'HookFailed',
         message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
         stackArn: STACK_ARN,
@@ -570,11 +598,11 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
 
-      assertProblem(result);
-      expect(result.problems[0].message).toContain("Hook 'Private::Guard::TestHook' failed");
-      expect(result.problems[0].message).toContain('NonCompliant Rules:');
-      expect(result.problems[0].message).toContain('[AWS_S3_Bucket_AccessControl]');
-      expect(result.problems[0].message).toContain('Remediation: AccessControl is deprecated');
+      const problem = assertProblem(result);
+      expect(problem.problems[0].message).toContain("Hook 'Private::Guard::TestHook' failed");
+      expect(problem.problems[0].message).toContain('NonCompliant Rules:');
+      expect(problem.problems[0].message).toContain('[AWS_S3_Bucket_AccessControl]');
+      expect(problem.problems[0].message).toContain('Remediation: AccessControl is deprecated');
     });
 
     test('falls back to the summary HookStatusReason when GetHookResult fails', async () => {
@@ -585,8 +613,8 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
 
-      assertProblem(result);
-      expect(result.problems).toEqual([expect.objectContaining({
+      const problem = assertProblem(result);
+      expect(problem.problems).toEqual([expect.objectContaining({
         errorCode: 'HookFailed',
         message: `Hook 'Example::CFNHook::Full' failed: ${LAMBDA_HOOK_REASON.trim()}`,
       })]);
@@ -600,11 +628,11 @@ describe('CloudFormationStackDiagnoser', () => {
       const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
 
       // Falls through to the non-specific change set error
-      assertProblem(result);
-      expect(result.problems).toEqual([expect.objectContaining({
+      const problem = assertProblem(result);
+      expect(problem.problems).toEqual([expect.objectContaining({
         message: expect.stringContaining('The following hook(s) failed'),
       })]);
-      expect(result.problems[0].errorCode).not.toEqual('HookFailed');
+      expect(problem.problems[0].errorCode).not.toEqual('HookFailed');
     });
 
     test('reports the non-specific change set error when ListHookResults fails', async () => {
@@ -612,8 +640,8 @@ describe('CloudFormationStackDiagnoser', () => {
 
       const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
 
-      assertProblem(result);
-      expect(result.problems).toEqual([expect.objectContaining({
+      const problem = assertProblem(result);
+      expect(problem.problems).toEqual([expect.objectContaining({
         message: expect.stringContaining('The following hook(s) failed'),
       })]);
     });
@@ -651,8 +679,8 @@ describe('CloudFormationStackDiagnoser', () => {
         StatusReason: 'AWS::EarlyValidation failed',
       });
 
-      assertProblem(result);
-      expect(result.problems).toEqual([expect.objectContaining({ logicalId: 'BadPolicy' })]);
+      const problem = assertProblem(result);
+      expect(problem.problems).toEqual([expect.objectContaining({ logicalId: 'BadPolicy' })]);
       expect(mockCloudFormationClient).not.toHaveReceivedCommand(ListHookResultsCommand);
     });
   });
@@ -667,7 +695,7 @@ describe('CloudFormationStackDiagnoser', () => {
         CreationTime: new Date(),
       });
 
-      expect(result).toMatchObject({ type: 'no-problem' });
+      expect(result.result).toMatchObject({ type: 'no-problem' });
     });
 
     test('returns problem with traced errors', async () => {
@@ -696,12 +724,181 @@ describe('CloudFormationStackDiagnoser', () => {
         CreationTime: new Date(),
       });
 
-      expect(result).toMatchObject({
+      expect(result.result).toMatchObject({
         type: 'problem',
         problems: [expect.objectContaining({
           sourceTrace: { constructPath: 'MyStack/MyFunc/Resource' },
         })],
       });
+    });
+
+    test('enriches a resource error with fetched hook failure details', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'terse reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      mockCloudFormationClient.on(GetHookResultCommand).resolves({
+        HookResultId: 'hook-invocation-1',
+        Status: 'HOOK_COMPLETE_FAILED',
+        Annotations: [{
+          AnnotationName: 'AWS_S3_Bucket_AccessControl',
+          Status: 'FAILED',
+          StatusMessage: 'Check was not compliant.',
+          RemediationMessage: 'AccessControl is deprecated',
+        }],
+      } as any);
+
+      const result = await makeHookFetchingDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+        HookResultId: 'hook-invocation-1',
+      });
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext ?? [];
+      expect(context).toEqual([
+        expect.objectContaining({
+          source: 'CloudFormation Hook (Private::Guard::TestHook)',
+          messages: expect.arrayContaining([
+            expect.stringContaining("Hook 'Private::Guard::TestHook' failed"),
+            '[AWS_S3_Bucket_AccessControl]',
+          ]),
+        }),
+      ]);
+    });
+
+    test('does not fetch hook details when fetchHookFailureDetails is off (deploy)', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'terse reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      const result = await makeDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(GetHookResultCommand);
+      const problem = assertProblem(result);
+      expect(problem.problems[0].additionalContext).toBeUndefined();
+    });
+
+    test('falls back to the hook status reason when GetHookResult returns no details', async () => {
+      const errors = new ResourceErrors();
+      errors.update(
+        {
+          event: {
+            EventId: 'evt-hook',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'UPDATE_IN_PROGRESS',
+            HookStatus: 'HOOK_COMPLETE_FAILED',
+            HookType: 'Private::Guard::TestHook',
+            HookInvocationId: 'hook-invocation-1',
+            HookStatusReason: 'the terse fallback reason',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+        {
+          event: {
+            EventId: 'evt-fail',
+            StackId: 'arn:stack',
+            StackName: 'MyStack',
+            LogicalResourceId: 'MyBucket',
+            ResourceType: 'AWS::S3::Bucket',
+            ResourceStatus: 'CREATE_FAILED',
+            ResourceStatusReason: 'The following hook(s) failed: [Private::Guard::TestHook]',
+            Timestamp: new Date(),
+          },
+          parentStackLogicalIds: [],
+          isRootStackEvent: false,
+        },
+      );
+
+      mockCloudFormationClient.on(GetHookResultCommand).rejects(new Error('not authorized'));
+
+      const result = await makeHookFetchingDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext ?? [];
+      expect(context).toEqual([
+        expect.objectContaining({
+          messages: ["Hook 'Private::Guard::TestHook' failed: the terse fallback reason"],
+        }),
+      ]);
     });
   });
 
@@ -771,8 +968,8 @@ describe('CloudFormationStackDiagnoser', () => {
         CreationTime: new Date(),
       });
 
-      assertProblem(result);
-      const context = result.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
     });

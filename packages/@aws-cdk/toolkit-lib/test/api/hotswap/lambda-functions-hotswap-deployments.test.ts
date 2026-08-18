@@ -797,6 +797,65 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
   );
 
   test(
+    'calls the updateLambdaConfiguration() API when a Lambda function Description is changed to an empty string',
+    async () => {
+      // GIVEN
+      setup.setCurrentCfnStackTemplate({
+        Resources: {
+          Func: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Code: {
+                S3Bucket: 's3-bucket',
+                S3Key: 's3-key',
+              },
+              FunctionName: 'my-function',
+              Description: 'Old Description',
+            },
+            Metadata: {
+              'aws:asset:path': 'asset-path',
+            },
+          },
+        },
+      });
+      const cdkStackArtifact = setup.cdkStackArtifactOf({
+        template: {
+          Resources: {
+            Func: {
+              Type: 'AWS::Lambda::Function',
+              Properties: {
+                Code: {
+                  S3Bucket: 's3-bucket',
+                  S3Key: 's3-key',
+                },
+                FunctionName: 'my-function',
+                Description: '',
+              },
+              Metadata: {
+                'aws:asset:path': 'asset-path',
+              },
+            },
+          },
+        },
+      });
+
+      // WHEN
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+      // THEN
+      // Regression test: Description is a falsy-but-meaningful value here. A prior
+      // `description || environment` check treated an empty-string Description the
+      // same as "no Description change", silently skipping the API call while still
+      // reporting the hotswap as successful (or a no-op), instead of clearing it.
+      expect(deployStackResult).not.toBeUndefined();
+      expect(mockLambdaClient).toHaveReceivedCommandWith(UpdateFunctionConfigurationCommand, {
+        FunctionName: 'my-function',
+        Description: '',
+      });
+    },
+  );
+
+  test(
     'calls the updateLambdaConfiguration() API when it receives difference in Environment field of a Lambda function',
     async () => {
       // GIVEN

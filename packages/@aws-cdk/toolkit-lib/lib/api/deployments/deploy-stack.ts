@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { format } from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
-  DescribeChangeSetCommandOutput,
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
   Tag,
@@ -20,10 +20,8 @@ import {
 } from './cfn-api';
 import {
   TemplateParameters,
-  waitForChangeSet,
   waitForStackDeploy,
   waitForStackDelete,
-  waitForChangeSetGone,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
@@ -34,18 +32,20 @@ import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import type { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { changeSetHasNoChanges } from '../diagnosing/stack-diagnoser';
 import type { EnvironmentResources, StringWithoutPlaceholders } from '../environment';
 import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '../hotswap/common';
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
-import { invalidateHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
+import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import type { ResourceErrors } from '../stack-events/resource-errors';
 
 export interface DeployStackOptions {
   /**
@@ -132,6 +132,19 @@ export interface DeployStackOptions {
    * @default - Change set with defaults
    */
   readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
+   *
+   * When a change set is created without being executed (change-set method
+   * with `execute: false`) and this is false, the change set is the user's
+   * final artifact (`--no-execute`) and is announced as waiting for manual
+   * execution.
+   *
+   * @default false
+   */
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * The collection of extra parameters
@@ -361,7 +374,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
       await ioHelper.defaults.info('Falling back to doing a full deployment');
       options.sdk.appendCustomUserAgent('cdk-hotswap/fallback');
       deploymentMethod = deploymentMethod.fallback;
-      options = { ...options, express: true };
     } else {
       return {
         type: 'did-deploy-stack',
@@ -450,7 +462,8 @@ class FullCloudFormationDeployment {
     const execute = deploymentMethod.execute ?? true;
     const importExistingResources = deploymentMethod.importExistingResources ?? false;
     const revertDrift = deploymentMethod.revertDrift ?? false;
-    const changeSetDescription = await this.createChangeSet(changeSetName, execute, importExistingResources, revertDrift);
+    const changeSetReport = await this.createChangeSet(changeSetName, importExistingResources, revertDrift);
+    const changeSetDescription = changeSetReport.changeSet;
     await this.updateTerminationProtection();
 
     if (changeSetHasNoChanges(changeSetDescription)) {
@@ -486,10 +499,12 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
-      await this.ioHelper.defaults.info(format(
-        'Changeset %s created and waiting in review for manual execution (--no-execute)',
-        changeSetDescription.ChangeSetId,
-      ));
+      if (!this.options.willExecuteChangeSet) {
+        await this.ioHelper.defaults.info(format(
+          'Changeset %s created and waiting in review for manual execution (--no-execute)',
+          changeSetDescription.ChangeSetId,
+        ));
+      }
       return {
         type: 'did-deploy-stack',
         noOp: false,
@@ -502,20 +517,23 @@ class FullCloudFormationDeployment {
     }
 
     // If there are replacements in the changeset, check the rollback flag and stack status
-    return this.checkAndExecuteChangeSet(changeSetDescription);
+    return this.checkAndExecuteChangeSet(changeSetReport);
   }
 
   private async executeExistingChangeSet(deploymentMethod: ExecuteChangeSetDeployment): Promise<DeployStackResult> {
     await this.updateTerminationProtection();
 
-    // The change set was already created and validated during the prepare phase,
-    // just describe it to get the info needed for execution.
-    const changeSetDescription = await this.cfn.describeChangeSet({
-      StackName: this.stackName,
-      ChangeSetName: deploymentMethod.changeSetName,
-    });
+    // The change set was created by an earlier command (possibly not even by us). Require it to
+    // have completed rather than waiting on it: blocking on someone else's change set
+    // indefinitely would be worse than reporting that it isn't ready.
+    const changeSetReport = await new ChangeSetDescriber({
+      cfn: this.cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: this.stackName,
+      changeSetNameOrArn: deploymentMethod.changeSetName,
+    }).describeForExecution({ diagnoser: this.diagnoser });
 
-    return this.checkAndExecuteChangeSet(changeSetDescription);
+    return this.checkAndExecuteChangeSet(changeSetReport);
   }
 
   private deployConfig(): DeploymentConfig {
@@ -528,65 +546,25 @@ class FullCloudFormationDeployment {
   /**
    * Check rollback/replacement constraints and execute the change set if all checks pass.
    */
-  private async checkAndExecuteChangeSet(changeSetDescription: DescribeChangeSetCommandOutput): Promise<DeployStackResult> {
-    if (changeSetDescription.Status !== 'CREATE_COMPLETE') {
-      const status = changeSetDescription.Status ?? 'UNKNOWN';
-      const reason = changeSetDescription.StatusReason ? `: ${changeSetDescription.StatusReason}` : '';
-      throw new ToolkitError(
-        'ChangeSetNotReady',
-        `Change set '${changeSetDescription.ChangeSetName}' on stack '${this.stackName}' is not ready for execution (status: ${status}${reason})`,
-      );
-    }
-
-    const replacement = hasReplacement(changeSetDescription);
+  private async checkAndExecuteChangeSet(changeSetReport: ChangeSetReport): Promise<DeployStackResult> {
+    const replacement = hasReplacement(changeSetReport);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
 
-    // Route express mode deployments directly to executeChangeset, express mode stacks cannot use rollback API
-    if (this.options.express) {
-      return this.executeChangeSet(changeSetDescription);
+    // For express mode deployments, don't check paused and failed, since express mode stacks cannot use rollback API
+    if (!this.options.express) {
+      if (isPausedFailState && replacement) {
+        return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
+      }
+      if (isPausedFailState && rollback) {
+        return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
+      }
+      if (!rollback && replacement) {
+        return { type: 'replacement-requires-rollback' };
+      }
     }
 
-    if (isPausedFailState && replacement) {
-      return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
-    }
-    if (isPausedFailState && rollback) {
-      return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
-    }
-    if (!rollback && replacement) {
-      return { type: 'replacement-requires-rollback' };
-    }
-
-    return this.executeChangeSet(changeSetDescription);
-  }
-
-  private async createChangeSet(changeSetName: string, willExecute: boolean, importExistingResources: boolean, revertDrift: boolean) {
-    await this.cleanupOldChangeset(changeSetName);
-
-    await this.ioHelper.defaults.debug(`Attempting to create ChangeSet with name ${changeSetName} to ${this.verb} stack ${this.stackName}`);
-    await this.ioHelper.defaults.info(format('%s: creating CloudFormation changeset...', chalk.bold(this.stackName)));
-    const changeSet = await this.cfn.createChangeSet({
-      StackName: this.stackName,
-      ChangeSetName: changeSetName,
-      ChangeSetType: this.options.resourcesToImport ? 'IMPORT' : this.update ? 'UPDATE' : 'CREATE',
-      ResourcesToImport: this.options.resourcesToImport,
-      Description: `CDK Changeset for execution ${this.uuid}`,
-      ClientToken: `create${this.uuid}`,
-      ImportExistingResources: importExistingResources,
-      DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
-      IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
-      ...this.commonPrepareOptions(),
-      DeploymentConfig: this.deployConfig(),
-    });
-
-    await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-    return waitForChangeSet(this.cfn, this.ioHelper, changeSet.StackId ?? this.stackName, changeSet.Id ?? changeSetName, {
-      fetchAll: willExecute,
-      diagnoser: this.diagnoser,
-    });
-  }
-
-  private async executeChangeSet(changeSet: DescribeChangeSetCommandOutput): Promise<SuccessfulDeployStackResult> {
+    const changeSet = changeSetReport.changeSet;
     await this.ioHelper.defaults.debug(format('Initiating execution of changeset %s on stack %s', changeSet.ChangeSetId, this.stackName));
 
     await this.cfn.executeChangeSet({
@@ -609,6 +587,36 @@ class FullCloudFormationDeployment {
     return this.monitorDeployment(changeSet.CreationTime!, changeSet.StackId!, changeSetLength);
   }
 
+  private async createChangeSet(changeSetName: string, importExistingResources: boolean, revertDrift: boolean): Promise<ChangeSetReport> {
+    await this.cleanupOldChangeset(changeSetName);
+
+    await this.ioHelper.defaults.debug(`Attempting to create ChangeSet with name ${changeSetName} to ${this.verb} stack ${this.stackName}`);
+    await this.ioHelper.defaults.info(format('%s: creating CloudFormation changeset...', chalk.bold(this.stackName)));
+    const changeSet = await this.cfn.createChangeSet({
+      StackName: this.stackName,
+      ChangeSetName: changeSetName,
+      ChangeSetType: this.options.resourcesToImport ? 'IMPORT' : this.update ? 'UPDATE' : 'CREATE',
+      ResourcesToImport: this.options.resourcesToImport,
+      Description: `CDK Changeset for execution ${this.uuid}`,
+      ClientToken: `create${this.uuid}`,
+      ImportExistingResources: importExistingResources,
+      DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
+      IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
+      ...this.commonPrepareOptions(),
+      DeploymentConfig: this.deployConfig(),
+    });
+
+    await this.ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
+    return new ChangeSetDescriber({
+      cfn: this.cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: changeSet.StackId ?? this.stackName,
+      changeSetNameOrArn: changeSet.Id ?? changeSetName,
+    }).waitAndThrowOnProblem({
+      diagnoser: this.diagnoser,
+    });
+  }
+
   private async cleanupOldChangeset(changeSetNameOrArn: string) {
     if (this.cloudFormationStack.exists) {
       const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
@@ -621,7 +629,12 @@ class FullCloudFormationDeployment {
       });
 
       // Deleting may take a bit, especially if it involves nested stack change sets. Wait until it is gone.
-      await waitForChangeSetGone(this.cfn, this.ioHelper, this.stackName, changeSetNameOrArn);
+      await new ChangeSetDescriber({
+        cfn: this.cfn,
+        ioHelper: this.ioHelper,
+        stackNameOrArn: this.stackName,
+        changeSetNameOrArn: changeSetNameOrArn,
+      }).waitForGone();
     }
   }
 
@@ -707,7 +720,7 @@ class FullCloudFormationDeployment {
     });
     await monitor.start();
 
-    let finalState = this.cloudFormationStack;
+    let finalState: CloudFormationStack;
     try {
       const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
 
@@ -717,17 +730,12 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
-      // If this is a deployment error, route the diagnosis and error reporting through the central code for that
+      // Deployment errors get replaced by a diagnosis of the underlying resource failures, which says more.
+      // Any other error, and any failure to diagnose, leaves `e` to propagate as it is.
       if (ToolkitError.isDeploymentError(e)) {
-        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, finalState.wrapped, true, {
-          rollbackEnabled: this.options.rollback !== false,
-        });
-        if (diagnosis.type !== 'no-problem') {
-          throwDeploymentErrorFromDiagnosis(diagnosis);
-        }
+        await this.diagnoseDeploymentFailure(stackArn, monitor.errors);
       }
 
-      // Otherwise rethrow the current error and hope it has enough information.
       throw e;
     } finally {
       await monitor.stop();
@@ -741,6 +749,31 @@ class FullCloudFormationDeployment {
       deleteFailures: this.update ? monitor.deleteFailures : [],
       stabilizingResources: monitor.stabilizingResources,
     };
+  }
+
+  /**
+   * Throw a `DeploymentError` describing why the deployment failed, if we can establish that
+   *
+   * Returns normally when no cause could be established, leaving the caller's original error as the better
+   * one to report.
+   */
+  private async diagnoseDeploymentFailure(stackArn: string, errors: ResourceErrors): Promise<void> {
+    // Describe the stack as it is now. The pre-deploy description held by this class is either absent (the
+    // stack is being created) or describes a state the deployment has since left.
+    const deployedState = await this.cfn.describeStacks({ StackName: stackArn })
+      .then((response) => response.Stacks?.[0])
+      .catch(async (e) => {
+        await this.ioHelper.defaults.debug(`Could not describe ${stackArn} to diagnose the failure: ${formatErrorMessage(e)}`);
+        return undefined;
+      });
+    if (!deployedState) {
+      return;
+    }
+
+    const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(errors, deployedState, true, {
+      rollbackEnabled: this.options.rollback !== false,
+    });
+    diagnosis.throwOnError();
   }
 
   /**
@@ -933,6 +966,17 @@ async function canSkipDeploy(
     return false;
   }
 
+  // treat template in the hotswap cache as the source of truth
+  const hotswapCache = await readHotswapTemplateCache(
+    deployStackOptions.stack.assembly.directory,
+    deployStackOptions.stack.stackName,
+    deployStackOptions.stack.template,
+  );
+  if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
+    await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
+    return false;
+  }
+
   // We can skip deploy
   return true;
 }
@@ -964,8 +1008,8 @@ function arrayEquals(a: any[], b: any[]): boolean {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
 }
 
-function hasReplacement(cs: DescribeChangeSetCommandOutput) {
-  return (cs.Changes ?? []).some(c => {
+function hasReplacement(report: ChangeSetReport) {
+  return (report.changeSet.Changes ?? []).some(c => {
     const a = c.ResourceChange?.PolicyAction;
     return a === 'ReplaceAndDelete' || a === 'ReplaceAndRetain' || a === 'ReplaceAndSnapshot';
   });

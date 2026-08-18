@@ -10,7 +10,7 @@ integTest('cdk-assets uses profile when specified', withDefaultFixture(async (fi
 
   const account = await fixture.aws.account();
   const region = fixture.aws.region;
-  const bucketName = `cdk-hnb659fds-assets-${account}-${region}`;
+  const bucketName = `cdk-${fixture.qualifier}-assets-${account}-${region}`;
 
   // Write some asset files. Its important to have more than 1 because cdk-assets
   // code has some funky state mutations that happens on each asset publishing.
@@ -31,7 +31,7 @@ integTest('cdk-assets uses profile when specified', withDefaultFixture(async (fi
         destinations: {
           current: {
             region,
-            assumeRoleArn: `arn:\${AWS::Partition}:iam::${account}:role/cdk-hnb659fds-file-publishing-role-${account}-${region}`,
+            assumeRoleArn: `arn:\${AWS::Partition}:iam::${account}:role/cdk-${fixture.qualifier}-file-publishing-role-${account}-${region}`,
             bucketName,
             objectKey: `test-file1-${Date.now()}.json`,
           },
@@ -45,7 +45,7 @@ integTest('cdk-assets uses profile when specified', withDefaultFixture(async (fi
         destinations: {
           current: {
             region,
-            assumeRoleArn: `arn:\${AWS::Partition}:iam::${account}:role/cdk-hnb659fds-file-publishing-role-${account}-${region}`,
+            assumeRoleArn: `arn:\${AWS::Partition}:iam::${account}:role/cdk-${fixture.qualifier}-file-publishing-role-${account}-${region}`,
             bucketName,
             objectKey: `test-file2-${Date.now()}.json`,
           },

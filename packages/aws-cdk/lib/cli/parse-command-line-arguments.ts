@@ -644,11 +644,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
-      yargs.option('online', {
-        default: true,
-        type: 'boolean',
-        desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
-      }),
+      yargs
+        .option('online', {
+          default: true,
+          type: 'boolean',
+          desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
+        })
+        .option('watch', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change',
+        }),
     )
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
       yargs
@@ -734,6 +740,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'string',
           desc: 'Name of the CloudFormation change set to create',
+        })
+        .option('notification-arns', {
+          type: 'array',
+          desc: "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
+          nargs: 1,
+          requiresArg: true,
         })
         .option('toolkit-stack-name', {
           default: undefined,
@@ -1154,6 +1166,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to do the refactor without asking for confirmation',
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

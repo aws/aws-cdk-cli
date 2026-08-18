@@ -1,0 +1,11 @@
+{"seq":0,"type":"notify","action":"refactor","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"refactor","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":2,"type":"notify","action":"refactor","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"refactor","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
+{"seq":4,"type":"notify","action":"refactor","level":"info","code":null,"message":"aws://123456789012/bermuda-triangle-1\n"}
+{"seq":5,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Waiting for stack CDKToolkit to finish creating or updating..."}
+{"seq":6,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Stack CDKToolkit does not exist"}
+{"seq":7,"type":"notify","action":"refactor","level":"debug","code":null,"message":"The environment aws://123456789012/bermuda-triangle-1 doesn't have the CDK toolkit stack (CDKToolkit) installed. Use cdk bootstrap \"aws://123456789012/bermuda-triangle-1\" to setup your environment for use with the toolkit."}
+{"seq":8,"type":"notify","action":"refactor","level":"error","code":null,"message":"The template for stack \"Stack1\" is 173KiB. Templates larger than 50KiB must be uploaded to S3.\nRun the following command in order to setup an S3 bucket in this environment, and then re-refactor:\n\n \t$ cdk bootstrap aws://123456789012/bermuda-triangle-1\n"}
+{"seq":9,"type":"notify","action":"refactor","level":"error","code":"CDK_TOOLKIT_E8900","message":"❌  Refactor failed: Template too large to refactor (\"cdk bootstrap\" is required)"}
+{"seq":10,"type":"notify","action":"refactor","level":"debug","code":null,"message":"Template too large to refactor (\"cdk bootstrap\" is required)"}

@@ -259,6 +259,63 @@ describe(computeResourceDigests, () => {
     expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
   });
 
+  test('different resources - DependsOn with different properties', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        // These topics have the same dependency, but different properties.
+        // Therefore, they should have different digests.
+        Topic1: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'topic-one',
+          },
+        },
+        Topic2: {
+          Type: 'AWS::SNS::Topic',
+          DependsOn: 'Bucket1',
+          Properties: {
+            DisplayName: 'topic-two',
+          },
+        },
+      },
+    };
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Topic1']).not.toEqual(result['Stack1.Topic2']);
+  });
+
+  test('different resources - DependsOn with different deletion policies', () => {
+    const template = {
+      Resources: {
+        Bucket1: {
+          Type: 'AWS::S3::Bucket',
+          Properties: { Prop: 'my-bucket' },
+        },
+        // These queues have the same dependency and the same properties,
+        // but different deletion policies. Therefore, they should have
+        // different digests.
+        Q1: {
+          Type: 'AWS::SQS::Queue',
+          DependsOn: 'Bucket1',
+          Properties: { QueueName: 'my-queue' },
+          DeletionPolicy: 'Retain',
+        },
+        Q2: {
+          Type: 'AWS::SQS::Queue',
+          DependsOn: 'Bucket1',
+          Properties: { QueueName: 'my-queue' },
+          DeletionPolicy: 'Delete',
+        },
+      },
+    };
+    const result = computeResourceDigests(makeStacks([template]));
+    expect(result['Stack1.Q1']).not.toEqual(result['Stack1.Q2']);
+  });
+
   test('almost identical resources - dependency via different intrinsic functions', () => {
     const template = {
       Resources: {
@@ -1658,5 +1715,104 @@ describe(generateStackDefinitions, () => {
     // Verify the template size is under 50KB
     const templateSize = JSON.stringify(smallResources).length;
     expect(templateSize).toBeLessThan(50 * 1024);
+  });
+
+  test('looks up the toolkit stack under the given custom name', async () => {
+    const largeResources: any = {};
+    for (let i = 0; i < 500; i++) {
+      largeResources[`Bucket${i}`] = {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: `my-bucket-${i}`,
+          Tags: [
+            { Key: 'Environment', Value: 'Production' },
+            { Key: 'Application', Value: 'MyApp' },
+            { Key: 'Owner', Value: 'TeamA' },
+            { Key: 'CostCenter', Value: '12345' },
+          ],
+        },
+      };
+    }
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: largeResources,
+      },
+    };
+
+    const result = await generateStackDefinitions(
+      [], [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper, 'MyCustomToolkit',
+    );
+
+    expect(result[0].TemplateURL).toBeDefined();
+    expect(ToolkitInfo.lookup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'MyCustomToolkit',
+    );
+  });
+
+  test('falls back to the default toolkit stack name when none is given', async () => {
+    const largeResources: any = {};
+    for (let i = 0; i < 500; i++) {
+      largeResources[`Bucket${i}`] = {
+        Type: 'AWS::S3::Bucket',
+        Properties: {
+          BucketName: `my-bucket-${i}`,
+          Tags: [
+            { Key: 'Environment', Value: 'Production' },
+            { Key: 'Application', Value: 'MyApp' },
+            { Key: 'Owner', Value: 'TeamA' },
+            { Key: 'CostCenter', Value: '12345' },
+          ],
+        },
+      };
+    }
+
+    const deployedStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: {
+          Bucket1: {
+            Type: 'AWS::S3::Bucket',
+          },
+        },
+      },
+    };
+
+    const localStack: CloudFormationStack = {
+      environment,
+      stackName: 'Stack1',
+      template: {
+        Resources: largeResources,
+      },
+    };
+
+    await generateStackDefinitions(
+      [], [deployedStack], [localStack], environment, mockSdkProvider, mockIoHelper,
+    );
+
+    expect(ToolkitInfo.lookup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+    );
   });
 });

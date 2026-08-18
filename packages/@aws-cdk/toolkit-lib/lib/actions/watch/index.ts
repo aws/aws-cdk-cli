@@ -1,4 +1,5 @@
 import type { DeploymentMethod, BaseDeployOptions } from '../deploy';
+import type { ValidateOptions } from '../validate';
 
 /**
  * Options that control which files the watch loop observes.
@@ -41,6 +42,12 @@ export interface WatchOptions extends WatchFileOptions, BaseDeployOptions {
    * @default HotswapDeployment
    */
   readonly deploymentMethod?: DeploymentMethod;
+}
+
+/**
+ * Options for watch-validate mode.
+ */
+export interface WatchValidateOptions extends WatchFileOptions, ValidateOptions {
 }
 
 /**

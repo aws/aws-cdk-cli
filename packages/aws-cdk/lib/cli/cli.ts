@@ -304,6 +304,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return context({
           ioHelper,
           context: configuration.context,
+          sourceFiles: configuration.contextSourceFiles,
           clear: argv.clear,
           json: argv.json,
           force: argv.force,
@@ -465,6 +466,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           online: args.online,
+          watch: args.watch,
         });
 
       case 'diagnose':
@@ -514,6 +516,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           selector,
           toolkitStackName,
           roleArn: args.roleArn,
+          notificationArns: args.notificationArns,
           deploymentMethod: {
             method: 'change-set',
             execute: args.execute,

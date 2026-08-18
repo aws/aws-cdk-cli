@@ -256,8 +256,18 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
+    const issueNumber = Number(noticeId);
+    if (!Number.isInteger(issueNumber)) {
+      throw new ToolkitError(
+        'InvalidAcknowledgementId',
+        `Invalid notice ID '${noticeId}': 'cdk acknowledge' only accepts numeric notice IDs (e.g. 'cdk acknowledge 12345'). ` +
+        'Scoped construct warnings such as \'@aws-cdk/aws-ecs:minHealthyPercent\' are acknowledged in code with ' +
+        'Annotations.of(scope).acknowledgeWarning(\'<id>\').',
+      );
+    }
+
     const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
-    acks.add(Number(noticeId));
+    acks.add(issueNumber);
     this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
   }
@@ -356,7 +366,7 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet)
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
@@ -435,7 +445,6 @@ export class CdkToolkit {
       stack,
       uuid: randomUUID(),
       deployments: this.props.deployments,
-      willExecute: false,
       sdkProvider: this.props.sdkProvider,
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       resourcesToImport,
@@ -623,12 +632,60 @@ export class CdkToolkit {
   /**
    * Validate synthesized templates against policy rules
    */
-  public async validate(options: ValidateOptions): Promise<number> {
+  public async validate(options: CliValidateOptions): Promise<number | void> {
     // Implicitly switch 'debug' mode to true; more stack traces = more useful.
     this.props.cloudExecutable.switchOnDebugging();
 
-    const result = await this.toolkit.validate(this.props.cloudExecutable, options);
+    // `watch` is a CLI-only flag; strip it before crossing into toolkit-lib so
+    // it does not leak into the library's validate action.
+    const { watch, ...validateOptions } = options;
+
+    if (watch) {
+      return this.validateWatch(validateOptions);
+    }
+
+    const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
     return result.conclusion === 'failure' ? 1 : 0;
+  }
+
+  /**
+   * Continuously validate the project, re-synthesizing and re-validating on
+   * every file change. Never deploys.
+   *
+   * The files to observe are configured with the "watch" key of `cdk.json`,
+   * exactly like `cdk deploy --watch`.
+   */
+  private async validateWatch(options: ValidateOptions): Promise<void> {
+    const rootDir = path.dirname(path.resolve(PROJECT_CONFIG));
+
+    const watchSettings: { include?: string | string[]; exclude?: string | string[] } | undefined =
+      this.props.configuration.settings.get(['watch']);
+    if (!watchSettings) {
+      throw new ToolkitError(
+        'WatchConfigMissing',
+        "Cannot use '--watch' without specifying at least one directory to monitor. " +
+        'Make sure to add a "watch" key to your cdk.json',
+      );
+    }
+
+    const include = this.patternsArrayForWatch(watchSettings.include, {
+      defaultPattern: '**',
+      returnDefaultIfEmpty: true,
+    });
+    // Pass the user's excludes explicitly; toolkit-lib always appends the
+    // outdir, dot-file, and node_modules excludes on top of these.
+    const exclude = this.patternsArrayForWatch(watchSettings.exclude, {
+      defaultPattern: '',
+      returnDefaultIfEmpty: false,
+    });
+
+    const watcher = await this.toolkit.watchValidate(this.props.cloudExecutable.uncachedSource(), {
+      ...options,
+      watchDir: rootDir,
+      include,
+      exclude,
+    });
+    return watcher.waitForEnd();
   }
 
   /**
@@ -899,6 +956,21 @@ export class CdkToolkit {
       return;
     }
 
+    // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
+    //
+    //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+    //  - []:        =>  cdk manages it, and the user wants to wipe it out.
+    //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+    const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
+      ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
+      : undefined;
+
+    for (const notificationArn of notificationArns ?? []) {
+      if (!validateSnsTopicArn(notificationArn)) {
+        throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+      }
+    }
+
     // Import the resources according to the given mapping
     await this.ioHost.asIoHelper().defaults.info('%s: importing resources into stack...', chalk.bold(stack.displayName));
     const tags = tagsForStack(stack);
@@ -908,6 +980,7 @@ export class CdkToolkit {
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
       rollback: options.rollback,
+      notificationArns,
     });
 
     // Notify user of next steps
@@ -1583,6 +1656,18 @@ interface CfnDeployOptions {
   readonly rollback?: boolean;
 }
 
+/**
+ * Options for the validate command
+ */
+export interface CliValidateOptions extends ValidateOptions {
+  /**
+   * Continuously observe the project files, and re-validate automatically when changes are detected
+   *
+   * @default false
+   */
+  readonly watch?: boolean;
+}
+
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   /**
    * Only select the given stack
@@ -1793,6 +1878,19 @@ export interface OrphanOptions {
 }
 
 export interface ImportOptions extends CfnDeployOptions {
+  /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events.
+   *
+   * The following semantics apply (dictated by the SDK):
+   *
+   *  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+   *  - []:        =>  cdk manages it, and the user wants to wipe it out.
+   *  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
+
   /**
    * Build a physical resource mapping and write it to the given file, without performing the actual import operation
    *
@@ -2310,7 +2408,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       ? await this.deployments.prepareStack({
         ...sharedDeployOptions,
         deploymentMethod: this.options.deploymentMethod,
-        cleanupOnNoOp: isExecutingChangeSetDeployment(this.options.deploymentMethod),
+        willExecuteChangeSet: isExecutingChangeSetDeployment(this.options.deploymentMethod),
       })
       : undefined;
 

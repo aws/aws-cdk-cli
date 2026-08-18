@@ -67,13 +67,13 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
-import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
+import { type Template, type SdkProvider, ResourceImporter, WorkGraphBuilder } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -1909,6 +1909,112 @@ describe('deploy', () => {
   });
 });
 
+describe('import', () => {
+  const mapping = { MyQueue: { QueueName: 'TheQueueName' } };
+  let discoverSpy: jest.SpyInstance;
+  let loadSpy: jest.SpyInstance;
+  let importFromMapSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    const additions = [{ logicalId: 'MyQueue' }] as any;
+    discoverSpy = jest.spyOn(ResourceImporter.prototype, 'discoverImportableResources').mockResolvedValue({
+      additions,
+      hasNonAdditions: false,
+      nonAdditionNames: [],
+      diffFormatter: {} as any,
+    });
+    loadSpy = jest.spyOn(ResourceImporter.prototype, 'loadResourceIdentifiers').mockResolvedValue({
+      importResources: additions,
+      resourceMap: mapping,
+    });
+    importFromMapSpy = jest.spyOn(ResourceImporter.prototype, 'importResourcesFromMap').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    discoverSpy.mockRestore();
+    loadSpy.mockRestore();
+    importFromMapSpy.mockRestore();
+  });
+
+  describe('sns notification arns', () => {
+    test('with sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN
+      await toolkit.import({
+        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
+      });
+
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ notificationArns }),
+      );
+    });
+
+    test('fail with incorrect sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = ['arn:::cfn-my-cool-topic'];
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN
+      await expect(() =>
+        toolkit.import({
+          selector: { patterns: ['Test-Stack-A-Display-Name'] },
+          deploymentMethod: { method: 'change-set' },
+          resourceMappingInline: JSON.stringify(mapping),
+          notificationArns,
+        }),
+      ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
+
+      // THEN
+      expect(importFromMapSpy).not.toHaveBeenCalled();
+    });
+
+    test('with sns notification arns in the executable and as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [MockStack.MOCK_STACK_WITH_NOTIFICATION_ARNS],
+      });
+      const toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: new FakeCloudFormation(),
+      });
+
+      // WHEN
+      await toolkit.import({
+        selector: { patterns: ['Test-Stack-Notification-Arns'] },
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
+      });
+
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          notificationArns: notificationArns.concat(['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic']),
+        }),
+      );
+    });
+  });
+});
+
 describe('watch', () => {
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
@@ -2221,6 +2327,96 @@ describe('watch', () => {
         );
       });
     });
+  });
+});
+
+describe('validate --watch', () => {
+  let watchValidateSpy: jest.SpyInstance;
+  const fakeWatcher = {
+    dispose: jest.fn().mockResolvedValue(undefined),
+    waitForEnd: jest.fn().mockResolvedValue(undefined),
+    [Symbol.asyncDispose]: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    watchValidateSpy = jest.spyOn(Toolkit.prototype, 'watchValidate').mockResolvedValue(fakeWatcher);
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.validate({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+        watch: true,
+      });
+    }).rejects.toThrow(
+      "Cannot use '--watch' without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+
+    expect(watchValidateSpy).not.toHaveBeenCalled();
+  });
+
+  test('delegates to toolkit-lib watchValidate with the validate options', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      online: false,
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        online: false,
+        include: ['**'],
+        exclude: [],
+      }),
+    );
+    expect(fakeWatcher.waitForEnd).toHaveBeenCalled();
+  });
+
+  test("passes the 'watch' include and exclude settings from cdk.json", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {
+      include: ['lib/**'],
+      exclude: ['lib/generated/**'],
+    });
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include: ['lib/**'],
+        exclude: ['lib/generated/**'],
+      }),
+    );
+  });
+
+  test('passes an uncached assembly source so every iteration re-synthesizes', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    // The source handed to watchValidate must re-synthesize on every produce().
+    const source = watchValidateSpy.mock.calls[0][0];
+    const synthesizeSpy = jest.spyOn(cloudExecutable, 'synthesize');
+    await source.produce();
+    await source.produce();
+    expect(synthesizeSpy).toHaveBeenCalledTimes(2);
+    expect(synthesizeSpy).toHaveBeenCalledWith(false);
   });
 });
 

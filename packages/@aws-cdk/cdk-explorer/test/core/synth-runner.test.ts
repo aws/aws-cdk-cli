@@ -4,7 +4,7 @@ import * as path from 'path';
 import { AssemblyError, ContextLookupsDisabledError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
 
-const APP = 'npx ts-node bin/app.ts';
+const APP = 'npx tsx bin/app.ts';
 
 interface FakeCachedAssembly {
   dispose: jest.Mock;

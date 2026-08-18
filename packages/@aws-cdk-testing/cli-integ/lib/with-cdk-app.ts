@@ -56,7 +56,17 @@ export function withSpecificCdkApp(
       stackNamePrefix,
       context.output,
       context.aws,
-      context.randomString);
+      context.randomString,
+    );
+    if (context.disableBootstrap) {
+      // Tests that disable the default bootstrap manage their own bootstrap
+      // stack (name, qualifier, template) and pass the matching context and
+      // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
+      // the legacy bootstrap refuses to run with any qualifier set.
+      await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
+    } else {
+      await fixture.writeAppContext();
+    }
     await fixture.ecrPublicLogin();
 
     let success = true;
@@ -128,6 +138,7 @@ export function withCdkMigrateApp(
       context.aws,
       context.randomString,
     );
+    await testFixture.writeAppContext();
 
     let success = true;
     try {
@@ -168,6 +179,34 @@ export function withExtendedTimeoutFixture(block: (context: TestFixture) => Prom
 
 export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
   return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)), options.aws);
+}
+
+/**
+ * Higher order function to add context values to the test app
+ *
+ * The context is written to the app's `cdk.json`, merged with the
+ * framework-provided defaults (like the random bootstrap qualifier) and any
+ * context added by enclosing `withAppContext` blocks. May be nested any
+ * number of times; inner blocks override outer blocks on key conflicts.
+ *
+ * Example:
+ *
+ * ```ts
+ * integTest('my test', withDefaultFixture(withAppContext({
+ *   '@aws-cdk/core:newStyleStackSynthesis': 'true',
+ * }, async (fixture) => {
+ *   // ...
+ * })));
+ * ```
+ */
+export function withAppContext(
+  context: Record<string, string>,
+  block: (fixture: TestFixture) => Promise<void>,
+): (fixture: TestFixture) => Promise<void> {
+  return async (fixture: TestFixture) => {
+    await fixture.addAppContext(context);
+    await block(fixture);
+  };
 }
 
 /**
@@ -368,6 +407,7 @@ export class TestFixture extends ShellHelper {
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
+  private readonly appContext: Record<string, string>;
 
   constructor(
     public readonly integTestDir: string,
@@ -381,10 +421,80 @@ export class TestFixture extends ShellHelper {
     this.cli = testSource('cli');
     this.cdkAssets = testSource('cdkAssets');
     this.library = testSource('library');
+
+    // Every test bootstraps its environment with a random qualifier (instead
+    // of the fixed default qualifier), so that bootstrap bucket names are
+    // unique across (potentially recycled) test environments. Putting the
+    // qualifier into the app context makes sure that:
+    //
+    // - Synthesized apps automatically use the matching bootstrap resources
+    //   (`DefaultStackSynthesizer` reads `@aws-cdk/core:bootstrapQualifier`).
+    // - `cdk bootstrap` invocations that don't pass an explicit `--qualifier`
+    //   default to it as well.
+    this.appContext = {
+      '@aws-cdk/core:bootstrapQualifier': this.qualifier,
+    };
   }
 
   public log(s: string) {
     this.output.write(`${s}\n`);
+  }
+
+  /**
+   * Add context values for the test app, and write them to the app's `cdk.json`
+   *
+   * Values passed here accumulate with earlier calls, and override the
+   * framework-provided defaults (like the bootstrap qualifier). Command-line
+   * `--context` arguments still take precedence over all of these.
+   */
+  public async addAppContext(context: Record<string, string>, dir?: string) {
+    Object.assign(this.appContext, context);
+    await this.writeAppContext(dir);
+  }
+
+  /**
+   * Remove a context value for the test app, and update the app's `cdk.json`
+   *
+   * Note: this only prevents the key from being written by this fixture;
+   * a value already present in the app's own `cdk.json` is left alone.
+   */
+  public async removeAppContext(key: string, dir?: string) {
+    delete this.appContext[key];
+    await this.writeAppContext(dir);
+  }
+
+  /**
+   * Merge the accumulated app context into the app's `cdk.json`
+   *
+   * Also points `toolkitStackName` at the fixture's bootstrap stack, so that
+   * commands that look up the bootstrap stack by name (e.g. large-template
+   * deploys and refactors that need the staging bucket) find it without the
+   * test having to pass `--toolkit-stack-name` everywhere. Command-line
+   * arguments still take precedence.
+   *
+   * Called by the fixture factories as soon as the app directory exists;
+   * tests normally don't need to call this directly (use `addAppContext`
+   * or wrap the test block in `withAppContext` instead).
+   */
+  public async writeAppContext(dir?: string) {
+    const cdkJsonPath = path.join(dir ?? this.integTestDir, 'cdk.json');
+
+    let cdkJson: any = {};
+    try {
+      cdkJson = JSON.parse(await fs.promises.readFile(cdkJsonPath, { encoding: 'utf-8' }));
+    } catch (e: any) {
+      if (e.code !== 'ENOENT') {
+        throw e;
+      }
+    }
+
+    cdkJson.toolkitStackName = this.bootstrapStackName;
+    cdkJson.context = {
+      ...cdkJson.context,
+      ...this.appContext,
+    };
+
+    await fs.promises.writeFile(cdkJsonPath, JSON.stringify(cdkJson, undefined, 2), { encoding: 'utf-8' });
   }
 
   /**
@@ -662,9 +772,14 @@ export class TestFixture extends ShellHelper {
     return JSON.parse(fs.readFileSync(templatePath, { encoding: 'utf-8' }).toString());
   }
 
+  /**
+   * Look up the ECR repository name of this fixture's bootstrap stack
+   *
+   * Expects the environment to have been bootstrapped already with
+   * `toolkitStackName: fixture.bootstrapStackName` (or via `ensureBootstrapped`,
+   * which uses that stack name by default).
+   */
   public async bootstrapRepoName(): Promise<string> {
-    await ensureBootstrapped(this);
-
     const response = await this.aws.cloudFormation.send(new DescribeStacksCommand({}));
 
     const stack = (response.Stacks ?? [])
@@ -805,13 +920,17 @@ export async function ensureBootstrapped(fixture: TestFixture) {
   // It doesn't matter for tests: when they want to test something about an actual legacy
   // bootstrap stack, they'll create a bootstrap stack with a non-default name to test that exact property.
   const envSpecifier = `aws://${await fixture.aws.account()}/${fixture.aws.region}`;
-  if (ALREADY_BOOTSTRAPPED_IN_THIS_RUN.has(envSpecifier)) {
+  // Every fixture bootstraps with its own random qualifier (and stack name),
+  // so the cache key must include it: another fixture's bootstrap of the same
+  // environment doesn't help us.
+  const cacheKey = `${envSpecifier}/${fixture.qualifier}`;
+  if (ALREADY_BOOTSTRAPPED_IN_THIS_RUN.has(cacheKey)) {
     return;
   }
 
   if (atmosphereEnabled()) {
     // when atmosphere is enabled, each test starts with an empty environment
-    // and needs to deploy the bootstrap stack. in case environments are recylced too quickly,
+    // and needs to deploy the bootstrap stack. in case environments are recycled too quickly,
     // cloudformation may think the bootstrap bucket still exists even though it doesnt (because of s3 eventual consistency).
     // so we retry on the specific error for a while.
     await bootstrapWithRetryOnBucketExists(envSpecifier, fixture);
@@ -822,12 +941,20 @@ export async function ensureBootstrapped(fixture: TestFixture) {
   // when using the atmosphere service, every test needs to bootstrap
   // its own environment.
   if (!atmosphereEnabled()) {
-    ALREADY_BOOTSTRAPPED_IN_THIS_RUN.add(envSpecifier);
+    ALREADY_BOOTSTRAPPED_IN_THIS_RUN.add(cacheKey);
   }
 }
 
 async function doBootstrap(envSpecifier: string, fixture: TestFixture, allowErrExit: boolean) {
-  return fixture.cdk(['bootstrap', '--bootstrap-kms-key-id', 'AWS_MANAGED_KEY', envSpecifier], {
+  return fixture.cdk(['bootstrap',
+    '--bootstrap-kms-key-id', 'AWS_MANAGED_KEY',
+    // Use a random qualifier and a per-fixture stack name, so that bootstrap
+    // resource names (in particular the bucket name) are unique across
+    // (potentially recycled) test environments, and so that concurrent tests
+    // in the same environment don't fight over a shared bootstrap stack.
+    '--qualifier', fixture.qualifier,
+    '--toolkit-stack-name', fixture.bootstrapStackName,
+    envSpecifier], {
     modEnv: {
       // Even for v1, use new bootstrap
       CDK_NEW_BOOTSTRAP: '1',
@@ -842,7 +969,7 @@ async function doBootstrap(envSpecifier: string, fixture: TestFixture, allowErrE
 async function bootstrapWithRetryOnBucketExists(envSpecifier: string, fixture: TestFixture) {
   const account = await fixture.aws.account();
   const retryAfterSeconds = 30;
-  const bootstrapBucket = `cdk-hnb659fds-assets-${account}-${fixture.aws.region}`;
+  const bootstrapBucket = `cdk-${fixture.qualifier}-assets-${account}-${fixture.aws.region}`;
 
   // s3 says that a bucket deletion can take up to an hour to be fully visible.
   // empirically we see that a few minutes is enough though. lets give 10 to be on the safe(r) side.

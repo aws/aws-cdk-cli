@@ -5,196 +5,29 @@ import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SSMPARAM_NO_INVALIDATE } from '@aws-cdk/cloud-assembly-api';
 import {
-  ChangeSetStatus,
-  type DescribeChangeSetCommandOutput,
   type Parameter,
   type ResourceToImport,
   type Tag,
 } from '@aws-sdk/client-cloudformation';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
-import type { StackDiagnosis } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
+import { waitFor } from '../../util/promises';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
-import { throwDeploymentErrorFromDiagnosis } from '../diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
-/**
- * Describe a changeset in CloudFormation, regardless of its current state.
- *
- * @param cfn           - a CloudFormation client
- * @param stackNameOrArn     - the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
- * @param changeSetNameOrArn - the name or ARN of the ChangeSet, prefer ARN
- * @param fetchAll      - if true, fetches all pages of the change set description.
- *
- * @returns       CloudFormation information about the ChangeSet
- */
-async function describeChangeSet(
-  cfn: ICloudFormationClient,
-  stackNameOrArn: string,
-  changeSetNameOrArn: string,
-  { fetchAll, includePropertyValues }: { fetchAll: boolean; includePropertyValues?: boolean },
-): Promise<DescribeChangeSetCommandOutput> {
-  const response = await cfn.describeChangeSet({
-    StackName: stackNameOrArn,
-    ChangeSetName: changeSetNameOrArn,
-    IncludePropertyValues: includePropertyValues,
-  });
-
-  // If fetchAll is true, traverse all pages from the change set description.
-  while (fetchAll && response.NextToken != null) {
-    const nextPage = await cfn.describeChangeSet({
-      StackName: response.StackId ?? stackNameOrArn,
-      ChangeSetName: response.ChangeSetId ?? changeSetNameOrArn,
-      NextToken: response.NextToken,
-      IncludePropertyValues: includePropertyValues,
-    });
-
-    // Consolidate the changes
-    if (nextPage.Changes != null) {
-      response.Changes = response.Changes != null ? response.Changes.concat(nextPage.Changes) : nextPage.Changes;
-    }
-
-    // Forward the new NextToken
-    response.NextToken = nextPage.NextToken;
-  }
-
-  return response;
-}
-
-/**
- * Waits for a function to return non-+undefined+ before returning.
- *
- * @param valueProvider - a function that will return a value that is not +undefined+ once the wait should be over
- * @param timeout     - the time to wait between two calls to +valueProvider+
- *
- * @returns       the value that was returned by +valueProvider+
- */
-async function waitFor<T>(
-  valueProvider: () => Promise<T | null | undefined>,
-  timeout: number = 5000,
-): Promise<T | undefined> {
-  while (true) {
-    const result = await valueProvider();
-    if (result === null) {
-      return undefined;
-    } else if (result !== undefined) {
-      return result;
-    }
-    await new Promise((cb) => setTimeout(cb, timeout));
-  }
-}
-
-export interface ChangeSetReport {
-  readonly description: DescribeChangeSetCommandOutput;
-  readonly diagnosis: StackDiagnosis;
-}
-
-/**
- * Waits for a ChangeSet to reach a terminal state and returns the diagnosis without throwing.
- */
-export async function waitForChangeSetReport(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
-  stackNameOrArn: string,
-  changeSetNameOrArn: string,
-  { fetchAll, diagnoser, includePropertyValues }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser; includePropertyValues?: boolean },
-): Promise<ChangeSetReport> {
-  const stackDisplayName = stackNameFromArn(stackNameOrArn);
-  const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
-  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', changeSetDisplayName, stackDisplayName));
-  const ret = await waitFor(async () => {
-    const description = await describeChangeSet(cfn, stackNameOrArn, changeSetNameOrArn, {
-      fetchAll,
-      includePropertyValues,
-    });
-
-    if (description.Status === 'CREATE_PENDING' || description.Status === 'CREATE_IN_PROGRESS') {
-      await ioHelper.defaults.debug(format('Changeset %s on stack %s is still creating', changeSetDisplayName, stackDisplayName));
-      return undefined;
-    }
-
-    const diagnosis = await diagnoser.diagnoseChangeSet(description);
-    return { description, diagnosis };
-  });
-
-  if (!ret) {
-    throw new DeploymentError('Change set took too long to be created; aborting', 'ChangeSetTimeout');
-  }
-
-  return ret;
-}
-
-/**
- * Waits for a ChangeSet to be available for triggering a StackUpdate.
- *
- * Will return a changeset that is either ready to be executed or has no changes.
- * Will throw in other cases.
- *
- * @param cfn       - a CloudFormation client
- * @param stackNameOrArn       - the name or ARN of the Stack the ChangeSet belongs to, prefer ARN
- * @param changeSetNameOrArn   - the name or ARN of the ChangeSet, prefer ARN
- * @param fetchAll  - if true, fetches all pages of the ChangeSet before returning.
- * @returns         the CloudFormation description of the ChangeSet
- */
-export async function waitForChangeSet(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
-  stackNameOrArn: string,
-  changeSetNameOrArn: string,
-  { fetchAll, diagnoser, includePropertyValues }: { fetchAll: boolean; diagnoser: CloudFormationStackDiagnoser; includePropertyValues?: boolean },
-): Promise<DescribeChangeSetCommandOutput> {
-  const { description, diagnosis } = await waitForChangeSetReport(
-    cfn, ioHelper, stackNameOrArn, changeSetNameOrArn,
-    { fetchAll, diagnoser, includePropertyValues },
-  );
-  if (diagnosis.type !== 'no-problem') {
-    throwDeploymentErrorFromDiagnosis(diagnosis);
-  }
-  return description;
-}
-
-export async function waitForChangeSetGone(
-  cfn: ICloudFormationClient,
-  ioHelper: IoHelper,
-  stackNameOrArn: string,
-  changeSetNameOrArn: string,
-): Promise<void> {
-  const stackDisplayName = stackNameFromArn(stackNameOrArn);
-  const changeSetDisplayName = changeSetNameFromArn(changeSetNameOrArn);
-  await ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', changeSetDisplayName, stackDisplayName));
-  await waitFor(async () => {
-    try {
-      const description = await cfn.describeChangeSet({
-        StackName: stackNameOrArn,
-        ChangeSetName: changeSetNameOrArn,
-      });
-
-      if (description.Status === ChangeSetStatus.DELETE_COMPLETE || description.Status === ChangeSetStatus.DELETE_FAILED) {
-        return true;
-      }
-
-      return undefined;
-    } catch (e: any) {
-      if (e.name === 'ChangeSetNotFoundException') {
-        return true;
-      }
-      throw e;
-    }
-  });
-}
-
 export type PrepareChangeSetOptions = {
   stack: cxapi.CloudFormationStackArtifact;
   deployments: Deployments;
   uuid: string;
-  willExecute: boolean;
   sdkProvider: SdkProvider;
   parameters: { [name: string]: string | undefined };
   resourcesToImport?: ResourcesToImport;
@@ -212,7 +45,6 @@ export type PrepareChangeSetOptions = {
 export interface CreateChangeSetOptions {
   cfn: ICloudFormationClient;
   changeSetName: string;
-  willExecute: boolean;
   exists: boolean;
   uuid: string;
   stack: cxapi.CloudFormationStackArtifact;
@@ -231,11 +63,27 @@ export interface CreateChangeSetOptions {
 export async function createDiffChangeSet(
   ioHelper: IoHelper,
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
-): Promise<DescribeChangeSetCommandOutput | undefined> {
+): Promise<ChangeSetReport | undefined> {
   try {
-    return await uploadBodyParameterAndCreateChangeSet(ioHelper, {
-      ...options,
+    const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+
+    await ioHelper.defaults.info(
+      'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
+    );
+
+    return await createChangeSetAndCleanup(ioHelper, {
+      cfn,
+      changeSetName: 'cdk-diff-change-set',
+      stack: options.stack,
+      exists,
+      uuid: options.uuid,
+      bodyParameter,
+      parameters: options.parameters,
+      resourcesToImport: options.resourcesToImport,
+      importExistingResources: options.importExistingResources,
       includeNestedStacks: true,
+      role: executionRoleArn,
+      diagnoser,
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
@@ -317,33 +165,6 @@ async function prepareChangeSetEnv(
   return { cfn, bodyParameter, exists, stackExistedBefore: stack.exists, executionRoleArn, diagnoser };
 }
 
-async function uploadBodyParameterAndCreateChangeSet(
-  ioHelper: IoHelper,
-  options: PrepareChangeSetOptions,
-): Promise<DescribeChangeSetCommandOutput | undefined> {
-  const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
-
-  await ioHelper.defaults.info(
-    'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
-  );
-
-  return createChangeSetAndCleanup(ioHelper, {
-    cfn,
-    changeSetName: 'cdk-diff-change-set',
-    stack: options.stack,
-    exists,
-    uuid: options.uuid,
-    willExecute: options.willExecute,
-    bodyParameter,
-    parameters: options.parameters,
-    resourcesToImport: options.resourcesToImport,
-    importExistingResources: options.importExistingResources,
-    includeNestedStacks: options.includeNestedStacks,
-    role: executionRoleArn,
-    diagnoser,
-  });
-}
-
 /**
  * Uploads the assets that look like templates for this CloudFormation stack
  *
@@ -374,7 +195,7 @@ export async function uploadStackTemplateAssets(stack: cxapi.CloudFormationStack
 async function createChangeSetAndCleanup(
   ioHelper: IoHelper,
   options: CreateChangeSetOptions,
-): Promise<DescribeChangeSetCommandOutput> {
+): Promise<ChangeSetReport> {
   if (options.exists) {
     await cleanupOldChangeset(options.cfn, ioHelper, options.changeSetName, options.stack.stackName);
   }
@@ -402,47 +223,49 @@ async function createChangeSetAndCleanup(
   });
 
   await ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-  // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await waitForChangeSet(
-    options.cfn,
-    ioHelper,
-    changeSet.StackId ?? options.stack.stackName,
-    changeSet.Id ?? options.changeSetName,
-    {
-      fetchAll: options.willExecute,
+
+  const changeSetId = changeSet.Id ?? options.changeSetName;
+  const stackId = changeSet.StackId ?? options.stack.stackName;
+
+  try {
+    // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    return await new ChangeSetDescriber({
+      cfn: options.cfn,
+      ioHelper,
+      stackNameOrArn: stackId,
+      changeSetNameOrArn: changeSetId,
+    }).waitAndThrowOnProblem({
       diagnoser: options.diagnoser,
-      // Ask CloudFormation to include the before/after property values and resource contexts
-      // in the change set description. This is what lets `cdk diff` surface changes that are
-      // invisible to a pure template diff (e.g. an SSM parameter or dynamic reference whose
-      // resolved value changed even though the local template did not).
-      includePropertyValues: true,
-    },
-  );
-
-  await cleanupOldChangeset(
-    options.cfn,
-    ioHelper,
-    changeSet.Id ?? options.changeSetName,
-    changeSet.StackId ?? options.stack.stackName,
-  );
-
-  // If the stack didn't exist before, creating a CREATE changeset will have
-  // put it in REVIEW_IN_PROGRESS state. Delete the empty stack to clean up.
-  if (!options.exists) {
-    await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', changeSet.StackId ?? options.stack.stackName));
-    await options.cfn.deleteStack({
-      StackName: changeSet.StackId ?? options.stack.stackName,
-      ClientRequestToken: randomUUID(),
     });
-  }
+  } catch (e) {
+    // Surface why the change set failed. createDiffChangeSet (the only caller)
+    // otherwise consumes this error at debug level before falling back to a
+    // template-only diff, so without this the reason is invisible unless -v is set.
+    await ioHelper.defaults.warn(format('Change set %s failed: %s', changeSetId, e));
+    throw e;
+  } finally {
+    // Always clean up the change set (and, for a brand new stack, the empty stack a
+    // CREATE change set leaves in REVIEW_IN_PROGRESS) whether or not creation
+    // succeeded. Otherwise a change set that fails early validation is orphaned and
+    // leaves the stack stuck in REVIEW_IN_PROGRESS, which blocks subsequent change
+    // set creation. The failure reason has already been surfaced above, so a cleanup
+    // error can surface on its own.
+    await cleanupOldChangeset(options.cfn, ioHelper, changeSetId, stackId);
 
-  return createdChangeSet;
+    if (!options.exists) {
+      await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', stackId));
+      await options.cfn.deleteStack({
+        StackName: stackId,
+        ClientRequestToken: randomUUID(),
+      });
+    }
+  }
 }
 
 /**
  * Create a change set for online validation (never executes, returns diagnosis instead of throwing).
  *
- * Uses the same env preparation as diff, but calls `waitForChangeSetReport` to return
+ * Uses the same env preparation as diff, but calls `waitForReport` to return
  * the diagnosis rather than throwing on failure. Always cleans up the change set afterwards.
  */
 export async function createValidationChangeSet(
@@ -471,12 +294,12 @@ export async function createValidationChangeSet(
   });
 
   try {
-    const report = await waitForChangeSetReport(
-      cfn, ioHelper,
-      changeSet.StackId ?? options.stack.stackName,
-      changeSet.Id ?? changeSetName,
-      { fetchAll: false, diagnoser },
-    );
+    const report = await new ChangeSetDescriber({
+      cfn,
+      ioHelper,
+      stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
+      changeSetNameOrArn: changeSet.Id ?? changeSetName,
+    }).waitForReport({ diagnoser });
 
     return report;
   } finally {
