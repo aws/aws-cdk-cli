@@ -30,7 +30,6 @@ import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
-import { StackActivityProgress } from '../commands/deploy';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
 import { FlagCommandHandler } from '../commands/flags/flags';
@@ -115,12 +114,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         _: argv._ as [Command, ...string[]], // TypeScript at its best
       },
     });
-
-  // Progress updates are wasted tokens for AI agents
-  if (guessAgent() && configuration.settings.get(['progress']) === undefined) {
-    ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
-    await ioHost.defaults.debug('AI agent detected, defaulting to --progress "errors-only"');
-  }
 
   // Always create and use ProxyAgent to support configuration via env vars
   const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
