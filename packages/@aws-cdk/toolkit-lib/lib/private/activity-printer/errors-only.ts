@@ -21,8 +21,9 @@ export class ErrorsOnlyActivityPrinter extends ActivityPrinterBase {
   public stop() {
     super.stop();
 
-    if (this.failures.some((f) => this.isProvisionalFailure(f))) {
-      this.stream.write(chalk.yellow('\n ⚠️  Some resources failed to delete but were skipped. These resources may still exist and could incur charges. Clean them up manually.\n'));
+    const warning = this.skippedDeletesWarning();
+    if (warning) {
+      this.stream.write(warning);
     }
   }
 
