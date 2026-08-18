@@ -256,8 +256,18 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
+    const issueNumber = Number(noticeId);
+    if (!Number.isInteger(issueNumber)) {
+      throw new ToolkitError(
+        'InvalidAcknowledgementId',
+        `Invalid notice ID '${noticeId}': 'cdk acknowledge' only accepts numeric notice IDs (e.g. 'cdk acknowledge 12345'). ` +
+        'Scoped construct warnings such as \'@aws-cdk/aws-ecs:minHealthyPercent\' are acknowledged in code with ' +
+        'Annotations.of(scope).acknowledgeWarning(\'<id>\').',
+      );
+    }
+
     const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
-    acks.add(Number(noticeId));
+    acks.add(issueNumber);
     this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
   }
