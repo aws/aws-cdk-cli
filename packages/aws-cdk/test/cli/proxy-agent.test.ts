@@ -36,4 +36,14 @@ describe('ProxyAgentProvider', () => {
     const provider = new ProxyAgentProvider(ioHost.asHelper('deploy'));
     await expect(provider.create({ proxyAddress: 'http://localhost:1234' })).resolves.toBeDefined();
   });
+
+  test.each([
+    ['undefined', undefined],
+    ['an empty string', ''],
+    // Settings.get() can surface an unset value as an empty array at runtime.
+    ['an empty array', [] as unknown as string],
+  ])('create() does not validate when the proxy address is %s (no --proxy given)', async (_desc, proxyAddress) => {
+    const provider = new ProxyAgentProvider(ioHost.asHelper('deploy'));
+    await expect(provider.create({ proxyAddress })).resolves.toBeDefined();
+  });
 });

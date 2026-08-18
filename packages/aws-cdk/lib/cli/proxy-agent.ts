@@ -57,7 +57,11 @@ export class ProxyAgentProvider {
   }
 
   public async create(options: ProxyAgentOptions) {
-    if (options.proxyAddress != null) {
+    // Only validate when an actual proxy address was configured. When `--proxy`
+    // is not given the setting is unset (and can surface at runtime as an empty
+    // string or empty array), in which case we skip validation and let
+    // ProxyAgent fall back to environment-variable detection.
+    if (typeof options.proxyAddress === 'string' && options.proxyAddress.length > 0) {
       validateProxyAddress(options.proxyAddress);
     }
 
