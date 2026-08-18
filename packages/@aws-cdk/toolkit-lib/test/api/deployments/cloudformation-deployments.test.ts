@@ -1,3 +1,4 @@
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
@@ -1311,6 +1312,35 @@ describe('stackExists', () => {
     expect(mockForEnvironment).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
       assumeRoleArn: expectedRoleArn,
     }));
+  });
+});
+
+describe('cachedPublisher', () => {
+  // Regression test: the publisher cache used to be keyed only by the AssetManifest
+  // object, so if the same AssetManifest instance were ever passed in for two different
+  // environments (e.g. a long-lived Deployments instance reused to deploy the same
+  // synthesized cloud assembly to two different AWS accounts), the second call would
+  // silently reuse the first publisher - built with the first account's credentials -
+  // to build/publish/check assets against what should be an entirely different account.
+  test('does not reuse a publisher across different environments for the same AssetManifest', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const envA = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
+    const envB = { name: 'aws://222222222222/eu-west-1', account: '222222222222', region: 'eu-west-1' };
+
+    const publisherA = (deployments as any).cachedPublisher(manifest, envA, 'StackA');
+    const publisherB = (deployments as any).cachedPublisher(manifest, envB, 'StackB');
+
+    expect(publisherA).not.toBe(publisherB);
+  });
+
+  test('reuses the cached publisher for repeat calls with the same environment', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const env = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
+
+    const first = (deployments as any).cachedPublisher(manifest, env, 'StackA');
+    const second = (deployments as any).cachedPublisher(manifest, env, 'StackA');
+
+    expect(second).toBe(first);
   });
 });
 
