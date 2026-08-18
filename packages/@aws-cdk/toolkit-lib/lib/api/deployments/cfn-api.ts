@@ -223,34 +223,43 @@ async function createChangeSetAndCleanup(
   });
 
   await ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-  // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await new ChangeSetDescriber({
-    cfn: options.cfn,
-    ioHelper,
-    stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
-    changeSetNameOrArn: changeSet.Id ?? options.changeSetName,
-  }).waitAndThrowOnProblem({
-    diagnoser: options.diagnoser,
-  });
 
-  await cleanupOldChangeset(
-    options.cfn,
-    ioHelper,
-    changeSet.Id ?? options.changeSetName,
-    changeSet.StackId ?? options.stack.stackName,
-  );
+  const changeSetId = changeSet.Id ?? options.changeSetName;
+  const stackId = changeSet.StackId ?? options.stack.stackName;
 
-  // If the stack didn't exist before, creating a CREATE changeset will have
-  // put it in REVIEW_IN_PROGRESS state. Delete the empty stack to clean up.
-  if (!options.exists) {
-    await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', changeSet.StackId ?? options.stack.stackName));
-    await options.cfn.deleteStack({
-      StackName: changeSet.StackId ?? options.stack.stackName,
-      ClientRequestToken: randomUUID(),
+  try {
+    // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    return await new ChangeSetDescriber({
+      cfn: options.cfn,
+      ioHelper,
+      stackNameOrArn: stackId,
+      changeSetNameOrArn: changeSetId,
+    }).waitAndThrowOnProblem({
+      diagnoser: options.diagnoser,
     });
-  }
+  } catch (e) {
+    // Surface why the change set failed. createDiffChangeSet (the only caller)
+    // otherwise consumes this error at debug level before falling back to a
+    // template-only diff, so without this the reason is invisible unless -v is set.
+    await ioHelper.defaults.warn(format('Change set %s failed: %s', changeSetId, e));
+    throw e;
+  } finally {
+    // Always clean up the change set (and, for a brand new stack, the empty stack a
+    // CREATE change set leaves in REVIEW_IN_PROGRESS) whether or not creation
+    // succeeded. Otherwise a change set that fails early validation is orphaned and
+    // leaves the stack stuck in REVIEW_IN_PROGRESS, which blocks subsequent change
+    // set creation. The failure reason has already been surfaced above, so a cleanup
+    // error can surface on its own.
+    await cleanupOldChangeset(options.cfn, ioHelper, changeSetId, stackId);
 
-  return createdChangeSet;
+    if (!options.exists) {
+      await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', stackId));
+      await options.cfn.deleteStack({
+        StackName: stackId,
+        ClientRequestToken: randomUUID(),
+      });
+    }
+  }
 }
 
 /**
