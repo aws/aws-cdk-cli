@@ -567,7 +567,6 @@ describe('CliIoHost', () => {
       expect(makeSpy).toHaveBeenCalledTimes(1);
       expect(fakePrinter.notify).toHaveBeenCalledTimes(2);
     });
-
   });
 
   describe('message formatting', () => {
