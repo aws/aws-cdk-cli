@@ -413,7 +413,10 @@ $ cdk deploy --progress errors-only
 ```
 
 The `errors-only` mode is recommended for AI agents and other automated consumers, where progress
-updates are not useful and consume tokens.
+updates are not useful and consume tokens. If the CLI detects it is being run by an AI agent
+and no progress preference is configured, it defaults to `errors-only` automatically. Pass an
+explicit `--progress`, set the `progress` key in `cdk.json`, or enable verbose logging (`-v`)
+to override the detection.
 
 Alternatively, the `progress` key can be specified in the project config (`cdk.json`).
 
