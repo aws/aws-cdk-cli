@@ -45,6 +45,7 @@ import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hot
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
+import type { ResourceErrors } from '../stack-events/resource-errors';
 
 export interface DeployStackOptions {
   /**
@@ -131,6 +132,19 @@ export interface DeployStackOptions {
    * @default - Change set with defaults
    */
   readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
+   *
+   * When a change set is created without being executed (change-set method
+   * with `execute: false`) and this is false, the change set is the user's
+   * final artifact (`--no-execute`) and is announced as waiting for manual
+   * execution.
+   *
+   * @default false
+   */
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * The collection of extra parameters
@@ -485,10 +499,12 @@ class FullCloudFormationDeployment {
     }
 
     if (!execute) {
-      await this.ioHelper.defaults.info(format(
-        'Changeset %s created and waiting in review for manual execution (--no-execute)',
-        changeSetDescription.ChangeSetId,
-      ));
+      if (!this.options.willExecuteChangeSet) {
+        await this.ioHelper.defaults.info(format(
+          'Changeset %s created and waiting in review for manual execution (--no-execute)',
+          changeSetDescription.ChangeSetId,
+        ));
+      }
       return {
         type: 'did-deploy-stack',
         noOp: false,
@@ -704,7 +720,7 @@ class FullCloudFormationDeployment {
     });
     await monitor.start();
 
-    let finalState = this.cloudFormationStack;
+    let finalState: CloudFormationStack;
     try {
       const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, this.stackName, this.options.stackEventPollingInterval);
 
@@ -714,15 +730,12 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
-      // If this is a deployment error, route the diagnosis and error reporting through the central code for that
+      // Deployment errors get replaced by a diagnosis of the underlying resource failures, which says more.
+      // Any other error, and any failure to diagnose, leaves `e` to propagate as it is.
       if (ToolkitError.isDeploymentError(e)) {
-        const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(monitor.errors, finalState.wrapped, true, {
-          rollbackEnabled: this.options.rollback !== false,
-        });
-        diagnosis.throwOnError();
+        await this.diagnoseDeploymentFailure(stackArn, monitor.errors);
       }
 
-      // Otherwise rethrow the current error and hope it has enough information.
       throw e;
     } finally {
       await monitor.stop();
@@ -736,6 +749,31 @@ class FullCloudFormationDeployment {
       deleteFailures: this.update ? monitor.deleteFailures : [],
       stabilizingResources: monitor.stabilizingResources,
     };
+  }
+
+  /**
+   * Throw a `DeploymentError` describing why the deployment failed, if we can establish that
+   *
+   * Returns normally when no cause could be established, leaving the caller's original error as the better
+   * one to report.
+   */
+  private async diagnoseDeploymentFailure(stackArn: string, errors: ResourceErrors): Promise<void> {
+    // Describe the stack as it is now. The pre-deploy description held by this class is either absent (the
+    // stack is being created) or describes a state the deployment has since left.
+    const deployedState = await this.cfn.describeStacks({ StackName: stackArn })
+      .then((response) => response.Stacks?.[0])
+      .catch(async (e) => {
+        await this.ioHelper.defaults.debug(`Could not describe ${stackArn} to diagnose the failure: ${formatErrorMessage(e)}`);
+        return undefined;
+      });
+    if (!deployedState) {
+      return;
+    }
+
+    const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(errors, deployedState, true, {
+      rollbackEnabled: this.options.rollback !== false,
+    });
+    diagnosis.throwOnError();
   }
 
   /**

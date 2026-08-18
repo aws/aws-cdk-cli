@@ -82,6 +82,18 @@ export class LazyLookupExport implements LookupExport {
 export class CfnEvaluationException extends Error {
 }
 
+function assertEvaluatesToArray(intrinsic: string, value: any): asserts value is any[] {
+  if (!Array.isArray(value)) {
+    throw new CfnEvaluationException(`${intrinsic}: expected an array, got ${JSON.stringify(value)}`);
+  }
+}
+
+function assertEvaluatesToString(intrinsic: string, value: any): asserts value is string {
+  if (typeof value !== 'string') {
+    throw new CfnEvaluationException(`${intrinsic}: expected a string, got ${JSON.stringify(value)}`);
+  }
+}
+
 export interface ResourceDefinition {
   readonly LogicalId: string;
   readonly Type: string;
@@ -239,16 +251,19 @@ export class EvaluateCloudFormationTemplate {
 
       async 'Fn::Join'(separator: string, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToArray('Fn::Join', evaluatedArgs);
         return evaluatedArgs.join(separator);
       }
 
-      async 'Fn::Split'(separator: string, args: any): Promise<string> {
+      async 'Fn::Split'(separator: string, args: any): Promise<string[]> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToString('Fn::Split', evaluatedArgs);
         return evaluatedArgs.split(separator);
       }
 
       async 'Fn::Select'(index: number, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToArray('Fn::Select', evaluatedArgs);
         return evaluatedArgs[index];
       }
 
@@ -449,7 +464,7 @@ export class EvaluateCloudFormationTemplate {
       const evaluateCfnTemplate = await this.createNestedEvaluateCloudFormationTemplate(
         dependantStack.physicalName,
         dependantStack.generatedTemplate,
-        dependantStack.generatedTemplate.Parameters!,
+        this.template.Resources?.[logicalId]?.Properties?.Parameters ?? {},
       );
 
       // Split Outputs.<refName> into 'Outputs' and '<refName>' and recursively call evaluate

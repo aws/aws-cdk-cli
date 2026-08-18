@@ -384,12 +384,16 @@ export class CdkCliIntegTestsWorkflow extends Component {
       steps: [
         {
           name: 'Checkout',
-          uses: 'actions/checkout@v6',
+          uses: 'actions/checkout@v7',
           with: {
             // IMPORTANT! This must be `head.sha` not `head.ref`, otherwise we
             // are vulnerable to a TOCTOU attack.
-            ref: '${{ github.event.pull_request.head.sha }}',
-            repository: '${{ github.event.pull_request.head.repo.full_name }}',
+            'ref': '${{ github.event.pull_request.head.sha }}',
+            'repository': '${{ github.event.pull_request.head.repo.full_name }}',
+            // Need to allow forks, the workflow has been reviewed and getting OIDC credentials is the point
+            // Other credentials are environment protected
+            // @see https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target
+            'allow-unsafe-pr-checkout': true,
           },
         },
         // We used to fetch tags from the repo using 'checkout', but if it's a fork
