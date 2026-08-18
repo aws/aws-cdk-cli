@@ -68,16 +68,6 @@ export class CloudFormationStack {
   }
 
   /**
-   * Returns the Stack object returned from the CloudFormation service response that this decorating object wraps
-   */
-  public get wrapped(): Stack {
-    if (!this.stack) {
-      throw new ToolkitError('NoStack', 'CloudFormationStack object does not hold a stack');
-    }
-    return this.stack;
-  }
-
-  /**
    * Retrieve the stack's deployed template
    *
    * Cached, so will only be retrieved once. Will return an empty
