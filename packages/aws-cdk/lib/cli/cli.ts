@@ -304,6 +304,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return context({
           ioHelper,
           context: configuration.context,
+          sourceFiles: configuration.contextSourceFiles,
           clear: argv.clear,
           json: argv.json,
           force: argv.force,
