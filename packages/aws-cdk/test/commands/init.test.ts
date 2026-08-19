@@ -7,6 +7,7 @@ import * as fs from 'fs-extra';
 import { makeConfig } from '../../lib/cli/cli-config';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 import { type JsPackageManager } from '../../lib/commands/init/package-manager';
+import type * as tools from '../../lib/private/tools';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -18,7 +19,7 @@ const ioHelper = ioHost.asHelper('init');
 jest.mock('@aws-cdk/private-tools/lib/subprocess', () => ({
   ...jest.requireActual('@aws-cdk/private-tools/lib/subprocess'),
 }));
-const subprocess: typeof import('../../lib/private/tools') = jest.requireMock('@aws-cdk/private-tools/lib/subprocess');
+const subprocess: typeof tools = jest.requireMock('@aws-cdk/private-tools/lib/subprocess');
 
 describe('constructs version', () => {
   cliTest('shows available templates when no parameters provided', async (workDir) => {
