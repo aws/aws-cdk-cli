@@ -119,7 +119,7 @@ describe('execute', () => {
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: FOO_ARN })).toHaveLength(2);
   });
 
-  test('waits for both source and destination stacks in a cross-stack refactor', async () => {
+  test('waits for every stack in the stack definitions, even without mapped resources of its own', async () => {
     // GIVEN a refactor that moves a bucket from stack Foo to stack Bar. The
     // deployed stacks carry no ARN here, so the wait falls back to the names.
     const context = new RefactoringContext({
@@ -167,26 +167,28 @@ describe('execute', () => {
 
     mockRefactorApi();
 
-    mockCloudFormationClient
-      .on(DescribeStacksCommand, { StackName: 'Foo' })
-      .resolves(stackResponse('Foo', StackStatus.UPDATE_COMPLETE));
-    mockCloudFormationClient
-      .on(DescribeStacksCommand, { StackName: 'Bar' })
-      .resolves(stackResponse('Bar', StackStatus.UPDATE_COMPLETE));
+    for (const stackName of ['Foo', 'Bar', 'Baz']) {
+      mockCloudFormationClient
+        .on(DescribeStacksCommand, { StackName: stackName })
+        .resolves(stackResponse(stackName, StackStatus.UPDATE_COMPLETE));
+    }
 
-    // WHEN
+    // WHEN the refactor also updates stack Baz, which has no resource moves of
+    // its own (e.g. only its resource metadata changed)
     const promise = context.execute(
       [
         { StackName: 'Foo', TemplateBody: '{}' },
         { StackName: 'Bar', TemplateBody: '{}' },
+        { StackName: 'Baz', TemplateBody: '{}' },
       ],
       new MockSdkProvider(),
       ioHelper,
     );
     await advanceTime(promise);
 
-    // THEN both stacks were checked for stability
+    // THEN all three stacks were checked for stability
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(1);
     expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Bar' })).toHaveLength(1);
+    expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Baz' })).toHaveLength(1);
   });
 });

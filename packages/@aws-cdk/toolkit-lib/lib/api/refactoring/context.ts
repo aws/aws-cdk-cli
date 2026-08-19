@@ -109,10 +109,11 @@ export class RefactoringContext {
     // The refactor reaches EXECUTE_COMPLETE while the affected stacks may still
     // be in UPDATE_IN_PROGRESS for a few more seconds. Wait for them to
     // stabilize, so that callers can immediately start another stack operation.
-    const stackNames = [...new Set(mappings.flatMap((m) => [m.source.stack.stackName, m.destination.stack.stackName]))];
+    // The stack definitions are exactly the set of stacks the refactor updates,
+    // which may include stacks that have no resource moves of their own.
+    const stackNames = [...new Set(stackDefinitions.map((d) => d.StackName!))];
     for (const stackName of stackNames) {
-      // Prefer the ARN, which identifies the stack unambiguously. Destination
-      // stacks are local, so their ARN comes from the deployed counterpart.
+      // Prefer the ARN, which identifies the stack unambiguously.
       const stackArn = this.deployedStacks.find((s) => s.stackName === stackName)?.stackId ?? stackName;
       await stabilizeStack(cfn, ioHelper, stackArn);
     }
