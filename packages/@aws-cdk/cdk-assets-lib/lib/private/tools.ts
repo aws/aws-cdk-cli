@@ -5,3 +5,5 @@
 export * from '@aws-cdk/private-tools/lib/subprocess';
 
 export * from '@aws-cdk/private-tools/lib/zip';
+
+export * from '@aws-cdk/private-tools/lib/s3-path-style';

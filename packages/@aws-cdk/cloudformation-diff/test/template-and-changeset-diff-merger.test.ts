@@ -402,6 +402,65 @@ describe('fullDiff tests that include changeset', () => {
     expect(differences.resources.differenceCount).toBe(1);
   });
 
+  test.each([
+    [['SomeResource', 'AnotherResource'], ['ThirdResource', 'FourthResource']],
+    [['SomeResource', 'AnotherResource'], ['SomeResource', 'FourthResource']],
+    [['SomeResource', 'AnotherResource', 'ThirdResource'], ['AnotherResource', 'ThirdResource', 'FourthResource']],
+    [['SomeResource', 'SomeResource'], ['SomeResource', 'AnotherResource']],
+  ])('same-length DependsOn arrays with different elements are unequal: %j vs %j', (before, after) => {
+    // GIVEN
+    const currentTemplate = {
+      Resources: {
+        BucketResource: {
+          Type: 'AWS::S3::Bucket',
+          DependsOn: before,
+        },
+      },
+    };
+
+    // WHEN
+    const newTemplate = {
+      Resources: {
+        BucketResource: {
+          Type: 'AWS::S3::Bucket',
+          DependsOn: after,
+        },
+      },
+    };
+
+    // THEN
+    let differences = fullDiff(currentTemplate, newTemplate, {});
+    expect(differences.resources.differenceCount).toBe(1);
+
+    differences = fullDiff(newTemplate, currentTemplate, {});
+    expect(differences.resources.differenceCount).toBe(1);
+  });
+
+  test('DependsOn arrays with the same elements in a different order are equal, and inputs are not mutated', () => {
+    // GIVEN
+    const before = ['SomeResource', 'AnotherResource', 'SomeResource'];
+    const after = ['SomeResource', 'SomeResource', 'AnotherResource'];
+    const currentTemplate = {
+      Resources: {
+        BucketResource: { Type: 'AWS::S3::Bucket', DependsOn: before },
+      },
+    };
+    const newTemplate = {
+      Resources: {
+        BucketResource: { Type: 'AWS::S3::Bucket', DependsOn: after },
+      },
+    };
+
+    // WHEN
+    const differences = fullDiff(currentTemplate, newTemplate, {});
+
+    // THEN
+    expect(differences.resources.differenceCount).toBe(0);
+    // the comparison must not reorder the caller's arrays (see #1575)
+    expect(before).toEqual(['SomeResource', 'AnotherResource', 'SomeResource']);
+    expect(after).toEqual(['SomeResource', 'SomeResource', 'AnotherResource']);
+  });
+
   test('arrays that differ only in element order are considered unequal outside of DependsOn expressions', () => {
     // GIVEN
     const currentTemplate = {

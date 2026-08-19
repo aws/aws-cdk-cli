@@ -143,7 +143,8 @@ function stripConstructPath(resource: any): any {
     return resource;
   }
 
-  const copy = JSON.parse(JSON.stringify(resource));
-  delete copy.Metadata['aws:cdk:path'];
-  return copy;
+  // A shallow copy is enough: the only thing being removed is one key of
+  // `Metadata`, and the caller only reads the result.
+  const { 'aws:cdk:path': _, ...metadata } = resource.Metadata;
+  return { ...resource, Metadata: metadata };
 }

@@ -3,6 +3,7 @@ import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
+import { isAccessDeniedError } from '../aws-auth/util';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
@@ -478,7 +479,12 @@ export class GarbageCollector {
             imageTag: img.buildImageTag(i),
           });
         } catch (error) {
-          // This is a false negative -- an isolated asset is untagged
+          // A permission error (e.g. a missing ecr:PutImage) would otherwise be
+          // swallowed here and make gc silently no-op, so surface it instead.
+          if (isAccessDeniedError(error)) {
+            throw error;
+          }
+          // Otherwise this is a false negative -- an isolated asset is untagged
           // likely due to an imageTag collision. We can safely ignore,
           // and the isolated asset will be tagged next time.
           await this.ioHelper.defaults.debug(`Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`);

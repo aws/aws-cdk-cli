@@ -708,13 +708,16 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
-    subprocess: {
+    'subprocess': {
       deps: ['cross-spawn@^7.0.6'],
       devDeps: ['@types/cross-spawn'],
     },
-    zip: {
+    'zip': {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
+    },
+    's3-path-style': {
+      deps: [],
     },
   },
 });
@@ -774,6 +777,7 @@ const cdkAssetsLib = configureProject(
 );
 cdkAssetsLib.with(tools.subprocess);
 cdkAssetsLib.with(tools.zip);
+cdkAssetsLib.with(tools['s3-path-style']);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -998,6 +1002,7 @@ const toolkitLib = configureProject(
 fixupTestTask(toolkitLib);
 toolkitLib.with(tools.subprocess);
 toolkitLib.with(tools.zip);
+toolkitLib.with(tools['s3-path-style']);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
