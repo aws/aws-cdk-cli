@@ -2314,6 +2314,92 @@ describe('validate --watch', () => {
   });
 });
 
+describe('synth --watch', () => {
+  let watchSynthSpy: jest.SpyInstance;
+  const fakeWatcher = {
+    dispose: jest.fn().mockResolvedValue(undefined),
+    waitForEnd: jest.fn().mockResolvedValue(undefined),
+    [Symbol.asyncDispose]: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    watchSynthSpy = jest.spyOn(Toolkit.prototype, 'watchSynth').mockResolvedValue(fakeWatcher);
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.synthWatch({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      });
+    }).rejects.toThrow(
+      "Cannot use '--watch' without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+
+    expect(watchSynthSpy).not.toHaveBeenCalled();
+  });
+
+  test('delegates to toolkit-lib watchSynth with the synth options', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      validateStacks: true,
+    });
+
+    expect(watchSynthSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        validateStacks: true,
+        include: ['**'],
+        exclude: [],
+      }),
+    );
+    expect(fakeWatcher.waitForEnd).toHaveBeenCalled();
+  });
+
+  test("passes the 'watch' include and exclude settings from cdk.json", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {
+      include: ['lib/**'],
+      exclude: ['lib/generated/**'],
+    });
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    expect(watchSynthSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include: ['lib/**'],
+        exclude: ['lib/generated/**'],
+      }),
+    );
+  });
+
+  test('passes an uncached assembly source so every iteration re-synthesizes', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // The source handed to watchSynth must re-synthesize on every produce().
+    const source = watchSynthSpy.mock.calls[0][0];
+    const synthesizeSpy = jest.spyOn(cloudExecutable, 'synthesize');
+    await source.produce();
+    await source.produce();
+    expect(synthesizeSpy).toHaveBeenCalledTimes(2);
+    expect(synthesizeSpy).toHaveBeenCalledWith(false);
+  });
+});
+
 describe('synth', () => {
   test('successful synth outputs hierarchical stack ids', async () => {
     const toolkit = defaultToolkitSetup();

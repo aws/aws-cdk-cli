@@ -208,6 +208,10 @@
           "alias": "q",
           "desc": "Do not output CloudFormation Template to stdout",
           "default": false
+        },
+        "watch": {
+          "type": "boolean",
+          "desc": "Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)"
         }
       }
     },

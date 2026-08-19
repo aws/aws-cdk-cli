@@ -1,4 +1,5 @@
 import type { DeploymentMethod, BaseDeployOptions } from '../deploy';
+import type { SynthOptions } from '../synth';
 import type { ValidateOptions } from '../validate';
 
 /**
@@ -42,6 +43,12 @@ export interface WatchOptions extends WatchFileOptions, BaseDeployOptions {
    * @default HotswapDeployment
    */
   readonly deploymentMethod?: DeploymentMethod;
+}
+
+/**
+ * Options for watch-synth mode.
+ */
+export interface WatchSynthOptions extends WatchFileOptions, SynthOptions {
 }
 
 /**
