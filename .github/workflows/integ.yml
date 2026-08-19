@@ -1649,8 +1649,7 @@ jobs:
 
           BODY="Nightly Windows integ run failed: $RUN_URL"
 
-          # --jq '.[0].number // empty' yields an empty string when no issue is open,
-          # which distinguishes "nothing found" from a real issue number.
+          # '// empty' yields an empty string when no issue is open, rather than "null".
           EXISTING=$(gh issue list \
             --label 'windows-integ-nightly' \
             --state open \

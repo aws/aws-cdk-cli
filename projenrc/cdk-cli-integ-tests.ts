@@ -15,35 +15,31 @@ const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr
 /**
  * Label that opts a pull request into the Windows integ suites.
  *
- * Windows coverage is expensive and slow, so it does not run on every PR. Add
- * this label to a PR that touches platform-sensitive code (paths, subprocess
- * spawning, shell quoting) to run it; a failure then blocks the PR like any
- * other integ failure.
- *
- * MUST exist in the repository's label set, otherwise `gh issue create` in the
- * nightly failure report will fail.
+ * Apply it to a PR touching platform-sensitive code (paths, subprocess
+ * spawning, shell quoting); a failure then blocks the PR like any other integ
+ * failure.
  */
 const WINDOWS_LABEL = 'pr/test-windows';
 
 /**
  * Marker label on the issue that tracks nightly Windows failures.
  *
- * Used to find an already-open issue and comment on it instead of filing a
- * duplicate, so a week-long breakage is one issue with seven comments.
+ * MUST exist in the repository's label set, otherwise `gh issue create` in the
+ * failure report job will fail.
  */
 const WINDOWS_FAILURE_LABEL = 'windows-integ-nightly';
 
-/** The nightly (schedule) event. Windows runs unattended here; Linux does not run at all. */
+/** The nightly (schedule) event. */
 const IS_SCHEDULE = "github.event_name == 'schedule'";
 
 /**
  * Windows runs on the nightly, on a manual dispatch, or on a PR that opted in
  * via label.
  *
- * `workflow_dispatch` must be included: neither of the other two triggers can
- * be exercised from a branch (a schedule only fires on the default branch, and
- * `pull_request_target` reads the workflow from the base branch), so manual
- * dispatch is the only way to test a change to these jobs before it merges.
+ * `workflow_dispatch` is the only one of the three reachable from a branch (a
+ * schedule fires only on the default branch, and `pull_request_target` reads
+ * the workflow from the base branch), so it is what makes these jobs testable
+ * before they merge.
  */
 const WINDOWS_REQUESTED_EXPR = [
   IS_SCHEDULE,
@@ -412,20 +408,17 @@ export class CdkCliIntegTestsWorkflow extends Component {
     this.workflow.on({
       pullRequestTarget: {
         branches: [],
-        // 'labeled'/'unlabeled' are NOT in GitHub's default set (which is
-        // opened/synchronize/reopened), so without them applying the Windows
-        // opt-in label to an open PR would do nothing until the next push, and
-        // removing it would leave a stale failed check that blocks the PR.
+        // 'labeled'/'unlabeled' are not in GitHub's default set, and without
+        // them the Windows opt-in label would not take effect (or stop taking
+        // effect) until the next push.
         types: ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled'],
       },
       // Needs to trigger and report success on merge queue builds as well
       mergeGroup: {},
       // Never hurts to be able to run this manually
       workflowDispatch: {},
-      // Nightly Windows run. Windows is too slow and too flaky-prone to gate
-      // every PR on, so it runs unattended here and reports failures by filing
-      // an issue. Deliberately off the hour of the 'upgrade' workflows (00:00)
-      // and the every-4-hours stale-issue sweep.
+      // Nightly Windows run: too slow to gate every PR on, so it runs
+      // unattended here and reports failures by filing an issue.
       schedule: [{ cron: '0 6 * * *' }],
     });
     // Determine the environment dynamically: PRs from the same repo and merge_group
@@ -448,8 +441,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
           run: `echo ${this.props.approvalEnvironment} > .envname`,
         },
         {
-          // Scheduled runs are included because there is no human waiting on a
-          // 06:00 UTC nightly to approve it; without this the run would hang.
+          // The nightly is included because there is nobody waiting to approve
+          // it; without this it would hang.
           name: 'Skip approval for mergeGroup, schedule, or PR created from this repo',
           if: `\${{ github.event_name == 'merge_group' || ${IS_SCHEDULE} || github.event.pull_request.head.repo.full_name == github.repository }}`,
           run: 'echo no-approval > .envname',
@@ -506,10 +499,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
             // IMPORTANT! This must be `head.sha` not `head.ref`, otherwise we
             // are vulnerable to a TOCTOU attack.
             //
-            // The fallbacks cover events with no pull request attached (the
-            // nightly schedule, and workflow_dispatch), where both of these
-            // properties are empty. They resolve to the default branch, which
-            // is what the nightly should be testing.
+            // The fallbacks cover events with no pull request attached
+            // (schedule, workflow_dispatch), and resolve to the default branch.
             'ref': '${{ github.event.pull_request.head.sha || github.sha }}',
             'repository': '${{ github.event.pull_request.head.repo.full_name || github.repository }}',
             // Need to allow forks, the workflow has been reviewed and getting OIDC credentials is the point
@@ -656,10 +647,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     const linuxJobs = suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
       runsOn: this.props.testRunsOn,
-      // The nightly exists to cover Windows. Linux already runs on every PR, so
-      // re-running it unattended would double Atmosphere pool consumption for
-      // no new signal.
-      extraCondition: `github.event_name != 'schedule'`,
+      // The nightly exists to cover Windows; Linux already runs on every PR, so
+      // repeating it there would consume Atmosphere environments for no signal.
+      extraCondition: "github.event_name != 'schedule'",
     }));
 
     const windowsJobs = this.props.windowsTestRunsOn
@@ -706,12 +696,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
   /**
    * File an issue when the nightly Windows run fails.
    *
-   * Only fires on the schedule. A failure on a label-triggered PR run already
-   * surfaces as a red check on that PR, so there is nobody to notify.
-   *
-   * Reuses an already-open issue rather than filing a duplicate, because a
-   * breakage that persists for a week would otherwise produce seven identical
-   * issues.
+   * Schedule-only: a failure on a label-triggered PR run already surfaces as a
+   * red check there. Comments on an already-open issue rather than filing a
+   * duplicate for every night of a persistent breakage.
    */
   private addWindowsFailureReportJob(windowsJobs: string[]): void {
     this.workflow.addJob('integ_windows_report_failure', {
@@ -727,10 +714,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // This job does not check out the repo, so `gh` cannot infer the
         // repository from a git remote and needs it passed explicitly.
         GH_REPO: '${{ github.repository }}',
-        // Interpolated here rather than in the `run` body below: CheckGhaExpressions
-        // rejects `github.repository` (and friends) inside shell steps, because
-        // attacker-controllable values there are a command injection vector.
-        // Referenced as a quoted shell variable instead.
+        // Interpolated here rather than in the `run` body: CheckGhaExpressions
+        // rejects `github.*` inside shell steps as an injection vector, so the
+        // step references it as a quoted shell variable instead.
         RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
       },
       steps: [
@@ -741,8 +727,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
             '',
             'BODY="Nightly Windows integ run failed: $RUN_URL"',
             '',
-            '# --jq \'.[0].number // empty\' yields an empty string when no issue is open,',
-            '# which distinguishes "nothing found" from a real issue number.',
+            '# \'// empty\' yields an empty string when no issue is open, rather than "null".',
             'EXISTING=$(gh issue list \\',
             `  --label '${WINDOWS_FAILURE_LABEL}' \\`,
             '  --state open \\',
@@ -994,13 +979,10 @@ interface PlatformOptions {
   readonly windows?: boolean;
 
   /**
-   * Hard cap on job duration.
+   * Hard cap on job duration, instead of GitHub's 6 hour default.
    *
-   * Bounds the pathological case; without it jobs inherit GitHub's 6 hour
-   * default. Note this does not pre-empt AWS session expiry: the Atmosphere
-   * OIDC role has a MaxSessionDuration of 1 hour and credentials are obtained
-   * part-way into the job, at a variable offset, so there is no fixed
-   * job-level timeout that reliably fires before they lapse.
+   * Note this does not pre-empt AWS session expiry: Atmosphere credentials last
+   * 1 hour and are obtained part-way into the job, at a variable offset.
    *
    * @default - GitHub's default
    */
