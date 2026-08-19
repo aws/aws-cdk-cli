@@ -366,6 +366,31 @@ describe('ECR Garbage Collection', () => {
     expect(ecrClient).toHaveReceivedCommandTimes(BatchDeleteImageCommand, 0);
   });
 
+  test('rollbackBufferDays > 0 -- tagging fails on a permission error instead of silently continuing', async () => {
+    mockTheToolkitInfo({
+      Outputs: [
+        {
+          OutputKey: 'BootstrapVersion',
+          OutputValue: '999',
+        },
+      ],
+    });
+
+    // The role is missing ecr:PutImage, so tagging raises AccessDeniedException.
+    const accessDenied = new Error('User is not authorized to perform: ecr:PutImage');
+    accessDenied.name = 'AccessDeniedException';
+    mockECRClient.on(PutImageCommand).rejects(accessDenied);
+
+    garbageCollector = gc({
+      type: 'ecr',
+      rollbackBufferDays: 3,
+      action: 'full',
+    });
+
+    // gc must surface the permission error rather than silently no-op
+    await expect(garbageCollector.garbageCollect()).rejects.toThrow(/ecr:PutImage/);
+  });
+
   test('createdAtBufferDays > 0', async () => {
     mockTheToolkitInfo({
       Outputs: [

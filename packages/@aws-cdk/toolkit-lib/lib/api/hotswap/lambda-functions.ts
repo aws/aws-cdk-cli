@@ -234,7 +234,7 @@ async function evaluateLambdaFunctionProps(
     }
   }
 
-  const configurations = description || environment ? { description, environment } : undefined;
+  const configurations = description !== undefined || environment ? { description, environment } : undefined;
   return code || configurations ? { code, configurations } : undefined;
 }
 

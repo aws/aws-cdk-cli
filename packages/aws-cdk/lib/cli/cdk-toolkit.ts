@@ -256,8 +256,18 @@ export class CdkToolkit {
   }
 
   public async acknowledge(noticeId: string) {
+    const issueNumber = Number(noticeId);
+    if (!Number.isInteger(issueNumber)) {
+      throw new ToolkitError(
+        'InvalidAcknowledgementId',
+        `Invalid notice ID '${noticeId}': 'cdk acknowledge' only accepts numeric notice IDs (e.g. 'cdk acknowledge 12345'). ` +
+        'Scoped construct warnings such as \'@aws-cdk/aws-ecs:minHealthyPercent\' are acknowledged in code with ' +
+        'Annotations.of(scope).acknowledgeWarning(\'<id>\').',
+      );
+    }
+
     const acks = new Set(this.props.configuration.context.get('acknowledged-issue-numbers') ?? []);
-    acks.add(Number(noticeId));
+    acks.add(issueNumber);
     this.props.configuration.context.set('acknowledged-issue-numbers', Array.from(acks));
     await this.props.configuration.saveContext();
   }
@@ -532,12 +542,14 @@ export class CdkToolkit {
       const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
       const concurrency = options.concurrency || 1;
       if (concurrency > 1) {
-        // always force "events" progress output when we have concurrency
-        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+        // the "bar" progress output doesn't support concurrency, fall back to "events"
+        if (this.ioHost.stackProgress === StackActivityProgress.BAR) {
+          this.ioHost.stackProgress = StackActivityProgress.EVENTS;
+        }
 
         // ...but only warn if the user explicitly requested "bar" progress
-        if (options.progress && options.progress != StackActivityProgress.EVENTS) {
-          await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
+        if (options.progress === StackActivityProgress.BAR) {
+          await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag does not support --progress "bar". Switching to "events".');
         }
       }
 
@@ -946,6 +958,21 @@ export class CdkToolkit {
       return;
     }
 
+    // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
+    //
+    //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+    //  - []:        =>  cdk manages it, and the user wants to wipe it out.
+    //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+    const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
+      ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
+      : undefined;
+
+    for (const notificationArn of notificationArns ?? []) {
+      if (!validateSnsTopicArn(notificationArn)) {
+        throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+      }
+    }
+
     // Import the resources according to the given mapping
     await this.ioHost.asIoHelper().defaults.info('%s: importing resources into stack...', chalk.bold(stack.displayName));
     const tags = tagsForStack(stack);
@@ -955,6 +982,7 @@ export class CdkToolkit {
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
       rollback: options.rollback,
+      notificationArns,
     });
 
     // Notify user of next steps
@@ -1001,7 +1029,7 @@ export class CdkToolkit {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
 
-    if ((options.concurrency || 1) > 1) {
+    if ((options.concurrency || 1) > 1 && this.ioHost.stackProgress === StackActivityProgress.BAR) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
@@ -1853,6 +1881,19 @@ export interface OrphanOptions {
 
 export interface ImportOptions extends CfnDeployOptions {
   /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events.
+   *
+   * The following semantics apply (dictated by the SDK):
+   *
+   *  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+   *  - []:        =>  cdk manages it, and the user wants to wipe it out.
+   *  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
+
+  /**
    * Build a physical resource mapping and write it to the given file, without performing the actual import operation
    *
    * @default - No file
@@ -2369,7 +2410,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       ? await this.deployments.prepareStack({
         ...sharedDeployOptions,
         deploymentMethod: this.options.deploymentMethod,
-        cleanupOnNoOp: isExecutingChangeSetDeployment(this.options.deploymentMethod),
+        willExecuteChangeSet: isExecutingChangeSetDeployment(this.options.deploymentMethod),
       })
       : undefined;
 

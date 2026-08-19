@@ -58,6 +58,13 @@ export interface ImportDeploymentOptions {
    * @default true
    */
   readonly rollback?: boolean;
+
+  /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
 }
 
 /**
@@ -77,15 +84,15 @@ export type ResourceIdentifiers = { [resourceType: string]: string[][] };
 type ResourceIdentifierProperties = Record<string, string>;
 
 /**
- * Mapping of CDK resources (L1 constructs) to physical resources to be imported
- * in their place, example:
+ * Mapping of CDK resources (by their CloudFormation logical ID) to physical
+ * resources to be imported in their place, example:
  *
  * ```
  * {
- *   "MyStack/MyS3Bucket/Resource": {
+ *   "MyS3Bucket1A2B3C4D": {
  *     "BucketName": "my-manually-created-s3-bucket"
  *   },
- *   "MyStack/MyVpc/Resource": {
+ *   "MyVpc5E6F7G8H": {
  *     "VpcId": "vpc-123456789"
  *   }
  * }
@@ -192,7 +199,7 @@ export class ResourceImporter {
    * Based on the provided resource mapping, prepare CFN structures for import (template,
    * ResourcesToImport structure) and perform the import operation (CloudFormation deployment)
    *
-   * @param importMap - Mapping from CDK construct tree path to physical resource import identifiers
+   * @param importMap - Mapping from CloudFormation logical ID to physical resource import identifiers
    * @param options - Options to pass to CloudFormation deploy operation
    */
   public async importResourcesFromMap(importMap: ImportMap, options: ImportDeploymentOptions = {}) {

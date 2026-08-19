@@ -95,7 +95,10 @@ export function hashObject(obj: any): string {
 
 /**
  * Removes sub-properties containing Ref or Fn::GetAtt to avoid hashing
- * references themselves but keeps the property structure.
+ * references themselves but keeps the property structure. `DependsOn`
+ * keys are also excluded from hashing: they only contain logical IDs of
+ * dependencies, which are rename-sensitive and already accounted for via
+ * the digests of the dependencies themselves.
  */
 function stripReferences(value: any, exports: { [p: string]: { stackName: string; value: any } }): any {
   if (!value || typeof value !== 'object') return value;
@@ -107,9 +110,6 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
   }
   if ('Fn::GetAtt' in value) {
     return { __cloud_ref__: 'Fn::GetAtt' };
-  }
-  if ('DependsOn' in value) {
-    return { __cloud_ref__: 'DependsOn' };
   }
   if ('Fn::ImportValue' in value) {
     const exp = exports[value['Fn::ImportValue']];
@@ -130,6 +130,9 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
   }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
+    if (k === 'DependsOn') {
+      continue;
+    }
     result[k] = stripReferences(v, exports);
   }
   return result;
@@ -140,7 +143,8 @@ function stripConstructPath(resource: any): any {
     return resource;
   }
 
-  const copy = JSON.parse(JSON.stringify(resource));
-  delete copy.Metadata['aws:cdk:path'];
-  return copy;
+  // A shallow copy is enough: the only thing being removed is one key of
+  // `Metadata`, and the caller only reads the result.
+  const { 'aws:cdk:path': _, ...metadata } = resource.Metadata;
+  return { ...resource, Metadata: metadata };
 }

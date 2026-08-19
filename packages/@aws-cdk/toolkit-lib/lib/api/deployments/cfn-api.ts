@@ -24,6 +24,15 @@ import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
 
+/**
+ * How many times to re-read a leading `REVIEW_IN_PROGRESS` status before believing it
+ *
+ * Only applies before the stack has been seen with an operation in progress, where a stale `DescribeStacks` read and
+ * a ChangeSet that was never executed look the same. AWS publishes no bound on read staleness, so this is a pragmatic
+ * allowance; after an in-progress status has been seen the status is known to be stale and no budget is needed.
+ */
+const STALE_REVIEW_READ_ATTEMPTS = 3;
+
 export type PrepareChangeSetOptions = {
   stack: cxapi.CloudFormationStackArtifact;
   deployments: Deployments;
@@ -223,34 +232,43 @@ async function createChangeSetAndCleanup(
   });
 
   await ioHelper.defaults.debug(format('Initiated creation of changeset: %s; waiting for it to finish creating...', changeSet.Id));
-  // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-  const createdChangeSet = await new ChangeSetDescriber({
-    cfn: options.cfn,
-    ioHelper,
-    stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
-    changeSetNameOrArn: changeSet.Id ?? options.changeSetName,
-  }).waitAndThrowOnProblem({
-    diagnoser: options.diagnoser,
-  });
 
-  await cleanupOldChangeset(
-    options.cfn,
-    ioHelper,
-    changeSet.Id ?? options.changeSetName,
-    changeSet.StackId ?? options.stack.stackName,
-  );
+  const changeSetId = changeSet.Id ?? options.changeSetName;
+  const stackId = changeSet.StackId ?? options.stack.stackName;
 
-  // If the stack didn't exist before, creating a CREATE changeset will have
-  // put it in REVIEW_IN_PROGRESS state. Delete the empty stack to clean up.
-  if (!options.exists) {
-    await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', changeSet.StackId ?? options.stack.stackName));
-    await options.cfn.deleteStack({
-      StackName: changeSet.StackId ?? options.stack.stackName,
-      ClientRequestToken: randomUUID(),
+  try {
+    // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    return await new ChangeSetDescriber({
+      cfn: options.cfn,
+      ioHelper,
+      stackNameOrArn: stackId,
+      changeSetNameOrArn: changeSetId,
+    }).waitAndThrowOnProblem({
+      diagnoser: options.diagnoser,
     });
-  }
+  } catch (e) {
+    // Surface why the change set failed. createDiffChangeSet (the only caller)
+    // otherwise consumes this error at debug level before falling back to a
+    // template-only diff, so without this the reason is invisible unless -v is set.
+    await ioHelper.defaults.warn(format('Change set %s failed: %s', changeSetId, e));
+    throw e;
+  } finally {
+    // Always clean up the change set (and, for a brand new stack, the empty stack a
+    // CREATE change set leaves in REVIEW_IN_PROGRESS) whether or not creation
+    // succeeded. Otherwise a change set that fails early validation is orphaned and
+    // leaves the stack stuck in REVIEW_IN_PROGRESS, which blocks subsequent change
+    // set creation. The failure reason has already been surfaced above, so a cleanup
+    // error can surface on its own.
+    await cleanupOldChangeset(options.cfn, ioHelper, changeSetId, stackId);
 
-  return createdChangeSet;
+    if (!options.exists) {
+      await ioHelper.defaults.debug(format('Deleting empty stack created by diff changeset: %s', stackId));
+      await options.cfn.deleteStack({
+        StackName: stackId,
+        ClientRequestToken: randomUUID(),
+      });
+    }
+  }
 }
 
 /**
@@ -349,7 +367,7 @@ export async function waitForStackDelete(
   stabilizationPollingInterval?: number,
 ): Promise<CloudFormationStack | undefined> {
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
-  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn, stabilizationPollingInterval);
+  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn, { pollingInterval: stabilizationPollingInterval });
   if (!stack) {
     return undefined;
   }
@@ -373,33 +391,58 @@ export async function waitForStackDelete(
  * Fails if the stack is in a FAILED state, ROLLBACK state, or DELETED state.
  *
  * @param cfn        - a CloudFormation client
- * @param stackName      - the name of the stack to wait for after an update
+ * @param stackNameOrArn      - the name of the stack to wait for after an update
  *
  * @returns     the CloudFormation description of the stabilized stack after the update attempt
  */
 export async function waitForStackDeploy(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
-  stackName: string,
+  stackNameOrArn: string,
   stabilizationPollingInterval?: number,
 ): Promise<CloudFormationStack | undefined> {
-  const stack = await stabilizeStack(cfn, ioHelper, stackName, stabilizationPollingInterval);
+  // A deployment has been issued against this stack, so `REVIEW_IN_PROGRESS` is a status it should already have left.
+  const stack = await stabilizeStack(cfn, ioHelper, stackNameOrArn, {
+    pollingInterval: stabilizationPollingInterval,
+    changeSetExecuted: true,
+  });
   if (!stack) {
     return undefined;
   }
 
+  const stackDisplayName = stackNameFromArn(stackNameOrArn);
   const status = stack.stackStatus;
 
   if (status.isCreationFailure) {
     throw new DeploymentError(
-      `The stack named ${stackName} failed creation, it may need to be manually deleted from the AWS console: ${status}`,
+      `The stack named ${stackDisplayName} failed creation, it may need to be manually deleted from the AWS console: ${status}`,
       'StackCreationFailed',
     );
   } else if (!status.isDeploySuccess) {
-    throw new DeploymentError(`The stack named ${stackName} failed to deploy: ${status}`, 'StackDeployFailed');
+    throw new DeploymentError(`The stack named ${stackDisplayName} failed to deploy: ${status}`, 'StackDeployFailed');
   }
 
   return stack;
+}
+
+export interface StabilizeStackOptions {
+  /**
+   * Time in milliseconds to wait between polls of the stack's status
+   *
+   * @default 5000
+   */
+  readonly pollingInterval?: number;
+
+  /**
+   * Whether a ChangeSet has been executed against this stack
+   *
+   * `REVIEW_IN_PROGRESS` is a status the stack should already have left in that case, so reading it back means
+   * `DescribeStacks` served a status from before the execution. Set this to keep waiting for the real one instead of
+   * failing a deployment that is still running.
+   *
+   * @default false
+   */
+  readonly changeSetExecuted?: boolean;
 }
 
 /**
@@ -409,21 +452,57 @@ export async function stabilizeStack(
   cfn: ICloudFormationClient,
   ioHelper: IoHelper,
   stackNameOrArn: string,
-  pollingInterval?: number,
+  options: StabilizeStackOptions = {},
 ) {
+  const { pollingInterval, changeSetExecuted = false } = options;
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
   await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackDisplayName));
+
+  // Narrowed to an ARN by the first successful read, so that later polls cannot observe a different stack that a
+  // concurrent operation created under the same name.
+  let target = stackNameOrArn;
+  let sawOperationInProgress = false;
+  let leadingReviewReads = 0;
+
   return waitFor(async () => {
-    const stack = await CloudFormationStack.lookup(cfn, stackNameOrArn);
+    const stack = await CloudFormationStack.lookup(cfn, target);
     if (!stack.exists) {
       await ioHelper.defaults.debug(format('Stack %s does not exist', stackDisplayName));
       return null;
     }
+
+    // Report a deleted stack as gone rather than as a stable status. `DescribeStacks` keeps answering for a deleted
+    // stack when asked by ARN, which is what we ask by from the second poll onwards, so callers would otherwise stop
+    // being told that the stack they were waiting on no longer exists.
+    if (stack.stackStatus.isDeleted && stack.stackStatus.name === 'DELETE_COMPLETE') {
+      await ioHelper.defaults.debug(format('Stack %s has been deleted', stackDisplayName));
+      return null;
+    }
+    target = stack.stackId;
+
     const status = stack.stackStatus;
     if (status.isInProgress) {
+      sawOperationInProgress = true;
       await ioHelper.defaults.debug(format('Stack %s has an ongoing operation in progress and is not stable (%s)', stackDisplayName, status));
       return undefined;
     } else if (status.isReviewInProgress) {
+      // `REVIEW_IN_PROGRESS` is only ever a stack's initial state, set by a CREATE ChangeSet that has not been
+      // executed; CloudFormation does not transition back into it. So for a caller that executed a ChangeSet, reading
+      // it back at all means `DescribeStacks` served a status from before the execution, and we should keep waiting.
+      if (changeSetExecuted && sawOperationInProgress) {
+        await ioHelper.defaults.debug(format('Stack %s reported REVIEW_IN_PROGRESS after an operation was in progress; treating as a stale read and polling again (%s)', stackDisplayName, status));
+        return undefined;
+      }
+
+      // Before any other status has been seen this is ambiguous: either the same stale read, or an execution that
+      // never started. Give the read a bounded number of chances to catch up, then believe it, because nothing will
+      // move an unexecuted ChangeSet on its own.
+      if (changeSetExecuted && leadingReviewReads < STALE_REVIEW_READ_ATTEMPTS) {
+        leadingReviewReads++;
+        await ioHelper.defaults.debug(format('Stack %s reported REVIEW_IN_PROGRESS, which may be a stale read; polling again (%s)', stackDisplayName, status));
+        return undefined;
+      }
+
       // This may happen if a stack creation operation is interrupted before the ChangeSet execution starts. Recovering
       // from this would requiring manual intervention (deleting or executing the pending ChangeSet), and failing to do
       // so will result in an endless wait here (the ChangeSet wont delete or execute itself). Instead of blocking
