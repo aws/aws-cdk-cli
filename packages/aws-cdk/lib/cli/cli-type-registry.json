@@ -534,7 +534,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },
@@ -804,7 +805,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },
