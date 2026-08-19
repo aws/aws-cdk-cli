@@ -1,6 +1,6 @@
-import { runUserCommandLine } from '@aws-cdk/private-tools/lib/subprocess';
 import chalk from 'chalk';
 import type { IoHelper } from '../api-private';
+import { runUserCommandLine } from '../private/tools';
 
 export const command = 'docs';
 export const describe = 'Opens the reference documentation in a browser';

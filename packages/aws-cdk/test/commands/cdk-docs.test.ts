@@ -1,5 +1,5 @@
-import { runUserCommandLine } from '@aws-cdk/private-tools/lib/subprocess';
 import { docs } from '../../lib/commands/docs';
+import { runUserCommandLine } from '../../lib/private/tools';
 import { TestIoHost } from '../_helpers/io-host';
 
 const ioHost = new TestIoHost();

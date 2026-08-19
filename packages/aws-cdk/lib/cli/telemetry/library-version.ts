@@ -1,7 +1,7 @@
 import * as path from 'path';
-import { run } from '@aws-cdk/private-tools/lib/subprocess';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../api-private';
+import { run } from '../../private/tools';
 
 export async function getLibraryVersion(ioHelper: IoHelper): Promise<string | undefined> {
   try {

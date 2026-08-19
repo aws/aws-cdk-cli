@@ -1,16 +1,16 @@
 import * as path from 'path';
-import { run, SubprocessError } from '@aws-cdk/private-tools/lib/subprocess';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
+import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
+import { run, SubprocessError } from '../../private/tools';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver, stripCaret } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
-import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
-import * as subprocess from '@aws-cdk/private-tools/lib/subprocess';
 import * as fs from 'fs-extra';
 import { makeConfig } from '../../lib/cli/cli-config';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
@@ -13,6 +12,13 @@ import { TestIoHost } from '../_helpers/io-host';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
+
+// jest.spyOn cannot attach to the shim's read-only re-export bindings, so replace the
+// underlying module with a spy-able plain-object copy of itself and spy on that.
+jest.mock('@aws-cdk/private-tools/lib/subprocess', () => ({
+  ...jest.requireActual('@aws-cdk/private-tools/lib/subprocess'),
+}));
+const subprocess: typeof import('../../lib/private/tools') = jest.requireMock('@aws-cdk/private-tools/lib/subprocess');
 
 describe('constructs version', () => {
   cliTest('shows available templates when no parameters provided', async (workDir) => {

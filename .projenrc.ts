@@ -1370,6 +1370,7 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+cli.with(tools.subprocess);
 cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {

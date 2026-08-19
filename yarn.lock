@@ -5677,6 +5677,7 @@ __metadata:
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     decamelize: "npm:^5"
     enquirer: "npm:^2.4.1"
     esbuild: "npm:^0.28.2"

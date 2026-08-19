@@ -1,7 +1,7 @@
-import { run } from '@aws-cdk/private-tools/lib/subprocess';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../../lib/api-private';
 import { getLibraryVersion } from '../../../lib/cli/telemetry/library-version';
+import { run } from '../../../lib/private/tools';
 
 // Mock the subprocess tool's run()
 jest.mock('@aws-cdk/private-tools/lib/subprocess', () => ({
