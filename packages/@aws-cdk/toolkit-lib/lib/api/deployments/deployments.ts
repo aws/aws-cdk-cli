@@ -626,7 +626,7 @@ export class Deployments {
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
       try {
-        const successStack = await stabilizeStack(cfn, this.ioHelper, deployName);
+        const successStack = await stabilizeStack(cfn, this.ioHelper, stackArn);
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
