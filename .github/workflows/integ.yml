@@ -4,8 +4,16 @@ name: integ
 on:
   pull_request_target:
     branches: []
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
   merge_group: {}
   workflow_dispatch: {}
+  schedule:
+    - cron: 0 6 * * *
 jobs:
   determine_env:
     runs-on: ubuntu-latest
@@ -17,9 +25,9 @@ jobs:
       - name: Start requiring approval
         id: start_requiring_approval
         run: echo integ-approval > .envname
-      - name: Skip approval for mergeGroup or PR created from this repo
-        id: skip_approval_for_mergegroup_or_pr_created_from_this_repo
-        if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository }}
+      - name: Skip approval for mergeGroup, schedule, or PR created from this repo
+        id: skip_approval_for_mergegroup_schedule_or_pr_created_from_this_repo
+        if: ${{ github.event_name == 'merge_group' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: echo no-approval > .envname
       - name: Output the value
         id: output
@@ -44,8 +52,8 @@ jobs:
         id: checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           allow-unsafe-pr-checkout: true
       - name: Fetch tags from origin repo
         id: fetch_tags_from_origin_repo
@@ -74,6 +82,12 @@ jobs:
         env:
           RELEASE: "true"
         run: yarn projen build
+      - name: Bundle Verdaccio for the test jobs
+        id: bundle_verdaccio_for_the_test_jobs
+        run: |-
+          mkdir -p /tmp/verdaccio-bundle
+          (cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)
+          tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules
       - name: Upload artifact
         id: build-artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -86,7 +100,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: script-artifact
-          path: .projen/*.sh
+          path: |-
+            .projen/*.sh
+            .projen/verdaccio-bundle.tgz
           overwrite: true
           include-hidden-files: true
   integ_cli:
@@ -101,7 +117,10 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
         id: download_artifact
@@ -233,7 +252,10 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
         id: download_artifact
@@ -355,7 +377,10 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
         id: download_artifact
@@ -474,7 +499,10 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
         id: download_artifact
@@ -607,7 +635,10 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
         id: download_artifact
@@ -714,6 +745,836 @@ jobs:
           - tool-integrations
         node:
           - "20"
+  integ_cli_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pr/test-windows'))
+    steps:
+      - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
+          EOF
+      - name: Download artifact
+        id: download_artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        id: download_artifact_2
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        id: setup_node_js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        id: set_up_jdk_18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        id: set_git_identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        id: prepare_verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --shard="${{ matrix.shard }}/12" --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        id: set_workflow_summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}-${{ matrix.shard }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        id: append_artifact_url
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - cli-integ-tests
+        node:
+          - lts/*
+        shard:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
+          - 10
+          - 11
+          - 12
+  integ_toolkit-lib_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pr/test-windows'))
+    steps:
+      - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
+          EOF
+      - name: Download artifact
+        id: download_artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        id: download_artifact_2
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        id: setup_node_js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        id: set_up_jdk_18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        id: set_git_identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        id: prepare_verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        id: set_workflow_summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        id: append_artifact_url
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - toolkit-lib-integ-tests
+        node:
+          - lts/*
+          - "20"
+          - "22"
+          - "24"
+  integ_telemetry_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pr/test-windows'))
+    steps:
+      - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
+          EOF
+      - name: Download artifact
+        id: download_artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        id: download_artifact_2
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        id: setup_node_js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        id: set_up_jdk_18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        id: set_git_identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        id: prepare_verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        id: set_workflow_summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        id: append_artifact_url
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - telemetry-integ-tests
+        node:
+          - lts/*
+  integ_init-templates_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pr/test-windows'))
+    steps:
+      - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
+          EOF
+      - name: Download artifact
+        id: download_artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        id: download_artifact_2
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        id: setup_node_js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        id: set_up_jdk_18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        id: set_git_identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        id: prepare_verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        id: set_workflow_summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        id: append_artifact_url
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: init-typescript-app
+            node: "20"
+          - suite: init-typescript-app
+            node: "22"
+          - suite: init-typescript-app
+            node: "24"
+        suite:
+          - init-csharp
+          - init-fsharp
+          - init-go
+          - init-java
+          - init-javascript
+          - init-python
+          - init-typescript-app
+          - init-typescript-lib
+        node:
+          - lts/*
+  integ_tool-integrations_windows:
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: run-tests
+    env:
+      NODE_NO_WARNINGS: "1"
+      MAVEN_ARGS: --no-transfer-progress
+      IS_CANARY: "true"
+      CI: "true"
+      CDK_INTEG_SKIP_TESTS_FILE: ${{ github.workspace }}\windows-skip-tests.txt
+    defaults:
+      run:
+        shell: bash
+    if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pr/test-windows'))
+    steps:
+      - name: Set up Dev Drive for TEMP and npm cache
+        id: set_up_dev_drive_for_temp_and_npm_cache
+        run: |-
+          $vhd = "C:\devdrive.vhdx"
+          $drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter
+          New-Item -ItemType Directory -Path "${drive}:\temp" | Out-Null
+          New-Item -ItemType Directory -Path "${drive}:\npm-cache" | Out-Null
+          echo "TEMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "TMP=${drive}:\temp" >> $env:GITHUB_ENV
+          echo "npm_config_cache=${drive}:\npm-cache" >> $env:GITHUB_ENV
+        shell: powershell
+      - name: Write Windows skip-tests file
+        id: write_windows_skip-tests_file
+        run: |-
+          cat > windows-skip-tests.txt << 'EOF'
+          deploy same docker asset to multiple regions
+          deploy same docker asset to multiple stacks
+          deploy stack with multiple docker assets
+          deploy stack with docker asset
+          cdk-assets smoke test
+          deploy new style synthesis to new style bootstrap (with docker image)
+          Garbage Collection untags in-use ecr images
+          Garbage Collection keeps in use ecr images
+          Garbage Collection deletes unused ecr images
+          Garbage Collection tags unused ecr images
+          all calls from isolated container go through proxy
+          docker-credential-cdk-assets can assume role and fetch ECR credentials
+          toolkit deploy stack with multiple docker assets
+          CDK synth bundled functions as expected
+          CDK synth add the metadata properties expected by sam
+          can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles
+          generating and loading assembly
+          test resource import with construct that requires bundling
+          hotswap deployment supports Bedrock AgentCore Runtime
+          sam can locally test the synthesized cdk application
+          EOF
+      - name: Download artifact
+        id: download_artifact
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
+          path: packages
+      - name: Download artifact
+        id: download_artifact_2
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
+          path: .projen
+      - name: Setup Node.js
+        id: setup_node_js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Set up JDK 18
+        id: set_up_jdk_18
+        if: matrix.suite == 'init-java' || matrix.suite == 'cli-integ-tests'
+        uses: actions/setup-java@v5
+        with:
+          java-version: "18"
+          distribution: corretto
+      - name: Set git identity
+        id: set_git_identity
+        run: |-
+          git config --global user.name "aws-cdk-cli-integ"
+          git config --global user.email "noreply@example.com"
+      - name: Prepare Verdaccio
+        id: prepare_verdaccio
+        run: chmod +x .projen/prepare-verdaccio.sh && .projen/prepare-verdaccio.sh
+      - name: Download and install the test artifact
+        id: download_and_install_the_test_artifact
+        run: npm install @aws-cdk-testing/cli-integ
+      - name: Determine latest package versions
+        id: versions
+        run: |-
+          CLI_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk version)
+          echo "CLI version: ${CLI_VERSION}"
+          echo "cli_version=${CLI_VERSION}" >> $GITHUB_OUTPUT
+          LIB_VERSION=$(cd ${TMPDIR:-/tmp} && npm view aws-cdk-lib version)
+          echo "lib version: ${LIB_VERSION}"
+          echo "lib_version=${LIB_VERSION}" >> $GITHUB_OUTPUT
+      - name: Authenticate Via OIDC Role
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: us-east-1
+          role-duration-seconds: 3600
+          role-to-assume: ${{ vars.CDK_ATMOSPHERE_PROD_OIDC_ROLE }}
+          role-session-name: run-tests@aws-cdk-cli-integ
+          output-credentials: true
+      - name: "Run the test suite: ${{ matrix.suite }}"
+        id: run_the_test_suite_matrix_suite
+        env:
+          JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: "true"
+          JSII_SILENCE_WARNING_KNOWN_BROKEN_NODE_VERSION: "true"
+          DOCKERHUB_DISABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENABLED: "true"
+          CDK_INTEG_ATMOSPHERE_ENDPOINT: ${{ vars.CDK_ATMOSPHERE_PROD_ENDPOINT }}
+          CDK_INTEG_ATMOSPHERE_POOL: ${{ vars.CDK_INTEG_ATMOSPHERE_POOL }}
+          CDK_MAJOR_VERSION: "2"
+          RELEASE_TAG: latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INTEG_LOGS: logs
+        run: npx run-suite --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+      - name: Set workflow summary
+        id: set_workflow_summary
+        if: always()
+        run: |-
+          if compgen -G "logs/md/*.md" > /dev/null; then
+            cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;
+          fi
+      - name: Slugify artifact id
+        id: artifactid
+        if: always()
+        env:
+          INPUT: logs_windows-${{ matrix.suite }}-${{ matrix.node }}
+        run: |-
+          slug=$(node -p 'process.env.INPUT.replace(/[^a-z0-9._-]/gi, "-")')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+      - name: Upload logs
+        id: logupload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifactid.outputs.slug }}
+          path: logs/
+          overwrite: true
+      - name: Append artifact URL
+        id: append_artifact_url
+        if: always()
+        run: |-
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[Logs](${{ steps.logupload.outputs.artifact-url }})" >> $GITHUB_STEP_SUMMARY
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - tool-integrations
+        node:
+          - "20"
   integ:
     needs:
       - integ_cli
@@ -721,6 +1582,11 @@ jobs:
       - integ_telemetry
       - integ_init-templates
       - integ_tool-integrations
+      - integ_cli_windows
+      - integ_toolkit-lib_windows
+      - integ_telemetry_windows
+      - integ_init-templates_windows
+      - integ_tool-integrations_windows
     runs-on: ubuntu-latest
     permissions: {}
     if: always()
@@ -740,7 +1606,64 @@ jobs:
       - name: integ_tool-integrations result
         id: integ_tool-integrations_result
         run: echo ${{ needs.integ_tool-integrations.result }}
+      - name: integ_cli_windows result
+        id: integ_cli_windows_result
+        run: echo ${{ needs.integ_cli_windows.result }}
+      - name: integ_toolkit-lib_windows result
+        id: integ_toolkit-lib_windows_result
+        run: echo ${{ needs.integ_toolkit-lib_windows.result }}
+      - name: integ_telemetry_windows result
+        id: integ_telemetry_windows_result
+        run: echo ${{ needs.integ_telemetry_windows.result }}
+      - name: integ_init-templates_windows result
+        id: integ_init-templates_windows_result
+        run: echo ${{ needs.integ_init-templates_windows.result }}
+      - name: integ_tool-integrations_windows result
+        id: integ_tool-integrations_windows_result
+        run: echo ${{ needs.integ_tool-integrations_windows.result }}
       - name: Set status based on test results
         id: set_status_based_on_test_results
-        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result)) }}
+        if: ${{ !(contains(fromJSON('["success", "skipped"]'), needs.integ_cli.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_cli_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_toolkit-lib_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_telemetry_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_init-templates_windows.result) && contains(fromJSON('["success", "skipped"]'), needs.integ_tool-integrations_windows.result)) }}
         run: exit 1
+  integ_windows_report_failure:
+    needs:
+      - integ_cli_windows
+      - integ_toolkit-lib_windows
+      - integ_telemetry_windows
+      - integ_init-templates_windows
+      - integ_tool-integrations_windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    if: ${{ always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
+    steps:
+      - name: File or update the tracking issue
+        id: file_or_update_the_tracking_issue
+        run: |-
+          set -euo pipefail
+
+          BODY="Nightly Windows integ run failed: $RUN_URL"
+
+          # '// empty' yields an empty string when no issue is open, rather than "null".
+          EXISTING=$(gh issue list \
+            --label 'windows-integ-nightly' \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Commenting on existing issue #$EXISTING"
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            echo "Filing a new issue"
+            gh issue create \
+              --title 'Windows integ nightly is failing' \
+              --label 'windows-integ-nightly' \
+              --body "$BODY"
+          fi
