@@ -3,6 +3,7 @@ import type * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
 import * as https from 'node:https';
 import type * as net from 'node:net';
+import { createServer } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { cleanupTestCas, generateTestCa, type TestCa } from '../test-tls';
@@ -103,17 +104,17 @@ describe('SubprocessTelemetrySink', () => {
       expect(config.body.events).toHaveLength(1);
     });
 
-    test('lets the child outlive us and does not wait on its stdio', async () => {
+    test('runs the sender out of this process', async () => {
+      // Everything else about the spawn -- detached, unref, discarded stdio -- is only meaningful as
+      // observable behaviour, which `exits while delivery is still in flight` covers for real.
       const client = sink();
       await client.emit(createTestEvent('INVOKE'));
       await client.flush();
 
-      const [command, , options] = (spawn as jest.Mock).mock.calls[0];
+      const [command] = (spawn as jest.Mock).mock.calls[0];
       written.push((spawn as jest.Mock).mock.calls[0][1][1]);
 
       expect(command).toBe(process.execPath);
-      expect(options).toMatchObject({ detached: true, stdio: 'ignore', shell: false, cwd: os.tmpdir() });
-      expect(child.unref).toHaveBeenCalled();
     });
 
     test('batches multiple events into a single sender', async () => {
@@ -500,4 +501,94 @@ describe('sender-bundle entry point', () => {
       }
     }, 60_000);
   });
+
+  test('delivers with a CA bundle far larger than the old payload cap', async () => {
+    // The regression that made this whole change necessary: the certificate used to be inlined into
+    // the payload, which was then measured against a 64KB cap and dropped when it did not fit. A real
+    // system bundle is a concatenation of a few hundred certificates -- around 190KB -- so every
+    // invocation with `--ca-bundle-path` set lost its telemetry, silently.
+    const endpoint = await startEndpoint();
+    const bundlePath = path.join(cdkHome, 'big-bundle.pem');
+
+    const single = fs.readFileSync(ca.caCertPath, 'utf-8');
+    let bundle = '';
+    while (Buffer.byteLength(bundle) < 128 * 1024) {
+      bundle += single;
+    }
+    fs.writeFileSync(bundlePath, bundle);
+    expect(fs.statSync(bundlePath).size).toBeGreaterThan(65_536);
+
+    const payloadPath = writePayload({
+      endpoint: endpoint.url,
+      body: { events: [{ identifiers: { sessionId: 'big-bundle' } }] },
+      caBundlePath: bundlePath,
+      timeoutMs: 10_000,
+    });
+
+    try {
+      await expect(runSender(payloadPath)).resolves.toBe(0);
+
+      expect(endpoint.received).toHaveLength(1);
+      expect(breadcrumb()).toMatchObject({ ok: true, statusCode: 200 });
+    } finally {
+      fs.rmSync(payloadPath, { force: true });
+      await endpoint.close();
+    }
+  }, 60_000);
+});
+
+/**
+ * The property the whole change exists for: the CLI is gone before delivery finishes.
+ *
+ * Cannot be observed from inside the process doing the work, so this runs a driver in a child
+ * process, points it at an endpoint that accepts the connection and then never answers, and checks
+ * that the driver exited while the sender it spawned was still running.
+ */
+describe('exits while delivery is still in flight', () => {
+  test('the sink does not hold the process open until delivery finishes', async () => {
+    const { spawn: realSpawn } = jest.requireActual('node:child_process') as typeof childProcess;
+
+    // Accepts the TCP connection and then never writes a byte, so the sender hangs on it until its
+    // own timeout. That is the window in which the driver has to have exited.
+    const held: Array<{ destroy(): void }> = [];
+    const blackHole = createServer((socket) => held.push(socket));
+    await new Promise<void>((ok) => blackHole.listen(0, '127.0.0.1', ok));
+    const port = (blackHole.address() as net.AddressInfo).port;
+
+    const tsx = path.join(path.dirname(require.resolve('tsx/package.json')), 'dist', 'cli.mjs');
+    const driver = path.join(cliRootDir(), 'test', 'cli', 'telemetry', 'sink', 'exit-while-in-flight.driver.ts');
+
+    let senderPid: number | undefined;
+    try {
+      const output = await new Promise<string>((ok, ko) => {
+        const proc = realSpawn(process.execPath, [tsx, driver, `https://127.0.0.1:${port}/metrics`], {
+          stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        let stdout = '';
+        proc.stdout!.on('data', (chunk) => (stdout += chunk));
+        proc.on('error', ko);
+        // Resolves only once the driver has actually exited.
+        proc.on('exit', () => ok(stdout));
+      });
+
+      senderPid = Number(output.match(/pid (\d+)/)?.[1]);
+      expect(senderPid).toBeGreaterThan(0);
+
+      // The driver has exited. If the sender is still alive, delivery was still in flight when it
+      // did -- which is the whole point of detaching it.
+      expect(() => process.kill(senderPid!, 0)).not.toThrow();
+    } finally {
+      if (senderPid) {
+        try {
+          process.kill(senderPid, 'SIGKILL');
+        } catch {
+          // Already gone.
+        }
+      }
+      for (const socket of held) {
+        socket.destroy();
+      }
+      await new Promise<void>((ok) => blackHole.close(() => ok()));
+    }
+  }, 60_000);
 });

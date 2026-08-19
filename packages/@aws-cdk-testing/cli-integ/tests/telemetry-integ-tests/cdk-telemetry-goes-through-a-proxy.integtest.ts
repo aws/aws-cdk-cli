@@ -3,22 +3,23 @@ import type { AddressInfo } from 'node:net';
 import * as mockttp from 'mockttp';
 import { integTest, withDefaultFixture } from '../../lib';
 import { startProxyServer } from '../../lib/proxy';
+import { waitFor } from '../../lib/telemetry-endpoint';
 
 /**
  * Telemetry has to keep working for users behind a corporate proxy.
  *
- * This matters more than it looks. The POST is made by a detached child process that has no access
- * to the parent's `proxy-agent` instance -- it only has Node built-ins -- so it re-implements HTTP
- * CONNECT tunnelling and has to be handed the proxy URL and CA bundle explicitly. This test proves
- * that hand-off end to end against the same TLS-terminating proxy the other proxy tests use, whose
- * certificate is signed by a throwaway CA that is not in any system trust store.
+ * The POST is made by a detached child process, which cannot be handed the parent's `proxy-agent`
+ * instance, so the proxy URL and the CA bundle path are forwarded to it as plain data and it builds
+ * its own agent. This proves that hand-off end to end against the same TLS-terminating proxy the
+ * other proxy tests use, whose certificate is signed by a throwaway CA that is in no system trust
+ * store.
  *
- * `TELEMETRY_ENDPOINT` is pointed at a local server rather than the real one, so the test neither
- * needs egress to production nor posts real telemetry from CI. What is under test is the CLI ->
- * proxy hop: that the child opened a CONNECT tunnel and completed a TLS handshake against a
- * certificate it could only have verified using the forwarded CA. The proxy -> endpoint hop is
- * deliberately out of scope (the proxy will not trust the local server's self-signed certificate,
- * which does not matter -- the proxy records the decrypted request either way).
+ * `TELEMETRY_ENDPOINT` points at a local server, so the test neither needs egress to production nor
+ * posts real telemetry from CI. What is under test is the CLI -> proxy hop: that the child opened a
+ * CONNECT tunnel and completed a TLS handshake against a certificate it could only have verified
+ * using the forwarded CA. The proxy -> endpoint hop is deliberately out of scope (the proxy will not
+ * trust the local server's self-signed certificate, which does not matter -- the proxy records the
+ * decrypted request either way).
  */
 integTest(
   'telemetry is delivered through a configured proxy',
@@ -72,24 +73,10 @@ integTest(
       expect(body.events[0]).toEqual(expect.objectContaining({
         identifiers: expect.objectContaining({ sessionId: expect.anything() }),
       }));
+      expect(telemetryRequest!.body.buffer.toString('utf-8')).not.toContain('BEGIN CERTIFICATE');
     } finally {
       await proxyServer.stop();
       await new Promise<void>((ok) => endpointServer.close(() => ok()));
     }
   }),
 );
-
-/**
- * Poll `fn` until it returns something truthy, or give up after `timeoutMs`.
- */
-async function waitFor<A>(fn: () => Promise<A | undefined>, timeoutMs: number): Promise<A | undefined> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const result = await fn();
-    if (result) {
-      return result;
-    }
-    await new Promise((ok) => setTimeout(ok, 500));
-  }
-  return undefined;
-}
