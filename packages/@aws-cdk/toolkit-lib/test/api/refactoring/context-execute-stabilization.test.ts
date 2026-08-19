@@ -29,12 +29,18 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+// stabilizeStack narrows its polling target to the StackId of the first
+// response, so the fake responses must carry the stack's real ARN.
+function stackArn(stackName: string) {
+  return `arn:aws:cloudformation:us-east-1:123456789012:stack/${stackName}/1111`;
+}
+
 function stackResponse(stackName: string, status: StackStatus) {
   return {
     Stacks: [
       {
         StackName: stackName,
-        StackId: `${stackName}-id`,
+        StackId: stackArn(stackName),
         CreationTime: new Date(),
         StackStatus: status,
       },
@@ -55,7 +61,7 @@ function mockRefactorApi() {
   mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
 }
 
-const FOO_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/Foo/1111';
+const FOO_ARN = stackArn('Foo');
 
 describe('execute', () => {
   test('waits for the affected stacks to stabilize after the refactor is complete', async () => {

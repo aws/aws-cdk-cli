@@ -421,6 +421,7 @@ describe('execution', () => {
       Stacks: [
         {
           StackName: 'Stack1',
+          StackId: `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/Stack1/abcd`,
           CreationTime: new Date(),
           StackStatus: 'UPDATE_COMPLETE',
         },
