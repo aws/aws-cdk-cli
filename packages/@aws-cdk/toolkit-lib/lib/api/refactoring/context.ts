@@ -39,6 +39,7 @@ export class RefactoringContext {
   private readonly _mappings: ResourceMapping[] = [];
   private readonly ambiguousMoves: ResourceMove[] = [];
   private readonly localStacks: CloudFormationStack[];
+  private readonly deployedStacks: CloudFormationStack[];
   private readonly assumeRoleArn?: string;
   private readonly toolkitStackName?: string;
   public readonly environment: Environment;
@@ -51,6 +52,7 @@ export class RefactoringContext {
     const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(overrides, moves);
     this.ambiguousMoves = ambiguousMoves;
     this.localStacks = props.localStacks;
+    this.deployedStacks = props.deployedStacks;
     this.assumeRoleArn = props.assumeRoleArn;
     this.toolkitStackName = props.toolkitStackName;
 
@@ -109,7 +111,10 @@ export class RefactoringContext {
     // stabilize, so that callers can immediately start another stack operation.
     const stackNames = [...new Set(mappings.flatMap((m) => [m.source.stack.stackName, m.destination.stack.stackName]))];
     for (const stackName of stackNames) {
-      await stabilizeStack(cfn, ioHelper, stackName);
+      // Prefer the ARN, which identifies the stack unambiguously. Destination
+      // stacks are local, so their ARN comes from the deployed counterpart.
+      const stackArn = this.deployedStacks.find((s) => s.stackName === stackName)?.stackId ?? stackName;
+      await stabilizeStack(cfn, ioHelper, stackArn);
     }
   }
 

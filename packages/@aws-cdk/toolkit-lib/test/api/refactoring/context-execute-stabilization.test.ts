@@ -55,6 +55,8 @@ function mockRefactorApi() {
   mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
 }
 
+const FOO_ARN = 'arn:aws:cloudformation:us-east-1:123456789012:stack/Foo/1111';
+
 describe('execute', () => {
   test('waits for the affected stacks to stabilize after the refactor is complete', async () => {
     // GIVEN a refactor within a single stack...
@@ -64,6 +66,7 @@ describe('execute', () => {
         {
           environment,
           stackName: 'Foo',
+          stackId: FOO_ARN,
           template: {
             Resources: {
               OldName: { Type: 'AWS::S3::Bucket' },
@@ -87,9 +90,9 @@ describe('execute', () => {
     mockRefactorApi();
 
     // ...whose stack is still in UPDATE_IN_PROGRESS right after the refactor
-    // reaches EXECUTE_COMPLETE
+    // reaches EXECUTE_COMPLETE. The stack is identified by its ARN.
     mockCloudFormationClient
-      .on(DescribeStacksCommand, { StackName: 'Foo' })
+      .on(DescribeStacksCommand, { StackName: FOO_ARN })
       .resolvesOnce(stackResponse('Foo', StackStatus.UPDATE_IN_PROGRESS))
       .resolves(stackResponse('Foo', StackStatus.UPDATE_COMPLETE));
 
@@ -107,17 +110,18 @@ describe('execute', () => {
     // DescribeStacks poll (microtasks only), without firing any timer.
     await jest.advanceTimersByTimeAsync(0);
     expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ExecuteStackRefactorCommand, 1);
-    expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(1);
+    expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: FOO_ARN })).toHaveLength(1);
     expect(resolved).toBe(false);
 
     // and it only resolves after the stack has reached UPDATE_COMPLETE
     await advanceTime(promise);
     expect(resolved).toBe(true);
-    expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: 'Foo' })).toHaveLength(2);
+    expect(mockCloudFormationClient.commandCalls(DescribeStacksCommand, { StackName: FOO_ARN })).toHaveLength(2);
   });
 
   test('waits for both source and destination stacks in a cross-stack refactor', async () => {
-    // GIVEN a refactor that moves a bucket from stack Foo to stack Bar
+    // GIVEN a refactor that moves a bucket from stack Foo to stack Bar. The
+    // deployed stacks carry no ARN here, so the wait falls back to the names.
     const context = new RefactoringContext({
       environment,
       deployedStacks: [
