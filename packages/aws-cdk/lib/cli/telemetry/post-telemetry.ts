@@ -5,8 +5,8 @@ import { request } from 'https';
 import * as tls from 'tls';
 // See the note in `../proxy-agent`: the package barrel would pull the whole toolkit into the
 // detached sender's bundle.
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
 import type { TelemetrySchema } from './schema';
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
 
 /**
  * A batch of telemetry events, as the endpoint expects to receive it.
@@ -74,7 +74,7 @@ export function postTelemetry(
     const req = request({
       hostname: url.hostname,
       port: url.port || null,
-      path: url.pathname,
+      path: url.pathname + url.search,
       method: 'POST',
       headers: {
         'content-type': 'application/json',

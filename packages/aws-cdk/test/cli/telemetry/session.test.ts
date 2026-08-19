@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as fsSync from 'node:fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -225,6 +226,89 @@ describe('TelemetrySession', () => {
         speed: 20,
       }),
     }));
+  });
+});
+
+describe('previous send outcome', () => {
+  // Delivery happens in a detached child nobody waits on, so the only way a failure is ever visible
+  // is the next invocation reporting it.
+  let cdkHome: string;
+
+  beforeEach(() => {
+    cdkHome = fsSync.mkdtempSync(path.join(os.tmpdir(), 'cdk-home-'));
+  });
+
+  afterEach(() => {
+    fsSync.rmSync(cdkHome, { recursive: true, force: true });
+  });
+
+  async function emitOneEvent(): Promise<jest.SpyInstance> {
+    const localIoHost = CliIoHost.instance({ logLevel: 'trace' }, true);
+    const client = new IoHostTelemetrySink({ ioHost: localIoHost });
+    const localSession = new TelemetrySession({
+      ioHost: localIoHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await localSession.begin();
+    const spy = jest.spyOn(client, 'emit');
+    await localSession.emit({ eventType: 'SYNTH', duration: 1 });
+    return spy;
+  }
+
+  function writeOutcome(outcome: unknown) {
+    const dir = path.join(cdkHome, 'cache');
+    fsSync.mkdirSync(dir, { recursive: true });
+    fsSync.writeFileSync(path.join(dir, 'telemetry-last-send.json'), JSON.stringify(outcome));
+  }
+
+  test('a failed previous send is reported as a counter on the first event', async () => {
+    await withEnv(async () => {
+      writeOutcome({ ok: false, reason: 'ECONNREFUSED', at: new Date().toISOString() });
+
+      const spy = await emitOneEvent();
+
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({
+        counters: expect.objectContaining({ previousSendFailed: 1 }),
+      }));
+    }, { CDK_HOME: cdkHome });
+  });
+
+  test('a successful previous send is not reported', async () => {
+    // A counter present on nearly every event carries no information.
+    await withEnv(async () => {
+      writeOutcome({ ok: true, statusCode: 200, at: new Date().toISOString() });
+
+      const spy = await emitOneEvent();
+
+      expect(spy).not.toHaveBeenCalledWith(expect.objectContaining({
+        counters: expect.objectContaining({ previousSendFailed: expect.anything() }),
+      }));
+    }, { CDK_HOME: cdkHome });
+  });
+
+  test('the outcome is consumed, so it is reported once and not forever', async () => {
+    await withEnv(async () => {
+      writeOutcome({ ok: false, reason: 'ECONNREFUSED', at: new Date().toISOString() });
+
+      await emitOneEvent();
+      const second = await emitOneEvent();
+
+      expect(second).not.toHaveBeenCalledWith(expect.objectContaining({
+        counters: expect.objectContaining({ previousSendFailed: expect.anything() }),
+      }));
+    }, { CDK_HOME: cdkHome });
+  });
+
+  test('nothing is reported when there has never been a send', async () => {
+    await withEnv(async () => {
+      const spy = await emitOneEvent();
+
+      expect(spy).toHaveBeenCalledWith(expect.not.objectContaining({
+        counters: expect.anything(),
+      }));
+    }, { CDK_HOME: cdkHome });
   });
 });
 

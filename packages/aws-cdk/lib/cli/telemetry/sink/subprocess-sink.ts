@@ -97,28 +97,29 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
    * Add an event to the collection.
    */
   public async emit(event: TelemetrySchema): Promise<void> {
-    try {
-      this.events.push(event);
-    } catch (e: any) {
-      // Never throw errors, just log them via ioHost
-      await this.ioHelper.defaults.trace(`Failed to add telemetry event: ${e.message}`);
-    }
+    this.events.push(event);
   }
 
+  /**
+   * Hand whatever has accumulated to a detached sender.
+   *
+   * The batch is cleared whether or not the hand-off worked. Delivery is one-shot by design -- the
+   * process that would retry has usually exited by now -- so retaining the events would only mean
+   * re-reporting the same failure and regrowing the batch on the next interval.
+   *
+   * This is the single place delivery failures are handled; `dispatch` reports them by throwing.
+   */
   public async flush(): Promise<void> {
+    if (this.events.length === 0) {
+      return;
+    }
+
+    const batch = this.events;
+    this.events = [];
+
     try {
-      if (this.events.length === 0) {
-        return;
-      }
-
-      const res = await this.dispatch(this.endpoint, { events: this.events });
-
-      // Clear the events array after successful output
-      if (res) {
-        this.events = [];
-      }
+      await this.dispatch(this.endpoint, { events: batch });
     } catch (e: any) {
-      // Never throw errors, just log them via ioHost
       await this.ioHelper.defaults.trace(`Failed to send telemetry event: ${e.message}`);
     }
   }
@@ -126,13 +127,11 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
   /**
    * Hand the batch to a detached sender process.
    *
-   * Returns true if the batch was handed off and should therefore be cleared, false if it is worth
-   * retrying on the next flush.
+   * Throws if the batch could not be handed over.
    */
-  private async dispatch(url: URL, body: TelemetryBatch): Promise<boolean> {
+  private async dispatch(url: URL, body: TelemetryBatch): Promise<void> {
     if (!this.senderPath) {
-      await this.ioHelper.defaults.trace('Telemetry not sent: unable to locate the telemetry sender');
-      return false;
+      throw new ToolkitError('SenderNotFound', `Unable to locate the telemetry sender at ${SENDER_ENTRY_POINT}`);
     }
 
     const config: TelemetrySenderConfig = {
@@ -143,9 +142,8 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
     };
     const payload = JSON.stringify(config);
 
-    // Handed over as a file rather than on the child's stdin. Writing to stdin means the parent
-    // blocks once the payload outgrows the OS pipe buffer, waiting for a child it is trying not to
-    // wait for; a file write does not, whatever the size.
+    // A file rather than the child's stdin: writing to stdin blocks the parent once the payload
+    // outgrows the OS pipe buffer, which is the wait this sink exists to avoid.
     const payloadPath = path.join(os.tmpdir(), `cdk-telemetry-${process.pid}-${randomUUID()}.json`);
 
     try {
@@ -153,16 +151,16 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
 
       const child = spawn(process.execPath, [this.senderPath, payloadPath], {
         detached: true,
-        stdio: 'ignore',
+        // Pass the child's diagnostics through when somebody asked for them; otherwise nothing here
+        // is ever read.
+        stdio: senderDebugEnabled() ? ['ignore', 'ignore', 'inherit'] : 'ignore',
         windowsHide: true,
         shell: false,
         // Do not hold a reference to the user's working directory; they may want to delete it.
         cwd: os.tmpdir(),
       });
 
-      // The child is on its own from here; a spawn failure must not surface anywhere. This fires
-      // after the CLI may already have exited, so it cannot go through the IoHost -- see
-      // `debugTrace`.
+      // Fires after the CLI may already have exited, so it cannot go through the IoHost.
       child.on('error', (e: Error) => {
         debugTrace(`failed to spawn sender: ${e.message}`);
         tryUnlink(payloadPath);
@@ -171,11 +169,9 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
       child.unref();
 
       await this.ioHelper.defaults.trace(`${DISPATCHED_TRACE} (pid ${child.pid}, ${Buffer.byteLength(payload)} bytes)`);
-      return true;
     } catch (e: any) {
       tryUnlink(payloadPath);
-      await this.ioHelper.defaults.trace(`Telemetry Error: spawning sender for POST ${url.hostname}${url.pathname} failed: ${e.message}`);
-      return false;
+      throw new ToolkitError('DispatchFailed', `Spawning a sender for POST ${url.hostname}${url.pathname} failed: ${e.message}`);
     }
   }
 }
@@ -209,15 +205,21 @@ function tryUnlink(filePath: string): void {
 }
 
 /**
+ * Whether the user asked to see the sender's diagnostics.
+ */
+function senderDebugEnabled(): boolean {
+  return process.env.CDK_TELEMETRY_SENDER_DEBUG === '1';
+}
+
+/**
  * Diagnostics for failures that surface after the CLI may already have exited.
  *
- * The child's `error` event fires asynchronously, potentially once the IoHost is gone and the
- * process is on its way out, so it cannot be reported through the normal trace channel. Written
- * synchronously to fd 2 for the same reason the sender does it, and gated behind the same variable
- * so it is silent unless somebody is deliberately debugging telemetry delivery.
+ * The child's `error` event fires asynchronously, potentially once the IoHost is gone, so it cannot
+ * go through the normal trace channel. Written synchronously to fd 2, gated behind the same variable
+ * as the sender's own traces.
  */
 function debugTrace(message: string): void {
-  if (process.env.CDK_TELEMETRY_SENDER_DEBUG !== '1') {
+  if (!senderDebugEnabled()) {
     return;
   }
   try {

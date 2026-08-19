@@ -9,7 +9,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import * as net from 'node:net';
 import { cleanupTestCas, generateTestCa, type TestCa } from './test-tls';
-import { sendTelemetry } from '../../../lib/cli/telemetry/sender';
+import { isSuccess, sendTelemetry } from '../../../lib/cli/telemetry/sender';
 
 jest.setTimeout(30_000);
 
@@ -237,6 +237,22 @@ async function startStalledEndpoint(ca: TestCa): Promise<Endpoint> {
 
 const BODY = { events: [{ identifiers: { sessionId: 'test-session' } }] as any };
 
+/**
+ * Assert that delivery failed, and describe how.
+ *
+ * Node reports transport problems in `code` (`ECONNREFUSED`, `ERR_TLS_CERT_ALTNAME_INVALID`) while
+ * our own failures arrive as an error `name`, so tests should not have to know which one carries the
+ * detail.
+ */
+function failure(promise: Promise<unknown>): Promise<string> {
+  return promise.then(
+    () => {
+      throw new Error('expected delivery to fail, but it succeeded');
+    },
+    (e: any) => `${e?.code ?? ''}|${e?.name ?? ''}|${e?.message ?? ''}`,
+  );
+}
+
 describe('sender', () => {
   let ca: TestCa;
   const savedEnv = { ...process.env };
@@ -264,9 +280,8 @@ describe('sender', () => {
     test('POSTs the payload and reports success', async () => {
       const endpoint = await startEndpoint(ca);
       try {
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 })).resolves.toBe(200);
 
-        expect(result).toEqual({ sent: true, statusCode: 200 });
         expect(endpoint.received).toHaveLength(1);
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
         expect(endpoint.received[0].headers['content-type']).toBe('application/json');
@@ -275,14 +290,13 @@ describe('sender', () => {
       }
     });
 
-    test('reports a non-2xx status as not sent', async () => {
+    test('reports a non-2xx status without treating it as delivered', async () => {
       const endpoint = await startEndpoint(ca, { statusCode: 500 });
       try {
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        const statusCode = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
 
-        expect(result.sent).toBe(false);
-        expect(result.statusCode).toBe(500);
-        expect(result.reason).toContain('UnexpectedStatusCode');
+        expect(statusCode).toBe(500);
+        expect(isSuccess(statusCode)).toBe(false);
       } finally {
         await endpoint.close();
       }
@@ -291,22 +305,19 @@ describe('sender', () => {
     test('rejects an untrusted certificate when no CA bundle is supplied', async () => {
       const endpoint = await startEndpoint(ca);
       try {
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, timeoutMs: 5000 });
+        await expect(failure(sendTelemetry({ endpoint: endpoint.url, body: BODY, timeoutMs: 5000 })))
+          .resolves.toContain('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
         expect(endpoint.received).toHaveLength(0);
       } finally {
         await endpoint.close();
       }
     });
 
-    test('reports connection failures without throwing', async () => {
+    test('reports connection failures by rejecting', async () => {
       // Port 1 is reserved and nothing listens on it.
-      const result = await sendTelemetry({ endpoint: 'https://127.0.0.1:1/metrics', body: BODY, timeoutMs: 2000 });
-
-      expect(result.sent).toBe(false);
-      expect(result.reason).toContain('ECONNREFUSED');
+      await expect(failure(sendTelemetry({ endpoint: 'https://127.0.0.1:1/metrics', body: BODY, timeoutMs: 2000 })))
+        .resolves.toContain('ECONNREFUSED');
     });
 
     test('a CA bundle path that does not exist falls back to the system trust store', async () => {
@@ -314,15 +325,12 @@ describe('sender', () => {
       // signed by a public root, so this must fail verification.
       const endpoint = await startEndpoint(ca);
       try {
-        const result = await sendTelemetry({
+        await expect(failure(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           caBundlePath: '/definitely/not/a/real/bundle.pem',
           timeoutMs: 5000,
-        });
-
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
+        }))).resolves.toContain('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
       } finally {
         await endpoint.close();
       }
@@ -334,15 +342,14 @@ describe('sender', () => {
       const endpoint = await startEndpoint(ca);
       const proxy = await startConnectProxy();
       try {
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
-        });
+        })).resolves.toBe(200);
 
-        expect(result).toEqual({ sent: true, statusCode: 200 });
         expect(proxy.connects).toHaveLength(1);
         expect(proxy.connects[0]).toMatch(/^localhost:\d+$/);
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
@@ -357,9 +364,10 @@ describe('sender', () => {
       const proxy = await startConnectProxy({ requireAuth: 'alice:s3cret' });
       try {
         const authed = proxy.url.replace('http://', 'http://alice:s3cret@');
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, proxyUrl: authed, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        await expect(sendTelemetry({
+          endpoint: endpoint.url, body: BODY, proxyUrl: authed, caBundlePath: ca.caCertPath, timeoutMs: 5000,
+        })).resolves.toBe(200);
 
-        expect(result.sent).toBe(true);
         expect(proxy.authHeaders[0]).toBe(`Basic ${Buffer.from('alice:s3cret').toString('base64')}`);
       } finally {
         await proxy.close();
@@ -367,14 +375,19 @@ describe('sender', () => {
       }
     });
 
-    test('surfaces a rejected CONNECT without throwing', async () => {
+    test('surfaces a proxy 407 as a status code, not as a delivery', async () => {
+      // `https-proxy-agent` replays a non-200 CONNECT response through the HTTP machinery (and
+      // destroys the original socket so the request body is never written to the proxy), so this
+      // arrives as an ordinary status code for the caller to judge.
       const endpoint = await startEndpoint(ca);
       const proxy = await startConnectProxy({ requireAuth: 'alice:s3cret' });
       try {
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, proxyUrl: proxy.url, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        const statusCode = await sendTelemetry({
+          endpoint: endpoint.url, body: BODY, proxyUrl: proxy.url, caBundlePath: ca.caCertPath, timeoutMs: 5000,
+        });
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('407');
+        expect(statusCode).toBe(407);
+        expect(isSuccess(statusCode)).toBe(false);
         expect(endpoint.received).toHaveLength(0);
       } finally {
         await proxy.close();
@@ -388,9 +401,8 @@ describe('sender', () => {
       try {
         process.env.HTTPS_PROXY = proxy.url;
 
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 })).resolves.toBe(200);
 
-        expect(result.sent).toBe(true);
         expect(proxy.connects).toHaveLength(1);
       } finally {
         await proxy.close();
@@ -405,9 +417,8 @@ describe('sender', () => {
         process.env.HTTPS_PROXY = proxy.url;
         process.env.NO_PROXY = 'localhost';
 
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 })).resolves.toBe(200);
 
-        expect(result.sent).toBe(true);
         expect(proxy.connects).toHaveLength(0);
       } finally {
         await proxy.close();
@@ -424,9 +435,8 @@ describe('sender', () => {
       try {
         process.env.HTTPS_PROXY = proxy.url;
 
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000, proxyUrl: '' });
+        await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000, proxyUrl: '' })).resolves.toBe(200);
 
-        expect(result.sent).toBe(true);
         expect(proxy.connects).toHaveLength(0);
       } finally {
         await proxy.close();
@@ -442,14 +452,13 @@ describe('sender', () => {
       const proxy = await startConnectProxy({ delayConnectResponseMs: 800 });
       try {
         // Deliberately no `timeoutMs`: this exercises the sender's own default budget.
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: ca.caCertPath,
-        });
+        })).resolves.toBe(200);
 
-        expect(result).toEqual({ sent: true, statusCode: 200 });
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
       } finally {
         await proxy.close();
@@ -461,15 +470,12 @@ describe('sender', () => {
       // The budget was widened, not removed.
       const stalled = await startStalledEndpoint(ca);
       try {
-        const result = await sendTelemetry({
+        await expect(failure(sendTelemetry({
           endpoint: stalled.url,
           body: BODY,
           caBundlePath: ca.caCertPath,
           timeoutMs: 300,
-        });
-
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('RequestTimeout');
+        }))).resolves.toContain('RequestTimeout');
       } finally {
         await stalled.close();
       }
@@ -483,15 +489,14 @@ describe('sender', () => {
       const endpoint = await startEndpoint(ca);
       const proxy = await startSocks5Proxy();
       try {
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
-        });
+        })).resolves.toBe(200);
 
-        expect(result).toEqual({ sent: true, statusCode: 200 });
         expect(proxy.connects).toHaveLength(1);
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
       } finally {
@@ -506,9 +511,8 @@ describe('sender', () => {
       try {
         process.env.HTTPS_PROXY = proxy.url;
 
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 });
+        await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 })).resolves.toBe(200);
 
-        expect(result.sent).toBe(true);
         expect(proxy.connects).toHaveLength(1);
       } finally {
         await proxy.close();
@@ -523,15 +527,14 @@ describe('sender', () => {
       // so bypassing it would be both futile and a policy violation.
       const endpoint = await startEndpoint(ca);
       try {
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: 'http://127.0.0.1:1',
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
-        });
+        })).rejects.toThrow();
 
-        expect(result.sent).toBe(false);
         expect(endpoint.received).toHaveLength(0);
       } finally {
         await endpoint.close();
@@ -541,16 +544,14 @@ describe('sender', () => {
     test('rejects a proxy address with an unsupported protocol', async () => {
       const endpoint = await startEndpoint(ca);
       try {
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: 'gopher://127.0.0.1:70',
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
-        });
+        })).rejects.toThrow(/Unsupported protocol/);
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('Unsupported protocol');
         expect(endpoint.received).toHaveLength(0);
       } finally {
         await endpoint.close();
@@ -558,26 +559,21 @@ describe('sender', () => {
     });
 
     test('rejects a proxy address with no protocol at all', async () => {
-      const result = await sendTelemetry({ endpoint: 'https://example.com/m', body: BODY, proxyUrl: ':::not a url', timeoutMs: 500 });
-
-      expect(result.sent).toBe(false);
-      expect(result.reason).toContain('Invalid proxy address');
+      await expect(sendTelemetry({ endpoint: 'https://example.com/m', body: BODY, proxyUrl: ':::not a url', timeoutMs: 500 }))
+        .rejects.toThrow(/Invalid proxy address/);
     });
 
     test.each([
       ['a missing endpoint', {}],
       ['an empty endpoint', { endpoint: '' }],
       ['a malformed endpoint', { endpoint: 'not-a-url' }],
-    ])('skips %s without throwing', async (_name, cfg) => {
-      const result = await sendTelemetry(cfg as any);
-
-      expect(result.sent).toBe(false);
-      expect(result.reason).toBeDefined();
+    ])('rejects %s', async (_name, cfg) => {
+      await expect(sendTelemetry(cfg as any)).rejects.toThrow();
     });
 
-    test('never rejects, even on garbage input', async () => {
-      await expect(sendTelemetry(undefined as any)).resolves.toMatchObject({ sent: false });
-      await expect(sendTelemetry(null as any)).resolves.toMatchObject({ sent: false });
+    test('rejects garbage input rather than reporting a phantom send', async () => {
+      await expect(failure(sendTelemetry(undefined as any))).resolves.toContain('NoEndpoint');
+      await expect(failure(sendTelemetry(null as any))).resolves.toContain('NoEndpoint');
     });
   });
 
@@ -587,10 +583,9 @@ describe('sender', () => {
       const wrongCa = generateTestCa({ subjectAltName: 'DNS:not-the-endpoint.example.com' });
       const endpoint = await startEndpoint(wrongCa);
       try {
-        const result = await sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: wrongCa.caCertPath, timeoutMs: 5000 });
+        await expect(failure(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: wrongCa.caCertPath, timeoutMs: 5000 })))
+          .resolves.toContain('ERR_TLS_CERT_ALTNAME_INVALID');
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
         expect(endpoint.received).toHaveLength(0);
       } finally {
         await endpoint.close();
@@ -602,16 +597,14 @@ describe('sender', () => {
       const endpoint = await startEndpoint(wrongCa);
       const proxy = await startConnectProxy();
       try {
-        const result = await sendTelemetry({
+        await expect(failure(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: wrongCa.caCertPath,
           timeoutMs: 5000,
-        });
+        }))).resolves.toContain('ERR_TLS_CERT_ALTNAME_INVALID');
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
         // The tunnel opened, but the handshake to the endpoint must not have.
         expect(proxy.connects).toHaveLength(1);
         expect(endpoint.received).toHaveLength(0);
@@ -629,16 +622,14 @@ describe('sender', () => {
       const endpoint = await startEndpoint(localhostOnlyCa, { urlHost: '127.0.0.1' });
       const proxy = await startConnectProxy();
       try {
-        const result = await sendTelemetry({
+        await expect(failure(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: localhostOnlyCa.caCertPath,
           timeoutMs: 5000,
-        });
+        }))).resolves.toContain('ERR_TLS_CERT_ALTNAME_INVALID');
 
-        expect(result.sent).toBe(false);
-        expect(result.reason).toContain('ERR_TLS_CERT_ALTNAME_INVALID');
         expect(proxy.connects[0]).toMatch(/^127\.0\.0\.1:\d+$/);
         expect(endpoint.received).toHaveLength(0);
       } finally {
@@ -652,15 +643,14 @@ describe('sender', () => {
       const endpoint = await startEndpoint(ca, { urlHost: '127.0.0.1' });
       const proxy = await startConnectProxy();
       try {
-        const result = await sendTelemetry({
+        await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
           proxyUrl: proxy.url,
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
-        });
+        })).resolves.toBe(200);
 
-        expect(result).toEqual({ sent: true, statusCode: 200 });
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
       } finally {
         await proxy.close();

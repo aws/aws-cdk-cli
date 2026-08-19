@@ -214,7 +214,9 @@ describe('SubprocessTelemetrySink', () => {
   });
 
   describe('failure handling', () => {
-    test('swallows a spawn failure, traces it, and retains the events', async () => {
+    test('logs a spawn failure once and does not retain the batch', async () => {
+      // Delivery is one-shot: the process that would retry has usually exited by now, so retaining
+      // the batch would only re-report the same failure and regrow it on the next interval.
       (spawn as jest.Mock).mockImplementation(() => {
         throw new Error('EMFILE: too many open files');
       });
@@ -223,14 +225,27 @@ describe('SubprocessTelemetrySink', () => {
       await client.emit(createTestEvent('INVOKE'));
       await expect(client.flush()).resolves.toBeUndefined();
 
-      expect(traces.some((t) => t.includes('EMFILE'))).toBe(true);
+      expect(traces.filter((t) => t.includes('EMFILE'))).toHaveLength(1);
 
-      // Retained, so the next flush can try again.
+      // Dropped, so a second flush has nothing left to send.
       (spawn as jest.Mock).mockReturnValue(child);
       await client.flush();
-      const { payloadPath, config } = dispatched();
-      written.push(payloadPath);
-      expect(config.body.events).toHaveLength(1);
+      expect(spawn as jest.Mock).toHaveBeenCalledTimes(1);
+    });
+
+    test('logs once and drops the batch when the sender cannot be located', async () => {
+      const client = sink();
+      (client as any).senderPath = undefined;
+      await client.emit(createTestEvent('INVOKE'));
+
+      await expect(client.flush()).resolves.toBeUndefined();
+
+      expect(traces.filter((t) => t.includes('Unable to locate the telemetry sender'))).toHaveLength(1);
+      expect(spawn as jest.Mock).not.toHaveBeenCalled();
+
+      // Not retained: this never starts working mid-process, so retrying every 30s is pure noise.
+      await client.flush();
+      expect(traces.filter((t) => t.includes('Unable to locate the telemetry sender'))).toHaveLength(1);
     });
 
     test('does not leave the payload file behind when the spawn fails', async () => {
@@ -256,6 +271,37 @@ describe('SubprocessTelemetrySink', () => {
       expect(() => sink({ endpoint: 'not-a-url' })).toThrow(/Invalid URL/);
     });
   });
+
+  describe('debug channel', () => {
+    test('passes the child stderr through when CDK_TELEMETRY_SENDER_DEBUG=1', async () => {
+      // Otherwise the sender's own traces go to a discarded fd and the one field-debug tool is
+      // unusable.
+      process.env.CDK_TELEMETRY_SENDER_DEBUG = '1';
+      try {
+        const client = sink();
+        await client.emit(createTestEvent('INVOKE'));
+        await client.flush();
+
+        const [, , options] = (spawn as jest.Mock).mock.calls[0];
+        written.push((spawn as jest.Mock).mock.calls[0][1][1]);
+
+        expect(options.stdio).toEqual(['ignore', 'ignore', 'inherit']);
+      } finally {
+        delete process.env.CDK_TELEMETRY_SENDER_DEBUG;
+      }
+    });
+
+    test('discards the child stdio by default', async () => {
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      const [, , options] = (spawn as jest.Mock).mock.calls[0];
+      written.push((spawn as jest.Mock).mock.calls[0][1][1]);
+
+      expect(options.stdio).toBe('ignore');
+    });
+  });
 });
 
 /**
@@ -267,14 +313,33 @@ describe('SubprocessTelemetrySink', () => {
  */
 describe('sender-bundle entry point', () => {
   let ca: TestCa;
+  let cdkHome: string;
 
   beforeAll(() => {
     ca = generateTestCa();
   });
 
+  beforeEach(() => {
+    // The sender records its outcome under CDK_HOME; point that somewhere disposable so the
+    // breadcrumb can be inspected without touching the developer's real cache.
+    cdkHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-home-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(cdkHome, { recursive: true, force: true });
+  });
+
   afterAll(() => cleanupTestCas());
 
-  async function startEndpoint(): Promise<{ url: string; received: string[]; close(): Promise<void> }> {
+  /**
+   * The outcome the sender recorded for the next invocation to pick up.
+   */
+  function breadcrumb(): any {
+    const file = path.join(cdkHome, 'cache', 'telemetry-last-send.json');
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : undefined;
+  }
+
+  async function startEndpoint(options: { statusCode?: number } = {}): Promise<{ url: string; received: string[]; close(): Promise<void> }> {
     const received: string[] = [];
     const sockets: Array<{ destroy(): void }> = [];
     const server = https.createServer({ key: ca.serverKey, cert: ca.serverCert }, (req, res) => {
@@ -282,7 +347,7 @@ describe('sender-bundle entry point', () => {
       req.on('data', (c) => (body += c));
       req.on('end', () => {
         received.push(body);
-        res.writeHead(200, { 'content-type': 'application/json' });
+        res.writeHead(options.statusCode ?? 200, { 'content-type': 'application/json' });
         res.end('{"ok":true}');
       });
     });
@@ -310,7 +375,10 @@ describe('sender-bundle entry point', () => {
     const entryPoint = path.join(cliRootDir(), 'lib', 'cli', 'telemetry', 'sender-bundle.ts');
 
     return new Promise((ok, ko) => {
-      const proc = realSpawn(process.execPath, [tsx, entryPoint, payloadPath], { stdio: 'ignore' });
+      const proc = realSpawn(process.execPath, [tsx, entryPoint, payloadPath], {
+        stdio: 'ignore',
+        env: { ...process.env, CDK_HOME: cdkHome },
+      });
       proc.on('error', ko);
       proc.on('exit', (code) => ok(code));
     });
@@ -383,4 +451,53 @@ describe('sender-bundle entry point', () => {
 
     await expect(runSender(missing)).resolves.toBe(0);
   }, 60_000);
+
+  describe('outcome breadcrumb', () => {
+    // Nobody waits on this process, so the file it leaves behind is the only record of whether
+    // delivery worked. The next invocation reports it as a counter.
+    test('records a successful delivery', async () => {
+      const endpoint = await startEndpoint();
+      const payloadPath = writePayload({ endpoint: endpoint.url, body: { events: [{ n: 1 }] }, caBundlePath: ca.caCertPath, timeoutMs: 10_000 });
+
+      try {
+        await runSender(payloadPath);
+
+        expect(breadcrumb()).toMatchObject({ ok: true, statusCode: 200 });
+        expect(Date.parse(breadcrumb().at)).not.toBeNaN();
+      } finally {
+        fs.rmSync(payloadPath, { force: true });
+        await endpoint.close();
+      }
+    }, 60_000);
+
+    test('records a non-2xx as a failure, with the status code', async () => {
+      const endpoint = await startEndpoint({ statusCode: 500 });
+      const payloadPath = writePayload({ endpoint: endpoint.url, body: { events: [{ n: 1 }] }, caBundlePath: ca.caCertPath, timeoutMs: 10_000 });
+
+      try {
+        await runSender(payloadPath);
+
+        expect(breadcrumb()).toMatchObject({ ok: false, statusCode: 500 });
+        expect(breadcrumb().reason).toContain('500');
+      } finally {
+        fs.rmSync(payloadPath, { force: true });
+        await endpoint.close();
+      }
+    }, 60_000);
+
+    test('records a transport failure, with a reason and no status code', async () => {
+      // Port 1 is reserved and nothing listens on it.
+      const payloadPath = writePayload({ endpoint: 'https://127.0.0.1:1/metrics', body: { events: [{ n: 1 }] }, timeoutMs: 5000 });
+
+      try {
+        await runSender(payloadPath);
+
+        expect(breadcrumb()).toMatchObject({ ok: false });
+        expect(breadcrumb().statusCode).toBeUndefined();
+        expect(breadcrumb().reason).toContain('ECONNREFUSED');
+      } finally {
+        fs.rmSync(payloadPath, { force: true });
+      }
+    }, 60_000);
+  });
 });

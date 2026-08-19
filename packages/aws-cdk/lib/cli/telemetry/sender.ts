@@ -1,27 +1,18 @@
+/* eslint-disable import/no-relative-packages */
 import * as fs from 'node:fs';
-import type { ProxyAgentDiagnostics } from '../proxy-agent';
-import { ProxyAgentProvider } from '../proxy-agent';
+// Deep import: the package barrel would pull the whole toolkit into the sender bundle.
 import type { TelemetryBatch } from './post-telemetry';
 import { postTelemetry } from './post-telemetry';
-
-/**
- * The detached telemetry sender.
- *
- * Runs in a short-lived child process that the CLI does not wait on (see `sender-bundle.ts`, the
- * bundled entry point, and `sink/subprocess-sink.ts`, which spawns it). Its only job is to POST one
- * telemetry payload and exit.
- *
- * Nothing here ever throws: telemetry must not be able to affect the CLI, and there is no IoHost to
- * report through. Every failure is swallowed and described in the returned `SendResult`.
- */
+import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
+import type { ProxyAgentDiagnostics } from '../proxy-agent';
+import { ProxyAgentProvider } from '../proxy-agent';
 
 /**
  * Budget for the delivery attempt.
  *
- * Emphatically NOT the in-process sink's 500ms. That number exists to stop a blocking POST from
- * holding up the user's prompt; nobody waits on this process, so a tight budget buys the user
- * nothing and costs us telemetry -- a proxied send needs two TLS handshakes, which routinely takes
- * longer than that on a loaded CI runner.
+ * Not the in-process sink's 500ms: that exists to keep a blocking POST from delaying the user's
+ * prompt, and nobody waits on this process. A proxied send needs two TLS handshakes, which
+ * routinely takes longer than that on a loaded CI runner.
  */
 const NETWORK_TIMEOUT_MS = 10_000;
 
@@ -66,78 +57,53 @@ export interface TelemetrySenderConfig {
 }
 
 /**
- * Outcome of a send attempt. Purely informational -- nothing acts on it except tests and traces.
- */
-export interface SendResult {
-  /**
-   * Whether the endpoint accepted the payload with a 2xx response.
-   */
-  readonly sent: boolean;
-
-  /**
-   * HTTP status code, if a response was received at all.
-   *
-   * @default - no response was received
-   */
-  readonly statusCode?: number;
-
-  /**
-   * Why the send did not succeed.
-   *
-   * @default - the send succeeded
-   */
-  readonly reason?: string;
-}
-
-/**
- * Deliver a telemetry payload, routing through a proxy when one applies.
+ * POST a telemetry payload, routing through a proxy when one applies.
  *
- * Never rejects and never throws.
+ * Returns the endpoint's status code, which the caller is responsible for judging. Rejects if the
+ * request could not be completed at all -- errors are deliberately not handled here so that the
+ * entry point can deal with every outcome in one place.
  */
 export async function sendTelemetry(
   cfg: TelemetrySenderConfig,
   diagnostics: ProxyAgentDiagnostics = senderDiagnostics,
-): Promise<SendResult> {
-  try {
-    if (!cfg?.endpoint) {
-      return { sent: false, reason: 'NoEndpoint' };
-    }
-
-    const url = new URL(cfg.endpoint);
-
-    // The same provider the CLI itself uses, so the child routes exactly the way the parent would
-    // have -- including SOCKS and PAC proxies, and `NO_PROXY`, which it picks up from the inherited
-    // environment. `proxyAddress: undefined` means "auto-detect"; an empty string means "no proxy".
-    const { agent } = await new ProxyAgentProvider(diagnostics).create({
-      proxyAddress: cfg.proxyUrl,
-      caBundlePath: cfg.caBundlePath,
-    });
-
-    const res = await postTelemetry(url, cfg.body ?? { events: [] }, {
-      agent,
-      timeoutMs: cfg.timeoutMs ?? NETWORK_TIMEOUT_MS,
-      closeConnection: true,
-      verifyIdentityAgainst: url.hostname,
-    });
-
-    // Drain, or the socket is never released and the process lingers until the hard kill.
-    res.resume();
-
-    if (res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300) {
-      return { sent: true, statusCode: res.statusCode };
-    }
-    return { sent: false, statusCode: res.statusCode, reason: `UnexpectedStatusCode: ${res.statusCode}` };
-  } catch (e: any) {
-    return { sent: false, reason: `${e?.code ?? e?.name ?? 'Error'}: ${e?.message}` };
+): Promise<number | undefined> {
+  if (!cfg?.endpoint) {
+    throw new ToolkitError('NoEndpoint', 'No telemetry endpoint was given');
   }
+
+  const url = new URL(cfg.endpoint);
+
+  // The same provider the CLI itself uses, so the child routes the way the parent would have --
+  // including SOCKS and PAC proxies, and `NO_PROXY` from the inherited environment.
+  // `proxyAddress: undefined` means "auto-detect"; an empty string means "no proxy".
+  const { agent } = await new ProxyAgentProvider(diagnostics).create({
+    proxyAddress: cfg.proxyUrl,
+    caBundlePath: cfg.caBundlePath,
+  });
+
+  const res = await postTelemetry(url, cfg.body ?? { events: [] }, {
+    agent,
+    timeoutMs: cfg.timeoutMs ?? NETWORK_TIMEOUT_MS,
+    closeConnection: true,
+    verifyIdentityAgainst: url.hostname,
+  });
+
+  // Drain, or the socket is never released.
+  res.resume();
+
+  return res.statusCode;
+}
+
+export function isSuccess(statusCode: number | undefined): boolean {
+  return statusCode !== undefined && statusCode >= 200 && statusCode < 300;
 }
 
 /**
  * Diagnostics for the detached child, which has no IoHost.
  *
- * stderr is discarded by the parent, so this is only visible when the sender is run by hand with
- * `CDK_TELEMETRY_SENDER_DEBUG=1`. Written synchronously: `process.stderr` is asynchronous when it
- * is a pipe, and the `process.exit(0)` that follows would discard a buffered write.
+ * Only visible when the parent was run with `CDK_TELEMETRY_SENDER_DEBUG=1`, which is also what makes
+ * it pass its stderr through. Written synchronously because `process.exit` would discard a buffered
+ * write.
  */
 export const senderDiagnostics: ProxyAgentDiagnostics = {
   defaults: {
