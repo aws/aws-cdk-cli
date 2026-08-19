@@ -119,8 +119,7 @@ export class TelemetrySession {
       project: {},
     };
 
-    // Report how the previous invocation's detached delivery went. Nothing else ever finds out:
-    // that process outlives us and we never wait on it.
+    // Report how the previous invocation's detached delivery went; nothing else ever finds out.
     this._sessionCounters = await previousSendCounters();
 
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
@@ -311,11 +310,9 @@ function getState(error?: ErrorDetails): State {
 /**
  * Turn the previous invocation's delivery outcome into counters, if there is anything to report.
  *
- * Only failures are reported: a counter that is present on nearly every event carries no
- * information, and the success case is already implied by the batch having arrived at all.
- *
- * `reason` is deliberately not reported. Counters are numeric, and adding a free-text field needs a
- * schema change agreed with the telemetry service team.
+ * Only failures: a counter present on nearly every event carries no information. `reason` is left out
+ * because counters are numeric, and a free-text field needs a schema change agreed with the telemetry
+ * service team.
  */
 async function previousSendCounters(): Promise<Record<string, number> | undefined> {
   const outcome = await takeLastSend();

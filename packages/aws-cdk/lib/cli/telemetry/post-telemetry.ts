@@ -34,9 +34,8 @@ export interface PostTelemetryOptions {
   /**
    * Ask the server to close the connection once it has responded.
    *
-   * Set by the detached sender, which makes exactly one request and then exits. Without it the
-   * response leaves a usable keep-alive socket in the agent's pool, which outlives the request it
-   * was created for.
+   * Set by the detached sender, which makes one request and exits; otherwise the response leaves a
+   * usable keep-alive socket in the agent's pool.
    *
    * @default false - leave connection reuse to the agent
    */
@@ -45,10 +44,9 @@ export interface PostTelemetryOptions {
   /**
    * Require the endpoint's certificate to cover this hostname.
    *
-   * Only relevant on the proxied path. `https-proxy-agent` performs the TLS upgrade itself and does
-   * not pass the destination host to `tls.connect`, so for an endpoint addressed by IP literal Node
-   * has nothing to match the certificate against and the check is skipped. Naming the intended host
-   * explicitly keeps identity pinned to the endpoint rather than to whatever the proxy presents.
+   * `https-proxy-agent` does the TLS upgrade itself without passing the destination host to
+   * `tls.connect`, so for an IP-literal endpoint Node has nothing to match against and skips the
+   * check. Naming the host pins identity to the endpoint rather than to whatever the proxy presents.
    *
    * @default - Node's default check, i.e. against the request's own hostname
    */
@@ -58,11 +56,9 @@ export interface PostTelemetryOptions {
 /**
  * POST a batch of telemetry events, resolving with the endpoint's response.
  *
- * Shared by the in-process sink and the detached sender so that both speak to the endpoint
- * identically; only the agent and the timeout differ between them.
- *
- * Rejects if the connection fails or the timeout expires. It does NOT reject on an unsuccessful
- * status code -- inspect `statusCode` on the resolved response for that.
+ * Shared by the in-process sink and the detached sender so both speak to the endpoint identically;
+ * only the agent and the timeout differ. Rejects if the connection fails or the timeout expires, but
+ * NOT on an unsuccessful status code -- inspect `statusCode` for that.
  */
 export function postTelemetry(
   url: URL,

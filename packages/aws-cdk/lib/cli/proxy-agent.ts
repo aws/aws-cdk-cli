@@ -65,10 +65,9 @@ export interface ResolvedProxyAgent {
   /**
    * Absolute path to the resolved CA bundle, if one was configured and exists on disk.
    *
-   * Exposed because `agent` cannot cross a process boundary: the detached telemetry sender has to
-   * build its own, and needs to be told which bundle to trust. The path travels rather than the
-   * bytes -- a system bundle is routinely ~190KB, which is far too much to hand over as argv or
-   * to inline into a payload.
+   * Exposed because `agent` cannot cross a process boundary: the detached telemetry sender builds its
+   * own and needs to be told which bundle to trust. The path travels rather than the bytes, because a
+   * system bundle is routinely ~190KB.
    *
    * @default - no CA bundle was configured, or the configured one does not exist
    */
@@ -78,9 +77,8 @@ export interface ResolvedProxyAgent {
 /**
  * The part of `IoHelper` that proxy resolution needs.
  *
- * Structural on purpose: the detached telemetry sender builds its own agent and has no IoHost to
- * report through, so it passes a writer that goes to stderr instead. A full `IoHelper` satisfies
- * this as-is.
+ * Structural so the detached telemetry sender, which has no IoHost, can pass a writer that goes to
+ * stderr instead. A full `IoHelper` satisfies this as-is.
  */
 export interface ProxyAgentDiagnostics {
   readonly defaults: {
@@ -124,8 +122,7 @@ export class ProxyAgentProvider {
   /**
    * Resolve the configured CA bundle to an absolute path, or undefined if there isn't a usable one.
    *
-   * Absolute because the path is handed to the detached telemetry sender, which runs from a
-   * different working directory.
+   * Absolute because the path is handed to the detached sender, which runs from a different cwd.
    */
   private async resolveCABundlePath(bundlePath?: string): Promise<string | undefined> {
     const configured = bundlePath || this.caBundlePathFromEnvironment();

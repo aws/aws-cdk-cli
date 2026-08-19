@@ -18,11 +18,7 @@ import type { ITelemetrySink } from './sink-interface';
 const SENDER_ENTRY_POINT = path.join('lib', 'cli', 'telemetry', 'sender-bundle.js');
 
 /**
- * Stable prefix of the trace emitted once a batch has been handed to the sender.
- *
- * Integration tests match on this literal, so it must not change casually. Note that it reports a
- * successful hand-off, not a successful delivery -- by design nobody in this process ever learns
- * whether the POST succeeded.
+ * Reports a successful hand-off, NOT a successful delivery. Integration tests match on this literal.
  */
 const DISPATCHED_TRACE = 'Telemetry dispatched';
 
@@ -43,10 +39,7 @@ export interface SubprocessTelemetrySinkProps {
   /**
    * Proxy the sender should route through, as configured by `--proxy` or the `proxy` setting.
    *
-   * When absent, the sender resolves it from the inherited proxy environment variables, which is
-   * the same behaviour `proxy-agent` gives the rest of the CLI.
-   *
-   * @default - resolved from the environment by the sender
+   * @default - resolved from the environment by the sender, as `proxy-agent` does for the rest of the CLI
    */
   readonly proxyUrl?: string;
 
@@ -61,13 +54,11 @@ export interface SubprocessTelemetrySinkProps {
 /**
  * A telemetry sink that delivers events from a detached child process.
  *
- * The HTTP POST does not happen in this process. Events are written to a temporary file and handed
- * to a detached child that outlives us, so the CLI can exit immediately instead of waiting on the
- * network. Nothing here ever learns whether delivery succeeded, which is the point.
+ * Events are written to a temporary file and handed to a child that outlives us, so the CLI can exit
+ * immediately instead of waiting on the network. Nothing here ever learns whether delivery succeeded.
  *
- * Deliberately nothing checks first whether the network is reachable. Any such check is itself a
- * network call on the CLI's exit path, which is exactly what this sink exists to avoid. When the
- * machine is offline we simply spawn a child that fails and exits.
+ * Deliberately does not check connectivity first: that check would itself be a network call on the
+ * exit path, which is what this sink exists to avoid.
  */
 export class SubprocessTelemetrySink implements ITelemetrySink {
   private events: TelemetrySchema[] = [];
@@ -103,10 +94,8 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
   /**
    * Hand whatever has accumulated to a detached sender.
    *
-   * The batch is cleared whether or not the hand-off worked. Delivery is one-shot by design -- the
-   * process that would retry has usually exited by now -- so retaining the events would only mean
-   * re-reporting the same failure and regrowing the batch on the next interval.
-   *
+   * Clears the batch either way: delivery is one-shot, the process that would retry has usually
+   * exited, and retaining the events would just re-report the failure and regrow the batch every 30s.
    * This is the single place delivery failures are handled; `dispatch` reports them by throwing.
    */
   public async flush(): Promise<void> {
@@ -151,8 +140,7 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
 
       const child = spawn(process.execPath, [this.senderPath, payloadPath], {
         detached: true,
-        // Pass the child's diagnostics through when somebody asked for them; otherwise nothing here
-        // is ever read.
+        // Pass the child's diagnostics through only when asked; otherwise nothing reads them.
         stdio: senderDebugEnabled() ? ['ignore', 'ignore', 'inherit'] : 'ignore',
         windowsHide: true,
         shell: false,
@@ -179,10 +167,9 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
 /**
  * Locate the bundled sender entry point inside this package.
  *
- * Resolved by walking up to the package root, which works both from `lib/` in source and from the
- * released bundle. `process.argv[1]` is deliberately NOT used: depending on how the CLI was started
- * it is the `node_modules/.bin/cdk` symlink, the `cdk` alias package's wrapper, or -- when the CLI
- * is driven programmatically -- somebody else's script entirely.
+ * Walks up to the package root, which works both from `lib/` in source and from the released bundle.
+ * `process.argv[1]` is deliberately NOT used: it may be the `.bin/cdk` symlink, the `cdk` alias
+ * package's wrapper, or -- when the CLI is driven programmatically -- somebody else's script.
  *
  * Returns undefined if the entry point is not on disk, in which case telemetry is skipped.
  */
@@ -212,11 +199,8 @@ function senderDebugEnabled(): boolean {
 }
 
 /**
- * Diagnostics for failures that surface after the CLI may already have exited.
- *
- * The child's `error` event fires asynchronously, potentially once the IoHost is gone, so it cannot
- * go through the normal trace channel. Written synchronously to fd 2, gated behind the same variable
- * as the sender's own traces.
+ * Diagnostics for failures that surface after the CLI may already have exited, so they cannot go
+ * through the IoHost. Gated behind the same variable as the sender's own traces.
  */
 function debugTrace(message: string): void {
   if (!senderDebugEnabled()) {

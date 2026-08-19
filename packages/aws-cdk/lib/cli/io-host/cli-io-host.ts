@@ -39,9 +39,8 @@ type CliAction =
 /**
  * How telemetry should reach the network.
  *
- * The subprocess sink does not make the request itself -- it hands off to a detached child process,
- * which builds its own agent. An `Agent` cannot cross a process boundary, so the proxy and
- * certificate configuration have to travel as plain data instead.
+ * An `Agent` cannot cross a process boundary, so the detached sender is handed the proxy and
+ * certificate configuration as plain data and builds its own.
  */
 export interface TelemetryNetworkOptions {
   /**

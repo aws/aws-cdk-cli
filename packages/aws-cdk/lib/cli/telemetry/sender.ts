@@ -8,11 +8,8 @@ import type { ProxyAgentDiagnostics } from '../proxy-agent';
 import { ProxyAgentProvider } from '../proxy-agent';
 
 /**
- * Budget for the delivery attempt.
- *
- * Not the in-process sink's 500ms: that exists to keep a blocking POST from delaying the user's
- * prompt, and nobody waits on this process. A proxied send needs two TLS handshakes, which
- * routinely takes longer than that on a loaded CI runner.
+ * Budget for the delivery attempt. Far larger than the in-process sink's 500ms, which exists only to
+ * keep a blocking POST from delaying the user's prompt.
  */
 const NETWORK_TIMEOUT_MS = 10_000;
 
@@ -31,18 +28,14 @@ export interface TelemetrySenderConfig {
   readonly body: TelemetryBatch;
 
   /**
-   * Proxy to route through, if the user configured one explicitly.
-   *
-   * An empty string means "explicitly no proxy", which is how the parent represents `--proxy ''`.
+   * Proxy to route through. An empty string means "explicitly no proxy", as `--proxy ''` does.
    *
    * @default - resolved from the inherited proxy environment variables, as in the parent
    */
   readonly proxyUrl?: string;
 
   /**
-   * Absolute path to a CA bundle to trust.
-   *
-   * The path, not the contents: a system bundle is routinely ~190KB.
+   * Absolute path to a CA bundle to trust. The path, not the contents: a system bundle is ~190KB.
    *
    * @default - the default Node trust store, plus anything in `NODE_EXTRA_CA_CERTS`
    */
@@ -59,9 +52,8 @@ export interface TelemetrySenderConfig {
 /**
  * POST a telemetry payload, routing through a proxy when one applies.
  *
- * Returns the endpoint's status code, which the caller is responsible for judging. Rejects if the
- * request could not be completed at all -- errors are deliberately not handled here so that the
- * entry point can deal with every outcome in one place.
+ * Returns the status code for the caller to judge, and lets failures reject: every outcome is handled
+ * in one place, in the entry point.
  */
 export async function sendTelemetry(
   cfg: TelemetrySenderConfig,
@@ -73,9 +65,8 @@ export async function sendTelemetry(
 
   const url = new URL(cfg.endpoint);
 
-  // The same provider the CLI itself uses, so the child routes the way the parent would have --
-  // including SOCKS and PAC proxies, and `NO_PROXY` from the inherited environment.
-  // `proxyAddress: undefined` means "auto-detect"; an empty string means "no proxy".
+  // The provider the CLI itself uses, so the child routes the way the parent would have, including
+  // SOCKS and PAC proxies and NO_PROXY from the inherited environment.
   const { agent } = await new ProxyAgentProvider(diagnostics).create({
     proxyAddress: cfg.proxyUrl,
     caBundlePath: cfg.caBundlePath,
@@ -100,10 +91,6 @@ export function isSuccess(statusCode: number | undefined): boolean {
 
 /**
  * Diagnostics for the detached child, which has no IoHost.
- *
- * Only visible when the parent was run with `CDK_TELEMETRY_SENDER_DEBUG=1`, which is also what makes
- * it pass its stderr through. Written synchronously because `process.exit` would discard a buffered
- * write.
  */
 export const senderDiagnostics: ProxyAgentDiagnostics = {
   defaults: {
@@ -111,6 +98,10 @@ export const senderDiagnostics: ProxyAgentDiagnostics = {
   },
 };
 
+/**
+ * Only visible when the parent was run with `CDK_TELEMETRY_SENDER_DEBUG=1`, which is also what makes
+ * it pass this process's stderr through. Synchronous because `process.exit` discards buffered writes.
+ */
 export function trace(message: string): void {
   if (process.env.CDK_TELEMETRY_SENDER_DEBUG !== '1') {
     return;

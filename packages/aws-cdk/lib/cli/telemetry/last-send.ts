@@ -7,9 +7,8 @@ import { cdkCacheDir } from '../../../../@aws-cdk/toolkit-lib/lib/util/directori
 /**
  * The result of the previous invocation's telemetry delivery.
  *
- * Delivery happens in a detached child that the CLI never waits on, so this file is the only way
- * anybody finds out whether it worked. The next invocation reads it and reports a counter, which is
- * what makes an otherwise invisible fire-and-forget send measurable.
+ * Delivery happens in a detached child that the CLI never waits on, so this file is the only record
+ * of whether it worked. The next invocation reports it as a counter.
  */
 export interface LastSendOutcome {
   /**
@@ -42,10 +41,10 @@ function lastSendPath(): string {
 }
 
 /**
- * Record the outcome of a delivery attempt. Called by the detached sender just before it exits.
+ * Record the outcome of a delivery attempt, from the detached sender just before it exits.
  *
- * Synchronous because the caller exits immediately afterwards, and silent because a failure to
- * write diagnostics must never become a failure of its own.
+ * Synchronous because the caller exits immediately afterwards, and silent because failing to write
+ * diagnostics must never become a failure of its own.
  */
 export function recordLastSend(outcome: LastSendOutcome): void {
   try {
@@ -60,9 +59,7 @@ export function recordLastSend(outcome: LastSendOutcome): void {
 /**
  * Read and consume the previous invocation's outcome.
  *
- * Consumed rather than just read, so a single failure is reported once instead of on every
- * subsequent invocation until the next send happens.
- *
+ * Consumed, so one failure is reported once rather than on every invocation until the next send.
  * Never throws; returns undefined if there is nothing to report.
  */
 export async function takeLastSend(): Promise<LastSendOutcome | undefined> {
