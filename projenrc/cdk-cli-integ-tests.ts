@@ -669,10 +669,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
         windows: true,
         // Only on the nightly, a manual dispatch, or when a PR opts in by label.
         extraCondition: `(${WINDOWS_REQUESTED_EXPR})`,
-        // Windows runs ~4-5x slower than Linux (a smaller runner, and slower
-        // file IO), which pushes shards past the 1 hour credential ceiling.
-        // Halve the work per shard to stay under it.
-        shardScale: 2,
         timeoutMinutes: 90,
       }))
       : [];
@@ -778,9 +774,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
     let shardArg = '';
     let logName = `logs${suffix}-\${{ matrix.suite }}-\${{ matrix.node }}`;
     if (props.domain.shards) {
-      const shardCount = props.domain.shards * (platform.shardScale ?? 1);
-      shard = Array(shardCount).fill(0).map((_, i) => i + 1);
-      shardArg = ` --shard="\${{ matrix.shard }}/${shardCount}"`;
+      shard = Array(props.domain.shards).fill(0).map((_, i) => i + 1);
+      shardArg = ` --shard="\${{ matrix.shard }}/${props.domain.shards}"`;
       logName += '-${{ matrix.shard }}';
     }
 
@@ -999,27 +994,13 @@ interface PlatformOptions {
   readonly windows?: boolean;
 
   /**
-   * Multiply the declared shard count for this platform.
-   *
-   * Slower platforms need smaller shards to keep each job inside the AWS
-   * session lifetime. The Atmosphere OIDC role has a MaxSessionDuration of 1
-   * hour and credentials are obtained immediately before the test step, so a
-   * suite that runs longer than an hour starts failing Atmosphere calls with
-   * an expired-token 403 - including the release call that returns the
-   * allocated environment to the pool.
-   *
-   * @default 1 - use the declared shard count as-is
-   */
-  readonly shardScale?: number;
-
-  /**
    * Hard cap on job duration.
    *
    * Bounds the pathological case; without it jobs inherit GitHub's 6 hour
-   * default. Note this cannot pre-empt the 1 hour credential expiry described
-   * on `shardScale`: credentials are acquired part-way into the job, at a
-   * variable offset, so there is no fixed job-level timeout that reliably
-   * fires before they lapse.
+   * default. Note this does not pre-empt AWS session expiry: the Atmosphere
+   * OIDC role has a MaxSessionDuration of 1 hour and credentials are obtained
+   * part-way into the job, at a variable offset, so there is no fixed
+   * job-level timeout that reliably fires before they lapse.
    *
    * @default - GitHub's default
    */

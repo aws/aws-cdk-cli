@@ -867,7 +867,7 @@ jobs:
           RELEASE_TAG: latest
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INTEG_LOGS: logs
-        run: npx run-suite --shard="${{ matrix.shard }}/24" --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
+        run: npx run-suite --shard="${{ matrix.shard }}/12" --use-cli-release=${{ steps.versions.outputs.cli_version }} --framework-version=${{ steps.versions.outputs.lib_version }} ${{ matrix.suite }}
       - name: Set workflow summary
         id: set_workflow_summary
         if: always()
@@ -918,18 +918,6 @@ jobs:
           - 10
           - 11
           - 12
-          - 13
-          - 14
-          - 15
-          - 16
-          - 17
-          - 18
-          - 19
-          - 20
-          - 21
-          - 22
-          - 23
-          - 24
   integ_toolkit-lib_windows:
     needs: prepare
     runs-on: windows-latest
