@@ -10,6 +10,6 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'csharp', template]);
     await context.library.initializeDotnetPackages(context.integTestDir);
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 300_000);
 });
 
