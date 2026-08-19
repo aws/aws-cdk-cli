@@ -1,7 +1,11 @@
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+/* eslint-disable import/no-relative-packages */
+import * as path from 'node:path';
 import * as fs from 'fs-extra';
 import { ProxyAgent, proxies } from 'proxy-agent';
-import type { IoHelper } from '../api-private';
+// Imported from its defining module rather than the package barrel: this file is in the detached
+// telemetry sender's import graph, and pulling in `@aws-cdk/toolkit-lib`'s entrypoint would drag the
+// whole toolkit (~11MB) into that bundle for the sake of one error class.
+import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
 
 /**
  * Validate a proxy address up front.
@@ -59,20 +63,35 @@ export interface ResolvedProxyAgent {
   readonly agent: ProxyAgent;
 
   /**
-   * Contents of the resolved CA bundle, if one was configured.
+   * Absolute path to the resolved CA bundle, if one was configured and exists on disk.
    *
-   * Exposed because the detached telemetry sender cannot use `agent` -- it runs in another process
-   * and only has Node built-ins -- so it needs the certificate itself.
+   * Exposed because `agent` cannot cross a process boundary: the detached telemetry sender has to
+   * build its own, and needs to be told which bundle to trust. The path travels rather than the
+   * bytes -- a system bundle is routinely ~190KB, which is far too much to hand over as argv or
+   * to inline into a payload.
    *
-   * @default - no CA bundle was configured
+   * @default - no CA bundle was configured, or the configured one does not exist
    */
-  readonly caCert?: string;
+  readonly caBundlePath?: string;
+}
+
+/**
+ * The part of `IoHelper` that proxy resolution needs.
+ *
+ * Structural on purpose: the detached telemetry sender builds its own agent and has no IoHost to
+ * report through, so it passes a writer that goes to stderr instead. A full `IoHelper` satisfies
+ * this as-is.
+ */
+export interface ProxyAgentDiagnostics {
+  readonly defaults: {
+    debug(message: string): Promise<void>;
+  };
 }
 
 export class ProxyAgentProvider {
-  private readonly ioHelper: IoHelper;
+  private readonly ioHelper: ProxyAgentDiagnostics;
 
-  public constructor(ioHelper: IoHelper) {
+  public constructor(ioHelper: ProxyAgentDiagnostics) {
     this.ioHelper = ioHelper;
   }
 
@@ -91,32 +110,49 @@ export class ProxyAgentProvider {
       ? () => Promise.resolve(options.proxyAddress!)
       : undefined;
 
-    const caCert = await this.tryGetCACert(options.caBundlePath);
+    const caBundlePath = await this.resolveCABundlePath(options.caBundlePath);
 
     return {
       agent: new ProxyAgent({
-        ca: caCert,
+        ca: await this.tryReadCABundle(caBundlePath),
         getProxyForUrl,
       }),
-      caCert,
+      caBundlePath,
     };
   }
 
-  private async tryGetCACert(bundlePath?: string) {
-    const path = bundlePath || this.caBundlePathFromEnvironment();
-    if (path) {
-      await this.ioHelper.defaults.debug(`Using CA bundle path: ${path}`);
-      try {
-        if (!fs.pathExistsSync(path)) {
-          return undefined;
-        }
-        return fs.readFileSync(path, { encoding: 'utf-8' });
-      } catch (e: any) {
-        await this.ioHelper.defaults.debug(String(e));
-        return undefined;
-      }
+  /**
+   * Resolve the configured CA bundle to an absolute path, or undefined if there isn't a usable one.
+   *
+   * Absolute because the path is handed to the detached telemetry sender, which runs from a
+   * different working directory.
+   */
+  private async resolveCABundlePath(bundlePath?: string): Promise<string | undefined> {
+    const configured = bundlePath || this.caBundlePathFromEnvironment();
+    if (!configured) {
+      return undefined;
     }
-    return undefined;
+
+    try {
+      const resolved = path.resolve(configured);
+      await this.ioHelper.defaults.debug(`Using CA bundle path: ${resolved}`);
+      return fs.pathExistsSync(resolved) ? resolved : undefined;
+    } catch (e: any) {
+      await this.ioHelper.defaults.debug(String(e));
+      return undefined;
+    }
+  }
+
+  private async tryReadCABundle(bundlePath?: string): Promise<string | undefined> {
+    if (!bundlePath) {
+      return undefined;
+    }
+    try {
+      return fs.readFileSync(bundlePath, { encoding: 'utf-8' });
+    } catch (e: any) {
+      await this.ioHelper.defaults.debug(String(e));
+      return undefined;
+    }
   }
 
   /**

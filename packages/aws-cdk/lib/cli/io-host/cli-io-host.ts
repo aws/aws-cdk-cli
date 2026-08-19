@@ -8,17 +8,16 @@ import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, 
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
-import { cliBinPath } from '../telemetry/cli-bin-path';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
 import { cdkCliErrorName } from '../telemetry/error';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
-import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
 import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { SubprocessTelemetrySink } from '../telemetry/sink/subprocess-sink';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -40,8 +39,8 @@ type CliAction =
 /**
  * How telemetry should reach the network.
  *
- * The endpoint sink does not make the request itself -- it hands off to a detached child process
- * that only has Node built-ins available. That child cannot be given an `Agent`, so the proxy and
+ * The subprocess sink does not make the request itself -- it hands off to a detached child process,
+ * which builds its own agent. An `Agent` cannot cross a process boundary, so the proxy and
  * certificate configuration have to travel as plain data instead.
  */
 export interface TelemetryNetworkOptions {
@@ -53,11 +52,11 @@ export interface TelemetryNetworkOptions {
   readonly proxyUrl?: string;
 
   /**
-   * Contents of the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   * Absolute path to the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
    *
    * @default - only the system trust store
    */
-  readonly caCert?: string;
+  readonly caBundlePath?: string;
 }
 
 export interface CliIoHostProps {
@@ -428,12 +427,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
-        sinks.push(new EndpointTelemetrySink({
+        sinks.push(new SubprocessTelemetrySink({
           ioHost: this,
           endpoint: telemetryEndpoint,
-          binCdkPath: cliBinPath(),
           proxyUrl: network.proxyUrl,
-          caCert: network.caCert,
+          caBundlePath: network.caBundlePath,
         }));
         await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
       } catch (e: any) {

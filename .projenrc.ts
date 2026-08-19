@@ -1454,6 +1454,10 @@ new BundleCli(cli, {
   test: 'bin/cdk --version',
   entryPoints: [
     'lib/index.js',
+    // The detached telemetry sender. A separate entry point so that it stands on its own in the
+    // published package (where `dependencies` are stripped), which is what lets it use the real
+    // `proxy-agent` instead of hand-rolling proxy support out of Node built-ins.
+    'lib/cli/telemetry/sender-bundle.js',
   ],
   minifyWhitespace: true,
 });

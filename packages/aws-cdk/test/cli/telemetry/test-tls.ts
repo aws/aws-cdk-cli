@@ -13,6 +13,14 @@ export interface TestCa {
   readonly caCert: string;
 
   /**
+   * Path to the CA certificate on disk.
+   *
+   * The sender is configured with a bundle PATH rather than its contents, so this is what most
+   * tests actually need. Removed by `cleanupTestCas()`.
+   */
+  readonly caCertPath: string;
+
+  /**
    * PEM contents of the leaf certificate, for the test server.
    */
   readonly serverCert: string;
@@ -47,12 +55,29 @@ export interface TestCaOptions {
 }
 
 /**
+ * Directories created by `generateTestCa`, so they can all be removed at the end of a suite.
+ */
+const generatedDirs: string[] = [];
+
+/**
+ * Remove every directory created by `generateTestCa`. Call from `afterAll`.
+ */
+export function cleanupTestCas(): void {
+  while (generatedDirs.length > 0) {
+    fs.rmSync(generatedDirs.pop()!, { recursive: true, force: true });
+  }
+}
+
+/**
  * Mint a fresh CA and leaf certificate for use by a test HTTPS server.
  *
  * Generated at runtime rather than committed as a fixture: this repository ships no key material,
  * and a checked-in private key would be both a bad precedent and something that expires. This is
  * the same approach the integration tests take (`mockttp.generateCACertificate`), minus the
  * dependency.
+ *
+ * The generated files stay on disk -- the code under test is given a bundle path, not its contents --
+ * until `cleanupTestCas()` removes them.
  *
  * Requires `openssl` on PATH, which is present on every platform this package is tested on.
  */
@@ -63,37 +88,36 @@ export function generateTestCa(options: TestCaOptions = {}): TestCa {
   // The jest setup chdir's into a deliberately read-only directory, so be explicit about where we
   // write.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-telemetry-tls-'));
-  try {
-    const file = (name: string) => path.join(dir, name);
-    const openssl = (...args: string[]) => execFileSync('openssl', args, { cwd: dir, stdio: 'pipe' });
+  generatedDirs.push(dir);
 
-    openssl('req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-days', '3650', '-nodes',
-      '-keyout', file('ca.key'), '-out', file('ca.crt'),
-      '-subj', '/CN=CDK Telemetry Test Root CA',
-      '-addext', 'basicConstraints=critical,CA:TRUE');
+  const file = (name: string) => path.join(dir, name);
+  const openssl = (...args: string[]) => execFileSync('openssl', args, { cwd: dir, stdio: 'pipe' });
 
-    openssl('req', '-newkey', 'rsa:2048', '-nodes',
-      '-keyout', file('server.key'), '-out', file('server.csr'),
-      '-subj', `/CN=${commonName}`);
+  openssl('req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-days', '3650', '-nodes',
+    '-keyout', file('ca.key'), '-out', file('ca.crt'),
+    '-subj', '/CN=CDK Telemetry Test Root CA',
+    '-addext', 'basicConstraints=critical,CA:TRUE');
 
-    fs.writeFileSync(file('server.ext'), [
-      `subjectAltName=${subjectAltName}`,
-      'basicConstraints=CA:FALSE',
-      'extendedKeyUsage=serverAuth',
-      '',
-    ].join('\n'));
+  openssl('req', '-newkey', 'rsa:2048', '-nodes',
+    '-keyout', file('server.key'), '-out', file('server.csr'),
+    '-subj', `/CN=${commonName}`);
 
-    openssl('x509', '-req', '-in', file('server.csr'),
-      '-CA', file('ca.crt'), '-CAkey', file('ca.key'), '-CAcreateserial',
-      '-out', file('server.crt'), '-days', '3650', '-sha256',
-      '-extfile', file('server.ext'));
+  fs.writeFileSync(file('server.ext'), [
+    `subjectAltName=${subjectAltName}`,
+    'basicConstraints=CA:FALSE',
+    'extendedKeyUsage=serverAuth',
+    '',
+  ].join('\n'));
 
-    return {
-      caCert: fs.readFileSync(file('ca.crt'), 'utf-8'),
-      serverCert: fs.readFileSync(file('server.crt'), 'utf-8'),
-      serverKey: fs.readFileSync(file('server.key'), 'utf-8'),
-    };
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  openssl('x509', '-req', '-in', file('server.csr'),
+    '-CA', file('ca.crt'), '-CAkey', file('ca.key'), '-CAcreateserial',
+    '-out', file('server.crt'), '-days', '3650', '-sha256',
+    '-extfile', file('server.ext'));
+
+  return {
+    caCert: fs.readFileSync(file('ca.crt'), 'utf-8'),
+    caCertPath: file('ca.crt'),
+    serverCert: fs.readFileSync(file('server.crt'), 'utf-8'),
+    serverKey: fs.readFileSync(file('server.key'), 'utf-8'),
+  };
 }

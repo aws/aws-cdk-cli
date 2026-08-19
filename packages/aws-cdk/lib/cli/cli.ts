@@ -117,13 +117,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   // Always create and use ProxyAgent to support configuration via env vars
   const proxyUrl: string | undefined = configuration.settings.get(['proxy']);
-  const { agent: proxyAgent, caCert } = await new ProxyAgentProvider(ioHelper).create({
+  const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
     proxyAddress: proxyUrl,
     caBundlePath: configuration.settings.get(['caBundlePath']),
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context, { proxyUrl, caCert });
+    await ioHost.startTelemetry(argv, configuration.context, { proxyUrl, caBundlePath });
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
