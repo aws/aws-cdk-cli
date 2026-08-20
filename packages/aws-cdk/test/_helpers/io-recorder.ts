@@ -39,11 +39,12 @@ function defaultScrubbers(): Scrubber[] {
     // The OS temp dir (tests chdir into a temp dir)
     { pattern: new RegExp(escapeRegExp(fs.realpathSync(os.tmpdir())), 'g'), replacement: '<TMP>' },
     // The random suffix of mkdtemp-created assembly output dirs, e.g.
-    // "/cdk.outAb12Cd". Anchored on the path separator so prose that merely
-    // starts with "cdk.out" is never mangled; mkdtemp dirs always sit directly
-    // under the temp dir, so the separator is always present (and the TMP
-    // scrubber above has already run — scrubbers apply in array order).
-    { pattern: /\/cdk\.out[a-zA-Z0-9]{6}/g, replacement: '/cdk.out<RANDOM>' },
+    // "/cdk.outAb12Cd". Anchored on the path separator (either flavor, and
+    // normalized to '/' so snapshots match cross-platform) so prose that
+    // merely starts with "cdk.out" is never mangled; mkdtemp dirs always sit
+    // directly under the temp dir, so the separator is always present (and
+    // the TMP scrubber above has already run — scrubbers apply in array order).
+    { pattern: /[\\/]cdk\.out[a-zA-Z0-9]{6}/g, replacement: '/cdk.out<RANDOM>' },
   ];
 }
 
