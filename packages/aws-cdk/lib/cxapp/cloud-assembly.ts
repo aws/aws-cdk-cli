@@ -150,11 +150,40 @@ export class CloudAssembly extends BaseStackAssembly {
         if (topLevelStacks.length === 1) {
           return new StackCollection(this, topLevelStacks);
         } else {
-          throw new ToolkitError('NoSelectorGiven', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
-          `Stacks: ${stacks.map(x => x.hierarchicalId).join(' · ')}`);
+          throw new ToolkitError('NoSelectorGiven', noSelectorGivenMessage(topLevelStacks, stacks));
         }
       default:
         throw new ToolkitError('InvalidDefaultBehavior', `invalid default behavior: ${defaultSelection}`);
     }
   }
+}
+
+/**
+ * Build the error message shown when the app has more than one stack but no
+ * selector was given.
+ *
+ * When some of the stacks are nested inside a Stage (i.e. they are not
+ * top-level stacks, their hierarchical id is namespaced like `StageName/StackName`),
+ * we additionally point the user at a wildcard pattern that selects them, e.g.
+ * `'StageName/*'`. Otherwise users are left guessing, since a bare stack name or
+ * `--all` is not the most obvious way to target stacks inside a Stage.
+ */
+export function noSelectorGivenMessage(
+  topLevelStacks: cxapi.CloudFormationStackArtifact[],
+  allStacks: cxapi.CloudFormationStackArtifact[],
+): string {
+  const topLevelSet = new Set(topLevelStacks);
+  const stagedStacks = allStacks.filter(stack => !topLevelSet.has(stack));
+
+  let message = 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+    `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`;
+
+  if (stagedStacks.length > 0) {
+    const stagePatterns = Array.from(new Set(stagedStacks.map(stack => `${stack.hierarchicalId.split('/')[0]}/*`)));
+    message += '\n' +
+      'Some of these stacks are nested inside a Stage. To select the stacks in a Stage, ' +
+      `use a pattern that matches their full path, e.g. ${stagePatterns.map(p => `'${p}'`).join(', ')}`;
+  }
+
+  return message;
 }

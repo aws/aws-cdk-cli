@@ -114,6 +114,30 @@ test('select behavior with nested assemblies: single', async () => {
     .rejects.toThrow('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`');
 });
 
+test('single-stack selection error guides Stage users towards the wildcard pattern', async () => {
+  // GIVEN - an app whose stacks all live inside a Stage (no top-level stacks),
+  // so their hierarchical ids are namespaced like `MyStage/StackName`.
+  const cxasm = await testStagedCloudAssembly();
+
+  // WHEN / THEN - the error should point the user at the pattern that selects
+  // the stacks in that Stage, e.g. `'MyStage/*'`, instead of only suggesting `--all`.
+  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+    .rejects.toThrow('Some of these stacks are nested inside a Stage');
+  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+    .rejects.toThrow(/'MyStage\/\*'/);
+});
+
+test('single-stack selection error without Stages does not mention Stages', async () => {
+  // GIVEN - a flat app with only top-level stacks
+  const cxasm = await testCloudAssembly();
+
+  // WHEN / THEN
+  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+    .rejects.toThrow('Since this app includes more than a single stack');
+  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+    .rejects.not.toThrow('Some of these stacks are nested inside a Stage');
+});
+
 test('select behavior with nested assemblies: repeat', async() => {
   // GIVEN
   const cxasm = await testNestedCloudAssembly();
@@ -285,6 +309,30 @@ async function testCloudAssembly({ env }: { env?: string; versionReporting?: boo
   });
 
   return cloudExec.synthesize();
+}
+
+async function testStagedCloudAssembly() {
+  const cloudExec = await MockCloudExecutable.create({
+    // No top-level stacks: everything lives inside a Stage.
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [
+        {
+          stackName: 'StackA',
+          template: { resource: 'resourceA' },
+          displayName: 'MyStage/StackA',
+        },
+        {
+          stackName: 'StackB',
+          template: { resource: 'resourceB' },
+          displayName: 'MyStage/StackB',
+        },
+      ],
+    }],
+  });
+
+  const asm = await cloudExec.synthesize();
+  return cliAssemblyWithForcedVersion(asm, '30.0.0');
 }
 
 async function testCloudAssemblyNoStacks() {

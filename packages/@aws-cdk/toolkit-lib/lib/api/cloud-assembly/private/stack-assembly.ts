@@ -1,4 +1,5 @@
 import '../../../private/dispose-polyfill';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { major } from 'semver';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import type { IoHelper } from '../../io/private';
@@ -61,8 +62,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
       case StackSelectionStrategy.ONLY_SINGLE:
         if (topLevelStacks.length !== 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('MultipleStacksWithoutSelector', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
-          `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`);
+          throw new ToolkitError('MultipleStacksWithoutSelector', multipleStacksWithoutSelectorMessage(topLevelStacks, allStacks));
         }
         return new StackCollection(this, topLevelStacks);
       default:
@@ -113,6 +113,36 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
     const allStacks = this.selectAllStacks();
     return allStacks.filter((art) => art.validateOnSynth ?? false);
   }
+}
+
+/**
+ * Build the error message shown when the app has more than one stack but a
+ * single-stack selection was requested without a selector.
+ *
+ * When some of the stacks are nested inside a Stage (i.e. they are not
+ * top-level stacks, their hierarchical id is namespaced like `StageName/StackName`),
+ * we additionally point the user at a wildcard pattern that selects them, e.g.
+ * `'StageName/*'`. Otherwise users are left guessing, since a bare stack name or
+ * `--all` is not the most obvious way to target stacks inside a Stage.
+ */
+export function multipleStacksWithoutSelectorMessage(
+  topLevelStacks: cxapi.CloudFormationStackArtifact[],
+  allStacks: cxapi.CloudFormationStackArtifact[],
+): string {
+  const topLevelSet = new Set(topLevelStacks);
+  const stagedStacks = allStacks.filter(stack => !topLevelSet.has(stack));
+
+  let message = 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+    `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`;
+
+  if (stagedStacks.length > 0) {
+    const stagePatterns = Array.from(new Set(stagedStacks.map(stack => `${stack.hierarchicalId.split('/')[0]}/*`)));
+    message += '\n' +
+      'Some of these stacks are nested inside a Stage. To select the stacks in a Stage, ' +
+      `use a pattern that matches their full path, e.g. ${stagePatterns.map(p => `'${p}'`).join(', ')}`;
+  }
+
+  return message;
 }
 
 function expandToExtendEnum(extend?: ExpandStackSelection): CliExtendedStackSelection | undefined {
