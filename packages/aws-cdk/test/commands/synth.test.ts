@@ -11,9 +11,15 @@ import { IoHostRecorder } from '../_helpers/io-recorder';
 // `cdk synth` prints the template of a single selected stack to stdout (or a
 // success message for several stacks) and appends a feature-flags warning with
 // CI/quiet-dependent gating. Its stdout is a scripting surface (must stay valid
-// YAML in CI mode), so these tests run the command end-to-end and snapshot
+// YAML in CI mode), so these tests run `CdkToolkit.synth` and snapshot
 // everything the user sees (via IoHostRecorder) — the committed NDJSON is the
 // assertion for selection, template rendering, message levels and gating.
+//
+// Coverage notes: the cli.ts argument mapping (settings-file `quiet` override,
+// the `--exclusively` branch) sits above the entry point used here and is NOT
+// pinned by these snapshots. Several scenarios are also asserted, spy-style, in
+// test/cli/cdk-toolkit.test.ts describe('synth') — these snapshots are the
+// authoritative record of the user-visible output.
 describe('cdk synth', () => {
   const ioHost = CliIoHost.instance();
   let recorder: IoHostRecorder;
@@ -39,7 +45,6 @@ describe('cdk synth', () => {
   });
 
   afterEach(() => {
-    ioHost.isCI = false;
     recorder.matchSnapshot();
   });
 
@@ -127,7 +132,14 @@ describe('cdk synth', () => {
     // top-level stacks), so the snapshot pins the hierarchical-id handoff.
     await synth({
       stacks: [STACK_A, STACK_B],
-      nestedAssemblies: [{ stacks: [{ ...STACK_WITH_ERROR, metadata: {}, stackName: 'nested', displayName: 'Test-Stack-A/nested' }] }],
+      nestedAssemblies: [{
+        stacks: [{
+          stackName: 'nested',
+          displayName: 'Test-Stack-A/nested',
+          template: { Resources: { TemplateName: 'nested' } },
+          env: 'aws://123456789012/bermuda-triangle-1',
+        }],
+      }],
     }, ['Test-Stack-A-Display-Name', 'Test-Stack-A/nested']);
   });
 
@@ -165,21 +177,21 @@ describe('cdk synth', () => {
   test('explicitly selected stack with error annotations fails synthesis', async () => {
     await expect(synth({
       stacks: [STACK_A, STACK_B],
-      nestedAssemblies: [{ stacks: [{ properties: { validateOnSynth: false }, ...STACK_WITH_ERROR }] }],
+      nestedAssemblies: [{ stacks: [STACK_WITH_ERROR] }],
     }, ['Test-Stack-A/witherrors'], { quiet: true })).rejects.toThrow(/Synthesis finished with errors/);
   });
 
   test('a validateOnSynth stack with errors fails synth when validation is on', async () => {
     await expect(synth({
       stacks: [STACK_A, STACK_B],
-      nestedAssemblies: [{ stacks: [{ properties: { validateOnSynth: true }, ...STACK_WITH_ERROR }] }],
+      nestedAssemblies: [{ stacks: [{ ...STACK_WITH_ERROR, properties: { validateOnSynth: true } }] }],
     }, [], { quiet: true, autoValidate: true })).rejects.toThrow(/Synthesis finished with errors/);
   });
 
   test('a validateOnSynth stack with errors is tolerated with --no-validation', async () => {
     await synth({
       stacks: [STACK_A, STACK_B],
-      nestedAssemblies: [{ stacks: [{ properties: { validateOnSynth: true }, ...STACK_WITH_ERROR }] }],
+      nestedAssemblies: [{ stacks: [{ ...STACK_WITH_ERROR, properties: { validateOnSynth: true } }] }],
     }, [], { quiet: true, autoValidate: false });
   });
 
@@ -191,6 +203,10 @@ describe('cdk synth', () => {
   test('a stage-only app selects no stacks and still succeeds', async () => {
     // Pipeline-style apps have no top-level stacks; the no-pattern MainAssembly
     // default selects nothing and synth must not fail.
+    //
+    // The snapshot deliberately pins the current output as-is, including the
+    // awkward empty-parens "Supply a stack id ()" line — this is a baseline,
+    // not an endorsement; fixing that wording should show up as a snapshot diff.
     await synth({
       stacks: [],
       nestedAssemblies: [{ stacks: [{ ...STACK_B, stackName: 'staged', displayName: 'MyStage/staged' }] }],
@@ -227,7 +243,7 @@ describe('cdk synth', () => {
   test('--ignore-errors tolerates error annotations on a selected stack', async () => {
     await synth({
       stacks: [STACK_A, STACK_B],
-      nestedAssemblies: [{ stacks: [{ properties: { validateOnSynth: false }, ...STACK_WITH_ERROR }] }],
+      nestedAssemblies: [{ stacks: [STACK_WITH_ERROR] }],
     }, ['Test-Stack-A/witherrors'], { quiet: true, ignoreErrors: true });
   });
 });
