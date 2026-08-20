@@ -3,20 +3,128 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 
-export class ActiveAssetCache {
-  private readonly stacks: Set<string> = new Set();
+/**
+ * A multi-pattern substring search index (Aho-Corasick).
+ *
+ * Finds every pattern (from a fixed set) that occurs anywhere in a text, in a
+ * single pass over that text -- O(text.length + sum(pattern.length)) total,
+ * regardless of how many patterns are being searched for. This is what makes
+ * `ActiveAssetCache.containsAny()` scale: checking N asset hashes against M
+ * stack templates costs O(M templates scanned once + N pattern lengths), not
+ * O(N asset hashes x M stacks x template size).
+ */
+class AhoCorasickIndex {
+  private readonly children: Array<Map<string, number>> = [new Map()];
+  private readonly fail: number[] = [0];
+  // Pattern indices whose match ends at this node, INCLUDING those inherited
+  // via the fail-link chain -- so a single lookup at match time is enough.
+  private readonly output: Array<number[]> = [[]];
 
-  public rememberStack(stackTemplate: string) {
-    this.stacks.add(stackTemplate);
+  constructor(private readonly patterns: string[]) {
+    patterns.forEach((pattern, id) => this.insert(pattern, id));
+    this.buildFailureLinks();
   }
 
-  public contains(asset: string): boolean {
-    for (const stack of this.stacks) {
-      if (stack.includes(asset)) {
-        return true;
+  private insert(pattern: string, id: number) {
+    let node = 0;
+    for (const ch of pattern) {
+      let next = this.children[node].get(ch);
+      if (next === undefined) {
+        next = this.children.length;
+        this.children.push(new Map());
+        this.fail.push(0);
+        this.output.push([]);
+        this.children[node].set(ch, next);
+      }
+      node = next;
+    }
+    if (pattern.length > 0) {
+      this.output[node].push(id);
+    }
+  }
+
+  private buildFailureLinks() {
+    const queue: number[] = [];
+    for (const child of this.children[0].values()) {
+      this.fail[child] = 0;
+      queue.push(child);
+    }
+
+    let head = 0;
+    while (head < queue.length) {
+      const node = queue[head++];
+      for (const [ch, child] of this.children[node]) {
+        queue.push(child);
+
+        let f = this.fail[node];
+        while (f !== 0 && !this.children[f].has(ch)) {
+          f = this.fail[f];
+        }
+        const candidate = this.children[f].get(ch);
+        this.fail[child] = candidate !== undefined && candidate !== child ? candidate : 0;
+
+        if (this.output[this.fail[child]].length > 0) {
+          this.output[child] = this.output[child].concat(this.output[this.fail[child]]);
+        }
       }
     }
-    return false;
+  }
+
+  /**
+   * Scans `text` once and adds the (pattern, not id) of every pattern found to `into`.
+   */
+  public search(text: string, into: Set<string>) {
+    let node = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      while (node !== 0 && !this.children[node].has(ch)) {
+        node = this.fail[node];
+      }
+      node = this.children[node].get(ch) ?? 0;
+
+      for (const id of this.output[node]) {
+        into.add(this.patterns[id]);
+      }
+    }
+  }
+}
+
+export class ActiveAssetCache {
+  private readonly stacks: string[] = [];
+
+  public rememberStack(stackTemplate: string) {
+    this.stacks.push(stackTemplate);
+  }
+
+  /**
+   * Whether `asset` occurs anywhere in any remembered stack template.
+   */
+  public contains(asset: string): boolean {
+    return this.containsAny([asset]).has(asset);
+  }
+
+  /**
+   * For a batch of candidate asset identifiers, returns the subset that occur
+   * anywhere in any remembered stack template. Scans every stack template exactly
+   * once no matter how many candidates are passed in -- callers that need to check
+   * many assets (as `cdk gc` does, in batches of up to 1000) should always prefer
+   * this over calling `contains()` in a loop.
+   */
+  public containsAny(assets: string[]): Set<string> {
+    const found = new Set<string>();
+    if (assets.length === 0) {
+      return found;
+    }
+
+    const uniqueAssetCount = new Set(assets).size;
+    const index = new AhoCorasickIndex(assets);
+    for (const stack of this.stacks) {
+      if (found.size === uniqueAssetCount) {
+        break;
+      }
+      index.search(stack, found);
+    }
+    return found;
   }
 }
 
