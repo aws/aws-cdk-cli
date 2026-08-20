@@ -2406,44 +2406,56 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
     await toolkit.synth([], false, false);
 
-    // Separate tests as colorizing hampers detection
-    expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-A-Display-Name');
-    expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-B');
+    // The "Supply a stack id (...)" line lists all selected stacks.
+    // Separate assertions as colorizing hampers detection.
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Test-Stack-A-Display-Name')));
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Test-Stack-B')));
   });
 
   test('with no stdout option', async () => {
     // GIVE
     const toolkit = defaultToolkitSetup();
 
-    // THEN
+    // THEN: resolves. The user-visible output (no template when quiet) is pinned
+    // by the NDJSON snapshots in test/commands/synth.test.ts; the raw notify spy
+    // cannot observe the suppression because it runs before the output listeners.
     await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
-    expect(notifySpy.mock.calls.length).toEqual(0);
   });
 
-  test('single stack synth in CI mode does not pollute stdout with flags message', async () => {
-    // GIVEN
-    ioHost.isCI = true;
-    const toolkit = defaultToolkitSetup();
+  describe('flags message gating in CI mode', () => {
+    let flagsSpy: jest.SpyInstance;
 
-    // WHEN - single stack, quiet=false (template printed to stdout)
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, false);
+    beforeEach(() => {
+      ioHost.isCI = true;
+      flagsSpy = jest.spyOn(Toolkit.prototype, 'flags').mockResolvedValue([]);
+    });
 
-    // THEN - only the template result should be emitted, no warn-level flags message
-    const warnMessages = notifySpy.mock.calls.filter(([msg]) => msg.level === 'warn');
-    expect(warnMessages).toEqual([]);
-  });
+    afterEach(() => {
+      // The suite-level `jest.resetAllMocks()` would leave this prototype spy in
+      // place with no implementation, breaking every later test that shows the
+      // flags message; restore the real method instead.
+      flagsSpy.mockRestore();
+    });
 
-  test('single stack synth in CI mode with quiet shows flags message', async () => {
-    // GIVEN
-    ioHost.isCI = true;
-    const toolkit = defaultToolkitSetup();
+    test('single stack synth in CI mode does not pollute stdout with flags message', async () => {
+      const toolkit = defaultToolkitSetup();
 
-    // WHEN - single stack, quiet=true (no template printed)
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+      // WHEN - single stack, quiet=false (template printed to stdout)
+      await toolkit.synth(['Test-Stack-A-Display-Name'], false, false);
 
-    // THEN - flags message is allowed since stdout is not occupied by the template
-    // (it may or may not appear depending on flag state, but it's not suppressed)
-    // We just verify the synth completes without error
+      // THEN - the template occupies stdout in CI mode, so the flags message is skipped entirely
+      expect(flagsSpy).not.toHaveBeenCalled();
+    });
+
+    test('single stack synth in CI mode with quiet shows flags message', async () => {
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN - single stack, quiet=true (no template printed)
+      await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+
+      // THEN - flags message is allowed since stdout is not occupied by the template
+      expect(flagsSpy).toHaveBeenCalled();
+    });
   });
 
   describe('stack with error and flagged for validation', () => {
@@ -2472,8 +2484,9 @@ describe('synth', () => {
     test('causes synth to succeed if autoValidate=false', async () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = false;
+      // Resolves despite the error annotation on the (unselected) nested stack.
+      // The quiet output contract is pinned by the snapshots in test/commands/synth.test.ts.
       await toolkit.synth([], false, true, autoValidate);
-      expect(notifySpy.mock.calls.filter(([msg]) => msg.level === 'result').length).toBe(0);
     });
   });
 
@@ -2526,8 +2539,16 @@ describe('synth', () => {
 
     await toolkit.synth([MockStack.MOCK_STACK_D.stackName], true, false);
 
-    expect(notifySpy.mock.calls.length).toEqual(1);
-    expect(notifySpy.mock.calls[0][0]).toBeDefined();
+    // The single-stack result (the template) was emitted; exclusively=true means
+    // the dependency was not pulled in, so we did not take the multi-stack path.
+    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Successfully synthesized'), 'result'));
+  });
+
+  test('fails with the historical error message when no stacks match', async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(toolkit.synth(['NoSuchStack'], true, false))
+      .rejects.toThrow(/No stacks match the name\(s\) NoSuchStack/);
   });
 });
 
