@@ -167,7 +167,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
@@ -302,6 +302,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
+          'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'rollback': {
             type: 'boolean',
@@ -345,7 +346,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
           'force': { alias: 'f', type: 'boolean', desc: 'Always deploy stack even if templates are identical', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +

@@ -1,6 +1,34 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
-import { ProxyAgent } from 'proxy-agent';
+import { ProxyAgent, proxies } from 'proxy-agent';
 import type { IoHelper } from '../api-private';
+
+/**
+ * Validate a proxy address up front.
+ *
+ * `proxy-agent` only rejects an address with a missing or unsupported protocol
+ * lazily, on the first request, so without `-vvv` the CLI appears to hang or
+ * fails later with a misleading error (e.g. missing credentials). Fail fast
+ * here with an actionable message instead.
+ */
+export function validateProxyAddress(proxyAddress: string): void {
+  let protocol: string;
+  try {
+    protocol = new URL(proxyAddress).protocol.replace(/:$/, '');
+  } catch {
+    throw new ToolkitError(
+      'InvalidProxyAddress',
+      `Invalid proxy address '${proxyAddress}': it must be a URL that includes a protocol, e.g. 'http://${proxyAddress}'.`,
+    );
+  }
+
+  if (!(protocol in proxies)) {
+    throw new ToolkitError(
+      'InvalidProxyAddress',
+      `Unsupported protocol '${protocol}' in proxy address '${proxyAddress}'. Supported protocols are: ${Object.keys(proxies).join(', ')}.`,
+    );
+  }
+}
 
 /**
  * Options for proxy-agent SDKs
@@ -29,6 +57,14 @@ export class ProxyAgentProvider {
   }
 
   public async create(options: ProxyAgentOptions) {
+    // Only validate when an actual proxy address was configured. When `--proxy`
+    // is not given the setting is unset (and can surface at runtime as an empty
+    // string or empty array), in which case we skip validation and let
+    // ProxyAgent fall back to environment-variable detection.
+    if (typeof options.proxyAddress === 'string' && options.proxyAddress.length > 0) {
+      validateProxyAddress(options.proxyAddress);
+    }
+
     // Force it to use the proxy provided through the command line.
     // Otherwise, let the ProxyAgent auto-detect the proxy using environment variables.
     const getProxyForUrl = options.proxyAddress != null

@@ -55,6 +55,7 @@ const BUNDLING_COMMANDS = [
   Command.WATCH,
   Command.IMPORT,
   Command.PUBLISH_ASSETS,
+  Command.REFACTOR,
 ];
 
 export type Arguments = {
@@ -118,6 +119,7 @@ export class Configuration {
   private readonly commandLineContext: Settings;
   private _projectConfig?: Settings;
   private _projectContext?: Settings;
+  private contextFileBags: Array<{ fileName: string; bag: Settings }> = [];
   private loaded = false;
 
   private ioHelper: IoHelper;
@@ -142,6 +144,16 @@ export class Configuration {
       throw new ToolkitError('ConfigNotLoaded', '#load has not been called yet!');
     }
     return this._projectContext;
+  }
+
+  /**
+   * The names of the context files that currently contain at least one
+   * context value, in lookup precedence order.
+   */
+  public get contextSourceFiles(): string[] {
+    return this.contextFileBags
+      .filter(({ bag }) => Object.keys(bag.all).length > 0)
+      .map(({ fileName }) => fileName);
   }
 
   /**
@@ -175,6 +187,7 @@ export class Configuration {
     }
 
     this.context = new Context(...contextSources);
+    this.contextFileBags = contextSources.filter((s): s is { fileName: string; bag: Settings } => s.fileName != null);
 
     // Build settings from what's left
     const mergedSettings = this.defaultConfig

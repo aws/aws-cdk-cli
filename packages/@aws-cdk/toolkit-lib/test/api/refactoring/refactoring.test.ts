@@ -421,6 +421,38 @@ describe(computeResourceDigests, () => {
     }
   });
 
+  test('other metadata still contributes to the digest, and the input is not modified', () => {
+    const makeTemplate = (assetPath: string) => ({
+      Resources: {
+        Q1: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { Foo: 'Bar' },
+          Metadata: {
+            'aws:cdk:path': 'Stack/Q1/Resource',
+            'aws:asset:path': assetPath,
+          },
+        },
+      },
+    });
+
+    const template = makeTemplate('asset.1234');
+    const stacks = makeStacks([template]);
+    const digest = computeResourceDigests(stacks)['Stack1.Q1'];
+
+    // Metadata other than the construct path is part of the digest
+    const other = computeResourceDigests(makeStacks([makeTemplate('asset.5678')]))['Stack1.Q1'];
+    expect(digest).not.toBe(other);
+
+    // Computing the digest leaves the caller's template alone
+    expect(template.Resources.Q1.Metadata).toEqual({
+      'aws:cdk:path': 'Stack/Q1/Resource',
+      'aws:asset:path': 'asset.1234',
+    });
+
+    // ...and is stable across repeated calls
+    expect(computeResourceDigests(stacks)['Stack1.Q1']).toBe(digest);
+  });
+
   test('different physical IDs lead to different digests', () => {
     mockLoadResourceModel.mockReturnValue({
       primaryIdentifier: ['FooName'],
