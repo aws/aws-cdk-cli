@@ -1868,8 +1868,8 @@ in `build` will be executed by the "watch" process before deployment.
 The following environment variables affect aws-cdk:
 
 - `COLUMNS`: When the CLI cannot detect the terminal width (for example, when output is piped or running in CI), this standard variable is used as the rendering width for `cdk diff` tables. If unset, tables render at their natural width.
-- `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_DISABLE_CLI_TELEMETRY`: If set to `true`, disable CLI telemetry collection (see [`cdk cli-telemetry`](#cdk-cli-telemetry)).
+- `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
 - `CDK_ROLE_SESSION_NAME`: customize the session name used when the CLI assumes a role (for example `cdk-hnb659fds-deploy-role`). When unset, the CLI defaults to `aws-cdk-<username>`. Useful for attributing deployments in CloudTrail when running from a CI/CD pipeline.
 - `CDK_TELEMETRY_SENDER_DEBUG`: If set to `1`, print diagnostics from telemetry delivery. Telemetry is

@@ -9,6 +9,6 @@ integTest(
     expect(output).not.toContain('Telemetry dispatched');
 
     // Check the trace that endpoint telemetry was never connected
-    expect(output).toContain('Endpoint Telemetry NOT connected');
+    expect(output).toContain('Telemetry disabled');
   }),
 );

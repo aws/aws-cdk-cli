@@ -3,6 +3,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import * as mockttp from 'mockttp';
+import { sleep } from './aws';
 
 /**
  * A local stand-in for the telemetry endpoint.
@@ -166,6 +167,10 @@ export async function startBlackHoleEndpoint(): Promise<BlackHoleEndpoint> {
 
 /**
  * Poll `fn` until it returns something truthy, or give up after `timeoutMs`.
+ *
+ * Deliberately not `eventually` from `./eventually`: that one retries until a call stops THROWING and
+ * rethrows on give-up, whereas both callers here want "returned nothing within the deadline" to be a
+ * plain undefined they can assert on.
  */
 export async function waitFor<A>(fn: () => Promise<A | undefined>, timeoutMs: number): Promise<A | undefined> {
   const deadline = Date.now() + timeoutMs;
@@ -174,7 +179,7 @@ export async function waitFor<A>(fn: () => Promise<A | undefined>, timeoutMs: nu
     if (result) {
       return result;
     }
-    await new Promise((ok) => setTimeout(ok, 500));
+    await sleep(500);
   }
   return undefined;
 }

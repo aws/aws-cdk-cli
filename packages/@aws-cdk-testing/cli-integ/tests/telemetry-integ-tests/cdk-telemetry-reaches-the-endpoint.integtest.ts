@@ -17,7 +17,7 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const endpoint = await startTelemetryEndpoint({ certDirRoot: fixture.integTestDir });
     try {
-      const output = await fixture.cdkSynth({
+      await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
           '--ca-bundle-path', endpoint.caBundlePath,
@@ -28,8 +28,6 @@ integTest(
         },
         verboseLevel: 3, // trace
       });
-
-      expect(output).toContain('Endpoint Telemetry connected');
 
       // Delivery happens after the CLI exits, so poll rather than asserting immediately.
       const batch = await endpoint.waitForBatch();
@@ -42,8 +40,7 @@ integTest(
       }));
 
       // The certificate must have travelled as a path, not as bytes in the payload: a real system
-      // bundle is ~190KB, and inlining it used to push every batch over a size cap and get it
-      // dropped.
+      // bundle is ~190KB, and inlining it would tie every batch's size to the CA bundle's.
       expect(JSON.stringify(batch)).not.toContain('BEGIN CERTIFICATE');
     } finally {
       await endpoint.dispose();

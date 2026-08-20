@@ -10,7 +10,7 @@ import { cleanupTestCas, generateTestCa, type TestCa } from '../test-tls';
 import { createTestEvent } from './util';
 import { CliIoHost } from '../../../../lib/cli/io-host';
 import { cliRootDir } from '../../../../lib/cli/root-dir';
-import { SubprocessTelemetrySink } from '../../../../lib/cli/telemetry/sink/subprocess-sink';
+import { DISPATCHED_TRACE, SubprocessTelemetrySink } from '../../../../lib/cli/telemetry/sink/subprocess-sink';
 
 // The sink hands the payload to a detached child process rather than making the request itself, so
 // this is the boundary to observe. Only `spawn` is replaced -- the rest of the module is still needed
@@ -23,9 +23,36 @@ jest.mock('node:child_process', () => ({
 const ENDPOINT = 'https://example.com/telemetry';
 
 interface FakeChild {
-  pid: number;
+  /**
+   * `undefined` is how libuv reports a spawn it refused: no throw, no pid.
+   */
+  pid: number | undefined;
   on: jest.Mock;
   unref: jest.Mock;
+}
+
+let child: FakeChild;
+
+/**
+ * The handler the sink registered for the child's `error` event.
+ *
+ * Node reports a refused spawn there rather than by throwing, so this is the only way to drive that
+ * path.
+ */
+function errorHandler(): (e: Error) => void {
+  const registered = child.on.mock.calls.filter(([event]) => event === 'error');
+  expect(registered).toHaveLength(1);
+  return registered[0][1];
+}
+
+/**
+ * The payload path the sink passed to the child on its most recent spawn, whether or not that spawn
+ * succeeded. Unlike `dispatched()` this does not read the file, so it survives the failure paths.
+ */
+function spawnedPayloadPath(): string {
+  const calls = (spawn as jest.Mock).mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][1][1];
 }
 
 /**
@@ -43,7 +70,6 @@ function dispatched(): { senderPath: string; payloadPath: string; config: any } 
 describe('SubprocessTelemetrySink', () => {
   let ioHost: CliIoHost;
   let traces: string[];
-  let child: FakeChild;
   const written: string[] = [];
 
   beforeAll(() => {
@@ -146,7 +172,7 @@ describe('SubprocessTelemetrySink', () => {
       await client.flush();
       written.push((spawn as jest.Mock).mock.calls[0][1][1]);
 
-      expect(traces.some((t) => t.includes('Telemetry dispatched') && t.includes('pid 4242'))).toBe(true);
+      expect(traces.some((t) => t.includes(DISPATCHED_TRACE) && t.includes('pid 4242'))).toBe(true);
     });
 
     test('dispatches without first probing the network', async () => {
@@ -163,9 +189,9 @@ describe('SubprocessTelemetrySink', () => {
 
   describe('network configuration', () => {
     test('forwards the CA bundle PATH, never its contents', async () => {
-      // Regression: the sink used to inline the certificate itself. A real system bundle is ~190KB,
-      // which blew past the old 64KB payload cap and silently dropped every batch for anybody using
-      // a corporate proxy.
+      // The invariant: what crosses the process boundary is a path, so the payload's size is
+      // independent of the CA bundle's. A real system bundle is ~190KB, and inlining it would make
+      // every batch carry that -- for a value the child can read off disk itself.
       const ca = generateTestCa();
       const client = sink({ caBundlePath: ca.caCertPath, proxyUrl: 'http://corp:8080' });
       await client.emit(createTestEvent('INVOKE'));
@@ -211,9 +237,10 @@ describe('SubprocessTelemetrySink', () => {
   });
 
   describe('payload size', () => {
-    test('hands over a batch far larger than the old 64KB cap', async () => {
-      // Regression: anything over 64KB used to be dropped outright, because it was written to the
-      // child's stdin and would have blocked our own exit. A file has no such limit.
+    test('hands over a large batch whole, with no size ceiling', async () => {
+      // The hand-off goes through a file precisely so that batch size is not bounded: a pipe would
+      // block our own exit once the payload outgrew the OS buffer, which is the wait this sink
+      // exists to avoid. 64KB is a typical pipe buffer, so exceeding it is the meaningful threshold.
       const client = sink();
       for (let i = 0; i < 400; i++) {
         await client.emit(createTestEvent('INVOKE'));
@@ -230,31 +257,73 @@ describe('SubprocessTelemetrySink', () => {
   });
 
   describe('failure handling', () => {
-    test('logs a spawn failure once and does not retain the batch', async () => {
-      // Delivery is one-shot: the process that would retry has usually exited by now, so retaining
-      // the batch would only re-report the same failure and regrow it on the next interval.
-      (spawn as jest.Mock).mockImplementation(() => {
-        throw new Error('EMFILE: too many open files');
-      });
+    test('a refused spawn is reported as a failure, not as a dispatch', async () => {
+      // Node does NOT throw when it refuses a spawn (ENOENT, EACCES, EMFILE); it reports on the
+      // child's `error` event, which fires after the hand-off has already returned. What it does do
+      // synchronously is leave `pid` unset. Without a check for that, this path traced a successful
+      // dispatch with `pid undefined` and the batch was silently counted as sent.
+      child.pid = undefined;
 
       const client = sink();
       await client.emit(createTestEvent('INVOKE'));
       await client.emit(createTestEvent('INVOKE'));
       await expect(client.flush()).resolves.toBeUndefined();
 
-      expect(traces.filter((t) => t.includes('EMFILE'))).toHaveLength(1);
-      // No fallback runs, so the trace is the only record that these events ever existed.
+      expect(traces.some((t) => t.includes(DISPATCHED_TRACE))).toBe(false);
       expect(traces.some((t) => t.includes('Dropped 2 event(s)'))).toBe(true);
+      expect(fs.existsSync(spawnedPayloadPath())).toBe(false);
+    });
 
-      // Dropped, so a second flush has nothing left to send.
-      (spawn as jest.Mock).mockReturnValue(child);
+    test('a refused spawn does not retain the batch', async () => {
+      // Delivery is one-shot: the process that would retry has usually exited by now, so retaining
+      // the batch would only re-report the same failure and regrow it on the next interval.
+      child.pid = undefined;
+
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await expect(client.flush()).resolves.toBeUndefined();
+      expect(traces.filter((t) => t.includes('Dropped'))).toHaveLength(1);
+
+      child.pid = 4242;
       await client.flush();
+
       expect(spawn as jest.Mock).toHaveBeenCalledTimes(1);
     });
 
-    test('logs once and drops the batch when the sender cannot be located', async () => {
+    test("the child's 'error' handler removes the payload file", async () => {
+      // The residual case: the spawn was accepted synchronously but failed afterwards, by which time
+      // the CLI may have exited. Nothing else runs, so if this handler does not clean up, every such
+      // failure leaks a payload file into the temp directory.
       const client = sink();
-      (client as any).senderPath = undefined;
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      const payloadPath = spawnedPayloadPath();
+      expect(fs.existsSync(payloadPath)).toBe(true);
+
+      errorHandler()(new Error('EACCES: permission denied'));
+
+      expect(fs.existsSync(payloadPath)).toBe(false);
+    });
+
+    test('a synchronous throw from spawn is handled too', async () => {
+      // Defensive: the realistic refusals are asynchronous (see above), but argument validation can
+      // still throw here, and it must not escape onto the CLI's exit path.
+      (spawn as jest.Mock).mockImplementation(() => {
+        throw new Error('EINVAL: invalid argument');
+      });
+
+      const client = sink();
+      await client.emit(createTestEvent('INVOKE'));
+      await expect(client.flush()).resolves.toBeUndefined();
+
+      expect(traces.filter((t) => t.includes('EINVAL'))).toHaveLength(1);
+      expect(traces.some((t) => t.includes('Dropped 1 event(s)'))).toBe(true);
+      expect(fs.existsSync(spawnedPayloadPath())).toBe(false);
+    });
+
+    test('logs once and drops the batch when the sender cannot be located', async () => {
+      const client = sink({ resolveSender: () => undefined });
       await client.emit(createTestEvent('INVOKE'));
 
       await expect(client.flush()).resolves.toBeUndefined();
@@ -266,21 +335,6 @@ describe('SubprocessTelemetrySink', () => {
       // Not retained: this never starts working mid-process, so retrying every 30s is pure noise.
       await client.flush();
       expect(traces.filter((t) => t.includes('Unable to locate the telemetry sender'))).toHaveLength(1);
-    });
-
-    test('does not leave the payload file behind when the spawn fails', async () => {
-      const paths: string[] = [];
-      (spawn as jest.Mock).mockImplementation((_cmd: string, args: string[]) => {
-        paths.push(args[1]);
-        throw new Error('ENOENT');
-      });
-
-      const client = sink();
-      await client.emit(createTestEvent('INVOKE'));
-      await client.flush();
-
-      expect(paths).toHaveLength(1);
-      expect(fs.existsSync(paths[0])).toBe(false);
     });
 
     test('rejects an endpoint with no host at construction', () => {
@@ -367,7 +421,10 @@ describe('sender-bundle entry point', () => {
     await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
     const port = (server.address() as net.AddressInfo).port;
     return {
-      url: `https://localhost:${port}/metrics`,
+      // Connect by IP, matching the bind address. Nothing here asserts on the hostname, and resolving
+      // `localhost` to ::1 first -- which Node 18+ does on a dual-stack box -- would ECONNREFUSED
+      // against a listener bound only to 127.0.0.1. Covered by the certificate's `IP:127.0.0.1` SAN.
+      url: `https://127.0.0.1:${port}/metrics`,
       received,
       close: () => new Promise<void>((ok) => {
         for (const socket of sockets) {
@@ -495,11 +552,10 @@ describe('sender-bundle entry point', () => {
     }, 60_000);
   });
 
-  test('delivers with a CA bundle far larger than the old payload cap', async () => {
-    // The regression that made this whole change necessary: the certificate used to be inlined into
-    // the payload, which was then measured against a 64KB cap and dropped when it did not fit. A real
-    // system bundle is a concatenation of a few hundred certificates -- around 190KB -- so every
-    // invocation with `--ca-bundle-path` set lost its telemetry, silently.
+  test('delivers with a CA bundle much larger than the payload itself', async () => {
+    // The invariant that lets this work: the payload carries the bundle's PATH, so the child reads a
+    // ~190KB system bundle (a concatenation of a few hundred certificates) off disk itself and the
+    // payload stays small. Inlining the certificate would tie every batch's size to the CA bundle's.
     const endpoint = await startEndpoint();
     const bundlePath = path.join(cdkHome, 'big-bundle.pem');
 
@@ -517,6 +573,11 @@ describe('sender-bundle entry point', () => {
       caBundlePath: bundlePath,
       timeoutMs: 10_000,
     });
+
+    // The invariant itself: a 128KB bundle leaves the payload tiny, because only the path travels.
+    const payloadSize = fs.statSync(payloadPath).size;
+    expect(payloadSize).toBeLessThan(4096);
+    expect(fs.readFileSync(payloadPath, 'utf-8')).not.toContain('BEGIN CERTIFICATE');
 
     try {
       await expect(runSender(payloadPath)).resolves.toBe(0);

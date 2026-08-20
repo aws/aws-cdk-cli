@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { IoHelper } from '../../../api-private';
+import { ToolkitError } from '../../../toolkit-error';
 import type { IIoHost } from '../../io-host';
 import { cliRootDir } from '../../root-dir';
 import type { TelemetryBatch } from '../post-telemetry';
@@ -20,7 +20,7 @@ const SENDER_ENTRY_POINT = path.join('lib', 'cli', 'telemetry', 'sender-bundle.j
 /**
  * Reports a successful hand-off, NOT a successful delivery. Integration tests match on this literal.
  */
-const DISPATCHED_TRACE = 'Telemetry dispatched';
+export const DISPATCHED_TRACE = 'Telemetry dispatched';
 
 /**
  * Properties for the subprocess telemetry sink.
@@ -49,6 +49,16 @@ export interface SubprocessTelemetrySinkProps {
    * @default - only the system trust store
    */
   readonly caBundlePath?: string;
+
+  /**
+   * How to locate the bundled sender entry point.
+   *
+   * Injectable so a test can exercise the missing-sender path without reaching into this object's
+   * privates; returning undefined is what "not on disk" looks like.
+   *
+   * @default - looked up relative to this package's root
+   */
+  readonly resolveSender?: () => string | undefined;
 }
 
 /**
@@ -76,7 +86,7 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
     }
 
     this.ioHelper = IoHelper.fromActionAwareIoHost(props.ioHost);
-    this.senderPath = resolveSenderPath();
+    this.senderPath = (props.resolveSender ?? resolveSenderPath)();
     this.proxyUrl = props.proxyUrl;
     this.caBundlePath = props.caBundlePath;
 
@@ -150,11 +160,20 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
         cwd: os.tmpdir(),
       });
 
-      // Fires after the CLI may already have exited, so it cannot go through the IoHost.
+      // Fires after the CLI may already have exited, so it cannot go through the IoHost. Still the
+      // only notification for a spawn that is refused after this method returns.
       child.on('error', (e: Error) => {
         debugTrace(`failed to spawn sender: ${e.message}`);
         tryUnlink(payloadPath);
       });
+
+      // Node reports a refused spawn (ENOENT, EACCES, EMFILE) on that `error` event, which fires
+      // after this method has already returned -- it does NOT throw here. libuv does leave `pid`
+      // unset synchronously though, so this is the one point where the failure can still be reported
+      // as one. Without it the batch is counted as handed off and traced with `pid undefined`.
+      if (child.pid === undefined) {
+        throw new ToolkitError('SpawnRefused', 'the sender process was never created');
+      }
 
       child.unref();
 

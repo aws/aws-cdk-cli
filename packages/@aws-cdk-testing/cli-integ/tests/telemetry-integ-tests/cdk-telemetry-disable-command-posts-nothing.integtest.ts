@@ -3,18 +3,25 @@ import { integTest, sleep, withDefaultFixture } from '../../lib';
 import { startTelemetryEndpoint } from '../../lib/telemetry-endpoint';
 
 /**
- * Opting out via the environment has to actually stop the data leaving the machine.
+ * Opting out via the persisted setting has to actually stop the data leaving the machine.
  *
- * The other disable tests assert on the CLI's own trace output, which only proves the sink was never
- * constructed. This points `TELEMETRY_ENDPOINT` at a real local server and proves nothing is POSTed
- * to it -- including by the detached child, which outlives the CLI and would therefore not show up in
- * its output at all.
+ * `cli-telemetry --disable` writes to the CDK context rather than reading an environment variable, so
+ * it reaches the same decision by a different route than
+ * `cdk-telemetry-disabled-posts-nothing`. Proven the same way: a real local endpoint, and nothing
+ * POSTed to it by the CLI or by the detached child that outlives it.
  */
 integTest(
-  'CDK_DISABLE_CLI_TELEMETRY posts nothing to the endpoint',
+  'cli-telemetry --disable posts nothing to the endpoint',
   withDefaultFixture(async (fixture) => {
     const endpoint = await startTelemetryEndpoint({ certDirRoot: fixture.integTestDir });
     try {
+      await fixture.cdk(['cli-telemetry', '--disable'], {
+        modEnv: {
+          CDK_HOME: fixture.integTestDir,
+          TELEMETRY_ENDPOINT: endpoint.url,
+        },
+      });
+
       const output = await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
@@ -23,7 +30,6 @@ integTest(
         modEnv: {
           CDK_HOME: fixture.integTestDir,
           TELEMETRY_ENDPOINT: endpoint.url,
-          CDK_DISABLE_CLI_TELEMETRY: 'true',
         },
         verboseLevel: 3, // trace
       });

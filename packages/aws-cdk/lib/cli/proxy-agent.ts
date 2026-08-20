@@ -31,17 +31,21 @@ export function validateProxyAddress(proxyAddress: string): void {
 }
 
 /**
- * Coerce the raw `proxy` setting into a value the rest of the CLI can rely on.
+ * Coerce a raw network setting into a value the rest of the CLI can rely on.
  *
- * `Settings.get()` is untyped and surfaces an unset `--proxy` as either `undefined` or an empty
- * array, depending on how it was parsed. An empty STRING is a different thing: `--proxy ''` means
- * "go direct, ignore the proxy environment variables", so it has to survive normalization. Anything
- * that is not a string counts as unconfigured, which is what makes the environment the fallback.
+ * `Settings.get()` is untyped and surfaces an unset `--proxy` or `--ca-bundle-path` as either
+ * `undefined` or an empty array, depending on how it was parsed. An empty STRING is a different
+ * thing: `--proxy ''` means "go direct, ignore the proxy environment variables", so it has to survive
+ * normalization. Anything that is not a string counts as unconfigured, which is what makes the
+ * environment the fallback.
  *
- * Applied at the point the setting enters typed code, because the value now also crosses a process
- * boundary into the detached telemetry sender, which has no access to the settings to re-derive it.
+ * Applied at the point these settings enter typed code, for two reasons. An empty array is truthy, so
+ * it slips past every `if (value)` guard downstream and then fails somewhere unhelpful --
+ * `path.resolve([])` throws a `TypeError` that the CA-bundle resolver swallows, silently discarding
+ * the bundle. And both values now cross a process boundary into the detached telemetry sender, which
+ * has no access to the settings to re-derive them.
  */
-export function normalizeProxyAddress(raw: unknown): string | undefined {
+export function normalizeNetworkSetting(raw: unknown): string | undefined {
   return typeof raw === 'string' ? raw : undefined;
 }
 
@@ -105,7 +109,7 @@ export class ProxyAgentProvider {
   }
 
   public async create(options: ProxyAgentOptions): Promise<ResolvedProxyAgent> {
-    const proxyAddress = normalizeProxyAddress(options.proxyAddress);
+    const proxyAddress = normalizeNetworkSetting(options.proxyAddress);
 
     // Only a non-empty address is a proxy to validate. An empty one is a configured "go direct".
     if (proxyAddress) {
@@ -119,7 +123,7 @@ export class ProxyAgentProvider {
       ? () => Promise.resolve(proxyAddress)
       : undefined;
 
-    const caBundlePath = await this.resolveCABundlePath(options.caBundlePath);
+    const caBundlePath = await this.resolveCABundlePath(normalizeNetworkSetting(options.caBundlePath));
 
     return {
       agent: new ProxyAgent({

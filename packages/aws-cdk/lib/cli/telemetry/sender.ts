@@ -6,8 +6,11 @@ import type { ProxyAgentDiagnostics } from '../proxy-agent';
 import { ProxyAgentProvider } from '../proxy-agent';
 
 /**
- * Budget for the delivery attempt. Far larger than the in-process sink's 500ms, which exists only to
- * keep a blocking POST from delaying the user's prompt.
+ * Budget for the delivery attempt.
+ *
+ * Generous because nothing is waiting on it: this process is detached and the CLI has already exited,
+ * so the only thing a longer timeout costs is a background process living a little longer. It has to
+ * cover a proxy handshake plus the POST on a loaded machine.
  */
 const NETWORK_TIMEOUT_MS = 10_000;
 
@@ -53,10 +56,7 @@ export interface TelemetrySenderConfig {
  * Returns the status code for the caller to judge, and lets failures reject: every outcome is handled
  * in one place, in the entry point.
  */
-export async function sendTelemetry(
-  cfg: TelemetrySenderConfig,
-  diagnostics: ProxyAgentDiagnostics = senderDiagnostics,
-): Promise<number | undefined> {
+export async function sendTelemetry(cfg: TelemetrySenderConfig): Promise<number | undefined> {
   if (!cfg?.endpoint) {
     throw new ToolkitError('NoEndpoint', 'No telemetry endpoint was given');
   }
@@ -65,7 +65,7 @@ export async function sendTelemetry(
 
   // The provider the CLI itself uses, so the child routes the way the parent would have, including
   // SOCKS and PAC proxies and NO_PROXY from the inherited environment.
-  const { agent } = await new ProxyAgentProvider(diagnostics).create({
+  const { agent } = await new ProxyAgentProvider(senderDiagnostics).create({
     proxyAddress: cfg.proxyUrl,
     caBundlePath: cfg.caBundlePath,
   });
@@ -73,7 +73,6 @@ export async function sendTelemetry(
   const res = await postTelemetry(url, cfg.body ?? { events: [] }, {
     agent,
     timeoutMs: cfg.timeoutMs ?? NETWORK_TIMEOUT_MS,
-    closeConnection: true,
   });
 
   // Drain, or the socket is never released.

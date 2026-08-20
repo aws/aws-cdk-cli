@@ -432,12 +432,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
           proxyUrl: network.proxyUrl,
           caBundlePath: network.caBundlePath,
         }));
-        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
+        await this.asIoHelper().defaults.trace('Telemetry sink registered');
       } catch (e: any) {
-        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+        await this.asIoHelper().defaults.trace(`Telemetry sink registration failed: ${e.message}`);
       }
     } else {
-      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
+      await this.asIoHelper().defaults.trace('Telemetry disabled');
     }
 
     if (sinks.length > 0) {

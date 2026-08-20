@@ -12,7 +12,7 @@ import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
-import { normalizeProxyAddress, ProxyAgentProvider } from './proxy-agent';
+import { normalizeNetworkSetting, ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
@@ -116,10 +116,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     });
 
   // Always create and use ProxyAgent to support configuration via env vars
-  const proxyUrl = normalizeProxyAddress(configuration.settings.get(['proxy']));
+  const proxyUrl = normalizeNetworkSetting(configuration.settings.get(['proxy']));
   const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
     proxyAddress: proxyUrl,
-    caBundlePath: configuration.settings.get(['caBundlePath']),
+    caBundlePath: normalizeNetworkSetting(configuration.settings.get(['caBundlePath'])),
   });
 
   try {

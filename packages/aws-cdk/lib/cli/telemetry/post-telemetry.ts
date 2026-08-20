@@ -27,16 +27,6 @@ export interface PostTelemetryOptions {
    * Abort the attempt if the request has not completed within this many milliseconds.
    */
   readonly timeoutMs: number;
-
-  /**
-   * Ask the server to close the connection once it has responded.
-   *
-   * Set by the detached sender, which makes one request and exits; otherwise the response leaves a
-   * usable keep-alive socket in the agent's pool.
-   *
-   * @default false - leave connection reuse to the agent
-   */
-  readonly closeConnection?: boolean;
 }
 
 /**
@@ -60,7 +50,9 @@ export function postTelemetry(
       headers: {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(payload),
-        ...options.closeConnection ? { connection: 'close' } : {},
+        // The only caller makes one request and exits, so a keep-alive socket left in the agent's
+        // pool would just be something else holding the process open.
+        'connection': 'close',
       },
       agent: options.agent,
       timeout: options.timeoutMs,

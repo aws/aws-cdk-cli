@@ -58,6 +58,9 @@ async function startEndpoint(ca: TestCa, options: { statusCode?: number; urlHost
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const port = (server.address() as net.AddressInfo).port;
   return {
+    // Deliberately a hostname by default: the NO_PROXY and CONNECT-target tests below asserts on it.
+    // Tests that do not care about the hostname pass `urlHost: '127.0.0.1'` to avoid depending on how
+    // `localhost` resolves.
     url: `https://${options.urlHost ?? 'localhost'}:${port}/metrics`,
     received,
     close: shutdown(server, sockets),
@@ -229,7 +232,10 @@ async function startStalledEndpoint(ca: TestCa): Promise<Endpoint> {
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const port = (server.address() as net.AddressInfo).port;
   return {
-    url: `https://localhost:${port}/metrics`,
+    // Connect by IP, matching the bind address. No test here cares about the hostname, and resolving
+    // `localhost` to ::1 first -- which Node 18+ does on a dual-stack box -- would ECONNREFUSED
+    // against a listener bound only to 127.0.0.1. Covered by the certificate's `IP:127.0.0.1` SAN.
+    url: `https://127.0.0.1:${port}/metrics`,
     received: [],
     close: shutdown(server, sockets),
   };
