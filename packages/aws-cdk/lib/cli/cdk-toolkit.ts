@@ -61,7 +61,6 @@ import {
   deserializeStructure,
   formatErrorMessage,
   formatTime,
-  obscureTemplate,
   partition,
   serializeStructure,
   validateSnsTopicArn,
@@ -1113,32 +1112,64 @@ export class CdkToolkit {
     autoValidate?: boolean,
     json?: boolean,
   ): Promise<any> {
-    const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
+    // Stack selection stays CLI-side to preserve the historical semantics and error
+    // messages exactly: the MainAssembly default (including the empty selection for
+    // stage-only apps, which toolkit-lib's MAIN_ASSEMBLY strategy rejects), and
+    // 'NoStacksMatched' with the autoValidate nuance. The CloudExecutable caches the
+    // assembly, so the app synthesizes once here and the toolkit-lib call below
+    // reuses the cached result.
+    const assembly = await this.assembly();
+    const selected = await this.selectStacksByPattern(assembly, stackNames, exclusively);
+    const autoValidateStacks = autoValidate
+      ? (await this.selectStacksForList([])).filter((art) => art.validateOnSynth ?? false)
+      : new StackCollection(assembly, []);
+    this.validateStacksSelected(selected.concat(autoValidateStacks), stackNames);
 
-    // if we have a single stack, print it to STDOUT
-    if (stacks.stackCount === 1) {
-      if (!quiet) {
-        await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
-      }
+    // Validation and result emission run through toolkit-lib; listeners map its
+    // messages onto the historical `cdk synth` output (cf. list/metadata/destroy).
+    this.ioHost.once(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true }));
+    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
+    // Single stack: the historical output is the (already obscured) template on
+    // stdout — or nothing at all when quiet — never the success message.
+    this.ioHost.once(IO.CDK_TOOLKIT_I1901, (msg) => quiet
+      ? { preventDefault: true }
+      : { message: (json ?? false) ? msg.data.stack.stringifiedJson : msg.data.stack.stringifiedYaml });
+    // The multi-stack success line was historically `info` (stderr in non-CI), not `result`.
+    this.ioHost.once(IO.CDK_TOOLKIT_I1902, () => ({ level: 'info' }));
 
+    let cx;
+    try {
+      cx = await this.toolkit.synth(this.props.cloudExecutable, {
+        // Selection already happened above; pass the exact hierarchical ids through
+        // (escaped, because toolkit-lib re-matches patterns as globs and ids are
+        // unrestricted strings) so toolkit-lib renders precisely the CLI-selected
+        // set. Expansion, if any, is already applied, and an empty id list yields
+        // the historical empty selection for stage-only apps.
+        stacks: {
+          strategy: StackSelectionStrategy.PATTERN_MATCH,
+          patterns: selected.hierarchicalIds.map(escapeGlobMetaCharacters),
+          expand: ExpandStackSelection.NONE,
+        },
+        validateStacks: autoValidate ?? false,
+      });
+    } finally {
+      this.ioHost.removeAllListeners();
+    }
+
+    try {
       // In CI mode, non-error messages go to stdout. When we just printed the
       // template to stdout, skip the flags message to preserve the contract that
       // `cdk synth` output is valid YAML. When quiet (no template printed) or
       // non-CI (flags go to stderr), it's safe to show.
-      if (quiet || !this.ioHost.isCI) {
+      if (selected.stackCount !== 1 || quiet || !this.ioHost.isCI) {
         await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
       }
       return undefined;
+    } finally {
+      // Toolkit.synth's caller owns the returned assembly (disposal is a no-op for
+      // the CLI's borrowed assembly, but required by the contract).
+      await cx.dispose();
     }
-
-    // not outputting template to stdout, let's explain things to the user a little bit...
-    await this.ioHost.asIoHelper().defaults.info(chalk.green(`Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`));
-    await this.ioHost.asIoHelper().defaults.info(
-      `Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`,
-    );
-
-    await displayFlagsMessage(this.ioHost.asIoHelper(), this.toolkit, this.props.cloudExecutable);
-    return undefined;
   }
 
   /**
@@ -1408,27 +1439,35 @@ export class CdkToolkit {
   private async selectStacksForDiff(
     stackNames: string[],
     exclusively?: boolean,
-    autoValidate?: boolean,
   ): Promise<StackCollection> {
     const assembly = await this.assembly();
 
-    const selectedForDiff = await assembly.selectStacks(
+    const selectedForDiff = await this.selectStacksByPattern(assembly, stackNames, exclusively);
+
+    this.validateStacksSelected(selectedForDiff, stackNames);
+    await this.validateStacks(assembly, selectedForDiff);
+
+    return selectedForDiff;
+  }
+
+  /**
+   * Select stacks with the historical diff/synth semantics: patterns match
+   * hierarchical ids, no patterns select the top-level (main assembly) stacks
+   * — an empty collection for stage-only apps — and non-exclusive selection
+   * expands to upstream dependencies.
+   */
+  private selectStacksByPattern(
+    assembly: CloudAssembly,
+    stackNames: string[],
+    exclusively?: boolean,
+  ): Promise<StackCollection> {
+    return assembly.selectStacks(
       { patterns: stackNames },
       {
         extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
         defaultBehavior: DefaultSelection.MainAssembly,
       },
     );
-
-    const allStacks = await this.selectStacksForList([]);
-    const autoValidateStacks = autoValidate
-      ? allStacks.filter((art) => art.validateOnSynth ?? false)
-      : new StackCollection(assembly, []);
-
-    this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
-
-    return selectedForDiff;
   }
 
   /**
@@ -1509,10 +1548,15 @@ export class CdkToolkit {
 }
 
 /**
- * Print a serialized object (YAML or JSON) to stdout.
+ * Escape glob metacharacters so picomatch treats the string as a literal.
+ *
+ * Needed when handing already-resolved stack ids back to toolkit-lib as
+ * selection patterns: hierarchical ids are unrestricted strings, and an
+ * unescaped id containing e.g. `[1]` would be re-interpreted as a glob
+ * that can also match other stacks.
  */
-async function printSerializedObject(ioHelper: IoHelper, obj: any, json: boolean) {
-  await ioHelper.defaults.result(serializeStructure(obj, json));
+function escapeGlobMetaCharacters(str: string): string {
+  return str.replace(/[\\*?[\](){}!+@|^$]/g, '\\$&');
 }
 
 /**
