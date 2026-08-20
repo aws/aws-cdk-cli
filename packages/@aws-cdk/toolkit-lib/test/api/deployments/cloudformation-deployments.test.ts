@@ -1,3 +1,4 @@
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
@@ -123,6 +124,58 @@ test('prepareStack calls deployStack with execute: false and returns successful 
   }));
 });
 
+test('prepareStack passes willExecuteChangeSet through to deployStack', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — willExecuteChangeSet marks this prepare as the internal first
+  // phase of a two-phase (create + execute) deployment
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN — deployStack suppresses the "waiting in review for manual
+  // execution (--no-execute)" announcement based on this flag
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      willExecuteChangeSet: true,
+    }),
+    expect.anything(),
+  );
+});
+
+test('prepareStack leaves willExecuteChangeSet unset for a user-requested --no-execute prepare', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — no willExecuteChangeSet means the change set is the final result (--no-execute)
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN — deployStack announces the change set as awaiting manual execution
+  expect((deployStack as jest.Mock).mock.calls[0][0].willExecuteChangeSet).toBeUndefined();
+});
+
 test('prepareStack returns undefined for non-success results', async () => {
   // GIVEN
   (deployStack as jest.Mock).mockResolvedValue({
@@ -159,7 +212,7 @@ test('prepareStack forwards stackEventPollingInterval to cleanupChangeSet as the
   await deployments.prepareStack({
     stack: testStack({ stackName: 'boop' }),
     deploymentMethod: { method: 'change-set' },
-    cleanupOnNoOp: true,
+    willExecuteChangeSet: true,
     stackEventPollingInterval: 10_000,
   });
 
@@ -1259,6 +1312,35 @@ describe('stackExists', () => {
     expect(mockForEnvironment).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
       assumeRoleArn: expectedRoleArn,
     }));
+  });
+});
+
+describe('cachedPublisher', () => {
+  // Regression test: the publisher cache used to be keyed only by the AssetManifest
+  // object, so if the same AssetManifest instance were ever passed in for two different
+  // environments (e.g. a long-lived Deployments instance reused to deploy the same
+  // synthesized cloud assembly to two different AWS accounts), the second call would
+  // silently reuse the first publisher - built with the first account's credentials -
+  // to build/publish/check assets against what should be an entirely different account.
+  test('does not reuse a publisher across different environments for the same AssetManifest', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const envA = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
+    const envB = { name: 'aws://222222222222/eu-west-1', account: '222222222222', region: 'eu-west-1' };
+
+    const publisherA = (deployments as any).cachedPublisher(manifest, envA, 'StackA');
+    const publisherB = (deployments as any).cachedPublisher(manifest, envB, 'StackB');
+
+    expect(publisherA).not.toBe(publisherB);
+  });
+
+  test('reuses the cached publisher for repeat calls with the same environment', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const env = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
+
+    const first = (deployments as any).cachedPublisher(manifest, env, 'StackA');
+    const second = (deployments as any).cachedPublisher(manifest, env, 'StackA');
+
+    expect(second).toBe(first);
   });
 });
 

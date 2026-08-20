@@ -406,6 +406,18 @@ Set the `--progress` flag to request the complete history which includes all Clo
 $ cdk deploy --progress events
 ```
 
+Set the `--progress` flag to `errors-only` to print nothing during the deployment, except errors:
+
+```console
+$ cdk deploy --progress errors-only
+```
+
+The `errors-only` mode is recommended for AI agents and other automated consumers, where progress
+updates are not useful and consume tokens. If the CLI detects it is being run by an AI agent
+and no progress preference is configured, it defaults to `errors-only` automatically. Pass an
+explicit `--progress`, set the `progress` key in `cdk.json`, or enable verbose logging (`-v`)
+to override the detection.
+
 Alternatively, the `progress` key can be specified in the project config (`cdk.json`).
 
 The following shows a sample `cdk.json` where the `progress` key is set to *events*.
@@ -848,6 +860,10 @@ To import an existing resource to a CDK stack, follow the following steps:
    importing. After you supply it, the import starts.
 5. When `cdk import` reports success, the resource is managed by CDK. Any subsequent
    changes in the construct configuration will be reflected on the resource.
+
+Use `--notification-arns` to specify ARNs of SNS topics that CloudFormation will
+notify with stack related events during the import. These are added to ARNs
+specified with the `notificationArns` stack property.
 
 NOTE: You can also import existing resources by passing `--import-existing-resources` to `cdk deploy`.
 This parameter only works for resources that support custom physical names,
