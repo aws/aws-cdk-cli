@@ -13,6 +13,15 @@ import type { MinimumSeverity } from '../types';
 const VALIDATION_REPORT_FILE = 'validation-report.json';
 
 /**
+ * The plugin name under which online (CloudFormation change set) validation results are reported.
+ *
+ * All other plugin names in a unified validation report are offline sources:
+ * policy validation plugins and construct annotations, both read from the
+ * cloud assembly.
+ */
+export const ONLINE_VALIDATION_PLUGIN_NAME = 'CloudFormation';
+
+/**
  * The name of the plugin that emits construct annotations into the validation report.
  *
  * @see https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk-lib/core/lib/private/annotation-plugin.ts

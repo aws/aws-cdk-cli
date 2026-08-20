@@ -116,7 +116,7 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
+import { combineConclusions, obtainUnifiedValidationReport, ONLINE_VALIDATION_PLUGIN_NAME, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -765,7 +765,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     return {
-      pluginName: 'CloudFormation',
+      pluginName: ONLINE_VALIDATION_PLUGIN_NAME,
       conclusion: 'failure',
       violations,
     };

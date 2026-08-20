@@ -152,6 +152,94 @@ describe('with violations', () => {
   });
 });
 
+describe('telemetry', () => {
+  // Remove the spies installed by these tests; the file-level `resetAllMocks`
+  // would otherwise strip the passthrough implementation from `ioHost.notify`
+  // and break tests that run later (test order is randomized).
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('emits a VALIDATE span end message with offline violation counters', async () => {
+    const assembly = await cloudExecutable.synthesize();
+    await fs.writeJSON(path.join(assembly.directory, 'validation-report.json'), {
+      version: '1.0.0',
+      pluginReports: [{
+        pluginName: 'TestPlugin',
+        conclusion: 'failure',
+        violations: [{
+          ruleName: 'no-public-buckets',
+          description: 'S3 Buckets must not be publicly accessible',
+          severity: 'error',
+          violatingConstructs: [{
+            constructPath: 'Test-Stack-A-Display-Name/MyBucket/Resource',
+            cloudFormationResource: {
+              templatePath: 'Test-Stack-A.template.json',
+              logicalId: 'MyBucket',
+            },
+          }],
+        }],
+      }],
+    });
+
+    const notifySpy = jest.spyOn(ioHost, 'notify');
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
+    });
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_CLI_I4001',
+      data: expect.objectContaining({
+        duration: expect.any(Number),
+        counters: {
+          'offlineViolations:error': 1,
+          'offlineWouldFailDeploy': 1,
+          'onlineViolations': 0,
+        },
+      }),
+    }));
+  });
+
+  test('emits a VALIDATE span end message even when no violations are found', async () => {
+    const notifySpy = jest.spyOn(ioHost, 'notify');
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
+    });
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_CLI_I4001',
+      data: expect.objectContaining({
+        duration: expect.any(Number),
+        counters: {
+          onlineViolations: 0,
+          offlineWouldFailDeploy: 0,
+        },
+      }),
+    }));
+  });
+
+  test('ends the VALIDATE span with the error name when the engine crashes', async () => {
+    // The CLI synthesizes (and caches) the assembly before the VALIDATE span
+    // begins, so failing `produce()` crashes the engine inside the span.
+    jest.spyOn(cloudExecutable, 'produce').mockRejectedValue(new Error('engine exploded'));
+
+    const notifySpy = jest.spyOn(ioHost, 'notify');
+    await expect(toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
+    })).rejects.toThrow('engine exploded');
+
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_CLI_I4001',
+      data: expect.objectContaining({
+        error: { name: 'UnknownError' },
+      }),
+    }));
+  });
+});
+
 describe('stack selection', () => {
   test('validates a single selected stack', async () => {
     const exitCode = await toolkit.validate({
