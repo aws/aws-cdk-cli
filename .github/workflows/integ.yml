@@ -1640,30 +1640,18 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      RUN_SHA: ${{ github.sha }}
     if: ${{ always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
     steps:
-      - name: File or update the tracking issue
-        id: file_or_update_the_tracking_issue
+      - name: File an issue
+        id: file_an_issue
         run: |-
           set -euo pipefail
 
-          BODY="Nightly Windows integ run failed: $RUN_URL"
+          gh issue create \
+            --title 'Windows integ nightly failed' \
+            --label 'potential-regression' \
+            --body "Nightly Windows integ run failed.
 
-          # '// empty' yields an empty string when no issue is open, rather than "null".
-          EXISTING=$(gh issue list \
-            --label 'windows-integ-nightly' \
-            --state open \
-            --limit 1 \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [ -n "$EXISTING" ]; then
-            echo "Commenting on existing issue #$EXISTING"
-            gh issue comment "$EXISTING" --body "$BODY"
-          else
-            echo "Filing a new issue"
-            gh issue create \
-              --title 'Windows integ nightly is failing' \
-              --label 'windows-integ-nightly' \
-              --body "$BODY"
-          fi
+          Run: $RUN_URL
+          Commit: $RUN_SHA"
