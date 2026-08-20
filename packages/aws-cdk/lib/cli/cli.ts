@@ -602,6 +602,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
+        if (args.watch) {
+          return cli.synthWatch({
+            stacks: specificStacksOrAllRecursively(args.STACKS),
+            validateStacks: args.validation,
+          });
+        }
         const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
         if (args.exclusively) {
           return cli.synth(args.STACKS, args.exclusively, quiet, args.validation, argv.json);
