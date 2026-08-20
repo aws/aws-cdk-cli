@@ -38,6 +38,8 @@ function defaultScrubbers(): Scrubber[] {
     { pattern: /\n\s+at\s+[^\n]*/g, replacement: '' },
     // The OS temp dir (tests chdir into a temp dir)
     { pattern: new RegExp(escapeRegExp(fs.realpathSync(os.tmpdir())), 'g'), replacement: '<TMP>' },
+    // The random suffix of mkdtemp-created assembly output dirs, e.g. "cdk.outAb12Cd"
+    { pattern: /cdk\.out[a-zA-Z0-9]{6}/g, replacement: 'cdk.out<RANDOM>' },
   ];
 }
 
