@@ -99,7 +99,7 @@ function givenDeployedStacks(templates: Record<string, any>) {
   mockCloudFormationClient.on(ListStacksCommand).resolves({
     StackSummaries: Object.keys(templates).map((stackName) => ({
       StackName: stackName,
-      StackId: `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/${stackName}`,
+      StackId: `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/${stackName}/abcd`,
       StackStatus: 'CREATE_COMPLETE',
       CreationTime: new Date(),
     })),
@@ -411,6 +411,22 @@ describe('execution', () => {
       ExecutionStatus: 'EXECUTE_COMPLETE',
     });
     mockCloudFormationClient.on(ExecuteStackRefactorCommand).resolves({});
+    // The stabilization check right after the refactor looks the stack up by
+    // its ARN and sees it as stable. Later DescribeStacks calls fall through
+    // to the "no stacks" default, so the finalizing deployment exercises the
+    // simple create path.
+    mockCloudFormationClient.on(DescribeStacksCommand, {
+      StackName: `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/Stack1/abcd`,
+    }).resolvesOnce({
+      Stacks: [
+        {
+          StackName: 'Stack1',
+          StackId: `arn:aws:cloudformation:${REGION}:${ACCOUNT}:stack/Stack1/abcd`,
+          CreationTime: new Date(),
+          StackStatus: 'UPDATE_COMPLETE',
+        },
+      ],
+    });
 
     const toolkit = await makeToolkit([{
       stackName: 'Stack1',

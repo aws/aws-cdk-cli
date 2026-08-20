@@ -10,6 +10,7 @@ import { ToolkitError } from '../../toolkit/toolkit-error';
 import { equalSets, setDiff } from '../../util/sets';
 import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
+import { stabilizeStack } from '../deployments/cfn-api';
 import { EnvironmentResourcesRegistry } from '../environment';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
@@ -38,6 +39,7 @@ export class RefactoringContext {
   private readonly _mappings: ResourceMapping[] = [];
   private readonly ambiguousMoves: ResourceMove[] = [];
   private readonly localStacks: CloudFormationStack[];
+  private readonly deployedStacks: CloudFormationStack[];
   private readonly assumeRoleArn?: string;
   private readonly toolkitStackName?: string;
   public readonly environment: Environment;
@@ -50,6 +52,7 @@ export class RefactoringContext {
     const [nonAmbiguousMoves, ambiguousMoves] = partitionByAmbiguity(overrides, moves);
     this.ambiguousMoves = ambiguousMoves;
     this.localStacks = props.localStacks;
+    this.deployedStacks = props.deployedStacks;
     this.assumeRoleArn = props.assumeRoleArn;
     this.toolkitStackName = props.toolkitStackName;
 
@@ -102,6 +105,18 @@ export class RefactoringContext {
     await cfn.waitUntilStackRefactorExecuteComplete({
       StackRefactorId: refactor.StackRefactorId,
     });
+
+    // The refactor reaches EXECUTE_COMPLETE while the affected stacks may still
+    // be in UPDATE_IN_PROGRESS for a few more seconds. Wait for them to
+    // stabilize, so that callers can immediately start another stack operation.
+    // The stack definitions are exactly the set of stacks the refactor updates,
+    // which may include stacks that have no resource moves of their own.
+    const stackNames = [...new Set(stackDefinitions.map((d) => d.StackName!))];
+    for (const stackName of stackNames) {
+      // Prefer the ARN, which identifies the stack unambiguously.
+      const stackArn = this.deployedStacks.find((s) => s.stackName === stackName)?.stackId ?? stackName;
+      await stabilizeStack(cfn, ioHelper, stackArn);
+    }
   }
 
   private async checkBootstrapVersion(sdk: SDK, ioHelper: IoHelper) {
