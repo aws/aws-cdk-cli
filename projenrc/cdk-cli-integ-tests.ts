@@ -22,12 +22,13 @@ const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr
 const WINDOWS_LABEL = 'pr/test-windows';
 
 /**
- * Marker label on the issue that tracks nightly Windows failures.
+ * Label applied to the issue filed when the nightly Windows run fails.
  *
- * MUST exist in the repository's label set, otherwise `gh issue create` in the
- * failure report job will fail.
+ * This is the repository's existing regression label, which is already wired up
+ * to page the team. `issue-regression-labeler` also manages it, so it is
+ * guaranteed to exist in the repository's label set.
  */
-const WINDOWS_FAILURE_LABEL = 'windows-integ-nightly';
+const REGRESSION_LABEL = 'potential-regression';
 
 /** The nightly (schedule) event. */
 const IS_SCHEDULE = "github.event_name == 'schedule'";
@@ -696,9 +697,9 @@ export class CdkCliIntegTestsWorkflow extends Component {
   /**
    * File an issue when the nightly Windows run fails.
    *
-   * Schedule-only: a failure on a label-triggered PR run already surfaces as a
-   * red check there. Comments on an already-open issue rather than filing a
-   * duplicate for every night of a persistent breakage.
+   * Schedule-only. A label-triggered PR run deliberately does not file an
+   * issue: the failure is already visible as a red check on the PR, and the
+   * label exists so a contributor can try Windows out, not to page anyone.
    */
   private addWindowsFailureReportJob(windowsJobs: string[]): void {
     this.workflow.addJob('integ_windows_report_failure', {
@@ -710,6 +711,12 @@ export class CdkCliIntegTestsWorkflow extends Component {
       },
       if: `\${{ always() && ${IS_SCHEDULE} && contains(needs.*.result, 'failure') }}`,
       env: {
+        // MUST stay the default GITHUB_TOKEN. Issues created with it do not
+        // trigger other workflow runs, which is what keeps
+        // `issue-regression-labeler` from firing: that workflow strips
+        // 'potential-regression' from any issue whose body lacks the regression
+        // checkbox, and would silently undo the label we set here. Switching
+        // this to a PAT would stop the page from ever going out.
         GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
         // This job does not check out the repo, so `gh` cannot infer the
         // repository from a git remote and needs it passed explicitly.
@@ -718,33 +725,24 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // rejects `github.*` inside shell steps as an injection vector, so the
         // step references it as a quoted shell variable instead.
         RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+        // Dependency upgrades merge unattended overnight, so the nightly does
+        // not necessarily run against the same commit as the night before.
+        // Record what it did run against.
+        RUN_SHA: '${{ github.sha }}',
       },
       steps: [
         {
-          name: 'File or update the tracking issue',
+          name: 'File an issue',
           run: [
             'set -euo pipefail',
             '',
-            'BODY="Nightly Windows integ run failed: $RUN_URL"',
+            'gh issue create \\',
+            '  --title \'Windows integ nightly failed\' \\',
+            `  --label '${REGRESSION_LABEL}' \\`,
+            '  --body "Nightly Windows integ run failed.',
             '',
-            '# \'// empty\' yields an empty string when no issue is open, rather than "null".',
-            'EXISTING=$(gh issue list \\',
-            `  --label '${WINDOWS_FAILURE_LABEL}' \\`,
-            '  --state open \\',
-            '  --limit 1 \\',
-            '  --json number \\',
-            '  --jq \'.[0].number // empty\')',
-            '',
-            'if [ -n "$EXISTING" ]; then',
-            '  echo "Commenting on existing issue #$EXISTING"',
-            '  gh issue comment "$EXISTING" --body "$BODY"',
-            'else',
-            '  echo "Filing a new issue"',
-            '  gh issue create \\',
-            '    --title \'Windows integ nightly is failing\' \\',
-            `    --label '${WINDOWS_FAILURE_LABEL}' \\`,
-            '    --body "$BODY"',
-            'fi',
+            'Run: $RUN_URL',
+            'Commit: $RUN_SHA"',
           ].join('\n'),
         },
       ],
