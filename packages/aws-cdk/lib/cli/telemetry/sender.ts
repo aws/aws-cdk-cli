@@ -1,9 +1,7 @@
-/* eslint-disable import/no-relative-packages */
 import * as fs from 'node:fs';
-// Deep import: the package barrel would pull the whole toolkit into the sender bundle.
 import type { TelemetryBatch } from './post-telemetry';
 import { postTelemetry } from './post-telemetry';
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
+import { ToolkitError } from '../../toolkit-error';
 import type { ProxyAgentDiagnostics } from '../proxy-agent';
 import { ProxyAgentProvider } from '../proxy-agent';
 
@@ -76,7 +74,6 @@ export async function sendTelemetry(
     agent,
     timeoutMs: cfg.timeoutMs ?? NETWORK_TIMEOUT_MS,
     closeConnection: true,
-    verifyIdentityAgainst: url.hostname,
   });
 
   // Drain, or the socket is never released.

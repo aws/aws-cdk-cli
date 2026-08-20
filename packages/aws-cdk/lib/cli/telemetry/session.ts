@@ -4,7 +4,6 @@ import * as os from 'os';
 import * as pathlib from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { getOrCreateInstallationId } from './installation-id';
-import { takeLastSend } from './last-send';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
@@ -63,7 +62,6 @@ export class TelemetrySession {
   private _sessionInfo?: SessionSchema;
   private _commandSpan?: IMessageSpan<EventResult>;
   private _nextEventCounters?: Record<string, number>;
-  private _sessionCounters?: Record<string, number>;
   private count = 0;
   private loadTime?: number;
 
@@ -118,9 +116,6 @@ export class TelemetrySession {
       },
       project: {},
     };
-
-    // Report how the previous invocation's detached delivery went; nothing else ever finds out.
-    this._sessionCounters = await previousSendCounters();
 
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
@@ -236,11 +231,9 @@ export class TelemetrySession {
     this.count += 1;
 
     const counters = {
-      ...this._sessionCounters,
       ...this._nextEventCounters,
       ...event.counters,
     };
-    this._sessionCounters = undefined;
     this._nextEventCounters = undefined;
 
     if (event.eventType == 'DEPLOY') {
@@ -305,18 +298,6 @@ function getState(error?: ErrorDetails): State {
     return isAbortedError(error) ? 'ABORTED' : 'FAILED';
   }
   return 'SUCCEEDED';
-}
-
-/**
- * Turn the previous invocation's delivery outcome into counters, if there is anything to report.
- *
- * Only failures: a counter present on nearly every event carries no information. `reason` is left out
- * because counters are numeric, and a free-text field needs a schema change agreed with the telemetry
- * service team.
- */
-async function previousSendCounters(): Promise<Record<string, number> | undefined> {
-  const outcome = await takeLastSend();
-  return outcome && !outcome.ok ? { previousSendFailed: 1 } : undefined;
 }
 
 function isAbortedError(error?: ErrorDetails) {

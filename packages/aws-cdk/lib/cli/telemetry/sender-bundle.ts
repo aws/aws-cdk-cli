@@ -1,5 +1,4 @@
 import * as fs from 'node:fs';
-import { recordLastSend } from './last-send';
 import type { TelemetrySenderConfig } from './sender';
 import { isSuccess, sendTelemetry, trace } from './sender';
 
@@ -38,7 +37,7 @@ function takePayload(payloadPath: string): string | undefined {
 }
 
 /**
- * Deliver one payload and leave a breadcrumb saying how it went.
+ * Deliver one payload.
  *
  * The single place delivery outcomes are handled: failures arrive as rejections, and a non-2xx is
  * judged here rather than deeper down.
@@ -54,24 +53,15 @@ async function deliver(payloadPath: string): Promise<void> {
     cfg = JSON.parse(raw) as TelemetrySenderConfig;
   } catch (e: any) {
     trace(`Malformed payload: ${e?.message}`);
-    recordLastSend({ ok: false, reason: `MalformedPayload: ${e?.message}`, at: new Date().toISOString() });
     return;
   }
 
   try {
     const statusCode = await sendTelemetry(cfg);
     const ok = isSuccess(statusCode);
-    recordLastSend({
-      ok,
-      statusCode,
-      ...ok ? {} : { reason: `UnexpectedStatusCode: ${statusCode}` },
-      at: new Date().toISOString(),
-    });
     trace(ok ? `Telemetry sent (${statusCode})` : `Telemetry rejected with ${statusCode}`);
   } catch (e: any) {
-    const reason = `${e?.code ?? e?.name ?? 'Error'}: ${e?.message}`;
-    recordLastSend({ ok: false, reason, at: new Date().toISOString() });
-    trace(`Telemetry not sent: ${reason}`);
+    trace(`Telemetry not sent: ${e?.code ?? e?.name ?? 'Error'}: ${e?.message}`);
   }
 }
 

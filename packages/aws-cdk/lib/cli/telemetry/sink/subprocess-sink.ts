@@ -109,7 +109,9 @@ export class SubprocessTelemetrySink implements ITelemetrySink {
     try {
       await this.dispatch(this.endpoint, { events: batch });
     } catch (e: any) {
-      await this.ioHelper.defaults.trace(`Failed to send telemetry event: ${e.message}`);
+      // Both hand-off failures arrive here: no sender on disk, and a payload write or spawn that
+      // throws. Nothing retries and no fallback runs, so report how much was lost, not only why.
+      await this.ioHelper.defaults.trace(`Failed to send telemetry event: ${e.message}. Dropped ${batch.length} event(s).`);
     }
   }
 

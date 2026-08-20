@@ -1,12 +1,9 @@
-/* eslint-disable import/no-relative-packages */
 import type { IncomingMessage } from 'http';
 import type { Agent } from 'https';
 import { request } from 'https';
 import * as tls from 'tls';
-// See the note in `../proxy-agent`: the package barrel would pull the whole toolkit into the
-// detached sender's bundle.
 import type { TelemetrySchema } from './schema';
-import { ToolkitError } from '../../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
+import { ToolkitError } from '../../toolkit-error';
 
 /**
  * A batch of telemetry events, as the endpoint expects to receive it.
@@ -40,25 +37,13 @@ export interface PostTelemetryOptions {
    * @default false - leave connection reuse to the agent
    */
   readonly closeConnection?: boolean;
-
-  /**
-   * Require the endpoint's certificate to cover this hostname.
-   *
-   * `https-proxy-agent` does the TLS upgrade itself without passing the destination host to
-   * `tls.connect`, so for an IP-literal endpoint Node has nothing to match against and skips the
-   * check. Naming the host pins identity to the endpoint rather than to whatever the proxy presents.
-   *
-   * @default - Node's default check, i.e. against the request's own hostname
-   */
-  readonly verifyIdentityAgainst?: string;
 }
 
 /**
  * POST a batch of telemetry events, resolving with the endpoint's response.
  *
- * Shared by the in-process sink and the detached sender so both speak to the endpoint identically;
- * only the agent and the timeout differ. Rejects if the connection fails or the timeout expires, but
- * NOT on an unsuccessful status code -- inspect `statusCode` for that.
+ * Rejects if the connection fails or the timeout expires, but NOT on an unsuccessful status code --
+ * inspect `statusCode` for that.
  */
 export function postTelemetry(
   url: URL,
@@ -79,12 +64,12 @@ export function postTelemetry(
       },
       agent: options.agent,
       timeout: options.timeoutMs,
-      ...options.verifyIdentityAgainst
-        ? {
-          checkServerIdentity: (_host: string, cert: tls.PeerCertificate) =>
-            tls.checkServerIdentity(options.verifyIdentityAgainst!, cert),
-        }
-        : {},
+      // Always pin identity to the destination host. `https-proxy-agent` does the TLS upgrade itself
+      // without passing that host to `tls.connect`, so for an IP-literal endpoint Node has nothing to
+      // match against and skips the check entirely -- naming the host explicitly closes that hole and
+      // pins to the endpoint rather than to whatever the proxy presents.
+      checkServerIdentity: (_host: string, cert: tls.PeerCertificate) =>
+        tls.checkServerIdentity(url.hostname, cert),
     }, ok);
 
     req.on('error', ko);

@@ -1,11 +1,7 @@
-/* eslint-disable import/no-relative-packages */
 import * as path from 'node:path';
 import * as fs from 'fs-extra';
 import { ProxyAgent, proxies } from 'proxy-agent';
-// Imported from its defining module rather than the package barrel: this file is in the detached
-// telemetry sender's import graph, and pulling in `@aws-cdk/toolkit-lib`'s entrypoint would drag the
-// whole toolkit (~11MB) into that bundle for the sake of one error class.
-import { ToolkitError } from '../../../@aws-cdk/toolkit-lib/lib/toolkit/toolkit-error';
+import { ToolkitError } from '../toolkit-error';
 
 /**
  * Validate a proxy address up front.
@@ -32,6 +28,21 @@ export function validateProxyAddress(proxyAddress: string): void {
       `Unsupported protocol '${protocol}' in proxy address '${proxyAddress}'. Supported protocols are: ${Object.keys(proxies).join(', ')}.`,
     );
   }
+}
+
+/**
+ * Coerce the raw `proxy` setting into a value the rest of the CLI can rely on.
+ *
+ * `Settings.get()` is untyped and surfaces an unset `--proxy` as either `undefined` or an empty
+ * array, depending on how it was parsed. An empty STRING is a different thing: `--proxy ''` means
+ * "go direct, ignore the proxy environment variables", so it has to survive normalization. Anything
+ * that is not a string counts as unconfigured, which is what makes the environment the fallback.
+ *
+ * Applied at the point the setting enters typed code, because the value now also crosses a process
+ * boundary into the detached telemetry sender, which has no access to the settings to re-derive it.
+ */
+export function normalizeProxyAddress(raw: unknown): string | undefined {
+  return typeof raw === 'string' ? raw : undefined;
 }
 
 /**
@@ -94,18 +105,18 @@ export class ProxyAgentProvider {
   }
 
   public async create(options: ProxyAgentOptions): Promise<ResolvedProxyAgent> {
-    // Only validate when an actual proxy address was configured. When `--proxy`
-    // is not given the setting is unset (and can surface at runtime as an empty
-    // string or empty array), in which case we skip validation and let
-    // ProxyAgent fall back to environment-variable detection.
-    if (typeof options.proxyAddress === 'string' && options.proxyAddress.length > 0) {
-      validateProxyAddress(options.proxyAddress);
+    const proxyAddress = normalizeProxyAddress(options.proxyAddress);
+
+    // Only a non-empty address is a proxy to validate. An empty one is a configured "go direct".
+    if (proxyAddress) {
+      validateProxyAddress(proxyAddress);
     }
 
-    // Force it to use the proxy provided through the command line.
-    // Otherwise, let the ProxyAgent auto-detect the proxy using environment variables.
-    const getProxyForUrl = options.proxyAddress != null
-      ? () => Promise.resolve(options.proxyAddress!)
+    // Force it to use the proxy provided through the command line -- including an empty one, which
+    // `proxy-agent` reads as "no proxy for this URL". Only an unconfigured proxy falls through to
+    // ProxyAgent's own environment-variable detection.
+    const getProxyForUrl = proxyAddress !== undefined
+      ? () => Promise.resolve(proxyAddress)
       : undefined;
 
     const caBundlePath = await this.resolveCABundlePath(options.caBundlePath);

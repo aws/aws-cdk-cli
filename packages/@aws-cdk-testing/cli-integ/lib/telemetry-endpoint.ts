@@ -88,7 +88,9 @@ export async function startTelemetryEndpoint(options: TelemetryEndpointOptions =
     { 'content-type': 'application/json' },
   );
 
-  await server.start(9000 + Math.floor(Math.random() * 10000));
+  // No port argument: mockttp picks a free one itself. Naming a port -- even a random one out of a
+  // range -- collides once suites run in parallel, and there is no retry to recover from it.
+  await server.start();
 
   const batches = async (): Promise<TelemetryBatch[]> => {
     const requests = await endpoint.getSeenRequests();

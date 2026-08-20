@@ -1,4 +1,4 @@
-import { ProxyAgentProvider, validateProxyAddress } from '../../lib/cli/proxy-agent';
+import { normalizeProxyAddress, ProxyAgentProvider, validateProxyAddress } from '../../lib/cli/proxy-agent';
 import { TestIoHost } from '../_helpers/io-host';
 
 describe('validateProxyAddress', () => {
@@ -45,5 +45,30 @@ describe('ProxyAgentProvider', () => {
   ])('create() does not validate when the proxy address is %s (no --proxy given)', async (_desc, proxyAddress) => {
     const provider = new ProxyAgentProvider(ioHost.asHelper('deploy'));
     await expect(provider.create({ proxyAddress })).resolves.toBeDefined();
+  });
+});
+
+describe('normalizeProxyAddress', () => {
+  test('keeps an empty string, which means "go direct" and is NOT the same as unconfigured', () => {
+    // The whole point of normalizing: a truthiness check here would turn an explicit `--proxy ''`
+    // into environment auto-detection, so the CLI and the detached sender would disagree about
+    // whether a proxy applies.
+    expect(normalizeProxyAddress('')).toBe('');
+  });
+
+  test('keeps a configured address unchanged', () => {
+    expect(normalizeProxyAddress('http://localhost:1234')).toBe('http://localhost:1234');
+  });
+
+  test.each([
+    ['undefined', undefined],
+    ['null', null],
+    // Settings.get() is untyped and surfaces an unset value as an empty array at runtime.
+    ['an empty array', []],
+    ['a populated array', ['http://a', 'http://b']],
+    ['a number', 8080],
+    ['an object', { proxy: 'http://localhost:1234' }],
+  ])('treats %s as unconfigured', (_desc, raw) => {
+    expect(normalizeProxyAddress(raw)).toBeUndefined();
   });
 });

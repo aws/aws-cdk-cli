@@ -193,6 +193,21 @@ describe('SubprocessTelemetrySink', () => {
       expect(config.proxyUrl).toBeUndefined();
       expect(config.caBundlePath).toBeUndefined();
     });
+
+    test('an explicitly empty proxy crosses the process boundary as an empty string, not as unset', async () => {
+      // `--proxy ''` means "go direct, ignore the proxy environment variables". The child inherits
+      // that environment, so if the empty string were collapsed to unset on the way out the child
+      // would auto-detect a proxy the parent had been told not to use.
+      const client = sink({ proxyUrl: '' });
+      await client.emit(createTestEvent('INVOKE'));
+      await client.flush();
+
+      const { payloadPath, config } = dispatched();
+      written.push(payloadPath);
+
+      expect(config.proxyUrl).toBe('');
+      expect(Object.keys(config)).toContain('proxyUrl');
+    });
   });
 
   describe('payload size', () => {
@@ -224,9 +239,12 @@ describe('SubprocessTelemetrySink', () => {
 
       const client = sink();
       await client.emit(createTestEvent('INVOKE'));
+      await client.emit(createTestEvent('INVOKE'));
       await expect(client.flush()).resolves.toBeUndefined();
 
       expect(traces.filter((t) => t.includes('EMFILE'))).toHaveLength(1);
+      // No fallback runs, so the trace is the only record that these events ever existed.
+      expect(traces.some((t) => t.includes('Dropped 2 event(s)'))).toBe(true);
 
       // Dropped, so a second flush has nothing left to send.
       (spawn as jest.Mock).mockReturnValue(child);
@@ -242,6 +260,7 @@ describe('SubprocessTelemetrySink', () => {
       await expect(client.flush()).resolves.toBeUndefined();
 
       expect(traces.filter((t) => t.includes('Unable to locate the telemetry sender'))).toHaveLength(1);
+      expect(traces.some((t) => t.includes('Dropped 1 event(s)'))).toBe(true);
       expect(spawn as jest.Mock).not.toHaveBeenCalled();
 
       // Not retained: this never starts working mid-process, so retrying every 30s is pure noise.
@@ -321,8 +340,8 @@ describe('sender-bundle entry point', () => {
   });
 
   beforeEach(() => {
-    // The sender records its outcome under CDK_HOME; point that somewhere disposable so the
-    // breadcrumb can be inspected without touching the developer's real cache.
+    // The child inherits CDK_HOME; point it somewhere disposable so nothing touches the developer's
+    // real cache.
     cdkHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-home-'));
   });
 
@@ -331,14 +350,6 @@ describe('sender-bundle entry point', () => {
   });
 
   afterAll(() => cleanupTestCas());
-
-  /**
-   * The outcome the sender recorded for the next invocation to pick up.
-   */
-  function breadcrumb(): any {
-    const file = path.join(cdkHome, 'cache', 'telemetry-last-send.json');
-    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : undefined;
-  }
 
   async function startEndpoint(options: { statusCode?: number } = {}): Promise<{ url: string; received: string[]; close(): Promise<void> }> {
     const received: string[] = [];
@@ -453,49 +464,31 @@ describe('sender-bundle entry point', () => {
     await expect(runSender(missing)).resolves.toBe(0);
   }, 60_000);
 
-  describe('outcome breadcrumb', () => {
-    // Nobody waits on this process, so the file it leaves behind is the only record of whether
-    // delivery worked. The next invocation reports it as a counter.
-    test('records a successful delivery', async () => {
-      const endpoint = await startEndpoint();
-      const payloadPath = writePayload({ endpoint: endpoint.url, body: { events: [{ n: 1 }] }, caBundlePath: ca.caCertPath, timeoutMs: 10_000 });
-
-      try {
-        await runSender(payloadPath);
-
-        expect(breadcrumb()).toMatchObject({ ok: true, statusCode: 200 });
-        expect(Date.parse(breadcrumb().at)).not.toBeNaN();
-      } finally {
-        fs.rmSync(payloadPath, { force: true });
-        await endpoint.close();
-      }
-    }, 60_000);
-
-    test('records a non-2xx as a failure, with the status code', async () => {
+  describe('a failed delivery is not a failed CLI', () => {
+    // Nobody waits on this process, but its exit status is still visible to anything watching the
+    // process tree, and the payload file is nobody else's to collect. Both must hold on the failure
+    // paths too, or a rejected send starts looking like a crash and leaks a file per invocation.
+    test('a non-2xx response still exits 0 and removes the payload file', async () => {
       const endpoint = await startEndpoint({ statusCode: 500 });
       const payloadPath = writePayload({ endpoint: endpoint.url, body: { events: [{ n: 1 }] }, caBundlePath: ca.caCertPath, timeoutMs: 10_000 });
 
       try {
-        await runSender(payloadPath);
-
-        expect(breadcrumb()).toMatchObject({ ok: false, statusCode: 500 });
-        expect(breadcrumb().reason).toContain('500');
+        await expect(runSender(payloadPath)).resolves.toBe(0);
+        expect(endpoint.received).toHaveLength(1);
+        expect(fs.existsSync(payloadPath)).toBe(false);
       } finally {
         fs.rmSync(payloadPath, { force: true });
         await endpoint.close();
       }
     }, 60_000);
 
-    test('records a transport failure, with a reason and no status code', async () => {
+    test('a transport failure still exits 0 and removes the payload file', async () => {
       // Port 1 is reserved and nothing listens on it.
       const payloadPath = writePayload({ endpoint: 'https://127.0.0.1:1/metrics', body: { events: [{ n: 1 }] }, timeoutMs: 5000 });
 
       try {
-        await runSender(payloadPath);
-
-        expect(breadcrumb()).toMatchObject({ ok: false });
-        expect(breadcrumb().statusCode).toBeUndefined();
-        expect(breadcrumb().reason).toContain('ECONNREFUSED');
+        await expect(runSender(payloadPath)).resolves.toBe(0);
+        expect(fs.existsSync(payloadPath)).toBe(false);
       } finally {
         fs.rmSync(payloadPath, { force: true });
       }
@@ -529,7 +522,7 @@ describe('sender-bundle entry point', () => {
       await expect(runSender(payloadPath)).resolves.toBe(0);
 
       expect(endpoint.received).toHaveLength(1);
-      expect(breadcrumb()).toMatchObject({ ok: true, statusCode: 200 });
+      expect(JSON.parse(endpoint.received[0])).toEqual({ events: [{ identifiers: { sessionId: 'big-bundle' } }] });
     } finally {
       fs.rmSync(payloadPath, { force: true });
       await endpoint.close();
