@@ -15,6 +15,7 @@ import { testSource } from './package-sources/subprocess';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
+import { timed, timedSync } from './timing';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
@@ -280,10 +281,13 @@ export interface CdkDestroyCliOptions extends CdkCliOptions {
  * Prepare a target dir byreplicating a source directory
  */
 export async function cloneDirectory(source: string, target: string, output?: NodeJS.WritableStream) {
-  output?.write(`Cloning ${source} into ${target}\n`);
-  await fs.promises.rm(target, { recursive: true, force: true });
-  await fs.promises.mkdir(target, { recursive: true });
-  await fs.promises.cp(source, target, { recursive: true });
+  // Recursive copy of many small files, which is slow on Windows. Timed because
+  // it used to be three `shell()` commands and would otherwise vanish from the log.
+  await timed(`clone ${source} -> ${target}`, output, async () => {
+    await fs.promises.rm(target, { recursive: true, force: true });
+    await fs.promises.mkdir(target, { recursive: true });
+    await fs.promises.cp(source, target, { recursive: true });
+  });
 }
 
 interface CommonCdkBootstrapCommandOptions {
@@ -876,7 +880,7 @@ export class TestFixture extends ShellHelper {
     // If the tests completed successfully, happily delete the fixture
     // (otherwise leave it for humans to inspect)
     if (success) {
-      const cleaned = rimraf(this.integTestDir);
+      const cleaned = timedSync(`clean up ${this.integTestDir}`, this.output, () => rimraf(this.integTestDir));
       if (!cleaned) {
         console.error(`Failed to clean up ${this.integTestDir} due to permissions issues (Docker running as root?)`);
       }
@@ -1095,37 +1099,49 @@ async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<st
   const completeMarker = path.join(sharedDir, '.install-complete');
   const lockDir = `${sharedDir}.lock`;
 
-  const deadline = Date.now() + 30 * 60 * 1000;
-  while (true) {
-    if (fs.existsSync(completeMarker)) {
-      return nodeModules;
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for shared install of ${JSON.stringify(packages)} in '${sharedDir}'`);
-    }
+  // Timed as a whole: a worker that loses the lock race blocks here until the
+  // winner finishes installing, which counts against this test's duration even
+  // though this test isn't doing the work. The inner 'npm install' line only
+  // appears for the worker that actually won.
+  return timed(`shared package set ${hash}`, fixture.output, async () => {
+    const deadline = Date.now() + 30 * 60 * 1000;
+    let announcedWait = false;
 
-    try {
-      fs.mkdirSync(lockDir);
-    } catch {
-      // Another worker is installing; wait for it to finish.
-      await sleep(5_000);
-      continue;
-    }
-
-    try {
+    while (true) {
       if (fs.existsSync(completeMarker)) {
         return nodeModules;
       }
-      fixture.log(`Installing shared package set into '${sharedDir}'`);
-      fs.mkdirSync(sharedDir, { recursive: true });
-      fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
-      await npmInstallWithRetry(fixture, sharedDir);
-      fs.writeFileSync(completeMarker, '');
-      return nodeModules;
-    } finally {
-      fs.rmdirSync(lockDir);
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for shared install of ${JSON.stringify(packages)} in '${sharedDir}'`);
+      }
+
+      try {
+        fs.mkdirSync(lockDir);
+      } catch {
+        // Another worker is installing; wait for it to finish.
+        if (!announcedWait) {
+          fixture.log(`Waiting for another worker to finish installing '${sharedDir}'`);
+          announcedWait = true;
+        }
+        await sleep(5_000);
+        continue;
+      }
+
+      try {
+        if (fs.existsSync(completeMarker)) {
+          return nodeModules;
+        }
+        fixture.log(`Installing shared package set into '${sharedDir}'`);
+        fs.mkdirSync(sharedDir, { recursive: true });
+        fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+        await npmInstallWithRetry(fixture, sharedDir);
+        fs.writeFileSync(completeMarker, '');
+        return nodeModules;
+      } finally {
+        fs.rmdirSync(lockDir);
+      }
     }
-  }
+  });
 }
 
 async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {

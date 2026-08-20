@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { TestContext } from './integ-test';
 import { Process } from './process';
+import { formatDuration } from './timing';
 import type { TemporaryDirectoryContext } from './with-temporary-directory';
 
 /**
@@ -36,6 +37,7 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
   // We choose the lazy one.
   const spawnOptions = { ...options, env } as any;
 
+  const startTime = Date.now();
   const child = tty
     ? Process.spawnTTY(command[0], command.slice(1), spawnOptions)
     : Process.spawn(command[0], command.slice(1), spawnOptions);
@@ -109,6 +111,10 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
     child.onError(reject);
 
     child.onExit(code => {
+      // Always report how long the command took, on success and on failure alike,
+      // so slow steps can be found by reading the log. Pairs with the '💻' line above.
+      writeToOutputs(`⏱️  ${formatDuration(Date.now() - startTime)} ${command.join(' ')}\n`);
+
       const stderrOutput = Buffer.concat(stderr).toString('utf-8');
       const stdoutOutput = Buffer.concat(stdout).toString('utf-8');
       const out = (options.onlyStderr ? stderrOutput : stdoutOutput + stderrOutput).trim();

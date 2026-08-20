@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { TemporaryDirectoryContext } from '../../lib';
-import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '../../lib';
+import { integTest, withTemporaryDirectory, ShellHelper, withPackages, timed } from '../../lib';
 import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '../../lib/npm';
 
 ['app', 'sample-app'].forEach(template => {
@@ -55,7 +55,7 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
 
     // We just removed the 'jest' dependency so remove the tests as well because they won't compile
-    await fs.rm(path.join(context.integTestDir, 'test'), { recursive: true, force: true });
+    await timed('remove test/', context.output, () => fs.rm(path.join(context.integTestDir, 'test'), { recursive: true, force: true }));
 
     await shell.shell(['npm', 'run', 'build']);
     await shell.shell(['cdk', 'synth']);

@@ -5,6 +5,7 @@ import type { TestContext } from './integ-test';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { rimraf } from './shell';
+import { formatDuration, timedSync } from './timing';
 import type { AwsContext } from './with-aws';
 import { withAws } from './with-aws';
 import {
@@ -150,7 +151,7 @@ export class SamIntegrationTestFixture extends TestFixture {
     // If the tests completed successfully, happily delete the fixture
     // (otherwise leave it for humans to inspect)
     if (success) {
-      const cleaned = rimraf(this.integTestDir);
+      const cleaned = timedSync(`clean up ${this.integTestDir}`, this.output, () => rimraf(this.integTestDir));
       if (!cleaned) {
         // eslint-disable-next-line no-console
         console.error(`Failed to clean up ${this.integTestDir} due to permissions issues (Docker running as root?)`);
@@ -188,6 +189,7 @@ export async function shellWithAction(
 
   const env = options.env ?? (options.modEnv ? { ...process.env, ...options.modEnv } : undefined);
 
+  const startTime = Date.now();
   const child = child_process.spawn(command.join(' '), [], {
     ...options,
     env,
@@ -256,6 +258,7 @@ export async function shellWithAction(
 
     // Wait for 'exit' instead of close, don't care about reading the streams all the way to the end
     child.once('exit', (code, signal) => {
+      writeToOutputs(`⏱️  ${formatDuration(Date.now() - startTime)} ${command.join(' ')}\n`);
       writeToOutputs(`Subprocess has exited with code ${code}, signal ${signal}\n`);
       const output = (Buffer.concat(stdout).toString('utf-8') + Buffer.concat(stderr).toString('utf-8')).trim();
       if (code == null || code === 0 || options.allowErrExit) {

@@ -5,6 +5,7 @@ export * from './memoize';
 export * from './resource-pool';
 export * from './with-sam';
 export * from './shell';
+export * from './timing';
 export * from './with-aws';
 export * from './with-cdk-app';
 export * from './with-packages';
