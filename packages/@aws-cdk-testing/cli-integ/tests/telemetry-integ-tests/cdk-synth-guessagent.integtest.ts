@@ -17,8 +17,8 @@ integTest(
       }, // trace mode
     );
 
-    // Check the trace that telemetry was executed successfully
-    expect(synthOutput).toContain('Telemetry Sent Successfully');
+    // Check the trace that telemetry was handed to the detached sender that delivers it
+    expect(synthOutput).toContain('Telemetry dispatched');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([

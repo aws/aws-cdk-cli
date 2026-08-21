@@ -5,10 +5,10 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const output = await fixture.cdk(['cli-telemetry', '--disable'], { verboseLevel: 3 });
 
-    // Check the trace that telemetry was not executed successfully
-    expect(output).not.toContain('Telemetry Sent Successfully');
+    // Check the trace that telemetry was never handed to a sender
+    expect(output).not.toContain('Telemetry dispatched');
 
     // Check the trace that endpoint telemetry was never connected
-    expect(output).toContain('Endpoint Telemetry NOT connected');
+    expect(output).toContain('Telemetry disabled');
   }),
 );
