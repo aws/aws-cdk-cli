@@ -27,6 +27,11 @@ test.each([
   // If the path is quoted with spaces that also works
   ...explodeBoth(['"command with spaces" arg1 arg2', BOTH, 'command with spaces', BOTH, DONTCARE, '"command with spaces" arg1 arg2']),
   ...explodeBoth(['"command with spaces.js" arg1 arg2', true, 'command with spaces.js', false, '/node', '/node "command with spaces.js" arg1 arg2']),
+  // Shell metacharacters other than spaces in a discovered file path also get quoted
+  ...explodeBoth(['/path/app(1)&x', BOTH, '/path/app(1)&x', BOTH, DONTCARE, '"/path/app(1)&x"']),
+  // On POSIX, $ ` " \ stay special inside double quotes and are escaped; on Windows they are not
+  ['/path/$app.js', false, '/path/$app.js', false, '/node', '/node "/path/\\$app.js"'],
+  ['/path/$app.js', true, '/path/$app.js', false, '/node', '/node "/path/$app.js"'],
 ])('cmd=%p win=%p (stat=%p) exe=%p node=%p => %p', async (commandLine: string, isWindows: boolean, statFile: string, isExecutable: boolean | undefined, nodePath: string, expected: string) => {
   // GIVEN
   process.execPath = nodePath;

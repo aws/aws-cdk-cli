@@ -391,6 +391,11 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
+      "type": "runtime"
+    },
+    {
       "name": "decamelize",
       "version": "^5",
       "type": "runtime"
