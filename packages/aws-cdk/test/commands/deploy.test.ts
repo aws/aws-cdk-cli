@@ -148,6 +148,28 @@ describe('require-approval', () => {
     expect(cloudFormation.deployStack).not.toHaveBeenCalled();
     expect(cloudFormation.cleanupChangeSet).toHaveBeenCalledWith(expect.anything(), 'cdk-deploy-change-set');
   });
+
+  test('the approval question is reframed with the CLI `--require-approval` flag', async () => {
+    // Answer "yes" but keep the question visible (suppressQuestion=false) so the
+    // recorder captures the effective, listener-reframed prompt text. The default
+    // mock stack has no security-sensitive changes (permissionChangeType: none).
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      exclusively: true,
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // toolkit-lib emits a flag-free motivation; the CLI's deploy listener adds
+    // the `--require-approval` framing before the question reaches the user.
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(question).toBeDefined();
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
 });
 
 describe('deployment method', () => {
@@ -348,6 +370,19 @@ describe('multi-stack selection', () => {
     });
 
     expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
+  });
+
+  test('--concurrency > 1 with --progress=errors-only keeps "errors-only" progress', async () => {
+    await toolkit.deploy({
+      selector: { allTopLevel: true, patterns: [] },
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      concurrency: 5,
+      progress: StackActivityProgress.ERRORS_ONLY,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
+    expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
   });
 });
 

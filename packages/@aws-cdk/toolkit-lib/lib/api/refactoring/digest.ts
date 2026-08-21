@@ -23,7 +23,23 @@ export type GraphDirection =
  * CloudFormation template form a directed acyclic graph, this function is
  * well-defined.
  */
-export function computeResourceDigests(stacks: CloudFormationStack[], direction: GraphDirection = 'direct'): Record<string, string> {
+/**
+ * Caches the part of a resource's digest that does not depend on the direction
+ * of the resource graph: the hash of its own (reference-stripped) properties.
+ *
+ * A single refactor operation computes digests four times — for the deployed
+ * and the local stacks, in both graph directions — and that property hash is
+ * the same in all of them. Pass the same cache to each call to compute it once
+ * per resource. Keys are the resource objects themselves, so a cache must not
+ * outlive the templates it was built from.
+ */
+export type PropertyHashCache = Map<CloudFormationResource, string>;
+
+export function computeResourceDigests(
+  stacks: CloudFormationStack[],
+  direction: GraphDirection = 'direct',
+  propertyHashes: PropertyHashCache = new Map(),
+): Record<string, string> {
   const exports: { [p: string]: { stackName: string; value: any } } = Object.fromEntries(
     stacks.flatMap((s) =>
       Object.values(s.template.Outputs ?? {})
@@ -47,19 +63,24 @@ export function computeResourceDigests(stacks: CloudFormationStack[], direction:
     ? ResourceGraph.fromStacks(stacks)
     : ResourceGraph.fromStacks(stacks).opposite();
 
-  return computeDigestsInTopologicalOrder(graph, resources, exports);
+  return computeDigestsInTopologicalOrder(graph, resources, exports, propertyHashes);
 }
 
 function computeDigestsInTopologicalOrder(
   graph: ResourceGraph,
   resources: Record<string, CloudFormationResource>,
-  exports: Record<string, { stackName: string; value: any }>): Record<string, string> {
+  exports: Record<string, { stackName: string; value: any }>,
+  propertyHashes: PropertyHashCache): Record<string, string> {
   const nodes = graph.sortedNodes.filter(n => resources[n] != null);
   const result: Record<string, string> = {};
   for (const id of nodes) {
     const resource = resources[id];
     const depDigests = Array.from(graph.outNeighbors(id)).map((d) => result[d]);
-    const propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
+    let propertiesHash = propertyHashes.get(resource);
+    if (propertiesHash == null) {
+      propertiesHash = hashObject(stripReferences(stripConstructPath(resource), exports));
+      propertyHashes.set(resource, propertiesHash);
+    }
     const toHash = resource.Type + propertiesHash + depDigests.join('');
     result[id] = crypto.createHash('sha256').update(toHash).digest('hex');
   }
@@ -95,7 +116,10 @@ export function hashObject(obj: any): string {
 
 /**
  * Removes sub-properties containing Ref or Fn::GetAtt to avoid hashing
- * references themselves but keeps the property structure.
+ * references themselves but keeps the property structure. `DependsOn`
+ * keys are also excluded from hashing: they only contain logical IDs of
+ * dependencies, which are rename-sensitive and already accounted for via
+ * the digests of the dependencies themselves.
  */
 function stripReferences(value: any, exports: { [p: string]: { stackName: string; value: any } }): any {
   if (!value || typeof value !== 'object') return value;
@@ -107,9 +131,6 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
   }
   if ('Fn::GetAtt' in value) {
     return { __cloud_ref__: 'Fn::GetAtt' };
-  }
-  if ('DependsOn' in value) {
-    return { __cloud_ref__: 'DependsOn' };
   }
   if ('Fn::ImportValue' in value) {
     const exp = exports[value['Fn::ImportValue']];
@@ -130,6 +151,9 @@ function stripReferences(value: any, exports: { [p: string]: { stackName: string
   }
   const result: any = {};
   for (const [k, v] of Object.entries(value)) {
+    if (k === 'DependsOn') {
+      continue;
+    }
     result[k] = stripReferences(v, exports);
   }
   return result;
@@ -140,7 +164,8 @@ function stripConstructPath(resource: any): any {
     return resource;
   }
 
-  const copy = JSON.parse(JSON.stringify(resource));
-  delete copy.Metadata['aws:cdk:path'];
-  return copy;
+  // A shallow copy is enough: the only thing being removed is one key of
+  // `Metadata`, and the caller only reads the result.
+  const { 'aws:cdk:path': _, ...metadata } = resource.Metadata;
+  return { ...resource, Metadata: metadata };
 }

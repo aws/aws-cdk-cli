@@ -20,11 +20,13 @@ jobs:
     if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
       - name: Checkout merge commit
+        id: checkout_merge_commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
       - name: Checkout base branch
+        id: checkout_base_branch
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: git fetch origin "$BASE_REF"
@@ -81,6 +83,7 @@ jobs:
             echo "has-version-exempt-label=false" >> $GITHUB_OUTPUT
           fi
       - name: Post job summary
+        id: post_job_summary
         if: steps.template-changed.outputs.changed == 'true'
         run: |-
           cat << 'EOF' >> $GITHUB_STEP_SUMMARY
@@ -111,6 +114,7 @@ jobs:
 
           EOF
       - name: Post comment
+        id: post_comment
         if: steps.template-changed.outputs.changed == 'true' && github.event.pull_request.head.repo.fork != true
         uses: thollander/actions-comment-pull-request@v3
         with:
@@ -142,6 +146,7 @@ jobs:
             - Changes can affect IAM roles, policies, and resource access across all CDK deployments
             - Version increments ensure users are notified of updates
       - name: Check requirements
+        id: check_requirements
         if: steps.template-changed.outputs.changed == 'true'
         run: |-
           # Check version requirement (either incremented or exempted)

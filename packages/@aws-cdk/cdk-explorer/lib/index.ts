@@ -7,6 +7,7 @@ export { toolkitAssemblyLock } from './core/assembly-lock';
 export type { AssemblyLock, AcquireAssemblyLock } from './core/assembly-lock';
 
 export { startLspServer } from './lsp/main';
+export { cdkLspManifest } from './lsp/features';
 export { startServer, createLspHandlers } from './lsp/server';
 export type { LspHandlers, LspHandlerOptions, LspServerOptions } from './lsp/server';
 

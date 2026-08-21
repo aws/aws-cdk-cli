@@ -444,7 +444,7 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch Guard Hook details for invocation ${hookInvocationId}: ${errorMessage}`,
+        message: `Failed to fetch Hook details for invocation ${hookInvocationId}: ${errorMessage}`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
@@ -494,8 +494,10 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
+        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. ` +
+          'Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment ' +
+          "by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. " +
+          `Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
@@ -546,7 +548,7 @@ describe('GuardHook GetHookResult fetching', () => {
     );
   });
 
-  test('keeps original HookStatusReason when annotations are empty', async () => {
+  test('keeps original HookStatusReason when hook result has no annotations and no status reason', async () => {
     const hookInvocationId = 'empty-annotations-id';
     const originalMessage = 'Template failed validation.';
 
@@ -577,6 +579,68 @@ describe('GuardHook GetHookResult fetching', () => {
         data: expect.objectContaining({
           event: expect.objectContaining({
             HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('surfaces HookStatusReason from GetHookResult when annotations are empty (e.g. Lambda hook)', async () => {
+    const hookInvocationId = '00000000-0000-0000-0000-000000000000';
+    const detailedReason = 'Some detailed reason returned by the Lambda Hook';
+    const eventReason = 'Hook failed with message: see hook results for details';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      InvocationPoint: 'PRE_PROVISION',
+      FailureMode: 'FAIL',
+      TypeName: 'Example::CFNHook::Full',
+      OriginalTypeName: 'AWS::Hooks::LambdaHook',
+      TypeVersionId: '00000001',
+      TypeArn: 'arn:aws:cloudformation:us-east-1:000000000000:type/hook/Example-CFNHook-Full/00000001/aws-hooks/AWS-Hooks-LambdaHook/00000001.00000001',
+      Status: 'HOOK_COMPLETE_FAILED',
+      HookStatusReason: detailedReason,
+      InvokedAt: new Date('2026-07-21T13:34:30.599000+00:00'),
+      Target: {
+        TargetType: 'CHANGE_SET',
+        TargetTypeName: 'CHANGE_SET',
+        TargetId: 'arn:aws:cloudformation:us-east-1:000000000000:changeSet/hook-con-t-example/00000000-0000-0000-0000-000000000000',
+        Action: 'CREATE',
+      },
+      Annotations: [],
+    } as any);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          LogicalResourceId: 'SomeResource',
+          ResourceType: 'AWS::EC2::SecurityGroup',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Example::CFNHook::Full',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: eventReason,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    // GetHookResult IS called ...
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+      HookResultId: hookInvocationId,
+    });
+
+    // ... and the detailed HookStatusReason from the GetHookResult response
+    // must be surfaced on the event, even though there are no annotations.
+    expect(ioHost.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expect.stringContaining(detailedReason.trim()),
           }),
         }),
       }),

@@ -167,7 +167,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
@@ -230,6 +230,13 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Validate synthesized CloudFormation templates against policy rules',
         options: {
           online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and validate the given stack(s) automatically when changes are detected. ' +
+              'Never deploys. Consider pairing with --no-online to skip CloudFormation ' +
+              'validation on every change',
+          },
         },
         arg: {
           name: 'STACKS',
@@ -295,6 +302,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
+          'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'rollback': {
             type: 'boolean',
@@ -338,7 +346,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
           'force': { alias: 'f', type: 'boolean', desc: 'Always deploy stack even if templates are identical', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +
@@ -535,6 +543,13 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'lsp': {
         description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
+        options: {
+          features: {
+            type: 'boolean',
+            default: false,
+            desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+          },
+        },
       },
       'orphan': {
         arg: {
@@ -571,6 +586,11 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'boolean',
             default: false,
             desc: 'Whether to do the refactor without asking for confirmation',
+          },
+          'toolkit-stack-name': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
           },
         },
         arg: {

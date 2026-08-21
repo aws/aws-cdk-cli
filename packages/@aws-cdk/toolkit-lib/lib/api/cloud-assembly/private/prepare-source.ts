@@ -332,6 +332,7 @@ export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Setti
     versionReporting: true,
     assetMetadata: true,
     assetStaging: true,
+    validation: true,
     ...synthOpts,
   }, true);
 }

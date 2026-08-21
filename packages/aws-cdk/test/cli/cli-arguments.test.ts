@@ -144,6 +144,20 @@ describe('yargs', () => {
       globalOptions: expect.anything(),
     });
   });
+
+  test('refactor --toolkit-stack-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['refactor', '--toolkit-stack-name', 'MyCustomToolkit']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'refactor',
+      refactor: expect.objectContaining({
+        toolkitStackName: 'MyCustomToolkit',
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
 });
 
 describe('config', () => {

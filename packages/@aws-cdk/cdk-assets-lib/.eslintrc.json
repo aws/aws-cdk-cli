@@ -158,7 +158,15 @@
             "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
           },
           {
+            "name": "@aws-cdk/private-tools/lib/subprocess",
+            "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
+          },
+          {
             "name": "@aws-cdk/private-tools/lib/zip",
+            "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
+          },
+          {
+            "name": "@aws-cdk/private-tools/lib/s3-path-style",
             "message": "Import shared tools from './private/tools' (the generated shim), not '@aws-cdk/private-tools' directly."
           }
         ],

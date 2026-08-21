@@ -1,0 +1,5 @@
+{"seq":0,"type":"notify","action":"validate","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"validate","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"validate","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":3,"type":"notify","action":"validate","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
+{"seq":4,"type":"notify","action":"validate","level":"error","code":"CDK_TOOLKIT_E9600","message":"ERROR S3 Buckets must not be publicly accessible (TestPlugin)\n   Test-Stack-A-Display-Name/MyBucket/Resource (MyBucket)\n   Acknowledge with 'TestPlugin::no-public-buckets'"}

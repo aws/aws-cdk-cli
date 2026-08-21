@@ -87,7 +87,7 @@ describe('version message', () => {
     const mockCache = new VersionCheckTTL(tmpfile());
     jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
 
-    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
       latestVersion: '2.0.0',
       deprecated: undefined,
     });
@@ -102,7 +102,7 @@ describe('version message', () => {
     const mockCache = new VersionCheckTTL(tmpfile());
     jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
 
-    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
       latestVersion: '2.1000.0',
       deprecated: undefined,
     });
@@ -118,7 +118,7 @@ describe('version message', () => {
     const mockCache = new VersionCheckTTL(tmpfile());
     jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
 
-    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
       latestVersion: '2.0.0',
       deprecated: 'This version is deprecated.',
     });
@@ -131,13 +131,44 @@ describe('version message', () => {
     const mockCache = new VersionCheckTTL(tmpfile());
     jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
 
-    jest.spyOn(npm, 'execNpmView').mockResolvedValue({
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
       latestVersion: '1.0.0',
       deprecated: undefined,
     });
 
     const messages = await getVersionMessages('1.0.0', mockCache);
     expect(messages).toEqual([]);
+  });
+
+  test('Does not print message when registry reports an older latest version', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+
+    // e.g. stale metadata from a registry mirror
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
+      latestVersion: '1.5.0',
+      deprecated: undefined,
+    });
+
+    const messages = await getVersionMessages('2.0.0', mockCache);
+    expect(messages).toEqual([]);
+  });
+
+  test('Prints deprecation and upgrade recommendation when current version is deprecated, even if latest is older', async () => {
+    const mockCache = new VersionCheckTTL(tmpfile());
+    jest.spyOn(mockCache, 'hasExpired').mockResolvedValue(true);
+
+    // e.g. an accidentally published version that was deprecated;
+    // the fix is a downgrade to the latest version
+    jest.spyOn(npm, 'fetchNpmVersionInfo').mockResolvedValue({
+      latestVersion: '2.1133.0',
+      deprecated: 'This version was published accidentally. Please use 2.x.x instead.',
+    });
+
+    const messages = await getVersionMessages('3.0.0', mockCache);
+    expect(messages.some(msg => msg.includes('This version was published accidentally'))).toBeTruthy();
+    expect(messages.some(msg => msg.includes('Upgrade recommended (npm install -g aws-cdk)'))).toBeTruthy();
+    expect(messages.some(msg => msg.includes('Newer version of CDK is available'))).toBeFalsy();
   });
 });
 

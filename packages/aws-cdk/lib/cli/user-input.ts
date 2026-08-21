@@ -152,7 +152,7 @@ export interface UserInput {
   /**
    * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
    */
-  readonly lsp?: {};
+  readonly lsp?: LspOptions;
 
   /**
    * Detach resources from a CloudFormation stack without deleting them
@@ -1038,6 +1038,13 @@ export interface ValidateOptions {
   readonly online?: boolean;
 
   /**
+   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
+
+  /**
    * Positional argument for validate
    */
   readonly STACKS?: Array<string>;
@@ -1181,6 +1188,13 @@ export interface ImportOptions {
    * @default - undefined
    */
   readonly changeSetName?: string;
+
+  /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.
+   *
+   * @default - undefined
+   */
+  readonly notificationArns?: Array<string>;
 
   /**
    * The name of the CDK toolkit stack to create
@@ -1780,6 +1794,20 @@ export interface DocsOptions {
 }
 
 /**
+ * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+ *
+ * @struct
+ */
+export interface LspOptions {
+  /**
+   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
+   *
+   * @default - false
+   */
+  readonly features?: boolean;
+}
+
+/**
  * Opens an interactive web explorer for your CDK app
  *
  * @struct
@@ -1845,6 +1873,13 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+
+  /**
+   * The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
 
   /**
    * Positional argument for refactor
