@@ -1096,6 +1096,16 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     // where a 'dir' symlink needs elevation.
     process.platform === 'win32' ? 'junction' : 'dir',
   );
+
+  // `npm` writes the lock file next to the `package.json` it installed, which is now
+  // the shared directory, so copy it back into the test directory. Constructs that
+  // bundle (`NodejsFunction`) find their project root by searching upwards from the
+  // app for a lock file, and bundle-mount that directory into Docker; without a lock
+  // file here the search escapes the test directory and synth fails.
+  fs.copyFileSync(
+    path.join(sharedNodeModules, '..', 'package-lock.json'),
+    path.join(fixture.integTestDir, 'package-lock.json'),
+  );
 }
 
 /**
