@@ -19,7 +19,7 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
     await shell.shell(['npm', 'run', 'test']);
 
     await shell.shell(['cdk', 'synth']);
-  })), 600_000);
+  })), 300_000);
 });
 
 // Same as https://github.com/DefinitelyTyped/DefinitelyTyped?tab=readme-ov-file#support-window
@@ -59,7 +59,7 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
 
     await shell.shell(['npm', 'run', 'build']);
     await shell.shell(['cdk', 'synth']);
-  })), 300_000);
+  })), 180_000);
 });
 
 async function removeDevDependencies(context: TemporaryDirectoryContext) {
