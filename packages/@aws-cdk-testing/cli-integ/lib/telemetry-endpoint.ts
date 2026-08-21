@@ -24,8 +24,12 @@ export interface TelemetryEndpoint {
   /**
    * Path to the CA certificate that signs this endpoint's certificate.
    *
-   * Pass to `--ca-bundle-path` (or `AWS_CA_BUNDLE`) so the CLI, and the detached sender it spawns,
-   * will trust it.
+   * Pass through `NODE_EXTRA_CA_CERTS` so the CLI, and the detached sender it spawns, will trust it.
+   *
+   * Deliberately NOT `--ca-bundle-path` or `AWS_CA_BUNDLE`: those REPLACE the trust store for the
+   * whole CLI, so the SDK's own calls to public AWS endpoints stop verifying. `STS.GetCallerIdentity`
+   * then fails to find an issuer, the default account never resolves, and the app exits non-zero
+   * before any telemetry assertion is reached. `NODE_EXTRA_CA_CERTS` adds to the store instead.
    */
   readonly caBundlePath: string;
 

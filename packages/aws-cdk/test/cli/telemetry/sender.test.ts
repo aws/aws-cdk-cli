@@ -491,8 +491,15 @@ describe('sender', () => {
   describe('SOCKS support', () => {
     // The reason this sender reuses `proxy-agent` instead of hand-rolling HTTP CONNECT: a
     // builtins-only sender cannot speak SOCKS, so it had to skip these users entirely.
+    //
+    // These two address the endpoint by IP rather than by name, because `socks5://` (unlike
+    // `socks5h://`) resolves the destination on THIS side and puts the resulting address in the SOCKS
+    // request. Given a hostname, what lands there depends on how `localhost` happens to resolve: an
+    // IPv6-first box sends an ATYP=0x04 address, which `startSocks5Proxy` below does not implement,
+    // and the connection is closed rather than proxied. A literal IPv4 address is not resolved at all,
+    // so the request shape is the same everywhere. Covered by the certificate's `IP:127.0.0.1` SAN.
     test('delivers through a socks5:// proxy', async () => {
-      const endpoint = await startEndpoint(ca);
+      const endpoint = await startEndpoint(ca, { urlHost: '127.0.0.1' });
       const proxy = await startSocks5Proxy();
       try {
         await expect(sendTelemetry({
@@ -512,7 +519,7 @@ describe('sender', () => {
     });
 
     test('discovers a socks5:// proxy from the environment', async () => {
-      const endpoint = await startEndpoint(ca);
+      const endpoint = await startEndpoint(ca, { urlHost: '127.0.0.1' });
       const proxy = await startSocks5Proxy();
       try {
         process.env.HTTPS_PROXY = proxy.url;

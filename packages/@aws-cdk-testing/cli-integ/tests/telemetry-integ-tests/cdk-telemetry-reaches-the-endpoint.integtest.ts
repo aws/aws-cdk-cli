@@ -10,7 +10,15 @@ import { startTelemetryEndpoint } from '../../lib/telemetry-endpoint';
  * hand-off, resolving and spawning the sender, forwarding the CA bundle path, and the POST itself.
  *
  * The endpoint's certificate is signed by a throwaway CA that is in no system trust store, so
- * delivery only succeeds if `--ca-bundle-path` really reached the child.
+ * delivery only succeeds if the sender really trusts that CA.
+ *
+ * That CA is supplied through `NODE_EXTRA_CA_CERTS` rather than `--ca-bundle-path`, because the two do
+ * different things: `--ca-bundle-path` REPLACES the trust store for the whole CLI, which also breaks
+ * the SDK's own calls to public AWS endpoints (`STS.GetCallerIdentity` fails to find an issuer, the
+ * default account never resolves, and the app exits before any of this is reached).
+ * `NODE_EXTRA_CA_CERTS` adds to the store instead, so public roots keep working. The forwarding of
+ * `caBundlePath` through the payload is covered where it can be asserted in isolation: the
+ * `reads the CA bundle from the path it was given` sender test, and the proxy integ test.
  */
 integTest(
   'telemetry is delivered to the endpoint',
@@ -20,11 +28,11 @@ integTest(
       await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
-          '--ca-bundle-path', endpoint.caBundlePath,
         ],
         modEnv: {
           CDK_HOME: fixture.integTestDir,
           TELEMETRY_ENDPOINT: endpoint.url,
+          NODE_EXTRA_CA_CERTS: endpoint.caBundlePath,
         },
         verboseLevel: 3, // trace
       });
