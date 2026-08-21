@@ -5,7 +5,7 @@ import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, 
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -466,8 +466,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * like if isTTY and isCI.
    */
   public get stackProgress(): StackActivityProgress {
-    // We can always use EVENTS
-    if (this._progress === StackActivityProgress.EVENTS) {
+    // We can always use EVENTS and ERRORS_ONLY
+    if (this._progress === StackActivityProgress.EVENTS || this._progress === StackActivityProgress.ERRORS_ONLY) {
       return this._progress;
     }
 
@@ -1084,6 +1084,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         return new HistoryActivityPrinter(props);
       case StackActivityProgress.BAR:
         return new CurrentActivityPrinter(props);
+      case StackActivityProgress.ERRORS_ONLY:
+        return new ErrorsOnlyActivityPrinter(props);
     }
   }
 }

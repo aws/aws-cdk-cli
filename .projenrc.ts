@@ -775,6 +775,7 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.subprocess);
 cdkAssetsLib.with(tools.zip);
 cdkAssetsLib.with(tools['s3-path-style']);
 fixupTestTask(cdkAssetsLib);
@@ -942,7 +943,6 @@ const toolkitLib = configureProject(
       'picomatch',
       'p-limit@^3',
       'semver',
-      'split2',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -955,7 +955,6 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra@^11',
       '@types/picomatch',
-      '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
@@ -1001,6 +1000,7 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.subprocess);
 toolkitLib.with(tools.zip);
 toolkitLib.with(tools['s3-path-style']);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
@@ -1370,6 +1370,7 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+cli.with(tools.subprocess);
 cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {

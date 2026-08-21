@@ -42,7 +42,7 @@ export async function usePrescribedMappings(
   const stackGroups: MappingGroupWithStacks[] = [];
   for (const group of mappingGroups) {
     const summaries = await listStacks(sdkProvider, environmentOf(group));
-    const stacks = await getDeployedStacksByNames(sdkProvider, environmentOf(group), summaries.map(s => s.StackName!));
+    const stacks = await getDeployedStacks(sdkProvider, environmentOf(group), summaries);
     stackGroups.push({
       ...group,
       stacks,
@@ -122,19 +122,20 @@ export async function usePrescribedMappings(
   }
 }
 
-export async function getDeployedStacksByNames(
+export async function getDeployedStacks(
   sdkProvider: SdkProvider,
   environment: cxapi.Environment,
-  stackNames: string[],
+  summaries: StackSummary[],
 ): Promise<CloudFormationStack[]> {
   const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForReading)).sdk.cloudFormation();
 
-  const normalize = async (stackName: string) => {
-    const templateCommandOutput = await cfn.getTemplate({ StackName: stackName });
+  const normalize = async (summary: StackSummary) => {
+    const templateCommandOutput = await cfn.getTemplate({ StackName: summary.StackName! });
     const template = deserializeStructure(templateCommandOutput.TemplateBody ?? '{}');
     return {
       environment,
-      stackName: stackName,
+      stackName: summary.StackName!,
+      stackId: summary.StackId,
       template,
     };
   };
@@ -142,7 +143,7 @@ export async function getDeployedStacksByNames(
   const limit = pLimit(20);
 
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-  return Promise.all(stackNames.map(s => limit(() => normalize(s))));
+  return Promise.all(summaries.map(s => limit(() => normalize(s))));
 }
 
 async function listStacks(
@@ -205,10 +206,9 @@ export async function groupStacks(sdkProvider: SdkProvider, localStacks: CloudFo
 
     const environment = environments.get(key)!;
     const stackSummaries = await listStacks(sdkProvider, environment);
-    const stackNames = stackSummaries
-      .map(s => s.StackName!)
-      .filter(s => hasLocalCounterpart(s) || wasExplicitlyProvided(s));
-    const deployedStacks = await getDeployedStacksByNames(sdkProvider, environment, stackNames);
+    const summaries = stackSummaries
+      .filter(s => hasLocalCounterpart(s.StackName!) || wasExplicitlyProvided(s.StackName!));
+    const deployedStacks = await getDeployedStacks(sdkProvider, environment, summaries);
 
     groups.push({
       environment,

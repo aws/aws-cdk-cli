@@ -2,6 +2,8 @@
 
 /* eslint-disable import/no-extraneous-dependencies -- re-exports the build-time-only @aws-cdk/private-tools package */
 /* eslint-disable no-restricted-imports -- this shim is the single sanctioned entry point to @aws-cdk/private-tools */
+export * from '@aws-cdk/private-tools/lib/subprocess';
+
 export * from '@aws-cdk/private-tools/lib/zip';
 
 export * from '@aws-cdk/private-tools/lib/s3-path-style';

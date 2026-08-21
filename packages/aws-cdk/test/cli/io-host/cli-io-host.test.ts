@@ -9,6 +9,7 @@ import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
 import { CliIoHost, matchAny } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
+import { StackActivityProgress } from '../../../lib/commands/deploy';
 
 let passThrough: PassThrough;
 
@@ -1517,6 +1518,30 @@ describe('CliIoHost', () => {
           expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('some other prompt') + ' (y/n) ');
         });
       });
+    });
+  });
+
+  describe('stackProgress', () => {
+    afterEach(() => {
+      ioHost.stackProgress = StackActivityProgress.BAR;
+      ioHost.logLevel = 'trace';
+    });
+
+    test('"bar" degrades to "events" when not on a TTY', () => {
+      ioHost.logLevel = 'info';
+      ioHost.isTTY = false;
+      ioHost.stackProgress = StackActivityProgress.BAR;
+
+      expect(ioHost.stackProgress).toBe(StackActivityProgress.EVENTS);
+    });
+
+    test('"errors-only" is preserved regardless of TTY, CI and log level', () => {
+      ioHost.isTTY = false;
+      ioHost.isCI = true;
+      ioHost.logLevel = 'trace';
+      ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
+
+      expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
     });
   });
 });
