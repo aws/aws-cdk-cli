@@ -1064,6 +1064,55 @@ describe('BackgroundStackRefresh', () => {
     expect(setTimeoutSpy).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
   });
+
+  test('noOlderThan() clears its timeout handle once the refresh lands (no leaked timer)', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync(); // first refresh lands; lastRefreshTime = T0, next refresh scheduled for T0+300000
+
+    jest.advanceTimersByTime(299000); // T0+299000: 1s before the next background refresh fires
+
+    const timerCountBefore = jest.getTimerCount();
+
+    // 100s is shorter than the 299s elapsed since the last refresh, so this must take
+    // the "wait for it" branch rather than resolving immediately -- and it's much
+    // longer than the 1s until the next background refresh, so that refresh (not
+    // this call's own timeout) is what resolves it.
+    const waitPromise = backgroundRefresh.noOlderThan(100000);
+    // A new timer was armed for this call's timeout race.
+    expect(jest.getTimerCount()).toBeGreaterThan(timerCountBefore);
+
+    jest.advanceTimersByTime(1000); // T0+300000: the next background refresh lands and resolves us
+    await expect(waitPromise).resolves.toBeUndefined();
+
+    // The timeout side of the race must have been cleared, not left pending.
+    expect(jest.getTimerCount()).toBe(timerCountBefore);
+  });
+
+  test('noOlderThan() does not leave a dangling entry in queuedPromises after it times out', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync();
+    jest.advanceTimersByTime(120000);
+
+    const waitPromise = backgroundRefresh.noOlderThan(0);
+    jest.advanceTimersByTime(120000);
+    await expect(waitPromise).rejects.toThrow('refreshStacks took too long; the background thread likely threw an error');
+
+    // A stale resolver left behind here would sit in the queue forever (only
+    // justRefreshedStacks() drains it), growing unboundedly under repeated timeouts.
+    expect((backgroundRefresh as any).queuedPromises).toHaveLength(0);
+  });
+
+  test('many concurrent noOlderThan() timeouts do not accumulate in queuedPromises', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync();
+    jest.advanceTimersByTime(120000);
+
+    const waitPromises = Array.from({ length: 25 }, () => backgroundRefresh.noOlderThan(0));
+    jest.advanceTimersByTime(120000);
+    await Promise.allSettled(waitPromises);
+
+    expect((backgroundRefresh as any).queuedPromises).toHaveLength(0);
+  });
 });
 
 describe('ProgressPrinter', () => {
