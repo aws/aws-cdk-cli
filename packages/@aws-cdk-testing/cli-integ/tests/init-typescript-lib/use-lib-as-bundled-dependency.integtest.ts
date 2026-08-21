@@ -22,4 +22,4 @@ integTest('using aws-cdk-lib as a bundled dependency', withTemporaryDirectory(wi
   await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, undefined, 2), 'utf-8');
 
   await shell.shell(['npm', 'install']);
-})), 300_000);
+})), 180_000);
