@@ -286,7 +286,7 @@ export function rimraf(fsPath: string): boolean {
 
     // Remove links without recursing into their target: a directory may
     // link to shared content that other tests are still using (e.g. the
-    // shared 'node_modules' on Windows).
+    // shared 'node_modules').
     if (stat.isSymbolicLink()) {
       try {
         fs.unlinkSync(fsPath);
