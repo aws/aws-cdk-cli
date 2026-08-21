@@ -205,6 +205,7 @@ describe('config', () => {
       gc: expect.anything(),
       flags: expect.anything(),
       doctor: expect.anything(),
+      explore: expect.anything(),
       docs: expect.anything(),
       lsp: expect.anything(),
       orphan: expect.anything(),

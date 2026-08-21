@@ -36,12 +36,16 @@ class FakeWatcher implements FileWatcher {
 function setup() {
   const fake = new FakeWatcher();
   const onChange = jest.fn();
+  const onError = jest.fn();
+  const onSynthActivity = jest.fn();
   const watcher = startAssemblyWatcher({
     assemblyDir: '/p/cdk.out',
     onChange,
+    onError,
+    onSynthActivity,
     createWatcher: () => fake,
   });
-  return { fake, onChange, watcher };
+  return { fake, onChange, onError, onSynthActivity, watcher };
 }
 
 describe('Assembly Watcher', () => {
@@ -69,6 +73,27 @@ describe('Assembly Watcher', () => {
 
     jest.advanceTimersByTime(500);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('reports the write lock (synth.lock) appearing as synth activity', () => {
+    const { fake, onChange, onSynthActivity } = setup();
+
+    fake.emitFile('add', '/p/cdk.out/synth.lock');
+
+    expect(onSynthActivity).toHaveBeenCalledTimes(1);
+    expect(onSynthActivity).toHaveBeenCalledWith(expect.any(Number));
+    // The write lock is never an assembly refresh.
+    jest.advanceTimersByTime(500);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('does not report synth activity for a read lock or a lock removal', () => {
+    const { fake, onSynthActivity } = setup();
+
+    fake.emitFile('add', '/p/cdk.out/read.12345.1.lock');
+    fake.emitFile('unlink', '/p/cdk.out/synth.lock');
+
+    expect(onSynthActivity).not.toHaveBeenCalled();
   });
 
   test('ignores non-signal files such as templates', () => {

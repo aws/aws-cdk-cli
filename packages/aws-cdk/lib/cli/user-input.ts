@@ -145,6 +145,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Opens an interactive web explorer for your CDK app
+   */
+  readonly explore?: ExploreOptions;
+
+  /**
    * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
    */
   readonly lsp?: LspOptions;
@@ -1800,6 +1805,20 @@ export interface LspOptions {
    * @default - false
    */
   readonly features?: boolean;
+}
+
+/**
+ * Opens an interactive web explorer for your CDK app
+ *
+ * @struct
+ */
+export interface ExploreOptions {
+  /**
+   * Port to bind the web server on
+   *
+   * @default - 4200
+   */
+  readonly port?: number;
 }
 
 /**
