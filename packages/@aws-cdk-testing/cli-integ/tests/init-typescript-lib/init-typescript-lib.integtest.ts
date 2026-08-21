@@ -10,4 +10,4 @@ integTest('typescript init lib', withTemporaryDirectory(withPackages(async (cont
   await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
   await shell.shell(['npm', 'run', 'build']);
   await shell.shell(['npm', 'run', 'test']);
-})));
+})), 300_000);

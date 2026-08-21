@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs';
 import { XpMutexPool } from '../lib/xpmutex';
 
 const POOL = XpMutexPool.fromName('test-pool');
@@ -28,6 +29,36 @@ test('acquire waits', async () => {
   expect(secondLockAcquired).toBe(true);
 
   await secondProcess;
+});
+
+test('a Windows delete-pending EPERM on create is treated as contention, not a fatal error', async () => {
+  // On Windows, creating the lock file can transiently fail with EPERM while a
+  // just-unlinked file is in "delete pending" state. The mutex must swallow
+  // that and retry rather than throwing it up to the caller (which is what
+  // took down the shared-install lock on the Windows integ runner).
+  const mux = POOL.mutex('windowsEperm');
+
+  const realOpen = fs.open.bind(fs);
+  let epermInjected = 0;
+  const spy = jest.spyOn(fs, 'open').mockImplementation((async (...args: any[]) => {
+    // Fail the first exclusive-create attempt exactly once, as Windows would.
+    if (args[1] === 'wx' && epermInjected < 1) {
+      epermInjected++;
+      const e: any = new Error("EPERM: operation not permitted, open '<lock>'");
+      e.code = 'EPERM';
+      throw e;
+    }
+    return realOpen(...(args as Parameters<typeof realOpen>));
+  }) as unknown as typeof fs.open);
+
+  try {
+    // Would reject with EPERM before the fix; now it retries and succeeds.
+    const lock = await mux.acquire();
+    expect(epermInjected).toBe(1);
+    await lock.release();
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 /**
