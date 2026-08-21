@@ -4801,15 +4801,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/split2@npm:^4.2.3":
-  version: 4.2.3
-  resolution: "@types/split2@npm:4.2.3"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/92326872b1f6f2e5a0808682a3f0630efb98bed51b1e40e2133e740f664bbde7a21af54e2a1f1a1f6eac218a70d7a9bae22d3e6d614950c06ddab391b7a1dfca
-  languageName: node
-  linkType: hard
-
 "@types/stack-utils@npm:^2.0.0, @types/stack-utils@npm:^2.0.3":
   version: 2.0.3
   resolution: "@types/stack-utils@npm:2.0.3"
@@ -8287,7 +8278,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:^0.28.2":
+"esbuild@npm:^0.28.1, esbuild@npm:^0.28.2":
   version: 0.28.2
   resolution: "esbuild@npm:0.28.2"
   dependencies:
@@ -14089,7 +14080,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"qs@npm:^6.11.0":
+"qs@npm:^6.11.0, qs@npm:~6.15.1":
   version: 6.15.3
   resolution: "qs@npm:6.15.3"
   dependencies:
@@ -14105,16 +14096,6 @@ __metadata:
   dependencies:
     side-channel: "npm:^1.1.0"
   checksum: 10c0/646110124476fc9acf3c80994c8c3a0600cbad06a4ede1c9e93341006e8426d64e85e048baf8f0c4995f0f1bf0f37d1f3acc5ec1455850b81978792969a60ef6
-  languageName: node
-  linkType: hard
-
-"qs@npm:~6.15.1":
-  version: 6.15.3
-  resolution: "qs@npm:6.15.3"
-  dependencies:
-    es-define-property: "npm:^1.0.1"
-    side-channel: "npm:^1.1.1"
-  checksum: 10c0/8f3f6e45ece255347d57696628401cde29e9ec649fff698b53bd3150dea7cefdf33036e1bc1826b9f110bfa7cb0ec4ab9f5297eca628ce216c55af82c304e08e
   languageName: node
   linkType: hard
 
@@ -15973,7 +15954,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsx@npm:^4.23.12":
+"tsx@npm:^4.22.4, tsx@npm:^4.23.12":
   version: 4.23.12
   resolution: "tsx@npm:4.23.12"
   dependencies:

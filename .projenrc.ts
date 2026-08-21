@@ -1213,12 +1213,27 @@ const cdkExplorer = configureProject(
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
+      '@types/express@^4',
+      'react@^18',
+      'react-dom@^18',
+      '@types/react@^18',
+      '@types/react-dom@^18',
+      '@cloudscape-design/components@^3',
+      '@cloudscape-design/global-styles@^1',
+      'esbuild',
+      'tsx',
+      'supertest@^6',
+      '@types/supertest@^6',
       '@types/convert-source-map@^2',
+      'prismjs@^1',
+      '@types/prismjs@^1',
+      'yaml@^2',
     ],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
       },
+      exclude: ['frontend'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1233,6 +1248,10 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
+cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
+cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.json');
+cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1697,75 +1716,6 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
-
-// #endregion
-//////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-explorer
-
-const cdkExplorer = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-explorer',
-    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      toolkitLib.customizeReference({ versionType: 'exact' }),
-      'vscode-languageserver@^9',
-      'vscode-languageserver-textdocument@^1',
-      'vscode-jsonrpc@^8',
-      'chokidar@^4',
-      '@jridgewell/trace-mapping@^0.3',
-      'convert-source-map@^2',
-    ],
-    devDeps: [
-      'vscode-languageserver-protocol@^3',
-      '@types/express@^4',
-      'react@^18',
-      'react-dom@^18',
-      '@types/react@^18',
-      '@types/react-dom@^18',
-      '@cloudscape-design/components@^3',
-      '@cloudscape-design/global-styles@^1',
-      'esbuild',
-      'tsx',
-      'supertest@^6',
-      '@types/supertest@^6',
-      '@types/convert-source-map@^2',
-      'prismjs@^1',
-      '@types/prismjs@^1',
-      'yaml@^2',
-    ],
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-      exclude: ['frontend'],
-    },
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
-      },
-    }),
-  }),
-);
-fixupTestTask(cdkExplorer);
-cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
-cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
-cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.json');
-cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
-cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
-
-cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
