@@ -495,6 +495,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           nargs: 1,
           requiresArg: true,
         })
+        .option('rollback-trigger-alarm-arns', {
+          type: 'array',
+          desc: 'ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm).',
+          nargs: 1,
+          requiresArg: true,
+        })
+        .option('monitoring-time-minutes', {
+          default: undefined,
+          type: 'number',
+          desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be between 0 and 180. Requires --rollback-trigger-alarm-arns to have any effect.',
+        })
         .option('tags', {
           type: 'array',
           alias: 't',
