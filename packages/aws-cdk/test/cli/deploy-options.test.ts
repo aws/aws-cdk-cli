@@ -65,6 +65,46 @@ describe('deploy --method=execute-change-set', () => {
   });
 });
 
+describe('deploy rollback triggers', () => {
+  test('--rollback-trigger-alarm-arns builds a rollback configuration', async () => {
+    await exec(['deploy', '--app', 'echo', '--rollback-trigger-alarm-arns', 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm' }],
+        monitoringTimeInMinutes: undefined,
+      },
+    }));
+  });
+
+  test('--monitoring-time-minutes is carried alongside the alarm arns', async () => {
+    await exec(['deploy', '--app', 'echo', '--rollback-trigger-alarm-arns', 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm', '--monitoring-time-minutes', '30', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm' }],
+        monitoringTimeInMinutes: 30,
+      },
+    }));
+  });
+
+  test('neither flag leaves the rollback configuration unmanaged', async () => {
+    await exec(['deploy', '--app', 'echo', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      rollbackConfiguration: undefined,
+    }));
+  });
+
+  test('--monitoring-time-minutes without --rollback-trigger-alarm-arns is rejected', async () => {
+    await expect(
+      exec(['deploy', '--app', 'echo', '--monitoring-time-minutes', '30', 'MyStack']),
+    ).rejects.toThrow('--monitoring-time-minutes requires --rollback-trigger-alarm-arns');
+
+    expect(deploySpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('deploy --express', () => {
   test('passes express: true to CdkToolkit.deploy', async () => {
     await exec(['deploy', '--app', 'echo', '--express', 'MyStack']);
