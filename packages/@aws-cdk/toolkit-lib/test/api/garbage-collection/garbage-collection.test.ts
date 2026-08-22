@@ -1076,6 +1076,7 @@ describe('ProgressPrinter', () => {
     setInterval = jest.spyOn(global, 'setInterval');
     clearInterval = jest.spyOn(global, 'clearInterval');
 
+    ioHost.clear();
     progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 0, 1000);
   });
 
@@ -1090,6 +1091,48 @@ describe('ProgressPrinter', () => {
 
     expect(setInterval).toHaveBeenCalledTimes(1);
     expect(() => progressPrinter.start()).toThrow('ProgressPrinter is already running. Stop it first using the stop() method before starting it again.');
+  });
+
+  test('does not report NaN% when there are no assets to scan (#625)', () => {
+    // totalAssets is 0 (empty bucket/repo). The final flush would otherwise divide 0/0.
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 0, 1000);
+
+    progressPrinter.stop(); // prints one last time
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[100.00%]');
+  });
+
+  test('reports a real percentage when total is known', () => {
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 10, 1000);
+
+    progressPrinter.reportScannedAsset(5);
+    progressPrinter.stop();
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[50.00%]');
+  });
+
+  test('print action reports assets eligible for deletion instead of "0 tagged, 0 deleted" (#625)', () => {
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 2, 1000, 'print');
+
+    // 2 isolated assets of 1 MiB each are eligible for garbage collection.
+    progressPrinter.reportEligibleAsset([
+      { size: 1_048_576 } as any,
+      { size: 1_048_576 } as any,
+    ]);
+    progressPrinter.reportScannedAsset(2);
+    progressPrinter.stop();
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[100.00%]');
+    expect(printed).toContain('2 assets');
+    expect(printed).toContain('eligible for deletion');
+    // The misleading "0 assets ... tagged, 0 assets ... deleted" line should not be shown for the print action.
+    expect(printed).not.toContain('tagged');
   });
 });
 
