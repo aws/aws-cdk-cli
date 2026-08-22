@@ -1,5 +1,7 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import { validateSnsTopicArn, maxResourceTypeLength, isErrorEvent, stackNameFromArn, changeSetNameFromArn } from '../../lib/util/cloudformation';
+import { RollbackTriggerType } from '../../lib/actions/deploy';
+import { ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { validateSnsTopicArn, validateCloudWatchAlarmArn, toCloudFormationRollbackConfiguration, maxResourceTypeLength, isErrorEvent, stackNameFromArn, changeSetNameFromArn } from '../../lib/util/cloudformation';
 
 describe('validateSnsTopicArn', () => {
   test('empty string', () => {
@@ -25,6 +27,96 @@ describe('validateSnsTopicArn', () => {
   test('underscore in topic name', () => {
     const arn = 'arn:aws:sns:eu-west-1:123456789876:foo-bar_baz';
     expect(validateSnsTopicArn(arn)).toEqual(true);
+  });
+});
+
+describe('validateCloudWatchAlarmArn', () => {
+  test('empty string is invalid', () => {
+    expect(validateCloudWatchAlarmArn('')).toEqual(false);
+  });
+
+  test('an SNS topic arn is not a valid alarm arn', () => {
+    expect(validateCloudWatchAlarmArn('arn:aws:sns:eu-west-1:123456789012:foo')).toEqual(false);
+  });
+
+  test('a metric alarm arn is valid', () => {
+    expect(validateCloudWatchAlarmArn('arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm')).toEqual(true);
+  });
+
+  test('an alarm arn with special characters in the name is valid', () => {
+    expect(validateCloudWatchAlarmArn('arn:aws:cloudwatch:us-east-1:123456789012:alarm:My-Alarm_1 with spaces')).toEqual(true);
+  });
+
+  test('gov-cloud partition alarm arn is valid', () => {
+    expect(validateCloudWatchAlarmArn('arn:aws-us-gov:cloudwatch:us-gov-west-1:123456789012:alarm:MyAlarm')).toEqual(true);
+  });
+
+  test('an arn without an alarm name is invalid', () => {
+    expect(validateCloudWatchAlarmArn('arn:aws:cloudwatch:us-east-1:123456789012:alarm:')).toEqual(false);
+  });
+});
+
+describe('toCloudFormationRollbackConfiguration', () => {
+  test('returns undefined when no configuration is provided', () => {
+    expect(toCloudFormationRollbackConfiguration(undefined)).toBeUndefined();
+  });
+
+  test('an empty configuration clears triggers', () => {
+    expect(toCloudFormationRollbackConfiguration({})).toEqual({
+      RollbackTriggers: [],
+      MonitoringTimeInMinutes: undefined,
+    });
+  });
+
+  test('defaults the trigger type to a metric alarm', () => {
+    expect(toCloudFormationRollbackConfiguration({
+      triggers: [{ arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm' }],
+      monitoringTimeInMinutes: 15,
+    })).toEqual({
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 15,
+    });
+  });
+
+  test('honours an explicit composite alarm type', () => {
+    expect(toCloudFormationRollbackConfiguration({
+      triggers: [{
+        arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyComposite',
+        type: RollbackTriggerType.COMPOSITE_ALARM,
+      }],
+    })).toEqual({
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:us-east-1:123456789012:alarm:MyComposite', Type: 'AWS::CloudWatch::CompositeAlarm' },
+      ],
+      MonitoringTimeInMinutes: undefined,
+    });
+  });
+
+  test('throws when more than 5 triggers are specified', () => {
+    const triggers = Array.from({ length: 6 }, (_, i) => ({
+      arn: `arn:aws:cloudwatch:us-east-1:123456789012:alarm:Alarm${i}`,
+    }));
+    expect(() => toCloudFormationRollbackConfiguration({ triggers })).toThrow(ToolkitError);
+    expect(() => toCloudFormationRollbackConfiguration({ triggers })).toThrow(/maximum of 5 rollback triggers/);
+  });
+
+  test('throws on an invalid alarm arn', () => {
+    expect(() => toCloudFormationRollbackConfiguration({
+      triggers: [{ arn: 'arn:aws:sns:us-east-1:123456789012:not-an-alarm' }],
+    })).toThrow(/not a valid CloudWatch alarm arn/);
+  });
+
+  test.each([-1, 181])('throws when monitoring time %d is out of range', (monitoringTimeInMinutes) => {
+    expect(() => toCloudFormationRollbackConfiguration({ monitoringTimeInMinutes })).toThrow(/monitoring time must be between 0 and 180/);
+  });
+
+  test.each([0, 180])('accepts monitoring time %d at the range boundary', (monitoringTimeInMinutes) => {
+    expect(toCloudFormationRollbackConfiguration({ monitoringTimeInMinutes })).toEqual({
+      RollbackTriggers: [],
+      MonitoringTimeInMinutes: monitoringTimeInMinutes,
+    });
   });
 });
 

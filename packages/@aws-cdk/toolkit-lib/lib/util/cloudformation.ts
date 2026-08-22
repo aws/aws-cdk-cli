@@ -1,10 +1,77 @@
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { RollbackConfiguration as CfnRollbackConfiguration, StackEvent } from '@aws-sdk/client-cloudformation';
+import type { RollbackConfiguration } from '../actions/deploy';
+import { RollbackTriggerType } from '../actions/deploy';
+import { ToolkitError } from '../toolkit/toolkit-error';
 
 /**
  * Validate SNS topic arn
  */
 export function validateSnsTopicArn(arn: string): boolean {
   return /^arn:aws:sns:[a-z0-9\-]+:[0-9]+:[a-z0-9\-\_]+$/i.test(arn);
+}
+
+/**
+ * Validate a CloudWatch alarm arn (metric or composite alarm)
+ */
+export function validateCloudWatchAlarmArn(arn: string): boolean {
+  return /^arn:[a-z0-9\-]+:cloudwatch:[a-z0-9\-]+:[0-9]+:alarm:.+$/i.test(arn);
+}
+
+/**
+ * The maximum number of rollback triggers CloudFormation accepts on a stack operation.
+ */
+const MAX_ROLLBACK_TRIGGERS = 5;
+
+/**
+ * The maximum monitoring time, in minutes, CloudFormation accepts.
+ */
+const MAX_MONITORING_TIME_IN_MINUTES = 180;
+
+/**
+ * Validate the user-provided rollback configuration and convert it to the shape
+ * expected by the CloudFormation SDK.
+ *
+ * Returns `undefined` when no configuration was provided, in which case CDK does
+ * not manage rollback triggers (any triggers previously set on the stack are
+ * left untouched by CloudFormation).
+ */
+export function toCloudFormationRollbackConfiguration(config?: RollbackConfiguration): CfnRollbackConfiguration | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+
+  const triggers = config.triggers ?? [];
+  if (triggers.length > MAX_ROLLBACK_TRIGGERS) {
+    throw new ToolkitError(
+      'InvalidRollbackConfiguration',
+      `a maximum of ${MAX_ROLLBACK_TRIGGERS} rollback triggers can be specified, got ${triggers.length}`,
+    );
+  }
+
+  for (const trigger of triggers) {
+    if (!validateCloudWatchAlarmArn(trigger.arn)) {
+      throw new ToolkitError(
+        'InvalidRollbackConfiguration',
+        `rollback trigger arn ${trigger.arn} is not a valid CloudWatch alarm arn`,
+      );
+    }
+  }
+
+  const monitoringTime = config.monitoringTimeInMinutes;
+  if (monitoringTime !== undefined && (monitoringTime < 0 || monitoringTime > MAX_MONITORING_TIME_IN_MINUTES)) {
+    throw new ToolkitError(
+      'InvalidRollbackConfiguration',
+      `monitoring time must be between 0 and ${MAX_MONITORING_TIME_IN_MINUTES} minutes, got ${monitoringTime}`,
+    );
+  }
+
+  return {
+    RollbackTriggers: triggers.map((trigger) => ({
+      Arn: trigger.arn,
+      Type: trigger.type ?? RollbackTriggerType.ALARM,
+    })),
+    MonitoringTimeInMinutes: monitoringTime,
+  };
 }
 
 /**

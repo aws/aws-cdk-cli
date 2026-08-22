@@ -7,6 +7,7 @@ import type {
   CreateStackCommandInput,
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
+  RollbackConfiguration,
   Tag,
   DeploymentConfig,
 } from '@aws-sdk/client-cloudformation';
@@ -104,6 +105,13 @@ export interface DeployStackOptions {
    * @default - No notifications
    */
   readonly notificationArns?: string[];
+
+  /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * Name to deploy the stack under
@@ -783,6 +791,7 @@ class FullCloudFormationDeployment {
     return {
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
       NotificationARNs: this.options.notificationArns,
+      RollbackConfiguration: this.options.rollbackConfiguration,
       Parameters: this.stackParams.apiParameters,
       RoleARN: this.options.roleArn,
       TemplateBody: this.bodyParameter.TemplateBody,
@@ -944,6 +953,15 @@ async function canSkipDeploy(
     return false;
   }
 
+  // Rollback configuration has changed. `undefined` means CDK does not manage it, so leave it alone.
+  if (
+    deployStackOptions.rollbackConfiguration !== undefined &&
+    !rollbackConfigurationEquals(cloudFormationStack.rollbackConfiguration, deployStackOptions.rollbackConfiguration)
+  ) {
+    await ioHelper.defaults.debug(`${deployName}: rollback configuration has changed`);
+    return false;
+  }
+
   // Termination protection has been updated
   if (!!deployStackOptions.stack.terminationProtection !== !!cloudFormationStack.terminationProtection) {
     await ioHelper.defaults.debug(`${deployName}: termination protection has been updated`);
@@ -1006,6 +1024,28 @@ function suffixWithErrors(msg: string, errors?: string[]) {
 
 function arrayEquals(a: any[], b: any[]): boolean {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
+}
+
+/**
+ * Compare the rollback configuration currently deployed on the stack with the desired one.
+ *
+ * Triggers are compared order-independently by (Arn, Type). A missing monitoring time is
+ * treated as the CloudFormation default of 0 minutes.
+ */
+function rollbackConfigurationEquals(deployed: RollbackConfiguration, desired: RollbackConfiguration): boolean {
+  if ((deployed.MonitoringTimeInMinutes ?? 0) !== (desired.MonitoringTimeInMinutes ?? 0)) {
+    return false;
+  }
+
+  const deployedTriggers = deployed.RollbackTriggers ?? [];
+  const desiredTriggers = desired.RollbackTriggers ?? [];
+  if (deployedTriggers.length !== desiredTriggers.length) {
+    return false;
+  }
+
+  const key = (t: { Arn?: string; Type?: string }) => `${t.Arn}|${t.Type}`;
+  const deployedKeys = new Set(deployedTriggers.map(key));
+  return desiredTriggers.every((trigger) => deployedKeys.has(key(trigger)));
 }
 
 function hasReplacement(report: ChangeSetReport) {

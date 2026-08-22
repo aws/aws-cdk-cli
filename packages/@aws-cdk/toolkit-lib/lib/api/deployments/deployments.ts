@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { RollbackConfiguration } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -63,6 +64,13 @@ export interface DeployStackOptions {
    * @default - No notifications
    */
   readonly notificationArns?: string[];
+
+  /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass through to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * Override name under which stack will be deployed
@@ -414,6 +422,7 @@ export class Deployments {
       resolvedEnvironment: env.resolvedEnvironment,
       deployName: options.deployName,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       sdk: env.sdk,
       sdkProvider: this.deployStackSdkProvider,
       roleArn: executionRoleArn,

@@ -150,6 +150,8 @@ export async function makeConfig(): Promise<CliConfig> {
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
           'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING], desc: 'What changes require manual approval' },
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
+          'rollback-trigger-alarm-arns': { type: 'array', desc: 'ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm).' },
+          'monitoring-time-minutes': { type: 'number', desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be between 0 and 180. Requires --rollback-trigger-alarm-arns to have any effect.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)', deprecated: true },
