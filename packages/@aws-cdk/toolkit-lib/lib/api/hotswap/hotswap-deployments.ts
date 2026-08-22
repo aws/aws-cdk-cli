@@ -174,7 +174,8 @@ async function hotswapDeployment(
 
   // Check for a cached template from a previous hotswap deployment.
   // Use if available, represents the current state of the resources involved in hotswap.
-  const hotswapCache = await readHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template);
+  const environmentKey = `${resolvedEnv.account}/${resolvedEnv.region}`;
+  const hotswapCache = await readHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template, environmentKey);
   const currentTemplate = hotswapCache ?? await loadCurrentTemplateWithNestedStacks(stack, sdk);
 
   const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
@@ -226,7 +227,7 @@ async function hotswapDeployment(
   try {
     await applyAllHotswapOperations(sdk, ioSpan, hotswappable);
     // Cache the synthesized template so the next hotswap diffs against it
-    await writeHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template, currentTemplate.nestedStacks);
+    await writeHotswapTemplateCache(stack.assembly.directory, stack.stackName, stack.template, currentTemplate.nestedStacks, environmentKey);
   } catch (e: any) {
     error = e;
   }
