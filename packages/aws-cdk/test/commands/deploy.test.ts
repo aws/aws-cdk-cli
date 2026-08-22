@@ -484,6 +484,40 @@ describe('deploy parameters forwarded to CloudFormation', () => {
     );
   });
 
+  test('rollback triggers are converted and forwarded to deployStack', async () => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm' }],
+        monitoringTimeInMinutes: 10,
+      },
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rollbackConfiguration: {
+          RollbackTriggers: [
+            { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+          ],
+          MonitoringTimeInMinutes: 10,
+        },
+      }),
+    );
+  });
+
+  test('an invalid rollback trigger arn is rejected', async () => {
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:sns:bermuda-triangle-1:123456789012:not-an-alarm' }],
+      },
+    })).rejects.toThrow(/not a valid CloudWatch alarm arn/);
+  });
+
   test('--no-rollback is forwarded to deployStack', async () => {
     await toolkit.deploy({
       selector: selectExact('Test-Stack-A-Display-Name'),

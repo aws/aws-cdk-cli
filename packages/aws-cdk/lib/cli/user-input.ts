@@ -823,6 +823,20 @@ export interface DeployOptions {
   readonly notificationArns?: Array<string>;
 
   /**
+   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm).
+   *
+   * @default - undefined
+   */
+  readonly rollbackTriggerAlarmArns?: Array<string>;
+
+  /**
+   * The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.
+   *
+   * @default - undefined
+   */
+  readonly monitoringTimeMinutes?: number;
+
+  /**
    * Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)
    *
    * aliases: t
