@@ -149,6 +149,15 @@ export interface TemplateInfo {
    * moved fom and to, respectively.
    */
   readonly mappings?: Record<string, string>;
+
+  /**
+   * The resolved environment the stack will be deployed to, shown in the stack header.
+   * Must be resolved (as by `Deployments.resolveEnvironment()`), not `newTemplate.environment`,
+   * which is `unknown-account`/`unknown-region` for environment-agnostic stacks.
+   *
+   * @default undefined - no environment is shown
+   */
+  readonly environment?: cxapi.Environment;
 }
 
 /**
@@ -159,6 +168,7 @@ export class DiffFormatter {
   private readonly stackName: string;
   private readonly isImport: boolean;
   private readonly mappings: Record<string, string>;
+  private readonly environmentSuffix: string;
 
   /**
    * Cache of computed TemplateDiffs, indexed by stack name.
@@ -170,6 +180,7 @@ export class DiffFormatter {
     this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
     this.isImport = props.templateInfo.isImport ?? false;
     this.mappings = props.templateInfo.mappings ?? {};
+    this.environmentSuffix = formatEnvironmentSuffix(props.templateInfo.environment);
   }
 
   public get diffs() {
@@ -232,6 +243,7 @@ export class DiffFormatter {
       changeSet: this.templateInfo.changeSet,
       mappings: this.mappings,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentSuffix: this.environmentSuffix,
     }, options);
   }
 
@@ -243,8 +255,10 @@ export class DiffFormatter {
     changeSet: DescribeChangeSetOutput | undefined;
     mappings: Record<string, string>;
     logicalIdMap: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentSuffix?: string;
   }, options: ReusableStackDiffOptions = {}): FormatStackDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentSuffix } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, mappings);
 
@@ -256,7 +270,7 @@ export class DiffFormatter {
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+        stream.write(format(`Stack ${chalk.bold(stackName)}${environmentSuffix ?? ''}\n`));
       }
 
       if (!options.quiet && this.isImport) {
@@ -332,6 +346,7 @@ export class DiffFormatter {
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentSuffix: this.environmentSuffix,
     }, options);
 
     return { formattedDiff, permissionChangeType, numStacksWithChanges };
@@ -344,15 +359,17 @@ export class DiffFormatter {
     nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
     changeSet: DescribeChangeSetOutput | undefined;
     logicalIdMap?: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentSuffix?: string;
   }, options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap, environmentSuffix } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, this.mappings);
     const permissionChangeType = permissionTypeFromDiff(diff);
 
     const stream = new StringWriteStream();
     if (!options.quiet || permissionChangeType !== PermissionChangeType.NONE) {
-      stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+      stream.write(format(`Stack ${chalk.bold(stackName)}${environmentSuffix ?? ''}\n`));
     }
 
     try {
@@ -393,6 +410,13 @@ export class DiffFormatter {
 
     return { formattedDiff, permissionChangeType: escalatedPermissionType, numStacksWithChanges };
   }
+}
+
+function formatEnvironmentSuffix(environment?: cxapi.Environment): string {
+  if (!environment) {
+    return '';
+  }
+  return chalk.grey(` (aws://${environment.account}/${environment.region})`);
 }
 
 function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {

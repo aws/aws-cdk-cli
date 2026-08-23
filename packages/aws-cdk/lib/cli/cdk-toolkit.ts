@@ -356,11 +356,13 @@ export class CdkToolkit {
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
 
+        const environment = await this.props.deployments.resolveEnvironment(stack);
+
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
           ioHelper: asIoHelper(this.ioHost, 'diff'),
         });
-        const resourcesToImport = await migrator.tryGetResources(await this.props.deployments.resolveEnvironment(stack));
+        const resourcesToImport = await migrator.tryGetResources(environment);
         if (resourcesToImport) {
           removeNonImportResources(stack);
         }
@@ -381,6 +383,7 @@ export class CdkToolkit {
             isImport: !!resourcesToImport,
             nestedStacks,
             mappings,
+            environment,
           },
         });
 
