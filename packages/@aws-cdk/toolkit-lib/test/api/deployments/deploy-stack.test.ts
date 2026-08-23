@@ -277,7 +277,7 @@ describe('hotswap template cache', () => {
   test('writeHotswapTemplateCache is called on a successful hotswap deployment', async () => {
     // GIVEN
     (tryHotswapDeployment as jest.Mock).mockImplementation(async () => {
-      await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {});
+      await writeHotswapTemplateCache('assembly-dir', 'withouterrors', {}, {}, '123456789012/us-east-1');
       return { type: 'did-deploy-stack', noOp: false, stackArn: 'arn:stack', outputs: {}, deleteFailures: [], stabilizingResources: [] };
     });
 
