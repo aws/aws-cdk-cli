@@ -81,10 +81,16 @@ describe(ActiveAssetCache, () => {
       function randHash(rng: () => number) {
         return Array.from({ length: 12 }, () => Math.floor(rng() * 16).toString(16)).join('');
       }
-      // Simple deterministic PRNG so failures are reproducible.
+      // Simple deterministic PRNG so failures are reproducible. Math.imul keeps
+      // the multiply within a 32-bit-safe integer (no bitwise operators, no
+      // precision loss from JS doubles on the full product).
       let seed = 42;
       const rng = () => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        seed = Math.imul(seed, 1103515245) + 12345;
+        seed = seed % 0x7fffffff;
+        if (seed < 0) {
+          seed += 0x7fffffff;
+        }
         return seed / 0x7fffffff;
       };
 
