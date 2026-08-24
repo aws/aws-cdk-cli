@@ -272,14 +272,20 @@ export class IoHostRecorder {
    * Build the ordered list of recorded entries from the observed message
    * stream. Observations are already in the order the host handled them, so no
    * separate ordering is needed.
+   *
+   * @param options - `includeDropped: true` includes suppressed messages
+   *   (tagged `dropped: true`) regardless of the recorder's `excludeDropped`
+   *   setting, so a test can assert on listener-based suppression directly
+   *   without the dropped entries ending up in the snapshot.
    */
-  public entries(): RecordedIoEntry[] {
+  public entries(options: { includeDropped?: boolean } = {}): RecordedIoEntry[] {
+    const includeDropped = options.includeDropped ?? !this.excludeDropped;
     const entries: RecordedIoEntry[] = [];
     let seq = 0;
     for (const { type, emitted, effective, dropped } of this.observations) {
       // Optionally omit suppressed messages so the snapshot reflects only what
       // the user sees.
-      if (dropped && this.excludeDropped) {
+      if (dropped && !includeDropped) {
         continue;
       }
       // The single decision point for which levels are included; uses the

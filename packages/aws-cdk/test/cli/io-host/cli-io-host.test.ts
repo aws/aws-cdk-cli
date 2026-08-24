@@ -7,7 +7,7 @@ import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost, matchAny } from '../../../lib/cli/io-host';
+import { CliIoHost, matchAny, suppressMessages } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 import { StackActivityProgress } from '../../../lib/commands/deploy';
 
@@ -366,6 +366,46 @@ describe('CliIoHost', () => {
       }));
 
       expect(observed).toEqual(['CDK_TOOLKIT_I2901:a', 'CDK_TOOLKIT_I1000:b']);
+    });
+
+    test('suppressMessages() decorator drops the given codes only while the method runs', async () => {
+      class Fixture {
+        public readonly ioHost = ioHost;
+
+        @suppressMessages(IO.CDK_TOOLKIT_I2901)
+        public async run(body: () => Promise<void>): Promise<number> {
+          await body();
+          return 42;
+        }
+      }
+
+      const result = await new Fixture().run(async () => {
+        await ioHost.notify(listMessage('while-suppressed'));
+      });
+
+      // suppressed inside the method, return value passed through
+      expect(result).toBe(42);
+      expect(mockStdout).not.toHaveBeenCalledWith('while-suppressed\n');
+
+      // listener is gone again after the method returned
+      await ioHost.notify(listMessage('after'));
+      expect(mockStdout).toHaveBeenCalledWith('after\n');
+    });
+
+    test('suppressMessages() decorator removes its listener when the method throws', async () => {
+      class Fixture {
+        public readonly ioHost = ioHost;
+
+        @suppressMessages(IO.CDK_TOOLKIT_I2901)
+        public async boom(): Promise<void> {
+          throw new Error('nope');
+        }
+      }
+
+      await expect(new Fixture().boom()).rejects.toThrow('nope');
+
+      await ioHost.notify(listMessage('after-throw'));
+      expect(mockStdout).toHaveBeenCalledWith('after-throw\n');
     });
 
     test('rewrite() replaces the printed text for every matching message', async () => {

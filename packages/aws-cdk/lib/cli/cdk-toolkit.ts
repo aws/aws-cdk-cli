@@ -10,7 +10,7 @@ import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import { CliIoHost } from './io-host';
+import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
@@ -225,21 +225,17 @@ export class CdkToolkit {
     });
   }
 
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+  )
   public async metadata(stackName: string, json: boolean) {
-    this.ioHost.once(
+    const dispose = this.ioHost.once(
       IO.CDK_TOOLKIT_I2901,
       (msg) => ({
         action: 'metadata',
         message: serializeStructure(msg.data.stacks[0]?.metadata ?? {}, json),
       }),
-    );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1001,
-      () => ({ preventDefault: true }),
-    );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1000,
-      () => ({ preventDefault: true }),
     );
 
     try {
@@ -251,7 +247,7 @@ export class CdkToolkit {
         },
       });
     } finally {
-      this.ioHost.removeAllListeners();
+      dispose();
     }
   }
 
@@ -474,7 +470,9 @@ export class CdkToolkit {
     // toolkit-lib emits the approval request (I5060) without mentioning
     // `--require-approval`. The CLI owns that flag, so it adds the framing here.
     // Both deploy paths resolve through this host, so one listener covers both.
-    this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+    // Disposed in the finally below: `deploy()` can run repeatedly (watch mode),
+    // and each run must register a rewrite for its own `requireApproval` value.
+    const disposeRewrite = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
         : 'updates';
@@ -615,7 +613,7 @@ export class CdkToolkit {
 
       await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
     } finally {
-      this.ioHost.removeAllListeners();
+      disposeRewrite();
     }
   }
 
@@ -1028,6 +1026,15 @@ export class CdkToolkit {
     }
   }
 
+  // The destroy action runs through toolkit-lib.
+  // Suppress its new status messages to keep the output as it was before.
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+    IO.CDK_TOOLKIT_I7101, // Starting Destroy (trace)
+    IO.CDK_TOOLKIT_I7001, // per-stack Destroy time (trace)
+    IO.CDK_TOOLKIT_I7000, // ✨ Destroy time (info)
+  )
   public async destroy(options: DestroyOptions) {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
@@ -1036,26 +1043,21 @@ export class CdkToolkit {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
-    // The destroy action runs through toolkit-lib.
-    // Use listeners to keep the messages as they were before.
-    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
-    // The success line was `info` in the historical `cdk destroy`, not `result`.
-    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
+    const disposers = [
+      // The success line was `info` in the historical `cdk destroy`, not `result`.
+      this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })), // ✅ <stack>: destroyed
 
-    // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
-    // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
-    // the listener both suppresses the log and aborts the command (the top-level
-    // renders `AbortError` as "Deletion cancelled").
-    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
-      throw new AbortError('DestroyAborted', 'Deletion cancelled');
-    });
+      // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
+      // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
+      // the listener both suppresses the log and aborts the command (the top-level
+      // renders `AbortError` as "Deletion cancelled").
+      this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+        throw new AbortError('DestroyAborted', 'Deletion cancelled');
+      }),
+    ];
 
     if (options.force) {
-      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+      disposers.push(this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true));
     }
 
     try {
@@ -1076,26 +1078,28 @@ export class CdkToolkit {
         express: options.express,
       });
     } finally {
-      this.ioHost.removeAllListeners();
+      disposers.forEach((dispose) => dispose());
     }
   }
 
+  // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
+  // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
+  @suppressMessages(IO.CDK_TOOLKIT_I1000, IO.CDK_TOOLKIT_I1002)
   public async list(
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+    const dispose = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
-    // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
-    // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
-    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
-    this.ioHost.once(IO.CDK_TOOLKIT_I1002, () => ({ preventDefault: true }));
-
-    await this.toolkit.list(this.props.cloudExecutable, {
-      stacks: selectors.length > 0
-        ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
-        : undefined,
-    });
+    try {
+      await this.toolkit.list(this.props.cloudExecutable, {
+        stacks: selectors.length > 0
+          ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
+          : undefined,
+      });
+    } finally {
+      dispose();
+    }
 
     return 0; // exit-code
   }
