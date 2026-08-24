@@ -1,4 +1,5 @@
 import '../../../private/dispose-polyfill';
+import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import { isMatch as picomatch } from 'picomatch';
 import { major } from 'semver';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
@@ -45,6 +46,8 @@ export interface SelectStacksV3Result {
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
 export class StackAssembly extends BaseStackAssembly implements IReadableCloudAssembly {
+  private _allStacks: CloudFormationStackArtifact[] | undefined;
+
   constructor(private readonly _asm: IReadableCloudAssembly, ioHelper: IoHelper) {
     super(_asm.cloudAssembly, ioHelper);
   }
@@ -63,6 +66,17 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
 
   public async [Symbol.asyncDispose]() {
     return this.dispose();
+  }
+
+  /**
+   * Cached get the fetch all CloudFormationStackArtifacts for the assembly.
+   */
+  private get allStacks(): CloudFormationStackArtifact[] {
+    if (!this._allStacks) {
+      this._allStacks = major(this.assembly.version) < 10 ? this.assembly.stacks : this.assembly.stacksRecursively;
+    }
+
+    return this._allStacks;
   }
 
   /**
@@ -86,7 +100,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
   public async selectStacksV3(selector: StackSelector, options: SelectStacksV3Options = {}): Promise<SelectStacksV3Result> {
     const asm = this.assembly;
     const topLevelStacks = asm.stacks;
-    const allStacks = major(asm.version) < 10 ? asm.stacks : asm.stacksRecursively;
+    const allStacks = this.allStacks;
 
     if (allStacks.length === 0 && (selector.failOnEmpty ?? true)) {
       throw new ToolkitError('NoStacksInApp', 'This app contains no stacks');
@@ -148,29 +162,16 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
    * match. Pure computation, never throws, emits no output.
    */
   private suggestionsForPatterns(patterns: string[], matched: StackCollection): Record<string, string[]> {
-    const candidates = this.selectAllStacks().stackArtifacts;
     const suggestions: Record<string, string[]> = {};
     for (const pattern of patterns) {
       if (matched.stackArtifacts.some((stack) => picomatch(stack.hierarchicalId, pattern))) {
         continue;
       }
-      suggestions[pattern] = candidates
+      suggestions[pattern] = this.allStacks
         .filter((stack) => picomatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
         .map((stack) => stack.hierarchicalId);
     }
     return suggestions;
-  }
-
-  /**
-   * Select all stacks.
-   *
-   * This method never throws and can safely be used as a basis for other calculations.
-   *
-   * @returns a `StackCollection` of all stacks
-   */
-  public selectAllStacks() {
-    const allStacks = major(this.assembly.version) < 10 ? this.assembly.stacks : this.assembly.stacksRecursively;
-    return new StackCollection(this, allStacks);
   }
 
   /**
@@ -179,8 +180,8 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
    * @returns a `StackCollection` of all stacks that needs to be validated
    */
   public selectStacksForValidation() {
-    const allStacks = this.selectAllStacks();
-    return allStacks.filter((art) => art.validateOnSynth ?? false);
+    const selected = this.allStacks.filter((art) => art.validateOnSynth ?? false);
+    return new StackCollection(this, selected);
   }
 }
 
