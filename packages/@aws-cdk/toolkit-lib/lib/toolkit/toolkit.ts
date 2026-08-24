@@ -1772,14 +1772,28 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const { stacks, suggestions } = await assembly.selectStacksV3(selectStacks, { suggestPatternMatches: true });
+
+    // Warn about each provided pattern that matched no stack, suggesting a close
+    // match when one exists (e.g. only the casing differs).
+    for (const [pattern, closeMatches] of Object.entries(suggestions ?? {})) {
+      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
+    }
 
     const ret: DestroyResult = {
       stacks: [],
     };
 
+    if (stacks.stackCount === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7011.msg(
+        `No stacks match the name(s): ${chalk.red((selectStacks.patterns ?? []).join(', '))}`,
+      ));
+      return ret;
+    }
+
     const motivation = 'Destroying stacks is an irreversible action';
-    const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
+    const question = `Are you sure you want to delete: ${chalk.blue(stacks.hierarchicalIds.join(', '))}`;
     const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
