@@ -1095,6 +1095,49 @@ export function matchAny(...selectors: MessageSelector<any>[]): (msg: IoMessage<
 }
 
 /**
+ * Method decorator that suppresses the given IoHost messages for the duration
+ * of the decorated method.
+ *
+ * Before the method runs, a single `preventDefault` listener covering all
+ * given selectors is registered on the instance's `ioHost`; when the method
+ * settles (returns or throws), exactly that listener is removed again. This
+ * replaces the manual pattern of registering drop-listeners at the top of a
+ * method and cleaning them up in a `finally`, and — unlike a blanket
+ * `removeAllListeners()` — it does not disturb listeners registered elsewhere.
+ *
+ * The decorated method must be async and live on a class whose instances carry
+ * the `CliIoHost` on an `ioHost` property (like `CdkToolkit`).
+ *
+ * @example
+ * class CdkToolkit {
+ *   \@suppressMessages(IO.CDK_TOOLKIT_I1001, IO.CDK_TOOLKIT_I1000)
+ *   public async metadata(stackName: string, json: boolean) {
+ *     // I1001/I1000 are dropped while this runs
+ *   }
+ * }
+ */
+export function suppressMessages(...selectors: MessageSelector<any>[]) {
+  return function <A extends any[], R>(
+    _target: object,
+    _propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<(...args: A) => Promise<R>>,
+  ): void {
+    const original = descriptor.value;
+    if (!original) {
+      throw new ToolkitError('InvalidDecoratorTarget', 'suppressMessages can only decorate methods');
+    }
+    descriptor.value = async function (this: { readonly ioHost: CliIoHost }, ...args: A): Promise<R> {
+      const dispose = this.ioHost.on(matchAny(...selectors), () => ({ preventDefault: true }));
+      try {
+        return await original.apply(this, args);
+      } finally {
+        dispose();
+      }
+    };
+  };
+}
+
+/**
  * This IoHost implementation considers a request promptable, if:
  * - it's a yes/no confirmation
  * - asking for a string or number value
