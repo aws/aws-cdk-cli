@@ -6,6 +6,7 @@ import { Toolkit, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 import { SseBroadcaster } from './events';
+import { localOnly, newSessionToken, sessionAuth, TOKEN_QUERY_PARAM } from './local-only';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from './protocol';
 import { registerApi } from './routes';
 import { StalenessTracker } from './staleness';
@@ -25,6 +26,57 @@ import {
 export const DEFAULT_PORT = 4200;
 const MAX_PORT_ATTEMPTS = 100;
 const HOST = 'localhost';
+
+/**
+ * Policy for the SPA. Everything it needs is same-origin or inlined by the
+ * bundler, so the baseline is `'none'` and each directive opens only what the
+ * build actually emits: the bundle (`script-src 'self'`), its data-URI fonts and
+ * images, and same-origin `fetch`/`EventSource` (`connect-src 'self'`). The
+ * payoff is that a script injected into a rendered file cannot phone home —
+ * `connect-src 'self'` blocks the exfiltration a file viewer would otherwise
+ * enable. `style-src` needs `'unsafe-inline'` for index.html's inline `<style>`
+ * block and Cloudscape's runtime styles; React `style` props go through CSSOM and
+ * are not covered by CSP either way.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+/**
+ * Response hardening for every route, including the 403s `localOnly` writes.
+ *
+ * - `Content-Security-Policy` / `X-Frame-Options`: see above; the frame
+ *   directives stop an attacker page from embedding the explorer at all.
+ * - `X-Content-Type-Options`: the API answers `application/json`; without
+ *   `nosniff` a cross-site `<script>`/`<link>` pointed at `/api/file` can get a
+ *   response reinterpreted as script or CSS.
+ * - `Referrer-Policy`: a `/api/file?path=…` URL names a path in the user's
+ *   project; it must not travel in a `Referer`.
+ * - `Cross-Origin-*`: keeps the explorer out of another origin's browsing
+ *   context group and out of its subresource loads.
+ * - `Cache-Control`: responses carry project source, and the bundle filename is
+ *   unversioned — nothing here should ever be reused from a cache.
+ */
+function securityHeaders(_req: express.Request, res: express.Response, next: express.NextFunction): void {
+  res.set({
+    'Content-Security-Policy': CONTENT_SECURITY_POLICY,
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Cache-Control': 'no-store',
+  });
+  next();
+}
 
 export interface WebServerOptions {
   readonly port?: number;
@@ -56,7 +108,21 @@ export interface WebServerOptions {
 }
 
 export interface WebServer {
+  /**
+   * Origin the server is listening on, with no token. Use it to build request
+   * paths; it is not on its own enough to reach any endpoint.
+   */
   readonly url: string;
+  /**
+   * The URL to give a human: {@link url} carrying the session token, which the
+   * server trades for a cookie on first load. This is what the CLI prints.
+   */
+  readonly sessionUrl: string;
+  /**
+   * This session's token, regenerated on every start and never persisted. Exposed
+   * for callers that drive the server programmatically (and for tests).
+   */
+  readonly token: string;
   stop(): Promise<void>;
 }
 
@@ -86,6 +152,24 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   };
 
   const app = express();
+
+  // Nothing needs the banner, and it hands a visiting page a free fingerprint of
+  // what is listening on the port.
+  app.disable('x-powered-by');
+
+  // Hardening headers first, so even the 403s localOnly writes carry them.
+  app.use(securityHeaders);
+
+  // Confine every route to loopback callers before any handler runs. This is the
+  // guard against DNS rebinding and cross-origin reads from a page the user visits.
+  app.use(localOnly);
+
+  // ...and then to callers holding this session's token, which is the only thing
+  // that stops another local process — headers alone prove nothing about a caller
+  // that is not a browser. The read API can read files under appDir, so both
+  // layers run before any route.
+  const token = newSessionToken();
+  app.use(sessionAuth(token));
 
   // The Toolkit provides the assembly read lock (via fromAssemblyDirectory().
   // produce()); a non-interactive IoHost is fine here since stdout/stderr are
@@ -118,17 +202,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
 
   // Serve the SPA from the embedded bundle (survives CLI bundling). Named assets
   // by path; any other GET falls back to index.html for client-side routing.
-  // The bundle filename is unversioned, so disable caching to ensure a rebuilt
-  // explorer is always picked up on reload rather than served stale by the browser.
+  // (securityHeaders already sets Cache-Control: no-store, which is what makes a
+  // rebuilt bundle show up on reload despite its unversioned filename.)
   app.get('/:asset', (req, res, next) => {
     const asset = webAsset(req.params.asset);
     if (!asset) return next();
-    res.set('Cache-Control', 'no-store');
     return res.type(asset.contentType).send(asset.body);
   });
   app.get('*', (_req, res) => {
     const index = indexHtml();
-    res.set('Cache-Control', 'no-store');
     res.type(index.contentType).send(index.body);
   });
 
@@ -169,8 +251,11 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   });
 
   let stopped = false;
+  const url = `http://${HOST}:${port}`;
   return {
-    url: `http://${HOST}:${port}`,
+    url,
+    sessionUrl: `${url}/?${TOKEN_QUERY_PARAM}=${token}`,
+    token,
     stop: async () => {
       if (stopped) return;
       stopped = true;

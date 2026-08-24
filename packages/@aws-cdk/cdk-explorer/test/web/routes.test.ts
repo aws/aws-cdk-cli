@@ -101,6 +101,36 @@ describe('GET /api/file', () => {
     const res = await request(app).get('/api/file').query({ path: 'bin.dat' });
     expect(res.status).toBe(415);
   });
+
+  // The app dir is the whole project tree, so containment is not enough on its own.
+  test.each([
+    ['.env', 'AWS_SECRET_ACCESS_KEY=hunter2\n'],
+    ['.npmrc', '//registry.npmjs.org/:_authToken=secret\n'],
+    ['server.pem', '-----BEGIN PRIVATE KEY-----\n'],
+  ])('refuses to serve %s with 403', async (name, content) => {
+    fs.writeFileSync(path.join(appDir, name), content);
+    const res = await request(app).get('/api/file').query({ path: name });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not readable/);
+  });
+
+  test('refuses to serve a file inside a dot-directory with 403', async () => {
+    fs.mkdirSync(path.join(appDir, '.git'));
+    fs.writeFileSync(path.join(appDir, '.git', 'config'), '[remote "origin"]\n');
+    const res = await request(app).get('/api/file').query({ path: '.git/config' });
+    expect(res.status).toBe(403);
+  });
+
+  test('refuses a symlink whose innocuous name points at a denied file', async () => {
+    fs.writeFileSync(path.join(appDir, '.env'), 'AWS_SECRET_ACCESS_KEY=hunter2\n');
+    try {
+      fs.symlinkSync(path.join(appDir, '.env'), path.join(appDir, 'config.ts'));
+    } catch {
+      return; // symlinks not permitted in this environment; skip
+    }
+    const res = await request(app).get('/api/file').query({ path: 'config.ts' });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('symlink containment', () => {
@@ -273,6 +303,33 @@ describe('GET /api/template', () => {
     expect(res.body.content).toBe(TEMPLATE_TEXT);
     expect(res.body.resources.Bucket123).toBeDefined();
     expect(res.body.resources.Bucket123.source).toBeUndefined();
+  });
+
+  // The assembly dir also holds staged assets, which carry whatever the app
+  // bundled into them.
+  test.each([
+    ['asset.abc/index.js', 'exports.handler = () => {};\n'],
+    ['asset.abc/.env', 'AWS_SECRET_ACCESS_KEY=hunter2\n'],
+    ['asset.abc/signing.pem', '-----BEGIN PRIVATE KEY-----\n'],
+  ])('refuses to serve %s with 403', async (relPath, content) => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const a = appWith(reader);
+    const target = path.join(appDir, 'cdk.out', relPath);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content);
+
+    const res = await request(a).get('/api/template').query({ file: relPath });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not a readable template/);
+  });
+
+  test('does not let a template-looking query string launder a denied extension', async () => {
+    const reader = async (): Promise<AssemblyReadResult> => ({ status: 'not-found' });
+    const a = appWith(reader);
+    fs.writeFileSync(path.join(appDir, 'cdk.out', 'signing.pem'), '-----BEGIN PRIVATE KEY-----\n');
+
+    const res = await request(a).get('/api/template').query({ file: 'MyStack.template.json/../signing.pem' });
+    expect(res.status).toBe(403);
   });
 });
 

@@ -7,7 +7,7 @@ import { type Router, type Express, type Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import express = require('express');
 import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
-import { resolveWithinRoot } from './safe-path';
+import { isSensitiveRead, isTemplatePath, resolveWithinRoot } from './safe-path';
 import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
 import { StalenessTracker } from './staleness';
 import type { AcquireAssemblyLock, AssemblyLock } from '../core/assembly-lock';
@@ -124,6 +124,11 @@ export function createApiRouter(options: ApiOptions): Router {
     if (!resolved) {
       return res.status(403).json({ error: 'path escapes application directory' });
     }
+    // The app dir is the whole project tree, so containment is not enough: refuse
+    // the files under it that hold secrets rather than app source.
+    if (isSensitiveRead(appDir, resolved)) {
+      return res.status(403).json({ error: 'path is not readable by the explorer' });
+    }
     let stat: fs.Stats;
     try {
       stat = fs.statSync(resolved);
@@ -173,6 +178,11 @@ export function createApiRouter(options: ApiOptions): Router {
     const resolved = resolveWithinRoot(assemblyDir, file);
     if (!resolved) {
       return res.status(403).json({ error: 'path escapes assembly directory' });
+    }
+    // The assembly dir also holds staged assets, so serve only what this endpoint
+    // exists to render, and apply the same secret-file policy as /api/file.
+    if (!isTemplatePath(resolved) || isSensitiveRead(assemblyDir, resolved)) {
+      return res.status(403).json({ error: 'path is not a readable template' });
     }
     let content: string;
     try {

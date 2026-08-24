@@ -13,7 +13,9 @@ export async function explore(options: ExploreOptions): Promise<number> {
       `CDK Explorer live refresh stopped: ${err instanceof Error ? err.message : String(err)}`,
     ),
   });
-  await options.ioHelper.defaults.info(`CDK Explorer running at ${server.url}`);
+  // sessionUrl, not url: the token in it is what authenticates the browser, and it
+  // is regenerated every run, so this link is the only way in to this session.
+  await options.ioHelper.defaults.info(`CDK Explorer running at ${server.sessionUrl}`);
 
   await new Promise<void>((resolve) => {
     const onSignal = () => {

@@ -22,6 +22,8 @@ describe('explore command', () => {
 
     expect(exitCode).toBe(0);
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatch(/CDK Explorer running at http:\/\/localhost:\d+/);
+    // The printed URL must carry the session token; without it the link is refused,
+    // and it is the only way into this session.
+    expect(messages[0]).toMatch(/CDK Explorer running at http:\/\/localhost:\d+\/\?token=[\w-]{20,}/);
   });
 });
