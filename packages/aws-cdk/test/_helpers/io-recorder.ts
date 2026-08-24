@@ -38,6 +38,13 @@ function defaultScrubbers(): Scrubber[] {
     { pattern: /\n\s+at\s+[^\n]*/g, replacement: '' },
     // The OS temp dir (tests chdir into a temp dir)
     { pattern: new RegExp(escapeRegExp(fs.realpathSync(os.tmpdir())), 'g'), replacement: '<TMP>' },
+    // The random suffix of mkdtemp-created assembly output dirs, e.g.
+    // "/cdk.outAb12Cd". Anchored on the path separator (either flavor, and
+    // normalized to '/' so snapshots match cross-platform) so prose that
+    // merely starts with "cdk.out" is never mangled; mkdtemp dirs always sit
+    // directly under the temp dir, so the separator is always present (and
+    // the TMP scrubber above has already run — scrubbers apply in array order).
+    { pattern: /[\\/]cdk\.out[a-zA-Z0-9]{6}/g, replacement: '/cdk.out<RANDOM>' },
   ];
 }
 
@@ -265,14 +272,20 @@ export class IoHostRecorder {
    * Build the ordered list of recorded entries from the observed message
    * stream. Observations are already in the order the host handled them, so no
    * separate ordering is needed.
+   *
+   * @param options - `includeDropped: true` includes suppressed messages
+   *   (tagged `dropped: true`) regardless of the recorder's `excludeDropped`
+   *   setting, so a test can assert on listener-based suppression directly
+   *   without the dropped entries ending up in the snapshot.
    */
-  public entries(): RecordedIoEntry[] {
+  public entries(options: { includeDropped?: boolean } = {}): RecordedIoEntry[] {
+    const includeDropped = options.includeDropped ?? !this.excludeDropped;
     const entries: RecordedIoEntry[] = [];
     let seq = 0;
     for (const { type, emitted, effective, dropped } of this.observations) {
       // Optionally omit suppressed messages so the snapshot reflects only what
       // the user sees.
-      if (dropped && this.excludeDropped) {
+      if (dropped && !includeDropped) {
         continue;
       }
       // The single decision point for which levels are included; uses the

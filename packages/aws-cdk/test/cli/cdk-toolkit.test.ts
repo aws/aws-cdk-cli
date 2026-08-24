@@ -272,25 +272,6 @@ describe('list', () => {
       'Test-Stack-B',
     ]);
   });
-
-  test('suppresses the synth-time (I1000) and dependency-expansion (I1002) lines on the list path', async () => {
-    // Both are info-level lines emitted next to the listing; in CI they would land on stdout and
-    // pollute the parseable output. The list path registers a one-shot suppressor for each so they
-    // are dropped before being written. (End-to-end stdout behavior is covered by the integ test.)
-    const toolkit = defaultToolkitSetup();
-    const onceSpy = jest.spyOn(ioHost, 'once');
-
-    // WHEN
-    await toolkit.list([]);
-
-    // THEN
-    for (const code of ['CDK_TOOLKIT_I1000', 'CDK_TOOLKIT_I1002']) {
-      const call = onceSpy.mock.calls.find(([sel]) => (sel as any)?.code === code);
-      expect(call).toBeDefined();
-      const listener = call![1] as (msg: any) => any;
-      expect(listener({ code })).toEqual({ preventDefault: true });
-    }
-  });
 });
 
 describe('deploy', () => {

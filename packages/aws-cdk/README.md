@@ -199,6 +199,17 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+The stack header shows the environment the stack will be deployed to. For environment-agnostic
+stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is
+omitted when diffing against a local template with `--template`, which does not contact AWS.
+
+```console
+$ cdk diff --app='node bin/main.js' MyStackName
+Stack MyStackName (aws://123456789012/us-east-1)
+Resources
+[~] AWS::S3::Bucket MyBucket
+```
+
 The `quiet` flag can also be passed to the `cdk diff` command. Assuming there are no differences detected the output to the console will **not** contain strings such as the *Stack* `MyStackName` and `There were no differences`.
 
 ```console
