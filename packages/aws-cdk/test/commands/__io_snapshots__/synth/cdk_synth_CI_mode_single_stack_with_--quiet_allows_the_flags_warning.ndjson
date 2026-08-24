@@ -1,0 +1,3 @@
+{"seq":0,"type":"notify","action":"synth","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"synth","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"synth","level":"warn","code":null,"message":"1 feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more."}

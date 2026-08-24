@@ -10,7 +10,7 @@ import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import { CliIoHost } from './io-host';
+import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
@@ -225,34 +225,26 @@ export class CdkToolkit {
     });
   }
 
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+  )
   public async metadata(stackName: string, json: boolean) {
-    this.ioHost.once(
+    using _formatter = this.ioHost.once(
       IO.CDK_TOOLKIT_I2901,
       (msg) => ({
         action: 'metadata',
         message: serializeStructure(msg.data.stacks[0]?.metadata ?? {}, json),
       }),
     );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1001,
-      () => ({ preventDefault: true }),
-    );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1000,
-      () => ({ preventDefault: true }),
-    );
 
-    try {
-      await this.toolkit.list(this.props.cloudExecutable, {
-        stacks: {
-          patterns: [stackName],
-          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-          expand: ExpandStackSelection.NONE,
-        },
-      });
-    } finally {
-      this.ioHost.removeAllListeners();
-    }
+    await this.toolkit.list(this.props.cloudExecutable, {
+      stacks: {
+        patterns: [stackName],
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        expand: ExpandStackSelection.NONE,
+      },
+    });
   }
 
   public async acknowledge(noticeId: string) {
@@ -356,11 +348,13 @@ export class CdkToolkit {
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
 
+        const environment = await this.props.deployments.resolveEnvironment(stack);
+
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
           ioHelper: asIoHelper(this.ioHost, 'diff'),
         });
-        const resourcesToImport = await migrator.tryGetResources(await this.props.deployments.resolveEnvironment(stack));
+        const resourcesToImport = await migrator.tryGetResources(environment);
         if (resourcesToImport) {
           removeNonImportResources(stack);
         }
@@ -381,6 +375,7 @@ export class CdkToolkit {
             isImport: !!resourcesToImport,
             nestedStacks,
             mappings,
+            environment,
           },
         });
 
@@ -471,149 +466,147 @@ export class CdkToolkit {
     // toolkit-lib emits the approval request (I5060) without mentioning
     // `--require-approval`. The CLI owns that flag, so it adds the framing here.
     // Both deploy paths resolve through this host, so one listener covers both.
-    this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+    // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
+    // each run must register a rewrite for its own `requireApproval` value.
+    using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
         : 'updates';
       return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
-    try {
-      // execute-change-set is a new flow that we can just delegate to toolkit-lib
-      if (options.deploymentMethod?.method === 'execute-change-set') {
-        await this.toolkit.deploy(this.props.cloudExecutable, {
-          deploymentMethod: options.deploymentMethod,
-          stacks: {
-            patterns: options.selector.patterns,
-            strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-            expand: ExpandStackSelection.NONE,
-          },
-          roleArn: options.roleArn,
-          forceDeployment: options.force,
-          rollback: options.rollback,
-          reuseAssets: options.reuseAssets,
-          concurrency: options.concurrency,
-          traceLogs: options.traceLogs,
-          notificationArns: options.notificationArns,
-          tags: options.tags,
-          outputsFile: options.outputsFile,
-          assetParallelism: options.assetParallelism,
-          assetBuildConcurrency: options.assetBuildConcurrency,
-          assetBuildTime: options.assetBuildTime,
-          parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
-        });
-        return;
-      }
-
-      const startSynthTime = new Date().getTime();
-      const stackCollection = await this.selectStacksForDeploy(
-        options.selector,
-        options.exclusively,
-        options.cacheCloudAssembly,
-        options.ignoreNoStacks,
-      );
-      const elapsedSynthTime = new Date().getTime() - startSynthTime;
-      await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
-
-      if (stackCollection.stackCount === 0) {
-        await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
-        return;
-      }
-
-      const migrator = new ResourceMigrator({
-        deployments: this.props.deployments,
-        ioHelper: asIoHelper(this.ioHost, 'deploy'),
-      });
-      await migrator.tryMigrateResources(stackCollection, {
-        toolkitStackName: this.toolkitStackName,
-        ...options,
-      });
-
-      if (options.deploymentMethod?.method === 'hotswap') {
-        await this.ioHost.asIoHelper().defaults.warn(
-          '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
-        );
-        await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
-      }
-
-      const stacks = stackCollection.stackArtifacts;
-
-      const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
-      const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
-      const concurrency = options.concurrency || 1;
-      if (concurrency > 1) {
-        // the "bar" progress output doesn't support concurrency, fall back to "events"
-        if (this.ioHost.stackProgress === StackActivityProgress.BAR) {
-          this.ioHost.stackProgress = StackActivityProgress.EVENTS;
-        }
-
-        // ...but only warn if the user explicitly requested "bar" progress
-        if (options.progress === StackActivityProgress.BAR) {
-          await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag does not support --progress "bar". Switching to "events".');
-        }
-      }
-
-      const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
-        stack,
-        ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
-      ]);
-      const workGraph = new WorkGraphBuilder(
-        asIoHelper(this.ioHost, 'deploy'),
-        prebuildAssets,
-      ).build(stacksAndTheirAssetManifests);
-
-      // Unless we are running with '--force', skip already published assets
-      if (!options.force) {
-        await this.removePublishedAssets(workGraph, options);
-      }
-
-      const graphConcurrency: Concurrency = {
-        'stack': concurrency,
-        'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
-        'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
-        'marker': 1,
-      };
-
-      const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
-        roleArn: options.roleArn,
-        force: options.force,
-        stackCount: stackCollection.stackCount,
-        notificationArns: options.notificationArns,
+    // execute-change-set is a new flow that we can just delegate to toolkit-lib
+    if (options.deploymentMethod?.method === 'execute-change-set') {
+      await this.toolkit.deploy(this.props.cloudExecutable, {
         deploymentMethod: options.deploymentMethod,
-        toolkitStackName: this.toolkitStackName,
-        reuseAssets: options.reuseAssets,
-        tags: options.tags,
-        parameters: options.parameters,
-        usePreviousParameters: options.usePreviousParameters,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+          expand: ExpandStackSelection.NONE,
+        },
+        roleArn: options.roleArn,
+        forceDeployment: options.force,
         rollback: options.rollback,
-        concurrency,
-        requireApproval,
+        reuseAssets: options.reuseAssets,
+        concurrency: options.concurrency,
+        traceLogs: options.traceLogs,
+        notificationArns: options.notificationArns,
+        tags: options.tags,
+        outputsFile: options.outputsFile,
         assetParallelism: options.assetParallelism,
-        extraUserAgent: options.extraUserAgent,
-        cloudWatchLogMonitor: options.cloudWatchLogMonitor,
-        sdkProvider: this.props.sdkProvider,
-        express: options.express,
+        assetBuildConcurrency: options.assetBuildConcurrency,
+        assetBuildTime: options.assetBuildTime,
+        parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
       });
+      return;
+    }
 
-      const startDeployTime = Date.now();
+    const startSynthTime = new Date().getTime();
+    const stackCollection = await this.selectStacksForDeploy(
+      options.selector,
+      options.exclusively,
+      options.cacheCloudAssembly,
+      options.ignoreNoStacks,
+    );
+    const elapsedSynthTime = new Date().getTime() - startSynthTime;
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
-      await workGraph.doParallel(graphConcurrency, deploymentActions);
+    if (stackCollection.stackCount === 0) {
+      await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
+      return;
+    }
 
-      if (options.outputsFile) {
-        // If an outputs file has been specified, create the file path and write stack outputs to it once.
-        // Outputs are written after all stacks have been deployed. If a stack deployment fails,
-        // all of the outputs from successfully deployed stacks before the failure will still be written.
-        await deploymentActions.writeOutputs(options.outputsFile);
+    const migrator = new ResourceMigrator({
+      deployments: this.props.deployments,
+      ioHelper: asIoHelper(this.ioHost, 'deploy'),
+    });
+    await migrator.tryMigrateResources(stackCollection, {
+      toolkitStackName: this.toolkitStackName,
+      ...options,
+    });
+
+    if (options.deploymentMethod?.method === 'hotswap') {
+      await this.ioHost.asIoHelper().defaults.warn(
+        '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
+      );
+      await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
+    }
+
+    const stacks = stackCollection.stackArtifacts;
+
+    const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
+    const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
+    const concurrency = options.concurrency || 1;
+    if (concurrency > 1) {
+      // the "bar" progress output doesn't support concurrency, fall back to "events"
+      if (this.ioHost.stackProgress === StackActivityProgress.BAR) {
+        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
       }
 
-      // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
-      // spans because of parallelism).
-      this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
-
-      await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
-    } finally {
-      this.ioHost.removeAllListeners();
+      // ...but only warn if the user explicitly requested "bar" progress
+      if (options.progress === StackActivityProgress.BAR) {
+        await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag does not support --progress "bar". Switching to "events".');
+      }
     }
+
+    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+      stack,
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+    ]);
+    const workGraph = new WorkGraphBuilder(
+      asIoHelper(this.ioHost, 'deploy'),
+      prebuildAssets,
+    ).build(stacksAndTheirAssetManifests);
+
+    // Unless we are running with '--force', skip already published assets
+    if (!options.force) {
+      await this.removePublishedAssets(workGraph, options);
+    }
+
+    const graphConcurrency: Concurrency = {
+      'stack': concurrency,
+      'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+      'marker': 1,
+    };
+
+    const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
+      roleArn: options.roleArn,
+      force: options.force,
+      stackCount: stackCollection.stackCount,
+      notificationArns: options.notificationArns,
+      deploymentMethod: options.deploymentMethod,
+      toolkitStackName: this.toolkitStackName,
+      reuseAssets: options.reuseAssets,
+      tags: options.tags,
+      parameters: options.parameters,
+      usePreviousParameters: options.usePreviousParameters,
+      rollback: options.rollback,
+      concurrency,
+      requireApproval,
+      assetParallelism: options.assetParallelism,
+      extraUserAgent: options.extraUserAgent,
+      cloudWatchLogMonitor: options.cloudWatchLogMonitor,
+      sdkProvider: this.props.sdkProvider,
+      express: options.express,
+    });
+
+    const startDeployTime = Date.now();
+
+    await workGraph.doParallel(graphConcurrency, deploymentActions);
+
+    if (options.outputsFile) {
+      // If an outputs file has been specified, create the file path and write stack outputs to it once.
+      // Outputs are written after all stacks have been deployed. If a stack deployment fails,
+      // all of the outputs from successfully deployed stacks before the failure will still be written.
+      await deploymentActions.writeOutputs(options.outputsFile);
+    }
+
+    // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
+    // spans because of parallelism).
+    this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
+
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
   }
 
   /**
@@ -1025,6 +1018,15 @@ export class CdkToolkit {
     }
   }
 
+  // The destroy action runs through toolkit-lib.
+  // Suppress its new status messages to keep the output as it was before.
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+    IO.CDK_TOOLKIT_I7101, // Starting Destroy (trace)
+    IO.CDK_TOOLKIT_I7001, // per-stack Destroy time (trace)
+    IO.CDK_TOOLKIT_I7000, // ✨ Destroy time (info)
+  )
   public async destroy(options: DestroyOptions) {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
@@ -1033,60 +1035,47 @@ export class CdkToolkit {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
-    // The destroy action runs through toolkit-lib.
-    // Use listeners to keep the messages as they were before.
-    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
     // The success line was `info` in the historical `cdk destroy`, not `result`.
-    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
+    using _successLevel = this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
     // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
     // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
     // the listener both suppresses the log and aborts the command (the top-level
     // renders `AbortError` as "Deletion cancelled").
-    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+    using _declineAborts = this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
       throw new AbortError('DestroyAborted', 'Deletion cancelled');
     });
 
-    if (options.force) {
-      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
-    }
+    using _forceConfirms = options.force ? this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true) : undefined;
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
-      await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
-        stacks: {
-          patterns: options.selector.patterns,
-          strategy: options.selector.allTopLevel
-            ? StackSelectionStrategy.MAIN_ASSEMBLY
-            : options.selector.patterns.length > 0
-              ? StackSelectionStrategy.PATTERN_MATCH
-              : StackSelectionStrategy.ONLY_SINGLE,
-          expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
-        },
-        roleArn: options.roleArn,
-        concurrency: options.concurrency,
-        express: options.express,
-      });
-    } finally {
-      this.ioHost.removeAllListeners();
-    }
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
+    await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
+      stacks: {
+        patterns: options.selector.patterns,
+        strategy: options.selector.allTopLevel
+          ? StackSelectionStrategy.MAIN_ASSEMBLY
+          : options.selector.patterns.length > 0
+            ? StackSelectionStrategy.PATTERN_MATCH
+            : StackSelectionStrategy.ONLY_SINGLE,
+        expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
+      },
+      roleArn: options.roleArn,
+      concurrency: options.concurrency,
+      express: options.express,
+    });
   }
 
+  // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
+  // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
+  @suppressMessages(IO.CDK_TOOLKIT_I1000, IO.CDK_TOOLKIT_I1002)
   public async list(
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
-
-    // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
-    // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
-    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
-    this.ioHost.once(IO.CDK_TOOLKIT_I1002, () => ({ preventDefault: true }));
+    // One-shot: disposes itself when the listing (I2901) is emitted; the
+    // `using` covers the case where `list` throws before that happens.
+    using _formatter = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0
