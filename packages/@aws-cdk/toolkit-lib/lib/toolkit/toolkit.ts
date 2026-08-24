@@ -116,7 +116,7 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, ONLINE_VALIDATION_PLUGIN_NAME, throwIfValidationFailures } from './private/validation-report';
+import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -692,6 +692,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const stacks = await assembly.selectStacksV2(selectStacks);
 
     const reports = await obtainUnifiedValidationReport(assembly, stacks);
+    const onlineReports: PluginReportJson[] = [];
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
@@ -700,6 +701,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
       if (onlineReport) {
         reports.push(onlineReport);
+        onlineReports.push(onlineReport);
       }
     }
 
@@ -709,6 +711,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       conclusion: combineConclusions(reports),
       title: undefined,
       pluginReports: reports,
+      onlineReports,
     };
 
     if (!hasAnyViolations) {
@@ -765,7 +768,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     }
 
     return {
-      pluginName: ONLINE_VALIDATION_PLUGIN_NAME,
+      pluginName: 'CloudFormation',
       conclusion: 'failure',
       violations,
     };
