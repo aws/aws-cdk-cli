@@ -342,6 +342,19 @@ describe('CliIoHost', () => {
       expect(answer).toBe(true);
     });
 
+    test('listener removers are using-compatible (Symbol.dispose)', async () => {
+      {
+        using _suppress = ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true }));
+        await ioHost.notify(listMessage('inside'));
+      }
+
+      // disposed at block exit: the listener no longer applies
+      await ioHost.notify(listMessage('outside'));
+
+      expect(mockStdout).not.toHaveBeenCalledWith('inside\n');
+      expect(mockStdout).toHaveBeenCalledWith('outside\n');
+    });
+
     test('on() with matchAny() fires for any of the given codes', async () => {
       const observed: string[] = [];
       track(ioHost.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
