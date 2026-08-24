@@ -24,7 +24,6 @@ function isFileEvent(event: EventName): event is FileEvent {
   return (FILE_EVENTS as readonly string[]).includes(event);
 }
 import * as fs from 'fs-extra';
-import * as picomatch from 'picomatch';
 import { NonInteractiveIoHost } from './non-interactive-io-host';
 import type { ToolkitServices } from './private';
 import { assemblyFromSource } from './private';
@@ -1773,9 +1772,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const { stacks, suggestions } = await assembly.selectStacksV3(selectStacks, { suggestPatternMatches: true });
 
-    await this.suggestStacks(ioHelper, assembly, selectStacks, stacks);
+    // Warn about each provided pattern that matched no stack, suggesting a close
+    // match when one exists (e.g. only the casing differs).
+    for (const [pattern, closeMatches] of Object.entries(suggestions ?? {})) {
+      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
+    }
 
     const ret: DestroyResult = {
       stacks: [],
@@ -1854,39 +1858,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       return ret;
     } finally {
       await destroySpan.end();
-    }
-  }
-
-  /**
-   * Warn about destroy patterns that matched no stack, suggesting a close match
-   * when one exists (e.g. only the casing differs). Stacks nested inside a stage
-   * are considered, so a staged stack can be suggested too.
-   */
-  private async suggestStacks(
-    ioHelper: IoHelper,
-    assembly: StackAssembly,
-    selector: StackSelector,
-    selected: StackCollection,
-  ): Promise<void> {
-    const patterns = selector.patterns ?? [];
-    if (patterns.length === 0) {
-      return;
-    }
-
-    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
-
-    for (const pattern of patterns) {
-      const matched = selected.stackArtifacts.some((stack) => picomatch.isMatch(stack.hierarchicalId, pattern));
-      if (matched) {
-        continue;
-      }
-
-      const closeMatches = allStacks.stackArtifacts
-        .filter((stack) => picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
-        .map((stack) => stack.hierarchicalId);
-
-      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
-      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
     }
   }
 
