@@ -47,3 +47,23 @@ describe('diff --method option', () => {
     expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ method: 'template' }));
   });
 });
+
+describe('diff --json-file option', () => {
+  test('jsonFile defaults to unset', async () => {
+    await exec(['diff', '--app', 'echo']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ jsonFile: undefined }));
+  });
+
+  test('--json-file is forwarded', async () => {
+    await exec(['diff', '--app', 'echo', '--json-file=diff.json']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ jsonFile: 'diff.json' }));
+  });
+
+  test('--json-file does not swallow stack names', async () => {
+    await exec(['diff', '--app', 'echo', '--json-file=diff.json', 'MyStack']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({
+      stackNames: ['MyStack'],
+      jsonFile: 'diff.json',
+    }));
+  });
+});

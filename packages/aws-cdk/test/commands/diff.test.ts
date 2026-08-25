@@ -673,6 +673,117 @@ describe('non-nested stacks', () => {
     }));
     expect(exitCode).toBe(0);
   });
+
+  describe('machine-readable JSON output', () => {
+    test('jsonFile writes the diff to disk and keeps the human diff unchanged', async () => {
+      const jsonFile = path.join(tmpDir, 'diff-output.json');
+
+      // WHEN
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        jsonFile,
+      });
+
+      // THEN
+      const doc = JSON.parse(fs.readFileSync(jsonFile, { encoding: 'utf-8' }));
+      expect(doc.A.A.differenceCount).toBe(1);
+
+      const plainTextOutput = output();
+      expect(plainTextOutput).toContain('Stack A');
+      expect(plainTextOutput).toContain('✨  Number of stacks with differences: 1');
+      expect(exitCode).toBe(0);
+    });
+
+    test('jsonFile includes IAM policy changes with resources and attributes', async () => {
+      // GIVEN
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [
+          {
+            stackName: 'A',
+            template: {
+              Resources: {
+                MyPolicy: {
+                  Type: 'AWS::IAM::Policy',
+                  Properties: {
+                    Roles: [{ Ref: 'MyRole' }],
+                    PolicyDocument: {
+                      Version: '2012-10-17',
+                      Statement: [
+                        {
+                          Effect: 'Allow',
+                          Action: 's3:GetObject',
+                          Resource: 'arn:aws:s3:::my-bucket/*',
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      }, undefined, ioHost);
+      toolkit = new CdkToolkit({
+        cloudExecutable,
+        deployments: cloudFormation,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+      });
+      cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+        deployedRootTemplate: {},
+        nestedStacks: {},
+      });
+      const jsonFile = path.join(tmpDir, 'diff-iam.json');
+
+      // WHEN
+      await toolkit.diff({
+        stackNames: ['A'],
+        jsonFile,
+      });
+
+      // THEN
+      const doc = JSON.parse(fs.readFileSync(jsonFile, { encoding: 'utf-8' }));
+      const templateDiff = doc.A.A;
+      expect(templateDiff.permissionsBroadened).toBe(true);
+      expect(templateDiff.iamChanges.statementAdditions).toEqual([
+        {
+          type: 'parsed',
+          value: expect.objectContaining({
+            effect: 'Allow',
+            resources: { not: false, values: ['arn:aws:s3:::my-bucket/*'] },
+            actions: { not: false, values: ['s3:GetObject'] },
+          }),
+        },
+      ]);
+    });
+
+    test('jsonFile covers multiple stacks', async () => {
+      const jsonFile = path.join(tmpDir, 'diff-multi.json');
+
+      // WHEN
+      await toolkit.diff({
+        stackNames: ['A', 'D'],
+        jsonFile,
+      });
+
+      // THEN
+      const doc = JSON.parse(fs.readFileSync(jsonFile, { encoding: 'utf-8' }));
+      expect(Object.keys(doc)).toEqual(['A', 'D']);
+      expect(doc.D.D.differenceCount).toBe(0);
+    });
+
+    test('exit code is still 1 with fail and jsonFile set', async () => {
+      // WHEN
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        fail: true,
+        jsonFile: path.join(tmpDir, 'diff-fail.json'),
+      });
+
+      // THEN
+      expect(exitCode).toBe(1);
+    });
+  });
 });
 
 describe('stack exists checks', () => {

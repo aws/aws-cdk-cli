@@ -959,6 +959,11 @@
           "type": "boolean",
           "desc": "Whether to include moves in the diff",
           "default": false
+        },
+        "json-file": {
+          "type": "string",
+          "desc": "Path to file where the diff will be written as machine-readable JSON. The human-readable diff is still printed",
+          "requiresArg": true
         }
       }
     },

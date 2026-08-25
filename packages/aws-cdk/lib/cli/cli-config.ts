@@ -427,6 +427,7 @@ export async function makeConfig(): Promise<CliConfig> {
           },
           'import-existing-resources': { type: 'boolean', desc: 'Whether or not the change set imports resources that already exist', default: false },
           'include-moves': { type: 'boolean', desc: 'Whether to include moves in the diff', default: false },
+          'json-file': { type: 'string', desc: 'Path to file where the diff will be written as machine-readable JSON. The human-readable diff is still printed', requiresArg: true },
         },
       },
       'drift': {

@@ -4,3 +4,4 @@ export * from './format-foreach';
 export * from './format-table';
 export * from './mappings';
 export { deepEqual, mangleLikeCloudFormation } from './diff/util';
+export * from './diff/render-json';

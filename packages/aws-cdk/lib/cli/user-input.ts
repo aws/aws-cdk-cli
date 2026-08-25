@@ -1510,6 +1510,13 @@ export interface DiffOptions {
   readonly includeMoves?: boolean;
 
   /**
+   * Path to file where the diff will be written as machine-readable JSON. The human-readable diff is still printed
+   *
+   * @default - undefined
+   */
+  readonly jsonFile?: string;
+
+  /**
    * Positional argument for diff
    */
   readonly STACKS?: Array<string>;

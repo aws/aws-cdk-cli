@@ -4,6 +4,8 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import type { TemplateDiffJson } from '@aws-cdk/cloudformation-diff';
+import { templateDiffToJson } from '@aws-cdk/cloudformation-diff';
 import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
@@ -84,6 +86,10 @@ const pLimit: typeof import('p-limit') = require('p-limit');
  */
 const FILE_EVENTS = [EVENTS.ADD, EVENTS.ADD_DIR, EVENTS.CHANGE, EVENTS.UNLINK, EVENTS.UNLINK_DIR] as const;
 type FileEvent = typeof FILE_EVENTS[number];
+
+function mapObject<T, U>(obj: { [key: string]: T }, fn: (value: T) => U): { [key: string]: U } {
+  return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, fn(value)]));
+}
 
 /**
  * Type guard to check if an event is a file event we should process.
@@ -287,6 +293,7 @@ export class CdkToolkit {
     const quiet = options.quiet || false;
 
     let diffs = 0;
+    const jsonDiffs: { [rootStackName: string]: { [stackName: string]: TemplateDiffJson } } = {};
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -333,6 +340,10 @@ export class CdkToolkit {
         });
         diffs = diff.numStacksWithChanges;
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
+      }
+
+      if (options.jsonFile !== undefined) {
+        jsonDiffs[stacks.firstStack.displayName ?? stacks.firstStack.stackName] = mapObject(formatter.diffs, templateDiffToJson);
       }
     } else {
       const allMappings = options.includeMoves
@@ -396,6 +407,21 @@ export class CdkToolkit {
           await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
         }
+
+        if (options.jsonFile !== undefined) {
+          jsonDiffs[stack.displayName ?? stack.stackName] = mapObject(formatter.diffs, templateDiffToJson);
+        }
+      }
+    }
+
+    if (options.jsonFile !== undefined) {
+      fs.ensureFileSync(options.jsonFile);
+      await fs.writeJson(options.jsonFile, jsonDiffs, {
+        spaces: 2,
+        encoding: 'utf8',
+      });
+      if (!quiet) {
+        await this.ioHost.asIoHelper().defaults.info(format('JSON diff written to %s\n', options.jsonFile));
       }
     }
 
@@ -1606,6 +1632,14 @@ export interface DiffOptions {
    * @default false
    */
   readonly includeMoves?: boolean;
+
+  /**
+   * Path to a file where the diff will be written as machine-readable JSON.
+   * The human-readable diff is still printed to the console.
+   *
+   * @default - diff is not written to a file
+   */
+  readonly jsonFile?: string;
 }
 
 interface CfnDeployOptions {

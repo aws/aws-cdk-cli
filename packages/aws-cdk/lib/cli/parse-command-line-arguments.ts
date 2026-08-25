@@ -971,6 +971,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
             default: false,
             type: 'boolean',
             desc: 'Whether to include moves in the diff',
+          })
+          .option('json-file', {
+            default: undefined,
+            type: 'string',
+            desc: 'Path to file where the diff will be written as machine-readable JSON. The human-readable diff is still printed',
+            requiresArg: true,
           }),
     )
     .command('drift [STACKS..]', 'Detect drifts in the given CloudFormation stack(s)', (yargs: Argv) =>

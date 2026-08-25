@@ -244,6 +244,57 @@ In the output above:
 [+] indicates a new resource that would be created.
 [←] indicates a resource that would be imported into the stack instead.
 
+#### Machine-readable output
+
+For programmatic consumption of the diff — e.g. attaching evidence of infrastructure changes to a
+code review — `--json-file` writes the diff as JSON to a file, while still printing the
+human-readable diff to the console. It can be combined with any other diff option.
+
+```console
+$ cdk diff --json-file=diff.json MyStackName
+```
+
+The file contains one entry per selected stack, each mapping stack names (including nested stacks)
+to their structural diff: resource changes with per-property old/new values and change impact
+(e.g. `WILL_REPLACE`), plus dedicated sections for IAM policy changes (`iamChanges`) and security
+group rule changes (`securityGroupChanges`), and a `permissionsBroadened` flag.
+
+```json
+{
+  "MyStackName": {
+    "MyStackName": {
+      "resources": {
+        "MyRoleDefaultPolicy": {
+          "newResourceType": "AWS::IAM::Policy",
+          "changeImpact": "WILL_CREATE",
+          "isAddition": true,
+          "isRemoval": false
+        }
+      },
+      "iamChanges": {
+        "statementAdditions": [
+          {
+            "type": "parsed",
+            "value": {
+              "effect": "Allow",
+              "resources": { "not": false, "values": ["${MyBucket.Arn}"] },
+              "actions": { "not": false, "values": ["s3:GetObject"] },
+              "principals": { "not": false, "values": ["AWS:${MyRole}"] }
+            }
+          }
+        ]
+      },
+      "permissionsBroadened": true,
+      "differenceCount": 1
+    }
+  }
+}
+```
+
+IAM statements that cannot be fully resolved (e.g. because they contain unresolved CloudFormation
+intrinsics) are rendered as `{ "type": "unparseable", "repr": "..." }` instead of
+`{ "type": "parsed", "value": ... }` — consumers should handle both variants.
+
 ### `cdk deploy`
 
 Deploys a stack of your CDK app to its environment. During the deployment, the toolkit will output progress
