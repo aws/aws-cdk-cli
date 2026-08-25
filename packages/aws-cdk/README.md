@@ -9,7 +9,7 @@
 
 <!--END STABILITY BANNER-->
 
-The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
+The AWS CDK Toolkit CLI provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
 | Command                                     | Description                                                                       |
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
