@@ -1,6 +1,7 @@
 import * as child from 'child_process';
 import type { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
+import { isWindows } from './platform';
 
 /**
  * IProcess provides an interface to work with a subprocess.
@@ -51,7 +52,7 @@ export class Process {
     // ConPTY resolves the spawned file with SearchPath, which only finds real
     // executables — not the .cmd shims npm creates for CLI entrypoints. Route
     // the command through the shell, like Process.spawn does with 'shell: true'.
-    if (process.platform === 'win32') {
+    if (isWindows()) {
       args = ['/c', command, ...args];
       command = process.env.ComSpec ?? 'cmd.exe';
     }

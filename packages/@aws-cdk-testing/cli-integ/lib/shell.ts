@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { TestContext } from './integ-test';
+import { isWindows } from './platform';
 import { Process } from './process';
 import type { TemporaryDirectoryContext } from './with-temporary-directory';
 
@@ -284,15 +285,18 @@ export function rimraf(fsPath: string): boolean {
     let success = true;
     const stat = fs.lstatSync(fsPath);
 
-    // Remove links without recursing into their target: a directory may
-    // link to shared content that other tests are still using (e.g. the
-    // shared 'node_modules').
+    // This test's private directory contains a 'node_modules' symlink into a
+    // machine-wide shared install that other running tests also link to. Delete
+    // the link itself and stop — do NOT recurse through it, or we'd delete the
+    // shared install's contents out from under those other tests.
     if (stat.isSymbolicLink()) {
-      try {
-        fs.unlinkSync(fsPath);
-      } catch {
-        // On Windows, directory links (junctions) must be removed with rmdir
+      // On POSIX, unlink removes a symlink whatever its target type. On
+      // Windows, a link to a directory (or a junction) must be removed with
+      // rmdir, while a link to a file must be removed with unlink.
+      if (isWindows() && isDirectoryLink(fsPath)) {
         fs.rmdirSync(fsPath);
+      } else {
+        fs.unlinkSync(fsPath);
       }
       return true;
     }
@@ -322,6 +326,18 @@ export function rimraf(fsPath: string): boolean {
 
     throw e;
   }
+}
+
+/**
+ * Whether a symlink resolves to a directory.
+ *
+ * `statSync` follows the link, so a directory target means a directory link.
+ * A dangling link (target already removed) returns undefined; treat it as a
+ * directory, since the only links we create are directory links (the shared
+ * 'node_modules' junction) and those still need `rmdir` on Windows.
+ */
+function isDirectoryLink(linkPath: string): boolean {
+  return fs.statSync(linkPath, { throwIfNoEntry: false })?.isDirectory() ?? true;
 }
 
 export function addToShellPath(x: string) {
@@ -358,7 +374,7 @@ class LastLine {
   private lastVisibleLine: string = '';
 
   public append(chunk: string): void {
-    if (process.platform === 'win32') {
+    if (isWindows()) {
       // ConPTY renders the screen buffer instead of streaming plain text:
       // prompts are drawn with cursor-positioning escape sequences, padded
       // with spaces to the terminal width, and followed by "lines" that
@@ -387,7 +403,7 @@ class LastLine {
   }
 
   public get(): string {
-    if (process.platform === 'win32' && this.lastLine.trim().length === 0) {
+    if (isWindows() && this.lastLine.trim().length === 0) {
       return this.lastVisibleLine;
     }
     return this.lastLine;

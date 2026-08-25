@@ -246,14 +246,13 @@ export async function atomicWrite(fileName: string, contents: string) {
   const tmp = `${fileName}.${process.pid}`;
   await fs.promises.writeFile(tmp, contents);
 
-  const RENAME_RETRYABLE = ['EPERM', 'EACCES'];
   const maxAttempts = 10;
   for (let attempt = 1; ; attempt++) {
     try {
       await fs.promises.rename(tmp, fileName);
       return;
     } catch (e: any) {
-      if (!RENAME_RETRYABLE.includes(e.code) || attempt >= maxAttempts) {
+      if (!['EPERM', 'EACCES'].includes(e.code) || attempt >= maxAttempts) {
         // Final failure: don't leave the temp file behind as litter.
         await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
         throw e;

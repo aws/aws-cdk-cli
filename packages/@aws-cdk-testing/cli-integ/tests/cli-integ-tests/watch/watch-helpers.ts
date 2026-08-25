@@ -1,5 +1,6 @@
 import * as child_process from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import { isWindows } from '../../../lib';
 
 const DEFAULT_POLL_TIMEOUT = 120_000; // 2 minutes
 
@@ -43,7 +44,7 @@ export async function waitForCondition(condition: () => boolean): Promise<void> 
 export function spawnWatch(args: string[], options: SpawnOptions): ChildProcess {
   return child_process.spawn('cdk', args, {
     stdio: 'pipe',
-    shell: process.platform === 'win32',
+    shell: isWindows(),
     ...options,
   });
 }
@@ -53,7 +54,7 @@ export function spawnWatch(args: string[], options: SpawnOptions): ChildProcess 
  */
 export function safeKillProcess(proc: ChildProcess): void {
   try {
-    if (process.platform === 'win32' && proc.pid !== undefined) {
+    if (isWindows() && proc.pid !== undefined) {
       // Kill the whole tree: the process was spawned through a shell,
       // so proc.pid is the shell and 'cdk watch' is its child.
       child_process.spawnSync('taskkill', ['/pid', proc.pid.toString(), '/T', '/F']);

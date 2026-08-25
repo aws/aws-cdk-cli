@@ -12,6 +12,7 @@ import { outputFromStack, sleep } from './aws';
 import type { TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
+import { isWindows } from './platform';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
@@ -512,7 +513,7 @@ export class TestFixture extends ShellHelper {
       throw new Error('Could not retrieve ECR public auth token.');
     }
 
-    if (process.platform === 'win32') {
+    if (isWindows()) {
       // `docker login` on Windows stores credentials through the wincred credential
       // helper (auto-detected even if `credsStore` is empty in the config file), and
       // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
@@ -1094,7 +1095,7 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     path.join(fixture.integTestDir, 'node_modules'),
     // Ignored on POSIX. On Windows a 'junction' works for unprivileged users,
     // where a 'dir' symlink needs elevation.
-    process.platform === 'win32' ? 'junction' : 'dir',
+    isWindows() ? 'junction' : 'dir',
   );
 
   // `npm` writes the lock file next to the `package.json` it installed, which is now
