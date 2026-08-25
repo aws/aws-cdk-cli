@@ -12,6 +12,7 @@ import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
+import { determineAllowCrossAccountAssetPublishing } from '../../../lib/api/deployments/checks';
 import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import { testStack } from '../../_helpers/assembly';
@@ -29,6 +30,7 @@ import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');
+jest.mock('../../../lib/api/deployments/checks');
 
 let sdkProvider: MockSdkProvider;
 let sdk: MockSdk;
@@ -1341,6 +1343,44 @@ describe('cachedPublisher', () => {
     const second = (deployments as any).cachedPublisher(manifest, env, 'StackA');
 
     expect(second).toBe(first);
+  });
+});
+
+describe('allowCrossAccountAssetPublishingForEnv', () => {
+  // Regression test: the cross-account-asset-publishing answer used to be cached in a
+  // single un-keyed instance field, so the first stack's environment's answer was
+  // silently reused for every other stack's environment on the same Deployments
+  // instance (which is reused for every stack in one `cdk deploy` invocation).
+  test('does not reuse the answer across different environments', async () => {
+    sdkProvider.forEnvironment = jest.fn().mockImplementation(() => ({ sdk: new MockSdk() }));
+    const mockDetermine = determineAllowCrossAccountAssetPublishing as jest.Mock;
+    mockDetermine.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    const stackA = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+    const stackB = testStack({ stackName: 'StackB', env: 'aws://222222222222/eu-west-1' });
+
+    const allowedForA = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackA);
+    const allowedForB = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackB);
+
+    expect(allowedForA).toBe(false);
+    expect(allowedForB).toBe(true);
+    expect(mockDetermine).toHaveBeenCalledTimes(2);
+  });
+
+  test('reuses the cached answer for repeat calls with the same environment', async () => {
+    sdkProvider.forEnvironment = jest.fn().mockImplementation(() => ({ sdk: new MockSdk() }));
+    const mockDetermine = determineAllowCrossAccountAssetPublishing as jest.Mock;
+    mockDetermine.mockResolvedValueOnce(true);
+
+    const stackA = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+    const stackAAgain = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+
+    const first = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackA);
+    const second = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackAAgain);
+
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(mockDetermine).toHaveBeenCalledTimes(1);
   });
 });
 

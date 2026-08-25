@@ -1,0 +1,6 @@
+{"seq":0,"type":"notify","action":"synth","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"synth","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"synth","level":"info","code":"CDK_TOOLKIT_I1002","message":"Including dependency stacks: Test-Stack-B"}
+{"seq":3,"type":"notify","action":"synth","level":"info","code":null,"message":"Successfully synthesized to <TMP>/cdk.out<RANDOM>"}
+{"seq":4,"type":"notify","action":"synth","level":"info","code":null,"message":"Supply a stack id (Test-Stack-B, Test-Stack-D) to display its template."}
+{"seq":5,"type":"notify","action":"synth","level":"warn","code":null,"message":"1 feature flags are not configured. Run 'cdk flags --unstable=flags' to learn more."}

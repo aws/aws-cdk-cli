@@ -398,6 +398,15 @@ export const IO = {
     interface: 'StackDestroy',
   }),
 
+  CDK_TOOLKIT_W7010: make.warn({
+    code: 'CDK_TOOLKIT_W7010',
+    description: 'A provided stack name does not match any stack',
+  }),
+  CDK_TOOLKIT_W7011: make.warn({
+    code: 'CDK_TOOLKIT_W7011',
+    description: 'No stacks match the provided names, nothing to destroy',
+  }),
+
   CDK_TOOLKIT_I7900: make.result<cxapi.CloudFormationStackArtifact>({
     code: 'CDK_TOOLKIT_I7900',
     description: 'Stack deletion succeeded',
