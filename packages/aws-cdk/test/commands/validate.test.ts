@@ -221,8 +221,8 @@ describe('telemetry', () => {
   });
 
   test('ends the VALIDATE span with the error name when the engine crashes', async () => {
-    // The CLI synthesizes (and caches) the assembly before the VALIDATE span
-    // begins, so failing `produce()` crashes the engine inside the span.
+    // Synthesis happens inside the VALIDATE span, so a CDK app that crashes
+    // during synth (modeled by a failing `produce()`) still ends the span.
     jest.spyOn(cloudExecutable, 'produce').mockRejectedValue(new Error('engine exploded'));
 
     const notifySpy = jest.spyOn(ioHost, 'notify');

@@ -47,7 +47,10 @@ export interface ValidateResult {
    * set) validation, as opposed to offline sources: policy validation plugins
    * and construct annotations, both read from the cloud assembly.
    *
-   * @default - no online validation was performed
+   * Contains the same object references as `pluginReports`. An empty array
+   * means online validation ran and found no problems.
+   *
+   * @default - online validation was skipped
    */
   readonly onlineReports?: PluginReportJson[];
 }

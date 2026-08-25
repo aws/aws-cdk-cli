@@ -644,14 +644,11 @@ export class CdkToolkit {
       return this.validateWatch(validateOptions);
     }
 
-    // Synthesize before starting the VALIDATE span, so the span measures only
-    // the validation phase (offline report collection and, unless disabled,
-    // online CloudFormation validation). Synthesis is reported as its own
-    // SYNTH event; the assembly is cached, so the synthesis inside
-    // `toolkit.validate()` below is a cache hit.
-    await this.props.cloudExecutable.synthesize();
-
-    // The span is ended even if the engine crashes, so telemetry always
+    // The VALIDATE span wraps the whole action, including the synthesis
+    // performed inside `toolkit.validate()`. Synthesis is also reported as
+    // its own SYNTH event (instrumented in CloudExecutable), so telemetry
+    // consumers can subtract it from the VALIDATE duration. The span is
+    // ended even if the app crashes during synthesis, so telemetry always
     // records that a validation was started.
     const validateSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.VALIDATE).begin({});
     let error: ErrorDetails | undefined;
