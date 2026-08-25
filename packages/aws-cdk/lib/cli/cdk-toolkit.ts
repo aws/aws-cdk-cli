@@ -1369,11 +1369,13 @@ export class CdkToolkit {
    *
    * With patterns: match them (failing if nothing matches), expanding to
    * upstream dependencies unless `exclusively` is set. Without patterns: all
-   * top-level stacks; a stage-only app has no top-level stacks, which selects
-   * nothing and is not an error — but an app without any stacks at all still
-   * is. No single selection strategy covers this combination: `MAIN_ASSEMBLY`
-   * rejects stage-only apps (as `deploy --all` must keep doing) and
-   * `ALL_STACKS` would wrongly include the stacks inside stages.
+   * top-level stacks, exactly — the historic default selection never expands
+   * to dependencies, regardless of `exclusively`. A stage-only app has no
+   * top-level stacks, which selects nothing and is not an error — but an app
+   * without any stacks at all still is. No single selection strategy covers
+   * this combination: `MAIN_ASSEMBLY` rejects stage-only apps (as
+   * `deploy --all` must keep doing) and `ALL_STACKS` would wrongly include
+   * the stacks inside stages.
    */
   private async selectTopLevelOrMatchingStacks(
     assembly: StackAssembly,
@@ -1387,9 +1389,7 @@ export class CdkToolkit {
     }
 
     if (assembly.cloudAssembly.stacks.length > 0) {
-      return assembly.selectStacksV2(
-        selectAllTopLevel(exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM),
-      );
+      return assembly.selectStacksV2(selectAllTopLevel(ExpandStackSelection.NONE));
     }
 
     // Stage-only app: nothing to select, which is not an error. An app

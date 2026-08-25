@@ -73,7 +73,7 @@ import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetComman
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
-import { type Template, type SdkProvider, ResourceImporter, WorkGraphBuilder } from '../../lib/api';
+import { type Template, type SdkProvider, ResourceImporter, StackAssembly, WorkGraphBuilder } from '../../lib/api';
 import { mustMatch, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
@@ -2410,6 +2410,28 @@ describe('synth', () => {
     // Separate tests as colorizing hampers detection
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-A-Display-Name');
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-B');
+  });
+
+  test('no-argument synth selects the main assembly without dependency expansion', async () => {
+    // The historic default selection (no patterns) returns the top-level
+    // stacks exactly and never expands to dependencies, regardless of
+    // `exclusively`. This pins the selector so the expansion the pattern case
+    // uses does not leak into the default case (the selection helper is
+    // shared with `diff`).
+    const toolkit = defaultToolkitSetup();
+    // `jest.resetAllMocks()` in beforeEach would leave this prototype spy as
+    // an undefined-returning mock for every later test, so restore it here.
+    const selectSpy = jest.spyOn(StackAssembly.prototype, 'selectStacksV2');
+    try {
+      await toolkit.synth({ stackNames: [], quiet: true });
+
+      expect(selectSpy).toHaveBeenCalledWith({
+        strategy: StackSelectionStrategy.MAIN_ASSEMBLY,
+        expand: ExpandStackSelection.NONE,
+      });
+    } finally {
+      selectSpy.mockRestore();
+    }
   });
 
   test('with no stdout option', async () => {
