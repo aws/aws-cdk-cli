@@ -1336,6 +1336,37 @@ describe('CliIoHost', () => {
         }));
         expect(response).toBe('foobar');
       });
+
+      test('falsy defaults (empty string, zero) are auto-responded instead of requiring a TTY', async () => {
+        const nonTtyAutoRespondingIoHost = CliIoHost.instance({
+          logLevel: 'trace',
+          autoRespond: true,
+          isCI: false,
+          isTTY: false,
+        }, true);
+
+        // empty string default
+        const stringResponse = await nonTtyAutoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: '',
+        }));
+        expect(stringResponse).toBe('');
+
+        // zero default
+        const numberResponse = await nonTtyAutoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'test message',
+          defaultResponse: 0,
+        }));
+        expect(numberResponse).toBe(0);
+      });
     });
 
     describe('non-promptable data', () => {
