@@ -1,4 +1,4 @@
-import { startWebServer } from '@aws-cdk/cdk-explorer';
+import { startWebServer } from '../private/explorer';
 import type { IoHelper } from '../api-private';
 
 export interface ExploreOptions {

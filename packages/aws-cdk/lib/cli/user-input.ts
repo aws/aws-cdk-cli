@@ -1794,20 +1794,6 @@ export interface DocsOptions {
 }
 
 /**
- * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
- *
- * @struct
- */
-export interface LspOptions {
-  /**
-   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
-   *
-   * @default - false
-   */
-  readonly features?: boolean;
-}
-
-/**
  * Opens an interactive web explorer for your CDK app
  *
  * @struct
@@ -1819,6 +1805,20 @@ export interface ExploreOptions {
    * @default - 4200
    */
   readonly port?: number;
+}
+
+/**
+ * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+ *
+ * @struct
+ */
+export interface LspOptions {
+  /**
+   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
+   *
+   * @default - false
+   */
+  readonly features?: boolean;
 }
 
 /**
