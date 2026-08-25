@@ -15,7 +15,7 @@ graph TD
     
     %% Deploy Method
     n4["cdk-toolkit.ts: CdkToolkit.deploy()"]
-    n5["cdk-toolkit.ts: selectStacksForDeploy()"]
+    n5["cdk-toolkit.ts: CdkToolkit.deploy()<br/>stack selection"]
     n6["Check if synthesis needed"]
     
     %% Synthesis Process
@@ -31,8 +31,8 @@ graph TD
     n13["Return CloudAssembly object"]
     
     %% Stack Selection
-    n14["cloud-assembly.ts:<br/>assembly.selectStacks()"]
-    n15["cloud-assembly.ts:<br/>validateStacks()"]
+    n14["stack-assembly.ts (toolkit-lib):<br/>assembly.selectStacksV2()"]
+    n15["cdk-toolkit.ts:<br/>validateStacks()"]
     n16["Return StackCollection"]
     
     %% Asset Processing

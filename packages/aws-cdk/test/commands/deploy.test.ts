@@ -1,6 +1,6 @@
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import { Deployments } from '../../lib/api';
+import { Deployments, selectAllTopLevel, selectExact, selectWithUpstream } from '../../lib/api';
 import { IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -109,8 +109,7 @@ afterEach(() => {
 describe('require-approval', () => {
   test('--require-approval never deploys without prompting', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -124,8 +123,7 @@ describe('require-approval', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     });
@@ -137,8 +135,7 @@ describe('require-approval', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
 
     await expect(toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     })).rejects.toThrow(/Deployment cancelled/);
@@ -156,8 +153,7 @@ describe('require-approval', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     });
@@ -175,8 +171,7 @@ describe('require-approval', () => {
 describe('deployment method', () => {
   test('--method=direct deploys without creating a change set upfront', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'direct' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -189,8 +184,7 @@ describe('deployment method', () => {
 
   test('--no-execute prepares a change set without executing it', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set', execute: false },
       requireApproval: RequireApproval.NEVER,
     });
@@ -201,8 +195,7 @@ describe('deployment method', () => {
 
   test('--hotswap warns that it introduces drift and should not be used in production', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'hotswap' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -212,8 +205,7 @@ describe('deployment method', () => {
 
   test('--hotswap-fallback emits the drift warning and forwards the fallback method to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       // `--hotswap-fallback` is `hotswap` with a CloudFormation fallback, so it
       // is still gated by the same drift warning as plain `--hotswap`.
       deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
@@ -232,8 +224,7 @@ describe('deployment method', () => {
     // rides along on the `deploymentMethod` and is forwarded when the change set
     // is prepared.
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set', revertDrift: true },
       requireApproval: RequireApproval.NEVER,
     });
@@ -253,7 +244,7 @@ describe('deployment method', () => {
 
     try {
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
         requireApproval: RequireApproval.NEVER,
       });
@@ -286,8 +277,7 @@ describe('no-op deploy', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -309,8 +299,7 @@ describe('outputs', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -322,7 +311,7 @@ describe('outputs', () => {
 describe('multi-stack selection', () => {
   test('--all deploys every stack', async () => {
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -334,8 +323,7 @@ describe('multi-stack selection', () => {
     toolkit = await makeToolkit([STACK_A, STACK_C_DEPENDS_ON_A]);
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-C'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-C'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -351,7 +339,7 @@ describe('multi-stack selection', () => {
     toolkit = await makeToolkit([STACK_A, STACK_C_DEPENDS_ON_A]);
 
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       concurrency: 5,
@@ -362,7 +350,7 @@ describe('multi-stack selection', () => {
 
   test('--concurrency > 1 with --progress=bar warns that it is switching to "events"', async () => {
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       concurrency: 5,
@@ -374,7 +362,7 @@ describe('multi-stack selection', () => {
 
   test('--concurrency > 1 with --progress=errors-only keeps "errors-only" progress', async () => {
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       concurrency: 5,
@@ -389,8 +377,7 @@ describe('multi-stack selection', () => {
 describe('deploy parameters forwarded to CloudFormation', () => {
   test('--role-arn is forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       roleArn: 'arn:aws:iam::123456789012:role/DeployRole',
@@ -403,8 +390,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--tags are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       tags: [{ Key: 'Owner', Value: 'team-cdk' }],
@@ -417,8 +403,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--notification-arns are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       notificationArns: ['arn:aws:sns:bermuda-triangle-1:123456789012:MyTopic'],
@@ -431,8 +416,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--no-rollback is forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       rollback: false,
@@ -445,8 +429,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--parameters are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       parameters: { MyParam: 'MyValue' },
@@ -459,8 +442,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--build-exclude is forwarded to deployStack as reuseAssets', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       reuseAssets: ['asset-hash-1', 'asset-hash-2'],
@@ -473,8 +455,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--force skips the published-asset check and forces the deployment', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       force: true,
@@ -501,8 +482,7 @@ describe('deploy failures', () => {
     cloudFormation.deployStack.mockRejectedValue(resourceFailure);
 
     const error = await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     }).catch((e) => e);
@@ -532,8 +512,7 @@ describe('--express', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       express: true,
@@ -548,8 +527,7 @@ describe('--express', () => {
     // Express Mode is on, but the default mock reports an empty
     // `stabilizingResources`, so the deploy path emits no stabilization warning.
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       express: true,
