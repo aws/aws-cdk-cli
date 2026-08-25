@@ -1,6 +1,6 @@
 {
   "name": "aws-cdk",
-  "description": "AWS CDK CLI, the command line tool for CDK apps",
+  "description": "AWS CDK Toolkit CLI, the command line tool for CDK apps",
   "repository": {
     "type": "git",
     "url": "https://github.com/aws/aws-cdk-cli",

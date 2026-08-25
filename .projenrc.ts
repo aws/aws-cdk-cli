@@ -1243,7 +1243,7 @@ const cli = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: 'aws-cdk',
-    description: 'AWS CDK CLI, the command line tool for CDK apps',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
     devDeps: [
@@ -1475,15 +1475,18 @@ const cdkAliasPackage = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: 'cdk',
-    description: 'AWS CDK Toolkit',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     srcdir: 'lib',
+    entrypoint: '', // this package doesn't have an entrypoint, just a bin
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
     majorVersion: 2,
   }),
 );
-void cdkAliasPackage;
+
+// the alias package doesn't have any exports
+cdkAliasPackage.package.addField('exports', {});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
