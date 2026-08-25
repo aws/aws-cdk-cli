@@ -22,28 +22,31 @@ integTest(
     expect(output).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
-    expect(json).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event: expect.objectContaining({
-            state: 'SUCCEEDED',
-            eventType: 'VALIDATE',
-          }),
-          // The app's single S3 bucket makes SecurityPlugin report one violation
-          // each of fatal/error/warning/cost-optimization severity, plus one
-          // construct annotation warning. The plugin failure is what would have
-          // failed a deploy.
-          counters: expect.objectContaining({
-            'offlineViolations:fatal': 1,
-            'offlineViolations:error': 1,
-            'offlineViolations:warning': 2,
-            'offlineViolations:cost-optimization': 1,
-            'onlineViolations': 0,
-            'offlineWouldFailDeploy': 1,
-          }),
-        }),
-      ]),
+    const validateEvent = json.find((e: any) => e.event?.eventType === 'VALIDATE');
+    expect(validateEvent).toBeDefined();
+    expect(validateEvent.event.state).toEqual('SUCCEEDED');
+
+    // The app's single S3 bucket makes SecurityPlugin report one violation each
+    // of fatal/error/warning/cost-optimization severity, plus one construct
+    // annotation warning. The plugin failure is what would have failed a deploy.
+    expect(validateEvent.counters).toEqual(
+      expect.objectContaining({
+        'offlineViolations:fatal': 1,
+        'offlineViolations:error': 1,
+        'offlineViolations:warning': 2,
+        'onlineViolations': 0,
+        'offlineWouldFailDeploy': 1,
+      }),
     );
+
+    // The plugin's non-standard 'cost-optimization' severity is reported under
+    // a library-version-dependent key ('offlineViolations:cost-optimization'
+    // on older aws-cdk-lib, 'offlineViolations:custom' on newer), so assert
+    // the total offline violation count instead of that key.
+    const totalOfflineViolations = Object.entries(validateEvent.counters)
+      .filter(([key]) => key.startsWith('offlineViolations:'))
+      .reduce((acc, [, value]) => acc + Number(value), 0);
+    expect(totalOfflineViolations).toEqual(5);
 
     fs.unlinkSync(telemetryFile);
   }),
