@@ -1,5 +1,5 @@
-import { startWebServer } from '../private/explorer';
 import type { IoHelper } from '../api-private';
+import { startWebServer } from '../private/explorer';
 
 export interface ExploreOptions {
   readonly ioHelper: IoHelper;
