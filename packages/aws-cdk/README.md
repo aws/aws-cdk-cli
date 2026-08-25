@@ -9,7 +9,7 @@
 
 <!--END STABILITY BANNER-->
 
-The AWS CDK Toolkit provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
+The AWS CDK Toolkit CLI provides the `cdk` command-line interface that can be used to work with AWS CDK applications. This module is part of the [AWS Cloud Development Kit](https://github.com/aws/aws-cdk) project.
 
 | Command                                     | Description                                                                       |
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -197,6 +197,17 @@ $ cdk diff --app='node bin/main.js' MyStackName
 
 # Diff against a specific template document
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
+```
+
+The stack header shows the environment the stack will be deployed to. For environment-agnostic
+stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is
+omitted when diffing against a local template with `--template`, which does not contact AWS.
+
+```console
+$ cdk diff --app='node bin/main.js' MyStackName
+Stack MyStackName (aws://123456789012/us-east-1)
+Resources
+[~] AWS::S3::Bucket MyBucket
 ```
 
 The `quiet` flag can also be passed to the `cdk diff` command. Assuming there are no differences detected the output to the console will **not** contain strings such as the *Stack* `MyStackName` and `There were no differences`.
@@ -405,6 +416,18 @@ Set the `--progress` flag to request the complete history which includes all Clo
 ```console
 $ cdk deploy --progress events
 ```
+
+Set the `--progress` flag to `errors-only` to print nothing during the deployment, except errors:
+
+```console
+$ cdk deploy --progress errors-only
+```
+
+The `errors-only` mode is recommended for AI agents and other automated consumers, where progress
+updates are not useful and consume tokens. If the CLI detects it is being run by an AI agent
+and no progress preference is configured, it defaults to `errors-only` automatically. Pass an
+explicit `--progress`, set the `progress` key in `cdk.json`, or enable verbose logging (`-v`)
+to override the detection.
 
 Alternatively, the `progress` key can be specified in the project config (`cdk.json`).
 
@@ -848,6 +871,10 @@ To import an existing resource to a CDK stack, follow the following steps:
    importing. After you supply it, the import starts.
 5. When `cdk import` reports success, the resource is managed by CDK. Any subsequent
    changes in the construct configuration will be reflected on the resource.
+
+Use `--notification-arns` to specify ARNs of SNS topics that CloudFormation will
+notify with stack related events during the import. These are added to ARNs
+specified with the `notificationArns` stack property.
 
 NOTE: You can also import existing resources by passing `--import-existing-resources` to `cdk deploy`.
 This parameter only works for resources that support custom physical names,

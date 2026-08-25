@@ -708,13 +708,16 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
-    subprocess: {
+    'subprocess': {
       deps: ['cross-spawn@^7.0.6'],
       devDeps: ['@types/cross-spawn'],
     },
-    zip: {
+    'zip': {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
+    },
+    's3-path-style': {
+      deps: [],
     },
   },
 });
@@ -772,7 +775,9 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.subprocess);
 cdkAssetsLib.with(tools.zip);
+cdkAssetsLib.with(tools['s3-path-style']);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -938,7 +943,6 @@ const toolkitLib = configureProject(
       'picomatch',
       'p-limit@^3',
       'semver',
-      'split2',
       'wrap-ansi@^7', // Last non-ESM version
       'yaml@^1',
     ],
@@ -951,7 +955,6 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra@^11',
       '@types/picomatch',
-      '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
@@ -997,7 +1000,9 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.subprocess);
 toolkitLib.with(tools.zip);
+toolkitLib.with(tools['s3-path-style']);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1238,7 +1243,7 @@ const cli = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: 'aws-cdk',
-    description: 'AWS CDK CLI, the command line tool for CDK apps',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
     devDeps: [
@@ -1365,6 +1370,7 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+cli.with(tools.subprocess);
 cli.with(tools.zip);
 
 new pj.javascript.UpgradeDependencies(cli, {
@@ -1469,15 +1475,18 @@ const cdkAliasPackage = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: 'cdk',
-    description: 'AWS CDK Toolkit',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     srcdir: 'lib',
+    entrypoint: '', // this package doesn't have an entrypoint, just a bin
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
     majorVersion: 2,
   }),
 );
-void cdkAliasPackage;
+
+// the alias package doesn't have any exports
+cdkAliasPackage.package.addField('exports', {});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

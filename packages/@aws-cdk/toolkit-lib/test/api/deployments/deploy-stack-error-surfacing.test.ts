@@ -123,13 +123,18 @@ test('a failed lookup while diagnosing leaves the deployment error intact', asyn
   // failed. Diagnosis is best-effort, so this must not replace the deployment error.
   const debugIoHost = new TestIoHost('debug');
   const realClient = sdk.cloudFormation();
+  // Let the deployment fail on its own, then throttle every read after it. The diagnosis lookup is
+  // the first one to land in that window.
+  let deploymentSettled = false;
   jest.spyOn(sdk, 'cloudFormation').mockReturnValue({
     ...realClient,
     describeStacks: async (input) => {
-      if (input.StackName?.startsWith('arn:')) {
+      if (deploymentSettled) {
         throw new ToolkitError('Throttling', 'Rate exceeded');
       }
-      return realClient.describeStacks(input);
+      const response = await realClient.describeStacks(input);
+      deploymentSettled = response.Stacks?.[0]?.StackStatus === 'ROLLBACK_COMPLETE';
+      return response;
     },
   });
 

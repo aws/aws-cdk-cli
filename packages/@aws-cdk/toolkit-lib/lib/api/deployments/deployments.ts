@@ -321,7 +321,12 @@ export class Deployments {
 
   private readonly publisherCache = new Map<cdk_assets.AssetManifest, Map<string, cdk_assets.AssetPublishing>>();
 
-  private _allowCrossAccountAssetPublishing: boolean | undefined;
+  // Cache by resolved environment: this Deployments instance is reused across every
+  // stack in a single `cdk deploy` invocation, and stacks can target different
+  // accounts/regions. determineAllowCrossAccountAssetPublishing() reads that specific
+  // environment's bootstrap stack, so caching a single un-keyed value would silently
+  // reuse the first stack's environment's answer for every other stack's environment.
+  private readonly allowCrossAccountAssetPublishingCache = new Map<string, boolean>();
 
   private readonly ioHelper: IoHelper;
 
@@ -626,7 +631,7 @@ export class Deployments {
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
       try {
-        const successStack = await stabilizeStack(cfn, this.ioHelper, deployName);
+        const successStack = await stabilizeStack(cfn, this.ioHelper, stackArn);
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
@@ -744,11 +749,18 @@ export class Deployments {
   }
 
   private async allowCrossAccountAssetPublishingForEnv(stack: cxapi.CloudFormationStackArtifact): Promise<boolean> {
-    if (this._allowCrossAccountAssetPublishing === undefined) {
-      const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
-      this._allowCrossAccountAssetPublishing = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    const resolvedEnvironment = await this.envs.resolveStackEnvironment(stack);
+    const envKey = `${resolvedEnvironment.account}:${resolvedEnvironment.region}`;
+
+    const cached = this.allowCrossAccountAssetPublishingCache.get(envKey);
+    if (cached !== undefined) {
+      return cached;
     }
-    return this._allowCrossAccountAssetPublishing;
+
+    const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
+    const allowed = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    this.allowCrossAccountAssetPublishingCache.set(envKey, allowed);
+    return allowed;
   }
 
   /**

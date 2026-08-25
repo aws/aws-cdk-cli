@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import { DefaultSelection } from '../../lib/cxapp/cloud-assembly';
+import { StackSelectionStrategy } from '../../lib/api';
 import { registerContextProvider } from '../../lib/context-providers';
 import { MockCloudExecutable } from '../_helpers/assembly';
 import { TestIoHost } from '../_helpers/io-host';
@@ -52,7 +52,7 @@ test('stop executing if context providers are not making progress', async () => 
   const cxasm = await cloudExecutable.synthesize();
 
   // WHEN
-  await cxasm.selectStacks({ patterns: ['thestack'] }, { defaultBehavior: DefaultSelection.AllStacks });
+  await cxasm.selectStacksV2({ patterns: ['thestack'], strategy: StackSelectionStrategy.PATTERN_MATCH });
 
   // THEN: the test finishes normally});
 });

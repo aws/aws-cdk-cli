@@ -4,13 +4,13 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, StackSelector, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import { CliIoHost } from './io-host';
+import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
@@ -31,7 +31,8 @@ import {
 import type { SdkProvider } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
-import { ExpandStackSelection, ExtendedStackSelection, StackCollection } from '../api/cloud-assembly';
+import type { StackAssembly } from '../api/cloud-assembly';
+import { ALL_STACKS, ExpandStackSelection, mustMatch, selectAllTopLevel, selectExact, selectWithUpstream, StackCollection } from '../api/cloud-assembly';
 import { isChangeSetDeployment, isExecutingChangeSetDeployment, isNonExecutingChangeSetDeployment, toExecuteChangeSetDeployment } from '../api/deploy-private';
 import type { Deployments, SuccessfulDeployStackResult } from '../api/deployments';
 import { mappingsByEnvironment, parseMappingGroups } from '../api/refactor';
@@ -55,8 +56,8 @@ import {
   TemplateSourceOptions,
   writeMigrateJsonFile,
 } from '../commands/migrate';
-import type { CloudAssembly, CloudExecutable, StackSelector } from '../cxapp';
-import { DefaultSelection, environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
+import type { CloudExecutable } from '../cxapp';
+import { environmentsFromDescriptors, globEnvironmentsFromStacks, looksLikeGlob } from '../cxapp';
 import {
   deserializeStructure,
   formatErrorMessage,
@@ -225,34 +226,26 @@ export class CdkToolkit {
     });
   }
 
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+  )
   public async metadata(stackName: string, json: boolean) {
-    this.ioHost.once(
+    using _formatter = this.ioHost.once(
       IO.CDK_TOOLKIT_I2901,
       (msg) => ({
         action: 'metadata',
         message: serializeStructure(msg.data.stacks[0]?.metadata ?? {}, json),
       }),
     );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1001,
-      () => ({ preventDefault: true }),
-    );
-    this.ioHost.once(
-      IO.CDK_TOOLKIT_I1000,
-      () => ({ preventDefault: true }),
-    );
 
-    try {
-      await this.toolkit.list(this.props.cloudExecutable, {
-        stacks: {
-          patterns: [stackName],
-          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-          expand: ExpandStackSelection.NONE,
-        },
-      });
-    } finally {
-      this.ioHost.removeAllListeners();
-    }
+    await this.toolkit.list(this.props.cloudExecutable, {
+      stacks: {
+        patterns: [stackName],
+        strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+        expand: ExpandStackSelection.NONE,
+      },
+    });
   }
 
   public async acknowledge(noticeId: string) {
@@ -288,7 +281,9 @@ export class CdkToolkit {
   }
 
   public async diff(options: DiffOptions): Promise<number> {
-    const stacks = await this.selectStacksForDiff(options.stackNames, options.exclusively);
+    const assembly = await this.assembly();
+    const stacks = await this.selectTopLevelOrMatchingStacks(assembly, options.stackNames, options.exclusively);
+    await this.validateStacks(assembly, stacks);
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
@@ -356,11 +351,13 @@ export class CdkToolkit {
         const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
         const nestedStacks = templateWithNestedStacks.nestedStacks;
 
+        const environment = await this.props.deployments.resolveEnvironment(stack);
+
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
           ioHelper: asIoHelper(this.ioHost, 'diff'),
         });
-        const resourcesToImport = await migrator.tryGetResources(await this.props.deployments.resolveEnvironment(stack));
+        const resourcesToImport = await migrator.tryGetResources(environment);
         if (resourcesToImport) {
           removeNonImportResources(stack);
         }
@@ -381,6 +378,7 @@ export class CdkToolkit {
             isImport: !!resourcesToImport,
             nestedStacks,
             mappings,
+            environment,
           },
         });
 
@@ -471,147 +469,144 @@ export class CdkToolkit {
     // toolkit-lib emits the approval request (I5060) without mentioning
     // `--require-approval`. The CLI owns that flag, so it adds the framing here.
     // Both deploy paths resolve through this host, so one listener covers both.
-    this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+    // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
+    // each run must register a rewrite for its own `requireApproval` value.
+    using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
         : 'updates';
       return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
-    try {
-      // execute-change-set is a new flow that we can just delegate to toolkit-lib
-      if (options.deploymentMethod?.method === 'execute-change-set') {
-        await this.toolkit.deploy(this.props.cloudExecutable, {
-          deploymentMethod: options.deploymentMethod,
-          stacks: {
-            patterns: options.selector.patterns,
-            strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-            expand: ExpandStackSelection.NONE,
-          },
-          roleArn: options.roleArn,
-          forceDeployment: options.force,
-          rollback: options.rollback,
-          reuseAssets: options.reuseAssets,
-          concurrency: options.concurrency,
-          traceLogs: options.traceLogs,
-          notificationArns: options.notificationArns,
-          tags: options.tags,
-          outputsFile: options.outputsFile,
-          assetParallelism: options.assetParallelism,
-          assetBuildConcurrency: options.assetBuildConcurrency,
-          assetBuildTime: options.assetBuildTime,
-          parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
-        });
-        return;
-      }
-
-      const startSynthTime = new Date().getTime();
-      const stackCollection = await this.selectStacksForDeploy(
-        options.selector,
-        options.exclusively,
-        options.cacheCloudAssembly,
-        options.ignoreNoStacks,
-      );
-      const elapsedSynthTime = new Date().getTime() - startSynthTime;
-      await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
-
-      if (stackCollection.stackCount === 0) {
-        await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
-        return;
-      }
-
-      const migrator = new ResourceMigrator({
-        deployments: this.props.deployments,
-        ioHelper: asIoHelper(this.ioHost, 'deploy'),
-      });
-      await migrator.tryMigrateResources(stackCollection, {
-        toolkitStackName: this.toolkitStackName,
-        ...options,
-      });
-
-      if (options.deploymentMethod?.method === 'hotswap') {
-        await this.ioHost.asIoHelper().defaults.warn(
-          '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
-        );
-        await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
-      }
-
-      const stacks = stackCollection.stackArtifacts;
-
-      const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
-      const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
-      const concurrency = options.concurrency || 1;
-      if (concurrency > 1) {
-        // always force "events" progress output when we have concurrency
-        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
-
-        // ...but only warn if the user explicitly requested "bar" progress
-        if (options.progress && options.progress != StackActivityProgress.EVENTS) {
-          await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag only supports --progress "events". Switching to "events".');
-        }
-      }
-
-      const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
-        stack,
-        ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
-      ]);
-      const workGraph = new WorkGraphBuilder(
-        asIoHelper(this.ioHost, 'deploy'),
-        prebuildAssets,
-      ).build(stacksAndTheirAssetManifests);
-
-      // Unless we are running with '--force', skip already published assets
-      if (!options.force) {
-        await this.removePublishedAssets(workGraph, options);
-      }
-
-      const graphConcurrency: Concurrency = {
-        'stack': concurrency,
-        'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
-        'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
-        'marker': 1,
-      };
-
-      const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
-        roleArn: options.roleArn,
-        force: options.force,
-        stackCount: stackCollection.stackCount,
-        notificationArns: options.notificationArns,
+    // execute-change-set is a new flow that we can just delegate to toolkit-lib
+    if (options.deploymentMethod?.method === 'execute-change-set') {
+      await this.toolkit.deploy(this.props.cloudExecutable, {
         deploymentMethod: options.deploymentMethod,
-        toolkitStackName: this.toolkitStackName,
-        reuseAssets: options.reuseAssets,
-        tags: options.tags,
-        parameters: options.parameters,
-        usePreviousParameters: options.usePreviousParameters,
+        stacks: {
+          patterns: options.selector.patterns,
+          strategy: StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
+          expand: ExpandStackSelection.NONE,
+        },
+        roleArn: options.roleArn,
+        forceDeployment: options.force,
         rollback: options.rollback,
-        concurrency,
-        requireApproval,
+        reuseAssets: options.reuseAssets,
+        concurrency: options.concurrency,
+        traceLogs: options.traceLogs,
+        notificationArns: options.notificationArns,
+        tags: options.tags,
+        outputsFile: options.outputsFile,
         assetParallelism: options.assetParallelism,
-        extraUserAgent: options.extraUserAgent,
-        cloudWatchLogMonitor: options.cloudWatchLogMonitor,
-        sdkProvider: this.props.sdkProvider,
-        express: options.express,
+        assetBuildConcurrency: options.assetBuildConcurrency,
+        assetBuildTime: options.assetBuildTime,
+        parameters: undefined, // parameters are only set during change set creation, so this is explicitly unset because change set already exists
       });
+      return;
+    }
 
-      const startDeployTime = Date.now();
+    const startSynthTime = new Date().getTime();
+    const assembly = await this.assembly(options.cacheCloudAssembly);
+    const stackCollection = await assembly.selectStacksV2(options.selector);
+    await this.validateStacks(assembly, stackCollection);
+    const elapsedSynthTime = new Date().getTime() - startSynthTime;
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
-      await workGraph.doParallel(graphConcurrency, deploymentActions);
+    if (stackCollection.stackCount === 0) {
+      await this.ioHost.asIoHelper().defaults.error('This app contains no stacks');
+      return;
+    }
 
-      if (options.outputsFile) {
-        // If an outputs file has been specified, create the file path and write stack outputs to it once.
-        // Outputs are written after all stacks have been deployed. If a stack deployment fails,
-        // all of the outputs from successfully deployed stacks before the failure will still be written.
-        await deploymentActions.writeOutputs(options.outputsFile);
+    const migrator = new ResourceMigrator({
+      deployments: this.props.deployments,
+      ioHelper: asIoHelper(this.ioHost, 'deploy'),
+    });
+    await migrator.tryMigrateResources(stackCollection, {
+      toolkitStackName: this.toolkitStackName,
+      ...options,
+    });
+
+    if (options.deploymentMethod?.method === 'hotswap') {
+      await this.ioHost.asIoHelper().defaults.warn(
+        '⚠️ The --hotswap and --hotswap-fallback flags deliberately introduce CloudFormation drift to speed up deployments',
+      );
+      await this.ioHost.asIoHelper().defaults.warn('⚠️ They should only be used for development - never use them for your production Stacks!\n');
+    }
+
+    const stacks = stackCollection.stackArtifacts;
+
+    const assetBuildTime = options.assetBuildTime ?? AssetBuildTime.ALL_BEFORE_DEPLOY;
+    const prebuildAssets = assetBuildTime === AssetBuildTime.ALL_BEFORE_DEPLOY;
+    const concurrency = options.concurrency || 1;
+    if (concurrency > 1) {
+      // the "bar" progress output doesn't support concurrency, fall back to "events"
+      if (this.ioHost.stackProgress === StackActivityProgress.BAR) {
+        this.ioHost.stackProgress = StackActivityProgress.EVENTS;
       }
 
-      // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
-      // spans because of parallelism).
-      this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
-
-      await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
-    } finally {
-      this.ioHost.removeAllListeners();
+      // ...but only warn if the user explicitly requested "bar" progress
+      if (options.progress === StackActivityProgress.BAR) {
+        await this.ioHost.asIoHelper().defaults.warn('⚠️ The --concurrency flag does not support --progress "bar". Switching to "events".');
+      }
     }
+
+    const stacksAndTheirAssetManifests = stacks.flatMap((stack) => [
+      stack,
+      ...stack.dependencies.filter(x => cxapi.AssetManifestArtifact.isAssetManifestArtifact(x)),
+    ]);
+    const workGraph = new WorkGraphBuilder(
+      asIoHelper(this.ioHost, 'deploy'),
+      prebuildAssets,
+    ).build(stacksAndTheirAssetManifests);
+
+    // Unless we are running with '--force', skip already published assets
+    if (!options.force) {
+      await this.removePublishedAssets(workGraph, options);
+    }
+
+    const graphConcurrency: Concurrency = {
+      'stack': concurrency,
+      'asset-build': (options.assetParallelism ?? true) ? options.assetBuildConcurrency ?? 1 : 1, // This will be CPU-bound/memory bound, mostly matters for Docker builds
+      'asset-publish': (options.assetParallelism ?? true) ? 8 : 1, // This will be I/O-bound, 8 in parallel seems reasonable
+      'marker': 1,
+    };
+
+    const deploymentActions = new WorkGraphDeploymentActions(this.props.deployments, this.ioHost, this, {
+      roleArn: options.roleArn,
+      force: options.force,
+      stackCount: stackCollection.stackCount,
+      notificationArns: options.notificationArns,
+      deploymentMethod: options.deploymentMethod,
+      toolkitStackName: this.toolkitStackName,
+      reuseAssets: options.reuseAssets,
+      tags: options.tags,
+      parameters: options.parameters,
+      usePreviousParameters: options.usePreviousParameters,
+      rollback: options.rollback,
+      concurrency,
+      requireApproval,
+      assetParallelism: options.assetParallelism,
+      extraUserAgent: options.extraUserAgent,
+      cloudWatchLogMonitor: options.cloudWatchLogMonitor,
+      sdkProvider: this.props.sdkProvider,
+      express: options.express,
+    });
+
+    const startDeployTime = Date.now();
+
+    await workGraph.doParallel(graphConcurrency, deploymentActions);
+
+    if (options.outputsFile) {
+      // If an outputs file has been specified, create the file path and write stack outputs to it once.
+      // Outputs are written after all stacks have been deployed. If a stack deployment fails,
+      // all of the outputs from successfully deployed stacks before the failure will still be written.
+      await deploymentActions.writeOutputs(options.outputsFile);
+    }
+
+    // Add a timer on the COMMAND span for the full deployment wait time (not the same as the sum of all DEPLOY
+    // spans because of parallelism).
+    this.ioHost.telemetry?.commandSpan?.addTimer('totalDeployTime', Date.now() - startDeployTime);
+
+    await this.ioHost.asIoHelper().defaults.info(`\n✨  Total time: ${formatTime(Date.now() - startSynthTime)}s\n`);
   }
 
   /**
@@ -619,10 +614,7 @@ export class CdkToolkit {
    */
   public async drift(options: DriftOptions): Promise<number> {
     const driftResults = await this.toolkit.drift(this.props.cloudExecutable, {
-      stacks: {
-        patterns: options.selector.patterns,
-        strategy: options.selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-      },
+      stacks: options.selector,
     });
 
     const totalDrifts = Object.values(driftResults).reduce((total, current) => total + (current.numResourcesWithDrift ?? 0), 0);
@@ -726,7 +718,9 @@ export class CdkToolkit {
    */
   public async rollback(options: RollbackOptions) {
     const startSynthTime = new Date().getTime();
-    const stackCollection = await this.selectStacksForDeploy(options.selector, true);
+    const assembly = await this.assembly();
+    const stackCollection = await assembly.selectStacksV2(options.selector);
+    await this.validateStacks(assembly, stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
@@ -896,7 +890,9 @@ export class CdkToolkit {
   }
 
   public async import(options: ImportOptions) {
-    const stacks = await this.selectStacksForDeploy(options.selector, true, true, false);
+    const assembly = await this.assembly();
+    const stacks = await assembly.selectStacksV2(options.selector);
+    await this.validateStacks(assembly, stacks);
 
     // set progress from options, this includes user and app config
     if (options.progress) {
@@ -974,6 +970,21 @@ export class CdkToolkit {
       return;
     }
 
+    // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
+    //
+    //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+    //  - []:        =>  cdk manages it, and the user wants to wipe it out.
+    //  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+    const notificationArns = (!!options.notificationArns || !!stack.notificationArns)
+      ? (options.notificationArns ?? []).concat(stack.notificationArns ?? [])
+      : undefined;
+
+    for (const notificationArn of notificationArns ?? []) {
+      if (!validateSnsTopicArn(notificationArn)) {
+        throw new ToolkitError('InvalidSnsTopicArn', `Notification arn ${notificationArn} is not a valid arn for an SNS topic`);
+      }
+    }
+
     // Import the resources according to the given mapping
     await this.ioHost.asIoHelper().defaults.info('%s: importing resources into stack...', chalk.bold(stack.displayName));
     const tags = tagsForStack(stack);
@@ -983,6 +994,7 @@ export class CdkToolkit {
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
       rollback: options.rollback,
+      notificationArns,
     });
 
     // Notify user of next steps
@@ -1003,7 +1015,9 @@ export class CdkToolkit {
         );
         if (deployNow) {
           await this.deploy({
-            selector: options.selector,
+            // The import selector is exact (no expansion); the follow-up deploy
+            // historically expands to upstream dependencies like a plain deploy.
+            selector: { ...options.selector, expand: ExpandStackSelection.UPSTREAM },
             toolkitStackName: options.toolkitStackName,
             roleArn: options.roleArn,
             deploymentMethod: options.deploymentMethod,
@@ -1025,73 +1039,59 @@ export class CdkToolkit {
     }
   }
 
+  // The destroy action runs through toolkit-lib.
+  // Suppress its new status messages to keep the output as it was before.
+  @suppressMessages(
+    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+    IO.CDK_TOOLKIT_I7101, // Starting Destroy (trace)
+    IO.CDK_TOOLKIT_I7001, // per-stack Destroy time (trace)
+    IO.CDK_TOOLKIT_I7000, // ✨ Destroy time (info)
+  )
   public async destroy(options: DestroyOptions) {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
     const action = options.fromDeploy ? 'deploy' : 'destroy';
 
-    if ((options.concurrency || 1) > 1) {
+    if ((options.concurrency || 1) > 1 && this.ioHost.stackProgress === StackActivityProgress.BAR) {
       this.ioHost.stackProgress = StackActivityProgress.EVENTS;
     }
 
-    // The destroy action runs through toolkit-lib.
-    // Use listeners to keep the messages as they were before.
-    this.ioHost.on(IO.CDK_TOOLKIT_I1001, () => ({ preventDefault: true })); // Starting Synthesis (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true })); // ✨ Synthesis time (info)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7101, () => ({ preventDefault: true })); // Starting Destroy (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7001, () => ({ preventDefault: true })); // per-stack Destroy time (trace)
-    this.ioHost.on(IO.CDK_TOOLKIT_I7000, () => ({ preventDefault: true })); // ✨ Destroy time (info)
     // The success line was `info` in the historical `cdk destroy`, not `result`.
-    this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
+    using _successLevel = this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
     // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
     // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
     // the listener both suppresses the log and aborts the command (the top-level
     // renders `AbortError` as "Deletion cancelled").
-    this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+    using _declineAborts = this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
       throw new AbortError('DestroyAborted', 'Deletion cancelled');
     });
 
-    if (options.force) {
-      this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
-    }
+    using _forceConfirms = options.force ? this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true) : undefined;
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
-      await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
-        stacks: {
-          patterns: options.selector.patterns,
-          strategy: options.selector.allTopLevel
-            ? StackSelectionStrategy.MAIN_ASSEMBLY
-            : options.selector.patterns.length > 0
-              ? StackSelectionStrategy.PATTERN_MATCH
-              : StackSelectionStrategy.ONLY_SINGLE,
-          expand: options.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
-        },
-        roleArn: options.roleArn,
-        concurrency: options.concurrency,
-        express: options.express,
-      });
-    } finally {
-      this.ioHost.removeAllListeners();
-    }
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
+    await this.toolkit._destroyWithAction(this.props.cloudExecutable, action, {
+      stacks: options.selector,
+      roleArn: options.roleArn,
+      concurrency: options.concurrency,
+      express: options.express,
+    });
   }
 
+  // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
+  // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
+  @suppressMessages(IO.CDK_TOOLKIT_I1000, IO.CDK_TOOLKIT_I1002)
   public async list(
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
-    this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
-
-    // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
-    // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
-    this.ioHost.once(IO.CDK_TOOLKIT_I1000, () => ({ preventDefault: true }));
-    this.ioHost.once(IO.CDK_TOOLKIT_I1002, () => ({ preventDefault: true }));
+    // One-shot: disposes itself when the listing (I2901) is emitted; the
+    // `using` covers the case where `list` throws before that happens.
+    using _formatter = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
     await this.toolkit.list(this.props.cloudExecutable, {
-      stacks: selectors.length > 0
-        ? { patterns: selectors, strategy: StackSelectionStrategy.PATTERN_MATCH, expand: ExpandStackSelection.UPSTREAM }
-        : undefined,
+      stacks: selectors.length > 0 ? selectWithUpstream(...selectors) : undefined,
     });
 
     return 0; // exit-code
@@ -1106,19 +1106,26 @@ export class CdkToolkit {
    * OUTPUT: If more than one stack ends up being selected, an output directory
    * should be supplied, where the templates will be written.
    */
-  public async synth(
-    stackNames: string[],
-    exclusively: boolean,
-    quiet: boolean,
-    autoValidate?: boolean,
-    json?: boolean,
-  ): Promise<any> {
-    const stacks = await this.selectStacksForDiff(stackNames, exclusively, autoValidate);
+  public async synth(options: SynthOptions): Promise<any> {
+    const stackNames = options.stackNames;
+    const exclusively = options.exclusively ?? false;
+    const quiet = options.quiet ?? false;
+    const autoValidate = options.autoValidate ?? false;
+    const json = options.json ?? false;
+
+    const assembly = await this.assembly();
+    const stacks = await this.selectTopLevelOrMatchingStacks(assembly, stackNames, exclusively);
+
+    const autoValidateStacks = autoValidate
+      ? assembly.selectStacksForValidation()
+      : new StackCollection(assembly, []);
+
+    await this.validateStacks(assembly, stacks.concat(autoValidateStacks));
 
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
       if (!quiet) {
-        await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json ?? false);
+        await printSerializedObject(this.ioHost.asIoHelper(), obscureTemplate(stacks.firstStack.template), json);
       }
 
       // In CI mode, non-error messages go to stdout. When we just printed the
@@ -1233,8 +1240,10 @@ export class CdkToolkit {
 
     // If there is an '--app' argument, select the environments from the app.
     if (this.props.cloudExecutable.hasApp) {
+      const assembly = await this.assembly();
+      const allStacks = await assembly.selectStacksV2(ALL_STACKS);
       environments.push(
-        ...(await globEnvironmentsFromStacks(await this.selectStacksForList([]), globSpecs, this.props.sdkProvider)),
+        ...(await globEnvironmentsFromStacks(allStacks, globSpecs, this.props.sdkProvider)),
       );
     }
 
@@ -1340,13 +1349,9 @@ export class CdkToolkit {
     }
 
     try {
-      const patterns = options.stacks?.patterns ?? [];
       await this.toolkit.refactor(this.props.cloudExecutable, {
         dryRun: options.dryRun,
-        stacks: {
-          patterns: patterns,
-          strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-        },
+        stacks: options.stacks ?? ALL_STACKS,
         force: options.force,
         additionalStackNames: options.additionalStackNames,
         overrides: readOverrides(options.overrideFile, options.revert),
@@ -1377,64 +1382,45 @@ export class CdkToolkit {
     }
   }
 
-  private async selectStacksForList(patterns: string[]) {
-    const assembly = await this.assembly();
-    const stacks = await assembly.selectStacks({ patterns }, { defaultBehavior: DefaultSelection.AllStacks });
-
-    // No validation
-
-    return stacks;
-  }
-
-  private async selectStacksForDeploy(
-    selector: StackSelector,
+  /**
+   * Select the stacks that `synth` and `diff` operate on
+   *
+   * With patterns: match them (failing if nothing matches), expanding to
+   * upstream dependencies unless `exclusively` is set. Without patterns: all
+   * top-level stacks, exactly — the historic default selection never expands
+   * to dependencies, regardless of `exclusively`. A stage-only app has no
+   * top-level stacks, which selects nothing and is not an error — but an app
+   * without any stacks at all still is. No single selection strategy covers
+   * this combination: `MAIN_ASSEMBLY` rejects stage-only apps (as
+   * `deploy --all` must keep doing) and `ALL_STACKS` would wrongly include
+   * the stacks inside stages.
+   */
+  private async selectTopLevelOrMatchingStacks(
+    assembly: StackAssembly,
+    patterns: string[],
     exclusively?: boolean,
-    cacheCloudAssembly?: boolean,
-    ignoreNoStacks?: boolean,
   ): Promise<StackCollection> {
-    const assembly = await this.assembly(cacheCloudAssembly);
-    const stacks = await assembly.selectStacks(selector, {
-      extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
-      defaultBehavior: DefaultSelection.OnlySingle,
-      ignoreNoStacks,
-    });
+    if (patterns.length > 0) {
+      return assembly.selectStacksV2(
+        mustMatch(exclusively ? selectExact(...patterns) : selectWithUpstream(...patterns)),
+      );
+    }
 
-    this.validateStacksSelected(stacks, selector.patterns);
-    await this.validateStacks(assembly, stacks);
+    if (assembly.cloudAssembly.stacks.length > 0) {
+      return assembly.selectStacksV2(selectAllTopLevel(ExpandStackSelection.NONE));
+    }
 
-    return stacks;
-  }
-
-  private async selectStacksForDiff(
-    stackNames: string[],
-    exclusively?: boolean,
-    autoValidate?: boolean,
-  ): Promise<StackCollection> {
-    const assembly = await this.assembly();
-
-    const selectedForDiff = await assembly.selectStacks(
-      { patterns: stackNames },
-      {
-        extend: exclusively ? ExtendedStackSelection.None : ExtendedStackSelection.Upstream,
-        defaultBehavior: DefaultSelection.MainAssembly,
-      },
-    );
-
-    const allStacks = await this.selectStacksForList([]);
-    const autoValidateStacks = autoValidate
-      ? allStacks.filter((art) => art.validateOnSynth ?? false)
-      : new StackCollection(assembly, []);
-
-    this.validateStacksSelected(selectedForDiff.concat(autoValidateStacks), stackNames);
-    await this.validateStacks(assembly, selectedForDiff.concat(autoValidateStacks));
-
-    return selectedForDiff;
+    // Stage-only app: nothing to select, which is not an error. An app
+    // without any stacks at all still is: this selection throws
+    // 'This app contains no stacks' in that case.
+    await assembly.selectStacksV2(ALL_STACKS);
+    return new StackCollection(assembly, []);
   }
 
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(assembly: CloudAssembly, stacks: StackCollection) {
+  private async validateStacks(assembly: StackAssembly, stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
     await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
   }
@@ -1452,15 +1438,12 @@ export class CdkToolkit {
   }
 
   /**
-   * Validate that if a user specified a stack name there exists at least 1 stack selected
+   * Converts the toolkit's `CloudExecutable` into `StackAssembly`.
+   *
+   * @param cacheCloudAssembly - to cache the assembly, defaults to `true`
+   * @returns the converted `StackAssembly`
    */
-  private validateStacksSelected(stacks: StackCollection, stackNames: string[]) {
-    if (stackNames.length != 0 && stacks.stackCount == 0) {
-      throw new ToolkitError('NoStacksMatched', `No stacks match the name(s) ${stackNames}`);
-    }
-  }
-
-  public assembly(cacheCloudAssembly?: boolean): Promise<CloudAssembly> {
+  public assembly(cacheCloudAssembly: boolean = true): Promise<StackAssembly> {
     return this.props.cloudExecutable.synthesize(cacheCloudAssembly);
   }
 
@@ -1513,6 +1496,44 @@ export class CdkToolkit {
  */
 async function printSerializedObject(ioHelper: IoHelper, obj: any, json: boolean) {
   await ioHelper.defaults.result(serializeStructure(obj, json));
+}
+
+/**
+ * Options for the synth command
+ */
+export interface SynthOptions {
+  /**
+   * Stack names to synthesize
+   */
+  readonly stackNames: string[];
+
+  /**
+   * Only select the given stacks, without expanding to their upstream dependencies
+   *
+   * @default false
+   */
+  readonly exclusively?: boolean;
+
+  /**
+   * Do not print the template to stdout
+   *
+   * @default false
+   */
+  readonly quiet?: boolean;
+
+  /**
+   * Additionally validate stacks that have the `validateOnSynth` flag set
+   *
+   * @default false
+   */
+  readonly autoValidate?: boolean;
+
+  /**
+   * Print the template as JSON instead of YAML
+   *
+   * @default false
+   */
+  readonly json?: boolean;
 }
 
 /**
@@ -1672,13 +1693,6 @@ export interface CliValidateOptions extends ValidateOptions {
 
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   /**
-   * Only select the given stack
-   *
-   * @default false
-   */
-  exclusively?: boolean;
-
-  /**
    * Reuse the assets with the given asset IDs
    */
   reuseAssets?: string[];
@@ -1819,13 +1833,6 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
   readonly assetBuildTime?: AssetBuildTime;
 
   /**
-   * Whether to deploy if the app contains no stacks.
-   *
-   * @default false
-   */
-  readonly ignoreNoStacks?: boolean;
-
-  /**
    * Whether to use CloudFormation express mode for the current deployment
    */
   readonly express?: boolean;
@@ -1881,6 +1888,19 @@ export interface OrphanOptions {
 
 export interface ImportOptions extends CfnDeployOptions {
   /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events.
+   *
+   * The following semantics apply (dictated by the SDK):
+   *
+   *  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
+   *  - []:        =>  cdk manages it, and the user wants to wipe it out.
+   *  - ['arn-1']  =>  cdk manages it, and the user wants to set it to ['arn-1'].
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
+
+  /**
    * Build a physical resource mapping and write it to the given file, without performing the actual import operation
    *
    * @default - No file
@@ -1915,11 +1935,6 @@ export interface DestroyOptions {
    * Criteria for selecting stacks to deploy
    */
   selector: StackSelector;
-
-  /**
-   * Whether to exclude stacks that depend on the stacks to be deleted
-   */
-  exclusively: boolean;
 
   /**
    * Whether to skip prompting for confirmation
@@ -2345,8 +2360,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       } else {
         await this.ioHost.asIoHelper().defaults.warn('%s: stack has no resources, deleting existing stack.', chalk.bold(stack.displayName));
         await this.stackOperations.destroy({
-          selector: { patterns: [stack.hierarchicalId] },
-          exclusively: true,
+          selector: selectExact(stack.hierarchicalId),
           force: true,
           roleArn: this.options.roleArn,
           fromDeploy: true,
@@ -2510,7 +2524,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
 
             // Perform a rollback
             await this.stackOperations.rollback({
-              selector: { patterns: [stack.hierarchicalId] },
+              selector: selectExact(stack.hierarchicalId),
               toolkitStackName: this.options.toolkitStackName,
               force: this.options.force,
             });

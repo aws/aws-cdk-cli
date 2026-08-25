@@ -55,6 +55,7 @@ const BUNDLING_COMMANDS = [
   Command.WATCH,
   Command.IMPORT,
   Command.PUBLISH_ASSETS,
+  Command.REFACTOR,
 ];
 
 export type Arguments = {

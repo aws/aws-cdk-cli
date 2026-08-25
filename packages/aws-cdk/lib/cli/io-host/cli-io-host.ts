@@ -6,7 +6,7 @@ import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, 
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -214,6 +214,32 @@ export type MessageSelector<T> =
   | IoMessageMaker<T>
   | IoRequestMaker<T, any>
   | ((msg: IoMessage<any>) => boolean);
+
+/**
+ * Removes a previously registered message listener.
+ *
+ * Callable directly (`dispose()`), and also a `Disposable`, so it can be bound
+ * to the enclosing scope with a `using` declaration — the listener is then
+ * removed when the scope exits, even on an early return or a throw:
+ *
+ * ```ts
+ * using _fmt = ioHost.rewrite(IO.CDK_TOOLKIT_I2901, format);
+ * ```
+ *
+ * `using x = cond ? ioHost.on(...) : undefined` is also valid: disposal is
+ * simply skipped for `undefined`, which makes conditional listeners cheap.
+ */
+export interface DisposeListener {
+  (): void;
+  [Symbol.dispose](): void;
+}
+
+/**
+ * Make a plain remover function usable as a `Disposable` (see `DisposeListener`).
+ */
+function disposeListener(dispose: () => void): DisposeListener {
+  return Object.assign(dispose, { [Symbol.dispose]: dispose });
+}
 
 /**
  * How an IoHost processed a single message or request.
@@ -444,8 +470,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * like if isTTY and isCI.
    */
   public get stackProgress(): StackActivityProgress {
-    // We can always use EVENTS
-    if (this._progress === StackActivityProgress.EVENTS) {
+    // We can always use EVENTS and ERRORS_ONLY
+    if (this._progress === StackActivityProgress.EVENTS || this._progress === StackActivityProgress.ERRORS_ONLY) {
       return this._progress;
     }
 
@@ -533,12 +559,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public on<T>(
     selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
+  ): DisposeListener;
   public on(
     predicate: (msg: IoMessage<any>) => boolean,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public on(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
+  ): DisposeListener;
+  public on(selector: MessageSelector<any>, listener: MessageListenerFn): DisposeListener {
     return this.addMessageListener({ once: false, fn: listener, matches: messageMatcher(selector) });
   }
 
@@ -565,12 +591,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public once<T>(
     selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
+  ): DisposeListener;
   public once(
     predicate: (msg: IoMessage<any>) => boolean,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public once(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
+  ): DisposeListener;
+  public once(selector: MessageSelector<any>, listener: MessageListenerFn): DisposeListener {
     return this.addMessageListener({ once: true, fn: listener, matches: messageMatcher(selector) });
   }
 
@@ -610,14 +636,14 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * // Under --force, auto-confirm the destroy prompt without prompting.
    * const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
    */
-  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
+  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): DisposeListener {
     return this.addMessageListener({ once: false, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
   }
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
+  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): DisposeListener {
     return this.addMessageListener({ once: true, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
   }
 
@@ -641,7 +667,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     code: IoMessageMaker<T> | IoRequestMaker<T, any>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
-  ): () => void {
+  ): DisposeListener {
     return this.on(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
@@ -653,22 +679,23 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     code: IoMessageMaker<T> | IoRequestMaker<T, any>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
-  ): () => void {
+  ): DisposeListener {
     return this.once(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
-   * Add a listener to the registry and return a function that removes it.
+   * Add a listener to the registry and return a remover for it (callable and
+   * `using`-compatible, see `DisposeListener`).
    */
-  private addMessageListener(listener: MessageListener): () => void {
+  private addMessageListener(listener: MessageListener): DisposeListener {
     this.messageListeners.push(listener);
 
-    return () => {
+    return disposeListener(() => {
       const index = this.messageListeners.indexOf(listener);
       if (index >= 0) {
         this.messageListeners.splice(index, 1);
       }
-    };
+    });
   }
 
   /**
@@ -976,7 +1003,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         }
 
         // respond with the default for all other messages
-        if (msg.defaultResponse) {
+        if (msg.defaultResponse !== undefined) {
           await this.writeMessage({
             ...msg,
             message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
@@ -1062,6 +1089,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         return new HistoryActivityPrinter(props);
       case StackActivityProgress.BAR:
         return new CurrentActivityPrinter(props);
+      case StackActivityProgress.ERRORS_ONLY:
+        return new ErrorsOnlyActivityPrinter(props);
     }
   }
 }
@@ -1090,6 +1119,47 @@ function messageMatcher(selector: MessageSelector<any>): (msg: IoMessage<unknown
 export function matchAny(...selectors: MessageSelector<any>[]): (msg: IoMessage<unknown>) => boolean {
   const matchers = selectors.map(messageMatcher);
   return (msg) => matchers.some((matches) => matches(msg));
+}
+
+/**
+ * Method decorator that suppresses the given IoHost messages for the duration
+ * of the decorated method.
+ *
+ * Before the method runs, a single `preventDefault` listener covering all
+ * given selectors is registered on the instance's `ioHost`; when the method
+ * settles (returns or throws), exactly that listener is removed again. This
+ * replaces the manual pattern of registering drop-listeners at the top of a
+ * method and cleaning them up in a `finally`, and — unlike a blanket
+ * `removeAllListeners()` — it does not disturb listeners registered elsewhere.
+ *
+ * The decorated method must be async and live on a class whose instances carry
+ * the `CliIoHost` on an `ioHost` property (like `CdkToolkit`).
+ *
+ * @example
+ * class CdkToolkit {
+ *   \@suppressMessages(IO.CDK_TOOLKIT_I1001, IO.CDK_TOOLKIT_I1000)
+ *   public async metadata(stackName: string, json: boolean) {
+ *     // I1001/I1000 are dropped while this runs
+ *   }
+ * }
+ */
+export function suppressMessages(...selectors: MessageSelector<any>[]) {
+  return function <A extends any[], R>(
+    _target: object,
+    _propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<(...args: A) => Promise<R>>,
+  ): void {
+    const original = descriptor.value;
+    if (!original) {
+      throw new ToolkitError('InvalidDecoratorTarget', 'suppressMessages can only decorate methods');
+    }
+    descriptor.value = async function (this: { readonly ioHost: CliIoHost }, ...args: A): Promise<R> {
+      using _suppress = this.ioHost.on(matchAny(...selectors), () => ({ preventDefault: true }));
+      // `return await` (not a bare `return`) so the listener is only disposed
+      // after the method has actually settled.
+      return await original.apply(this, args);
+    };
+  };
 }
 
 /**

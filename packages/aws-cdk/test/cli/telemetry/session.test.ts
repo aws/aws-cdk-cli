@@ -127,6 +127,39 @@ describe('TelemetrySession', () => {
     expect(spanEndSpy).toHaveBeenCalledTimes(1);
   });
 
+  test('begin() registers exactly one SIGINT listener, and end() removes it', async () => {
+    // GIVEN begin() was already called once in beforeEach
+    const before = process.listenerCount('SIGINT');
+
+    // WHEN
+    await session.end();
+
+    // THEN
+    expect(process.listenerCount('SIGINT')).toBe(before - 1);
+  });
+
+  test('repeated begin()/end() cycles do not accumulate SIGINT listeners', async () => {
+    // GIVEN begin() was already called once in beforeEach; end it to get to a clean baseline
+    await session.end();
+    const baseline = process.listenerCount('SIGINT');
+
+    // WHEN -- simulate many exec() invocations in a single long-running process
+    for (let i = 0; i < 20; i++) {
+      const client = new IoHostTelemetrySink({ ioHost });
+      const s = new TelemetrySession({
+        ioHost,
+        client,
+        arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+        context: new Context(),
+      });
+      await s.begin();
+      await s.end();
+    }
+
+    // THEN -- no net growth, and nowhere near Node's default max-listener warning threshold (10)
+    expect(process.listenerCount('SIGINT')).toBe(baseline);
+  });
+
   test('end flushes events', async () => {
     // GIVEN
     await session.emit({

@@ -67,13 +67,14 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
-import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
+import { type Template, type SdkProvider, ResourceImporter, StackAssembly, WorkGraphBuilder } from '../../lib/api';
+import { mustMatch, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -272,25 +273,6 @@ describe('list', () => {
       'Test-Stack-B',
     ]);
   });
-
-  test('suppresses the synth-time (I1000) and dependency-expansion (I1002) lines on the list path', async () => {
-    // Both are info-level lines emitted next to the listing; in CI they would land on stdout and
-    // pollute the parseable output. The list path registers a one-shot suppressor for each so they
-    // are dropped before being written. (End-to-end stdout behavior is covered by the integ test.)
-    const toolkit = defaultToolkitSetup();
-    const onceSpy = jest.spyOn(ioHost, 'once');
-
-    // WHEN
-    await toolkit.list([]);
-
-    // THEN
-    for (const code of ['CDK_TOOLKIT_I1000', 'CDK_TOOLKIT_I1002']) {
-      const call = onceSpy.mock.calls.find(([sel]) => (sel as any)?.code === code);
-      expect(call).toBeDefined();
-      const listener = call![1] as (msg: any) => any;
-      expect(listener({ code })).toEqual({ preventDefault: true });
-    }
-  });
 });
 
 describe('deploy', () => {
@@ -298,7 +280,7 @@ describe('deploy', () => {
     const toolkit = defaultToolkitSetup();
     const requireApproval = RequireApproval.ANYCHANGE;
     await toolkit.deploy({
-      selector: { patterns: ['**'] },
+      selector: selectWithUpstream('**'),
       deploymentMethod: { method: 'change-set' },
       requireApproval,
     });
@@ -310,7 +292,7 @@ describe('deploy', () => {
     const toolkit = defaultToolkitSetup();
     requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      selector: selectWithUpstream('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     });
@@ -359,7 +341,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
       });
@@ -411,7 +393,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'change-set' },
       });
@@ -454,7 +436,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'direct' },
       });
@@ -491,7 +473,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'direct' },
         express: true,
@@ -530,7 +512,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'direct' },
         express: true,
@@ -568,7 +550,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'direct' },
       });
@@ -602,7 +584,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
       });
@@ -634,7 +616,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'change-set' },
       });
@@ -677,7 +659,7 @@ describe('deploy', () => {
       // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
       // set means there is nothing for the user to approve.
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
       });
@@ -713,7 +695,7 @@ describe('deploy', () => {
       try {
         // WHEN
         await cdkToolkit.deploy({
-          selector: { patterns: ['Test-Stack-A-Display-Name'] },
+          selector: selectWithUpstream('Test-Stack-A-Display-Name'),
           requireApproval: RequireApproval.NEVER,
           deploymentMethod: { method: 'change-set' },
           outputsFile,
@@ -756,7 +738,7 @@ describe('deploy', () => {
 
       // WHEN
       await expect(cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.ANYCHANGE,
         deploymentMethod: { method: 'change-set' },
       })).rejects.toThrow(/Deployment cancelled/);
@@ -791,7 +773,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'change-set', execute: false },
       });
@@ -833,7 +815,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'change-set' },
       });
@@ -869,7 +851,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
       });
 
@@ -893,7 +875,7 @@ describe('deploy', () => {
     // WHEN
     await expect(() =>
       toolkit.deploy({
-        selector: { patterns: ['Test-Stack-D'] },
+        selector: mustMatch(selectWithUpstream('Test-Stack-D')),
         deploymentMethod: { method: 'change-set' },
       }),
     ).rejects.toThrow('No stacks match the name(s) Test-Stack-D');
@@ -924,7 +906,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: {
           method: 'hotswap',
@@ -951,7 +933,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A', 'Test-Stack-B'] },
+        selector: selectWithUpstream('Test-Stack-A', 'Test-Stack-B'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -962,7 +944,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['**'] },
+        selector: selectWithUpstream('**'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -973,7 +955,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -993,7 +975,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1019,7 +1001,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
         deploymentMethod: { method: 'change-set' },
         force: true,
       });
@@ -1060,7 +1042,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism: true,
           assetBuildConcurrency: 4,
@@ -1095,7 +1077,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism: false,
           assetBuildConcurrency: 4,
@@ -1134,7 +1116,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism,
         });
@@ -1154,7 +1136,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['*'] },
+        selector: selectWithUpstream('*'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -1193,7 +1175,7 @@ describe('deploy', () => {
         // WHEN
         await toolkit.deploy({
           // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
-          selector: { patterns: ['Test-Stack-A-Display-Name'] },
+          selector: selectWithUpstream('Test-Stack-A-Display-Name'),
           notificationArns,
           deploymentMethod: { method: 'change-set' },
         });
@@ -1219,7 +1201,7 @@ describe('deploy', () => {
         await expect(() =>
           toolkit.deploy({
             // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
-            selector: { patterns: ['Test-Stack-A-Display-Name'] },
+            selector: selectWithUpstream('Test-Stack-A-Display-Name'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -1244,7 +1226,7 @@ describe('deploy', () => {
 
         // WHEN
         await toolkit.deploy({
-          selector: { patterns: ['Test-Stack-Notification-Arns'] },
+          selector: selectWithUpstream('Test-Stack-Notification-Arns'),
           deploymentMethod: { method: 'change-set' },
         });
       });
@@ -1264,7 +1246,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:1337:123456789012:sns:bad is not a valid arn for an SNS topic');
@@ -1295,7 +1277,7 @@ describe('deploy', () => {
 
         // WHEN
         await toolkit.deploy({
-          selector: { patterns: ['Test-Stack-Notification-Arns'] },
+          selector: selectWithUpstream('Test-Stack-Notification-Arns'),
           notificationArns,
           deploymentMethod: { method: 'change-set' },
         });
@@ -1320,7 +1302,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -1346,7 +1328,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -1372,7 +1354,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -1387,7 +1369,7 @@ describe('deploy', () => {
 
     // WHEN
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-B'] },
+      selector: selectWithUpstream('Test-Stack-B'),
       deploymentMethod: { method: 'change-set' },
     });
 
@@ -1561,7 +1543,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1602,7 +1584,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1667,7 +1649,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1726,7 +1708,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1783,7 +1765,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1836,7 +1818,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A'] },
+        selector: selectWithUpstream('Test-Stack-A'),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -1897,7 +1879,7 @@ describe('deploy', () => {
 
     await toolkit.deploy({
       progress: StackActivityProgress.EVENTS,
-      selector: { patterns: ['**'] },
+      selector: selectWithUpstream('**'),
       deploymentMethod: {
         method: 'hotswap',
         fallback: { method: 'change-set' },
@@ -1909,13 +1891,119 @@ describe('deploy', () => {
   });
 });
 
+describe('import', () => {
+  const mapping = { MyQueue: { QueueName: 'TheQueueName' } };
+  let discoverSpy: jest.SpyInstance;
+  let loadSpy: jest.SpyInstance;
+  let importFromMapSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    const additions = [{ logicalId: 'MyQueue' }] as any;
+    discoverSpy = jest.spyOn(ResourceImporter.prototype, 'discoverImportableResources').mockResolvedValue({
+      additions,
+      hasNonAdditions: false,
+      nonAdditionNames: [],
+      diffFormatter: {} as any,
+    });
+    loadSpy = jest.spyOn(ResourceImporter.prototype, 'loadResourceIdentifiers').mockResolvedValue({
+      importResources: additions,
+      resourceMap: mapping,
+    });
+    importFromMapSpy = jest.spyOn(ResourceImporter.prototype, 'importResourcesFromMap').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    discoverSpy.mockRestore();
+    loadSpy.mockRestore();
+    importFromMapSpy.mockRestore();
+  });
+
+  describe('sns notification arns', () => {
+    test('with sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN
+      await toolkit.import({
+        selector: selectExact('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
+      });
+
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ notificationArns }),
+      );
+    });
+
+    test('fail with incorrect sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = ['arn:::cfn-my-cool-topic'];
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN
+      await expect(() =>
+        toolkit.import({
+          selector: selectExact('Test-Stack-A-Display-Name'),
+          deploymentMethod: { method: 'change-set' },
+          resourceMappingInline: JSON.stringify(mapping),
+          notificationArns,
+        }),
+      ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
+
+      // THEN
+      expect(importFromMapSpy).not.toHaveBeenCalled();
+    });
+
+    test('with sns notification arns in the executable and as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [MockStack.MOCK_STACK_WITH_NOTIFICATION_ARNS],
+      });
+      const toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: new FakeCloudFormation(),
+      });
+
+      // WHEN
+      await toolkit.import({
+        selector: selectExact('Test-Stack-Notification-Arns'),
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
+      });
+
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          notificationArns: notificationArns.concat(['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic']),
+        }),
+      );
+    });
+  });
+});
+
 describe('watch', () => {
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
 
     await expect(() => {
       return toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod: { method: 'hotswap' },
       });
     }).rejects.toThrow(
@@ -1929,7 +2017,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -1944,7 +2032,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -1963,7 +2051,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -1981,7 +2069,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -2002,7 +2090,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -2021,7 +2109,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -2041,7 +2129,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       concurrency: 3,
       deploymentMethod: { method: 'hotswap' },
     });
@@ -2061,7 +2149,7 @@ describe('watch', () => {
       toolkit.deploy = cdkDeployMock;
 
       await toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod,
       });
       await fakeChokidarWatcherOn.readyCallback();
@@ -2077,7 +2165,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
     await fakeChokidarWatcherOn.readyCallback();
@@ -2092,7 +2180,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: {
         method: 'hotswap',
         fallback: { method: 'change-set' },
@@ -2115,7 +2203,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'change-set' },
     });
     await fakeChokidarWatcherOn.readyCallback();
@@ -2134,7 +2222,7 @@ describe('watch', () => {
       cdkDeployMock = jest.fn();
       toolkit.deploy = cdkDeployMock;
       await toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod: { method: 'hotswap' },
       });
     });
@@ -2317,11 +2405,33 @@ describe('validate --watch', () => {
 describe('synth', () => {
   test('successful synth outputs hierarchical stack ids', async () => {
     const toolkit = defaultToolkitSetup();
-    await toolkit.synth([], false, false);
+    await toolkit.synth({ stackNames: [] });
 
     // Separate tests as colorizing hampers detection
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-A-Display-Name');
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-B');
+  });
+
+  test('no-argument synth selects the main assembly without dependency expansion', async () => {
+    // The historic default selection (no patterns) returns the top-level
+    // stacks exactly and never expands to dependencies, regardless of
+    // `exclusively`. This pins the selector so the expansion the pattern case
+    // uses does not leak into the default case (the selection helper is
+    // shared with `diff`).
+    const toolkit = defaultToolkitSetup();
+    // `jest.resetAllMocks()` in beforeEach would leave this prototype spy as
+    // an undefined-returning mock for every later test, so restore it here.
+    const selectSpy = jest.spyOn(StackAssembly.prototype, 'selectStacksV2');
+    try {
+      await toolkit.synth({ stackNames: [], quiet: true });
+
+      expect(selectSpy).toHaveBeenCalledWith({
+        strategy: StackSelectionStrategy.MAIN_ASSEMBLY,
+        expand: ExpandStackSelection.NONE,
+      });
+    } finally {
+      selectSpy.mockRestore();
+    }
   });
 
   test('with no stdout option', async () => {
@@ -2329,7 +2439,7 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
 
     // THEN
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'], quiet: true });
     expect(notifySpy.mock.calls.length).toEqual(0);
   });
 
@@ -2339,7 +2449,7 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
 
     // WHEN - single stack, quiet=false (template printed to stdout)
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, false);
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'] });
 
     // THEN - only the template result should be emitted, no warn-level flags message
     const warnMessages = notifySpy.mock.calls.filter(([msg]) => msg.level === 'warn');
@@ -2352,7 +2462,7 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
 
     // WHEN - single stack, quiet=true (no template printed)
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'], quiet: true });
 
     // THEN - flags message is allowed since stdout is not occupied by the template
     // (it may or may not appear depending on flag state, but it's not suppressed)
@@ -2379,13 +2489,13 @@ describe('synth', () => {
     test('causes synth to fail if autoValidate=true', async () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = true;
-      await expect(toolkit.synth([], false, true, autoValidate)).rejects.toBeDefined();
+      await expect(toolkit.synth({ stackNames: [], quiet: true, autoValidate })).rejects.toBeDefined();
     });
 
     test('causes synth to succeed if autoValidate=false', async () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = false;
-      await toolkit.synth([], false, true, autoValidate);
+      await toolkit.synth({ stackNames: [], quiet: true, autoValidate });
       expect(notifySpy.mock.calls.filter(([msg]) => msg.level === 'result').length).toBe(0);
     });
   });
@@ -2407,7 +2517,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await expect(toolkit.synth(['Test-Stack-A/witherrors'], false, true)).rejects.toBeDefined();
+    await expect(toolkit.synth({ stackNames: ['Test-Stack-A/witherrors'], quiet: true })).rejects.toBeDefined();
   });
 
   test('stack has error, is not flagged for validation and was not explicitly selected', async () => {
@@ -2427,7 +2537,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await toolkit.synth([], false, true);
+    await toolkit.synth({ stackNames: [], quiet: true });
   });
 
   test('stack has dependency and was explicitly selected', async () => {
@@ -2437,7 +2547,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await toolkit.synth([MockStack.MOCK_STACK_D.stackName], true, false);
+    await toolkit.synth({ stackNames: [MockStack.MOCK_STACK_D.stackName], exclusively: true });
 
     expect(notifySpy.mock.calls.length).toEqual(1);
     expect(notifySpy.mock.calls[0][0]).toBeDefined();
@@ -2617,7 +2727,7 @@ describe('rollback', () => {
     });
 
     await toolkit.rollback({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(ExpandStackSelection.NONE),
     });
 
     expect(mockedRollback).toHaveBeenCalled();
@@ -2681,7 +2791,7 @@ describe('rollback', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'change-set' },
       rollback: false,
       requireApproval: RequireApproval.NEVER,
