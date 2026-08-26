@@ -15,6 +15,14 @@
  *    here and the input is trusted by definition; this function is deliberately
  *    the only path to a shell and takes no argv form, so command lines can
  *    never be assembled from parts by this codebase.
+ *
+ * As a corollary, no value is ever escaped *for a shell* and then executed —
+ * with exactly one audited exception: `quoteShellPart` in toolkit-lib's
+ * `cloud-assembly/environment.ts`, which quotes the file paths this codebase
+ * discovers itself before splicing them into the user's `app` command line for
+ * `runUserCommandLine`. That is the single place quoting-for-execution lives; it
+ * is documented at that call site and is intentionally not in this module, whose
+ * own rendering (`renderForDisplay`) is display-only and never executed.
  */
 import * as child_process from 'child_process';
 import { StringDecoder } from 'string_decoder';
