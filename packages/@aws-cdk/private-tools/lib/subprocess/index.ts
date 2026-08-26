@@ -16,13 +16,13 @@
  *    the only path to a shell and takes no argv form, so command lines can
  *    never be assembled from parts by this codebase.
  *
- * As a corollary, no value is ever escaped *for a shell* and then executed —
- * with exactly one audited exception: `quoteShellPart` in toolkit-lib's
- * `cloud-assembly/environment.ts`, which quotes the file paths this codebase
- * discovers itself before splicing them into the user's `app` command line for
- * `runUserCommandLine`. That is the single place quoting-for-execution lives; it
- * is documented at that call site and is intentionally not in this module, whose
- * own rendering (`renderForDisplay`) is display-only and never executed.
+ * As a corollary, migrated runtime consumers do not escape values *for a shell*
+ * and then execute them, with one audited exception: `quoteShellPart` in
+ * toolkit-lib's `cloud-assembly/environment.ts`, which quotes the file paths
+ * this codebase discovers itself before splicing them into the user's `app`
+ * command line for `runUserCommandLine`. That is the only quoting-for-execution
+ * boundary among these consumers; it is documented at that call site and kept
+ * out of this module, whose `renderForDisplay` output is never executed.
  */
 import * as child_process from 'child_process';
 import { StringDecoder } from 'string_decoder';
