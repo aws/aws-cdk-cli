@@ -11,7 +11,17 @@ const AWS_ENV_REGEX = /aws\:\/\/([a-z0-9A-Z\-\@\.\_]+)\/([a-z\-0-9]+)/;
  * Models an AWS execution environment, for use within the CDK toolkit.
  */
 export interface Environment {
-  /** The arbitrary name of this environment (user-set, or at least user-meaningful) */
+  /**
+   * The display name of this environment, in the form `aws://<account>/<region>`
+   *
+   * This is always machine-generated, never user-set: it is either the
+   * artifact's `environment` field (which has this shape) or formatted from
+   * the account and region by `EnvironmentUtils.format`.
+   *
+   * Note that until the environment has been resolved, the account and region
+   * may still be the `UNKNOWN_ACCOUNT`/`UNKNOWN_REGION` placeholders, so this
+   * value is not necessarily usable as a `cdk` command line argument.
+   */
   readonly name: string;
 
   /** The AWS account this environment deploys into */

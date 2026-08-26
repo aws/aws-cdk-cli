@@ -790,7 +790,8 @@ export class Deployments {
     try {
       await envResources.validateVersion(requiresBootstrapStackVersion, bootstrapStackVersionSsmParameter);
     } catch (e: any) {
-      throw new ToolkitError('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`);
+      // Keep the original error as cause: it may be a `BootstrapError` carrying the affected environment
+      throw ToolkitError.withCause('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`, e);
     }
   }
 
