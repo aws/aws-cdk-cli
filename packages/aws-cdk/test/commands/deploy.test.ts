@@ -1,6 +1,6 @@
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import { Deployments, selectAllTopLevel, selectExact, selectWithUpstream } from '../../lib/api';
+import { Deployments, selectAllTopLevel, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
 import { IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -48,6 +48,39 @@ let recorder: IoHostRecorder;
 
 async function makeToolkit(stacks: TestStackArtifact[] = [STACK_A, STACK_B]) {
   cloudExecutable = await MockCloudExecutable.create({ stacks }, undefined, ioHost, 'deploy');
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable,
+    configuration: cloudExecutable.configuration,
+    sdkProvider: cloudExecutable.sdkProvider,
+    deployments: cloudFormation,
+  });
+}
+
+// A Stage-nested app: there are no top-level stacks, both stacks live inside a
+// Stage, so their hierarchical ids are namespaced like `MyStage/StackName`.
+// A bare `cdk deploy` (no selector, no `--all`) therefore cannot pick a single
+// stack and must guide the user towards the Stage wildcard pattern.
+async function makeStagedToolkit() {
+  cloudExecutable = await MockCloudExecutable.create({
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [
+        {
+          stackName: 'StackA',
+          template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+          env: 'aws://123456789012/bermuda-triangle-1',
+          displayName: 'MyStage/StackA',
+        },
+        {
+          stackName: 'StackB',
+          template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+          env: 'aws://123456789012/bermuda-triangle-1',
+          displayName: 'MyStage/StackB',
+        },
+      ],
+    }],
+  }, undefined, ioHost, 'deploy');
   return new CdkToolkit({
     ioHost,
     cloudExecutable,
@@ -371,6 +404,43 @@ describe('multi-stack selection', () => {
 
     expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
     expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('no selector on a Stage-nested app fails with guidance towards the Stage wildcard pattern', async () => {
+    // GIVEN an app whose stacks all live inside a Stage.
+    toolkit = await makeStagedToolkit();
+
+    // WHEN a bare `cdk deploy` runs (no selector, no `--all`), THEN the command
+    // synthesizes and then aborts at stack selection: the snapshot captures the
+    // IO stream up to that point. The thrown error additionally points the user
+    // at the pattern that selects the Stage's stacks (e.g. `'MyStage/*'`),
+    // instead of only suggesting `--all`.
+    const error = await toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    }).catch((e) => e);
+
+    expect(stripAnsi(error.message)).toContain('Since this app includes more than a single stack');
+    expect(stripAnsi(error.message)).toContain('Some of these stacks are nested inside a Stage');
+    expect(stripAnsi(error.message)).toContain("'MyStage/*'");
+    // Selection failed before anything was deployed.
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+
+  test('no selector on a flat multi-stack app fails without mentioning Stages', async () => {
+    // GIVEN a flat app with only top-level stacks (the default STACK_A/STACK_B).
+    // WHEN a bare `cdk deploy` runs, THEN it still fails for lack of a selector,
+    // but the Stage-specific guidance must not appear.
+    const error = await toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    }).catch((e) => e);
+
+    expect(stripAnsi(error.message)).toContain('Since this app includes more than a single stack');
+    expect(stripAnsi(error.message)).not.toContain('Some of these stacks are nested inside a Stage');
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
   });
 });
 
