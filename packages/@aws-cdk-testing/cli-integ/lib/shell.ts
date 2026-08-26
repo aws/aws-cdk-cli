@@ -285,31 +285,25 @@ export function rimraf(fsPath: string): boolean {
     let success = true;
     const stat = fs.lstatSync(fsPath);
 
-    // This test's private directory contains a 'node_modules' symlink into a
-    // machine-wide shared install that other running tests also link to. Delete
-    // the link itself and stop — do NOT recurse through it, or we'd delete the
-    // shared install's contents out from under those other tests.
-    if (stat.isSymbolicLink()) {
-      // On POSIX, unlink removes a symlink whatever its target type. On
-      // Windows, a link to a directory (or a junction) must be removed with
-      // rmdir, while a link to a file must be removed with unlink.
-      if (isWindows() && isDirectoryLink(fsPath)) {
-        fs.rmdirSync(fsPath);
-      } else {
-        fs.unlinkSync(fsPath);
-      }
-      return true;
-    }
-
-    const isDir = stat.isDirectory();
-
-    if (isDir) {
+    // `lstat` describes the link itself, not its target, so a symlink is never
+    // reported as a directory here. That means we never recurse into a symlink's
+    // target — which may be shared content that other running tests still use
+    // (e.g. the machine-wide 'node_modules' install) — and only ever remove the
+    // link entry itself.
+    if (stat.isDirectory()) {
       for (const file of fs.readdirSync(fsPath)) {
         success &&= rimraf(path.join(fsPath, file));
       }
       fs.rmdirSync(fsPath);
     } else {
-      fs.unlinkSync(fsPath);
+      // A regular file or a symlink. On POSIX, unlink removes a symlink whatever
+      // its target type. On Windows, a link to a directory (or a junction) must
+      // be removed with rmdir, while a link to a file must be removed with unlink.
+      if (stat.isSymbolicLink() && isWindows() && isDirectoryLink(fsPath)) {
+        fs.rmdirSync(fsPath);
+      } else {
+        fs.unlinkSync(fsPath);
+      }
     }
     return success;
   } catch (e: any) {
@@ -332,12 +326,11 @@ export function rimraf(fsPath: string): boolean {
  * Whether a symlink resolves to a directory.
  *
  * `statSync` follows the link, so a directory target means a directory link.
- * A dangling link (target already removed) returns undefined; treat it as a
- * directory, since the only links we create are directory links (the shared
- * 'node_modules' junction) and those still need `rmdir` on Windows.
+ * The link always points at the live shared install during cleanup, so a
+ * missing target is not expected: let it throw rather than hide the problem.
  */
 function isDirectoryLink(linkPath: string): boolean {
-  return fs.statSync(linkPath, { throwIfNoEntry: false })?.isDirectory() ?? true;
+  return fs.statSync(linkPath).isDirectory();
 }
 
 export function addToShellPath(x: string) {
