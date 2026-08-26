@@ -1565,6 +1565,19 @@ integRunner.preCompileTask.prependExec('./build-tools/generate.sh');
 new TypecheckTests(integRunner);
 fixupTestTask(integRunner);
 
+// integ-runner is integration-test tooling, and its `exec()` already spawns an
+// argv array with no shell (so it carries no injection risk — the ban only
+// flags it for importing child_process directly). Exempt it for now; migrating
+// it onto the shared subprocess tool is deferred follow-up work. Scoped to the
+// one sink so any NEW file still hits the ban.
+integRunner.eslint?.addOverride({
+  files: ['lib/utils.ts'],
+  rules: {
+    'no-restricted-imports': ['off'],
+    'no-restricted-syntax': ['off'],
+  },
+});
+
 new BundleCli(integRunner, {
   externals: {
     dependencies: [
@@ -1687,6 +1700,27 @@ const cliInteg = configureProject(
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
+
+// cli-integ is a test harness that deliberately spawns through a shell (and a
+// pty) to exercise the CLI the way a user would at a terminal — that is the
+// point of these helpers, not something to migrate away. Permanently exempt,
+// like test code. Scoped to the current sinks so NEW files still hit the ban
+// and get a conscious decision rather than a silent pass.
+cliInteg.eslint?.addOverride({
+  files: [
+    'lib/cli/stage-distribution.ts',
+    'lib/npm.ts',
+    'lib/package-sources/repo-tools/npm.ts',
+    'lib/process.ts',
+    'lib/shell.ts',
+    'lib/with-cdk-app.ts',
+    'lib/with-sam.ts',
+  ],
+  rules: {
+    'no-restricted-imports': ['off'],
+    'no-restricted-syntax': ['off'],
+  },
+});
 
 cliInteg.deps.addDependency('@aws-cdk/toolkit-lib', pj.DependencyType.OPTIONAL);
 

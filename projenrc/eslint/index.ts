@@ -61,6 +61,32 @@ export function configureEslint(x: typescript.TypeScriptProject) {
   );
   x.eslint?.addRules(ESLINT_RULES);
 
+  // The `child_process` / `shell: true` bans protect SHIPPED code from spawning
+  // outside the subprocess tool. Two categories are outside that trust boundary
+  // and are exempt:
+  //   - test code, which legitimately imports `child_process` to mock/spy and
+  //     may spawn with `shell: true` against throwaway fixtures;
+  //   - build-time tooling (projen config, build tasks), which runs on
+  //     developer/CI machines rather than a user's machine.
+  // (This also relaxes the md5/punycode rules for these files, which is harmless
+  // for non-shipped code.)
+  x.eslint?.addOverride({
+    files: [
+      '**/test/**',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.integtest.ts',
+      'projenrc/**',
+      '**/projenrc/**',
+      '.projenrc.ts',
+      '**/.projenrc.ts',
+    ],
+    rules: {
+      'no-restricted-imports': ['off'],
+      'no-restricted-syntax': ['off'],
+    },
+  });
+
   // For our published packages, we need all type imports to be from a public dependency
   if (!isRoot && !isPrivate && x.eslint) {
     x.eslint.rules['import/no-extraneous-dependencies'][1].includeTypes = true;
