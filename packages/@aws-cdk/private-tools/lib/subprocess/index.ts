@@ -7,7 +7,9 @@
  *    the arguments, so shell injection is impossible by construction.
  *    Windows `.cmd`/`.bat` shims (npm, yarn, …) are handled by cross-spawn,
  *    which spawns `cmd.exe /d /s /c` with correct quoting — modern Node does
- *    not spawn batch shims directly (CVE-2024-27980).
+ *    not spawn batch shims directly (CVE-2024-27980). The executable name is
+ *    resolved against PATH (never the working directory) so a binary planted
+ *    in the cwd cannot shadow the real one (see `resolveExecutable`).
  *
  * 2. `runUserCommandLine(line)` — an opaque command line **the user themselves
  *    authored** (e.g. the `app` command from `cdk.json`, the `--browser` flag),
@@ -17,6 +19,8 @@
  *    never be assembled from parts by this codebase.
  */
 import * as child_process from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
 import spawn from 'cross-spawn';
 
@@ -212,7 +216,11 @@ function errorMessage(cause: unknown): string {
  */
 export async function run(argv: readonly string[], options: RunOptions = {}): Promise<RunResult> {
   assertNonEmptyArgv(argv, 'run');
-  const child = spawn(argv[0], argv.slice(1), spawnOptions(options));
+  const command = resolveExecutable(argv[0], { env: options.env });
+  if (command === undefined) {
+    return Promise.reject(notFoundError(argv));
+  }
+  const child = spawn(command, argv.slice(1), spawnOptions(options));
   return monitor(child, renderForDisplay(argv), options);
 }
 
@@ -240,7 +248,11 @@ export interface RunSyncOptions {
  */
 export function runSync(argv: readonly string[], options: RunSyncOptions = {}): string {
   assertNonEmptyArgv(argv, 'runSync');
-  const result = spawn.sync(argv[0], argv.slice(1), {
+  const command = resolveExecutable(argv[0], {});
+  if (command === undefined) {
+    throw notFoundError(argv);
+  }
+  const result = spawn.sync(command, argv.slice(1), {
     cwd: options.cwd,
     timeout: options.timeoutMs,
     killSignal: 'SIGTERM',
@@ -282,6 +294,111 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
     shell: true,
   });
   return monitor(child, commandLine, options);
+}
+
+/**
+ * Resolve an executable name to an absolute path against PATH — never the cwd.
+ *
+ * On Windows a bare program name spawned without a shell is searched for in the
+ * current working directory *before* PATH, so a file planted in the working
+ * directory (e.g. a `docker.bat` inside a handed-over cloud assembly) can run
+ * instead of the real binary. Resolving to an absolute PATH hit up front closes
+ * that: the cwd is never consulted, and a name that is not on PATH is refused
+ * (returns `undefined`) rather than silently satisfied from the cwd.
+ *
+ * POSIX `execvp` already searches PATH only (never the cwd), so there the name
+ * is returned unchanged. An argument that already contains a path separator is
+ * an explicit location and is honored verbatim on every platform.
+ *
+ * @returns the resolved command (absolute on Windows, unchanged elsewhere), or
+ *   `undefined` when a bare Windows name cannot be found on PATH.
+ */
+export function resolveExecutable(
+  command: string,
+  options: { readonly env?: Record<string, string | undefined>; readonly platform?: NodeJS.Platform } = {},
+): string | undefined {
+  const platform = options.platform ?? process.platform;
+
+  // An explicit path (absolute, or containing a separator / drive) is used
+  // verbatim; there is no PATH search to harden. `\\` is checked directly
+  // because path.isAbsolute uses the *running* platform's rules.
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    return command;
+  }
+
+  // POSIX execvp searches PATH only; nothing to harden.
+  if (platform !== 'win32') {
+    return command;
+  }
+
+  const env = options.env ?? process.env;
+  const dirs = (envValue(env, 'PATH') ?? '').split(path.delimiter).filter(Boolean);
+  const exts = windowsExtensions(command, envValue(env, 'PATHEXT'));
+
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = path.join(dir, command + ext);
+      if (isFile(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  // Not on PATH. Deliberately do NOT fall back to the bare name: that would let
+  // Windows resolve it from the cwd, which is exactly the risk we are closing.
+  return undefined;
+}
+
+/** Look up an environment variable case-insensitively (the Windows env is). */
+function envValue(env: Record<string, string | undefined>, name: string): string | undefined {
+  if (env[name] !== undefined) {
+    return env[name];
+  }
+  const lower = name.toLowerCase();
+  const key = Object.keys(env).find((k) => k.toLowerCase() === lower);
+  return key !== undefined ? env[key] : undefined;
+}
+
+/**
+ * The extensions to append when searching for `command` on Windows.
+ *
+ * If the name already ends in a known executable extension, search for it
+ * exactly (empty suffix); otherwise try each PATHEXT entry.
+ */
+function windowsExtensions(command: string, pathext: string | undefined): string[] {
+  const configured = (pathext ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const lower = command.toLowerCase();
+  return configured.some((e) => lower.endsWith(e.toLowerCase())) ? [''] : configured;
+}
+
+function isFile(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A `SubprocessError` shaped like a real spawn ENOENT, for the case where a
+ * bare Windows name could not be resolved on PATH. Keeps `kind: 'spawn-failed'`
+ * and a `cause` carrying `code: 'ENOENT'` so downstream guidance (e.g.
+ * cdk-assets' "please install docker") still fires.
+ */
+function notFoundError(argv: readonly string[]): SubprocessError {
+  const cause = Object.assign(new Error(`spawn ${argv[0]} ENOENT`), {
+    code: 'ENOENT', errno: -2, syscall: 'spawn', path: argv[0],
+  });
+  return new SubprocessError({
+    command: renderForDisplay(argv),
+    exitCode: null,
+    signal: null,
+    stdout: '',
+    stderr: '',
+    cause,
+  });
 }
 
 /**

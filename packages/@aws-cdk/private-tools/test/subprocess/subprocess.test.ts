@@ -1,5 +1,8 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { OutputStream } from '../../lib/subprocess';
-import { run, runSync, runUserCommandLine, renderForDisplay, SubprocessError } from '../../lib/subprocess';
+import { run, runSync, runUserCommandLine, renderForDisplay, resolveExecutable, SubprocessError } from '../../lib/subprocess';
 
 // A cross-platform argv that echoes its arguments exactly as received,
 // proving no shell interpreted them. `node -e` exists everywhere the
@@ -112,6 +115,28 @@ describe('run', () => {
 
     expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   }, 30000);
+
+  // Windows-only: a plain .exe (as in every nodeEval test above) never routes
+  // through cmd.exe, so this is the one path where cross-spawn's escaping is
+  // actually exercised. Must run on Windows CI to have any value.
+  (process.platform === 'win32' ? test : test.skip)(
+    'a .cmd shim receives hostile arguments verbatim (cross-spawn escaping)',
+    async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmd-shim'));
+      const shim = path.join(dir, 'echo-args.cmd');
+      // The shim forwards its args to node, which echoes them back as JSON.
+      fs.writeFileSync(shim, '@node -e "process.stdout.write(JSON.stringify(process.argv.slice(1)))" %*\r\n');
+      try {
+        // Every one of these would do something (or break) if cmd.exe parsed it.
+        const hostile = ['a&echo PWNED', 'b|whoami', 'c>out', 'd"q', '%PATH%', 'e^f', '(g)', 'two  spaces'];
+        const result = await run([shim, ...hostile]);
+        expect(JSON.parse(result.stdout)).toEqual(hostile);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    30000,
+  );
 
   test('multi-byte UTF-8 characters split across chunks decode correctly', async () => {
     // 'é' is 2 bytes in UTF-8; the child writes them in separate chunks with a
@@ -249,5 +274,62 @@ describe('renderForDisplay', () => {
 
   test('defaults to the current platform', () => {
     expect(renderForDisplay(['plain'])).toEqual('plain');
+  });
+});
+
+describe('resolveExecutable', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resolve-exe'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('POSIX leaves a bare name unchanged (execvp already searches PATH only)', () => {
+    expect(resolveExecutable('docker', { platform: 'linux' })).toEqual('docker');
+  });
+
+  test('an explicit path is honored verbatim on every platform', () => {
+    expect(resolveExecutable('/usr/bin/docker', { platform: 'win32' })).toEqual('/usr/bin/docker');
+    expect(resolveExecutable('C:\\tools\\docker.exe', { platform: 'win32' })).toEqual('C:\\tools\\docker.exe');
+    expect(resolveExecutable('./local-tool', { platform: 'linux' })).toEqual('./local-tool');
+  });
+
+  test('Windows resolves a bare name to its absolute location on PATH', () => {
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(target);
+  });
+
+  test('Windows searches for an already-suffixed name exactly (no double extension)', () => {
+    // Casing kept consistent so the assertion is meaningful on a case-sensitive
+    // filesystem; on Windows the FS match is itself case-insensitive.
+    fs.writeFileSync(path.join(dir, 'tool.exe'), '');
+
+    expect(resolveExecutable('tool.exe', { platform: 'win32', env: { PATH: dir, PATHEXT: '.EXE' } }))
+      .toEqual(path.join(dir, 'tool.exe'));
+  });
+
+  test('Windows refuses a name that is not on PATH — never falls back to the cwd', () => {
+    // The binary exists on disk, but in a directory that is NOT on PATH.
+    // Resolution must fail rather than let Windows satisfy the bare name from
+    // the working directory (the shadowing risk this closes).
+    fs.writeFileSync(path.join(dir, 'docker.CMD'), '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: '', PATHEXT: '.CMD' } }))
+      .toBeUndefined();
+  });
+
+  test('Windows PATH lookup is case-insensitive in the env var name (Path vs PATH)', () => {
+    const target = path.join(dir, 'git.EXE');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('git', { platform: 'win32', env: { Path: dir, PATHEXT: '.EXE' } }))
+      .toEqual(target);
   });
 });
