@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
 import * as cxapi from '@aws-cdk/cx-api';
-import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import { guessLanguage } from '../util';
@@ -22,7 +22,7 @@ import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
-import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion } from '../api';
+import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -39,7 +39,7 @@ import { getLanguageFromAlias } from '../commands/language';
 import { lsp } from '../commands/lsp';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
-import type { StackSelector, Synthesizer } from '../cxapp';
+import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
@@ -287,11 +287,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
     args.ENVIRONMENTS = args.ENVIRONMENTS ?? [];
 
-    const selector: StackSelector = {
-      allTopLevel: args.all,
-      patterns: args.STACKS,
-    };
-
     const cli = new CdkToolkit({
       ioHost,
       cloudExecutable,
@@ -370,7 +365,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'drift':
         ioHost.currentAction = 'drift';
         return cli.drift({
-          selector,
+          selector: specificStacksOrAllRecursively(args.STACKS),
           fail: args.fail,
         });
 
@@ -382,7 +377,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           dryRun: args.dryRun,
           overrideFile: args.overrideFile,
           revert: args.revert,
-          stacks: selector,
+          stacks: specificStacksOrAllRecursively(args.STACKS),
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
           force: args.force ?? false,
           roleArn: args.roleArn,
@@ -439,8 +434,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         }
 
         return cli.deploy({
-          selector,
-          exclusively: args.exclusively,
+          selector: {
+            ...expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
+            failOnEmpty: !args.ignoreNoStacks,
+          },
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
@@ -463,7 +460,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           assetBuildTime: configuration.settings.get(['assetPrebuild'])
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
-          ignoreNoStacks: args.ignoreNoStacks,
           express: args.express,
         });
 
@@ -490,7 +486,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'rollback':
         ioHost.currentAction = 'rollback';
         return cli.rollback({
-          selector,
+          selector: mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)),
           toolkitStackName,
           roleArn: args.roleArn,
           force: args.force,
@@ -503,7 +499,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         cliRequireUnstable(configuration, 'publish-assets');
 
         return cli.publishAssets({
-          stacks: convertStackSelector(selector, args.exclusively),
+          stacks: {
+            ...specificStacksOrAllRecursively(args.STACKS),
+            expand: args.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+          },
           force: args.force,
           concurrency: args.concurrency,
         });
@@ -521,7 +520,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({
-          selector,
+          selector: mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)),
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
@@ -541,8 +540,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'watch':
         ioHost.currentAction = 'watch';
         await cli.watch({
-          selector,
-          exclusively: args.exclusively,
+          selector: expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
           toolkitStackName,
           roleArn: args.roleArn,
           reuseAssets: args['build-exclude'],
@@ -558,8 +556,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'destroy':
         ioHost.currentAction = 'destroy';
         return cli.destroy({
-          selector,
-          exclusively: args.exclusively,
+          // No `mustMatch()` here: `cdk destroy` historically treats patterns
+          // that match nothing as "nothing to do" (the destroy action warns).
+          selector: expandDown(explicitOrDefaultStacks(args.STACKS, args.all), args.exclusively),
           force: args.force,
           roleArn: args.roleArn,
           concurrency: args.concurrency,
@@ -604,11 +603,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synth':
         ioHost.currentAction = 'synth';
         const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
-        if (args.exclusively) {
-          return cli.synth(args.STACKS, args.exclusively, quiet, args.validation, argv.json);
-        } else {
-          return cli.synth(args.STACKS, true, quiet, args.validation, argv.json);
-        }
+        return cli.synth({
+          stackNames: args.STACKS,
+          // Historic quirk: `cdk synth` always selects exclusively, whether or not `--exclusively` was given
+          exclusively: true,
+          quiet,
+          autoValidate: args.validation,
+          json: argv.json,
+        });
 
       case 'notices':
         ioHost.currentAction = 'notices';
@@ -712,25 +714,55 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
 }
 
 /**
- * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
+ * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
+ *
+ * If no patterns are given, all stacks in the assembly and all of its stages are selected.
  */
-function convertStackSelector(selector: StackSelector, exclusively?: boolean): LibStackSelector {
+function specificStacksOrAllRecursively(patterns: string[]): StackSelector {
   return {
-    patterns: selector.patterns,
-    strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    patterns,
+  };
+}
+
+/**
+ * Build a toolkit-lib StackSelector for the deploy-like commands (deploy, watch, rollback, import, destroy)
+ *
+ * Selects the stacks the user explicitly asked for — matching patterns, or all
+ * top-level stacks with `--all` — and defaults to the app's single top-level
+ * stack when no arguments are given (failing if there is more than one).
+ * Unlike `specificStacksOrAllRecursively`, this never falls back to all
+ * stacks. The selection is exact; combine with `expandUp()` or `expandDown()`
+ * to include dependency stacks.
+ */
+function explicitOrDefaultStacks(patterns: string[], all: boolean | undefined): StackSelector {
+  return {
+    patterns,
+    strategy: all
+      ? StackSelectionStrategy.MAIN_ASSEMBLY
+      : patterns.length > 0
+        ? StackSelectionStrategy.PATTERN_MATCH
+        : StackSelectionStrategy.ONLY_SINGLE,
+  };
+}
+
+/**
+ * Extend the selection with the upstream dependencies of the selected stacks, unless `--exclusively` was given
+ */
+function expandUp(selector: StackSelector, exclusively?: boolean): StackSelector {
+  return {
+    ...selector,
     expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
   };
 }
 
 /**
- * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
- *
- * If no patterns are given, all stacks in the assembly and all of its stages are selected.
+ * Extend the selection with the downstream dependents of the selected stacks, unless `--exclusively` was given
  */
-function specificStacksOrAllRecursively(patterns: string[]): LibStackSelector {
+function expandDown(selector: StackSelector, exclusively?: boolean): StackSelector {
   return {
-    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-    patterns,
+    ...selector,
+    expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
   };
 }
 

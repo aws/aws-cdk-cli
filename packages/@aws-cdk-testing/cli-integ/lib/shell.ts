@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { TestContext } from './integ-test';
+import { isWindows } from './platform';
 import { Process } from './process';
 import type { TemporaryDirectoryContext } from './with-temporary-directory';
 
@@ -282,15 +283,27 @@ export class ShellHelper {
 export function rimraf(fsPath: string): boolean {
   try {
     let success = true;
-    const isDir = fs.lstatSync(fsPath).isDirectory();
+    const stat = fs.lstatSync(fsPath);
 
-    if (isDir) {
+    // `lstat` describes the link itself, not its target, so a symlink is never
+    // reported as a directory here. That means we never recurse into a symlink's
+    // target — which may be shared content that other running tests still use
+    // (e.g. the machine-wide 'node_modules' install) — and only ever remove the
+    // link entry itself.
+    if (stat.isDirectory()) {
       for (const file of fs.readdirSync(fsPath)) {
         success &&= rimraf(path.join(fsPath, file));
       }
       fs.rmdirSync(fsPath);
     } else {
-      fs.unlinkSync(fsPath);
+      // A regular file or a symlink. On POSIX, unlink removes a symlink whatever
+      // its target type. On Windows, a link to a directory (or a junction) must
+      // be removed with rmdir, while a link to a file must be removed with unlink.
+      if (stat.isSymbolicLink() && isWindows() && isDirectoryLink(fsPath)) {
+        fs.rmdirSync(fsPath);
+      } else {
+        fs.unlinkSync(fsPath);
+      }
     }
     return success;
   } catch (e: any) {
@@ -309,14 +322,25 @@ export function rimraf(fsPath: string): boolean {
   }
 }
 
+/**
+ * Whether a symlink resolves to a directory.
+ *
+ * `statSync` follows the link, so a directory target means a directory link.
+ * The link always points at the live shared install during cleanup, so a
+ * missing target is not expected: let it throw rather than hide the problem.
+ */
+function isDirectoryLink(linkPath: string): boolean {
+  return fs.statSync(linkPath).isDirectory();
+}
+
 export function addToShellPath(x: string) {
-  const parts = process.env.PATH?.split(':') ?? [];
+  const parts = process.env.PATH?.split(path.delimiter) ?? [];
 
   if (!parts.includes(x)) {
     parts.unshift(x);
   }
 
-  process.env.PATH = parts.join(':');
+  process.env.PATH = parts.join(path.delimiter);
 }
 
 /**
@@ -339,7 +363,28 @@ export function addToShellPath(x: string) {
 class LastLine {
   private lastLine: string = '';
 
+  // win32 only: the last completed line that had visible content, see below
+  private lastVisibleLine: string = '';
+
   public append(chunk: string): void {
+    if (isWindows()) {
+      // ConPTY renders the screen buffer instead of streaming plain text:
+      // prompts are drawn with cursor-positioning escape sequences, padded
+      // with spaces to the terminal width, and followed by "lines" that
+      // contain nothing but more escape sequences. Match against the last
+      // line that had visible content, so control-only lines don't erase a
+      // prompt that was just drawn.
+      const lines = stripAnsi(chunk).split(/\r?\n/);
+      this.lastLine += lines[0];
+      for (const line of lines.slice(1)) {
+        if (this.lastLine.trim().length > 0) {
+          this.lastVisibleLine = this.lastLine;
+        }
+        this.lastLine = line;
+      }
+      return;
+    }
+
     const lines = chunk.split(os.EOL);
     if (lines.length === 1) {
       // chunk doesn't contain a new line so just append
@@ -351,10 +396,30 @@ class LastLine {
   }
 
   public get(): string {
+    if (isWindows() && this.lastLine.trim().length === 0) {
+      return this.lastVisibleLine;
+    }
     return this.lastLine;
   }
 
   public reset() {
     this.lastLine = '';
+    this.lastVisibleLine = '';
   }
+}
+
+const ESC = '\u001b';
+// CSI sequences (cursor movement, erase, colors) and OSC sequences (window title)
+const ANSI_REGEX = new RegExp(`${ESC}\\[[0-9;?]*[@-~]|${ESC}\\][^${ESC}\\u0007]*(?:\\u0007|${ESC}\\\\)`, 'g');
+
+/**
+ * Remove ANSI escape sequences from terminal output.
+ *
+ * Windows ConPTY renders the screen buffer rather than streaming plain text:
+ * once the cursor reaches the bottom of the buffer, lines arrive as absolute
+ * cursor-positioning sequences instead of newline-terminated text. Prompt
+ * matching must look at the text only.
+ */
+function stripAnsi(chunk: string): string {
+  return chunk.replace(ANSI_REGEX, '');
 }

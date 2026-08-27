@@ -1025,7 +1025,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         }
 
         // respond with the default for all other messages
-        if (msg.defaultResponse) {
+        if (msg.defaultResponse !== undefined) {
           await this.writeMessage({
             ...msg,
             message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,

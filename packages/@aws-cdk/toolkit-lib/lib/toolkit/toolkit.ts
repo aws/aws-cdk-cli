@@ -1086,7 +1086,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // "bold(stackname) failed: ResourceNotReady: <error>"
         const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed';
         const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
-        throw new ToolkitError(code, newMessage);
+        // Keep the original error as cause, so that specific errors (such as a `BootstrapError`) remain discoverable
+        throw ToolkitError.withCause(code, newMessage, e);
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor

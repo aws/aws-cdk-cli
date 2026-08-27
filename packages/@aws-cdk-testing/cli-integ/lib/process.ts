@@ -1,6 +1,7 @@
 import * as child from 'child_process';
 import type { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
+import { isWindows } from './platform';
 
 /**
  * IProcess provides an interface to work with a subprocess.
@@ -48,11 +49,23 @@ export class Process {
    * Spawn a process with a TTY attached.
    */
   public static spawnTTY(command: string, args: string[], options: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions = {}): IProcess {
-    const process = pty.spawn(command, args, {
+    // ConPTY resolves the spawned file with SearchPath, which only finds real
+    // executables — not the .cmd shims npm creates for CLI entrypoints. Route
+    // the command through the shell, like Process.spawn does with 'shell: true'.
+    if (isWindows()) {
+      args = ['/c', command, ...args];
+      command = process.env.ComSpec ?? 'cmd.exe';
+    }
+    const ptyProcess = pty.spawn(command, args, {
       name: 'xterm-color',
+      // Wide enough that no output line ever hits the terminal width: ConPTY
+      // (unlike Unix ptys) renders the screen buffer and inserts hard line
+      // breaks at the width, which splits long prompts across lines and
+      // breaks the line-based prompt matching in shell().
+      cols: 512,
       ...options,
     });
-    return new PtyProcess(process);
+    return new PtyProcess(ptyProcess);
   }
 
   /**

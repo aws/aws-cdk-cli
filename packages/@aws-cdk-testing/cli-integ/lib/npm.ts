@@ -40,7 +40,8 @@ export async function npmQueryInstalledVersion(packageName: string, dir: string)
  * Use NPM preinstalled on the machine to look up a list of TypeScript versions
  */
 export function typescriptVersionsSync(): string[] {
-  const { stdout } = spawnSync('npm', ['--silent', 'view', `typescript@>=${MINIMUM_VERSION}`, 'version', '--json'], { encoding: 'utf-8' });
+  // Invoke npm through Node: on Windows `npm` is a `.cmd` file, which spawnSync cannot execute directly
+  const { stdout } = spawnSync(process.execPath, [require.resolve('npm'), '--silent', 'view', `typescript@>=${MINIMUM_VERSION}`, 'version', '--json'], { encoding: 'utf-8' });
 
   const versions: string[] = JSON.parse(stdout);
   return Array.from(new Set(versions.map(v => v.split('.').slice(0, 2).join('.'))));
@@ -50,7 +51,7 @@ export function typescriptVersionsSync(): string[] {
  * Use NPM preinstalled on the machine to query publish times of versions
  */
 export function typescriptVersionsYoungerThanDaysSync(days: number, versions: string[]): string[] {
-  const { stdout } = spawnSync('npm', ['--silent', 'view', 'typescript', 'time', '--json'], { encoding: 'utf-8' });
+  const { stdout } = spawnSync(process.execPath, [require.resolve('npm'), '--silent', 'view', 'typescript', 'time', '--json'], { encoding: 'utf-8' });
   const versionTsMap: Record<string, string> = JSON.parse(stdout);
 
   const cutoffDate = new Date(Date.now() - (days * 24 * 3600 * 1000));

@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import { DefaultSelection } from '../../lib/cxapp/cloud-assembly';
+import { StackSelectionStrategy } from '../../lib/api';
 import { MockCloudExecutable } from '../_helpers/assembly';
 import { cliAssemblyWithForcedVersion } from '../_helpers/assembly-versions';
 
@@ -9,7 +9,7 @@ test('select all top level stacks in the presence of nested assemblies', async (
   const cxasm = await testNestedCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ allTopLevel: true, patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks });
+  const x = await cxasm.selectStacksV2({ strategy: StackSelectionStrategy.MAIN_ASSEMBLY });
 
   // THEN
   expect(x.stackCount).toBe(2);
@@ -22,7 +22,7 @@ test('select stacks by glob pattern', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: ['with*'] }, { defaultBehavior: DefaultSelection.AllStacks });
+  const x = await cxasm.selectStacksV2({ patterns: ['with*'], strategy: StackSelectionStrategy.PATTERN_MATCH });
 
   // THEN
   expect(x.stackCount).toBe(3);
@@ -35,7 +35,7 @@ test('select behavior: all', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks });
+  const x = await cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ALL_STACKS });
 
   // THEN
   expect(x.stackCount).toBe(3);
@@ -46,7 +46,7 @@ test('select behavior: none', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.None });
+  const x = await cxasm.selectStacksV2({ patterns: [], strategy: StackSelectionStrategy.PATTERN_MATCH });
 
   // THEN
   expect(x.stackCount).toBe(0);
@@ -57,7 +57,7 @@ test('select behavior: single', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
     .rejects.toThrow('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`');
 });
 
@@ -66,7 +66,7 @@ test('stack list error contains node paths', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
     .rejects.toThrow('withouterrorsNODEPATH');
 });
 
@@ -75,8 +75,9 @@ test('select behavior: repeat', async () => {
   const cxasm = await testCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: ['withouterrorsNODEPATH', 'withouterrorsNODEPATH'] }, {
-    defaultBehavior: DefaultSelection.AllStacks,
+  const x = await cxasm.selectStacksV2({
+    patterns: ['withouterrorsNODEPATH', 'withouterrorsNODEPATH'],
+    strategy: StackSelectionStrategy.PATTERN_MATCH,
   });
 
   // THEN
@@ -88,7 +89,7 @@ test('select behavior with nested assemblies: all', async () => {
   const cxasm = await testNestedCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks });
+  const x = await cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ALL_STACKS });
 
   // THEN
   expect(x.stackCount).toBe(3);
@@ -99,7 +100,7 @@ test('select behavior with nested assemblies: none', async () => {
   const cxasm = await testNestedCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.None });
+  const x = await cxasm.selectStacksV2({ patterns: [], strategy: StackSelectionStrategy.PATTERN_MATCH });
 
   // THEN
   expect(x.stackCount).toBe(0);
@@ -110,8 +111,32 @@ test('select behavior with nested assemblies: single', async () => {
   const cxasm = await testNestedCloudAssembly();
 
   // WHEN
-  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.OnlySingle }))
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
     .rejects.toThrow('Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`');
+});
+
+test('single-stack selection error guides Stage users towards the wildcard pattern', async () => {
+  // GIVEN - an app whose stacks all live inside a Stage (no top-level stacks),
+  // so their hierarchical ids are namespaced like `MyStage/StackName`.
+  const cxasm = await testStagedCloudAssembly();
+
+  // WHEN / THEN - the error should point the user at the pattern that selects
+  // the stacks in that Stage, e.g. `'MyStage/*'`, instead of only suggesting `--all`.
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
+    .rejects.toThrow('Some of these stacks are nested inside a Stage');
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
+    .rejects.toThrow(/'MyStage\/\*'/);
+});
+
+test('single-stack selection error without Stages does not mention Stages', async () => {
+  // GIVEN - a flat app with only top-level stacks
+  const cxasm = await testCloudAssembly();
+
+  // WHEN / THEN
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
+    .rejects.toThrow('Since this app includes more than a single stack');
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ONLY_SINGLE }))
+    .rejects.not.toThrow('Some of these stacks are nested inside a Stage');
 });
 
 test('select behavior with nested assemblies: repeat', async() => {
@@ -119,8 +144,9 @@ test('select behavior with nested assemblies: repeat', async() => {
   const cxasm = await testNestedCloudAssembly();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: ['deeply/hidden/withouterrors', 'nested'] }, {
-    defaultBehavior: DefaultSelection.AllStacks,
+  const x = await cxasm.selectStacksV2({
+    patterns: ['deeply/hidden/withouterrors', 'nested'],
+    strategy: StackSelectionStrategy.PATTERN_MATCH,
   });
 
   // THEN
@@ -132,10 +158,7 @@ test('select behavior with no stacks and ignore stacks option', async() => {
   const cxasm = await testCloudAssemblyNoStacks();
 
   // WHEN
-  const x = await cxasm.selectStacks({ patterns: [] }, {
-    defaultBehavior: DefaultSelection.AllStacks,
-    ignoreNoStacks: true,
-  });
+  const x = await cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ALL_STACKS, failOnEmpty: false });
 
   // THEN
   expect(x.stackCount).toBe(0);
@@ -146,7 +169,7 @@ test('select behavior with no stacks and no ignore stacks option', async() => {
   const cxasm = await testCloudAssemblyNoStacks();
 
   // WHEN & THEN
-  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks, ignoreNoStacks: false }))
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ALL_STACKS, failOnEmpty: true }))
     .rejects.toThrow('This app contains no stacks');
 });
 
@@ -155,7 +178,7 @@ test('select behavior with no stacks and default ignore stacks options (false)',
   const cxasm = await testCloudAssemblyNoStacks();
 
   // WHEN & THEN
-  await expect(cxasm.selectStacks({ patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks }))
+  await expect(cxasm.selectStacksV2({ strategy: StackSelectionStrategy.ALL_STACKS }))
     .rejects.toThrow('This app contains no stacks');
 });
 
@@ -165,7 +188,7 @@ describe('StackCollection', () => {
     const cxasm = await testNestedCloudAssembly();
 
     // WHEN
-    const x = await cxasm.selectStacks({ allTopLevel: true, patterns: [] }, { defaultBehavior: DefaultSelection.AllStacks });
+    const x = await cxasm.selectStacksV2({ strategy: StackSelectionStrategy.MAIN_ASSEMBLY });
 
     // THEN
     expect(x.stackCount).toBe(2);
@@ -178,8 +201,9 @@ describe('StackCollection', () => {
       const cxasm = await testCloudAssembly();
 
       // WHEN
-      const selected = await cxasm.selectStacks( { patterns: ['withouterrorsNODEPATH'] }, {
-        defaultBehavior: DefaultSelection.AllStacks,
+      const selected = await cxasm.selectStacksV2({
+        patterns: ['withouterrorsNODEPATH'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
       });
       await selected.validateMetadata();
 
@@ -193,8 +217,9 @@ describe('StackCollection', () => {
       const cxasm = await testCloudAssembly();
 
       // WHEN
-      const selected = await cxasm.selectStacks( { patterns: ['withwarns'] }, {
-        defaultBehavior: DefaultSelection.AllStacks,
+      const selected = await cxasm.selectStacksV2({
+        patterns: ['withwarns'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
       });
       await selected.validateMetadata();
 
@@ -208,8 +233,9 @@ describe('StackCollection', () => {
       const cxasm = await testCloudAssembly();
 
       // WHEN
-      const selected = await cxasm.selectStacks({ patterns: ['witherrors'] }, {
-        defaultBehavior: DefaultSelection.AllStacks,
+      const selected = await cxasm.selectStacksV2({
+        patterns: ['witherrors'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
       });
       await selected.validateMetadata('none');
 
@@ -223,8 +249,9 @@ describe('StackCollection', () => {
       const cxasm = await testCloudAssembly();
 
       // WHEN
-      const selected = await cxasm.selectStacks({ patterns: ['witherrors'] }, {
-        defaultBehavior: DefaultSelection.AllStacks,
+      const selected = await cxasm.selectStacksV2({
+        patterns: ['witherrors'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
       });
 
       // THEN
@@ -237,8 +264,9 @@ describe('StackCollection', () => {
       const cxasm = await testCloudAssembly();
 
       // WHEN
-      const selected = await cxasm.selectStacks( { patterns: ['withwarns'] }, {
-        defaultBehavior: DefaultSelection.AllStacks,
+      const selected = await cxasm.selectStacksV2({
+        patterns: ['withwarns'],
+        strategy: StackSelectionStrategy.PATTERN_MATCH,
       });
 
       // THEN
@@ -285,6 +313,30 @@ async function testCloudAssembly({ env }: { env?: string; versionReporting?: boo
   });
 
   return cloudExec.synthesize();
+}
+
+async function testStagedCloudAssembly() {
+  const cloudExec = await MockCloudExecutable.create({
+    // No top-level stacks: everything lives inside a Stage.
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [
+        {
+          stackName: 'StackA',
+          template: { resource: 'resourceA' },
+          displayName: 'MyStage/StackA',
+        },
+        {
+          stackName: 'StackB',
+          template: { resource: 'resourceB' },
+          displayName: 'MyStage/StackB',
+        },
+      ],
+    }],
+  });
+
+  const asm = await cloudExec.synthesize();
+  return cliAssemblyWithForcedVersion(asm, '30.0.0');
 }
 
 async function testCloudAssemblyNoStacks() {

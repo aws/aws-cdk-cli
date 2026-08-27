@@ -1,10 +1,12 @@
 import '../../../private/dispose-polyfill';
-import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import chalk from 'chalk';
 import { isMatch as picomatch } from 'picomatch';
 import { major } from 'semver';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
+import { flatten } from '../../../util';
 import type { IoHelper } from '../../io/private';
-import { BaseStackAssembly, ExtendedStackSelection as CliExtendedStackSelection } from '../stack-assembly';
+import { IO } from '../../io/private';
 import { StackCollection } from '../stack-collection';
 import type { StackSelector } from '../stack-selector';
 import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector';
@@ -45,11 +47,40 @@ export interface SelectStacksV3Result {
 /**
  * A single Cloud Assembly wrapped to provide additional stack operations.
  */
-export class StackAssembly extends BaseStackAssembly implements IReadableCloudAssembly {
-  private _allStacks: CloudFormationStackArtifact[] | undefined;
+export class StackAssembly implements IReadableCloudAssembly {
+  /**
+   * Sanitize a list of stack match patterns
+   */
+  private static sanitizePatterns(patterns: string[]): string[] {
+    let sanitized = patterns.filter(s => s != null); // filter null/undefined
+    sanitized = [...new Set(sanitized)]; // make them unique
+    return sanitized;
+  }
+
+  /**
+   * Cache of all artifacts in this assembly
+   */
+  private _allStacks: cxapi.CloudFormationStackArtifact[] | undefined;
+
+  /**
+   * The directory this CloudAssembly was read from
+   */
+  public readonly directory: string;
+
+  /**
+   * The wrapped Cloud Assembly
+   */
+  public readonly assembly: cxapi.CloudAssembly;
+
+  /**
+   * The IoHelper used for messaging
+   */
+  private readonly ioHelper: IoHelper;
 
   constructor(private readonly _asm: IReadableCloudAssembly, ioHelper: IoHelper) {
-    super(_asm.cloudAssembly, ioHelper);
+    this.assembly = _asm.cloudAssembly;
+    this.directory = _asm.cloudAssembly.directory;
+    this.ioHelper = ioHelper;
   }
 
   public get cloudAssembly() {
@@ -71,12 +102,19 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
   /**
    * Cached get the fetch all CloudFormationStackArtifacts for the assembly.
    */
-  private get allStacks(): CloudFormationStackArtifact[] {
+  private get allStacks(): cxapi.CloudFormationStackArtifact[] {
     if (!this._allStacks) {
       this._allStacks = major(this.assembly.version) < 10 ? this.assembly.stacks : this.assembly.stacksRecursively;
     }
 
     return this._allStacks;
+  }
+
+  /**
+   * Select a single stack by its ID
+   */
+  public stackById(stackId: string) {
+    return new StackCollection(this, [this.assembly.getStackArtifact(stackId)]);
   }
 
   /**
@@ -102,11 +140,15 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
     const topLevelStacks = asm.stacks;
     const allStacks = this.allStacks;
 
-    if (allStacks.length === 0 && (selector.failOnEmpty ?? true)) {
-      throw new ToolkitError('NoStacksInApp', 'This app contains no stacks');
+    if (allStacks.length === 0) {
+      if (selector.failOnEmpty ?? true) {
+        throw new ToolkitError('NoStacksInApp', 'This app contains no stacks');
+      }
+      // Halt execution for empty assemblies without error, regardless of strategy
+      return { stacks: new StackCollection(this, []) };
     }
 
-    const extend = expandToExtendEnum(selector.expand);
+    const extend = selector.expand;
     const patterns = StackAssembly.sanitizePatterns(selector.patterns ?? []);
 
     switch (selector.strategy) {
@@ -121,8 +163,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
       case StackSelectionStrategy.ONLY_SINGLE:
         if (topLevelStacks.length !== 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('MultipleStacksWithoutSelector', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
-          `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`);
+          throw new ToolkitError('MultipleStacksWithoutSelector', multipleStacksWithoutSelectorMessage(topLevelStacks, allStacks));
         }
         return { stacks: new StackCollection(this, topLevelStacks) };
       default:
@@ -144,7 +185,7 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
           // @todo text should probably be handled in io host
           throw new ToolkitError(
             'NoStacksMatched',
-            `Stack selection is ambiguous, please choose a specific stack for import [${allStacks.map(x => x.hierarchicalId).join(',')}]`,
+            `No stacks match the name(s) ${patterns}`,
           );
         }
 
@@ -183,17 +224,145 @@ export class StackAssembly extends BaseStackAssembly implements IReadableCloudAs
     const selected = this.allStacks.filter((art) => art.validateOnSynth ?? false);
     return new StackCollection(this, selected);
   }
+
+  private async selectMatchingStacks(
+    stacks: cxapi.CloudFormationStackArtifact[],
+    patterns: string[],
+    extend: ExpandStackSelection = ExpandStackSelection.NONE,
+  ): Promise<StackCollection> {
+    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => picomatch(stack.hierarchicalId, pattern);
+    const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
+
+    return this.extendStacks(matchedStacks, stacks, extend);
+  }
+
+  private async extendStacks(
+    matched: cxapi.CloudFormationStackArtifact[],
+    all: cxapi.CloudFormationStackArtifact[],
+    extend: ExpandStackSelection = ExpandStackSelection.NONE,
+  ) {
+    const allStacks = new Map<string, cxapi.CloudFormationStackArtifact>();
+    for (const stack of all) {
+      allStacks.set(stack.hierarchicalId, stack);
+    }
+
+    const index = indexByHierarchicalId(matched);
+
+    switch (extend) {
+      case ExpandStackSelection.DOWNSTREAM:
+        await includeDownstreamStacks(this.ioHelper, index, allStacks);
+        break;
+      case ExpandStackSelection.UPSTREAM:
+        await includeUpstreamStacks(this.ioHelper, index, allStacks);
+        break;
+    }
+
+    // Filter original array because it is in the right order
+    const selectedList = all.filter(s => index.has(s.hierarchicalId));
+
+    return new StackCollection(this, selectedList);
+  }
 }
 
-function expandToExtendEnum(extend?: ExpandStackSelection): CliExtendedStackSelection | undefined {
-  switch (extend) {
-    case ExpandStackSelection.DOWNSTREAM:
-      return CliExtendedStackSelection.Downstream;
-    case ExpandStackSelection.UPSTREAM:
-      return CliExtendedStackSelection.Upstream;
-    case ExpandStackSelection.NONE:
-      return CliExtendedStackSelection.None;
-    default:
-      return undefined;
+function indexByHierarchicalId(stacks: cxapi.CloudFormationStackArtifact[]): Map<string, cxapi.CloudFormationStackArtifact> {
+  const result = new Map<string, cxapi.CloudFormationStackArtifact>();
+
+  for (const stack of stacks) {
+    result.set(stack.hierarchicalId, stack);
   }
+
+  return result;
+}
+
+/**
+ * Calculate the transitive closure of stack dependents.
+ *
+ * Modifies `selectedStacks` in-place.
+ */
+async function includeDownstreamStacks(
+  ioHelper: IoHelper,
+  selectedStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+  allStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+) {
+  const added = new Array<string>();
+
+  let madeProgress;
+  do {
+    madeProgress = false;
+
+    for (const [id, stack] of allStacks) {
+      // Select this stack if it's not selected yet AND it depends on a stack that's in the selected set
+      if (!selectedStacks.has(id) && (stack.dependencies || []).some(dep => selectedStacks.has(dep.hierarchicalId))) {
+        selectedStacks.set(id, stack);
+        added.push(id);
+        madeProgress = true;
+      }
+    }
+  } while (madeProgress);
+
+  if (added.length > 0) {
+    await ioHelper.notify(IO.CDK_TOOLKIT_I1003.msg(`Including depending stacks: ${chalk.bold(added.join(', '))}`));
+  }
+}
+
+/**
+ * Calculate the transitive closure of stack dependencies.
+ *
+ * Modifies `selectedStacks` in-place.
+ */
+async function includeUpstreamStacks(
+  ioHelper: IoHelper,
+  selectedStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+  allStacks: Map<string, cxapi.CloudFormationStackArtifact>,
+) {
+  const added = new Array<string>();
+  let madeProgress = true;
+  while (madeProgress) {
+    madeProgress = false;
+
+    for (const stack of selectedStacks.values()) {
+      // Select an additional stack if it's not selected yet and a dependency of a selected stack (and exists, obviously)
+      for (const dependencyId of stack.dependencies.map(x => x.manifest.displayName ?? x.id)) {
+        if (!selectedStacks.has(dependencyId) && allStacks.has(dependencyId)) {
+          added.push(dependencyId);
+          selectedStacks.set(dependencyId, allStacks.get(dependencyId)!);
+          madeProgress = true;
+        }
+      }
+    }
+  }
+
+  if (added.length > 0) {
+    await ioHelper.notify(IO.CDK_TOOLKIT_I1002.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
+  }
+}
+
+/**
+ * Build the error message shown when the app has more than one stack but a
+ * single-stack selection was requested without a selector.
+ *
+ * When some of the stacks are nested inside a Stage (i.e. they are not
+ * top-level stacks, their hierarchical id is namespaced like `StageName/StackName`),
+ * we additionally point the user at a wildcard pattern that selects them, e.g.
+ * `'StageName/*'`. Otherwise users are left guessing, since a bare stack name or
+ * `--all` is not the most obvious way to target stacks inside a Stage.
+ */
+export function multipleStacksWithoutSelectorMessage(
+  topLevelStacks: cxapi.CloudFormationStackArtifact[],
+  allStacks: cxapi.CloudFormationStackArtifact[],
+): string {
+  const topLevelSet = new Set(topLevelStacks);
+  const stagedStacks = allStacks.filter(stack => !topLevelSet.has(stack));
+
+  let message = 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+    `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`;
+
+  if (stagedStacks.length > 0) {
+    const stagePatterns = Array.from(new Set(stagedStacks.map(stack => `${stack.hierarchicalId.split('/')[0]}/*`)));
+    message += '\n' +
+      'Some of these stacks are nested inside a Stage. To select the stacks in a Stage, ' +
+      `use a pattern that matches their full path, e.g. ${stagePatterns.map(p => `'${p}'`).join(', ')}`;
+  }
+
+  return message;
 }
