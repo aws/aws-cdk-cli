@@ -498,6 +498,11 @@ describe('sender', () => {
     // IPv6-first box sends an ATYP=0x04 address, which `startSocks5Proxy` below does not implement,
     // and the connection is closed rather than proxied. A literal IPv4 address is not resolved at all,
     // so the request shape is the same everywhere. Covered by the certificate's `IP:127.0.0.1` SAN.
+    //
+    // Both assert the destination the proxy was asked to reach, not merely that it was reached: the
+    // SOCKS server learns that address only by parsing it off the wire, so asserting it is what makes
+    // this evidence that the CLI's own proxy resolution routed the send. The endpoint is reachable
+    // directly from here, so a silent bypass would still deliver -- this is the assertion that fails.
     test('delivers through a socks5:// proxy', async () => {
       const endpoint = await startEndpoint(ca, { urlHost: '127.0.0.1' });
       const proxy = await startSocks5Proxy();
@@ -511,6 +516,7 @@ describe('sender', () => {
         })).resolves.toBe(200);
 
         expect(proxy.connects).toHaveLength(1);
+        expect(proxy.connects[0]).toBe(new URL(endpoint.url).host);
         expect(JSON.parse(endpoint.received[0].body)).toEqual(BODY);
       } finally {
         await proxy.close();
@@ -527,6 +533,7 @@ describe('sender', () => {
         await expect(sendTelemetry({ endpoint: endpoint.url, body: BODY, caBundlePath: ca.caCertPath, timeoutMs: 5000 })).resolves.toBe(200);
 
         expect(proxy.connects).toHaveLength(1);
+        expect(proxy.connects[0]).toBe(new URL(endpoint.url).host);
       } finally {
         await proxy.close();
         await endpoint.close();
@@ -535,15 +542,22 @@ describe('sender', () => {
   });
 
   describe('fails closed', () => {
-    test('does not fall back to a direct connection when the proxy is unreachable', async () => {
+    // Port 1 is reserved, so neither of these proxies is listening. Both schemes are covered because
+    // they fail closed in different places: the CONNECT tunnel never opens, and the SOCKS handshake
+    // never starts.
+    test.each([
+      ['an http:// proxy', 'http://127.0.0.1:1'],
+      ['a socks5:// proxy', 'socks5://127.0.0.1:1'],
+    ])('does not fall back to a direct connection when %s is unreachable', async (_name, proxyUrl) => {
       // A proxy is normally mandatory rather than advisory: corporate setups firewall direct egress,
-      // so bypassing it would be both futile and a policy violation.
+      // so bypassing it would be both futile and a policy violation. The endpoint below is reachable
+      // directly, so a bypass would succeed -- `received` staying empty is what rules that out.
       const endpoint = await startEndpoint(ca);
       try {
         await expect(sendTelemetry({
           endpoint: endpoint.url,
           body: BODY,
-          proxyUrl: 'http://127.0.0.1:1',
+          proxyUrl,
           caBundlePath: ca.caCertPath,
           timeoutMs: 5000,
         })).rejects.toThrow();
