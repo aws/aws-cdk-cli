@@ -3,10 +3,10 @@ import type { typescript } from 'projen';
 import bestPractices from './best-practices';
 import constructs from './constructs';
 import formatting from './formatting';
-import imports from './imports';
+import imports, { PUNYCODE_IMPORT_RESTRICTION } from './imports';
 import jest from './jest';
 import jsdoc from './jsdoc';
-import team from './team';
+import team, { MD5_SYNTAX_RESTRICTION } from './team';
 
 const ESLINT_RULES = {
   ...team,
@@ -60,16 +60,6 @@ export function configureEslint(x: typescript.TypeScriptProject) {
     'plugin:jest/recommended',
   );
   x.eslint?.addRules(ESLINT_RULES);
-
-  // The `child_process` / `shell: true` bans protect SHIPPED code from spawning
-  // outside the subprocess tool. Two categories are outside that trust boundary
-  // and are exempt:
-  //   - test code, which legitimately imports `child_process` to mock/spy and
-  //     may spawn with `shell: true` against throwaway fixtures;
-  //   - build-time tooling (projen config, build tasks), which runs on
-  //     developer/CI machines rather than a user's machine.
-  // (This also relaxes the md5/punycode rules for these files, which is harmless
-  // for non-shipped code.)
   x.eslint?.addOverride({
     files: [
       '**/test/**',
@@ -82,8 +72,8 @@ export function configureEslint(x: typescript.TypeScriptProject) {
       '**/.projenrc.ts',
     ],
     rules: {
-      'no-restricted-imports': ['off'],
-      'no-restricted-syntax': ['off'],
+      'no-restricted-imports': ['error', { paths: [PUNYCODE_IMPORT_RESTRICTION], patterns: ['!punycode/'] }],
+      'no-restricted-syntax': ['error', MD5_SYNTAX_RESTRICTION],
     },
   });
 
