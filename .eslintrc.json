@@ -224,8 +224,8 @@
         "message": "Use the md5hash() function from the core library if you want md5"
       },
       {
-        "selector": "Property:matches([key.name='shell'], [key.value='shell'])[value.value=true]",
-        "message": "Do not spawn with `shell: true`. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line."
+        "selector": "Property:matches([key.name='shell'], [key.value='shell']):not([value.type='Literal'][value.value=false])",
+        "message": "Do not enable the `shell` spawn option. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line."
       }
     ],
     "no-throw-literal": [

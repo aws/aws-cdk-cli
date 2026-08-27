@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- type-only import in cli-integ, a test harness that spawns processes to exercise the CLI; test infrastructure, not shipped runtime.
 import type * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';

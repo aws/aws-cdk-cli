@@ -19,9 +19,7 @@ export default {
           name: 'punycode',
           message: 'Package \'punycode\' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation',
         },
-        // All child process spawning goes through the shared subprocess tool, so
-        // that no code path both escapes and executes. The tool itself (and the
-        // not-yet-migrated packages) carry a local eslint-disable / override.
+        // Route child process spawning through the shared subprocess tool.
         {
           name: 'child_process',
           message: 'Do not use `child_process` directly. Use `run`/`runSync`/`runUserCommandLine` from the subprocess tool (\'./private/tools\').',

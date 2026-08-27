@@ -17,8 +17,10 @@ export default {
       // The only sanctioned shell entry point is `runUserCommandLine` in the
       // subprocess tool (which carries its own eslint-disable); everything else
       // must spawn an argv array via `run`/`runSync`, which never touch a shell.
-      selector: "Property:matches([key.name='shell'], [key.value='shell'])[value.value=true]",
-      message: 'Do not spawn with `shell: true`. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line.',
+      //
+      // Reject any `shell` property that is not statically `false`.
+      selector: "Property:matches([key.name='shell'], [key.value='shell']):not([value.type='Literal'][value.value=false])",
+      message: 'Do not enable the `shell` spawn option. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line.',
     },
   ],
 };

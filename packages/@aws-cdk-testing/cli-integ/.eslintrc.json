@@ -125,8 +125,8 @@
         "message": "Use the md5hash() function from the core library if you want md5"
       },
       {
-        "selector": "Property:matches([key.name='shell'], [key.value='shell'])[value.value=true]",
-        "message": "Do not spawn with `shell: true`. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line."
+        "selector": "Property:matches([key.name='shell'], [key.value='shell']):not([value.type='Literal'][value.value=false])",
+        "message": "Do not enable the `shell` spawn option. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line."
       }
     ],
     "no-throw-literal": [
@@ -341,25 +341,6 @@
         "**/projenrc/**",
         ".projenrc.ts",
         "**/.projenrc.ts"
-      ],
-      "rules": {
-        "no-restricted-imports": [
-          "off"
-        ],
-        "no-restricted-syntax": [
-          "off"
-        ]
-      }
-    },
-    {
-      "files": [
-        "lib/cli/stage-distribution.ts",
-        "lib/npm.ts",
-        "lib/package-sources/repo-tools/npm.ts",
-        "lib/process.ts",
-        "lib/shell.ts",
-        "lib/with-cdk-app.ts",
-        "lib/with-sam.ts"
       ],
       "rules": {
         "no-restricted-imports": [

@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
 import * as child from 'child_process';
 import type { Readable, Writable } from 'stream';
 import * as pty from 'node-pty';
@@ -63,6 +64,7 @@ export class Process {
     // (passing args with shell: true is deprecated because they are not escaped).
     const fullCommand = [command, ...args].join(' ');
     const process = child.spawn(fullCommand, [], {
+      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
       shell: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...options,
