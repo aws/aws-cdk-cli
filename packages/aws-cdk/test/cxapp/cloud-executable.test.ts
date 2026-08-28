@@ -52,7 +52,7 @@ test('stop executing if context providers are not making progress', async () => 
   const cxasm = await cloudExecutable.synthesize();
 
   // WHEN
-  await cxasm.selectStacksV2({ patterns: ['thestack'], strategy: StackSelectionStrategy.PATTERN_MATCH });
+  await cxasm.selectStacks({ patterns: ['thestack'], strategy: StackSelectionStrategy.PATTERN_MATCH });
 
   // THEN: the test finishes normally});
 });
