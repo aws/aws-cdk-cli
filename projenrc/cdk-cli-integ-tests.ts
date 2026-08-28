@@ -409,10 +409,11 @@ export class CdkCliIntegTestsWorkflow extends Component {
     this.workflow.on({
       pullRequestTarget: {
         branches: [],
-        // 'labeled'/'unlabeled' are not in GitHub's default set, and without
-        // them the Windows opt-in label would not take effect (or stop taking
-        // effect) until the next push.
-        types: ['opened', 'synchronize', 'reopened', 'labeled', 'unlabeled'],
+        // Label changes do not start a run. The trigger cannot be filtered by
+        // label name, so subscribing to 'labeled' costs a full run (Linux jobs
+        // included) for every label on every pull request, and most labels here
+        // are applied by automation. WINDOWS_LABEL takes effect on the next
+        // push to the pull request.
       },
       // Needs to trigger and report success on merge queue builds as well
       mergeGroup: {},
@@ -770,13 +771,17 @@ export class CdkCliIntegTestsWorkflow extends Component {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
       },
-      // The step scripts are written for bash; on Windows runners use Git Bash
-      // (preinstalled) so they run unchanged while still exercising Windows.
-      defaults: {
-        run: {
-          shell: 'bash',
+      // Run the steps under Git Bash (preinstalled) so the shared bash step
+      // scripts work unchanged on Windows. Windows only: naming the shell
+      // explicitly also switches it to `bash --noprofile --norc -eo pipefail`,
+      // and the Linux jobs stay on GitHub's implicit `bash -e`.
+      ...platform.windows ? {
+        defaults: {
+          run: {
+            shell: 'bash',
+          },
         },
-      },
+      } : {},
       env: {
         // Integ tests heavily rely on processing stdout, node warnings (mostly deprecations) are muddying this.
         // We can disable any warnings here, there's plenty of other places we will see them.

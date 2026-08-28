@@ -4,12 +4,6 @@ name: integ
 on:
   pull_request_target:
     branches: []
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - labeled
-      - unlabeled
   merge_group: {}
   workflow_dispatch: {}
   schedule:
@@ -117,9 +111,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    defaults:
-      run:
-        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
@@ -252,9 +243,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    defaults:
-      run:
-        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
@@ -377,9 +365,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    defaults:
-      run:
-        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
@@ -499,9 +484,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    defaults:
-      run:
-        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
@@ -635,9 +617,6 @@ jobs:
       MAVEN_ARGS: --no-transfer-progress
       IS_CANARY: "true"
       CI: "true"
-    defaults:
-      run:
-        shell: bash
     if: github.event_name != 'merge_group' && !contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test') && github.event_name != 'schedule'
     steps:
       - name: Download artifact
