@@ -78,6 +78,14 @@ export interface StackSelector {
   /**
    * A list of patterns to match the stack hierarchical ids
    * Only used with `PATTERN_*` selection strategies.
+   *
+   * A pattern starting with `!` excludes the stacks it matches. The selection is
+   * the union of the other patterns, minus everything the excluding ones match;
+   * exclusions on their own start from every stack. `!(...)` is extglob syntax
+   * and is matched as a regular pattern.
+   *
+   * - `['!Prod/Canary']` selects every stack except `Prod/Canary`
+   * - `['Prod/**', '!Prod/Canary']` selects every stack under `Prod` but that one
    */
   patterns?: string[];
 

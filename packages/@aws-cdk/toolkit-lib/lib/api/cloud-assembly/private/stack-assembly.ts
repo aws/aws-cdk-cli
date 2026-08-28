@@ -205,11 +205,16 @@ export class StackAssembly implements IReadableCloudAssembly {
   private suggestionsForPatterns(patterns: string[], matched: StackCollection): Record<string, string[]> {
     const suggestions: Record<string, string[]> = {};
     for (const pattern of patterns) {
-      if (matched.stackArtifacts.some((stack) => picomatch(stack.hierarchicalId, pattern))) {
+      // An exclusion never matches the selection it produced, so judge it by what it removes.
+      const exclusion = isExclusionPattern(pattern);
+      const effective = exclusion ? pattern.slice(1) : pattern;
+      const haystack = exclusion ? this.allStacks : matched.stackArtifacts;
+
+      if (haystack.some((stack) => picomatch(stack.hierarchicalId, effective))) {
         continue;
       }
       suggestions[pattern] = this.allStacks
-        .filter((stack) => picomatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
+        .filter((stack) => picomatch(stack.hierarchicalId.toLowerCase(), effective.toLowerCase()))
         .map((stack) => stack.hierarchicalId);
     }
     return suggestions;
@@ -231,7 +236,17 @@ export class StackAssembly implements IReadableCloudAssembly {
     extend: ExpandStackSelection = ExpandStackSelection.NONE,
   ): Promise<StackCollection> {
     const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => picomatch(stack.hierarchicalId, pattern);
-    const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
+
+    const includePatterns = patterns.filter(pattern => !isExclusionPattern(pattern));
+    const excludePatterns = patterns.filter(isExclusionPattern).map(pattern => pattern.slice(1));
+
+    // Exclusions on their own start from every stack, so `!Stack` means "every
+    // stack but Stack". No patterns at all still selects nothing.
+    const included = includePatterns.length === 0 && excludePatterns.length > 0
+      ? stacks
+      : flatten(includePatterns.map(pattern => stacks.filter(matchingPattern(pattern))));
+
+    const matchedStacks = included.filter(stack => !excludePatterns.some(pattern => matchingPattern(pattern)(stack)));
 
     return this.extendStacks(matchedStacks, stacks, extend);
   }
@@ -262,6 +277,15 @@ export class StackAssembly implements IReadableCloudAssembly {
 
     return new StackCollection(this, selectedList);
   }
+}
+
+/**
+ * Whether a pattern removes the stacks it matches, instead of selecting them.
+ *
+ * `!(...)` is extglob syntax that already means "anything but", not an exclusion.
+ */
+function isExclusionPattern(pattern: string): boolean {
+  return pattern.startsWith('!') && !pattern.startsWith('!(');
 }
 
 function indexByHierarchicalId(stacks: cxapi.CloudFormationStackArtifact[]): Map<string, cxapi.CloudFormationStackArtifact> {
