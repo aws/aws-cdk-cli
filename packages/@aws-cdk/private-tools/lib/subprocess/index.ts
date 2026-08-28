@@ -24,6 +24,7 @@
  * boundary among these consumers; it is documented at that call site and kept
  * out of this module, whose `renderForDisplay` output is never executed.
  */
+// eslint-disable-next-line no-restricted-imports -- this module IS the sanctioned wrapper around child_process
 import * as child_process from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import spawn from 'cross-spawn';
@@ -287,6 +288,7 @@ export function runSync(argv: readonly string[], options: RunSyncOptions = {}): 
 export async function runUserCommandLine(commandLine: string, options: RunOptions = {}): Promise<RunResult> {
   const child = child_process.spawn(commandLine, {
     ...spawnOptions(options),
+    // eslint-disable-next-line no-restricted-syntax -- this is the single sanctioned shell entry point (see the module header)
     shell: true,
   });
   return monitor(child, commandLine, options);

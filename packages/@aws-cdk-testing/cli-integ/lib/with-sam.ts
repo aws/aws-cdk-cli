@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
@@ -192,6 +193,7 @@ export async function shellWithAction(
     ...options,
     env,
     // Need this for Windows where we want .cmd and .bat to be found as well.
+    // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
     shell: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
