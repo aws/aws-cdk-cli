@@ -18,6 +18,7 @@
  *    the only path to a shell and takes no argv form, so command lines can
  *    never be assembled from parts by this codebase.
  */
+// eslint-disable-next-line no-restricted-imports -- this module IS the sanctioned wrapper around child_process
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -291,6 +292,7 @@ export function runSync(argv: readonly string[], options: RunSyncOptions = {}): 
 export async function runUserCommandLine(commandLine: string, options: RunOptions = {}): Promise<RunResult> {
   const child = child_process.spawn(commandLine, {
     ...spawnOptions(options),
+    // eslint-disable-next-line no-restricted-syntax -- this is the single sanctioned shell entry point (see the module header)
     shell: true,
   });
   return monitor(child, commandLine, options);

@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
 import * as child_process from 'child_process';
 import * as fs from 'fs-extra';
 
