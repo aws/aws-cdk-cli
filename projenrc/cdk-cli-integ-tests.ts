@@ -409,11 +409,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
     this.workflow.on({
       pullRequestTarget: {
         branches: [],
-        // Label changes do not start a run. The trigger cannot be filtered by
-        // label name, so subscribing to 'labeled' costs a full run (Linux jobs
-        // included) for every label on every pull request, and most labels here
-        // are applied by automation. WINDOWS_LABEL takes effect on the next
-        // push to the pull request.
       },
       // Needs to trigger and report success on merge queue builds as well
       mergeGroup: {},
