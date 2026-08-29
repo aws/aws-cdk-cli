@@ -1130,6 +1130,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('explore', 'Opens an interactive web explorer for your CDK app', (yargs: Argv) =>
+      yargs.option('port', {
+        default: 4200,
+        type: 'number',
+        desc: 'Port to bind the web server on',
+      }),
+    )
     .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration', (yargs: Argv) =>
       yargs.option('features', {
         default: false,
