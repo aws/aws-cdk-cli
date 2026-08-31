@@ -49,7 +49,7 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
       - name: Set git identity
@@ -62,7 +62,7 @@ jobs:
         run: corepack enable
       - name: Setup Node.js
         id: setup_node_js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
@@ -115,7 +115,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloud-assembly-schema
       - name: "@aws-cdk/cloud-assembly-schema: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-cloud-assembly-schema_build-artifact
           path: packages/@aws-cdk/cloud-assembly-schema/dist
@@ -127,7 +127,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloudformation-diff
       - name: "@aws-cdk/cloudformation-diff: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-cloudformation-diff_build-artifact
           path: packages/@aws-cdk/cloudformation-diff/dist
@@ -139,7 +139,7 @@ jobs:
         working-directory: packages/@aws-cdk/cloud-assembly-api
       - name: "@aws-cdk/cloud-assembly-api: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-cloud-assembly-api_build-artifact
           path: packages/@aws-cdk/cloud-assembly-api/dist
@@ -151,7 +151,7 @@ jobs:
         working-directory: packages/@aws-cdk/cli-plugin-contract
       - name: "@aws-cdk/cli-plugin-contract: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-cli-plugin-contract_build-artifact
           path: packages/@aws-cdk/cli-plugin-contract/dist
@@ -163,7 +163,7 @@ jobs:
         working-directory: packages/@aws-cdk/cdk-assets-lib
       - name: "@aws-cdk/cdk-assets-lib: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-cdk-assets-lib_build-artifact
           path: packages/@aws-cdk/cdk-assets-lib/dist
@@ -175,7 +175,7 @@ jobs:
         working-directory: packages/cdk-assets
       - name: "cdk-assets: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: cdk-assets_build-artifact
           path: packages/cdk-assets/dist
@@ -187,7 +187,7 @@ jobs:
         working-directory: packages/@aws-cdk/toolkit-lib
       - name: "@aws-cdk/toolkit-lib: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: packages/@aws-cdk/toolkit-lib/dist
@@ -199,7 +199,7 @@ jobs:
         working-directory: packages/aws-cdk
       - name: "aws-cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk_build-artifact
           path: packages/aws-cdk/dist
@@ -211,7 +211,7 @@ jobs:
         working-directory: packages/cdk
       - name: "cdk: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: cdk_build-artifact
           path: packages/cdk/dist
@@ -223,7 +223,7 @@ jobs:
         working-directory: packages/@aws-cdk/integ-runner
       - name: "@aws-cdk/integ-runner: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-integ-runner_build-artifact
           path: packages/@aws-cdk/integ-runner/dist
@@ -235,14 +235,14 @@ jobs:
         working-directory: packages/@aws-cdk-testing/cli-integ
       - name: "@aws-cdk-testing/cli-integ: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: aws-cdk-testing-cli-integ_build-artifact
           path: packages/@aws-cdk-testing/cli-integ/dist
           overwrite: true
       - name: "standalone: Upload artifact"
         if: ${{ steps.git_remote.outputs.latest_commit == github.sha }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: standalone_build-artifact
           path: dist/standalone
@@ -432,13 +432,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -450,8 +450,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-cloud-assembly-schema_release_npm:
     name: "@aws-cdk/cloud-assembly-schema: Publish to npm"
     needs: aws-cdk-cloud-assembly-schema_release
@@ -462,13 +472,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -481,7 +491,7 @@ jobs:
         run: corepack enable
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: .repo
       - name: Install Dependencies
@@ -507,7 +517,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-cloud-assembly-schema_release_maven:
     name: "@aws-cdk/cloud-assembly-schema: Publish to Maven Central"
     needs: aws-cdk-cloud-assembly-schema_release
@@ -517,17 +527,17 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.7.0
         with:
           distribution: corretto
           java-version: "11"
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -540,7 +550,7 @@ jobs:
         run: corepack enable
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: .repo
       - name: Install Dependencies
@@ -568,7 +578,7 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_STAGING_PROFILE_ID: ${{ secrets.MAVEN_STAGING_PROFILE_ID }}
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-maven
+        run: npx '-p' 'publib@latest' 'publib-maven'
   aws-cdk-cloud-assembly-schema_release_pypi:
     name: "@aws-cdk/cloud-assembly-schema: Publish to PyPI"
     needs: aws-cdk-cloud-assembly-schema_release
@@ -579,16 +589,16 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: 3.x
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -601,7 +611,7 @@ jobs:
         run: corepack enable
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: .repo
       - name: Install Dependencies
@@ -624,7 +634,7 @@ jobs:
         env:
           PYPI_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-pypi
+        run: npx '-p' 'publib@latest' 'publib-pypi'
   aws-cdk-cloud-assembly-schema_release_nuget:
     name: "@aws-cdk/cloud-assembly-schema: Publish to NuGet Gallery"
     needs: aws-cdk-cloud-assembly-schema_release
@@ -634,17 +644,17 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 6.x
           cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -657,7 +667,7 @@ jobs:
         run: corepack enable
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: .repo
       - name: Install Dependencies
@@ -680,7 +690,7 @@ jobs:
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-nuget
+        run: npx '-p' 'publib@latest' 'publib-nuget'
   aws-cdk-cloud-assembly-schema_release_golang:
     name: "@aws-cdk/cloud-assembly-schema: Publish to GitHub Go Module Repository"
     needs: aws-cdk-cloud-assembly-schema_release
@@ -690,17 +700,17 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-schema_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: ^1.18.0
           cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-schema_build-artifact
@@ -713,7 +723,7 @@ jobs:
         run: corepack enable
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: .repo
       - name: Install Dependencies
@@ -738,7 +748,7 @@ jobs:
           GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GITHUB_TOKEN: ${{ secrets.GO_GITHUB_TOKEN }}
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-golang
+        run: npx '-p' 'publib@latest' 'publib-golang'
   aws-cdk-cloud-assembly-schema_release_done:
     name: "@aws-cdk/cloud-assembly-schema: Release complete"
     needs:
@@ -772,13 +782,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloudformation-diff_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloudformation-diff_build-artifact
@@ -790,8 +800,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-cloudformation-diff_release_npm:
     name: "@aws-cdk/cloudformation-diff: Publish to npm"
     needs: aws-cdk-cloudformation-diff_release
@@ -802,13 +822,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloudformation-diff_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloudformation-diff_build-artifact
@@ -824,7 +844,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-cloudformation-diff_release_done:
     name: "@aws-cdk/cloudformation-diff: Release complete"
     needs:
@@ -854,13 +874,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-api_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-api_build-artifact
@@ -872,8 +892,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-cloud-assembly-api_release_npm:
     name: "@aws-cdk/cloud-assembly-api: Publish to npm"
     needs:
@@ -886,13 +916,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cloud-assembly-api_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cloud-assembly-api_build-artifact
@@ -908,7 +938,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-cloud-assembly-api_release_done:
     name: "@aws-cdk/cloud-assembly-api: Release complete"
     needs:
@@ -938,13 +968,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cli-plugin-contract_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cli-plugin-contract_build-artifact
@@ -956,8 +986,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-cli-plugin-contract_release_npm:
     name: "@aws-cdk/cli-plugin-contract: Publish to npm"
     needs: aws-cdk-cli-plugin-contract_release
@@ -968,13 +1008,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cli-plugin-contract_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cli-plugin-contract_build-artifact
@@ -990,7 +1030,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-cli-plugin-contract_release_done:
     name: "@aws-cdk/cli-plugin-contract: Release complete"
     needs:
@@ -1020,13 +1060,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cdk-assets-lib_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cdk-assets-lib_build-artifact
@@ -1038,8 +1078,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-cdk-assets-lib_release_npm:
     name: "@aws-cdk/cdk-assets-lib: Publish to npm"
     needs:
@@ -1053,13 +1103,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-cdk-assets-lib_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-cdk-assets-lib_build-artifact
@@ -1075,7 +1125,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-cdk-assets-lib_release_done:
     name: "@aws-cdk/cdk-assets-lib: Release complete"
     needs:
@@ -1105,13 +1155,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.cdk-assets_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: cdk-assets_build-artifact
@@ -1123,8 +1173,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   cdk-assets_release_npm:
     name: "cdk-assets: Publish to npm"
     needs:
@@ -1137,13 +1197,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.cdk-assets_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: cdk-assets_build-artifact
@@ -1159,7 +1219,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   cdk-assets_release_done:
     name: "cdk-assets: Release complete"
     needs:
@@ -1189,13 +1249,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-toolkit-lib_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-toolkit-lib_build-artifact
@@ -1207,8 +1267,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-toolkit-lib_release_npm:
     name: "@aws-cdk/toolkit-lib: Publish to npm"
     needs:
@@ -1225,13 +1295,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-toolkit-lib_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-toolkit-lib_build-artifact
@@ -1247,7 +1317,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-toolkit-lib_release_done:
     name: "@aws-cdk/toolkit-lib: Release complete"
     needs:
@@ -1277,13 +1347,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk_build-artifact
@@ -1295,8 +1365,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk_release_npm:
     name: "aws-cdk: Publish to npm"
     needs:
@@ -1313,13 +1393,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk_build-artifact
@@ -1335,7 +1415,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk_release_done:
     name: "aws-cdk: Release complete"
     needs:
@@ -1365,13 +1445,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.cdk_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: cdk_build-artifact
@@ -1383,8 +1463,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   cdk_release_npm:
     name: "cdk: Publish to npm"
     needs:
@@ -1397,13 +1487,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.cdk_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: cdk_build-artifact
@@ -1419,7 +1509,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   cdk_release_done:
     name: "cdk: Release complete"
     needs:
@@ -1449,13 +1539,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-integ-runner_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-integ-runner_build-artifact
@@ -1467,8 +1557,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-integ-runner_release_npm:
     name: "@aws-cdk/integ-runner: Publish to npm"
     needs:
@@ -1485,13 +1585,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-integ-runner_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-integ-runner_build-artifact
@@ -1507,7 +1607,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-integ-runner_release_done:
     name: "@aws-cdk/integ-runner: Release complete"
     needs:
@@ -1537,13 +1637,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-testing-cli-integ_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-testing-cli-integ_build-artifact
@@ -1555,8 +1655,18 @@ jobs:
         id: release
         if: ${{ !inputs.dry_run }}
         env:
+          RELEASE_TAG_FILE: dist/releasetag.txt
+          CHANGELOG_FILE: dist/changelog.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: errout=$(mktemp); gh release create $(cat dist/releasetag.txt) -R $GITHUB_REPOSITORY -F dist/changelog.md -t $(cat dist/releasetag.txt) --target $GITHUB_SHA 2> $errout && true; exitcode=$?; if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" $errout; then cat $errout; exit $exitcode; fi
+        run: |-
+          errout=$(mktemp)
+          tag=$(cat "$RELEASE_TAG_FILE")
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA" ${PRERELEASE:+-p} 2> "$errout" && true
+          exitcode=$?
+          if [ $exitcode -ne 0 ] && ! grep -q "Release.tag_name already exists" "$errout"; then
+            cat "$errout"
+            exit $exitcode
+          fi
   aws-cdk-testing-cli-integ_release_npm:
     name: "@aws-cdk-testing/cli-integ: Publish to npm"
     needs: aws-cdk-testing-cli-integ_release
@@ -1567,13 +1677,13 @@ jobs:
     environment: releasing
     if: ${{ !cancelled() && !failure() && needs.aws-cdk-testing-cli-integ_release.result == 'success' }}
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
       - name: Download build artifacts
         id: download_build_artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           name: aws-cdk-testing-cli-integ_build-artifact
@@ -1589,7 +1699,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TRUSTED_PUBLISHER: "true"
           PUBLIB_DRYRUN: ${{ inputs.dry_run }}
-        run: npx -p publib@latest publib-npm
+        run: npx '-p' 'publib@latest' 'publib-npm'
   aws-cdk-testing-cli-integ_release_done:
     name: "@aws-cdk-testing/cli-integ: Release complete"
     needs:
@@ -1615,13 +1725,13 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Enable corepack
         id: enable_corepack
         run: corepack enable
       - name: Setup Node.js
         id: setup_node_js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
@@ -1630,7 +1740,7 @@ jobs:
         run: yarn install --immutable
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: standalone_build-artifact
           path: dist/standalone
@@ -1663,7 +1773,7 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: aws-cdk_build-artifact
           path: dist
@@ -1695,7 +1805,7 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: aws-cdk-toolkit-lib_build-artifact
           path: dist

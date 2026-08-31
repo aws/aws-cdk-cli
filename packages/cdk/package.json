@@ -46,7 +46,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-jest": "^29.16.1",
+    "eslint-plugin-jest": "^29.16.5",
     "eslint-plugin-jsdoc": "^62.9.0",
     "eslint-plugin-prettier": "^4.2.5",
     "jest": "^29.7.0",
@@ -54,7 +54,7 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.8",
     "prettier": "^2.8",
-    "projen": "^0.101.36",
+    "projen": "^0.103.5",
     "ts-jest": "^29.4.12",
     "typescript": "5.9"
   },
