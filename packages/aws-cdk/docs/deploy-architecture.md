@@ -31,7 +31,7 @@ graph TD
     n13["Return CloudAssembly object"]
     
     %% Stack Selection
-    n14["stack-assembly.ts (toolkit-lib):<br/>assembly.selectStacksV2()"]
+    n14["stack-assembly.ts (toolkit-lib):<br/>assembly.selectStacks()"]
     n15["cdk-toolkit.ts:<br/>validateStacks()"]
     n16["Return StackCollection"]
     

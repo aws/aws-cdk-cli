@@ -540,6 +540,7 @@ export class TestFixture extends ShellHelper {
       '--username', username,
       '--password', '${ECR_PASSWORD}',
       'public.ecr.aws'], {
+      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
       shell: true,
       modEnv: {
         ECR_PASSWORD: password,
