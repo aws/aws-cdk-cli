@@ -364,7 +364,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _synth(assembly: StackAssembly, options: SynthOptions = {}): Promise<void> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    const stacks = await assembly.selectStacksV2(stacksOpt(options));
+    const stacks = await assembly.selectStacks(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
     await throwIfValidationFailures(assembly, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
 
@@ -405,7 +405,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
     const diffSpan = await ioHelper.span(SPAN.DIFF_STACK).begin({ stacks: selectStacks });
     const deployments = await this.deploymentsForAction('diff');
 
@@ -465,7 +465,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
 
     const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
@@ -544,7 +544,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
 
     if (stackCollection.stackCount === 0) {
@@ -617,7 +617,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
 
@@ -640,7 +640,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'diagnose');
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
 
     // Do stacks in parallel, for speed.
@@ -698,7 +698,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'validate');
     const selectStacks = stacksOpt(options);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
 
     const reports = await obtainUnifiedValidationReport(assembly, stacks);
 
@@ -798,7 +798,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', synthDuration: ElapsedTime, options: PrivateDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
 
     const ret: DeployResult = {
@@ -1095,7 +1095,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // "bold(stackname) failed: ResourceNotReady: <error>"
         const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed';
         const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
-        throw new ToolkitError(code, newMessage);
+        // Keep the original error as cause, so that specific errors (such as a `BootstrapError`) remain discoverable
+        throw ToolkitError.withCause(code, newMessage, e);
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor
@@ -1491,7 +1492,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
     await throwIfValidationFailures(assembly, stacks, this.assemblyFailureAt, ioHelper);
 
     const ret: RollbackResult = {
@@ -1557,7 +1558,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     // Synth all stacks, then resolve the construct paths against the real stack IDs.
     await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
-    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+    const allStacks = await assembly.selectStacks(ALL_STACKS);
 
     const parsed = resolveStackAndConstructPaths(
       options.constructPaths,
@@ -1622,7 +1623,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
-    const selectedStacks = await assembly.selectStacksV2(stacksOpt(options));
+    const selectedStacks = await assembly.selectStacks(stacksOpt(options));
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
     for (let { environment, localStacks, deployedStacks } of groups) {
@@ -1810,7 +1811,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
-    const { stacks, suggestions } = await assembly.selectStacksV3(selectStacks, { suggestPatternMatches: true });
+    const { stacks, suggestions } = await assembly.selectStacksWithSuggestions(selectStacks, { suggestPatternMatches: true });
 
     // Warn about each provided pattern that matched no stack, suggesting a close
     // match when one exists (e.g. only the casing differs).
