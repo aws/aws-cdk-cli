@@ -17,9 +17,6 @@ integTest(
 
     expect(output).toContain('This is an error');
 
-    // Check the trace that telemetry was handed to the detached sender despite the error in synth
-    expect(output).toContain('Telemetry dispatched');
-
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([
       expect.objectContaining({

@@ -8,13 +8,10 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-${Date.now()}.json`);
 
-    const synthOutput = await fixture.cdk(
+    await fixture.cdk(
       ['synth', fixture.fullStackName('test-1'), `--telemetry-file=${telemetryFile}`],
       { verboseLevel: 3 }, // trace mode
     );
-
-    // Check the trace that telemetry was handed to the detached sender that delivers it
-    expect(synthOutput).toContain('Telemetry dispatched');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual([

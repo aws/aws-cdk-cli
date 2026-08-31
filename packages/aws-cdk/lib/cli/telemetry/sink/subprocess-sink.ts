@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- the detached sender must outlive the CLI; run/runSync from the subprocess tool monitor the child to completion
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
@@ -18,7 +19,7 @@ import type { ITelemetrySink } from './sink-interface';
 const SENDER_ENTRY_POINT = path.join('lib', 'cli', 'telemetry', 'sender-bundle.js');
 
 /**
- * Reports a successful hand-off, NOT a successful delivery. Integration tests match on this literal.
+ * Reports a successful hand-off, NOT a successful delivery.
  */
 export const DISPATCHED_TRACE = 'Telemetry dispatched';
 
