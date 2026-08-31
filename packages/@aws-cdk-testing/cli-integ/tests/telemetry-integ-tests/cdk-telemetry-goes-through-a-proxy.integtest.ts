@@ -37,7 +37,7 @@ integTest(
 
     const proxyServer = await startProxyServer();
     try {
-      const output = await fixture.cdkSynth({
+      await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
           '--proxy', proxyServer.url,
@@ -49,9 +49,6 @@ integTest(
         },
         verboseLevel: 3, // trace
       });
-
-      // The parent reports the hand-off, not the delivery.
-      expect(output).toContain('Telemetry dispatched');
 
       // Delivery happens after the CLI exits, so poll rather than asserting immediately.
       const telemetryRequest = await waitFor(

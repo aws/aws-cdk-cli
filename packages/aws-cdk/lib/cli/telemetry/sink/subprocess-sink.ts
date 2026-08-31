@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { IoHelper } from '../../../api-private';
-import { ToolkitError } from '../../../toolkit-error';
+import { ToolkitError } from '../../../api-private-error';
 import type { IIoHost } from '../../io-host';
 import { cliRootDir } from '../../root-dir';
 import type { TelemetryBatch } from '../post-telemetry';

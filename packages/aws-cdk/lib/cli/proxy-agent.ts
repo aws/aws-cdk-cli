@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as fs from 'fs-extra';
 import { ProxyAgent, proxies } from 'proxy-agent';
-import { ToolkitError } from '../toolkit-error';
+import { ToolkitError } from '../api-private-error';
 
 /**
  * Validate a proxy address up front.

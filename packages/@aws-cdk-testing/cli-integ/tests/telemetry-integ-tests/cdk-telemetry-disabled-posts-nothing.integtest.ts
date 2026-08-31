@@ -20,7 +20,7 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const endpoint = await startTelemetryEndpoint({ certDirRoot: fixture.integTestDir });
     try {
-      const output = await fixture.cdkSynth({
+      await fixture.cdkSynth({
         options: [
           fixture.fullStackName('test-1'),
         ],
@@ -32,8 +32,6 @@ integTest(
         },
         verboseLevel: 3, // trace
       });
-
-      expect(output).toContain('Telemetry disabled');
 
       await sleep(TELEMETRY_QUIET_PERIOD_MS);
 

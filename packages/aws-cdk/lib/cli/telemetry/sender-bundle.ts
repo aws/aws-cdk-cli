@@ -83,4 +83,4 @@ const done = () => {
   clearTimeout(hardKill);
   process.exit(0);
 };
-void main().then(done, done);
+void main().finally(done);

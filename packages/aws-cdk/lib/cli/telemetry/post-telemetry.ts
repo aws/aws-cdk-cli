@@ -3,7 +3,7 @@ import type { Agent } from 'https';
 import { request } from 'https';
 import * as tls from 'tls';
 import type { TelemetrySchema } from './schema';
-import { ToolkitError } from '../../toolkit-error';
+import { ToolkitError } from '../../api-private-error';
 
 /**
  * A batch of telemetry events, as the endpoint expects to receive it.

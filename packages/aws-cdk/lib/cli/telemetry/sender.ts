@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import type { TelemetryBatch } from './post-telemetry';
 import { postTelemetry } from './post-telemetry';
-import { ToolkitError } from '../../toolkit-error';
+import { ToolkitError } from '../../api-private-error';
 import type { ProxyAgentDiagnostics } from '../proxy-agent';
 import { ProxyAgentProvider } from '../proxy-agent';
 
