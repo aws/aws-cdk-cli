@@ -2421,7 +2421,7 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
     // `jest.resetAllMocks()` in beforeEach would leave this prototype spy as
     // an undefined-returning mock for every later test, so restore it here.
-    const selectSpy = jest.spyOn(StackAssembly.prototype, 'selectStacksV2');
+    const selectSpy = jest.spyOn(StackAssembly.prototype, 'selectStacks');
     try {
       await toolkit.synth({ stackNames: [], quiet: true });
 

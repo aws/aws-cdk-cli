@@ -13,12 +13,12 @@ import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector'
 import type { IReadableCloudAssembly } from '../types';
 
 /**
- * Options for `StackAssembly.selectStacksV3`.
+ * Options for `StackAssembly.selectStacksWithSuggestions`.
  */
-export interface SelectStacksV3Options {
+export interface SelectStacksWithSuggestionsOptions {
   /**
    * For a pattern selector, also compute suggestions for every pattern that
-   * matched no stack (see `SelectStacksV3Result.suggestions`).
+   * matched no stack (see `StacksWithSuggestions.suggestions`).
    *
    * @default false
    */
@@ -26,9 +26,9 @@ export interface SelectStacksV3Options {
 }
 
 /**
- * Result of `StackAssembly.selectStacksV3`.
+ * Result of `StackAssembly.selectStacksWithSuggestions`.
  */
-export interface SelectStacksV3Result {
+export interface StacksWithSuggestions {
   /**
    * The selected stacks.
    */
@@ -122,10 +122,10 @@ export class StackAssembly implements IReadableCloudAssembly {
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
    * @throws when individual selection strategies are not satisfied
    *
-   * Thin wrapper around `selectStacksV3` that keeps the historic return shape.
+   * Thin wrapper around `selectStacksWithSuggestions` that keeps a simpler return shape.
    */
-  public async selectStacksV2(selector: StackSelector): Promise<StackCollection> {
-    return (await this.selectStacksV3(selector)).stacks;
+  public async selectStacks(selector: StackSelector): Promise<StackCollection> {
+    return (await this.selectStacksWithSuggestions(selector)).stacks;
   }
 
   /**
@@ -135,7 +135,10 @@ export class StackAssembly implements IReadableCloudAssembly {
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
    * @throws when individual selection strategies are not satisfied
    */
-  public async selectStacksV3(selector: StackSelector, options: SelectStacksV3Options = {}): Promise<SelectStacksV3Result> {
+  public async selectStacksWithSuggestions(
+    selector: StackSelector,
+    options: SelectStacksWithSuggestionsOptions = {},
+  ): Promise<StacksWithSuggestions> {
     const asm = this.assembly;
     const topLevelStacks = asm.stacks;
     const allStacks = this.allStacks;
