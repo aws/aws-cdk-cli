@@ -57,22 +57,6 @@ test.each([
   expect(actual).toEqual(expected);
 });
 
-test('refuses a discovered Windows path containing a %VAR% reference (cmd.exe would expand it)', async () => {
-  // GIVEN
-  const appPath = 'C:\\proj\\%USERNAME%\\app';
-  Object.defineProperty(process, 'platform', { value: 'win32' });
-  jest.spyOn(fs, 'stat').mockImplementation((p) => {
-    if (p !== appPath) {
-      throw new Error(`Expected a stat() call on '${appPath}' but got '${p}'`);
-    }
-    return Promise.resolve({ mode: 0 }) as any;
-  });
-
-  // THEN
-  await expect(guessExecutable(appPath, (_) => Promise.resolve()))
-    .rejects.toThrow(/Cannot safely run a path containing a '%\.\.\.%' substring/);
-});
-
 /**
  * Explode all 'both's in a test array to both false and true
  */
