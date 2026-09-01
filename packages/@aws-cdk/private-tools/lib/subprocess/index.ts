@@ -10,16 +10,20 @@
  *    not spawn batch shims directly (CVE-2024-27980). The executable name is
  *    resolved against PATH.
  *
- * 2. `runUserCommandLine(line)` — an opaque command line passed to the platform
- *    shell verbatim. It is the only path to a shell. The line is usually one the
- *    user themselves authored (e.g. the `app` command from `cdk.json`, the
- *    `--browser` flag) and trusted as such, but callers may also assemble it
- *    from filesystem-discovered parts (see `toolkit-lib`'s `environment.ts`).
- *    Every part spliced into a shell line MUST go through that module's
- *    `quoteShellPart`, which quotes for the platform shell and rejects inputs
- *    that cannot be quoted safely (e.g. a `%VAR%` on Windows, which cmd.exe
- *    expands even inside quotes). This is a property of the callers, not
- *    enforced at this boundary.
+ * 2. `runUserCommandLine(line)` — an opaque command line **the user themselves
+ *    authored** (e.g. the `app` command from `cdk.json`, the `--browser` flag),
+ *    passed to the platform shell verbatim. The shell is the documented feature
+ *    here and the input is trusted by definition; this function is deliberately
+ *    the only path to a shell and takes no argv form, so command lines can
+ *    never be assembled from parts by this codebase.
+ *
+ * As a corollary, migrated runtime consumers do not escape values *for a shell*
+ * and then execute them, with one audited exception: `quoteShellPart` in
+ * toolkit-lib's `cloud-assembly/environment.ts`, which quotes the file paths
+ * this codebase discovers itself before splicing them into the user's `app`
+ * command line for `runUserCommandLine`. That is the only quoting-for-execution
+ * boundary among these consumers; it is documented at that call site and kept
+ * out of this module, whose `renderForDisplay` output is never executed.
  */
 // eslint-disable-next-line no-restricted-imports -- this module IS the sanctioned wrapper around child_process
 import * as child_process from 'child_process';

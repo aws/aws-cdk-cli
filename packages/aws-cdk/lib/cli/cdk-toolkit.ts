@@ -506,7 +506,7 @@ export class CdkToolkit {
 
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly(options.cacheCloudAssembly);
-    const stackCollection = await assembly.selectStacksV2(options.selector);
+    const stackCollection = await assembly.selectStacks(options.selector);
     await this.validateStacks(assembly, stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
@@ -701,7 +701,7 @@ export class CdkToolkit {
   public async rollback(options: RollbackOptions) {
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly();
-    const stackCollection = await assembly.selectStacksV2(options.selector);
+    const stackCollection = await assembly.selectStacks(options.selector);
     await this.validateStacks(assembly, stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
@@ -873,7 +873,7 @@ export class CdkToolkit {
 
   public async import(options: ImportOptions) {
     const assembly = await this.assembly();
-    const stacks = await assembly.selectStacksV2(options.selector);
+    const stacks = await assembly.selectStacks(options.selector);
     await this.validateStacks(assembly, stacks);
 
     // set progress from options, this includes user and app config
@@ -1223,7 +1223,7 @@ export class CdkToolkit {
     // If there is an '--app' argument, select the environments from the app.
     if (this.props.cloudExecutable.hasApp) {
       const assembly = await this.assembly();
-      const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+      const allStacks = await assembly.selectStacks(ALL_STACKS);
       environments.push(
         ...(await globEnvironmentsFromStacks(allStacks, globSpecs, this.props.sdkProvider)),
       );
@@ -1383,19 +1383,19 @@ export class CdkToolkit {
     exclusively?: boolean,
   ): Promise<StackCollection> {
     if (patterns.length > 0) {
-      return assembly.selectStacksV2(
+      return assembly.selectStacks(
         mustMatch(exclusively ? selectExact(...patterns) : selectWithUpstream(...patterns)),
       );
     }
 
     if (assembly.cloudAssembly.stacks.length > 0) {
-      return assembly.selectStacksV2(selectAllTopLevel(ExpandStackSelection.NONE));
+      return assembly.selectStacks(selectAllTopLevel(ExpandStackSelection.NONE));
     }
 
     // Stage-only app: nothing to select, which is not an error. An app
     // without any stacks at all still is: this selection throws
     // 'This app contains no stacks' in that case.
-    await assembly.selectStacksV2(ALL_STACKS);
+    await assembly.selectStacks(ALL_STACKS);
     return new StackCollection(assembly, []);
   }
 
