@@ -256,6 +256,8 @@ export interface RunSyncOptions {
  */
 export function runSync(argv: readonly string[], options: RunSyncOptions = {}): string {
   assertNonEmptyArgv(argv, 'runSync');
+  // RunSyncOptions carries no `env`, so both resolution and the spawn below use
+  // process.env — keep these in sync if an `env` option is ever added here.
   const command = resolveExecutable(argv[0], {});
   if (command === undefined) {
     throw notFoundError(argv);
@@ -311,7 +313,11 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
  * On Windows a bare program name spawned without a shell is searched for in the
  * current working directory *before* PATH, so a file planted in the working
  * directory (e.g. a `docker.bat` inside a handed-over cloud assembly) can run
- * instead of the real binary. Resolving to an *absolute* PATH hit up front
+ * instead of the real binary. This is not raw `child_process` behavior we are
+ * guessing at: `run()` spawns through cross-spawn, whose resolver is `node-which`,
+ * and which's `getPathInfo` builds the Windows search path as
+ * `[process.cwd(), ...PATH]` — cwd first — annotated in its own source with
+ * "windows always checks the cwd first". Resolving to an *absolute* PATH hit up front
  * closes that: the returned path is always absolute (so cross-spawn re-resolves
  * it against nothing), the cwd is never consulted, and a name that is not on
  * PATH is refused (returns `undefined`) rather than silently satisfied from the
