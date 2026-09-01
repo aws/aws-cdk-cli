@@ -340,9 +340,15 @@ export function resolveExecutable(
     return command;
   }
 
-  const env = options.env ?? process.env;
-  const exts = windowsExtensions(command, envValue(env, 'PATHEXT'));
-  const dirs = (envValue(env, 'PATH') ?? '')
+  // Resolve PATH/PATHEXT from the caller's env, falling back to process.env when
+  // that env lacks the key — mirroring cross-spawn/which, which resolve against
+  // process.env.PATH when the spawn env has no PATH. Without this fallback a
+  // caller passing a PATH-less custom env would wrongly get ENOENT on Windows.
+  const search = options.env ?? process.env;
+  const pathVar = envValue(search, 'PATH') ?? envValue(process.env, 'PATH');
+  const pathExt = envValue(search, 'PATHEXT') ?? envValue(process.env, 'PATHEXT');
+  const exts = windowsExtensions(command, pathExt);
+  const dirs = (pathVar ?? '')
     .split(path.delimiter)
     .filter(Boolean)
     // Windows PATH entries may be wrapped in double quotes; unwrap them (as

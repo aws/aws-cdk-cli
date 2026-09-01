@@ -387,4 +387,37 @@ describe('resolveExecutable', () => {
     expect(resolveExecutable('my.tool', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
       .toEqual(path.join(dir, 'my.tool'));
   });
+
+  test('Windows falls back to process.env.PATH when the caller env has no PATH', () => {
+    // cross-spawn/which resolve against process.env.PATH when the spawn env has
+    // no PATH key, so a caller passing a PATH-less custom env must still resolve
+    // the tool (not get a synthetic ENOENT).
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+    const savedPath = process.env.PATH;
+    const savedPathExt = process.env.PATHEXT;
+    process.env.PATH = dir;
+    process.env.PATHEXT = '.CMD';
+    try {
+      expect(resolveExecutable('docker', { platform: 'win32', env: { FOO: 'bar' } }))
+        .toEqual(target);
+    } finally {
+      process.env.PATH = savedPath;
+      process.env.PATHEXT = savedPathExt;
+    }
+  });
+
+  test('Windows treats an explicitly empty PATH as no directories (no fallback)', () => {
+    // An explicit empty PATH means "no search dirs" and must not fall back to
+    // process.env.PATH — distinct from an absent PATH key.
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir;
+    fs.writeFileSync(path.join(dir, 'docker.CMD'), '');
+    try {
+      expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: '', PATHEXT: '.CMD' } }))
+        .toBeUndefined();
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
 });
