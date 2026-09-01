@@ -118,7 +118,11 @@ describe('run', () => {
 
   // Windows-only: a plain .exe (as in every nodeEval test above) never routes
   // through cmd.exe, so this is the one path where cross-spawn's escaping is
-  // actually exercised. Must run on Windows CI to have any value.
+  // actually exercised. NOTE: CI has no Windows unit-test lane today (unit
+  // tests run only on the Ubuntu `build` job; the Windows CI jobs run the
+  // black-box integ suites), so this currently executes only when the suite is
+  // run on a Windows dev machine. It is kept as an executable spec until a
+  // Windows unit-test lane exists.
   (process.platform === 'win32' ? test : test.skip)(
     'a .cmd shim receives hostile arguments verbatim (cross-spawn escaping)',
     async () => {
@@ -331,5 +335,56 @@ describe('resolveExecutable', () => {
 
     expect(resolveExecutable('git', { platform: 'win32', env: { Path: dir, PATHEXT: '.EXE' } }))
       .toEqual(target);
+  });
+
+  test('Windows skips a relative PATH entry — the cwd is never consulted', () => {
+    // A relative entry (classically `.`) would join into a non-absolute
+    // candidate that cross-spawn re-resolves against the child cwd, reopening
+    // the shadowing hole. It must be ignored; the absolute entry wins, and the
+    // result is always absolute.
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    const resolved = resolveExecutable('docker', {
+      platform: 'win32',
+      env: { PATH: `.${path.delimiter}${dir}`, PATHEXT: '.CMD' },
+    });
+
+    expect(resolved).toEqual(target);
+    expect(path.isAbsolute(resolved!)).toBe(true);
+  });
+
+  test('Windows resolves nothing when PATH holds only relative entries', () => {
+    // Even though a matching file could exist relative to the cwd, a PATH of
+    // only relative entries must never satisfy the name from the cwd.
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: `.${path.delimiter}tools`, PATHEXT: '.CMD' } }))
+      .toBeUndefined();
+  });
+
+  test('Windows unwraps double-quoted PATH entries (as which does)', () => {
+    // Windows PATH entries may be wrapped in quotes (e.g. paths with spaces).
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: `"${dir}"`, PATHEXT: '.CMD' } }))
+      .toEqual(target);
+  });
+
+  test('Windows probes a suffixed name exactly even when its extension is not in PATHEXT', () => {
+    // `tool.exe` under `PATHEXT=.CMD` must still be found as `tool.exe`, not
+    // only as `tool.exe.CMD`.
+    fs.writeFileSync(path.join(dir, 'tool.exe'), '');
+
+    expect(resolveExecutable('tool.exe', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(path.join(dir, 'tool.exe'));
+  });
+
+  test('Windows probes a dotted name exactly (no known extension)', () => {
+    // A name containing a dot may be a literal file on PATH; it is tried before
+    // any PATHEXT extension is appended.
+    fs.writeFileSync(path.join(dir, 'my.tool'), '');
+
+    expect(resolveExecutable('my.tool', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(path.join(dir, 'my.tool'));
   });
 });

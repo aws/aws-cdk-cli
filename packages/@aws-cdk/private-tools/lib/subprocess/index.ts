@@ -11,12 +11,16 @@
  *    resolved against PATH (never the working directory) so a binary planted
  *    in the cwd cannot shadow the real one (see `resolveExecutable`).
  *
- * 2. `runUserCommandLine(line)` — an opaque command line **the user themselves
- *    authored** (e.g. the `app` command from `cdk.json`, the `--browser` flag),
- *    passed to the platform shell verbatim. The shell is the documented feature
- *    here and the input is trusted by definition; this function is deliberately
- *    the only path to a shell and takes no argv form, so command lines can
- *    never be assembled from parts by this codebase.
+ * 2. `runUserCommandLine(line)` — an opaque command line passed to the platform
+ *    shell verbatim. It is the only path to a shell. The line is usually one the
+ *    user themselves authored (e.g. the `app` command from `cdk.json`, the
+ *    `--browser` flag) and trusted as such, but callers may also assemble it
+ *    from filesystem-discovered parts (see `toolkit-lib`'s `environment.ts`).
+ *    Every part spliced into a shell line MUST go through that module's
+ *    `quoteShellPart`, which quotes for the platform shell and rejects inputs
+ *    that cannot be quoted safely (e.g. a `%VAR%` on Windows, which cmd.exe
+ *    expands even inside quotes). This is a property of the callers, not
+ *    enforced at this boundary.
  */
 // eslint-disable-next-line no-restricted-imports -- this module IS the sanctioned wrapper around child_process
 import * as child_process from 'child_process';
@@ -304,9 +308,18 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
  * On Windows a bare program name spawned without a shell is searched for in the
  * current working directory *before* PATH, so a file planted in the working
  * directory (e.g. a `docker.bat` inside a handed-over cloud assembly) can run
- * instead of the real binary. Resolving to an absolute PATH hit up front closes
- * that: the cwd is never consulted, and a name that is not on PATH is refused
- * (returns `undefined`) rather than silently satisfied from the cwd.
+ * instead of the real binary. Resolving to an *absolute* PATH hit up front
+ * closes that: the returned path is always absolute (so cross-spawn re-resolves
+ * it against nothing), the cwd is never consulted, and a name that is not on
+ * PATH is refused (returns `undefined`) rather than silently satisfied from the
+ * cwd.
+ *
+ * Because the guarantee is "the cwd is never consulted", a *relative* PATH
+ * entry (classically `.`) is skipped rather than honored: joining `command`
+ * onto it would produce a non-absolute candidate that cross-spawn would then
+ * re-resolve against the child's cwd — reopening the exact shadowing hole.
+ * Quoted PATH entries (`"C:\Program Files\..."`, legal on Windows) are
+ * unwrapped, matching what `which` does, so an installed tool is still found.
  *
  * POSIX `execvp` already searches PATH only (never the cwd), so there the name
  * is returned unchanged. An argument that already contains a path separator is
@@ -334,13 +347,23 @@ export function resolveExecutable(
   }
 
   const env = options.env ?? process.env;
-  const dirs = (envValue(env, 'PATH') ?? '').split(path.delimiter).filter(Boolean);
   const exts = windowsExtensions(command, envValue(env, 'PATHEXT'));
+  const dirs = (envValue(env, 'PATH') ?? '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    // Windows PATH entries may be wrapped in double quotes; unwrap them (as
+    // `which` does) so a quoted directory still matches on disk.
+    .map(stripSurroundingQuotes)
+    // Only absolute entries: a relative one (e.g. `.`) would be joined into a
+    // non-absolute candidate that resolves against the cwd — the thing we
+    // refuse to consult.
+    .filter(isAbsolutePathEntry);
 
   for (const dir of dirs) {
     for (const ext of exts) {
       const candidate = path.join(dir, command + ext);
       if (isFile(candidate)) {
+        // Absolute (dir is absolute), so cross-spawn will not re-search.
         return candidate;
       }
     }
@@ -348,6 +371,25 @@ export function resolveExecutable(
   // Not on PATH. Deliberately do NOT fall back to the bare name: that would let
   // Windows resolve it from the cwd, which is exactly the risk we are closing.
   return undefined;
+}
+
+/** Strip a single pair of wrapping double quotes from a PATH entry, if present. */
+function stripSurroundingQuotes(dir: string): string {
+  return /^".*"$/.test(dir) ? dir.slice(1, -1) : dir;
+}
+
+/**
+ * Whether a PATH entry is absolute. Recognizes both POSIX-absolute and
+ * Windows-absolute forms directly, rather than relying on `path.isAbsolute`
+ * (which uses the *running* platform's rules) — the resolver must behave the
+ * same under the `platform: 'win32'` test override on a POSIX host.
+ */
+function isAbsolutePathEntry(dir: string): boolean {
+  return path.isAbsolute(dir) // running-platform rule (native runtime + POSIX-absolute test dirs)
+    || /^[a-zA-Z]:[\\/]/.test(dir) // C:\ or C:/
+    || dir.startsWith('\\\\') // UNC \\server\share
+    || dir.startsWith('\\') // drive-relative-but-rooted \dir
+    || dir.startsWith('/'); // forward-slash absolute
 }
 
 /** Look up an environment variable case-insensitively (the Windows env is). */
@@ -364,7 +406,9 @@ function envValue(env: Record<string, string | undefined>, name: string): string
  * The extensions to append when searching for `command` on Windows.
  *
  * If the name already ends in a known executable extension, search for it
- * exactly (empty suffix); otherwise try each PATHEXT entry.
+ * exactly (empty suffix). Otherwise, if the name contains a dot it may itself
+ * be a literal file on PATH, so probe the exact name first (as Windows and
+ * cross-spawn's `which` do) before appending each PATHEXT entry.
  */
 function windowsExtensions(command: string, pathext: string | undefined): string[] {
   const configured = (pathext ?? '.COM;.EXE;.BAT;.CMD')
@@ -372,7 +416,10 @@ function windowsExtensions(command: string, pathext: string | undefined): string
     .map((e) => e.trim())
     .filter(Boolean);
   const lower = command.toLowerCase();
-  return configured.some((e) => lower.endsWith(e.toLowerCase())) ? [''] : configured;
+  if (configured.some((e) => lower.endsWith(e.toLowerCase()))) {
+    return [''];
+  }
+  return command.includes('.') ? ['', ...configured] : configured;
 }
 
 function isFile(candidate: string): boolean {
