@@ -256,8 +256,6 @@ export interface RunSyncOptions {
  */
 export function runSync(argv: readonly string[], options: RunSyncOptions = {}): string {
   assertNonEmptyArgv(argv, 'runSync');
-  // RunSyncOptions carries no `env`, so both resolution and the spawn below use
-  // process.env — keep these in sync if an `env` option is ever added here.
   const command = resolveExecutable(argv[0], {});
   if (command === undefined) {
     throw notFoundError(argv);
@@ -308,34 +306,21 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
 }
 
 /**
- * Resolve an executable name to an absolute path against PATH — never the cwd.
+ * Resolve an executable name to an absolute path on PATH, never the cwd.
  *
- * On Windows a bare program name spawned without a shell is searched for in the
- * current working directory *before* PATH, so a file planted in the working
- * directory (e.g. a `docker.bat` inside a handed-over cloud assembly) can run
- * instead of the real binary. This is not raw `child_process` behavior we are
- * guessing at: `run()` spawns through cross-spawn, whose resolver is `node-which`,
- * and which's `getPathInfo` builds the Windows search path as
- * `[process.cwd(), ...PATH]` — cwd first — annotated in its own source with
- * "windows always checks the cwd first". Resolving to an *absolute* PATH hit up front
- * closes that: the returned path is always absolute (so cross-spawn re-resolves
- * it against nothing), the cwd is never consulted, and a name that is not on
- * PATH is refused (returns `undefined`) rather than silently satisfied from the
- * cwd.
+ * On Windows a bare name spawned without a shell resolves from the cwd before
+ * PATH (cross-spawn delegates to `which`, which searches the cwd first), so a
+ * file planted in a handed-over cwd can shadow the real binary. Returning an
+ * absolute PATH hit — and refusing a name not on PATH (`undefined`) — closes
+ * that; the path is absolute so cross-spawn does not re-resolve it. For the same
+ * reason relative PATH entries (e.g. `.`) are skipped; quoted entries are
+ * unwrapped and a name with a dot is matched exactly, both as `which` does.
  *
- * Because the guarantee is "the cwd is never consulted", a *relative* PATH
- * entry (classically `.`) is skipped rather than honored: joining `command`
- * onto it would produce a non-absolute candidate that cross-spawn would then
- * re-resolve against the child's cwd — reopening the exact shadowing hole.
- * Quoted PATH entries (`"C:\Program Files\..."`, legal on Windows) are
- * unwrapped, matching what `which` does, so an installed tool is still found.
+ * On POSIX the name is returned unchanged (execvp searches PATH only). A name
+ * that already contains a path separator is honored verbatim everywhere.
  *
- * POSIX `execvp` already searches PATH only (never the cwd), so there the name
- * is returned unchanged. An argument that already contains a path separator is
- * an explicit location and is honored verbatim on every platform.
- *
- * @returns the resolved command (absolute on Windows, unchanged elsewhere), or
- *   `undefined` when a bare Windows name cannot be found on PATH.
+ * @returns an absolute path on Windows, the name unchanged elsewhere, or
+ *   `undefined` when a bare Windows name is not on PATH.
  */
 export function resolveExecutable(
   command: string,
