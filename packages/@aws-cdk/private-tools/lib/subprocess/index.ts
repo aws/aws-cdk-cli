@@ -8,8 +8,7 @@
  *    Windows `.cmd`/`.bat` shims (npm, yarn, …) are handled by cross-spawn,
  *    which spawns `cmd.exe /d /s /c` with correct quoting — modern Node does
  *    not spawn batch shims directly (CVE-2024-27980). The executable name is
- *    resolved against PATH (never the working directory) so a binary planted
- *    in the cwd cannot shadow the real one (see `resolveExecutable`).
+ *    resolved against PATH.
  *
  * 2. `runUserCommandLine(line)` — an opaque command line passed to the platform
  *    shell verbatim. It is the only path to a shell. The line is usually one the
