@@ -199,10 +199,10 @@ export class StackAssembly implements IReadableCloudAssembly {
   }
 
   /**
-   * For every pattern that matches no stack in the assembly, collect the
-   * hierarchical ids of stacks that loosely (case-insensitively) resemble it.
-   * The array is empty when there is no close match. Pure computation, never
-   * throws, emits no output.
+   * For every pattern that matched no stack, collect the hierarchical ids of
+   * stacks that loosely (case-insensitively) resemble it. Patterns that matched
+   * at least one stack are omitted; the array is empty when there is no close
+   * match. Pure computation, never throws, emits no output.
    */
   private suggestionsForPatterns(patterns: string[]): Record<string, string[]> {
     const suggestions: Record<string, string[]> = {};
