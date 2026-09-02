@@ -1,4 +1,4 @@
-import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { GetResourceCommand, UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { DescribeTypeCommand } from '@aws-sdk/client-cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockCloudControlClient, mockCloudFormationClient } from '../../_helpers/mock-sdk';
@@ -736,6 +736,164 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property remov
       PatchDocument: JSON.stringify([
         { op: 'replace', path: '/BillingMode', value: 'PROVISIONED' },
         { op: 'add', path: '/ProvisionedThroughput', value: { ReadCapacityUnits: 10, WriteCapacityUnits: 10 } },
+      ]),
+    });
+  });
+});
+
+describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('reserved (aws:-prefixed) tag preservation in %p mode', (hotswapMode) => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('carries over aws:-prefixed tags already on the resource so they are not removed', async () => {
+    // GIVEN - the live resource has CloudFormation-managed system tags in addition to the user tag
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      TypeName: 'AWS::SQS::Queue',
+      ResourceDescription: {
+        Identifier: 'q-123',
+        Properties: JSON.stringify({
+          Id: 'q-123',
+          Tags: [
+            { Key: 'DynamicTag', Value: 'v1' },
+            { Key: 'aws:cloudformation:stack-name', Value: 'my-stack' },
+            { Key: 'aws:cloudformation:logical-id', Value: 'Queue' },
+          ],
+        }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v1' }] },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'q-123'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v2' }] },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN - the reserved system tags are appended to the desired Tags, so Cloud Control sees no change to them
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::SQS::Queue',
+      Identifier: 'q-123',
+      PatchDocument: JSON.stringify([
+        {
+          op: 'replace',
+          path: '/Tags',
+          value: [
+            { Key: 'DynamicTag', Value: 'v2' },
+            { Key: 'aws:cloudformation:stack-name', Value: 'my-stack' },
+            { Key: 'aws:cloudformation:logical-id', Value: 'Queue' },
+          ],
+        },
+      ]),
+    });
+  });
+
+  test('does not alter the patch when the resource has no aws:-prefixed tags', async () => {
+    // GIVEN - the live resource has only user tags
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      TypeName: 'AWS::SQS::Queue',
+      ResourceDescription: {
+        Identifier: 'q-123',
+        Properties: JSON.stringify({
+          Id: 'q-123',
+          Tags: [{ Key: 'DynamicTag', Value: 'v1' }],
+        }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v1' }] },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'q-123'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v2' }] },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN - patch is exactly the template-defined tags, no extras
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::SQS::Queue',
+      Identifier: 'q-123',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/Tags', value: [{ Key: 'DynamicTag', Value: 'v2' }] },
+      ]),
+    });
+  });
+
+  test('still hotswaps when the current resource state cannot be read', async () => {
+    // GIVEN - GetResource fails; preservation is best-effort and must not break the hotswap
+    mockCloudControlClient.on(GetResourceCommand).rejects(new Error('access denied'));
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v1' }] },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'q-123'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'v2' }] },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN - falls back to sending just the template-defined tags
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::SQS::Queue',
+      Identifier: 'q-123',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/Tags', value: [{ Key: 'DynamicTag', Value: 'v2' }] },
       ]),
     });
   });

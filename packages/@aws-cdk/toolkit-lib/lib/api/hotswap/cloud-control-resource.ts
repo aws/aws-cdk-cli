@@ -77,7 +77,20 @@ export async function isHotswappableCloudControlChange(
       const patchOps: Array<{ op: string; path: string; value?: any }> = [];
       for (const propName of classifiedChanges.namesOfHotswappableProps) {
         const diff = change.propertyUpdates[propName];
-        const newValue = evaluatedProps[propName];
+        let newValue = evaluatedProps[propName];
+
+        // A `replace /Tags` sets the resource's tags to exactly the template-defined
+        // set. Resources created by CloudFormation also carry reserved AWS-managed
+        // tags (keys prefixed with `aws:`, e.g. `aws:cloudformation:stack-name`).
+        // Omitting those from the desired set makes Cloud Control try to remove them,
+        // which the service rejects with
+        // "aws: prefixed tag key names are not allowed for external use", failing the
+        // whole hotswap. Read the current tags and carry the reserved ones over so
+        // Cloud Control sees no change to them.
+        if (propName === 'Tags' && !diff.isRemoval) {
+          newValue = withPreservedReservedTags(newValue, await currentResourceTags(cloudControl, resourceType, identifier));
+        }
+
         if (diff.isRemoval) {
           patchOps.push({ op: 'remove', path: `/${propName}` });
         } else if (diff.isAddition) {
@@ -101,6 +114,71 @@ export async function isHotswappableCloudControlChange(
   });
 
   return ret;
+}
+
+/**
+ * Read the current `Tags` value of a resource via Cloud Control `GetResource`.
+ *
+ * Best-effort: returns `undefined` if the resource or its tags can't be read, in
+ * which case the caller proceeds without preserving reserved tags (i.e. the
+ * previous behaviour). `GetResource` returns the resource model as a JSON string
+ * in `ResourceDescription.Properties`.
+ */
+async function currentResourceTags(
+  cloudControl: ReturnType<SDK['cloudControl']>,
+  resourceType: string,
+  identifier: string,
+): Promise<unknown> {
+  try {
+    const current = await cloudControl.getResource({ TypeName: resourceType, Identifier: identifier });
+    const properties = current.ResourceDescription?.Properties;
+    return properties ? JSON.parse(properties).Tags : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Merge reserved AWS-managed tags (keys prefixed with `aws:`) from a resource's
+ * current tags into the new `Tags` value, so a Cloud Control `replace /Tags` does
+ * not drop them. Reserved keys already present in `newTags` are left untouched
+ * (the template wins). Matching is case-insensitive.
+ *
+ * `Tags` appears in two shapes across CloudFormation resource types: a list of
+ * `{ Key, Value }` objects (most resources, including `AWS::SQS::Queue`) and a
+ * plain `{ key: value }` map. Both are handled; any other shape is returned
+ * unchanged.
+ */
+function withPreservedReservedTags(newTags: any, currentTags: unknown): any {
+  const isReserved = (key: unknown): boolean => typeof key === 'string' && key.toLowerCase().startsWith('aws:');
+
+  // list of { Key, Value }
+  if (Array.isArray(newTags)) {
+    const currentList = Array.isArray(currentTags) ? currentTags : [];
+    const presentKeys = new Set(
+      newTags.filter((tag) => tag && typeof tag === 'object').map((tag) => tag.Key),
+    );
+    const preserved = currentList.filter(
+      (tag) => tag && typeof tag === 'object' && isReserved(tag.Key) && !presentKeys.has(tag.Key),
+    );
+    return [...newTags, ...preserved];
+  }
+
+  // { key: value } map
+  if (newTags && typeof newTags === 'object') {
+    const currentMap = currentTags && typeof currentTags === 'object' && !Array.isArray(currentTags)
+      ? currentTags as Record<string, any>
+      : {};
+    const preserved: Record<string, any> = {};
+    for (const [key, value] of Object.entries(currentMap)) {
+      if (isReserved(key) && !(key in newTags)) {
+        preserved[key] = value;
+      }
+    }
+    return { ...preserved, ...newTags };
+  }
+
+  return newTags;
 }
 
 /**
