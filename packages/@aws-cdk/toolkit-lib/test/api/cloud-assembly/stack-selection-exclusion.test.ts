@@ -67,6 +67,10 @@ describe('exclusion patterns', () => {
     expect(await select(['Prod/StackA', 'Dev/*'])).toEqual(['Dev/DevStack', 'Prod/StackA']);
   });
 
+  test('a bare `!` excludes nothing and does not crash', async () => {
+    expect(await select(['!'])).toEqual(['Dev/DevStack', 'Prod/Canary', 'Prod/StackA', 'Prod/StackB']);
+  });
+
   test('an empty pattern list still selects nothing', async () => {
     expect(await select([])).toEqual([]);
   });

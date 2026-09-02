@@ -206,12 +206,17 @@ export class StackAssembly implements IReadableCloudAssembly {
    */
   private suggestionsForPatterns(patterns: string[]): Record<string, string[]> {
     const suggestions: Record<string, string[]> = {};
-    for (const pattern of patterns.map(parsePattern)) {
-      if (this.allStacks.some((stack) => picomatch.isMatch(stack.hierarchicalId, pattern.glob))) {
+    for (const pattern of patterns) {
+      // The stacks the pattern is about; for a negation, the stacks it excludes
+      const refersTo = picomatch.parse(pattern).negated
+        ? (id: string, glob: string) => !picomatch.isMatch(id, glob)
+        : picomatch.isMatch;
+
+      if (this.allStacks.some((stack) => refersTo(stack.hierarchicalId, pattern))) {
         continue;
       }
-      suggestions[pattern.source] = this.allStacks
-        .filter((stack) => picomatch.isMatch(stack.hierarchicalId.toLowerCase(), pattern.glob.toLowerCase()))
+      suggestions[pattern] = this.allStacks
+        .filter((stack) => refersTo(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
         .map((stack) => stack.hierarchicalId);
     }
     return suggestions;
@@ -267,39 +272,26 @@ export class StackAssembly implements IReadableCloudAssembly {
 }
 
 /**
- * Read a pattern the way picomatch reads it: `scan()` strips the negating `!`s
- * off the front, leaving extglobs like `!(a|b)` alone, and an even number of
- * `!`s cancels out, as it does in picomatch itself.
- */
-function parsePattern(pattern: string) {
-  const { prefix, input } = picomatch.scan(pattern);
-
-  return {
-    source: pattern,
-    excludes: prefix.replace(/[^!]/g, '').length % 2 === 1,
-    glob: input.slice(prefix.length),
-  };
-}
-
-/**
- * Match the stacks a set of patterns selects: the union of the selecting
- * patterns, minus everything the excluding ones match.
+ * Match the stacks a set of patterns selects: OR over the selecting patterns,
+ * AND over the negated ones. Every pattern is compiled exactly as picomatch
+ * defines it - a negated matcher accepts the stacks that survive it - and
+ * `parse().negated` decides which group a pattern belongs to.
  *
- * Exclusions on their own start from every stack, so `!Stack` selects every
+ * Negations on their own start from every stack, so `!Stack` selects every
  * stack but that one. No patterns at all still selects nothing.
  */
 function matcherFor(patterns: string[]): (hierarchicalId: string) => boolean {
-  const parsed = patterns.map(parsePattern);
-  const positives = parsed.filter(pattern => !pattern.excludes).map(pattern => picomatch(pattern.glob));
-  const negatives = parsed.filter(pattern => pattern.excludes).map(pattern => picomatch(pattern.glob));
+  const matchers = patterns.map(pattern => ({ negates: picomatch.parse(pattern).negated, matches: picomatch(pattern) }));
+  const positives = matchers.filter(matcher => !matcher.negates);
+  const negatives = matchers.filter(matcher => matcher.negates);
 
   if (positives.length === 0 && negatives.length === 0) {
     return () => false;
   }
 
   return (hierarchicalId) => {
-    const included = positives.length === 0 || positives.some(matches => matches(hierarchicalId));
-    return included && !negatives.some(matches => matches(hierarchicalId));
+    const included = positives.length === 0 || positives.some(matcher => matcher.matches(hierarchicalId));
+    return included && negatives.every(matcher => matcher.matches(hierarchicalId));
   };
 }
 
