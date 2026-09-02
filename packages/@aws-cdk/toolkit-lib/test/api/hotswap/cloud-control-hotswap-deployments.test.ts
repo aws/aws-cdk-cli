@@ -740,3 +740,111 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property remov
     });
   });
 });
+
+describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('aws:-prefixed tag stripping in %p mode', (hotswapMode) => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/QueueUrl'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('strips aws:-prefixed keys from a list-shaped Tags patch (only user tags are sent)', async () => {
+    // GIVEN a Tags list carrying both a user tag and a reserved aws: system tag.
+    // Cloud Control rejects any request that carries an aws:-prefixed tag key
+    // ("aws: prefixed tag key names are not allowed for external use"), so it
+    // must be dropped from the patch before UpdateResource is called.
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: {
+            QueueUrl: 'https://sqs/queue',
+            Tags: [
+              { Key: 'DynamicTag', Value: 'original' },
+              { Key: 'aws:cloudformation:stack-name', Value: 'my-stack' },
+            ],
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'https://sqs/queue'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: {
+              QueueUrl: 'https://sqs/queue',
+              Tags: [
+                { Key: 'DynamicTag', Value: 'new' },
+                { Key: 'aws:cloudformation:stack-name', Value: 'my-stack' },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::SQS::Queue',
+      Identifier: 'https://sqs/queue',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/Tags', value: [{ Key: 'DynamicTag', Value: 'new' }] },
+      ]),
+    });
+  });
+
+  test('strips aws:-prefixed keys from a map-shaped Tags patch', async () => {
+    // GIVEN a map-shaped Tags value (some resource types model Tags this way).
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: {
+            QueueUrl: 'https://sqs/queue',
+            Tags: { DynamicTag: 'original', 'aws:cdk:owner': 'cdk' },
+          },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'https://sqs/queue'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: {
+              QueueUrl: 'https://sqs/queue',
+              Tags: { DynamicTag: 'new', 'aws:cdk:owner': 'cdk' },
+            },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN
+    expect(deployStackResult).not.toBeUndefined();
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+      TypeName: 'AWS::SQS::Queue',
+      Identifier: 'https://sqs/queue',
+      PatchDocument: JSON.stringify([
+        { op: 'replace', path: '/Tags', value: { DynamicTag: 'new' } },
+      ]),
+    });
+  });
+});
