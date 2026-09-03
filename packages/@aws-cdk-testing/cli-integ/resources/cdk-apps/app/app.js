@@ -167,8 +167,8 @@ class ListMultipleDependentStack extends Stack {
     const dependentStack1 = new DependentStack1(this, 'DependentStack1');
     const dependentStack2 = new DependentStack2(this, 'DependentStack2');
 
-    this.addDependency(dependentStack1);
-    this.addDependency(dependentStack2);
+    this.addStackDependency(dependentStack1);
+    this.addStackDependency(dependentStack2);
   }
 }
 
@@ -192,7 +192,7 @@ class ListStack extends Stack {
 
     const dependentStack = new DependentStack(this, 'DependentStack');
 
-    this.addDependency(dependentStack);
+    this.addStackDependency(dependentStack);
   }
 }
 
@@ -202,7 +202,7 @@ class DependentStack extends Stack {
 
     const innerDependentStack = new InnerDependentStack(this, 'InnerDependentStack');
 
-    this.addDependency(innerDependentStack);
+    this.addStackDependency(innerDependentStack);
   }
 }
 
@@ -786,7 +786,17 @@ class CloudControlHotswapStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
-    cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
+    // TEMPORARILY DISABLED — do not re-enable without the CCAPI tag fix.
+    // Changing this tag makes `Tags` the Queue's only changed property, so the CCAPI
+    // hotswap emits `replace /Tags` with just the template-defined tags. Since 2026-09-01
+    // that fails against a CloudFormation-created queue with:
+    //   ValidationException: aws: prefixed tag key names are not allowed for external use
+    // because reconciling to a tag set that omits the queue's reserved
+    // `aws:cloudformation:*` tags implies removing them, which SQS forbids
+    // (https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html).
+    // With this tag static, the Queue has no hotswappable change and the Dashboard and
+    // Rule still exercise the CCAPI path. This drops Queue/`Tags` hotswap coverage.
+    // cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
 
     // CloudWatch Dashboard — hotswapped via CCAPI, references the DynamoDB table name.
     // (This used to be an AWS::Bedrock::Agent, but Bedrock Agents Classic went into
@@ -1152,7 +1162,7 @@ switch (stackSet) {
 
     // A stack that depends on the failed stack -- used to test that '-e' does not deploy the failing stack
     const dependsOnFailed = new OutputsStack(app, `${stackPrefix}-depends-on-failed`);
-    dependsOnFailed.addDependency(failed);
+    dependsOnFailed.addStackDependency(failed);
 
     if (process.env.ENABLE_VPC_TESTING) { // Gating so we don't do context fetching unless that's what we are here for
       const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION };
