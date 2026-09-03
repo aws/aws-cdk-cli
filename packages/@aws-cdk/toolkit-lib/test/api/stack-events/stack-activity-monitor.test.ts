@@ -112,6 +112,48 @@ describe('stack monitor event ordering and pagination', () => {
   });
 });
 
+describe('stack monitor, failures while reading events', () => {
+  test('a failing final poll is reported but does not fail stop()', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(throttlingError());
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+
+    // The final poll only completes the event log, so its failure must not surface to the caller
+    await expect(monitor.stop()).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W5500',
+      message: expect.stringContaining('event log may be incomplete: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectStop());
+  });
+
+  test('a poll that fails while stop() waits for it does not fail stop() either', async () => {
+    // GIVEN - a poll that is still in flight when the monitor is stopped
+    let failFirstPoll: (error: Error) => void;
+    const firstPoll = new Promise((_, reject) => {
+      failFirstPoll = reject;
+    });
+    let polls = 0;
+    mockCloudFormationClient.on(DescribeStackEventsCommand).callsFake(() => {
+      polls += 1;
+      return polls === 1 ? firstPoll : { StackEvents: [event(101)] };
+    });
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStackEventsCommand, 1), 2);
+
+    // WHEN
+    const stopped = monitor.stop();
+    failFirstPoll!(throttlingError());
+
+    // THEN - the failure is reported by the tick that started the poll, and the final poll still runs
+    await expect(stopped).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_E5500',
+      message: expect.stringContaining('Error occurred while monitoring stack: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectEvent(101));
+  });
+});
+
 describe('stack monitor, collecting errors from events', () => {
   test('return errors from the root stack', async () => {
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -292,6 +334,10 @@ function event(nr: number): StackEvent {
 
 function errorEvent(nr: number, props?: Parameters<typeof addErrorToStackEvent>[1]) {
   return addErrorToStackEvent(event(nr), props);
+}
+
+function throttlingError(): Error {
+  return Object.assign(new Error('Rate exceeded'), { name: 'Throttling' });
 }
 
 function addErrorToStackEvent(
