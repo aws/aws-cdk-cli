@@ -281,17 +281,19 @@ export class StackAssembly implements IReadableCloudAssembly {
  * stack but that one. No patterns at all still selects nothing.
  */
 function matcherFor(patterns: string[]): (hierarchicalId: string) => boolean {
-  const matchers = patterns.map(pattern => ({ negates: picomatch.parse(pattern).negated, matches: picomatch(pattern) }));
-  const positives = matchers.filter(matcher => !matcher.negates);
-  const negatives = matchers.filter(matcher => matcher.negates);
+  const positives: picomatch.Matcher[] = [];
+  const negatives: picomatch.Matcher[] = [];
+  for (const pattern of patterns) {
+    (picomatch.parse(pattern).negated ? negatives : positives).push(picomatch(pattern));
+  }
 
   if (positives.length === 0 && negatives.length === 0) {
     return () => false;
   }
 
   return (hierarchicalId) => {
-    const included = positives.length === 0 || positives.some(matcher => matcher.matches(hierarchicalId));
-    return included && negatives.every(matcher => matcher.matches(hierarchicalId));
+    const included = positives.length === 0 || positives.some(matches => matches(hierarchicalId));
+    return included && negatives.every(matches => matches(hierarchicalId));
   };
 }
 
