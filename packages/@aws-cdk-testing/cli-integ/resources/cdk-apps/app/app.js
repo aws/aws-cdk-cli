@@ -167,8 +167,8 @@ class ListMultipleDependentStack extends Stack {
     const dependentStack1 = new DependentStack1(this, 'DependentStack1');
     const dependentStack2 = new DependentStack2(this, 'DependentStack2');
 
-    this.addDependency(dependentStack1);
-    this.addDependency(dependentStack2);
+    this.addStackDependency(dependentStack1);
+    this.addStackDependency(dependentStack2);
   }
 }
 
@@ -192,7 +192,7 @@ class ListStack extends Stack {
 
     const dependentStack = new DependentStack(this, 'DependentStack');
 
-    this.addDependency(dependentStack);
+    this.addStackDependency(dependentStack);
   }
 }
 
@@ -202,7 +202,7 @@ class DependentStack extends Stack {
 
     const innerDependentStack = new InnerDependentStack(this, 'InnerDependentStack');
 
-    this.addDependency(innerDependentStack);
+    this.addStackDependency(innerDependentStack);
   }
 }
 
@@ -1162,7 +1162,7 @@ switch (stackSet) {
 
     // A stack that depends on the failed stack -- used to test that '-e' does not deploy the failing stack
     const dependsOnFailed = new OutputsStack(app, `${stackPrefix}-depends-on-failed`);
-    dependsOnFailed.addDependency(failed);
+    dependsOnFailed.addStackDependency(failed);
 
     if (process.env.ENABLE_VPC_TESTING) { // Gating so we don't do context fetching unless that's what we are here for
       const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION };
