@@ -786,17 +786,7 @@ class CloudControlHotswapStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
-    // TEMPORARILY DISABLED — do not re-enable without the CCAPI tag fix.
-    // Changing this tag makes `Tags` the Queue's only changed property, so the CCAPI
-    // hotswap emits `replace /Tags` with just the template-defined tags. Since 2026-09-01
-    // that fails against a CloudFormation-created queue with:
-    //   ValidationException: aws: prefixed tag key names are not allowed for external use
-    // because reconciling to a tag set that omits the queue's reserved
-    // `aws:cloudformation:*` tags implies removing them, which SQS forbids
-    // (https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html).
-    // With this tag static, the Queue has no hotswappable change and the Dashboard and
-    // Rule still exercise the CCAPI path. This drops Queue/`Tags` hotswap coverage.
-    // cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
+    cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
 
     // CloudWatch Dashboard — hotswapped via CCAPI, references the DynamoDB table name.
     // (This used to be an AWS::Bedrock::Agent, but Bedrock Agents Classic went into
