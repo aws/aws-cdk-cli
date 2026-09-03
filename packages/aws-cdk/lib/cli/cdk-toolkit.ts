@@ -2576,8 +2576,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       // It has to be exactly this string because an integration test tests for
       // "bold(stackname) failed: ResourceNotReady: <error>"
       const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed'; // Formerly 'DeployFailed'
-      const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
-      const wrappedError = new ToolkitError(code, newMessage);
+      const newMessage = `❌  ${chalk.bold(stack.stackName)} failed to deploy`;
+      const wrappedError = ToolkitError.withCause(code, newMessage, e);
 
       error = {
         name: cdkCliErrorName(wrappedError),
