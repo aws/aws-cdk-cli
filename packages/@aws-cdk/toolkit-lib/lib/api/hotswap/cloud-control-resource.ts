@@ -2,6 +2,7 @@ import type { HotswapChange } from './common';
 import { classifyChanges, nonHotswappableChange } from './common';
 import { NonHotswappableReason } from '../../payloads';
 import type { ResourceChange } from '../../payloads/hotswap';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SDK } from '../aws-auth/private';
 import { CfnEvaluationException, type EvaluateCloudFormationTemplate } from '../cloudformation';
 
@@ -92,11 +93,15 @@ export async function isHotswappableCloudControlChange(
         return;
       }
 
-      await cloudControl.updateResource({
-        TypeName: resourceType,
-        Identifier: identifier,
-        PatchDocument: JSON.stringify(patchOps),
-      });
+      try {
+        await cloudControl.updateResource({
+          TypeName: resourceType,
+          Identifier: identifier,
+          PatchDocument: JSON.stringify(patchOps),
+        });
+      } catch (e) {
+        throw ToolkitError.withCause('HotswapFailed', `Failed to update ${identifier} (${resourceType})`, e);
+      }
     },
   });
 
