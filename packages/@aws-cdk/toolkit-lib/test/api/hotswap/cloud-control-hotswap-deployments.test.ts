@@ -1,4 +1,4 @@
-import { UpdateResourceCommand } from '@aws-sdk/client-cloudcontrol';
+import { UpdateResourceCommand, GetResourceCommand } from '@aws-sdk/client-cloudcontrol';
 import { DescribeTypeCommand } from '@aws-sdk/client-cloudformation';
 import { HotswapMode } from '../../../lib/api/hotswap';
 import { mockCloudControlClient, mockCloudFormationClient } from '../../_helpers/mock-sdk';
@@ -738,5 +738,142 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('Property remov
         { op: 'add', path: '/ProvisionedThroughput', value: { ReadCapacityUnits: 10, WriteCapacityUnits: 10 } },
       ]),
     });
+  });
+});
+
+describe('Tags hotswap does not disturb reserved aws:-prefixed tags', () => {
+  // Mirrors the live tag layout observed on a CloudFormation-created SQS queue: the reserved
+  // aws:cloudformation:* tags are interleaved with the template's own tags, and the live
+  // ordering is NOT the template ordering.
+  const liveTags = [
+    { Key: 'aws:cloudformation:logical-id', Value: 'Queue' },
+    { Key: 'DynamoTableArn', Value: 'arn:aws:dynamodb:us-east-1:1111:table/T' },
+    { Key: 'aws:cloudformation:stack-id', Value: 'arn:aws:cloudformation:us-east-1:1111:stack/s/1' },
+    { Key: 'aws:cloudformation:stack-name', Value: 'my-stack' },
+    { Key: 'DynamicTag', Value: 'original value' },
+  ];
+
+  function givenQueue(currentTags: any, templateTags: any, newTemplateTags: any) {
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      TypeName: 'AWS::SQS::Queue',
+      ResourceDescription: {
+        Identifier: 'q-123',
+        Properties: JSON.stringify({ Id: 'q-123', Tags: currentTags }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: { Type: 'AWS::SQS::Queue', Properties: { Id: 'q-123', Tags: templateTags } },
+      },
+    });
+    setup.pushStackResourceSummaries(setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'q-123'));
+    return setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: { Type: 'AWS::SQS::Queue', Properties: { Id: 'q-123', Tags: newTemplateTags } },
+        },
+      },
+    });
+  }
+
+  const patchOf = () => {
+    const call = mockCloudControlClient.commandCalls(UpdateResourceCommand)[0];
+    return JSON.parse((call.args[0].input as any).PatchDocument);
+  };
+
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('addresses the changed tag by its index in the live list, naming no reserved tag', async () => {
+    // GIVEN - only DynamicTag changes; it sits at index 4 on the live resource
+    const artifact = givenQueue(
+      liveTags,
+      [{ Key: 'DynamicTag', Value: 'original value' }, { Key: 'DynamoTableArn', Value: 'arn:aws:dynamodb:us-east-1:1111:table/T' }],
+      [{ Key: 'DynamicTag', Value: 'new value' }, { Key: 'DynamoTableArn', Value: 'arn:aws:dynamodb:us-east-1:1111:table/T' }],
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN - a single index-addressed replace, matching the patch shape proven to be accepted
+    expect(patchOf()).toEqual([
+      { op: 'replace', path: '/Tags/4', value: { Key: 'DynamicTag', Value: 'new value' } },
+    ]);
+    // and crucially: no wholesale /Tags replace, and no aws: key anywhere in the patch
+    const patchText = JSON.stringify(patchOf());
+    expect(patchText).not.toContain('"path":"/Tags"');
+    expect(patchText.toLowerCase()).not.toContain('aws:');
+  });
+
+  test('appends a tag the resource does not have yet', async () => {
+    // GIVEN
+    const unchanged = { Key: 'DynamoTableArn', Value: 'arn:aws:dynamodb:us-east-1:1111:table/T' };
+    const artifact = givenQueue(
+      liveTags,
+      [{ Key: 'DynamicTag', Value: 'original value' }, unchanged],
+      [{ Key: 'DynamicTag', Value: 'original value' }, unchanged, { Key: 'BrandNew', Value: 'x' }],
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN
+    expect(patchOf()).toEqual([{ op: 'add', path: '/Tags/-', value: { Key: 'BrandNew', Value: 'x' } }]);
+  });
+
+  test('removes a tag dropped from the template but never a reserved one', async () => {
+    // GIVEN - the template no longer defines DynamoTableArn (live index 1)
+    const artifact = givenQueue(
+      liveTags,
+      [{ Key: 'DynamicTag', Value: 'original value' }, { Key: 'DynamoTableArn', Value: 'arn:aws:dynamodb:us-east-1:1111:table/T' }],
+      [{ Key: 'DynamicTag', Value: 'original value' }],
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN - only the user tag is removed; the three reserved tags are untouched
+    expect(patchOf()).toEqual([{ op: 'remove', path: '/Tags/1' }]);
+    expect(JSON.stringify(patchOf()).toLowerCase()).not.toContain('aws:');
+  });
+
+  test('fails loudly when the live tags cannot be read, instead of sending a wholesale replace', async () => {
+    // GIVEN - the deploy role may not read the resource, so GetResource fails
+    const artifact = givenQueue(
+      liveTags,
+      [{ Key: 'DynamicTag', Value: 'original value' }],
+      [{ Key: 'DynamicTag', Value: 'new value' }],
+    );
+    mockCloudControlClient.on(GetResourceCommand).rejects(new Error('AccessDenied'));
+
+    // WHEN / THEN - the hotswap fails with an actionable error...
+    await expect(
+      hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact),
+    ).rejects.toThrow(/could not read the current tags of q-123 \(AWS::SQS::Queue\)/);
+
+    // ...and we never send the request that would have removed the reserved tags
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+  });
+
+  test('treats a resource with no tags as all additions', async () => {
+    // GIVEN - the live resource carries no Tags at all
+    const artifact = givenQueue(
+      undefined,
+      [{ Key: 'DynamicTag', Value: 'original value' }],
+      [{ Key: 'DynamicTag', Value: 'new value' }],
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN
+    expect(patchOf()).toEqual([
+      { op: 'add', path: '/Tags/-', value: { Key: 'DynamicTag', Value: 'new value' } },
+    ]);
   });
 });
