@@ -542,7 +542,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 });
 
 describe('deploy failures', () => {
-  test('wraps a failed resource deployment as "<stack> failed: <error>" and rethrows', async () => {
+  test('wraps a failed resource deployment with cause', async () => {
     // Error messages are not emitted to the IoHost, so the snapshot
     // shows the deploy stopping mid-flight rather than a failure line.
     const resourceFailure = Object.assign(
@@ -558,7 +558,11 @@ describe('deploy failures', () => {
     }).catch((e) => e);
 
     expect(stripAnsi(error.message)).toBe(
-      '❌  Test-Stack-A failed: ResourceNotReady: Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
+      '❌  Test-Stack-A failed to deploy',
+    );
+    expect(stripAnsi(error.cause.name)).toBe('ResourceNotReady');
+    expect(stripAnsi(error.cause.message)).toContain(
+      'Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
     );
     expect(error.name).toBe('DeployStackFailed');
   });
