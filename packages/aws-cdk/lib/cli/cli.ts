@@ -432,6 +432,20 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
 
+        if (args.monitoringTimeMinutes !== undefined && args.rollbackTriggerAlarmArns === undefined) {
+          throw new ToolkitError('MonitoringTimeRequiresRollbackTriggers', '--monitoring-time-minutes requires --rollback-trigger-alarm-arns');
+        }
+
+        // Only manage rollback configuration when the user opts in via --rollback-trigger-alarm-arns.
+        // Every alarm ARN is treated as a metric alarm; composite alarms are only reachable through the
+        // programmatic API. Leaving the flag off means CDK does not manage a stack's rollback triggers.
+        const rollbackConfiguration = args.rollbackTriggerAlarmArns !== undefined
+          ? {
+            triggers: args.rollbackTriggerAlarmArns.map((arn: string) => ({ arn })),
+            monitoringTimeInMinutes: args.monitoringTimeMinutes,
+          }
+          : undefined;
+
         return cli.deploy({
           selector: {
             ...expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
@@ -440,6 +454,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
+          rollbackConfiguration,
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),

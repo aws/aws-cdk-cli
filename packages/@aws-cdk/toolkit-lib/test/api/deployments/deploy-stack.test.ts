@@ -677,6 +677,88 @@ test('deploy is not skipped if notificationArns are different', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
+test('rollback configuration is passed through to CloudFormation', async () => {
+  // GIVEN
+  givenStackExists();
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    ...expect.anything,
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  } as CreateChangeSetCommandInput);
+});
+
+test('deploy is skipped if rollback configuration is the same', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if rollback configuration is different', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 30,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
 test('deploy is not skipped if we are deploying and there is a change from the last hotswap deployment', async () => {
   // GIVEN
   // The synthesized template matches what CloudFormation currently has stored, so every normal

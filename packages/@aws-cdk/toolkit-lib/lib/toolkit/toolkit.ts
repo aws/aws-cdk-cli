@@ -112,7 +112,7 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
@@ -885,6 +885,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      // Rollback triggers follow the same semantics as Notification ARNs:
+      //
+      //  - undefined  =>  cdk ignores it, leaving any existing triggers in place.
+      //  - { triggers: [] }  =>  cdk manages it, clearing any existing triggers.
+      //  - { triggers: [...] }  =>  cdk sets the triggers to the provided list.
+      const rollbackConfiguration = toCloudFormationRollbackConfiguration(options.rollbackConfiguration);
+
       // Deploy options that are shared between change set creation and execution
       const sharedDeployOptions = {
         stack,
@@ -898,6 +905,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         usePreviousParameters: options.parameters?.keepExistingParameters,
         rollback: options.rollback,
         notificationArns,
+        rollbackConfiguration,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
         express: options.express,
