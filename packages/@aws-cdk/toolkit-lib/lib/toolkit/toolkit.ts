@@ -694,13 +694,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const reports = await obtainUnifiedValidationReport(assembly, stacks);
 
     // Online validation: submit templates to CloudFormation for early validation
+    let onlineReports: PluginReportJson[] | undefined;
     if (options.online ?? true) {
       const deployments = await this.deploymentsForAction('validate');
 
       const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
-      if (onlineReport) {
-        reports.push(onlineReport);
-      }
+      onlineReports = onlineReport ? [onlineReport] : [];
+      reports.push(...onlineReports);
     }
 
     const hasAnyViolations = reports.some(report => report.violations && report.violations.length > 0);
@@ -709,6 +709,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       conclusion: combineConclusions(reports),
       title: undefined,
       pluginReports: reports,
+      onlineReports,
     };
 
     if (!hasAnyViolations) {

@@ -13,6 +13,13 @@ export function flatten<T>(xs: T[][]): T[] {
 }
 
 /**
+ * Sum a list of numbers
+ */
+export function sum(xs: number[]): number {
+  return xs.reduce((a, b) => a + b, 0);
+}
+
+/**
  * Partition a collection by removing and returning all elements that match a predicate
  *
  * Note: the input collection is modified in-place!

@@ -59,6 +59,16 @@ export const CLI_PRIVATE_IO = {
     description: 'Finished asset building and publishing',
     interface: 'EventResult',
   }),
+  CDK_CLI_I4000: make.trace<EventStart>({
+    code: 'CDK_CLI_I4000',
+    description: 'Validation has started',
+    interface: 'EventStart',
+  }),
+  CDK_CLI_I4001: make.trace<EventResult>({
+    code: 'CDK_CLI_I4001',
+    description: 'Validation has finished',
+    interface: 'EventResult',
+  }),
 };
 
 /**
@@ -84,5 +94,10 @@ export const CLI_PRIVATE_SPAN = {
     name: 'Asset',
     start: CLI_PRIVATE_IO.CDK_CLI_I3002,
     end: CLI_PRIVATE_IO.CDK_CLI_I3003,
+  },
+  VALIDATE: {
+    name: 'Validation',
+    start: CLI_PRIVATE_IO.CDK_CLI_I4000,
+    end: CLI_PRIVATE_IO.CDK_CLI_I4001,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;

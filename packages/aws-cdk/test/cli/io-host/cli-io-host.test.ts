@@ -835,6 +835,39 @@ describe('CliIoHost', () => {
       }));
     });
 
+    test('emit telemetry on VALIDATE event', async () => {
+      // Create a message that should trigger telemetry using the actual message code
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'trace',
+        action: 'validate',
+        code: 'CDK_CLI_I4001',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          counters: {
+            'offlineViolations:error': 2,
+            'offlineWouldFailDeploy': 1,
+            'onlineViolations': 0,
+          },
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'VALIDATE',
+        duration: 123,
+        counters: {
+          'offlineViolations:error': 2,
+          'offlineWouldFailDeploy': 1,
+          'onlineViolations': 0,
+        },
+      }));
+    });
+
     test('do not emit telemetry on non telemetry codes', async () => {
       // Create a message that should trigger telemetry using the actual message code
       const message: IoMessage<unknown> = {
