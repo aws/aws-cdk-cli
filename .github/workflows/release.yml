@@ -1899,14 +1899,14 @@ jobs:
         run: |-
           echo "Uploading aws-cdk-cli to S3"
           echo "::add-mask::$BUCKET_NAME"
-          S3_PATH="$DOCS_STREAM/aws-cdk-v$(cat dist/version.txt).zip"
+          S3_PATH="$DOCS_STREAM/toolkit-versions-v$(cat dist/version.txt).zip"
           LATEST="latest-CLI"
 
           # Capture both stdout and stderr
           if OUTPUT=$(aws s3api put-object \
             --bucket "$BUCKET_NAME" \
             --key "$S3_PATH" \
-            --body dist/api-extractor-docs.zip \
+            --body dist/toolkit-versions.zip \
             --if-none-match "*" 2>&1); then
             
             # File was uploaded successfully, update the latest pointer

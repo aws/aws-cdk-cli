@@ -29,6 +29,7 @@
     "test:watch": "projen test:watch",
     "unbump": "projen unbump",
     "upgrade-aws-cdk-lib": "projen upgrade-aws-cdk-lib",
+    "versions": "projen versions",
     "watch": "projen watch",
     "projen": "projen"
   },
