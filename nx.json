@@ -15,8 +15,7 @@
         "{projectRoot}/lib",
         "{projectRoot}/tsconfig.tsbuildinfo",
         "{projectRoot}/coverage",
-        "{projectRoot}/test-reports",
-        "{projectRoot}/dist"
+        "{projectRoot}/test-reports"
       ],
       "inputs": [
         "!{projectRoot}/test-reports/**"

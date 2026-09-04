@@ -392,6 +392,11 @@ repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 const repo = configureProject(repoProject);
 
+// Exclude dist from the NX cache to avoid restoring stale release artifacts
+repoProject.tryFindObjectFile('nx.json')!.patch(
+  pj.JsonPatch.remove('/targetDefaults/build/outputs/4'), // {projectRoot}/dist
+);
+
 interface GenericProps {
   private?: boolean;
 }
