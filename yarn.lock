@@ -1494,6 +1494,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws/cloudformation-validate@npm:1.8.0-beta":
+  version: 1.8.0-beta
+  resolution: "@aws/cloudformation-validate@npm:1.8.0-beta"
+  checksum: 10c0/9aac10a19b57e760a1147dc6b57138ca40ba11d75777bed8e00eae8b86c6cba3aed40677a6c9d88e3d680b07da1d03dd94bfa7dec18e47b73375c036cb6d884a
+  languageName: node
+  linkType: hard
+
 "@aws/lambda-invoke-store@npm:^0.3.0":
   version: 0.3.0
   resolution: "@aws/lambda-invoke-store@npm:0.3.0"
@@ -5638,6 +5645,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"aws-cdk-lib@npm:2.268.0":
+  version: 2.268.0
+  resolution: "aws-cdk-lib@npm:2.268.0"
+  dependencies:
+    "@aws-cdk/asset-awscli-v1": "npm:2.2.292"
+    "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
+    "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
+    "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
+    "@aws/cloudformation-validate": "npm:1.8.0-beta"
+    "@balena/dockerignore": "npm:^1.0.2"
+    case: "npm:1.6.3"
+    fs-extra: "npm:^11.3.6"
+    ignore: "npm:^5.3.2"
+    jsonschema: "npm:^1.5.0"
+    mime-types: "npm:^2.1.35"
+    minimatch: "npm:^10.2.5"
+    punycode: "npm:^2.3.1"
+    semver: "npm:^7.8.5"
+    yaml: "npm:1.10.3"
+  peerDependencies:
+    constructs: ^10.5.0
+  checksum: 10c0/c87c32dd16e11abcdc1f09ac5d7194fefb82e524e6c41a35d3b9c5ecf91915c14cb94d69b82a72bec2c031bf8e98ec473986fbbaea0b057d37468fdabe1f5d6f
+  languageName: node
+  linkType: hard
+
 "aws-cdk@npm:^0.0.0, aws-cdk@workspace:packages/aws-cdk":
   version: 0.0.0-use.local
   resolution: "aws-cdk@workspace:packages/aws-cdk"
@@ -5695,7 +5727,7 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.267.0"
+    aws-cdk-lib: "npm:2.268.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
