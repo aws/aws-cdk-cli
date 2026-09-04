@@ -476,6 +476,12 @@ const cloudAssemblySchema = configureProject(
 );
 fixupTestTask(cloudAssemblySchema);
 
+// Patch jsonschema: local $ref resolution crashes with "Invalid URL" on Node >= 24.20.0
+// Fix from https://github.com/tdegrunt/jsonschema/pull/424
+repoProject.package.addField('resolutions', {
+  [`${cloudAssemblySchema.name}/jsonschema`]: 'patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch',
+});
+
 cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
   jsiiVersion: TYPESCRIPT_VERSION,
