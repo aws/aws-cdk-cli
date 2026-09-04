@@ -3,14 +3,12 @@ import { integTest, sleep, withDefaultFixture } from '../../lib';
 import { startTelemetryEndpoint } from '../../lib/telemetry-endpoint';
 
 /**
- * Opting out must not itself phone home.
+ * Opting out via the persisted setting has to actually stop the data leaving the machine.
  *
- * `canCollectTelemetry` special-cases `cdk cli-telemetry --disable` (the persisted setting is only
- * written by that very run, so it cannot be what suppresses it), which is a different route to the
- * same decision than `cdk-telemetry-disable-command-posts-nothing`: that one proves a SUBSEQUENT
- * command respects the setting this one writes, whereas this proves the writing run sends nothing.
- * Asserted against a real local endpoint rather than the CLI's trace output, because the POST is made
- * by a detached child that outlives the CLI and so would not show up in its output at all.
+ * `cli-telemetry --disable` writes to the CDK context rather than reading an environment variable, so
+ * it reaches the same decision by a different route than
+ * `cdk-telemetry-disabled-posts-nothing`. Proven the same way: a real local endpoint, and nothing
+ * POSTed to it by the CLI or by the detached child that outlives it.
  *
  * The endpoint's CA is still supplied, via `NODE_EXTRA_CA_CERTS`, even though nothing should reach it:
  * without a trusted CA "nothing arrived" would also be true of an ENABLED run whose TLS handshake
@@ -18,11 +16,21 @@ import { startTelemetryEndpoint } from '../../lib/telemetry-endpoint';
  * the trust store and breaks the SDK's own calls to public AWS endpoints.
  */
 integTest(
-  'CLI Telemetry --disable does not send to endpoint',
+  'cli-telemetry --disable posts nothing to the endpoint',
   withDefaultFixture(async (fixture) => {
     const endpoint = await startTelemetryEndpoint({ certDirRoot: fixture.integTestDir });
     try {
       await fixture.cdk(['cli-telemetry', '--disable'], {
+        modEnv: {
+          CDK_HOME: fixture.integTestDir,
+          TELEMETRY_ENDPOINT: endpoint.url,
+        },
+      });
+
+      await fixture.cdkSynth({
+        options: [
+          fixture.fullStackName('test-1'),
+        ],
         modEnv: {
           CDK_HOME: fixture.integTestDir,
           TELEMETRY_ENDPOINT: endpoint.url,

@@ -1,4 +1,3 @@
-import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -15,10 +14,10 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
-import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
 import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { SubprocessTelemetrySink } from '../telemetry/sink/subprocess-sink';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -36,6 +35,28 @@ type CliAction =
   | 'version'
   | 'cli-telemetry'
   | 'none';
+
+/**
+ * How telemetry should reach the network.
+ *
+ * An `Agent` cannot cross a process boundary, so the detached sender is handed the proxy and
+ * certificate configuration as plain data and builds its own.
+ */
+export interface TelemetryNetworkOptions {
+  /**
+   * Proxy configured via `--proxy` or the `proxy` setting.
+   *
+   * @default - the sender resolves it from the environment
+   */
+  readonly proxyUrl?: string;
+
+  /**
+   * Absolute path to the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   *
+   * @default - only the system trust store
+   */
+  readonly caBundlePath?: string;
+}
 
 export interface CliIoHostProps {
   /**
@@ -402,7 +423,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.routeStackActivityToPrinter();
   }
 
-  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+  public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const config = require('../cli-type-registry.json');
     const validCommands = Object.keys(config.commands);
@@ -431,17 +452,18 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
-        sinks.push(new EndpointTelemetrySink({
+        sinks.push(new SubprocessTelemetrySink({
           ioHost: this,
-          agent: proxyAgent,
           endpoint: telemetryEndpoint,
+          proxyUrl: network.proxyUrl,
+          caBundlePath: network.caBundlePath,
         }));
-        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
+        await this.asIoHelper().defaults.trace('Telemetry sink registered');
       } catch (e: any) {
-        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+        await this.asIoHelper().defaults.trace(`Telemetry sink registration failed: ${e.message}`);
       }
     } else {
-      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
+      await this.asIoHelper().defaults.trace('Telemetry disabled');
     }
 
     if (sinks.length > 0) {
