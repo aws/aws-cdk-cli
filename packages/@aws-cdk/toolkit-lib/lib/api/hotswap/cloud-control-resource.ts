@@ -83,8 +83,8 @@ export async function isHotswappableCloudControlChange(
           patchOps.push({ op: 'remove', path: `/${propName}` });
         } else if (diff.isAddition) {
           patchOps.push({ op: 'add', path: `/${propName}`, value: newValue });
-        } else if (propName === 'Tags' && Array.isArray(newValue)) {
-          patchOps.push(...await tagPatchOps(cloudControl, resourceType, identifier, newValue));
+        } else if (propName === 'Tags' && newValue && typeof newValue === 'object') {
+          patchOps.push(...await buildTagPatchOps(cloudControl, resourceType, identifier, newValue));
         } else {
           patchOps.push({ op: 'replace', path: `/${propName}`, value: newValue });
         }
@@ -111,9 +111,8 @@ export async function isHotswappableCloudControlChange(
 }
 
 /**
- * Tag keys beginning with `aws:` are reserved for AWS-managed tags, for example the
- * `aws:cloudformation:stack-name` / `stack-id` / `logical-id` tags that CloudFormation puts
- * on the resources it creates. They are read-only: a service rejects any external attempt to
+ * Tag keys beginning with `aws:` are reserved for AWS-managed tags.
+ * They are read-only: a service rejects any external attempt to
  * create, update or delete them.
  */
 function isReservedTagKey(key: unknown): boolean {
@@ -121,43 +120,101 @@ function isReservedTagKey(key: unknown): boolean {
 }
 
 /**
- * Build the patch operations for a changed `Tags` list.
- *
- * A wholesale `replace /Tags` declares the resource's *complete* desired tag set. On a
- * resource created by CloudFormation that set also contains reserved `aws:`-prefixed tags,
- * which are never in the template — so the service reconciles by deleting them and rejects
- * the whole request:
- *
- * ```
- * ValidationException: aws: prefixed tag key names are not allowed for external use
- * ```
- *
- * Instead, address individual tags by their index in the resource's *current* `Tags` list.
- * Reserved tags are then never named by the patch, so the service sees no change to them.
- *
- * This needs the current state, so it is read via Cloud Control `GetResource`. If that read
- * fails we throw rather than silently falling back to a wholesale replace: on a
- * CloudFormation-created resource that fallback is precisely the request the service
- * rejects, so degrading to it would resurface the original failure with a misleading cause.
+ * Escape a single JSON Pointer reference token (RFC 6901): `~` becomes `~0` and `/` becomes
+ * `~1`. Required because AWS tag keys may legally contain `/`, which would otherwise be read
+ * as a path separator.
  */
-async function tagPatchOps(
+function escapeJsonPointerToken(key: string): string {
+  return key.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/**
+ * Build the patch operations for a changed `Tags` property.
+ *
+ * Address tags individually so reserved tags are never named by the patch and the
+ * service sees no change to them. That needs the current state, which is read via Cloud
+ * Control `GetResource`.
+ *
+ * CloudFormation models `Tags` either as a list of `{ Key, Value }` (addressed by index) or as
+ * a `{ key: value }` map (addressed by key). Both are handled.
+ */
+async function buildTagPatchOps(
   cloudControl: ReturnType<SDK['cloudControl']>,
   resourceType: string,
   identifier: string,
-  desiredTags: any[],
+  desiredTags: any,
 ): Promise<Array<{ op: string; path: string; value?: any }>> {
   const readTags = await currentResourceTags(cloudControl, resourceType, identifier);
+  const desiredIsList = Array.isArray(desiredTags);
+  const currentTags = readTags ?? (desiredIsList ? [] : {});
 
-  // A few resource types model `Tags` as a `{ key: value }` map instead of a list. There is no
-  // index to address there, so keep the previous wholesale replace for that shape. Untested
-  // against a service that also carries reserved tags on a map-shaped property.
-  if (readTags !== undefined && !Array.isArray(readTags)) {
-    return [{ op: 'replace', path: '/Tags', value: desiredTags }];
+  if (desiredIsList && Array.isArray(currentTags)) {
+    return buildListTagPatchOps(currentTags, desiredTags);
+  }
+  if (!desiredIsList && !Array.isArray(currentTags) && typeof currentTags === 'object') {
+    return buildMapTagPatchOps(currentTags as Record<string, any>, desiredTags);
   }
 
-  // No `Tags` on the resource yet is legitimate: every desired tag is simply an addition.
-  const currentTags: any[] = readTags ?? [];
+  // The live resource reports `Tags` in a shape the template does not declare. A
+  // resource type does not change its tag shape, so this is not expected to happen.
+  throw new ToolkitError(
+    'HotswapTagReadFailed',
+    `could not interpret the current tags of ${identifier} (${resourceType}): the resource reports Tags as ${describeTagsShape(currentTags)} but the template declares ${describeTagsShape(desiredTags)}`,
+  );
+}
 
+/**
+ * Describe the shape of a `Tags` value, for error messages.
+ */
+function describeTagsShape(tags: unknown): string {
+  if (Array.isArray(tags)) {
+    return 'a list';
+  }
+  if (tags === null) {
+    return 'null';
+  }
+  if (typeof tags === 'object') {
+    return 'a map';
+  }
+  return typeof tags; // "string", "number", "undefined", etc.
+}
+/**
+ * `Tags` as a `{ key: value }` map: address each tag by its key. Object members have no
+ * position, so unlike the list form there is no ordering constraint between operations.
+ */
+function buildMapTagPatchOps(
+  currentTags: Record<string, any>,
+  desiredTags: Record<string, any>,
+): Array<{ op: string; path: string; value?: any }> {
+  const ops: Array<{ op: string; path: string; value?: any }> = [];
+
+  for (const [key, value] of Object.entries(desiredTags)) {
+    const path = `/Tags/${escapeJsonPointerToken(key)}`;
+    if (!Object.hasOwn(currentTags, key)) {
+      ops.push({ op: 'add', path, value });
+    } else if (JSON.stringify(currentTags[key]) !== JSON.stringify(value)) {
+      ops.push({ op: 'replace', path, value });
+    }
+  }
+
+  // Drop tags the template no longer defines — but never the reserved ones.
+  for (const key of Object.keys(currentTags)) {
+    if (!Object.hasOwn(desiredTags, key) && !isReservedTagKey(key)) {
+      ops.push({ op: 'remove', path: `/Tags/${escapeJsonPointerToken(key)}` });
+    }
+  }
+
+  return ops;
+}
+
+/**
+ * `Tags` as a list of `{ Key, Value }`: address each tag by its index in the resource's
+ * current list.
+ */
+function buildListTagPatchOps(
+  currentTags: any[],
+  desiredTags: any[],
+): Array<{ op: string; path: string; value?: any }> {
   const isTag = (tag: any): boolean => tag && typeof tag === 'object' && typeof tag.Key === 'string';
 
   const indexByKey = new Map<string, number>();
@@ -201,8 +258,7 @@ async function tagPatchOps(
  * the resource model as a JSON string in `ResourceDescription.Properties`.
  *
  * Returns `undefined` when the resource simply has no tags. Throws when the current tags
- * cannot be determined at all, because guessing would mean sending a patch that removes the
- * resource's reserved `aws:` tags.
+ * cannot be determined at all
  */
 async function currentResourceTags(
   cloudControl: ReturnType<SDK['cloudControl']>,
