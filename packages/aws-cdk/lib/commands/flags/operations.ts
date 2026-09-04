@@ -43,6 +43,8 @@ export class FlagOperations {
   private allStacks: CloudFormationStackArtifact[];
   private queue: PQueue;
   private baselineTempDir?: string;
+  private originalTempDir?: string;
+  private modifiedTempDir?: string;
 
   constructor(
     private readonly flags: FeatureFlag[],
@@ -278,21 +280,26 @@ export class FlagOperations {
     const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
     const app = cdkJson.app;
 
+    this.originalTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-original-'));
     const source = await this.toolkit.fromCdkApp(app, {
       contextStore: memoryContext,
-      outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-original-')),
+      outdir: this.originalTempDir,
     });
 
     const updateObj = await this.buildUpdateObject(flagNames, params, baseContextValues);
-    if (!updateObj) return false;
+    if (!updateObj) {
+      await this.cleanupTempDirectories();
+      return false;
+    }
 
     await memoryContext.update(updateObj);
     const cx = await this.toolkit.synth(source);
     const assembly = cx.cloudAssembly;
 
+    this.modifiedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-temp-'));
     const modifiedSource = await this.toolkit.fromCdkApp(app, {
       contextStore: memoryContext,
-      outdir: fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-temp-')),
+      outdir: this.modifiedTempDir,
     });
 
     const modifiedCx = await this.toolkit.synth(modifiedSource);
@@ -378,10 +385,14 @@ export class FlagOperations {
 
   /** Removes temporary directories created during flag operations */
   private async cleanupTempDirectories(): Promise<void> {
-    const originalDir = path.join(process.cwd(), 'original');
-    const tempDir = path.join(process.cwd(), 'temp');
-    await fs.remove(originalDir);
-    await fs.remove(tempDir);
+    if (this.originalTempDir) {
+      await fs.remove(this.originalTempDir);
+      this.originalTempDir = undefined;
+    }
+    if (this.modifiedTempDir) {
+      await fs.remove(this.modifiedTempDir);
+      this.modifiedTempDir = undefined;
+    }
   }
 
   /** Actually modifies the cdk.json file with the new flag values */

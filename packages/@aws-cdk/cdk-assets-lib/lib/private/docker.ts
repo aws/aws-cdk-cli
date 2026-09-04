@@ -136,6 +136,10 @@ export class Docker {
     await this.execute(buildCommand, {
       cwd: options.directory,
       subprocessOutputDestination: this.subprocessOutputDestination,
+      // `--build-arg` values are passed literally and are a common (if
+      // discouraged) place for secrets; `--secret` specs can name sensitive
+      // sources. Mask their values wherever the command line is logged.
+      redactFlags: ['--build-arg', '--secret'],
       env: {
         BUILDX_NO_DEFAULT_ATTESTATIONS: '1', // Docker Build adds provenance attestations by default that confuse cdk-assets
       },

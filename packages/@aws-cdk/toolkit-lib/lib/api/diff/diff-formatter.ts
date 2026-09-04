@@ -1,5 +1,5 @@
 import { format } from 'node:util';
-import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   formatDifferences,
   formatSecurityChanges,
@@ -149,6 +149,15 @@ export interface TemplateInfo {
    * moved fom and to, respectively.
    */
   readonly mappings?: Record<string, string>;
+
+  /**
+   * The resolved environment the stack will be deployed to, shown in the stack header.
+   * Must be resolved (as by `Deployments.resolveEnvironment()`), not `newTemplate.environment`,
+   * which is `unknown-account`/`unknown-region` for environment-agnostic stacks.
+   *
+   * @default undefined - no environment is shown
+   */
+  readonly environment?: cxapi.Environment;
 }
 
 /**
@@ -159,6 +168,7 @@ export class DiffFormatter {
   private readonly stackName: string;
   private readonly isImport: boolean;
   private readonly mappings: Record<string, string>;
+  private readonly environmentString?: string;
 
   /**
    * Cache of computed TemplateDiffs, indexed by stack name.
@@ -170,6 +180,8 @@ export class DiffFormatter {
     this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
     this.isImport = props.templateInfo.isImport ?? false;
     this.mappings = props.templateInfo.mappings ?? {};
+    const environment = props.templateInfo.environment;
+    this.environmentString = environment && cxapi.EnvironmentUtils.format(environment.account, environment.region);
   }
 
   public get diffs() {
@@ -232,6 +244,7 @@ export class DiffFormatter {
       changeSet: this.templateInfo.changeSet,
       mappings: this.mappings,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
     }, options);
   }
 
@@ -243,8 +256,10 @@ export class DiffFormatter {
     changeSet: DescribeChangeSetOutput | undefined;
     mappings: Record<string, string>;
     logicalIdMap: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
   }, options: ReusableStackDiffOptions = {}): FormatStackDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentString } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, mappings);
 
@@ -256,7 +271,7 @@ export class DiffFormatter {
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+        stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
       }
 
       if (!options.quiet && this.isImport) {
@@ -332,6 +347,7 @@ export class DiffFormatter {
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
     }, options);
 
     return { formattedDiff, permissionChangeType, numStacksWithChanges };
@@ -344,15 +360,17 @@ export class DiffFormatter {
     nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
     changeSet: DescribeChangeSetOutput | undefined;
     logicalIdMap?: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
   }, options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap, environmentString } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, this.mappings);
     const permissionChangeType = permissionTypeFromDiff(diff);
 
     const stream = new StringWriteStream();
     if (!options.quiet || permissionChangeType !== PermissionChangeType.NONE) {
-      stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+      stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
     }
 
     try {
@@ -393,6 +411,10 @@ export class DiffFormatter {
 
     return { formattedDiff, permissionChangeType: escalatedPermissionType, numStacksWithChanges };
   }
+}
+
+function formatEnvironment(environment?: string): string {
+  return environment ? chalk.grey(` (${environment})`) : '';
 }
 
 function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {

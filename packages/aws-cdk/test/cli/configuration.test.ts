@@ -108,6 +108,16 @@ test('bundling stacks defaults to ** for watch', async () => {
   expect(settings.get(['bundlingStacks'])).toEqual(['**']);
 });
 
+test('bundling stacks defaults to ** for refactor', async () => {
+  // GIVEN
+  const settings = await commandLineArgumentsToSettings(ioHelper, {
+    _: [Command.REFACTOR],
+  });
+
+  // THEN
+  expect(settings.get(['bundlingStacks'])).toEqual(['**']);
+});
+
 test('bundling stacks with deploy exclusively', async () => {
   // GIVEN
   const settings = await commandLineArgumentsToSettings(ioHelper, {

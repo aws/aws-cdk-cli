@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { GcAsset as GCAsset } from './garbage-collector';
+import type { GcAction, GcAsset as GCAsset } from './garbage-collector';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { IoHelper } from '../io/private';
 
@@ -11,11 +11,14 @@ export class ProgressPrinter {
   private taggedAssetsSizeMb: number;
   private deletedAssets: number;
   private deletedAssetsSizeMb: number;
+  private eligibleAssets: number;
+  private eligibleAssetsSizeMb: number;
+  private action: GcAction;
   private interval: number;
   private setInterval?: ReturnType<typeof setTimeout>;
   private isPaused: boolean;
 
-  constructor(ioHelper: IoHelper, totalAssets: number, interval?: number) {
+  constructor(ioHelper: IoHelper, totalAssets: number, interval?: number, action: GcAction = 'full') {
     this.ioHelper = ioHelper;
     this.totalAssets = totalAssets;
     this.assetsScanned = 0;
@@ -23,12 +26,27 @@ export class ProgressPrinter {
     this.taggedAssetsSizeMb = 0;
     this.deletedAssets = 0;
     this.deletedAssetsSizeMb = 0;
+    this.eligibleAssets = 0;
+    this.eligibleAssetsSizeMb = 0;
+    this.action = action;
     this.interval = interval ?? 10_000;
     this.isPaused = false;
   }
 
   public reportScannedAsset(amt: number) {
     this.assetsScanned += amt;
+  }
+
+  /**
+   * Report assets that are eligible for garbage collection (i.e. isolated assets
+   * that are not referenced by any deployed stack). Used by the `print` action,
+   * which does not tag or delete anything, so that the output reflects what gc
+   * found instead of always reporting 0 assets.
+   */
+  public reportEligibleAsset(assets: GCAsset[]) {
+    this.eligibleAssets += assets.length;
+    const sizeInBytes = assets.reduce((total, asset) => total + asset.size, 0);
+    this.eligibleAssetsSizeMb += sizeInBytes / 1_048_576;
   }
 
   public reportTaggedAsset(assets: GCAsset[]) {
@@ -75,7 +93,23 @@ export class ProgressPrinter {
   }
 
   private print() {
-    const percentage = ((this.assetsScanned / this.totalAssets) * 100).toFixed(2);
+    // Guard against dividing by zero: an empty bucket/repo (or the final flush of one)
+    // has totalAssets === 0, which would produce "NaN%" and make gc look broken (#625).
+    const percentage = this.totalAssets > 0
+      ? ((this.assetsScanned / this.totalAssets) * 100).toFixed(2)
+      : '100.00';
+
+    // The 'print' action does not tag or delete anything, so report the assets that
+    // are eligible for garbage collection rather than always reporting "0 tagged, 0 deleted".
+    if (this.action === 'print') {
+      if (this.eligibleAssetsSizeMb >= 1000) {
+        void this.ioHelper.defaults.info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.eligibleAssets} assets (${(this.eligibleAssetsSizeMb / 1000).toFixed(2)} GiB) eligible for deletion.`));
+      } else {
+        void this.ioHelper.defaults.info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.eligibleAssets} assets (${this.eligibleAssetsSizeMb.toFixed(2)} MiB) eligible for deletion.`));
+      }
+      return;
+    }
+
     // print in MiB until we hit at least 1 GiB of data tagged/deleted
     if (Math.max(this.taggedAssetsSizeMb, this.deletedAssetsSizeMb) >= 1000) {
       void this.ioHelper.defaults.info(chalk.green(`[${percentage}%] ${this.assetsScanned} files scanned: ${this.taggedAsset} assets (${(this.taggedAssetsSizeMb / 1000).toFixed(2)} GiB) tagged, ${this.deletedAssets} assets (${(this.deletedAssetsSizeMb / 1000).toFixed(2)} GiB) deleted.`));

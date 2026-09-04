@@ -3,6 +3,7 @@ import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { Tag } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import type { IECRClient, IS3Client, SDK, SdkProvider } from '../aws-auth/private';
+import { isAccessDeniedError } from '../aws-auth/util';
 import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
@@ -20,6 +21,11 @@ const P_LIMIT = 50;
 const DAY = 24 * 60 * 60 * 1000; // Number of milliseconds in a day
 
 export type GcAsset = ImageAsset | ObjectAsset;
+
+/**
+ * The set of actions that garbage collection can perform.
+ */
+export type GcAction = 'print' | 'tag' | 'delete-tagged' | 'full';
 
 /**
  * An image asset that lives in the bootstrapped ECR Repository
@@ -128,7 +134,7 @@ interface GarbageCollectorProps {
    * The action to perform. Specify this if you want to perform a truncated set
    * of actions available.
    */
-  readonly action: 'print' | 'tag' | 'delete-tagged' | 'full';
+  readonly action: GcAction;
 
   /**
    * The type of asset to garbage collect.
@@ -256,7 +262,7 @@ export class GarbageCollector {
     const ecr = sdk.ecr();
     const repo = await this.bootstrapRepositoryName(sdk, this.bootstrapStackName);
     const numImages = await this.numImagesInRepo(ecr, repo);
-    const printer = new ProgressPrinter(this.ioHelper, numImages, 1000);
+    const printer = new ProgressPrinter(this.ioHelper, numImages, 1000, this.props.action);
 
     await this.ioHelper.defaults.debug(`Found bootstrap repo ${repo} with ${numImages} images`);
 
@@ -314,6 +320,13 @@ export class GarbageCollector {
           await this.parallelUntagEcr(ecr, repo, untaggables);
         }
 
+        // The 'print' action does not tag or delete anything, so report the assets that
+        // are eligible for garbage collection. Otherwise the output reads as "0 assets"
+        // and looks like gc found nothing to do (see #625).
+        if (this.props.action === 'print') {
+          printer.reportEligibleAsset(isolated);
+        }
+
         printer.reportScannedAsset(batch.length);
       }
     } catch (err: any) {
@@ -330,7 +343,7 @@ export class GarbageCollector {
     const s3 = sdk.s3();
     const bucket = await this.bootstrapBucketName(sdk, this.bootstrapStackName);
     const numObjects = await this.numObjectsInBucket(s3, bucket);
-    const printer = new ProgressPrinter(this.ioHelper, numObjects, 1000);
+    const printer = new ProgressPrinter(this.ioHelper, numObjects, 1000, this.props.action);
 
     await this.ioHelper.defaults.debug(`Found bootstrap bucket ${bucket} with ${numObjects} objects`);
 
@@ -389,6 +402,13 @@ export class GarbageCollector {
 
         if (this.permissionToTag && untaggables.length > 0) {
           await this.parallelUntagS3(s3, bucket, untaggables);
+        }
+
+        // The 'print' action does not tag or delete anything, so report the assets that
+        // are eligible for garbage collection. Otherwise the output reads as "0 assets"
+        // and looks like gc found nothing to do (see #625).
+        if (this.props.action === 'print') {
+          printer.reportEligibleAsset(isolated);
         }
 
         printer.reportScannedAsset(batch.length);
@@ -478,7 +498,12 @@ export class GarbageCollector {
             imageTag: img.buildImageTag(i),
           });
         } catch (error) {
-          // This is a false negative -- an isolated asset is untagged
+          // A permission error (e.g. a missing ecr:PutImage) would otherwise be
+          // swallowed here and make gc silently no-op, so surface it instead.
+          if (isAccessDeniedError(error)) {
+            throw error;
+          }
+          // Otherwise this is a false negative -- an isolated asset is untagged
           // likely due to an imageTag collision. We can safely ignore,
           // and the isolated asset will be tagged next time.
           await this.ioHelper.defaults.debug(`Warning: unable to tag image ${JSON.stringify(img.tags)} with ${img.buildImageTag(i)} due to the following error: ${error}`);

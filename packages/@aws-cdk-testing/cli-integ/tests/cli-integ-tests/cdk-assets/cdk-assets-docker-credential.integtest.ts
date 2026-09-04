@@ -5,7 +5,7 @@ import { GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 // eslint-disable-next-line import/no-relative-packages
 import type { DockerDomainCredentialSource } from '../../../../../@aws-cdk/cdk-assets-lib/lib/private/docker-credentials';
 import type { TestFixture } from '../../../lib';
-import { integTest, withDefaultFixture, withRetry, retry } from '../../../lib';
+import { integTest, withDefaultFixture, withRetry, retry, registerSecrets } from '../../../lib';
 
 integTest(
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
@@ -92,6 +92,7 @@ async function testDockerCredential(fixture: TestFixture, credSource: DockerDoma
       stdio: [fs.openSync(input, 'r')],
       captureStderr: false,
     });
+    registerSecrets(JSON.parse(output).Secret);
   });
 
   const response = JSON.parse(output);

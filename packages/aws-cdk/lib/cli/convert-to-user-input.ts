@@ -158,6 +158,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'validate':
       commandOptions = {
         online: args.online,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -195,6 +196,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         execute: args.execute,
         changeSetName: args.changeSetName,
+        notificationArns: args.notificationArns,
         toolkitStackName: args.toolkitStackName,
         rollback: args.rollback,
         force: args.force,
@@ -328,6 +330,12 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {};
       break;
 
+    case 'lsp':
+      commandOptions = {
+        features: args.features,
+      };
+      break;
+
     case 'orphan':
       commandOptions = {
         PATHS: args.PATHS,
@@ -341,6 +349,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         overrideFile: args.overrideFile,
         revert: args.revert,
         force: args.force,
+        toolkitStackName: args.toolkitStackName,
         STACKS: args.STACKS,
       };
       break;
@@ -485,6 +494,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const validateOptions = {
     online: config.validate?.online,
+    watch: config.validate?.watch,
   };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
@@ -506,6 +516,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
+    notificationArns: config.import?.notificationArns,
     toolkitStackName: config.import?.toolkitStackName,
     rollback: config.import?.rollback,
     force: config.import?.force,
@@ -589,6 +600,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const lspOptions = {
+    features: config.lsp?.features,
+  };
   const orphanOptions = {};
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
@@ -596,6 +610,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
     force: config.refactor?.force,
+    toolkitStackName: config.refactor?.toolkitStackName,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,
@@ -627,6 +642,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    lsp: lspOptions,
     orphan: orphanOptions,
     refactor: refactorOptions,
     cliTelemetry: cliTelemetryOptions,

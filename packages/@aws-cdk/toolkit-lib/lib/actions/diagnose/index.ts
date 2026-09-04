@@ -29,6 +29,7 @@ export type StackDiagnosis =
 export type StackProblemSource =
   | { type: 'deployment'; stackStatus: string; statusReason: string }
   | { type: 'change-set'; changeSetName: string; changeSetStatus: string; statusReason: string }
+  | { type: 'change-set-not-ready'; changeSetName: string; changeSetStatus: string; statusReason: string }
   | { type: 'early-validation'; changeSetName: string };
 
 export interface DiagnosedStack {

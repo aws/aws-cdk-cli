@@ -43,11 +43,13 @@ export class IssueRegressionLabeler extends Component {
           name: 'Manage regression label',
           env: {
             GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+            ISSUE_NUMBER: '${{ github.event.issue.number }}',
+            REPO: '${{ github.repository }}',
           },
           run: `if [ "\${{ steps.check_regression.outputs.is_regression }}" == "true" ]; then
-          gh issue edit \${{ github.event.issue.number }} --add-label "potential-regression" -R \${{ github.repository }}
+          gh issue edit "\$ISSUE_NUMBER" --add-label "potential-regression" -R "\$REPO"
         else
-          gh issue edit \${{ github.event.issue.number }} --remove-label "potential-regression" -R \${{ github.repository }}
+          gh issue edit "\$ISSUE_NUMBER" --remove-label "potential-regression" -R "\$REPO"
         fi`,
         },
       ],

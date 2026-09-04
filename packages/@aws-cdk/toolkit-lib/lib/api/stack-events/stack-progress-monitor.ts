@@ -17,6 +17,16 @@ export class StackProgressMonitor {
   private resourcesPrevCompleteState: Record<string, string> = {};
 
   /**
+   * Logical IDs for which we've already counted a `_COMPLETE_CLEANUP_IN_PROGRESS` event
+   *
+   * The stack's own cleanup-in-progress event and its subsequent terminal
+   * `_COMPLETE` event share the same LogicalResourceId (the stack itself). We
+   * only reserve one slot in `resourcesTotal` for that resource, so we must not
+   * count both events towards `resourcesDone`.
+   */
+  private readonly cleanupInProgressIds = new Set<string>();
+
+  /**
    * Count of resources that have reported a _COMPLETE status
    */
   private resourcesDone: number = 0;
@@ -99,18 +109,26 @@ export class StackProgressMonitor {
     if (status.endsWith('_COMPLETE_CLEANUP_IN_PROGRESS')) {
       // The stack
       this.resourcesDone++;
+      this.cleanupInProgressIds.add(event.LogicalResourceId);
     }
 
     if (status.endsWith('_COMPLETE')) {
-      const prevState = this.resourcesPrevCompleteState[event.LogicalResourceId];
-      if (!prevState) {
-        this.resourcesDone++;
+      if (this.cleanupInProgressIds.has(event.LogicalResourceId)) {
+        // We already counted this resource's completion when its
+        // `_COMPLETE_CLEANUP_IN_PROGRESS` event came in -- this terminal
+        // `_COMPLETE` event is not a new completion, just don't double-count it.
+        this.cleanupInProgressIds.delete(event.LogicalResourceId);
       } else {
-        // If we completed this before and we're completing it AGAIN, means we're rolling back.
-        // Protect against silly underflow.
-        this.resourcesDone--;
-        if (this.resourcesDone < 0) {
-          this.resourcesDone = 0;
+        const prevState = this.resourcesPrevCompleteState[event.LogicalResourceId];
+        if (!prevState) {
+          this.resourcesDone++;
+        } else {
+          // If we completed this before and we're completing it AGAIN, means we're rolling back.
+          // Protect against silly underflow.
+          this.resourcesDone--;
+          if (this.resourcesDone < 0) {
+            this.resourcesDone = 0;
+          }
         }
       }
       this.resourcesPrevCompleteState[event.LogicalResourceId] = status;

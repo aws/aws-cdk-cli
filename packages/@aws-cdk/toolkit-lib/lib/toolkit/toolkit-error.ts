@@ -7,6 +7,9 @@ const DEPLOYMENT_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.DeploymentError
 const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
+const LOCK_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.LockError');
+const BOOTSTRAP_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.BootstrapError');
+const CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextLookupsDisabledError');
 
 /**
  * Represents a general toolkit error in the AWS CDK Toolkit.
@@ -45,6 +48,27 @@ export class ToolkitError extends Error {
    */
   public static isAssemblyError(x: any): x is AssemblyError {
     return ToolkitError.isToolkitError(x) && ASSEMBLY_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of LockError.
+   */
+  public static isLockError(x: any): x is LockError {
+    return ToolkitError.isToolkitError(x) && LOCK_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of BootstrapError.
+   */
+  public static isBootstrapError(x: any): x is BootstrapError {
+    return ToolkitError.isToolkitError(x) && BOOTSTRAP_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of ContextLookupsDisabledError.
+   */
+  public static isContextLookupsDisabledError(x: any): x is ContextLookupsDisabledError {
+    return ToolkitError.isToolkitError(x) && CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL in x;
   }
 
   /**
@@ -122,6 +146,85 @@ export class AbortError extends ToolkitError {
     super(errorCode, message, 'abort');
     Object.setPrototypeOf(this, AbortError.prototype);
     Object.defineProperty(this, ABORT_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * Represents a failure to acquire the read/write lock on the cloud assembly
+ * output directory, because another CLI is reading from or writing to it.
+ */
+export class LockError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(errorCode: string, message: string) {
+    super(errorCode, message, 'lock');
+    Object.setPrototypeOf(this, LockError.prototype);
+    Object.defineProperty(this, LOCK_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * The AWS environment (account and region) a bootstrap error occurred in
+ */
+export interface BootstrapEnvironment {
+  /**
+   * The AWS account ID
+   */
+  readonly account: string;
+
+  /**
+   * The AWS region
+   */
+  readonly region: string;
+}
+
+/**
+ * Represents an error caused by a missing or outdated bootstrap stack.
+ *
+ * This error is thrown when an environment has not been bootstrapped
+ * (the bootstrap stack or its version SSM parameter cannot be found),
+ * or when the bootstrap stack version is insufficient for the deployment.
+ * It carries the environment so callers can tell the user exactly which
+ * account and region needs `cdk bootstrap`.
+ */
+export class BootstrapError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user (they need to bootstrap the environment).
+   */
+  public readonly source = 'user';
+
+  /**
+   * The AWS environment (account and region) where the bootstrap error occurred
+   */
+  public readonly environment: BootstrapEnvironment;
+
+  constructor(errorCode: string, message: string, environment: BootstrapEnvironment, cause?: unknown) {
+    super(errorCode, message, 'bootstrap', cause);
+    Object.setPrototypeOf(this, BootstrapError.prototype);
+    Object.defineProperty(this, BOOTSTRAP_ERROR_SYMBOL, { value: true });
+    this.environment = environment;
+  }
+}
+
+/**
+ * Represents synthesis that could not complete because the app needs context
+ * lookups that are not cached, and lookups are disabled. The fix is to run
+ * `cdk synth` in a terminal once (with AWS credentials) so the values are
+ * written to `cdk.context.json`.
+ */
+export class ContextLookupsDisabledError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user.
+   */
+  public readonly source = 'user';
+
+  constructor(message: string) {
+    super('ContextLookupsDisabled', message);
+    Object.setPrototypeOf(this, ContextLookupsDisabledError.prototype);
+    Object.defineProperty(this, CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL, { value: true });
   }
 }
 

@@ -16,7 +16,7 @@ const queue = new cdk.CfnResource(stack, 'Queue', {
 });
 
 const assertionStack = new cdk.Stack(app, 'TypeScriptAssertions');
-assertionStack.addDependency(stack);
+assertionStack.addStackDependency(stack);
 
 const integ = new IntegTest(app, 'TypeScript', {
   testCases: [stack],

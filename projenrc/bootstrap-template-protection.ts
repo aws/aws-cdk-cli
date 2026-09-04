@@ -75,14 +75,20 @@ export class BootstrapTemplateProtection extends Component {
         },
         {
           name: 'Checkout base branch',
-          run: 'git fetch origin ${{ github.event.pull_request.base.ref }}',
+          env: {
+            BASE_REF: '${{ github.event.pull_request.base.ref }}',
+          },
+          run: 'git fetch origin "$BASE_REF"',
         },
         {
           name: 'Check if bootstrap template changed',
           id: 'template-changed',
+          env: {
+            BASE_REF: '${{ github.event.pull_request.base.ref }}',
+          },
           run: [
             '# Check if the bootstrap template differs between base and merge commit',
-            `if ! git diff --quiet --name-only origin/\${{ github.event.pull_request.base.ref }}..HEAD -- ${BOOTSTRAP_TEMPLATE_PATH}; then`,
+            `if ! git diff --quiet --name-only "origin/\$BASE_REF"..HEAD -- ${BOOTSTRAP_TEMPLATE_PATH}; then`,
             '  echo "Bootstrap template modified - protection checks required"',
             '  echo "changed=true" >> $GITHUB_OUTPUT',
             'else',
@@ -95,12 +101,15 @@ export class BootstrapTemplateProtection extends Component {
           name: 'Extract current and previous bootstrap versions',
           if: 'steps.template-changed.outputs.changed == \'true\'',
           id: 'version-check',
+          env: {
+            BASE_REF: '${{ github.event.pull_request.base.ref }}',
+          },
           run: [
             '# Get current version from PR - look for CdkBootstrapVersion Value',
             `CURRENT_VERSION=$(yq '.Resources.CdkBootstrapVersion.Properties.Value' ${BOOTSTRAP_TEMPLATE_PATH})`,
             '',
             '# Get previous version from base branch',
-            `git show origin/\${{ github.event.pull_request.base.ref }}:${BOOTSTRAP_TEMPLATE_PATH} > /tmp/base-template.yaml`,
+            `git show "origin/\$BASE_REF:${BOOTSTRAP_TEMPLATE_PATH}" > /tmp/base-template.yaml`,
             'PREVIOUS_VERSION=$(yq \'.Resources.CdkBootstrapVersion.Properties.Value\' /tmp/base-template.yaml)',
             '',
             'echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT',
@@ -117,14 +126,18 @@ export class BootstrapTemplateProtection extends Component {
           name: 'Check for security review and exemption labels',
           if: 'steps.template-changed.outputs.changed == \'true\'',
           id: 'label-check',
+          env: {
+            HAS_SECURITY_REVIEWED_LABEL: `\${{ contains(github.event.pull_request.labels.*.name, '${SECURITY_REVIEWED_LABEL}') }}`,
+            HAS_VERSION_EXEMPT_LABEL: `\${{ contains(github.event.pull_request.labels.*.name, '${VERSION_EXEMPT_LABEL}') }}`,
+          },
           run: [
-            `if [[ "\${{ contains(github.event.pull_request.labels.*.name, '${SECURITY_REVIEWED_LABEL}') }}" == "true" ]]; then`,
+            'if [[ "\$HAS_SECURITY_REVIEWED_LABEL" == "true"]]; then',
             '  echo "has-security-label=true" >> $GITHUB_OUTPUT',
             'else',
             '  echo "has-security-label=false" >> $GITHUB_OUTPUT',
             'fi',
             '',
-            `if [[ "\${{ contains(github.event.pull_request.labels.*.name, '${VERSION_EXEMPT_LABEL}') }}" == "true" ]]; then`,
+            'if [[ "\$HAS_VERSION_EXEMPT_LABEL" == "true"]]; then',
             '  echo "has-version-exempt-label=true" >> $GITHUB_OUTPUT',
             'else',
             '  echo "has-version-exempt-label=false" >> $GITHUB_OUTPUT',

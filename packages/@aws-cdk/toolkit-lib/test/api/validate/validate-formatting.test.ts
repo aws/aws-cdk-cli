@@ -36,6 +36,24 @@ describe('formatValidateResult', () => {
     ]);
   });
 
+  test('uses the plugin-supplied customSeverity label for a "custom" severity violation', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'r1',
+        description: 'blocker issue',
+        severity: 'custom',
+        customSeverity: 'BLOCKER',
+        violatingConstructs: [{ constructPath: 'Stack/A' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('BLOCKER');
+    expect(output).not.toContain('INFO');
+  });
+
   test('formats construct path with logical id', () => {
     const result = makeResult([{
       pluginName: 'TestPlugin',
@@ -219,6 +237,25 @@ describe('formatValidateResult', () => {
     expect(output).not.toMatch(/\r/);
     expect(output).toContain('Fake passed message');
     expect(output).toContain('Evil');
+  });
+
+  test('preambles are printed', () => {
+    const result = makeResult([{
+      pluginName: 'Some Plugin',
+      conclusion: 'success',
+      preamble: 'OMG there are warnings',
+      violations: [{
+        ruleName: 'RULE',
+        description: 'Make sure you fix this',
+        severity: 'warning',
+        violatingConstructs: [{
+          constructPath: 'Stack/Resource',
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toMatchSnapshot();
   });
 });
 

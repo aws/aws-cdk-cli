@@ -758,3 +758,230 @@ describe('duplicate logical ids in nested stacks', () => {
   });
 });
 
+describe('environment annotation', () => {
+  const environment = {
+    name: 'aws://123456789012/us-east-1',
+    account: '123456789012',
+    region: 'us-east-1',
+  };
+
+  let mockNewTemplate: cxapi.CloudFormationStackArtifact;
+
+  beforeEach(() => {
+    mockNewTemplate = {
+      template: {
+        Resources: {
+          Func: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Code: { S3Bucket: 'XXXXXXXXXXX', S3Key: 'some-key' },
+              Handler: 'index.handler',
+              Runtime: 'nodejs14.x',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+  });
+
+  test('annotates the stack header with the target environment', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(stripAnsi(result.formattedDiff!).trim()).toBe(
+      'Stack test-stack (aws://123456789012/us-east-1)\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func',
+    );
+  });
+
+  test('output is byte-identical to the legacy output when no environment is given', () => {
+    // GIVEN
+    const templateInfo = {
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    };
+
+    // WHEN
+    const omitted = new DiffFormatter({ templateInfo }).formatStackDiff();
+    const explicitlyUndefined = new DiffFormatter({
+      templateInfo: { ...templateInfo, environment: undefined },
+    }).formatStackDiff();
+
+    // THEN - not just ANSI-stripped equality, the raw bytes are the same
+    expect(explicitlyUndefined.formattedDiff).toBe(omitted.formattedDiff);
+    expect(omitted.formattedDiff).not.toContain('aws://');
+    expect(stripAnsi(omitted.formattedDiff!).trim()).toBe(
+      'Stack test-stack\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func',
+    );
+  });
+
+  test('only the root stack header is annotated, not nested stacks', () => {
+    // GIVEN
+    const nestedStacks = {
+      NestedStack1: {
+        deployedTemplate: {},
+        generatedTemplate: {},
+        physicalName: 'nested-stack-1',
+        nestedStackTemplates: {
+          NestedStack2: {
+            deployedTemplate: {},
+            generatedTemplate: {},
+            physicalName: 'nested-stack-2',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    };
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        nestedStacks,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    const sanitized = stripAnsi(result.formattedDiff!);
+    expect(sanitized).toContain('Stack test-stack (aws://123456789012/us-east-1)');
+    expect(sanitized).toContain('Stack nested-stack-1\n');
+    expect(sanitized).toContain('Stack nested-stack-2\n');
+    expect(sanitized.match(/\(aws:\/\//g)).toHaveLength(1);
+  });
+
+  test('the environment annotation is dimmed', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN - asserted on the un-stripped output
+    expect(result.formattedDiff).toContain(chalk.grey(' (aws://123456789012/us-east-1)'));
+  });
+
+  test('the annotation is suppressed along with the header in quiet mode', () => {
+    // WHEN - quiet, and no differences, so the header is not printed at all
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff({ quiet: true });
+
+    // THEN
+    expect(result.formattedDiff).not.toContain('aws://');
+    expect(result.formattedDiff).not.toContain('Stack');
+  });
+});
+
+describe('environment annotation on the security diff', () => {
+  const environment = {
+    name: 'aws://123456789012/us-east-1',
+    account: '123456789012',
+    region: 'us-east-1',
+  };
+
+  const iamTemplate = {
+    Resources: {
+      Role: {
+        Type: 'AWS::IAM::Role',
+        Properties: {
+          AssumeRolePolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [{
+              Effect: 'Allow',
+              Principal: { Service: 'lambda.amazonaws.com' },
+              Action: 'sts:AssumeRole',
+            }],
+          },
+        },
+      },
+    },
+  };
+
+  test('annotates the security diff stack header', () => {
+    // GIVEN
+    const mockArtifact = {
+      template: iamTemplate,
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockArtifact,
+        environment,
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    // THEN
+    expect(stripAnsi(result.formattedDiff!)).toContain('Stack test-stack (aws://123456789012/us-east-1)');
+  });
+
+  test('only the root security diff header is annotated, not nested stacks', () => {
+    // GIVEN
+    const rootTemplate = {
+      Resources: {
+        Nested1: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+    const mockArtifact = {
+      template: rootTemplate,
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        environment,
+        nestedStacks: {
+          Nested1: {
+            deployedTemplate: {},
+            generatedTemplate: iamTemplate,
+            physicalName: 'nested-stack-1',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    // THEN
+    const sanitized = stripAnsi(result.formattedDiff!);
+    expect(sanitized).toContain('Stack root-stack (aws://123456789012/us-east-1)');
+    expect(sanitized).toContain('Stack nested-stack-1\n');
+    expect(sanitized.match(/\(aws:\/\//g)).toHaveLength(1);
+  });
+});

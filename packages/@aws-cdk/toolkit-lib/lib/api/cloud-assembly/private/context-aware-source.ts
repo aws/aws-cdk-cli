@@ -1,7 +1,7 @@
 import { AsyncDisposableBox } from './disposable-box';
 import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
-import { ToolkitError } from '../../../toolkit/toolkit-error';
+import { ContextLookupsDisabledError } from '../../../toolkit/toolkit-error';
 import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IContextStore } from '../context-store';
@@ -77,8 +77,7 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
         const missingKeys = Array.from(missingKeysSet);
 
         if (!this.canLookup) {
-          throw new ToolkitError(
-            'ContextLookupsDisabled',
+          throw new ContextLookupsDisabledError(
             'Context lookups have been disabled. '
             + 'Make sure all necessary context is already in \'cdk.context.json\' by running \'cdk synth\' on a machine with sufficient AWS credentials and committing the result. '
             + `Missing context keys: '${missingKeys.join(', ')}'`);

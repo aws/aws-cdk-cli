@@ -13,7 +13,12 @@ export class StringWriteStream extends Writable {
    * Used by formatTable() to apply width constraints and prevent table overflow.
    */
   public get columns(): number | undefined {
-    return process.stdout.columns;
+    if (process.stdout.columns !== undefined) {
+      return process.stdout.columns;
+    }
+
+    const columns = Number(process.env.COLUMNS);
+    return Number.isFinite(columns) && Number.isInteger(columns) && columns > 0 ? columns : undefined;
   }
 
   constructor() {

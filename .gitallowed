@@ -40,3 +40,7 @@ account: '297356227824'
 account: '193023089310'
 # partition aws-us-gov
 account: '023102451235'
+
+# For Amzn telemetry
+packages/aws-cdk/lib/cli/telemetry/session.ts:.*brazil.ion.*
+packages/aws-cdk/test/cli/telemetry/session.test.ts:.*brazil.ion.*

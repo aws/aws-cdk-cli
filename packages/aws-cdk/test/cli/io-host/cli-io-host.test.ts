@@ -7,8 +7,9 @@ import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
 import { IO } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost, matchAny } from '../../../lib/cli/io-host';
+import { CliIoHost, matchAny, suppressMessages } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
+import { StackActivityProgress } from '../../../lib/commands/deploy';
 
 let passThrough: PassThrough;
 
@@ -341,6 +342,19 @@ describe('CliIoHost', () => {
       expect(answer).toBe(true);
     });
 
+    test('listener removers are using-compatible (Symbol.dispose)', async () => {
+      {
+        using _suppress = ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true }));
+        await ioHost.notify(listMessage('inside'));
+      }
+
+      // disposed at block exit: the listener no longer applies
+      await ioHost.notify(listMessage('outside'));
+
+      expect(mockStdout).not.toHaveBeenCalledWith('inside\n');
+      expect(mockStdout).toHaveBeenCalledWith('outside\n');
+    });
+
     test('on() with matchAny() fires for any of the given codes', async () => {
       const observed: string[] = [];
       track(ioHost.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
@@ -365,6 +379,46 @@ describe('CliIoHost', () => {
       }));
 
       expect(observed).toEqual(['CDK_TOOLKIT_I2901:a', 'CDK_TOOLKIT_I1000:b']);
+    });
+
+    test('suppressMessages() decorator drops the given codes only while the method runs', async () => {
+      class Fixture {
+        public readonly ioHost = ioHost;
+
+        @suppressMessages(IO.CDK_TOOLKIT_I2901)
+        public async run(body: () => Promise<void>): Promise<number> {
+          await body();
+          return 42;
+        }
+      }
+
+      const result = await new Fixture().run(async () => {
+        await ioHost.notify(listMessage('while-suppressed'));
+      });
+
+      // suppressed inside the method, return value passed through
+      expect(result).toBe(42);
+      expect(mockStdout).not.toHaveBeenCalledWith('while-suppressed\n');
+
+      // listener is gone again after the method returned
+      await ioHost.notify(listMessage('after'));
+      expect(mockStdout).toHaveBeenCalledWith('after\n');
+    });
+
+    test('suppressMessages() decorator removes its listener when the method throws', async () => {
+      class Fixture {
+        public readonly ioHost = ioHost;
+
+        @suppressMessages(IO.CDK_TOOLKIT_I2901)
+        public async boom(): Promise<void> {
+          throw new Error('nope');
+        }
+      }
+
+      await expect(new Fixture().boom()).rejects.toThrow('nope');
+
+      await ioHost.notify(listMessage('after-throw'));
+      expect(mockStdout).toHaveBeenCalledWith('after-throw\n');
     });
 
     test('rewrite() replaces the printed text for every matching message', async () => {
@@ -423,6 +477,27 @@ describe('CliIoHost', () => {
       // text unchanged, but routed to stderr because it is now info-level
       expect(mockStderr).toHaveBeenCalledWith('first\n');
       expect(mockStdout).not.toHaveBeenCalled();
+    });
+
+    test('on() can override the effective action', async () => {
+      let actionSeenByLaterListener: string | undefined;
+      let emittedAction: string | undefined;
+      let effectiveAction: string | undefined;
+
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ action: 'metadata' })));
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+        actionSeenByLaterListener = msg.action;
+      }));
+      track(ioHost.observeMessages((observation) => {
+        emittedAction = observation.emitted.action;
+        effectiveAction = observation.effective.action;
+      }));
+
+      await ioHost.notify(listMessage('first'));
+
+      expect(actionSeenByLaterListener).toBe('metadata');
+      expect(emittedAction).toBe('list');
+      expect(effectiveAction).toBe('metadata');
     });
 
     test('the returned dispose function removes the listener', async () => {
@@ -1261,6 +1336,37 @@ describe('CliIoHost', () => {
         }));
         expect(response).toBe('foobar');
       });
+
+      test('falsy defaults (empty string, zero) are auto-responded instead of requiring a TTY', async () => {
+        const nonTtyAutoRespondingIoHost = CliIoHost.instance({
+          logLevel: 'trace',
+          autoRespond: true,
+          isCI: false,
+          isTTY: false,
+        }, true);
+
+        // empty string default
+        const stringResponse = await nonTtyAutoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          defaultResponse: '',
+        }));
+        expect(stringResponse).toBe('');
+
+        // zero default
+        const numberResponse = await nonTtyAutoRespondingIoHost.requestResponse(plainMessage({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I0001',
+          message: 'test message',
+          defaultResponse: 0,
+        }));
+        expect(numberResponse).toBe(0);
+      });
     });
 
     describe('non-promptable data', () => {
@@ -1382,6 +1488,9 @@ describe('CliIoHost', () => {
           defaultResponse: true,
         });
 
+        // The prompt appears (approval is required). Without the deploy listener
+        // the host prints the message as-is; the `--require-approval` framing is
+        // covered below.
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
@@ -1403,6 +1512,120 @@ describe('CliIoHost', () => {
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
+
+      describe('CLI reframes the library motivation with --require-approval framing', () => {
+        // The deploy command registers a rewrite listener on I5060 that adds the
+        // CLI's `--require-approval` framing to the library's flag-free question.
+        // Register the same listener here so the reframed prompt can be asserted
+        // in isolation, keyed off the message payload and the configured flag.
+        beforeEach(() => {
+          ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+            const updateTypeText = msg.data.permissionChangeType !== 'none'
+              ? 'security-sensitive updates'
+              : 'updates';
+            return `Stack includes ${updateTypeText} and "--require-approval" is set to '${ioHost.requireDeployApproval}'.\nDo you wish to deploy these changes?`;
+          });
+        });
+
+        afterEach(() => {
+          ioHost.removeAllListeners();
+        });
+
+        test('BROADENING + has-security adds the --require-approval suffix and breaks the question to a new line', async () => {
+          ioHost.requireDeployApproval = RequireApproval.BROADENING;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: 'test message',
+            data: {
+              permissionChangeType: 'broadening',
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'broadening\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('ANYCHANGE + has-security renders the any-change variant', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: 'test message',
+            data: {
+              permissionChangeType: 'broadening',
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('ANYCHANGE + non-security renders the non-security any-change variant', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', {
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5060',
+            message: 'test message',
+            data: {
+              permissionChangeType: 'none',
+            },
+            defaultResponse: true,
+          });
+
+          expect(mockStdout).toHaveBeenCalledWith(
+            chalk.cyan('Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?') + ' (y/n) ',
+          );
+        });
+
+        test('non-I5060 messages pass through unchanged', async () => {
+          ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+          await requestResponse('y', plainMessage({
+            time: new Date(),
+            level: 'info',
+            action: 'synth',
+            code: 'CDK_TOOLKIT_I5050',
+            message: 'some other prompt',
+            defaultResponse: true,
+          }));
+
+          expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('some other prompt') + ' (y/n) ');
+        });
+      });
+    });
+  });
+
+  describe('stackProgress', () => {
+    afterEach(() => {
+      ioHost.stackProgress = StackActivityProgress.BAR;
+      ioHost.logLevel = 'trace';
+    });
+
+    test('"bar" degrades to "events" when not on a TTY', () => {
+      ioHost.logLevel = 'info';
+      ioHost.isTTY = false;
+      ioHost.stackProgress = StackActivityProgress.BAR;
+
+      expect(ioHost.stackProgress).toBe(StackActivityProgress.EVENTS);
+    });
+
+    test('"errors-only" is preserved regardless of TTY, CI and log level', () => {
+      ioHost.isTTY = false;
+      ioHost.isCI = true;
+      ioHost.logLevel = 'trace';
+      ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
+
+      expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
     });
   });
 });

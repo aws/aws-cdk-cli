@@ -1,6 +1,7 @@
 import * as awsauth from '../../lib/api/aws-auth/private';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
+import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
 import { Toolkit } from '../../lib/toolkit';
 import { cdkOutFixture, TestIoHost } from '../_helpers';
 import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
@@ -131,11 +132,10 @@ describe('validate --online', () => {
 
   test('reports CloudFormation validation errors as a plugin report', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
-      description: { $metadata: {} } as any,
-      diagnosis: {
-        type: 'problem',
-        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
-        problems: [
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.problem(
+        { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        [
           {
             stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
             topLevelStackHierarchicalId: 'Stack1',
@@ -147,7 +147,7 @@ describe('validate --online', () => {
             sourceTrace: undefined,
           },
         ],
-      },
+      ),
     });
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
@@ -165,8 +165,8 @@ describe('validate --online', () => {
 
   test('passes when CloudFormation finds no problems', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
-      description: { $metadata: {} } as any,
-      diagnosis: { type: 'no-problem' },
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.noProblem(),
     });
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
@@ -178,11 +178,10 @@ describe('validate --online', () => {
 
   test('merges offline and online results', async () => {
     jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
-      description: { $metadata: {} } as any,
-      diagnosis: {
-        type: 'problem',
-        detectedBy: { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
-        problems: [
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.problem(
+        { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        [
           {
             stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
             topLevelStackHierarchicalId: 'Stack1',
@@ -193,7 +192,7 @@ describe('validate --online', () => {
             sourceTrace: undefined,
           },
         ],
-      },
+      ),
     });
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
@@ -209,8 +208,8 @@ describe('validate --online', () => {
 
   test('runs online validation by default when no options provided', async () => {
     const spy = jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
-      description: { $metadata: {} } as any,
-      diagnosis: { type: 'no-problem' },
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.noProblem(),
     });
 
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');

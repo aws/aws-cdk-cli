@@ -260,6 +260,18 @@ export interface AppSynthOptions {
    * @default ["**"] - all stacks
    */
   readonly bundlingForStacks?: string;
+
+  /**
+   * Validate stacks during synthesis.
+   *
+   * When disabled, sets the `CDK_VALIDATION` environment variable to `false` in
+   * the app process, so framework-side validation layers (including the built-in
+   * CloudFormation template validation) are skipped. This is the value backing
+   * the CLI's `--no-validation` option.
+   *
+   * @default true
+   */
+  readonly validation?: boolean;
 }
 
 /**

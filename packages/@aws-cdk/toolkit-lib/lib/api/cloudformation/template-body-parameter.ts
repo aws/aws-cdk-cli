@@ -1,7 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as util from 'node:util';
-import { type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
+import { AssetManifestArtifact, type CloudFormationStackArtifact, type Environment, EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
+import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import chalk from 'chalk';
@@ -84,6 +85,7 @@ export async function makeBodyParameter(
       path: templateFile,
     },
     {
+      ...templateAssetPublishingDestination(stack),
       bucketName: toolkitInfo.bucketName,
       objectKey: key,
     },
@@ -92,6 +94,30 @@ export async function makeBodyParameter(
   const templateURL = `${toolkitInfo.bucketUrl}/${key}`;
   await ioHelper.defaults.debug(`Storing template in S3 at: ${templateURL}`);
   return { TemplateURL: templateURL };
+}
+
+function templateAssetPublishingDestination(stack: CloudFormationStackArtifact): Partial<cxschema.FileDestination> {
+  for (const artifact of stack.dependencies) {
+    if (!AssetManifestArtifact.isAssetManifestArtifact(artifact)) {
+      continue;
+    }
+
+    for (const asset of Object.values(artifact.contents.files ?? {})) {
+      if (asset.source.path !== stack.templateFile) {
+        continue;
+      }
+
+      const destination = Object.values(asset.destinations)[0];
+      return {
+        assumeRoleAdditionalOptions: destination.assumeRoleAdditionalOptions,
+        assumeRoleArn: destination.assumeRoleArn,
+        assumeRoleExternalId: destination.assumeRoleExternalId,
+        region: destination.region,
+      };
+    }
+  }
+
+  return {};
 }
 
 /**

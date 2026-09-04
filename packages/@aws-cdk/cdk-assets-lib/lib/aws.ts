@@ -46,6 +46,7 @@ import type {
   ListObjectsV2CommandOutput,
   PutObjectCommandInput,
 } from './aws-types';
+import { forceS3PathStyle } from './private/tools';
 
 export type AssumeRoleAdditionalOptions = Partial<
   Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>
@@ -149,7 +150,11 @@ export class DefaultAwsClient implements IAws {
   }
 
   public async s3Client(options: ClientOptions): Promise<IS3Client> {
-    const client = new S3Client(await this.awsOptions(options));
+    const client = new S3Client({
+      ...(await this.awsOptions(options)),
+      // Use path-style addressing for explicit opt-in or loopback endpoints.
+      forcePathStyle: forceS3PathStyle(),
+    });
     return {
       getBucketEncryption: (
         input: GetBucketEncryptionCommandInput,

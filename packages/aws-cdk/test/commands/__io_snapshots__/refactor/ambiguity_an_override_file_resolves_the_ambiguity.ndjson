@@ -1,0 +1,6 @@
+{"seq":0,"type":"notify","action":"refactor","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"refactor","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":2,"type":"notify","action":"refactor","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"refactor","level":"info","code":"CDK_TOOLKIT_I1000","message":"✨  Synthesis time: <DURATION>"}
+{"seq":4,"type":"notify","action":"refactor","level":"info","code":null,"message":"aws://123456789012/bermuda-triangle-1\n"}
+{"seq":5,"type":"notify","action":"refactor","level":"result","code":"CDK_TOOLKIT_I8900","message":"The following resources were moved or renamed:\n┌─────────────────┬─────────────────────────┬─────────────────────────┐\n│ Resource Type   │ Old Construct Path      │ New Construct Path      │\n├─────────────────┼─────────────────────────┼─────────────────────────┤\n│ AWS::S3::Bucket │ Stack1/Bucket1/Resource │ Stack1/Bucket3/Resource │\n├─────────────────┼─────────────────────────┼─────────────────────────┤\n│ AWS::S3::Bucket │ Stack1/Bucket2/Resource │ Stack1/Bucket4/Resource │\n└─────────────────┴─────────────────────────┴─────────────────────────┘\n "}

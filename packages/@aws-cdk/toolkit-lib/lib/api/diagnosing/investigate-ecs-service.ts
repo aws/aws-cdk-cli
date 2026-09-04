@@ -9,6 +9,9 @@ const FALLBACK_LOG_WINDOW_MS = 30 * 60 * 1000;
 
 /**
  * Options that influence how a resource is investigated.
+ *
+ * This is shared by all resource-type investigations, so it only carries options that
+ * apply across them.
  */
 export interface InvestigateOptions {
   /**

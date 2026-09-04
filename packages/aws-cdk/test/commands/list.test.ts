@@ -65,6 +65,19 @@ describe('cdk list', () => {
     await list([MockStack.MOCK_STACK_A, stackB()], ['Test-Stack-A', 'Test-Stack-B']);
   });
 
+  test('suppresses the synth-time and dependency-expansion lines', async () => {
+    // Selecting only the downstream stack expands the selection upstream, which
+    // emits the dependency-expansion note (I1002); synthesis emits the
+    // synth-time line (I1000). Both are dropped by @suppressMessages on the
+    // list path so the listing stays parseable: they must show up as emitted
+    // but dropped, and never in the visible stream (the snapshot).
+    await list([MockStack.MOCK_STACK_A, stackB({ depends: ['Test-Stack-A'] })], ['Test-Stack-B']);
+
+    const dropped = recorder.entries({ includeDropped: true }).filter((e) => e.dropped);
+    expect(dropped).toContainEqual(expect.objectContaining({ code: 'CDK_TOOLKIT_I1000' }));
+    expect(dropped).toContainEqual(expect.objectContaining({ code: 'CDK_TOOLKIT_I1002' }));
+  });
+
   test('shows the dependencies between stacks', async () => {
     await list(
       [MockStack.MOCK_STACK_A, stackB({ depends: ['Test-Stack-A'] })],

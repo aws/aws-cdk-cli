@@ -1,3 +1,5 @@
+import type { BootstrapError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
@@ -6,6 +8,25 @@ import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } f
 import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
+
+/**
+ * Finds a `BootstrapError` in the given error or its chain of causes.
+ *
+ * Errors may be re-wrapped on their way up the deployment call stack,
+ * so the interesting error is not necessarily at the top.
+ */
+function findBootstrapError(error: unknown): BootstrapError | undefined {
+  let current = error;
+  const seen = new Set<unknown>();
+  while (current && !seen.has(current)) {
+    if (ToolkitError.isBootstrapError(current)) {
+      return current;
+    }
+    seen.add(current);
+    current = (current as Error).cause;
+  }
+  return undefined;
+}
 
 /**
  * Runs a single integration test batch request.
@@ -20,10 +41,11 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
   const verbosity = request.verbosity ?? 0;
 
   for (const testInfo of request.tests) {
-    const test = new IntegTest({
+    const test = IntegTest.hydrate({
       ...testInfo,
       watch: request.watch,
     }); // Hydrate from data
+
     const start = Date.now();
 
     try {
@@ -37,51 +59,62 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
-        testingUsingMocksLeaveDirectories: request.testingUsingMocksLeaveDirectories,
+        TESTING_usingMocks: request.testingUsingMocksLeaveDirectories,
       }, testInfo.destructiveChanges);
 
-      const tests = await runner.actualTests();
-
-      if (!tests || Object.keys(tests).length === 0) {
-        throw new Error(`No tests defined for ${runner.testName}`);
-      }
-      for (const testCaseName of Object.keys(tests)) {
-        try {
-          const results = await runner.runIntegTestCase({
-            testCaseName,
-            clean: request.clean,
-            dryRun: request.dryRun,
-            updateWorkflow: request.updateWorkflow,
-            updateFromTags: request.updateFromTags,
-            verbosity,
-            roleArn: request.roleArn,
-            allowDeleteFailures: request.allowDeleteFailures,
-          });
-          if (results && Object.values(results).some(result => result.status === 'fail')) {
-            failures.push(testInfo);
-            workerpool.workerEmit({
-              reason: DiagnosticReason.ASSERTION_FAILED,
-              testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-              message: formatAssertionResults(results),
-              duration: (Date.now() - start) / 1000,
-            });
-          } else {
-            workerpool.workerEmit({
-              reason: DiagnosticReason.TEST_SUCCESS,
-              testName: `${runner.testName}-${testCaseName}`,
-              message: results ? formatAssertionResults(results) : 'NO ASSERTIONS',
-              duration: (Date.now() - start) / 1000,
-            });
-          }
-        } catch (e) {
+      try {
+        const results = await runner.runIntegTestCase({
+          clean: request.clean,
+          dryRun: request.dryRun,
+          updateWorkflow: request.updateWorkflow,
+          updateFromTags: request.updateFromTags,
+          verbosity,
+          roleArn: request.roleArn,
+          allowDeleteFailures: request.allowDeleteFailures,
+        });
+        if (results && Object.values(results).some(result => result.status === 'fail')) {
           failures.push(testInfo);
           workerpool.workerEmit({
-            reason: DiagnosticReason.TEST_FAILED,
-            testName: `${runner.testName}-${testCaseName} (${request.profile}/${request.region})`,
-            message: `Integration test failed: ${formatError(e)}`,
+            reason: DiagnosticReason.ASSERTION_FAILED,
+            testName: `${test.testName} (${request.profile}/${request.region})`,
+            message: formatAssertionResults(results),
+            duration: (Date.now() - start) / 1000,
+          });
+        } else {
+          workerpool.workerEmit({
+            reason: DiagnosticReason.TEST_SUCCESS,
+            testName: `${test.testName}`,
+            message: results ? formatAssertionResults(results) : 'NO ASSERTIONS',
             duration: (Date.now() - start) / 1000,
           });
         }
+      } catch (e) {
+        const bootstrapError = findBootstrapError(e);
+        if (bootstrapError) {
+          // The test did not fail on its own account: the environment is not
+          // bootstrapped. Emit a NOT_BOOTSTRAPPED diagnostic (instead of
+          // recording a failure), so the orchestrator can remove the
+          // environment from its pool and retry the test elsewhere.
+          workerpool.workerEmit({
+            reason: DiagnosticReason.NOT_BOOTSTRAPPED,
+            testName: `${test.testName} (${request.profile}/${request.region})`,
+            message: `Environment is not bootstrapped: ${formatError(bootstrapError)}`,
+            duration: (Date.now() - start) / 1000,
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: bootstrapError.environment.account,
+            },
+          });
+          continue;
+        }
+        failures.push(testInfo);
+        workerpool.workerEmit({
+          reason: DiagnosticReason.TEST_FAILED,
+          testName: `${test.testName} (${request.profile}/${request.region})`,
+          message: `Integration test failed: ${formatError(e)}`,
+          duration: (Date.now() - start) / 1000,
+        });
       }
     } catch (e) {
       failures.push(testInfo);
@@ -111,19 +144,11 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
     },
     showOutput: verbosity >= 2,
   });
-  runner.createCdkContextJson();
-  const tests = await runner.actualTests();
 
-  if (!tests || Object.keys(tests).length === 0) {
-    throw new Error(`No tests defined for ${runner.testName}`);
-  }
-  for (const testCaseName of Object.keys(tests)) {
-    await runner.watchIntegTest({
-      testCaseName,
-      verbosity,
-      roleArn: options.roleArn,
-    });
-  }
+  await runner.watchIntegTest({
+    verbosity,
+    roleArn: options.roleArn,
+  });
 }
 
 /**
@@ -150,35 +175,40 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
     const runner = new IntegSnapshotRunner({
       test,
       showOutput: options.verbose ?? false,
-      testingUsingMocksLeaveDirectories: options.testingUsingMocksLeaveDirectories,
+      TESTING_usingMocks: options.testingUsingMocksLeaveDirectories,
     });
-    if (!runner.hasSnapshot()) {
-      workerpool.workerEmit({
-        reason: DiagnosticReason.NO_SNAPSHOT,
-        testName: test.testName,
-        message: 'No Snapshot',
-        duration: (Date.now() - start) / 1000,
-      });
-      failedTests.push(test.info);
-    } else {
-      const { diagnostics, destructiveChanges } = await runner.testSnapshot(options);
-      if (diagnostics.length > 0) {
-        diagnostics.forEach(diagnostic => workerpool.workerEmit({
-          ...diagnostic,
-          duration: (Date.now() - start) / 1000,
-        } as Diagnostic));
-        failedTests.push({
-          ...test.info,
-          destructiveChanges,
-        });
-      } else {
+
+    const result = await runner.testSnapshot(options);
+    switch (result.type) {
+      case 'no-shapshot':
         workerpool.workerEmit({
-          reason: DiagnosticReason.SNAPSHOT_SUCCESS,
+          reason: DiagnosticReason.NO_SNAPSHOT,
           testName: test.testName,
-          message: 'Success',
+          message: 'No Snapshot',
           duration: (Date.now() - start) / 1000,
-        } as Diagnostic);
-      }
+        });
+        failedTests.push(test.info);
+        break;
+
+      case 'did-compare':
+        if (result.diagnostics.length > 0) {
+          result.diagnostics.forEach(diagnostic => workerpool.workerEmit({
+            ...diagnostic,
+            duration: (Date.now() - start) / 1000,
+          } as Diagnostic));
+          failedTests.push({
+            ...test.info,
+            destructiveChanges: result.destructiveChanges,
+          });
+        } else {
+          workerpool.workerEmit({
+            reason: DiagnosticReason.SNAPSHOT_SUCCESS,
+            testName: test.testName,
+            message: 'Success',
+            duration: (Date.now() - start) / 1000,
+          } as Diagnostic);
+        }
+        break;
     }
   } catch (e: any) {
     failedTests.push(test.info);

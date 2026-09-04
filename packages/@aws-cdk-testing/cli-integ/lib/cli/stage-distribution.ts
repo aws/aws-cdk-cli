@@ -108,6 +108,7 @@ async function main() {
         await usageDir.activateInCurrentProcess();
 
         await shell(args.COMMAND ?? [], {
+          // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
           shell: true,
           show: 'always',
         });

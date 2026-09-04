@@ -1,6 +1,5 @@
 import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { integTest, withDefaultFixture } from '../../../lib';
-import { BEDROCK_AGENT_REGIONS } from '../../../lib/regions';
 
 jest.setTimeout(2 * 60 * 60_000); // Includes the time to acquire locks, worst-case single-threaded runtime
 
@@ -33,7 +32,7 @@ integTest(
     );
 
     const queueUrl = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'QueueUrl')?.OutputValue;
-    const agentName = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'AgentName')?.OutputValue;
+    const dashboardName = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'DashboardName')?.OutputValue;
     const ruleName = response.Stacks?.[0].Outputs?.find((output) => output.OutputKey === 'RuleName')?.OutputValue;
 
     // THEN
@@ -45,7 +44,7 @@ integTest(
     expect(deployOutput).toMatch(/hotswapped!/);
     // Verify all three CCAPI-based resources were hotswapped
     expect(queueUrl).toBeDefined();
-    expect(agentName).toBeDefined();
+    expect(dashboardName).toBeDefined();
     expect(ruleName).toBeDefined();
-  }, { aws: { regions: BEDROCK_AGENT_REGIONS } }),
+  }),
 );

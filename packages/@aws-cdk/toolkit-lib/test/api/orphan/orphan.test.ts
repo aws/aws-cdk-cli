@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import { ResourceOrphaner } from '../../../lib/api/orphan/orphaner';
-import { replaceInObject } from '../../../lib/api/orphan/private/helpers';
+import { replaceInObject, resolveStackAndConstructPaths } from '../../../lib/api/orphan/private/helpers';
 import { testStack } from '../../_helpers/assembly';
 import { MockSdkProvider, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -390,5 +390,57 @@ describe('replaceInObject - Fn::Sub handling', () => {
     const obj = { 'Fn::Sub': '${MyTable}-${MyTable}-${MyTable.Arn}' };
     const result = replaceInObject(obj, 'MyTable', values);
     expect(result).toEqual({ 'Fn::Sub': 'my-table-physical-my-table-physical-arn:aws:dynamodb:us-east-1:123:table/t' });
+  });
+});
+
+describe('resolveStackAndConstructPaths', () => {
+  test('resolves a resource inside a stage using the longest matching stack ID', () => {
+    const result = resolveStackAndConstructPaths(['MyStage/MyStack/MyBucket'], ['MyStage/MyStack']);
+    expect(result).toEqual({ stackId: 'MyStage/MyStack', constructPaths: ['MyBucket'] });
+  });
+
+  test('resolves a non-staged stack', () => {
+    const result = resolveStackAndConstructPaths(['MyStack/MyTable'], ['MyStack']);
+    expect(result).toEqual({ stackId: 'MyStack', constructPaths: ['MyTable'] });
+  });
+
+  test('keeps slashes in a nested construct path', () => {
+    const result = resolveStackAndConstructPaths(['MyStack/MyBucket/Resource'], ['MyStack']);
+    expect(result).toEqual({ stackId: 'MyStack', constructPaths: ['MyBucket/Resource'] });
+  });
+
+  test('prefers the longest matching stack ID', () => {
+    const result = resolveStackAndConstructPaths(['MyStage/MyStack/MyBucket'], ['MyStage', 'MyStage/MyStack']);
+    expect(result).toEqual({ stackId: 'MyStage/MyStack', constructPaths: ['MyBucket'] });
+  });
+
+  test('strips a leading slash', () => {
+    const result = resolveStackAndConstructPaths(['/MyStack/MyTable'], ['MyStack']);
+    expect(result).toEqual({ stackId: 'MyStack', constructPaths: ['MyTable'] });
+  });
+
+  test('accepts multiple paths that reference the same stack', () => {
+    const result = resolveStackAndConstructPaths(['MyStack/MyTable', 'MyStack/MyBucket'], ['MyStack']);
+    expect(result).toEqual({ stackId: 'MyStack', constructPaths: ['MyTable', 'MyBucket'] });
+  });
+
+  test('throws if paths reference different stacks', () => {
+    expect(() => resolveStackAndConstructPaths(['MyStack/MyTable', 'OtherStack/MyBucket'], ['MyStack', 'OtherStack']))
+      .toThrow(/must reference the same stack/);
+  });
+
+  test('throws if no stack matches the path', () => {
+    expect(() => resolveStackAndConstructPaths(['MyStage/MyBucket'], ['MyStage/MyStack']))
+      .toThrow(/No stack found for construct path/);
+  });
+
+  test('throws if the path is only a stack ID with no construct path', () => {
+    expect(() => resolveStackAndConstructPaths(['MyStack'], ['MyStack']))
+      .toThrow(/must include a construct path within the stack/);
+  });
+
+  test('throws if no paths are given', () => {
+    expect(() => resolveStackAndConstructPaths([], ['MyStack']))
+      .toThrow(/At least one construct path is required/);
   });
 });

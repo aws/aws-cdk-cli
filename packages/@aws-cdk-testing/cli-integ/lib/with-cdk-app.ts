@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -11,12 +12,14 @@ import { outputFromStack, sleep } from './aws';
 import type { TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
+import { isWindows } from './platform';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
+import { XpMutexPool } from './xpmutex';
 import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
@@ -56,7 +59,17 @@ export function withSpecificCdkApp(
       stackNamePrefix,
       context.output,
       context.aws,
-      context.randomString);
+      context.randomString,
+    );
+    if (context.disableBootstrap) {
+      // Tests that disable the default bootstrap manage their own bootstrap
+      // stack (name, qualifier, template) and pass the matching context and
+      // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
+      // the legacy bootstrap refuses to run with any qualifier set.
+      await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
+    } else {
+      await fixture.writeAppContext();
+    }
     await fixture.ecrPublicLogin();
 
     let success = true;
@@ -128,6 +141,7 @@ export function withCdkMigrateApp(
       context.aws,
       context.randomString,
     );
+    await testFixture.writeAppContext();
 
     let success = true;
     try {
@@ -168,6 +182,34 @@ export function withExtendedTimeoutFixture(block: (context: TestFixture) => Prom
 
 export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
   return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkMigrateApp(language, block)), options.aws);
+}
+
+/**
+ * Higher order function to add context values to the test app
+ *
+ * The context is written to the app's `cdk.json`, merged with the
+ * framework-provided defaults (like the random bootstrap qualifier) and any
+ * context added by enclosing `withAppContext` blocks. May be nested any
+ * number of times; inner blocks override outer blocks on key conflicts.
+ *
+ * Example:
+ *
+ * ```ts
+ * integTest('my test', withDefaultFixture(withAppContext({
+ *   '@aws-cdk/core:newStyleStackSynthesis': 'true',
+ * }, async (fixture) => {
+ *   // ...
+ * })));
+ * ```
+ */
+export function withAppContext(
+  context: Record<string, string>,
+  block: (fixture: TestFixture) => Promise<void>,
+): (fixture: TestFixture) => Promise<void> {
+  return async (fixture: TestFixture) => {
+    await fixture.addAppContext(context);
+    await block(fixture);
+  };
 }
 
 /**
@@ -240,9 +282,10 @@ export interface CdkDestroyCliOptions extends CdkCliOptions {
  * Prepare a target dir byreplicating a source directory
  */
 export async function cloneDirectory(source: string, target: string, output?: NodeJS.WritableStream) {
-  await shell(['rm', '-rf', target], { outputs: output ? [output] : [] });
-  await shell(['mkdir', '-p', target], { outputs: output ? [output] : [] });
-  await shell(['cp', '-R', source + '/*', target], { outputs: output ? [output] : [] });
+  output?.write(`Cloning ${source} into ${target}\n`);
+  await fs.promises.rm(target, { recursive: true, force: true });
+  await fs.promises.mkdir(target, { recursive: true });
+  await fs.promises.cp(source, target, { recursive: true });
 }
 
 interface CommonCdkBootstrapCommandOptions {
@@ -368,6 +411,7 @@ export class TestFixture extends ShellHelper {
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
+  private readonly appContext: Record<string, string>;
 
   constructor(
     public readonly integTestDir: string,
@@ -381,10 +425,80 @@ export class TestFixture extends ShellHelper {
     this.cli = testSource('cli');
     this.cdkAssets = testSource('cdkAssets');
     this.library = testSource('library');
+
+    // Every test bootstraps its environment with a random qualifier (instead
+    // of the fixed default qualifier), so that bootstrap bucket names are
+    // unique across (potentially recycled) test environments. Putting the
+    // qualifier into the app context makes sure that:
+    //
+    // - Synthesized apps automatically use the matching bootstrap resources
+    //   (`DefaultStackSynthesizer` reads `@aws-cdk/core:bootstrapQualifier`).
+    // - `cdk bootstrap` invocations that don't pass an explicit `--qualifier`
+    //   default to it as well.
+    this.appContext = {
+      '@aws-cdk/core:bootstrapQualifier': this.qualifier,
+    };
   }
 
   public log(s: string) {
     this.output.write(`${s}\n`);
+  }
+
+  /**
+   * Add context values for the test app, and write them to the app's `cdk.json`
+   *
+   * Values passed here accumulate with earlier calls, and override the
+   * framework-provided defaults (like the bootstrap qualifier). Command-line
+   * `--context` arguments still take precedence over all of these.
+   */
+  public async addAppContext(context: Record<string, string>, dir?: string) {
+    Object.assign(this.appContext, context);
+    await this.writeAppContext(dir);
+  }
+
+  /**
+   * Remove a context value for the test app, and update the app's `cdk.json`
+   *
+   * Note: this only prevents the key from being written by this fixture;
+   * a value already present in the app's own `cdk.json` is left alone.
+   */
+  public async removeAppContext(key: string, dir?: string) {
+    delete this.appContext[key];
+    await this.writeAppContext(dir);
+  }
+
+  /**
+   * Merge the accumulated app context into the app's `cdk.json`
+   *
+   * Also points `toolkitStackName` at the fixture's bootstrap stack, so that
+   * commands that look up the bootstrap stack by name (e.g. large-template
+   * deploys and refactors that need the staging bucket) find it without the
+   * test having to pass `--toolkit-stack-name` everywhere. Command-line
+   * arguments still take precedence.
+   *
+   * Called by the fixture factories as soon as the app directory exists;
+   * tests normally don't need to call this directly (use `addAppContext`
+   * or wrap the test block in `withAppContext` instead).
+   */
+  public async writeAppContext(dir?: string) {
+    const cdkJsonPath = path.join(dir ?? this.integTestDir, 'cdk.json');
+
+    let cdkJson: any = {};
+    try {
+      cdkJson = JSON.parse(await fs.promises.readFile(cdkJsonPath, { encoding: 'utf-8' }));
+    } catch (e: any) {
+      if (e.code !== 'ENOENT') {
+        throw e;
+      }
+    }
+
+    cdkJson.toolkitStackName = this.bootstrapStackName;
+    cdkJson.context = {
+      ...cdkJson.context,
+      ...this.appContext,
+    };
+
+    await fs.promises.writeFile(cdkJsonPath, JSON.stringify(cdkJson, undefined, 2), { encoding: 'utf-8' });
   }
 
   /**
@@ -395,19 +509,38 @@ export class TestFixture extends ShellHelper {
     const tokenResponse = await this.aws.ecrPublic.send(new GetAuthorizationTokenCommand({}));
     const authData = tokenResponse.authorizationData?.authorizationToken;
 
-    const docker = process.env.CDK_DOCKER ?? 'docker';
-
     if (!authData) {
       throw new Error('Could not retrieve ECR public auth token.');
     }
 
+    if (isWindows()) {
+      // `docker login` on Windows stores credentials through the wincred credential
+      // helper (auto-detected even if `credsStore` is empty in the config file), and
+      // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
+      // 2560-byte limit ('The stub received bad data'). Write the auth directly into
+      // the per-test Docker config file instead, which is exactly what `docker login`
+      // produces on the Linux runners, where no credential helper is installed.
+      // The plaintext `auths` entry takes precedence over any credential helper.
+      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(this.dockerConfigDir, 'config.json'),
+        JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
+      );
+      return;
+    }
+
+    const docker = process.env.CDK_DOCKER ?? 'docker';
+
     const decoded = Buffer.from(authData, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
 
+    // Reference the password via an environment variable so it doesn't leak into
+    // process listings; the shell expands it.
     await this.shell([docker, 'login',
       '--username', username,
       '--password', '${ECR_PASSWORD}',
       'public.ecr.aws'], {
+      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
       shell: true,
       modEnv: {
         ECR_PASSWORD: password,
@@ -662,9 +795,14 @@ export class TestFixture extends ShellHelper {
     return JSON.parse(fs.readFileSync(templatePath, { encoding: 'utf-8' }).toString());
   }
 
+  /**
+   * Look up the ECR repository name of this fixture's bootstrap stack
+   *
+   * Expects the environment to have been bootstrapped already with
+   * `toolkitStackName: fixture.bootstrapStackName` (or via `ensureBootstrapped`,
+   * which uses that stack name by default).
+   */
   public async bootstrapRepoName(): Promise<string> {
-    await ensureBootstrapped(this);
-
     const response = await this.aws.cloudFormation.send(new DescribeStacksCommand({}));
 
     const stack = (response.Stacks ?? [])
@@ -805,13 +943,17 @@ export async function ensureBootstrapped(fixture: TestFixture) {
   // It doesn't matter for tests: when they want to test something about an actual legacy
   // bootstrap stack, they'll create a bootstrap stack with a non-default name to test that exact property.
   const envSpecifier = `aws://${await fixture.aws.account()}/${fixture.aws.region}`;
-  if (ALREADY_BOOTSTRAPPED_IN_THIS_RUN.has(envSpecifier)) {
+  // Every fixture bootstraps with its own random qualifier (and stack name),
+  // so the cache key must include it: another fixture's bootstrap of the same
+  // environment doesn't help us.
+  const cacheKey = `${envSpecifier}/${fixture.qualifier}`;
+  if (ALREADY_BOOTSTRAPPED_IN_THIS_RUN.has(cacheKey)) {
     return;
   }
 
   if (atmosphereEnabled()) {
     // when atmosphere is enabled, each test starts with an empty environment
-    // and needs to deploy the bootstrap stack. in case environments are recylced too quickly,
+    // and needs to deploy the bootstrap stack. in case environments are recycled too quickly,
     // cloudformation may think the bootstrap bucket still exists even though it doesnt (because of s3 eventual consistency).
     // so we retry on the specific error for a while.
     await bootstrapWithRetryOnBucketExists(envSpecifier, fixture);
@@ -822,12 +964,20 @@ export async function ensureBootstrapped(fixture: TestFixture) {
   // when using the atmosphere service, every test needs to bootstrap
   // its own environment.
   if (!atmosphereEnabled()) {
-    ALREADY_BOOTSTRAPPED_IN_THIS_RUN.add(envSpecifier);
+    ALREADY_BOOTSTRAPPED_IN_THIS_RUN.add(cacheKey);
   }
 }
 
 async function doBootstrap(envSpecifier: string, fixture: TestFixture, allowErrExit: boolean) {
-  return fixture.cdk(['bootstrap', '--bootstrap-kms-key-id', 'AWS_MANAGED_KEY', envSpecifier], {
+  return fixture.cdk(['bootstrap',
+    '--bootstrap-kms-key-id', 'AWS_MANAGED_KEY',
+    // Use a random qualifier and a per-fixture stack name, so that bootstrap
+    // resource names (in particular the bucket name) are unique across
+    // (potentially recycled) test environments, and so that concurrent tests
+    // in the same environment don't fight over a shared bootstrap stack.
+    '--qualifier', fixture.qualifier,
+    '--toolkit-stack-name', fixture.bootstrapStackName,
+    envSpecifier], {
     modEnv: {
       // Even for v1, use new bootstrap
       CDK_NEW_BOOTSTRAP: '1',
@@ -842,7 +992,7 @@ async function doBootstrap(envSpecifier: string, fixture: TestFixture, allowErrE
 async function bootstrapWithRetryOnBucketExists(envSpecifier: string, fixture: TestFixture) {
   const account = await fixture.aws.account();
   const retryAfterSeconds = 30;
-  const bootstrapBucket = `cdk-hnb659fds-assets-${account}-${fixture.aws.region}`;
+  const bootstrapBucket = `cdk-${fixture.qualifier}-assets-${account}-${fixture.aws.region}`;
 
   // s3 says that a bucket deletion can take up to an hour to be fully visible.
   // empirically we see that a few minutes is enough though. lets give 10 to be on the safe(r) side.
@@ -884,9 +1034,13 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Install the given NPM packages, identified by their names and versions
  *
- * Works by writing the packages to a `package.json` file, and
- * then running NPM7's "install" on it. The use of NPM7 will automatically
- * install required peerDependencies.
+ * Works by writing the packages to a `package.json` file, and then running NPM7's
+ * "install" on it. The use of NPM7 will automatically install required
+ * peerDependencies.
+ *
+ * The install itself is shared: because every test asks for the same handful of
+ * packages at the same resolved versions, they are installed once per machine and
+ * linked into each test directory. See `sharedPackageSetInstall`.
  *
  * If we're running in REPO mode and we find the package in the set of local
  * packages in the repository, we'll write the directory name to `package.json`
@@ -900,6 +1054,8 @@ function hasJsonFlag(args: string[]): boolean {
  * for Node's dependency lookup mechanism).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
+  let hasLocalPackages = false;
+
   if (process.env.REPO_ROOT) {
     const monoRepo = await findYarnPackages(process.env.REPO_ROOT);
 
@@ -907,6 +1063,7 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     for (const key of Object.keys(packages)) {
       if (key in monoRepo) {
         packages[key] = monoRepo[key];
+        hasLocalPackages = true;
       }
     }
   }
@@ -918,6 +1075,99 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     devDependencies: packages,
   }, undefined, 2), { encoding: 'utf-8' });
 
+  if (hasLocalPackages) {
+    // A local package is referenced by directory, so the package set no longer
+    // identifies its own contents: rebuilding changes what is on disk without
+    // changing the requested version. Install per test, so that the dev cycle
+    // of 'rebuild, rerun the test' keeps working.
+    await npmInstallWithRetry(fixture, fixture.integTestDir);
+    return;
+  }
+
+  // Every test installs the same small set of packages, and `aws-cdk-lib` alone is
+  // tens of thousands of files, so installing per test is pure duplicated work: it
+  // is very slow on Windows (minutes instead of seconds), and on every platform it
+  // means many concurrent `npm install` processes, which is a source of ECONNRESET
+  // failures. Install each distinct package set once per machine and link it into
+  // the test directory instead.
+  const sharedNodeModules = await sharedPackageSetInstall(fixture, packages);
+  fs.symlinkSync(
+    sharedNodeModules,
+    path.join(fixture.integTestDir, 'node_modules'),
+    // Ignored on POSIX. On Windows a 'junction' works for unprivileged users,
+    // where a 'dir' symlink needs elevation.
+    isWindows() ? 'junction' : 'dir',
+  );
+
+  // `npm` writes the lock file next to the `package.json` it installed, which is now
+  // the shared directory, so copy it back into the test directory. Constructs that
+  // bundle (`NodejsFunction`) find their project root by searching upwards from the
+  // app for a lock file, and bundle-mount that directory into Docker; without a lock
+  // file here the search escapes the test directory and synth fails.
+  fs.copyFileSync(
+    path.join(sharedNodeModules, '..', 'package-lock.json'),
+    path.join(fixture.integTestDir, 'package-lock.json'),
+  );
+}
+
+/**
+ * Mutex pool guarding the shared installs, created on first use.
+ *
+ * Constructing a pool starts an `fs.watch`, so don't do it for test runs that
+ * never install anything.
+ */
+let installMutexPool: XpMutexPool | undefined;
+
+/**
+ * Install the given package set into a machine-shared directory, once.
+ *
+ * Concurrent callers (jest workers are separate processes) coordinate through a
+ * cross-process mutex: whoever holds it installs, and everyone else waits and then
+ * finds the completion marker already there. A worker that dies while installing
+ * holds a lock nobody would ever release, so `XpMutex` reclaims it once the owning
+ * pid is gone.
+ *
+ * The shared directory is keyed on the requested package set. Those versions are
+ * always fully resolved by the time they get here (see `requestedVersion()` on the
+ * library sources), so the key identifies the contents and the directory can be
+ * reused across runs on the same machine.
+ *
+ * @returns the path of the installed `node_modules` directory.
+ */
+async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<string, string>): Promise<string> {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(packages)).digest('hex').slice(0, 16);
+  const sharedDir = path.join(os.tmpdir(), `cdk-integ-shared-${hash}`);
+  const nodeModules = path.join(sharedDir, 'node_modules');
+
+  // Only ever written after a successful install, so a half-installed directory
+  // (from a worker that was killed) is never handed out.
+  const completeMarker = path.join(sharedDir, '.install-complete');
+
+  if (fs.existsSync(completeMarker)) {
+    return nodeModules;
+  }
+
+  if (!installMutexPool) {
+    installMutexPool = XpMutexPool.fromName('cdk-integ-shared-install');
+  }
+  const lock = await installMutexPool.mutex(hash).acquire();
+  try {
+    if (fs.existsSync(completeMarker)) {
+      return nodeModules;
+    }
+
+    fixture.log(`Installing shared package set into '${sharedDir}'`);
+    fs.mkdirSync(sharedDir, { recursive: true });
+    fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+    await npmInstallWithRetry(fixture, sharedDir);
+    fs.writeFileSync(completeMarker, '');
+    return nodeModules;
+  } finally {
+    await lock.release();
+  }
+}
+
+async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
   // we often ECONNRESET from NPM so lets retry. this might be because of high concurrency
   // which overwhelmes system resources.
   const timeoutMinutes = 10;
@@ -927,7 +1177,10 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
   while (true) {
     try {
       // Now install that `package.json` using NPM7
-      await fixture.shell(['node', require.resolve('npm'), 'install']);
+      await shell(['node', require.resolve('npm'), 'install'], {
+        cwd,
+        outputs: [fixture.output],
+      });
       break;
     } catch (e: any) {
       if (Date.now() < timeoutDate.getTime() && fixture.output.toString().includes('ECONNRESET' )) {

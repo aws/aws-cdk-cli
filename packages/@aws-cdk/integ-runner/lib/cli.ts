@@ -8,7 +8,7 @@ import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
 import { processUnstableFeatures, availableFeaturesDescription } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
-import { runSnapshotTests, runIntegrationTests } from './workers';
+import { runSnapshotTests, runIntegrationTests, printEnvironmentsSummary } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
 
 // https://github.com/yargs/yargs/issues/1929
@@ -94,7 +94,8 @@ export function parseCliArgs(args: string[] = []) {
     throw new Error('--disable-update-workflow and --[no-]update-workflow cannot be used together');
   }
 
-  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
+  // No update workflow by default
+  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : false;
 
   const updateFromTags: string[] | undefined = argv['update-from-tags']
     ? argv['update-from-tags'].split(',').map((t: string) => t.trim())
@@ -207,7 +208,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
 
     // run integration tests if `--update-on-failed` OR `--force` is used
     if (options.runUpdateOnFailed || options.force) {
-      const { success, metrics } = await runIntegrationTests({
+      const { success, metrics, testEnvironments } = await runIntegrationTests({
         pool,
         tests: testsToRun,
         regions: options.testRegions,
@@ -224,6 +225,10 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         allowDeleteFailures: options.allowDeleteFailures,
       });
       testsSucceeded = success;
+
+      // Report environments that were removed during the run (e.g. not
+      // bootstrapped), with the command needed to make them usable again
+      printEnvironmentsSummary(testEnvironments);
 
       if (options.clean === false) {
         logger.warning('Not cleaning up stacks since "--no-clean" was used');

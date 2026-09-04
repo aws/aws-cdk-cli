@@ -20,17 +20,23 @@ jobs:
     if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
       - name: Checkout merge commit
+        id: checkout_merge_commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
       - name: Checkout base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}
+        id: checkout_base_branch
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: git fetch origin "$BASE_REF"
       - name: Check if bootstrap template changed
         id: template-changed
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |-
           # Check if the bootstrap template differs between base and merge commit
-          if ! git diff --quiet --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD -- packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml; then
+          if ! git diff --quiet --name-only "origin/$BASE_REF"..HEAD -- packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml; then
             echo "Bootstrap template modified - protection checks required"
             echo "changed=true" >> $GITHUB_OUTPUT
           else
@@ -40,12 +46,14 @@ jobs:
       - name: Extract current and previous bootstrap versions
         id: version-check
         if: steps.template-changed.outputs.changed == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |-
           # Get current version from PR - look for CdkBootstrapVersion Value
           CURRENT_VERSION=$(yq '.Resources.CdkBootstrapVersion.Properties.Value' packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml)
 
           # Get previous version from base branch
-          git show origin/${{ github.event.pull_request.base.ref }}:packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml > /tmp/base-template.yaml
+          git show "origin/$BASE_REF:packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml" > /tmp/base-template.yaml
           PREVIOUS_VERSION=$(yq '.Resources.CdkBootstrapVersion.Properties.Value' /tmp/base-template.yaml)
 
           echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
@@ -59,19 +67,23 @@ jobs:
       - name: Check for security review and exemption labels
         id: label-check
         if: steps.template-changed.outputs.changed == 'true'
+        env:
+          HAS_SECURITY_REVIEWED_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'pr/security-reviewed') }}
+          HAS_VERSION_EXEMPT_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'pr/exempt-bootstrap-version') }}
         run: |-
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'pr/security-reviewed') }}" == "true" ]]; then
+          if [[ "$HAS_SECURITY_REVIEWED_LABEL" == "true"]]; then
             echo "has-security-label=true" >> $GITHUB_OUTPUT
           else
             echo "has-security-label=false" >> $GITHUB_OUTPUT
           fi
 
-          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'pr/exempt-bootstrap-version') }}" == "true" ]]; then
+          if [[ "$HAS_VERSION_EXEMPT_LABEL" == "true"]]; then
             echo "has-version-exempt-label=true" >> $GITHUB_OUTPUT
           else
             echo "has-version-exempt-label=false" >> $GITHUB_OUTPUT
           fi
       - name: Post job summary
+        id: post_job_summary
         if: steps.template-changed.outputs.changed == 'true'
         run: |-
           cat << 'EOF' >> $GITHUB_STEP_SUMMARY
@@ -102,6 +114,7 @@ jobs:
 
           EOF
       - name: Post comment
+        id: post_comment
         if: steps.template-changed.outputs.changed == 'true' && github.event.pull_request.head.repo.fork != true
         uses: thollander/actions-comment-pull-request@v3
         with:
@@ -133,6 +146,7 @@ jobs:
             - Changes can affect IAM roles, policies, and resource access across all CDK deployments
             - Version increments ensure users are notified of updates
       - name: Check requirements
+        id: check_requirements
         if: steps.template-changed.outputs.changed == 'true'
         run: |-
           # Check version requirement (either incremented or exempted)

@@ -70,13 +70,13 @@ test('when a resource is deleted (no DeletionPolicy)', () => {
   expect(difference?.changeImpact).toBe(ResourceImpact.WILL_DESTROY);
 });
 
-test('when a resource is deleted (DeletionPolicy=Retain)', () => {
+test.each(['Retain', 'RetainExceptOnCreate'])('when a resource is deleted (DeletionPolicy=%s)', (deletionPolicy) => {
   const currentTemplate = {
     Resources: {
       BucketResource: { Type: 'AWS::S3::Bucket' },
       BucketPolicyResource: {
         Type: 'AWS::S3::BucketPolicy',
-        DeletionPolicy: 'Retain',
+        DeletionPolicy: deletionPolicy,
         Properties: {
           PolicyDocument: POLICY_DOCUMENT,
           Bucket: { Ref: 'BucketResource' },

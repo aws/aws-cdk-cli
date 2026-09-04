@@ -1,4 +1,4 @@
-import type { CdkIntegHelperOptions } from './cdk-integ-helper';
+import type { CdkTestAppOptions } from './cdk-test-app';
 import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
 
 /**
@@ -8,7 +8,7 @@ import { ToolkitLibRunnerEngine } from '../engines/toolkit-lib';
  */
 export function makeEngine(options: EngineOptions): ToolkitLibRunnerEngine {
   return new ToolkitLibRunnerEngine({
-    workingDirectory: options.test.directory,
+    workingDirectory: options.test.workingDirectory,
     showOutput: options.showOutput,
     env: options.env,
     region: options.region,
@@ -18,4 +18,4 @@ export function makeEngine(options: EngineOptions): ToolkitLibRunnerEngine {
   });
 }
 
-export type EngineOptions = Pick<CdkIntegHelperOptions, 'test' | 'showOutput' | 'env' | 'region' | 'profile' | 'proxy' | 'caBundlePath'>;
+export type EngineOptions = Pick<CdkTestAppOptions, 'test' | 'showOutput' | 'env' | 'region' | 'profile' | 'proxy' | 'caBundlePath'>;

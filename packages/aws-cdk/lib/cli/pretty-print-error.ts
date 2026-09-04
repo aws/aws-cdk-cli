@@ -1,31 +1,56 @@
 /* eslint-disable no-console */
 import chalk from 'chalk';
 
+interface PrettyErrorPrinterOptions {
+  /**
+   * Print the error as an expected outcome, for example when a user declined a confirmation prompt.
+   * While thrown as exceptions, these should visually not be presented as a crash.
+   */
+  readonly soft: boolean;
+  /**
+   * Prints as much debug output as possible.
+   */
+  readonly debug: boolean;
+}
+
 /* c8 ignore start */
-export function prettyPrintError(error: unknown, options: { soft?: boolean; debug?: boolean } = {}) {
+export function prettyPrintError(error: unknown, options: PrettyErrorPrinterOptions = { soft: false, debug: false }) {
   const err = ensureError(error);
-  const debug = options.debug ?? false;
-  const soft = options.soft ?? false;
 
   // A soft error (for example a user-declined confirmation) is an expected outcome, not a crash.
   // Present the message less scary.
-  const errorPaint = soft ? chalk.yellow : chalk.red;
+  const errorPaint = options.soft ? chalk.yellow : chalk.red;
 
   console.error(errorPaint(err.message));
-  if (err.cause && !soft) {
-    const cause = ensureError(err.cause);
-    console.error(chalk.yellow(cause.message));
-    printTrace(cause, debug);
-  }
+  printCauses(err, options);
 
-  printTrace(err, debug);
-}
-
-function printTrace(err: Error, debug = false) {
   // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
   // file and the printed code line and stack trace are huge and useless.
-  if (err.stack && debug) {
+  if (options.debug) {
+    printTraces(err);
+  }
+}
+
+/**
+ * Recursively print all error causes recursively.
+ */
+function printCauses(err: Error, options: PrettyErrorPrinterOptions) {
+  if (err.cause && !options.soft) {
+    const cause = ensureError(err.cause);
+    console.error(chalk.yellow(`‣ ${cause.name}: ${cause.message}`));
+    printCauses(cause, options);
+  }
+}
+
+/**
+ * Recursively print all error traces.
+ */
+function printTraces(err: Error) {
+  if (err.stack) {
     console.debug(chalk.gray(err.stack));
+  }
+  if (err.cause) {
+    printTraces(ensureError(err.cause));
   }
 }
 

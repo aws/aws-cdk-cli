@@ -34,6 +34,12 @@ interface ClientConfig {
   readonly requestHandler?: NodeHttpHandlerOptions;
 }
 
+export const CREDENTIAL_ENV_VARS = [
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+];
+
 export class AwsClients {
   public static async forIdentity(randomString: string, region: string, identity: AwsCredentialIdentity, output: NodeJS.WritableStream) {
     return new AwsClients(randomString, region, output, identity);

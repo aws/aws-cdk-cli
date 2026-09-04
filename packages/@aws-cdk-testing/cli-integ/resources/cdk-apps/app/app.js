@@ -35,7 +35,6 @@ if (process.env.PACKAGE_LAYOUT_VERSION === '1') {
     aws_bedrockagentcore: bedrockagentcore,
     aws_events: events,
     aws_dynamodb: dynamodb,
-    aws_bedrock: bedrock,
     Stack
   } = require('aws-cdk-lib');
 }
@@ -168,8 +167,8 @@ class ListMultipleDependentStack extends Stack {
     const dependentStack1 = new DependentStack1(this, 'DependentStack1');
     const dependentStack2 = new DependentStack2(this, 'DependentStack2');
 
-    this.addDependency(dependentStack1);
-    this.addDependency(dependentStack2);
+    this.addStackDependency(dependentStack1);
+    this.addStackDependency(dependentStack2);
   }
 }
 
@@ -193,7 +192,7 @@ class ListStack extends Stack {
 
     const dependentStack = new DependentStack(this, 'DependentStack');
 
-    this.addDependency(dependentStack);
+    this.addStackDependency(dependentStack);
   }
 }
 
@@ -203,7 +202,7 @@ class DependentStack extends Stack {
 
     const innerDependentStack = new InnerDependentStack(this, 'InnerDependentStack');
 
-    this.addDependency(innerDependentStack);
+    this.addStackDependency(innerDependentStack);
   }
 }
 
@@ -787,19 +786,39 @@ class CloudControlHotswapStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
-    cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
+    // TEMPORARILY DISABLED — do not re-enable without the CCAPI tag fix.
+    // Changing this tag makes `Tags` the Queue's only changed property, so the CCAPI
+    // hotswap emits `replace /Tags` with just the template-defined tags. Since 2026-09-01
+    // that fails against a CloudFormation-created queue with:
+    //   ValidationException: aws: prefixed tag key names are not allowed for external use
+    // because reconciling to a tag set that omits the queue's reserved
+    // `aws:cloudformation:*` tags implies removing them, which SQS forbids
+    // (https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-queues.html).
+    // With this tag static, the Queue has no hotswappable change and the Dashboard and
+    // Rule still exercise the CCAPI path. This drops Queue/`Tags` hotswap coverage.
+    // cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
 
-    // Bedrock Agent — hotswapped via CCAPI, references the DynamoDB table name
-    const agentRole = new iam.Role(this, 'AgentRole', {
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
-    });
-    const agent = new bedrock.CfnAgent(this, 'Agent', {
-      agentName: `${cdk.Stack.of(this).stackName}-agent`.substring(0, 40),
-      agentResourceRoleArn: agentRole.roleArn,
-      instruction: process.env.DYNAMIC_CC_PROPERTY_VALUE
-        ? `You help query the table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
-        : `You help query the table ${table.tableName}. original. original`,
-      foundationModel: 'anthropic.claude-instant-v1',
+    // CloudWatch Dashboard — hotswapped via CCAPI, references the DynamoDB table name.
+    // (This used to be an AWS::Bedrock::Agent, but Bedrock Agents Classic went into
+    // maintenance mode on 2026-07-30 and CreateAgent is rejected in accounts without
+    // prior service usage, which includes fresh test environments:
+    // https://docs.aws.amazon.com/bedrock/latest/userguide/agents-classic-maintenance-mode.html)
+    const dashboard = new cdk.CfnResource(this, 'Dashboard', {
+      type: 'AWS::CloudWatch::Dashboard',
+      properties: {
+        DashboardName: `${cdk.Stack.of(this).stackName}-dashboard`.substring(0, 40),
+        DashboardBody: this.toJsonString({
+          widgets: [{
+            type: 'text',
+            x: 0, y: 0, width: 24, height: 2,
+            properties: {
+              markdown: process.env.DYNAMIC_CC_PROPERTY_VALUE
+                ? `Table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
+                : `Table ${table.tableName}. original. original`,
+            },
+          }],
+        }),
+      },
     });
 
     // Events Rule — hotswapped via CCAPI, references the ElastiCache cache ARN
@@ -811,7 +830,7 @@ class CloudControlHotswapStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'QueueUrl', { value: queue.queueUrl });
-    new cdk.CfnOutput(this, 'AgentName', { value: agent.ref });
+    new cdk.CfnOutput(this, 'DashboardName', { value: dashboard.ref });
     new cdk.CfnOutput(this, 'RuleName', { value: rule.ruleName });
   }
 }
@@ -1143,7 +1162,7 @@ switch (stackSet) {
 
     // A stack that depends on the failed stack -- used to test that '-e' does not deploy the failing stack
     const dependsOnFailed = new OutputsStack(app, `${stackPrefix}-depends-on-failed`);
-    dependsOnFailed.addDependency(failed);
+    dependsOnFailed.addStackDependency(failed);
 
     if (process.env.ENABLE_VPC_TESTING) { // Gating so we don't do context fetching unless that's what we are here for
       const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION };
@@ -1205,6 +1224,10 @@ switch (stackSet) {
     break;
 
   case 'stage-with-no-stacks':
+    break;
+
+  case 'stage-only':
+    new SomeStage(app, `${stackPrefix}-stage`);
     break;
 
   default:

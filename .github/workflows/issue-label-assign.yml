@@ -22,6 +22,7 @@ jobs:
       OSDS_DEVS: '{"assignees":["hunhsieh"]}'
     steps:
       - name: Triage Manager
+        id: triage_manager
         uses: aws-github-ops/aws-issue-triage-manager@701b2b0b4ba8c03c587149c37519052c357a2a61
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -41,6 +42,7 @@ jobs:
     environment: automation
     steps:
       - name: Triage Manager
+        id: triage_manager
         uses: aws-github-ops/aws-issue-triage-manager@701b2b0b4ba8c03c587149c37519052c357a2a61
         with:
           github-token: ${{ secrets.PROJEN_GITHUB_TOKEN }}

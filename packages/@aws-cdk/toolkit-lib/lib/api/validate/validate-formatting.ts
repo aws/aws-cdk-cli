@@ -30,6 +30,7 @@ export function formatValidationReports(fileRoot: string, reports: PluginReportJ
 
   return [
     ...pluginFailures.map(formatPluginFailure),
+    ...successfullyExecutedPlugins.flatMap((r) => r.preamble ? [`${chalk.underline(sanitize(r.pluginName))}: ${sanitize(r.preamble)}`] : []),
     ...violations.map((v) => formatViolationBlock(fileRoot, v)),
   ];
 }
@@ -39,7 +40,7 @@ function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
     const pluginName = report.pluginName;
     return report.violations.flatMap((violation) => {
       return violation.violatingConstructs.map((construct) => ({
-        severity: normalizeSeverity(violation.severity),
+        severity: normalizeSeverity(violation.severity, violation.customSeverity),
         description: violation.description,
         ruleName: violation.ruleName,
         pluginName,
@@ -117,7 +118,7 @@ function formatConstructInfo(fileRoot: string, construct: ViolatingConstructJson
 
   if (construct.constructPath) {
     const cPath = sanitize(construct.constructPath);
-    parts.push(logicalId ? `${chalk.bold(cPath)} (${logicalId})` : chalk.bold(cPath));
+    parts.push(logicalId ? `${cPath} (${logicalId})` : cPath);
   } else {
     // No construct information, show template path and logical ID
     if (construct.cloudFormationResource?.templatePath) {

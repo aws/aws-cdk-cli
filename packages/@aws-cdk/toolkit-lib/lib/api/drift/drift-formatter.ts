@@ -93,6 +93,20 @@ export class DriftFormatter {
   }
 
   /**
+   * Resources that were not checked for drift: either CloudFormation returned
+   * no drift record for them at all, or it returned one with an UNKNOWN
+   * status (e.g. due to missing permissions or lack of drift-detection
+   * support for that resource type).
+   */
+  private getUncheckedResources(): string[] {
+    const drifts = this.resourceDriftResults;
+    return Array.from(this.allStackResources.keys()).filter((logicalId) => {
+      const drift = drifts.find((d) => d.LogicalResourceId === logicalId);
+      return !drift || drift.StackResourceDriftStatus === StackResourceDriftStatus.UNKNOWN;
+    });
+  }
+
+  /**
    * Format the stack drift detection results
    */
   public formatStackDrift(): DriftFormatterOutput {
@@ -110,7 +124,7 @@ export class DriftFormatter {
       const finalResult = chalk.green('No drift detected\n');
       return {
         numResourcesWithDrift: 0,
-        numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
+        numResourcesUnchecked: this.getUncheckedResources().length,
         stackHeader,
         unchecked: formatterOutput.unchecked,
         summary: finalResult,
@@ -120,7 +134,7 @@ export class DriftFormatter {
     const finalResult = chalk.yellow(`\n${actualDrifts.length} resource${actualDrifts.length === 1 ? '' : 's'} ${actualDrifts.length === 1 ? 'has' : 'have'} drifted from their expected configuration\n`);
     return {
       numResourcesWithDrift: actualDrifts.length,
-      numResourcesUnchecked: this.allStackResources.size - this.resourceDriftResults.length,
+      numResourcesUnchecked: this.getUncheckedResources().length,
       stackHeader,
       unchanged: formatterOutput.unchanged,
       unchecked: formatterOutput.unchecked,
@@ -161,10 +175,7 @@ export class DriftFormatter {
     }
 
     // Process all unchecked and unknown resources
-    const uncheckedResources = Array.from(this.allStackResources.keys()).filter((logicalId) => {
-      const drift = drifts.find((d) => d.LogicalResourceId === logicalId);
-      return !drift || drift.StackResourceDriftStatus === StackResourceDriftStatus.UNKNOWN;
-    });
+    const uncheckedResources = this.getUncheckedResources();
     if (uncheckedResources.length > 0) {
       unchecked = this.printSectionHeader('Unchecked Resources');
       for (const logicalId of uncheckedResources) {

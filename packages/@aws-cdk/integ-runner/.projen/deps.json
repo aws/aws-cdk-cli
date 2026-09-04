@@ -135,6 +135,10 @@
       "type": "build"
     },
     {
+      "name": "ts-node",
+      "type": "build"
+    },
+    {
       "name": "typescript",
       "version": "5.9",
       "type": "build"

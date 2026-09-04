@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { integTest, withDefaultFixture } from '../../../lib';
-import { BEDROCK_AGENT_REGIONS } from '../../../lib/regions';
 
 jest.setTimeout(5 * 60 * 1000);
 
@@ -33,7 +32,7 @@ integTest(
     const cacheFile = path.join(fixture.integTestDir, 'cdk.out', '.hotswap-cache', `${fullStackName}.json`);
     expect(fs.existsSync(cacheFile)).toBe(true);
 
-    // THEN - second hotswap changes only the Agent (via DYNAMIC_CC_PROPERTY_VALUE_2).
+    // THEN - second hotswap changes only the Dashboard (via DYNAMIC_CC_PROPERTY_VALUE_2).
     // If the cache is used, the diff is against the cached template, only 1 resource should be hotswapped.
     const deployOutput = await fixture.cdkDeploy(stackName, {
       options: ['--hotswap'],
@@ -48,7 +47,7 @@ integTest(
     // should only see one hotswapped message in output
     const hotswapCount = (deployOutput.match(/hotswapped!/g) || []).length;
     expect(hotswapCount).toBe(1);
-  }, { aws: { regions: BEDROCK_AGENT_REGIONS } }),
+  }),
 );
 
 integTest(

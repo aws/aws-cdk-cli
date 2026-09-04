@@ -226,6 +226,40 @@ test('asks human to confirm automatic import if identifier is in template', asyn
   });
 });
 
+test('notification arns are passed to the import deployment', async () => {
+  // GIVEN
+  givenCurrentStack(STACK_WITH_QUEUE.stackName, { Resources: {} });
+  const importer = new ResourceImporter(STACK_WITH_QUEUE, props);
+  const { additions } = await importer.discoverImportableResources();
+  const importMap: ImportMap = {
+    importResources: additions,
+    resourceMap: {
+      MyQueue: { QueueName: 'TheQueueName' },
+    },
+  };
+
+  // WHEN
+  await advanceTime(importer.importResourcesFromMap(importMap, {
+    notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic'],
+  }));
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    ChangeSetName: expect.any(String),
+    StackName: STACK_WITH_QUEUE.stackName,
+    TemplateBody: expect.any(String),
+    ChangeSetType: 'IMPORT',
+    NotificationARNs: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic'],
+    ResourcesToImport: [
+      {
+        LogicalResourceId: 'MyQueue',
+        ResourceIdentifier: { QueueName: 'TheQueueName' },
+        ResourceType: 'AWS::SQS::Queue',
+      },
+    ],
+  });
+});
+
 test('issue 1575: importing resources does not mutate the cached deployed template', async () => {
   // GIVEN a deployed stack with no resources, importing MyQueue
   givenCurrentStack(STACK_WITH_QUEUE.stackName, { Resources: {} });

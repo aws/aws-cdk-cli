@@ -24,13 +24,15 @@ jobs:
           path: ${{ runner.temp }}
         continue-on-error: true
       - name: Checkout PR
+        id: checkout_pr
         if: steps.download_patch.outcome == 'success'
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           token: ${{ secrets.PROJEN_GITHUB_TOKEN }}
           ref: ${{ github.event.workflow_run.head_branch }}
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
       - name: Apply patch to PR
+        id: apply_patch_to_pr
         if: steps.download_patch.outcome == 'success'
         run: |-
           set -e

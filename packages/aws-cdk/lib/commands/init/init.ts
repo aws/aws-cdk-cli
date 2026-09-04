@@ -1,16 +1,16 @@
-import * as childProcess from 'child_process';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { invokeBuiltinHooks } from './init-hooks';
+import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 import type { IoHelper } from '../../api-private';
 import { cliRootDir } from '../../cli/root-dir';
 import { versionNumber } from '../../cli/version';
+import { run, SubprocessError } from '../../private/tools';
 import { cdkHomeDir, formatErrorMessage, rangeFromSemver, stripCaret } from '../../util';
 import type { LanguageInfo } from '../language';
 import { getLanguageAlias, getLanguageExtensions, SUPPORTED_LANGUAGES } from '../language';
-import { getPmCmdPrefix, type JsPackageManager } from './package-manager';
 
 /* eslint-disable @typescript-eslint/no-var-requires */ // Packages don't have @types module
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -782,7 +782,7 @@ async function initializeGitRepository(ioHelper: IoHelper, workDir: string) {
   try {
     await execute(ioHelper, 'git', ['init'], { cwd: workDir });
     await execute(ioHelper, 'git', ['add', '.'], { cwd: workDir });
-    await execute(ioHelper, 'git', ['commit', '--message="Initial commit"', '--no-gpg-sign'], { cwd: workDir });
+    await execute(ioHelper, 'git', ['commit', '--message=Initial commit', '--no-gpg-sign'], { cwd: workDir });
   } catch {
     await ioHelper.defaults.warn('Unable to initialize git repository for your project.');
   }
@@ -962,26 +962,20 @@ function isRoot(dir: string) {
  * @returns STDOUT (if successful).
  */
 async function execute(ioHelper: IoHelper, cmd: string, args: string[], { cwd }: { cwd: string }) {
-  const child = childProcess.spawn(cmd, args, {
-    cwd,
-    shell: true,
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
-  let stdout = '';
-  child.stdout.on('data', (chunk) => (stdout += chunk.toString()));
-  return new Promise<string>((ok, fail) => {
-    child.once('error', (err) => fail(err));
-    child.once('exit', (status) => {
-      if (status === 0) {
-        return ok(stdout);
-      } else {
-        return fail(new ToolkitError('CommandFailed', `${cmd} exited with status ${status}`));
+  try {
+    // stderr stays attached to the terminal so tools like npm keep their
+    // progress rendering; stdout is collected and returned.
+    const result = await run([cmd, ...args], { cwd, stdio: 'inherit-stderr' });
+    return result.stdout;
+  } catch (err: any) {
+    if (err instanceof SubprocessError) {
+      await ioHelper.defaults.error(err.stdout);
+      if (err.kind === 'exited') {
+        throw new ToolkitError('CommandFailed', `${cmd} exited with status ${err.exitCode}`);
       }
-    });
-  }).catch(async (err) => {
-    await ioHelper.defaults.error(stdout);
+    }
     throw err;
-  });
+  }
 }
 
 interface Versions {

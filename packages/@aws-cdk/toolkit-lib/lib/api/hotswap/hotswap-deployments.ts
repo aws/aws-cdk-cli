@@ -576,10 +576,12 @@ async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswa
   } catch (e: any) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
       const result: WaiterResult = JSON.parse(formatErrorMessage(e));
-      const error = new ToolkitError('HotswapWaiterFailed', formatWaiterErrorResult(result));
-      error.name = e.name;
+      const error = ToolkitError.withCause('HotswapWaiterFailed', `[${hotswapOperation.service}] ` + formatWaiterErrorResult(result), e);
       throw error;
     }
+
+    // Always prepend the hotswap service to errors
+    e.message = `[${hotswapOperation.service}] ${e.message}`;
     throw e;
   }
 

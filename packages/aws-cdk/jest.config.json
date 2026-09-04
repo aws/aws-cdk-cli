@@ -39,7 +39,8 @@
     "<rootDir>/lib/init-templates/",
     "<rootDir>/lib/cli/parse-command-line-arguments.ts",
     "<rootDir>/lib/cli/user-input.ts",
-    "<rootDir>/lib/cli/convert-to-user-input.ts"
+    "<rootDir>/lib/cli/convert-to-user-input.ts",
+    "lib/private/tools\\.js$"
   ],
   "reporters": [
     "default",

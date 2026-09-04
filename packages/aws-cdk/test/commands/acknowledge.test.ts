@@ -29,4 +29,16 @@ describe('acknowledge command', () => {
     // THEN
     expect(configuration.context.get('acknowledged-issue-numbers')).toEqual([12345]);
   });
+
+  test('acknowledging a scoped construct warning id throws and does not corrupt the context', async () => {
+    // WHEN / THEN
+    await expect(toolkit.acknowledge('@aws-cdk/aws-ecs:minHealthyPercent')).rejects.toThrow(/numeric notice IDs/i);
+
+    // AND the context is not corrupted with a `null` entry
+    expect(configuration.context.get('acknowledged-issue-numbers')).toBeUndefined();
+  });
+
+  test('acknowledging a non-numeric id throws', async () => {
+    await expect(toolkit.acknowledge('not-a-number')).rejects.toThrow(/Invalid notice ID/i);
+  });
 });
