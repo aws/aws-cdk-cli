@@ -207,16 +207,18 @@ export class StackAssembly implements IReadableCloudAssembly {
   private suggestionsForPatterns(patterns: string[]): Record<string, string[]> {
     const suggestions: Record<string, string[]> = {};
     for (const pattern of patterns) {
+      const exact = picomatch(pattern, undefined, true);
+      const loose = picomatch(pattern.toLowerCase());
       // The stacks the pattern is about; for a negation, the stacks it excludes
-      const refersTo = picomatch.parse(pattern).negated
-        ? (id: string, glob: string) => !picomatch.isMatch(id, glob)
-        : picomatch.isMatch;
+      const refersTo = exact.state.negated
+        ? (matches: picomatch.Matcher, id: string) => !matches(id)
+        : (matches: picomatch.Matcher, id: string) => matches(id);
 
-      if (this.allStacks.some((stack) => refersTo(stack.hierarchicalId, pattern))) {
+      if (this.allStacks.some((stack) => refersTo(exact, stack.hierarchicalId))) {
         continue;
       }
       suggestions[pattern] = this.allStacks
-        .filter((stack) => refersTo(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
+        .filter((stack) => refersTo(loose, stack.hierarchicalId.toLowerCase()))
         .map((stack) => stack.hierarchicalId);
     }
     return suggestions;
