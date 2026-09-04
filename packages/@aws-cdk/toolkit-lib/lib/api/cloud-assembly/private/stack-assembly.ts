@@ -13,12 +13,12 @@ import { ExpandStackSelection, StackSelectionStrategy } from '../stack-selector'
 import type { IReadableCloudAssembly } from '../types';
 
 /**
- * Options for `StackAssembly.selectStacksV3`.
+ * Options for `StackAssembly.selectStacksWithSuggestions`.
  */
-export interface SelectStacksV3Options {
+export interface SelectStacksWithSuggestionsOptions {
   /**
    * For a pattern selector, also compute suggestions for every pattern that
-   * matched no stack (see `SelectStacksV3Result.suggestions`).
+   * matched no stack (see `StacksWithSuggestions.suggestions`).
    *
    * @default false
    */
@@ -26,9 +26,9 @@ export interface SelectStacksV3Options {
 }
 
 /**
- * Result of `StackAssembly.selectStacksV3`.
+ * Result of `StackAssembly.selectStacksWithSuggestions`.
  */
-export interface SelectStacksV3Result {
+export interface StacksWithSuggestions {
   /**
    * The selected stacks.
    */
@@ -122,10 +122,10 @@ export class StackAssembly implements IReadableCloudAssembly {
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
    * @throws when individual selection strategies are not satisfied
    *
-   * Thin wrapper around `selectStacksV3` that keeps the historic return shape.
+   * Thin wrapper around `selectStacksWithSuggestions` that keeps a simpler return shape.
    */
-  public async selectStacksV2(selector: StackSelector): Promise<StackCollection> {
-    return (await this.selectStacksV3(selector)).stacks;
+  public async selectStacks(selector: StackSelector): Promise<StackCollection> {
+    return (await this.selectStacksWithSuggestions(selector)).stacks;
   }
 
   /**
@@ -135,7 +135,10 @@ export class StackAssembly implements IReadableCloudAssembly {
    * @throws when the assembly does not contain any stacks, unless `selector.failOnEmpty` is `false`
    * @throws when individual selection strategies are not satisfied
    */
-  public async selectStacksV3(selector: StackSelector, options: SelectStacksV3Options = {}): Promise<SelectStacksV3Result> {
+  public async selectStacksWithSuggestions(
+    selector: StackSelector,
+    options: SelectStacksWithSuggestionsOptions = {},
+  ): Promise<StacksWithSuggestions> {
     const asm = this.assembly;
     const topLevelStacks = asm.stacks;
     const allStacks = this.allStacks;
@@ -163,8 +166,7 @@ export class StackAssembly implements IReadableCloudAssembly {
       case StackSelectionStrategy.ONLY_SINGLE:
         if (topLevelStacks.length !== 1) {
           // @todo text should probably be handled in io host
-          throw new ToolkitError('MultipleStacksWithoutSelector', 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
-          `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`);
+          throw new ToolkitError('MultipleStacksWithoutSelector', multipleStacksWithoutSelectorMessage(topLevelStacks, allStacks));
         }
         return { stacks: new StackCollection(this, topLevelStacks) };
       default:
@@ -336,4 +338,34 @@ async function includeUpstreamStacks(
   if (added.length > 0) {
     await ioHelper.notify(IO.CDK_TOOLKIT_I1002.msg(`Including dependency stacks: ${chalk.bold(added.join(', '))}`));
   }
+}
+
+/**
+ * Build the error message shown when the app has more than one stack but a
+ * single-stack selection was requested without a selector.
+ *
+ * When some of the stacks are nested inside a Stage (i.e. they are not
+ * top-level stacks, their hierarchical id is namespaced like `StageName/StackName`),
+ * we additionally point the user at a wildcard pattern that selects them, e.g.
+ * `'StageName/*'`. Otherwise users are left guessing, since a bare stack name or
+ * `--all` is not the most obvious way to target stacks inside a Stage.
+ */
+export function multipleStacksWithoutSelectorMessage(
+  topLevelStacks: cxapi.CloudFormationStackArtifact[],
+  allStacks: cxapi.CloudFormationStackArtifact[],
+): string {
+  const topLevelSet = new Set(topLevelStacks);
+  const stagedStacks = allStacks.filter(stack => !topLevelSet.has(stack));
+
+  let message = 'Since this app includes more than a single stack, specify which stacks to use (wildcards are supported) or specify `--all`\n' +
+    `Stacks: ${allStacks.map(x => x.hierarchicalId).join(' · ')}`;
+
+  if (stagedStacks.length > 0) {
+    const stagePatterns = Array.from(new Set(stagedStacks.map(stack => `${stack.hierarchicalId.split('/')[0]}/*`)));
+    message += '\n' +
+      'Some of these stacks are nested inside a Stage. To select the stacks in a Stage, ' +
+      `use a pattern that matches their full path, e.g. ${stagePatterns.map(p => `'${p}'`).join(', ')}`;
+  }
+
+  return message;
 }

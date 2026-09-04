@@ -57,7 +57,7 @@ jobs:
         run: corepack enable
       - name: Setup Node.js
         id: setup_node_js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: lts/*
           package-manager-cache: false
@@ -76,14 +76,14 @@ jobs:
         run: yarn projen build
       - name: Upload artifact
         id: build-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: build-artifact
           path: packages/**/dist/js/*.tgz
           overwrite: true
       - name: Upload artifact
         id: script-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: script-artifact
           path: .projen/*.sh
@@ -105,13 +105,13 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         id: download_artifact_2
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
@@ -190,7 +190,7 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
@@ -237,13 +237,13 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         id: download_artifact_2
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
@@ -322,7 +322,7 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
@@ -359,13 +359,13 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         id: download_artifact_2
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
@@ -444,7 +444,7 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
@@ -478,13 +478,13 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         id: download_artifact_2
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
@@ -563,7 +563,7 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
@@ -611,13 +611,13 @@ jobs:
     steps:
       - name: Download artifact
         id: download_artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.packagesArtifact}}
           path: packages
       - name: Download artifact
         id: download_artifact_2
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{needs.prepare.outputs.scriptsArtifact}}
           path: .projen
@@ -696,7 +696,7 @@ jobs:
       - name: Upload logs
         id: logupload
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.artifactid.outputs.slug }}
           path: logs/
