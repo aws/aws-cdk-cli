@@ -275,7 +275,7 @@ export class StackAssembly implements IReadableCloudAssembly {
  * Match the stacks a set of patterns selects: OR over the selecting patterns,
  * AND over the negated ones. Every pattern is compiled exactly as picomatch
  * defines it - a negated matcher accepts the stacks that survive it - and
- * `parse().negated` decides which group a pattern belongs to.
+ * its parse state's `negated` decides which group a pattern belongs to.
  *
  * Negations on their own start from every stack, so `!Stack` selects every
  * stack but that one. No patterns at all still selects nothing.
@@ -284,7 +284,8 @@ function matcherFor(patterns: string[]): (hierarchicalId: string) => boolean {
   const positives: picomatch.Matcher[] = [];
   const negatives: picomatch.Matcher[] = [];
   for (const pattern of patterns) {
-    (picomatch.parse(pattern).negated ? negatives : positives).push(picomatch(pattern));
+    const parsed = picomatch(pattern, undefined, true);
+    (parsed.state.negated ? negatives : positives).push(parsed);
   }
 
   if (positives.length === 0 && negatives.length === 0) {
