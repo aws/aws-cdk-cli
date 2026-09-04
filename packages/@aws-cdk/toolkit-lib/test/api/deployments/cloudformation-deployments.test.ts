@@ -1102,6 +1102,26 @@ test('rollback stack allows rolling back from UPDATE_FAILED', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommand(RollbackStackCommand);
 });
 
+test('rollback stack is not failed by a throttled stack event poll', async () => {
+  // GIVEN - reading stack events fails throughout, including the final poll in monitor.stop()
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_FAILED' },
+  });
+  mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+    Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }),
+  );
+
+  // WHEN
+  const response = await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+  });
+
+  // THEN - the rollback succeeded, and the final poll failure was only reported
+  expect(response).toMatchObject({ success: true });
+  ioHost.expectMessage({ level: 'warn', containing: 'Error occurred during final stack event poll' });
+});
+
 test('rollback stack allows continue rollback from UPDATE_ROLLBACK_FAILED', async () => {
   // GIVEN
   givenStacks({

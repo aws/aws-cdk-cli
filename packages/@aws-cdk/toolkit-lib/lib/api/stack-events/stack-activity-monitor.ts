@@ -220,7 +220,6 @@ export class StackActivityMonitor {
     try {
       this.readPromise = this.readNewEvents(this.monitorId);
       await this.readPromise;
-      this.readPromise = undefined;
 
       // We might have been stop()ped while the network call was in progress.
       if (!this.monitorId) {
@@ -231,6 +230,9 @@ export class StackActivityMonitor {
         util.format('Error occurred while monitoring stack: %s', e),
         { error: e as any },
       ));
+    } finally {
+      // Clear on both paths, so `readPromise` only ever holds a read that is still in flight.
+      this.readPromise = undefined;
     }
     this.scheduleNextTick();
   }
@@ -287,11 +289,23 @@ export class StackActivityMonitor {
     // the moment we were sure we weren't going to get any new events anymore
     // so we need to do a new one anyway. Need to wait for this one though
     // because our state is single-threaded.
-    if (this.readPromise) {
+    try {
       await this.readPromise;
+    } catch {
+      // A failure of the in-flight poll has already been reported by tick().
     }
 
-    await this.readNewEvents(monitorId);
+    // Reading events only completes the event log shown to the user; it cannot change
+    // whether the monitored operation succeeded. Warn that the log may be short instead
+    // of letting the failure propagate out of stop().
+    try {
+      await this.readNewEvents(monitorId);
+    } catch (e) {
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_W5500.msg(
+        util.format('Error occurred during final stack event poll, event log may be incomplete: %s', e),
+        { error: e as any },
+      ));
+    }
   }
 
   /**
