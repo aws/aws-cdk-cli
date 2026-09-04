@@ -877,3 +877,144 @@ describe('Tags hotswap does not disturb reserved aws:-prefixed tags', () => {
     ]);
   });
 });
+
+describe('Tags modelled as a { key: value } map', () => {
+  // Some resource types model Tags as a map rather than a list of { Key, Value }.
+  const liveTags = {
+    'aws:cloudformation:stack-name': 'my-stack',
+    'aws:cloudformation:logical-id': 'Api',
+    'DynamicTag': 'original value',
+  };
+
+  function givenApi(currentTags: any, templateTags: any, newTemplateTags: any) {
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      TypeName: 'AWS::ApiGatewayV2::Api',
+      ResourceDescription: {
+        Identifier: 'api-123',
+        Properties: JSON.stringify({ Id: 'api-123', Tags: currentTags }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Api: { Type: 'AWS::ApiGatewayV2::Api', Properties: { Id: 'api-123', Tags: templateTags } },
+      },
+    });
+    setup.pushStackResourceSummaries(setup.stackSummaryOf('Api', 'AWS::ApiGatewayV2::Api', 'api-123'));
+    return setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Api: { Type: 'AWS::ApiGatewayV2::Api', Properties: { Id: 'api-123', Tags: newTemplateTags } },
+        },
+      },
+    });
+  }
+
+  const patchOf = () => {
+    const call = mockCloudControlClient.commandCalls(UpdateResourceCommand)[0];
+    return JSON.parse((call.args[0].input as any).PatchDocument);
+  };
+
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('addresses the changed tag by key, naming no reserved tag', async () => {
+    // GIVEN
+    const artifact = givenApi(
+      liveTags,
+      { DynamicTag: 'original value' },
+      { DynamicTag: 'new value' },
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN
+    expect(patchOf()).toEqual([
+      { op: 'replace', path: '/Tags/DynamicTag', value: 'new value' },
+    ]);
+    const patchText = JSON.stringify(patchOf());
+    expect(patchText).not.toContain('"path":"/Tags"');
+    expect(patchText.toLowerCase()).not.toContain('aws:');
+  });
+
+  test('escapes / and ~ in tag keys per RFC 6901', async () => {
+    // GIVEN - AWS tag keys may legally contain '/'
+    const artifact = givenApi(
+      { 'cost/center': 'old', 'a~b': 'old' },
+      { 'cost/center': 'old', 'a~b': 'old' },
+      { 'cost/center': 'new', 'a~b': 'new' },
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN - '/' -> '~1' and '~' -> '~0', so the key is not read as a path separator
+    expect(patchOf()).toEqual([
+      { op: 'replace', path: '/Tags/cost~1center', value: 'new' },
+      { op: 'replace', path: '/Tags/a~0b', value: 'new' },
+    ]);
+  });
+
+  test('removes a tag dropped from the template but never a reserved one', async () => {
+    // GIVEN
+    const artifact = givenApi(
+      { ...liveTags, Obsolete: 'x' },
+      { DynamicTag: 'original value', Obsolete: 'x' },
+      { DynamicTag: 'original value' },
+    );
+
+    // WHEN
+    await hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact);
+
+    // THEN
+    expect(patchOf()).toEqual([{ op: 'remove', path: '/Tags/Obsolete' }]);
+    expect(JSON.stringify(patchOf()).toLowerCase()).not.toContain('aws:');
+  });
+});
+
+describe('Tags in an unexpected shape', () => {
+  beforeEach(() => {
+    hotswapMockSdkProvider = setup.setupHotswapTests();
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({ primaryIdentifier: ['/properties/Id'] }),
+    });
+    mockCloudControlClient.on(UpdateResourceCommand).resolves({});
+  });
+
+  test('fails rather than sending a wholesale replace when the live Tags shape is not the template shape', async () => {
+    // GIVEN - the template declares a list, but the resource reports a scalar
+    mockCloudControlClient.on(GetResourceCommand).resolves({
+      TypeName: 'AWS::SQS::Queue',
+      ResourceDescription: {
+        Identifier: 'q-123',
+        Properties: JSON.stringify({ Id: 'q-123', Tags: 'not-a-tag-collection' }),
+      },
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        Queue: { Type: 'AWS::SQS::Queue', Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'a' }] } },
+      },
+    });
+    setup.pushStackResourceSummaries(setup.stackSummaryOf('Queue', 'AWS::SQS::Queue', 'q-123'));
+    const artifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          Queue: { Type: 'AWS::SQS::Queue', Properties: { Id: 'q-123', Tags: [{ Key: 'DynamicTag', Value: 'b' }] } },
+        },
+      },
+    });
+
+    // WHEN / THEN
+    await expect(
+      hotswapMockSdkProvider.tryHotswapDeployment(HotswapMode.HOTSWAP_ONLY, artifact),
+    ).rejects.toThrow(/could not interpret the current tags of q-123 \(AWS::SQS::Queue\): the resource reports Tags as string but the template declares a list/);
+
+    // and we never send the request that would have removed the reserved tags
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+  });
+});
