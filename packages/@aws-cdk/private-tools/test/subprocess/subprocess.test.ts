@@ -1,5 +1,8 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { OutputStream } from '../../lib/subprocess';
-import { run, runSync, runUserCommandLine, renderForDisplay, SubprocessError } from '../../lib/subprocess';
+import { run, runSync, runUserCommandLine, renderForDisplay, resolveExecutable, SubprocessError } from '../../lib/subprocess';
 
 // A cross-platform argv that echoes its arguments exactly as received,
 // proving no shell interpreted them. `node -e` exists everywhere the
@@ -112,6 +115,32 @@ describe('run', () => {
 
     expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   }, 30000);
+
+  // Windows-only: a plain .exe (as in every nodeEval test above) never routes
+  // through cmd.exe, so this is the one path where cross-spawn's escaping is
+  // actually exercised. NOTE: CI has no Windows unit-test lane today (unit
+  // tests run only on the Ubuntu `build` job; the Windows CI jobs run the
+  // black-box integ suites), so this currently executes only when the suite is
+  // run on a Windows dev machine. It is kept as an executable spec until a
+  // Windows unit-test lane exists.
+  (process.platform === 'win32' ? test : test.skip)(
+    'a .cmd shim receives hostile arguments verbatim (cross-spawn escaping)',
+    async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmd-shim'));
+      const shim = path.join(dir, 'echo-args.cmd');
+      // The shim forwards its args to node, which echoes them back as JSON.
+      fs.writeFileSync(shim, '@node -e "process.stdout.write(JSON.stringify(process.argv.slice(1)))" %*\r\n');
+      try {
+        // Every one of these would do something (or break) if cmd.exe parsed it.
+        const hostile = ['a&echo PWNED', 'b|whoami', 'c>out', 'd"q', '%PATH%', 'e^f', '(g)', 'two  spaces'];
+        const result = await run([shim, ...hostile]);
+        expect(JSON.parse(result.stdout)).toEqual(hostile);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    30000,
+  );
 
   test('multi-byte UTF-8 characters split across chunks decode correctly', async () => {
     // 'é' is 2 bytes in UTF-8; the child writes them in separate chunks with a
@@ -249,5 +278,146 @@ describe('renderForDisplay', () => {
 
   test('defaults to the current platform', () => {
     expect(renderForDisplay(['plain'])).toEqual('plain');
+  });
+});
+
+describe('resolveExecutable', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'resolve-exe'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('POSIX leaves a bare name unchanged (execvp already searches PATH only)', () => {
+    expect(resolveExecutable('docker', { platform: 'linux' })).toEqual('docker');
+  });
+
+  test('an explicit path is honored verbatim on every platform', () => {
+    expect(resolveExecutable('/usr/bin/docker', { platform: 'win32' })).toEqual('/usr/bin/docker');
+    expect(resolveExecutable('C:\\tools\\docker.exe', { platform: 'win32' })).toEqual('C:\\tools\\docker.exe');
+    expect(resolveExecutable('./local-tool', { platform: 'linux' })).toEqual('./local-tool');
+  });
+
+  test('Windows resolves a bare name to its absolute location on PATH', () => {
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(target);
+  });
+
+  test('Windows searches for an already-suffixed name exactly (no double extension)', () => {
+    // Casing kept consistent so the assertion is meaningful on a case-sensitive
+    // filesystem; on Windows the FS match is itself case-insensitive.
+    fs.writeFileSync(path.join(dir, 'tool.exe'), '');
+
+    expect(resolveExecutable('tool.exe', { platform: 'win32', env: { PATH: dir, PATHEXT: '.EXE' } }))
+      .toEqual(path.join(dir, 'tool.exe'));
+  });
+
+  test('Windows refuses a name that is not on PATH — never falls back to the cwd', () => {
+    // The binary exists on disk, but in a directory that is NOT on PATH.
+    // Resolution must fail rather than let Windows satisfy the bare name from
+    // the working directory (the shadowing risk this closes).
+    fs.writeFileSync(path.join(dir, 'docker.CMD'), '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: '', PATHEXT: '.CMD' } }))
+      .toBeUndefined();
+  });
+
+  test('Windows PATH lookup is case-insensitive in the env var name (Path vs PATH)', () => {
+    const target = path.join(dir, 'git.EXE');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('git', { platform: 'win32', env: { Path: dir, PATHEXT: '.EXE' } }))
+      .toEqual(target);
+  });
+
+  test('Windows skips a relative PATH entry — the cwd is never consulted', () => {
+    // A relative entry (classically `.`) would join into a non-absolute
+    // candidate that cross-spawn re-resolves against the child cwd, reopening
+    // the shadowing hole. It must be ignored; the absolute entry wins, and the
+    // result is always absolute.
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    const resolved = resolveExecutable('docker', {
+      platform: 'win32',
+      env: { PATH: `.${path.delimiter}${dir}`, PATHEXT: '.CMD' },
+    });
+
+    expect(resolved).toEqual(target);
+    expect(path.isAbsolute(resolved!)).toBe(true);
+  });
+
+  test('Windows resolves nothing when PATH holds only relative entries', () => {
+    // Even though a matching file could exist relative to the cwd, a PATH of
+    // only relative entries must never satisfy the name from the cwd.
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: `.${path.delimiter}tools`, PATHEXT: '.CMD' } }))
+      .toBeUndefined();
+  });
+
+  test('Windows unwraps double-quoted PATH entries (as which does)', () => {
+    // Windows PATH entries may be wrapped in quotes (e.g. paths with spaces).
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+
+    expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: `"${dir}"`, PATHEXT: '.CMD' } }))
+      .toEqual(target);
+  });
+
+  test('Windows probes a suffixed name exactly even when its extension is not in PATHEXT', () => {
+    // `tool.exe` under `PATHEXT=.CMD` must still be found as `tool.exe`, not
+    // only as `tool.exe.CMD`.
+    fs.writeFileSync(path.join(dir, 'tool.exe'), '');
+
+    expect(resolveExecutable('tool.exe', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(path.join(dir, 'tool.exe'));
+  });
+
+  test('Windows probes a dotted name exactly (no known extension)', () => {
+    // A name containing a dot may be a literal file on PATH; it is tried before
+    // any PATHEXT extension is appended.
+    fs.writeFileSync(path.join(dir, 'my.tool'), '');
+
+    expect(resolveExecutable('my.tool', { platform: 'win32', env: { PATH: dir, PATHEXT: '.CMD' } }))
+      .toEqual(path.join(dir, 'my.tool'));
+  });
+
+  test('Windows falls back to process.env.PATH when the caller env has no PATH', () => {
+    // cross-spawn/which resolve against process.env.PATH when the spawn env has
+    // no PATH key, so a caller passing a PATH-less custom env must still resolve
+    // the tool (not get a synthetic ENOENT).
+    const target = path.join(dir, 'docker.CMD');
+    fs.writeFileSync(target, '');
+    const savedPath = process.env.PATH;
+    const savedPathExt = process.env.PATHEXT;
+    process.env.PATH = dir;
+    process.env.PATHEXT = '.CMD';
+    try {
+      expect(resolveExecutable('docker', { platform: 'win32', env: { FOO: 'bar' } }))
+        .toEqual(target);
+    } finally {
+      process.env.PATH = savedPath;
+      process.env.PATHEXT = savedPathExt;
+    }
+  });
+
+  test('Windows treats an explicitly empty PATH as no directories (no fallback)', () => {
+    // An explicit empty PATH means "no search dirs" and must not fall back to
+    // process.env.PATH — distinct from an absent PATH key.
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir;
+    fs.writeFileSync(path.join(dir, 'docker.CMD'), '');
+    try {
+      expect(resolveExecutable('docker', { platform: 'win32', env: { PATH: '', PATHEXT: '.CMD' } }))
+        .toBeUndefined();
+    } finally {
+      process.env.PATH = savedPath;
+    }
   });
 });

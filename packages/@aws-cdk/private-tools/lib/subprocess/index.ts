@@ -7,7 +7,8 @@
  *    the arguments, so shell injection is impossible by construction.
  *    Windows `.cmd`/`.bat` shims (npm, yarn, …) are handled by cross-spawn,
  *    which spawns `cmd.exe /d /s /c` with correct quoting — modern Node does
- *    not spawn batch shims directly (CVE-2024-27980).
+ *    not spawn batch shims directly (CVE-2024-27980). The executable name is
+ *    resolved against PATH.
  *
  * 2. `runUserCommandLine(line)` — an opaque command line **the user themselves
  *    authored** (e.g. the `app` command from `cdk.json`, the `--browser` flag),
@@ -26,6 +27,8 @@
  */
 // eslint-disable-next-line no-restricted-imports -- this module IS the sanctioned wrapper around child_process
 import * as child_process from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
 import spawn from 'cross-spawn';
 
@@ -221,7 +224,11 @@ function errorMessage(cause: unknown): string {
  */
 export async function run(argv: readonly string[], options: RunOptions = {}): Promise<RunResult> {
   assertNonEmptyArgv(argv, 'run');
-  const child = spawn(argv[0], argv.slice(1), spawnOptions(options));
+  const command = resolveExecutable(argv[0], { env: options.env });
+  if (command === undefined) {
+    return Promise.reject(notFoundError(argv));
+  }
+  const child = spawn(command, argv.slice(1), spawnOptions(options));
   return monitor(child, renderForDisplay(argv), options);
 }
 
@@ -249,7 +256,11 @@ export interface RunSyncOptions {
  */
 export function runSync(argv: readonly string[], options: RunSyncOptions = {}): string {
   assertNonEmptyArgv(argv, 'runSync');
-  const result = spawn.sync(argv[0], argv.slice(1), {
+  const command = resolveExecutable(argv[0], {});
+  if (command === undefined) {
+    throw notFoundError(argv);
+  }
+  const result = spawn.sync(command, argv.slice(1), {
     cwd: options.cwd,
     timeout: options.timeoutMs,
     killSignal: 'SIGTERM',
@@ -292,6 +303,151 @@ export async function runUserCommandLine(commandLine: string, options: RunOption
     shell: true,
   });
   return monitor(child, commandLine, options);
+}
+
+/**
+ * Resolve an executable name to an absolute path on PATH, never the cwd.
+ *
+ * On Windows a bare name spawned without a shell resolves from the cwd before
+ * PATH (cross-spawn delegates to `which`, which searches the cwd first), so a
+ * file planted in a handed-over cwd can shadow the real binary. Returning an
+ * absolute PATH hit — and refusing a name not on PATH (`undefined`) — closes
+ * that; the path is absolute so cross-spawn does not re-resolve it. For the same
+ * reason relative PATH entries (e.g. `.`) are skipped; quoted entries are
+ * unwrapped and a name with a dot is matched exactly, both as `which` does.
+ *
+ * On POSIX the name is returned unchanged (execvp searches PATH only). A name
+ * that already contains a path separator is honored verbatim everywhere.
+ *
+ * @returns an absolute path on Windows, the name unchanged elsewhere, or
+ *   `undefined` when a bare Windows name is not on PATH.
+ */
+export function resolveExecutable(
+  command: string,
+  options: { readonly env?: Record<string, string | undefined>; readonly platform?: NodeJS.Platform } = {},
+): string | undefined {
+  const platform = options.platform ?? process.platform;
+
+  // An explicit path (absolute, or containing a separator / drive) is used
+  // verbatim; there is no PATH search to harden. `\\` is checked directly
+  // because path.isAbsolute uses the *running* platform's rules.
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    return command;
+  }
+
+  // POSIX execvp searches PATH only; nothing to harden.
+  if (platform !== 'win32') {
+    return command;
+  }
+
+  // Resolve PATH/PATHEXT from the caller's env, falling back to process.env when
+  // that env lacks the key — mirroring cross-spawn/which, which resolve against
+  // process.env.PATH when the spawn env has no PATH. Without this fallback a
+  // caller passing a PATH-less custom env would wrongly get ENOENT on Windows.
+  const search = options.env ?? process.env;
+  const pathVar = envValue(search, 'PATH') ?? envValue(process.env, 'PATH');
+  const pathExt = envValue(search, 'PATHEXT') ?? envValue(process.env, 'PATHEXT');
+  const exts = windowsExtensions(command, pathExt);
+  const dirs = (pathVar ?? '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    // Windows PATH entries may be wrapped in double quotes; unwrap them (as
+    // `which` does) so a quoted directory still matches on disk.
+    .map(stripSurroundingQuotes)
+    // Only absolute entries: a relative one (e.g. `.`) would be joined into a
+    // non-absolute candidate that resolves against the cwd — the thing we
+    // refuse to consult.
+    .filter(isAbsolutePathEntry);
+
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = path.join(dir, command + ext);
+      if (isFile(candidate)) {
+        // Absolute (dir is absolute), so cross-spawn will not re-search.
+        return candidate;
+      }
+    }
+  }
+  // Not on PATH. Deliberately do NOT fall back to the bare name: that would let
+  // Windows resolve it from the cwd, which is exactly the risk we are closing.
+  return undefined;
+}
+
+/** Strip a single pair of wrapping double quotes from a PATH entry, if present. */
+function stripSurroundingQuotes(dir: string): string {
+  return /^".*"$/.test(dir) ? dir.slice(1, -1) : dir;
+}
+
+/**
+ * Whether a PATH entry is absolute. Recognizes both POSIX-absolute and
+ * Windows-absolute forms directly, rather than relying on `path.isAbsolute`
+ * (which uses the *running* platform's rules) — the resolver must behave the
+ * same under the `platform: 'win32'` test override on a POSIX host.
+ */
+function isAbsolutePathEntry(dir: string): boolean {
+  return path.isAbsolute(dir) // running-platform rule (native runtime + POSIX-absolute test dirs)
+    || /^[a-zA-Z]:[\\/]/.test(dir) // C:\ or C:/
+    || dir.startsWith('\\\\') // UNC \\server\share
+    || dir.startsWith('\\') // drive-relative-but-rooted \dir
+    || dir.startsWith('/'); // forward-slash absolute
+}
+
+/** Look up an environment variable case-insensitively (the Windows env is). */
+function envValue(env: Record<string, string | undefined>, name: string): string | undefined {
+  if (env[name] !== undefined) {
+    return env[name];
+  }
+  const lower = name.toLowerCase();
+  const key = Object.keys(env).find((k) => k.toLowerCase() === lower);
+  return key !== undefined ? env[key] : undefined;
+}
+
+/**
+ * The extensions to append when searching for `command` on Windows.
+ *
+ * If the name already ends in a known executable extension, search for it
+ * exactly (empty suffix). Otherwise, if the name contains a dot it may itself
+ * be a literal file on PATH, so probe the exact name first (as Windows and
+ * cross-spawn's `which` do) before appending each PATHEXT entry.
+ */
+function windowsExtensions(command: string, pathext: string | undefined): string[] {
+  const configured = (pathext ?? '.COM;.EXE;.BAT;.CMD')
+    .split(';')
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const lower = command.toLowerCase();
+  if (configured.some((e) => lower.endsWith(e.toLowerCase()))) {
+    return [''];
+  }
+  return command.includes('.') ? ['', ...configured] : configured;
+}
+
+function isFile(candidate: string): boolean {
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A `SubprocessError` shaped like a real spawn ENOENT, for the case where a
+ * bare Windows name could not be resolved on PATH. Keeps `kind: 'spawn-failed'`
+ * and a `cause` carrying `code: 'ENOENT'` so downstream guidance (e.g.
+ * cdk-assets' "please install docker") still fires.
+ */
+function notFoundError(argv: readonly string[]): SubprocessError {
+  const cause = Object.assign(new Error(`spawn ${argv[0]} ENOENT`), {
+    code: 'ENOENT', errno: -2, syscall: 'spawn', path: argv[0],
+  });
+  return new SubprocessError({
+    command: renderForDisplay(argv),
+    exitCode: null,
+    signal: null,
+    stdout: '',
+    stderr: '',
+    cause,
+  });
 }
 
 /**
