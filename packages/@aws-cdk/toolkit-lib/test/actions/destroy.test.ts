@@ -212,6 +212,36 @@ describe('destroy', () => {
     expect(mockDestroyStack).not.toHaveBeenCalled();
   });
 
+  test('suggests a closely matching stack when an exclusion does not exist', async () => {
+    // WHEN
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.PATTERN_MATCH, patterns: ['!stack1'] },
+    });
+
+    // THEN: an exclusion was compared against the stacks it left behind, which
+    // always matches, so nothing was ever reported for it
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'destroy',
+      level: 'warn',
+      code: 'CDK_TOOLKIT_W7010',
+      message: expect.stringContaining(`${chalk.red('!stack1')} does not exist. Do you mean`),
+    }));
+  });
+
+  test('a stack cancelled out by an exclusion is not reported as missing', async () => {
+    // WHEN: the exclusion empties the selection, but both patterns match existing stacks
+    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    await toolkit.destroy(cx, {
+      stacks: { strategy: StackSelectionStrategy.PATTERN_MATCH, patterns: ['Stack1', '!Stack1'] },
+    });
+
+    // THEN: no "does not exist" for a stack that exists, only the empty-selection warning
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_W7010' }));
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_W7011' }));
+    expect(mockDestroyStack).not.toHaveBeenCalled();
+  });
+
   test('warns about a missing name but still destroys the matching stacks', async () => {
     // WHEN: one name matches (Stack1), the other does not
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
