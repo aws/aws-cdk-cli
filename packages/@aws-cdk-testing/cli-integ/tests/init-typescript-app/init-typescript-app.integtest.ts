@@ -4,6 +4,8 @@ import type { TemporaryDirectoryContext } from '../../lib';
 import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '../../lib';
 import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '../../lib/npm';
 
+const NUB_VERSION = '0.8.3';
+
 ['app', 'sample-app'].forEach(template => {
   integTest(`typescript init ${template}`, withTemporaryDirectory(withPackages(async (context) => {
     const shell = ShellHelper.fromContext(context);
@@ -21,6 +23,26 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
     await shell.shell(['cdk', 'synth']);
   })), 600_000);
 });
+
+integTest('typescript init app can synthesize with Nub', withTemporaryDirectory(withPackages(async (context) => {
+  const shell = ShellHelper.fromContext(context);
+  await context.cli.makeCliAvailable();
+
+  await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', 'app', '--generate-only']);
+  await shell.shell(['npm', 'install']);
+
+  const defaultAssembly = path.join(context.integTestDir, 'cdk.out.default');
+  await shell.shell(['cdk', 'synth', '--output', defaultAssembly]);
+
+  await shell.shell(['npm', 'install', '--save-dev', '--save-exact', `@nubjs/nub@${NUB_VERSION}`]);
+  await replaceAppRunner(context.integTestDir);
+  await shell.shell(['npm', 'run', 'build']);
+
+  const nubAssembly = path.join(context.integTestDir, 'cdk.out.nub');
+  await shell.shell(['cdk', 'synth', '--output', nubAssembly]);
+
+  await assertDirsEqual(defaultAssembly, nubAssembly);
+})), 600_000);
 
 // Same as https://github.com/DefinitelyTyped/DefinitelyTyped?tab=readme-ov-file#support-window
 const TYPESCRIPT_VERSION_AGE_DAYS = 2 * 365;
@@ -74,4 +96,35 @@ async function removeDevDependencies(context: TemporaryDirectoryContext) {
   const tsconfig = JSON.parse(await fs.readFile(tsconfigFilename, { encoding: 'utf-8' }));
   delete tsconfig.compilerOptions.types;
   await fs.writeFile(tsconfigFilename, JSON.stringify(tsconfig, undefined, 2), { encoding: 'utf-8' });
+}
+
+async function replaceAppRunner(directory: string) {
+  const filename = path.join(directory, 'cdk.json');
+  const config = JSON.parse(await fs.readFile(filename, { encoding: 'utf-8' }));
+  expect(config.app).toMatch(/^npx tsc && npx tsx bin\/.+\.ts$/);
+  config.app = config.app.replace('npx tsx', 'npx nub');
+  expect(config.app).toMatch(/^npx tsc && npx nub bin\/.+\.ts$/);
+  await fs.writeFile(filename, JSON.stringify(config, undefined, 2), { encoding: 'utf-8' });
+}
+
+async function assertDirsEqual(dirA: string, dirB: string) {
+  const filesA = await relativeFiles(dirA);
+  const filesB = await relativeFiles(dirB);
+  expect(filesB).toEqual(filesA);
+
+  for (const file of filesA) {
+    const contentsA = await fs.readFile(path.join(dirA, file), 'utf-8');
+    const contentsB = await fs.readFile(path.join(dirB, file), 'utf-8');
+    if (contentsA !== contentsB) {
+      throw new Error(`File ${file} differs between ${dirA} and ${dirB}`);
+    }
+  }
+}
+
+async function relativeFiles(root: string): Promise<string[]> {
+  const entries = await fs.readdir(root, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(path.relative(root, entry.parentPath), entry.name))
+    .sort();
 }
