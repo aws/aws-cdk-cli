@@ -444,7 +444,7 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch Hook details for invocation ${hookInvocationId}: ${errorMessage}`,
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
@@ -460,12 +460,11 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
   });
 
-  test('warns with bootstrap upgrade message when GetHookResult fails due to permissions', async () => {
+  test('warns with a generic message when GetHookResult fails due to permissions', async () => {
     const hookInvocationId = 'failing-invocation-id';
     const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
 
     const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult';
-    const currentVersion = 30;
     mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
 
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -494,10 +493,7 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. ` +
-          'Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment ' +
-          "by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. " +
-          `Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
