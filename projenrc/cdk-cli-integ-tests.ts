@@ -12,6 +12,10 @@ export function fixupTestTask(project: Project, taskName = 'test'): void {
 
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
+// Pinned instead of 'lts/*': Node >= 24.20.0 breaks CDK apps (jsonschema throws "Invalid URL").
+// Restore 'lts/*' once aws-cdk-lib bundles a fixed cloud-assembly-schema.
+const DEFAULT_TEST_NODE_VERSION = '24.19';
+
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
@@ -464,7 +468,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           suite: [
             'toolkit-lib-integ-tests',
           ],
-          node: ['lts/*', ...additionalNodeVersionsToTest],
+          node: [DEFAULT_TEST_NODE_VERSION, ...additionalNodeVersionsToTest],
         },
       }),
 
@@ -490,7 +494,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'init-typescript-app',
             'init-typescript-lib',
           ],
-          node: ['lts/*'],
+          node: [DEFAULT_TEST_NODE_VERSION],
         },
         // Run the the typescript-app test with multiple Node versions
         include: additionalNodeVersionsToTest.map(node => ({
@@ -573,7 +577,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         matrix: {
           domain: {
             suite: props.domain.suite,
-            node: props.domain.node ?? ['lts/*'],
+            node: props.domain.node ?? [DEFAULT_TEST_NODE_VERSION],
             shard,
           },
           include: props.include,
