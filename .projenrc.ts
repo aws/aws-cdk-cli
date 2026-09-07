@@ -14,7 +14,7 @@ import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
@@ -1027,7 +1027,7 @@ new S3DocsPublishing(toolkitLib, {
   artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-  docType: DocType.API_EXTRACTOR,
+  s3PathPrefix: 'aws-cdk-toolkit-lib-api-model',
 });
 
 // Add API Extractor configuration
@@ -1476,6 +1476,25 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('test/integ/cli/sam_cdk_integ_app/**/*');
   tsconfig?.addExclude('vendor/**/*');
 }
+
+// Publishing Toolkit CLI version
+// We don't actually publish CLI docs here, but we can collect some interesting version information
+const cliVersionsTask = cli.addTask('versions', {
+  exec: [
+    'tsx --tsconfig test/tsconfig.json scripts/gen-versions-json.ts',
+    'rm -f dist/toolkit-versions.zip',
+    'zip -j -q dist/toolkit-versions.zip dist/versions.json',
+  ].join(' && '),
+});
+cli.packageTask.spawn(cliVersionsTask);
+
+new S3DocsPublishing(cli, {
+  docsStream: 'CLI',
+  artifactPath: 'toolkit-versions.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}',
+  s3PathPrefix: 'toolkit-versions',
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

@@ -2,18 +2,6 @@ import type { Monorepo, TypeScriptWorkspace } from 'cdklabs-projen-project-types
 import { Component, github } from 'projen';
 import { runAfterPublish } from './util';
 
-export enum DocType {
-  /**
-   * TypeDoc documentation (HTML)
-   */
-  TYPEDOC = 'typedoc',
-
-  /**
-   * API Extractor documentation (JSON)
-   */
-  API_EXTRACTOR = 'api-extractor',
-}
-
 export interface S3DocsPublishingProps {
   /**
    * The docs stream to publish to.
@@ -36,10 +24,12 @@ export interface S3DocsPublishingProps {
   readonly bucketName: string;
 
   /**
-   * The type of documentation to publish.
+   * The path prefix for the versioned docs artifacts
    *
+   * @example "foobar" -> "foobar-v1.2.3.zip"
+   * @default - sanitized package name
    */
-  readonly docType: DocType;
+  readonly s3PathPrefix?: string;
 }
 
 export class S3DocsPublishing extends Component {
@@ -64,20 +54,18 @@ export class S3DocsPublishing extends Component {
       throw new Error('Could not find release workflow');
     }
 
-    const safeName = this.project.name.replace('@', '').replace('/', '-');
-    const isApiExtractor = this.props.docType === DocType.API_EXTRACTOR;
+    // Declare variables used for naming various things
+    const niceName = `${this.project.name} ${this.props.docsStream}`;
+    const safePackageName = this.project.name.replace('@', '').replace('/', '-');
+    const docsStreamId= `${safePackageName}-${this.props.docsStream.toLowerCase()}`;
+    const s3PathPrefix = this.props.s3PathPrefix ? `${this.props.s3PathPrefix}-v` : `${safePackageName}-v`;
 
-    // Determine job ID, name suffix, S3 path based on doc type
-    const jobIdSuffix = isApiExtractor ? '_api_extractor' : '_typedoc';
-    const nameSuffix = isApiExtractor ? 'api-extractor' : 'typedoc';
-    const s3PathPrefix = isApiExtractor ? `${safeName}-api-model-v` : `${safeName}-v`;
-
-    releaseWf.addJob(`${safeName}_release${jobIdSuffix}`, {
-      name: `${this.project.name}: Publish ${nameSuffix} to S3`,
+    releaseWf.addJob(`${safePackageName}_release_docs_${this.props.docsStream}`, {
+      name: `${this.project.name}: Publish docs ${niceName} to S3`,
       environment: 'releasing', // <-- this has the configuration
-      needs: [`${safeName}_release_npm`],
+      needs: [`${safePackageName}_release_npm`],
       runsOn: ['ubuntu-latest'],
-      if: runAfterPublish(`${safeName}_release_npm`),
+      if: runAfterPublish(`${safePackageName}_release_npm`),
       permissions: {
         idToken: github.workflows.JobPermission.WRITE,
         contents: github.workflows.JobPermission.READ,
@@ -85,40 +73,40 @@ export class S3DocsPublishing extends Component {
       steps: [
         github.WorkflowSteps.downloadArtifact({
           with: {
-            name: `${safeName}_build-artifact`,
+            name: `${safePackageName}_build-artifact`,
             path: 'dist',
           },
         }),
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
+          uses: 'aws-actions/configure-aws-credentials@v6',
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': `s3-${isApiExtractor ? 'api-model-' : ''}docs-publishing@aws-cdk-cli`,
+            'role-session-name': `s3-${docsStreamId}-docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
           },
         },
         {
           name: 'Assume the publishing role',
           id: 'publishing-creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
+          uses: 'aws-actions/configure-aws-credentials@v6',
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': this.props.roleToAssume,
-            'role-session-name': `s3-${isApiExtractor ? 'api-model-' : ''}docs-publishing@aws-cdk-cli`,
+            'role-session-name': `s3-${docsStreamId}-docs-publishing@aws-cdk-cli`,
             'mask-aws-account-id': true,
             'role-chaining': true,
           },
         },
         {
-          name: `Publish ${nameSuffix}`,
+          name: `Publish docs ${this.project.name} ${this.props.docsStream}`,
           env: {
             BUCKET_NAME: this.props.bucketName,
             DOCS_STREAM: this.props.docsStream,
           },
-          run: `echo "Uploading ${nameSuffix} to S3"
+          run: `echo "Uploading ${docsStreamId} to S3"
 echo "::add-mask::$BUCKET_NAME"
 S3_PATH="$DOCS_STREAM/${s3PathPrefix}$(cat dist/version.txt).zip"
 LATEST="latest-${this.props.docsStream}"
@@ -131,7 +119,7 @@ if OUTPUT=$(aws s3api put-object \\
   --if-none-match "*" 2>&1); then
   
   # File was uploaded successfully, update the latest pointer
-  echo "New ${nameSuffix} artifact uploaded successfully, updating latest pointer"
+  echo "New ${docsStreamId} artifact uploaded successfully, updating latest pointer"
   echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
 elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
@@ -141,7 +129,7 @@ elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
 
 else
   # Any other error (permissions, etc)
-  echo "::error::Failed to upload ${nameSuffix} artifact"
+  echo "::error::Failed to upload ${docsStreamId} artifact"
   exit 1
 fi`,
         },
