@@ -103,6 +103,11 @@ export class TemplateAndChangeSetDiffMerger {
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
       if (type === 'Property') {
         if (!this.changeSetResources[logicalId]) {
+          if (!propertyIsResolvedAtDeployTime(value)) {
+            // A static difference is a real change even if the changeset failed to detect it
+            // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).
+            return;
+          }
           (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
           (value as types.PropertyDifference<any>).isDifferent = false;
           return;
@@ -120,6 +125,10 @@ export class TemplateAndChangeSetDiffMerger {
             (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.MAY_REPLACE;
             break;
           case undefined:
+            if (!propertyIsResolvedAtDeployTime(value)) {
+              // Same as above: keep static differences the changeset failed to detect.
+              break;
+            }
             (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
             (value as types.PropertyDifference<any>).isDifferent = false;
             break;
@@ -482,4 +491,35 @@ function contextProperties(context: string | object | undefined): { [name: strin
     parsed = context;
   }
   return parsed && typeof parsed === 'object' ? parsed.Properties : undefined;
+}
+
+/**
+ * Whether either side of a property difference contains a value only resolved at deploy time:
+ * a `Ref`, an `Fn::*` intrinsic, or a dynamic reference (`{{resolve:...}}`).
+ *
+ * Only for such properties may the changeset legitimately report "no change" despite a
+ * textual difference in the template.
+ */
+function propertyIsResolvedAtDeployTime(difference: types.Difference<any>): boolean {
+  return containsDeployTimeValue(difference.oldValue) || containsDeployTimeValue(difference.newValue);
+}
+
+function containsDeployTimeValue(value: any): boolean {
+  if (typeof value === 'string') {
+    return value.includes('{{resolve:');
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsDeployTimeValue);
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === 'Ref' || key.startsWith('Fn::')) {
+        return true;
+      }
+      if (containsDeployTimeValue(nested)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
