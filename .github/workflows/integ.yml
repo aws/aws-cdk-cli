@@ -207,7 +207,7 @@ jobs:
         suite:
           - cli-integ-tests
         node:
-          - lts/*
+          - "24.19"
         shard:
           - 1
           - 2
@@ -339,7 +339,7 @@ jobs:
         suite:
           - toolkit-lib-integ-tests
         node:
-          - lts/*
+          - "24.19"
           - "20"
           - "22"
           - "24"
@@ -461,7 +461,7 @@ jobs:
         suite:
           - telemetry-integ-tests
         node:
-          - lts/*
+          - "24.19"
   integ_init-templates:
     needs: prepare
     runs-on: aws-cdk_ubuntu-latest_16-core
@@ -594,7 +594,7 @@ jobs:
           - init-typescript-app
           - init-typescript-lib
         node:
-          - lts/*
+          - "24.19"
   integ_tool-integrations:
     needs: prepare
     runs-on: aws-cdk_ubuntu-latest_16-core
