@@ -388,7 +388,9 @@ export class CloudFormationStackDiagnoser {
    * Find the hooks that failed this change set, and return their failure details as resource errors.
    *
    * Failures of hooks with failure mode WARN don't fail a change set, so those are excluded.
-   * Returns an empty array if hook results can't be listed (e.g. for lack of permissions).
+   * Returns an empty array if hook results can't be listed (e.g. lack of permissions, or the
+   * API being unavailable). We always tell the user that extra detail may be missing, at normal
+   * verbosity, so they aren't left thinking there simply is no more detail to find.
    */
   private async _changeSetHookErrors(changeSet: ChangeSetSummary): Promise<ResourceError[]> {
     let hookResults: HookResultSummary[];
@@ -398,7 +400,10 @@ export class CloudFormationStackDiagnoser {
         TargetId: changeSet.ChangeSetId,
       })).HookResults ?? [];
     } catch (e: any) {
-      await this.props.ioHelper.defaults.debug(`Could not list hook results for change set ${changeSet.ChangeSetName}: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      await this.props.ioHelper.defaults.warn(
+        `Could not fetch extra hook failure detail for change set ${changeSet.ChangeSetName} (${errorMessage}). Run again with -v to see the full error.`,
+      );
       return [];
     }
 
@@ -431,7 +436,6 @@ export class CloudFormationStackDiagnoser {
     if (hook.HookResultId) {
       const details = await fetchHookResultDetails(this.cfn, hook.HookResultId, {
         ioHelper: this.props.ioHelper,
-        envResources: this.props.envResources,
       });
       if (details) {
         return details;
@@ -488,7 +492,6 @@ export class CloudFormationStackDiagnoser {
       let details = hook.hookInvocationId
         ? await fetchHookResultDetails(this.cfn, hook.hookInvocationId, {
           ioHelper: this.props.ioHelper,
-          envResources: this.props.envResources,
         })
         : undefined;
       details = details ?? (hook.hookStatusReason ? normalizeHookMessage(hook.hookStatusReason) : undefined);

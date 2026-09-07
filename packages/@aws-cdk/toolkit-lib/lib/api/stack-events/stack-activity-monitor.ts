@@ -64,10 +64,10 @@ export interface StackActivityMonitorProps {
   readonly pollingInterval?: number;
 
   /**
-   * Environment resources, used to look up the bootstrap toolkit version when
-   * diagnosing Guard Hook annotation fetch failures.
+   * Environment resources.
    *
-   * @default - Bootstrap version is not reported in error messages
+   * @deprecated no longer used by this class; kept for backwards compatibility of the constructor signature
+   * @default - not used
    */
   readonly envResources?: EnvironmentResources;
 
@@ -119,7 +119,6 @@ export class StackActivityMonitor {
   private readonly stackDisplayName: string;
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
-  private readonly envResources?: EnvironmentResources;
   private readonly isStackUpdate: boolean;
 
   constructor({
@@ -130,14 +129,12 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
-    envResources,
     isStackUpdate = false,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackDisplayName = stackNameFromArn(stackArn);
     this.cfn = cfn;
-    this.envResources = envResources;
     this.isStackUpdate = isStackUpdate;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
@@ -258,7 +255,6 @@ export class StackActivityMonitor {
       if (resourceEvent.event.HookInvocationId) {
         const details = await fetchHookResultDetails(this.cfn, resourceEvent.event.HookInvocationId, {
           ioHelper: this.ioHelper,
-          envResources: this.envResources,
         });
         if (details) {
           resourceEvent.event.HookStatusReason = details;
