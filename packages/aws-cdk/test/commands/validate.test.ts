@@ -160,7 +160,7 @@ describe('telemetry', () => {
     jest.restoreAllMocks();
   });
 
-  test('emits a VALIDATE span end message with offline violation counters', async () => {
+  test('emits an ONLINE_VALIDATE span end message with offline violation counters', async () => {
     const assembly = await cloudExecutable.synthesize();
     await fs.writeJSON(path.join(assembly.directory, 'validation-report.json'), {
       version: '1.0.0',
@@ -189,7 +189,7 @@ describe('telemetry', () => {
     });
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'CDK_CLI_I4001',
+      code: 'CDK_TOOLKIT_I9604',
       data: expect.objectContaining({
         duration: expect.any(Number),
         counters: {
@@ -201,7 +201,7 @@ describe('telemetry', () => {
     }));
   });
 
-  test('emits a VALIDATE span end message even when no violations are found', async () => {
+  test('emits an ONLINE_VALIDATE span end message even when no violations are found', async () => {
     const notifySpy = jest.spyOn(ioHost, 'notify');
     await toolkit.validate({
       stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
@@ -209,32 +209,13 @@ describe('telemetry', () => {
     });
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'CDK_CLI_I4001',
+      code: 'CDK_TOOLKIT_I9604',
       data: expect.objectContaining({
         duration: expect.any(Number),
         counters: {
           onlineViolations: 0,
           offlineWouldFailDeploy: 0,
         },
-      }),
-    }));
-  });
-
-  test('ends the VALIDATE span with the error name when the engine crashes', async () => {
-    // Synthesis happens inside the VALIDATE span, so a CDK app that crashes
-    // during synth (modeled by a failing `produce()`) still ends the span.
-    jest.spyOn(cloudExecutable, 'produce').mockRejectedValue(new Error('engine exploded'));
-
-    const notifySpy = jest.spyOn(ioHost, 'notify');
-    await expect(toolkit.validate({
-      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
-      online: false,
-    })).rejects.toThrow('engine exploded');
-
-    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'CDK_CLI_I4001',
-      data: expect.objectContaining({
-        error: { name: 'UnknownError' },
       }),
     }));
   });

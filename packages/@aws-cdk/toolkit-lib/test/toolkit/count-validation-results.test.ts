@@ -77,7 +77,6 @@ test('an offline plugin named CloudFormation is still counted as offline', () =>
 
 test('reports without onlineReports on the result are all counted as offline', () => {
   countValidationResults(span, {
-    conclusion: 'failure',
     pluginReports: [report('CloudFormation', 'failure', ['error'])],
   });
 

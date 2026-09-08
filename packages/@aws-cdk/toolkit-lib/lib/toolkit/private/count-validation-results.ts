@@ -16,7 +16,7 @@ import { sum } from '../../util';
  * plugin name: `pluginName` is a plugin-supplied string, so an offline
  * policy plugin may carry any name.
  */
-export function countValidationResults(span: IMessageSpan<any>, result: ValidateResult) {
+export function countValidationResults(span: IMessageSpan<any>, result: Pick<ValidateResult, 'pluginReports' | 'onlineReports'>) {
   const online = result.onlineReports ?? [];
   const onlineSet = new Set(online);
   const offline = result.pluginReports.filter((r) => !onlineSet.has(r));

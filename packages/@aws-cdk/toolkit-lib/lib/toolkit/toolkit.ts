@@ -116,6 +116,7 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { countValidationResults } from './private/count-validation-results';
 import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
@@ -693,14 +694,27 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const reports = await obtainUnifiedValidationReport(assembly, stacks);
 
-    // Online validation: submit templates to CloudFormation for early validation
+    // Online validation: submit templates to CloudFormation for early validation.
+    //
+    // Offline validation (policy plugins and construct annotations) is performed
+    // during synthesis, so its timing is already captured by the synth event.
+    // Online validation is the only phase not otherwise measured, so we wrap it
+    // in its own span and emit an ONLINE_VALIDATE telemetry event carrying the
+    // online duration plus counters that summarize the whole validate outcome
+    // (including `offlineWouldFailDeploy`).
+    const onlineSpan = await ioHelper.span(SPAN.ONLINE_VALIDATE).begin({ stacks: selectStacks });
     let onlineReports: PluginReportJson[] | undefined;
-    if (options.online ?? true) {
-      const deployments = await this.deploymentsForAction('validate');
+    try {
+      if (options.online ?? true) {
+        const deployments = await this.deploymentsForAction('validate');
 
-      const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
-      onlineReports = onlineReport ? [onlineReport] : [];
-      reports.push(...onlineReports);
+        const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
+        onlineReports = onlineReport ? [onlineReport] : [];
+        reports.push(...onlineReports);
+      }
+    } finally {
+      countValidationResults(onlineSpan, { pluginReports: reports, onlineReports });
+      await onlineSpan.end({});
     }
 
     const hasAnyViolations = reports.some(report => report.violations && report.violations.length > 0);

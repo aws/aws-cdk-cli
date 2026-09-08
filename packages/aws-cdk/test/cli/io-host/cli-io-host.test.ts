@@ -835,13 +835,14 @@ describe('CliIoHost', () => {
       }));
     });
 
-    test('emit telemetry on VALIDATE event', async () => {
-      // Create a message that should trigger telemetry using the actual message code
+    test('emit telemetry on ONLINE_VALIDATE event', async () => {
+      // Online validation lives in toolkit-lib, so its telemetry is translated
+      // from the toolkit-lib span end message (CDK_TOOLKIT_I9604), not a CDK_CLI code.
       const message: IoMessage<unknown> = {
         time: new Date(),
-        level: 'trace',
+        level: 'info',
         action: 'validate',
-        code: 'CDK_CLI_I4001',
+        code: 'CDK_TOOLKIT_I9604',
         message: 'telemetry message',
         data: {
           duration: 123,
@@ -858,7 +859,7 @@ describe('CliIoHost', () => {
 
       // Verify that the emit method was called with the correct parameters
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
-        eventType: 'VALIDATE',
+        eventType: 'ONLINE_VALIDATE',
         duration: 123,
         counters: {
           'offlineViolations:error': 2,

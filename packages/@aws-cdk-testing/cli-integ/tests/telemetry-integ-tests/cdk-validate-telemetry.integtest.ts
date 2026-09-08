@@ -3,7 +3,7 @@ import * as fs from 'fs-extra';
 import { integTest, withSpecificFixture } from '../../lib';
 
 integTest(
-  'cdk validate emits VALIDATE telemetry event with violation counters',
+  'cdk validate emits ONLINE_VALIDATE telemetry event with violation counters',
   withSpecificFixture('validate-app', async (fixture) => {
     const telemetryFile = path.join(fixture.integTestDir, `telemetry-validate-${Date.now()}.json`);
 
@@ -18,11 +18,11 @@ integTest(
 
     // The endpoint sink POSTs the whole event batch to the real telemetry
     // endpoint, which validates it against a request schema. This passes only
-    // once the backend accepts the VALIDATE event type.
+    // once the backend accepts the ONLINE_VALIDATE event type.
     expect(output).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
-    const validateEvent = json.find((e: any) => e.event?.eventType === 'VALIDATE');
+    const validateEvent = json.find((e: any) => e.event?.eventType === 'ONLINE_VALIDATE');
     expect(validateEvent).toBeDefined();
     expect(validateEvent.event.state).toEqual('SUCCEEDED');
 

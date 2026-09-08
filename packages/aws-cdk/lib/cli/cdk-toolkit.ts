@@ -14,7 +14,7 @@ import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, countValidationResults, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -636,26 +636,12 @@ export class CdkToolkit {
       return this.validateWatch(validateOptions);
     }
 
-    // The VALIDATE span wraps the whole action, including the synthesis
-    // performed inside `toolkit.validate()`. Synthesis is also reported as
-    // its own SYNTH event (instrumented in CloudExecutable), so telemetry
-    // consumers can subtract it from the VALIDATE duration. The span is
-    // ended even if the app crashes during synthesis, so telemetry always
-    // records that a validation was started.
-    const validateSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.VALIDATE).begin({});
-    let error: ErrorDetails | undefined;
-    try {
-      const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
-      countValidationResults(validateSpan, result);
-      return result.conclusion === 'failure' ? 1 : 0;
-    } catch (e: any) {
-      error = {
-        name: cdkCliErrorName(e),
-      };
-      throw e;
-    } finally {
-      await validateSpan.end({ error });
-    }
+    // Telemetry for the validate action is emitted from toolkit-lib: an
+    // ONLINE_VALIDATE event times the online validation phase and carries the
+    // validation outcome counters. Offline validation time is already captured
+    // by the SYNTH event, so there is nothing to time here.
+    const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
+    return result.conclusion === 'failure' ? 1 : 0;
   }
 
   /**

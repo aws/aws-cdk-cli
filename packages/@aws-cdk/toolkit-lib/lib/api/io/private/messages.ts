@@ -27,6 +27,7 @@ import type {
   ContextProviderMessageSource,
   Duration,
   ErrorPayload,
+  OnlineValidationResult,
   Operation,
   SingleStack,
   StackAndAssemblyData,
@@ -558,6 +559,18 @@ export const IO = {
     description: 'Online validation could not be completed for a stack',
   }),
 
+  CDK_TOOLKIT_I9603: make.trace<StackSelectionDetails>({
+    code: 'CDK_TOOLKIT_I9603',
+    description: 'Online validation is starting',
+    interface: 'StackSelectionDetails',
+  }),
+
+  CDK_TOOLKIT_I9604: make.trace<OnlineValidationResult>({
+    code: 'CDK_TOOLKIT_I9604',
+    description: 'Online validation has finished. Provides online validation timing and validation outcome counters.',
+    interface: 'OnlineValidationResult',
+  }),
+
   // Notices
   CDK_TOOLKIT_I0100: make.info({
     code: 'CDK_TOOLKIT_I0100',
@@ -728,5 +741,10 @@ export const SPAN = {
     name: 'hotswap-deployment',
     start: IO.CDK_TOOLKIT_I5400,
     end: IO.CDK_TOOLKIT_I5410,
+  },
+  ONLINE_VALIDATE: {
+    name: 'Online validation',
+    start: IO.CDK_TOOLKIT_I9603,
+    end: IO.CDK_TOOLKIT_I9604,
   },
 } satisfies Record<string, SpanDefinition<any, any>>;
