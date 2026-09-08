@@ -1119,7 +1119,7 @@ test('rollback stack is not failed by a throttled stack event poll', async () =>
 
   // THEN - the rollback succeeded, and the final poll failure was only reported
   expect(response).toMatchObject({ success: true });
-  ioHost.expectMessage({ level: 'warn', containing: 'Error occurred during final stack event poll' });
+  ioHost.expectMessage({ level: 'warn', containing: 'the event log may be incomplete' });
 });
 
 test('rollback stack allows continue rollback from UPDATE_ROLLBACK_FAILED', async () => {

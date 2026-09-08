@@ -96,7 +96,7 @@ describe.each(['change-set', 'direct'] as const)('a successful %s deployment', (
 
     // THEN - the deployment succeeded, and the final poll failure was only reported
     expect(result).toMatchObject({ type: 'did-deploy-stack' });
-    ioHost.expectMessage({ level: 'warn', containing: 'Error occurred during final stack event poll' });
+    ioHost.expectMessage({ level: 'warn', containing: 'the event log may be incomplete' });
   });
 });
 
@@ -113,5 +113,5 @@ test('a successful destroy is not failed by a throttled stack event poll', async
 
   // THEN
   expect(result.stackArn).toBeDefined();
-  ioHost.expectMessage({ level: 'warn', containing: 'Error occurred during final stack event poll' });
+  ioHost.expectMessage({ level: 'warn', containing: 'the event log may be incomplete' });
 });

@@ -122,7 +122,13 @@ describe('stack monitor, failures while reading events', () => {
     await expect(monitor.stop()).resolves.toBeUndefined();
     expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_W5500',
-      message: expect.stringContaining('event log may be incomplete: Throttling: Rate exceeded'),
+      message: expect.stringContaining('the event log may be incomplete (Throttling). Run again with -v'),
+    }));
+
+    // The full error, stack trace and all, is only for `-v`
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      message: expect.stringContaining('Error occurred during final stack event poll: Throttling: Rate exceeded'),
     }));
     expect(ioHost.notify).toHaveBeenCalledWith(expectStop());
   });

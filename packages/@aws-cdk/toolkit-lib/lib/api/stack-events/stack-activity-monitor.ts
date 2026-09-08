@@ -296,11 +296,13 @@ export class StackActivityMonitor {
     // of letting the failure propagate out of stop().
     try {
       await this.readNewEvents(monitorId);
-    } catch (e) {
+    } catch (e: any) {
+      const errorName = e instanceof Error ? e.name : String(e);
       await this.ioHelper.notify(IO.CDK_TOOLKIT_W5500.msg(
-        util.format('Error occurred during final stack event poll, event log may be incomplete: %s', e),
-        { error: e as any },
+        util.format('Could not read the final stack events, the event log may be incomplete (%s). Run again with -v to see the full error.', errorName),
+        { error: e },
       ));
+      await this.ioHelper.defaults.debug(util.format('Error occurred during final stack event poll: %s', e));
     }
   }
 
