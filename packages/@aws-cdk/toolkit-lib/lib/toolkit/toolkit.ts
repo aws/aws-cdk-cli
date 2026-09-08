@@ -59,7 +59,7 @@ import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { ValidateOptions, ValidateResult } from '../actions/validate';
-import type { IWatcher, WatchFileOptions, WatchOptions, WatchValidateOptions } from '../actions/watch';
+import type { IWatcher, WatchFileOptions, WatchOptions, WatchSynthOptions, WatchValidateOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
@@ -353,9 +353,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
     await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
-    const stacks = await assembly.value.selectStacks(stacksOpt(options));
-    const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
-    await throwIfValidationFailures(assembly.value, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
+    await this._synth(assembly.value, options);
+    return new CachedCloudAssembly(assembly.take());
+  }
+
+  /**
+   * Helper to allow synth being called with an already-produced assembly,
+   * e.g. as part of the watch action which reuses the startup assembly.
+   */
+  private async _synth(assembly: StackAssembly, options: SynthOptions = {}): Promise<void> {
+    const ioHelper = asIoHelper(this.ioHost, 'synth');
+
+    const stacks = await assembly.selectStacks(stacksOpt(options));
+    const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
+    await throwIfValidationFailures(assembly, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -384,8 +395,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.CDK_TOOLKIT_I1902.msg(chalk.green(message), assemblyData));
       await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
-
-    return new CachedCloudAssembly(assembly.take());
   }
 
   /**
@@ -1189,6 +1198,35 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
       onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
       onDispose: async () => cloudWatchLogMonitor?.deactivate(),
+    });
+  }
+
+  /**
+   * Continuously observe project files and re-synthesize the selected stacks
+   * automatically when changes are detected.
+   *
+   * Never deploys: each iteration re-synthesizes the app to the cloud assembly
+   * output directory and runs the same checks as the `synth` action.
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchSynth(cx: ICloudAssemblySource, options: WatchSynthOptions = {}): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'synth');
+
+    return this._watch(cx, options, {
+      command: 'cdk synth',
+      activity: 'synthesis',
+      // `_watch` runs this inside `invokeSafe`, which reports (and swallows)
+      // failures so the loop survives synth errors while the user is mid-edit.
+      invoke: async (initialAssembly) => {
+        // Reuse the initial assembly, for the same reason as watchDeploy()
+        if (initialAssembly) {
+          await this._synth(initialAssembly, options);
+          return;
+        }
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+        await this._synth(assembly, options);
+      },
     });
   }
 
