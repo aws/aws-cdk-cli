@@ -120,6 +120,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_W5400` | Hotswap disclosure message | `warn` | n/a |
 | `CDK_TOOLKIT_E5001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E5500` | Stack Monitoring error | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_W5500` | Stack events could not be read; the reported event log may be incomplete | `warn` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I6000` | Provides rollback times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I6100` | Stack rollback progress | `info` | {@link StackRollbackProgress} |
 | `CDK_TOOLKIT_E6001` | No stacks found | `error` | n/a |
