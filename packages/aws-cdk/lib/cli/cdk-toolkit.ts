@@ -227,12 +227,12 @@ export class CdkToolkit {
   }
 
   @suppressMessages(
-    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
-    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
+    IO.CDK_TOOLKIT_I1001.is, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000.is, // ✨ Synthesis time (info)
   )
   public async metadata(stackName: string, json: boolean) {
     using _formatter = this.ioHost.once(
-      IO.CDK_TOOLKIT_I2901,
+      IO.CDK_TOOLKIT_I2901.is,
       (msg) => ({
         action: 'metadata',
         message: serializeStructure(msg.data.stacks[0]?.metadata ?? {}, json),
@@ -471,7 +471,7 @@ export class CdkToolkit {
     // Both deploy paths resolve through this host, so one listener covers both.
     // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
     // each run must register a rewrite for its own `requireApproval` value.
-    using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+    using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060.is, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
         : 'updates';
@@ -1024,11 +1024,11 @@ export class CdkToolkit {
   // The destroy action runs through toolkit-lib.
   // Suppress its new status messages to keep the output as it was before.
   @suppressMessages(
-    IO.CDK_TOOLKIT_I1001, // Starting Synthesis (trace)
-    IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
-    IO.CDK_TOOLKIT_I7101, // Starting Destroy (trace)
-    IO.CDK_TOOLKIT_I7001, // per-stack Destroy time (trace)
-    IO.CDK_TOOLKIT_I7000, // ✨ Destroy time (info)
+    IO.CDK_TOOLKIT_I1001.is, // Starting Synthesis (trace)
+    IO.CDK_TOOLKIT_I1000.is, // ✨ Synthesis time (info)
+    IO.CDK_TOOLKIT_I7101.is, // Starting Destroy (trace)
+    IO.CDK_TOOLKIT_I7001.is, // per-stack Destroy time (trace)
+    IO.CDK_TOOLKIT_I7000.is, // ✨ Destroy time (info)
   )
   public async destroy(options: DestroyOptions) {
     // Keep the "deployed" wording when a destroy runs as part of a deploy.
@@ -1039,17 +1039,17 @@ export class CdkToolkit {
     }
 
     // The success line was `info` in the historical `cdk destroy`, not `result`.
-    using _successLevel = this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
+    using _successLevel = this.ioHost.on(IO.CDK_TOOLKIT_I7900.is, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
     // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
     // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
     // the listener both suppresses the log and aborts the command (the top-level
     // renders `AbortError` as "Deletion cancelled").
-    using _declineAborts = this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+    using _declineAborts = this.ioHost.on(IO.CDK_TOOLKIT_E7010.is, () => {
       throw new AbortError('DestroyAborted', 'Deletion cancelled');
     });
 
-    using _forceConfirms = options.force ? this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true) : undefined;
+    using _forceConfirms = options.force ? this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010.is, true) : undefined;
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
@@ -1063,14 +1063,14 @@ export class CdkToolkit {
 
   // cdk ls stdout is the stack listing only. Suppress the info status lines synthesis emits next
   // to it: the synth-time line (I1000) and the dependency-expansion note (I1002).
-  @suppressMessages(IO.CDK_TOOLKIT_I1000, IO.CDK_TOOLKIT_I1002)
+  @suppressMessages(IO.CDK_TOOLKIT_I1000.is, IO.CDK_TOOLKIT_I1002.is)
   public async list(
     selectors: string[],
     options: { long?: boolean; json?: boolean; showDeps?: boolean } = {},
   ): Promise<number> {
     // One-shot: disposes itself when the listing (I2901) is emitted; the
     // `using` covers the case where `list` throws before that happens.
-    using _formatter = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+    using _formatter = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901.is, (msg) => formatStackList(msg.data.stacks, options));
 
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0 ? selectWithUpstream(...selectors) : undefined,

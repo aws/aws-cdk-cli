@@ -1,5 +1,5 @@
-import type { IIoHost, IMessageMatcher, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
-import { withListeners } from '../../../lib/api/io';
+import type { IIoHost, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
+import { byCode, matchAny, withListeners } from '../../../lib/api/io';
 
 /**
  * A minimal `IIoHost` that records what it is asked to handle, so we can assert
@@ -70,7 +70,7 @@ describe('withListeners', () => {
     test('runs the listener for a matching code and forwards the message', async () => {
       const host = withListeners(inner);
       const seen: Array<unknown> = [];
-      host.on(I2901, (m) => {
+      host.on(byCode(I2901), (m) => {
         seen.push(m.data);
       });
 
@@ -83,7 +83,7 @@ describe('withListeners', () => {
     test('does not run the listener for a non-matching code', async () => {
       const host = withListeners(inner);
       const fn = jest.fn();
-      host.on(I2901, fn);
+      host.on(byCode(I2901), fn);
 
       await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
 
@@ -94,7 +94,7 @@ describe('withListeners', () => {
     test('awaits async listeners before forwarding', async () => {
       const host = withListeners(inner);
       const order: string[] = [];
-      host.on(I2901, async () => {
+      host.on(byCode(I2901), async () => {
         await new Promise((r) => setTimeout(r, 5));
         order.push('listener');
       });
@@ -108,13 +108,13 @@ describe('withListeners', () => {
     test('runs matching listeners in registration order', async () => {
       const host = withListeners(inner);
       const order: number[] = [];
-      host.on(I2901, () => {
+      host.on(byCode(I2901), () => {
         order.push(1);
       });
-      host.on(I2901, () => {
+      host.on(byCode(I2901), () => {
         order.push(2);
       });
-      host.on(I2901, () => {
+      host.on(byCode(I2901), () => {
         order.push(3);
       });
 
@@ -126,7 +126,7 @@ describe('withListeners', () => {
     test('the disposer removes the listener', async () => {
       const host = withListeners(inner);
       const fn = jest.fn();
-      const dispose = host.on(I2901, fn);
+      const dispose = host.on(byCode(I2901), fn);
 
       await host.notify(notification());
       dispose();
@@ -146,15 +146,13 @@ describe('withListeners', () => {
       expect(fn).toHaveBeenCalledTimes(1);
     });
 
-    test('matches on a matcher and delivers the payload typed', async () => {
+    test('a type-guard matcher delivers the payload typed, with no cast', async () => {
       const host = withListeners(inner);
-      // A matcher carries the payload type, so `msg.data` is `{ stacks }` here
-      // without a cast (the point of the matcher overload).
-      const matcher: IMessageMatcher<{ stacks: unknown[] }> = {
-        is: (m): m is IoMessage<{ stacks: unknown[] }> => m.code === I2901,
-      };
+      // A plain type guard is the whole selector concept: nothing named needs to
+      // exist for `msg.data` to be `{ stacks }` inside the listener.
+      const isList = (m: IoMessage<unknown>): m is IoMessage<{ stacks: unknown[] }> => m.code === I2901;
       const seen: number[] = [];
-      host.on(matcher, (m) => {
+      host.on(isList, (m) => {
         seen.push(m.data.stacks.length);
       });
 
@@ -163,13 +161,76 @@ describe('withListeners', () => {
 
       expect(seen).toEqual([0]);
     });
+
+    test('an explicit payload generic types `msg.data` for a plain matcher', async () => {
+      const host = withListeners(inner);
+      const seen: number[] = [];
+      host.on<{ stacks: unknown[] }>(byCode(I2901), (m) => {
+        seen.push(m.data.stacks.length);
+      });
+
+      await host.notify(notification());
+
+      expect(seen).toEqual([0]);
+    });
+  });
+
+  describe('matchers', () => {
+    test('byCode is variadic and matches any of the given codes', async () => {
+      const host = withListeners(inner);
+      const seen: Array<string | undefined> = [];
+      host.on(byCode(I2901, I7010), (m) => {
+        seen.push(m.code);
+      });
+
+      await host.notify(notification());
+      await host.notify(notification({ code: I7010 }));
+      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
+
+      expect(seen).toEqual([I2901, I7010]);
+    });
+
+    test('byCode does not match a message without a code', async () => {
+      const host = withListeners(inner);
+      const fn = jest.fn();
+      host.on(byCode(I2901), fn);
+
+      await host.notify(notification({ code: undefined }));
+
+      expect(fn).not.toHaveBeenCalled();
+    });
+
+    test('matchAny combines type guards and plain predicates', async () => {
+      const host = withListeners(inner);
+      const isList = (m: IoMessage<unknown>): m is IoMessage<{ stacks: unknown[] }> => m.code === I2901;
+      const seen: Array<string | undefined> = [];
+      host.on(matchAny(isList, (m) => m.level === 'warn'), (m) => {
+        seen.push(m.code);
+      });
+
+      await host.notify(notification());
+      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001', level: 'warn' }));
+      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
+
+      expect(seen).toEqual([I2901, 'CDK_TOOLKIT_I0001']);
+    });
+
+    test('matchAny with no matchers never matches', async () => {
+      const host = withListeners(inner);
+      const fn = jest.fn();
+      host.on(matchAny(), fn);
+
+      await host.notify(notification());
+
+      expect(fn).not.toHaveBeenCalled();
+    });
   });
 
   describe('once', () => {
     test('runs only for the first matching message', async () => {
       const host = withListeners(inner);
       const fn = jest.fn();
-      host.once(I2901, fn);
+      host.once(byCode(I2901), fn);
 
       await host.notify(notification());
       await host.notify(notification());
@@ -192,10 +253,10 @@ describe('withListeners', () => {
       const host = withListeners(inner);
       let calls = 0;
       // An async listener ahead of the `once` makes both notifies overlap.
-      host.on(I2901, async () => {
+      host.on(byCode(I2901), async () => {
         await new Promise((r) => setTimeout(r, 5));
       });
-      host.once(I2901, () => {
+      host.once(byCode(I2901), () => {
         calls++;
       });
 
@@ -209,7 +270,7 @@ describe('withListeners', () => {
   describe('rewrite', () => {
     test('replaces the forwarded message text, leaving the code intact', async () => {
       const host = withListeners(inner);
-      host.rewrite(I2901, (m) => `rewritten: ${(m.data as { stacks: unknown[] }).stacks.length}`);
+      host.rewrite(byCode(I2901), (m) => `rewritten: ${(m.data as { stacks: unknown[] }).stacks.length}`);
 
       await host.notify(notification());
 
@@ -219,7 +280,7 @@ describe('withListeners', () => {
 
     test('can also override the level', async () => {
       const host = withListeners(inner);
-      host.rewrite(I2901, (m) => m.message, 'debug');
+      host.rewrite(byCode(I2901), (m) => m.message, 'debug');
 
       await host.notify(notification());
 
@@ -228,7 +289,7 @@ describe('withListeners', () => {
 
     test('does not mutate the caller-provided message', async () => {
       const host = withListeners(inner);
-      host.rewrite(I2901, () => 'changed');
+      host.rewrite(byCode(I2901), () => 'changed');
       const msg = notification();
 
       await host.notify(msg);
@@ -238,7 +299,7 @@ describe('withListeners', () => {
 
     test('rewriteOnce applies only once', async () => {
       const host = withListeners(inner);
-      host.rewriteOnce(I2901, () => 'changed');
+      host.rewriteOnce(byCode(I2901), () => 'changed');
 
       await host.notify(notification());
       await host.notify(notification());
@@ -249,8 +310,8 @@ describe('withListeners', () => {
 
     test('rewrites accumulate across listeners', async () => {
       const host = withListeners(inner);
-      host.rewrite(I2901, (m) => `${m.message}-a`);
-      host.rewrite(I2901, (m) => `${m.message}-b`);
+      host.rewrite(byCode(I2901), (m) => `${m.message}-a`);
+      host.rewrite(byCode(I2901), (m) => `${m.message}-b`);
 
       await host.notify(notification());
 
@@ -261,7 +322,7 @@ describe('withListeners', () => {
       const host = withListeners(inner);
       // First listener rewrites the text; a later predicate that keys on the old
       // text must still fire, because matching sees the emitted message.
-      host.rewrite(I2901, () => 'changed');
+      host.rewrite(byCode(I2901), () => 'changed');
       const fn = jest.fn();
       host.on((m) => m.message === 'the original text', fn);
 
@@ -274,7 +335,7 @@ describe('withListeners', () => {
   describe('preventDefault', () => {
     test('suppresses the forward to the inner host', async () => {
       const host = withListeners(inner);
-      host.on(I2901, () => ({ preventDefault: true }));
+      host.on(byCode(I2901), () => ({ preventDefault: true }));
 
       await host.notify(notification());
 
@@ -295,7 +356,7 @@ describe('withListeners', () => {
 
     test('respond answers without asking the inner host, suppressing the question', async () => {
       const host = withListeners(inner);
-      host.respond(I7010, true);
+      host.respond(byCode(I7010), true);
 
       const answer = await host.requestResponse(request({ defaultResponse: false }));
 
@@ -306,7 +367,7 @@ describe('withListeners', () => {
 
     test('respond with suppressQuestion=false surfaces the question but still answers', async () => {
       const host = withListeners(inner);
-      host.respond(I7010, true, { suppressQuestion: false });
+      host.respond(byCode(I7010), true, { suppressQuestion: false });
 
       const answer = await host.requestResponse(request({ defaultResponse: false }));
 
@@ -318,7 +379,7 @@ describe('withListeners', () => {
 
     test('respond treats presence of the value as the answer, so false is a valid answer', async () => {
       const host = withListeners(inner);
-      host.respond(I7010, false);
+      host.respond(byCode(I7010), false);
 
       const answer = await host.requestResponse(request({ defaultResponse: true }));
 
@@ -329,7 +390,7 @@ describe('withListeners', () => {
     test('respondOnce answers only the first request', async () => {
       const host = withListeners(inner);
       inner.prompted = 'PROMPTED';
-      host.respondOnce(I7010, false);
+      host.respondOnce(byCode(I7010), false);
 
       const first = await host.requestResponse(request({ defaultResponse: 'default' }));
       const second = await host.requestResponse(request({ defaultResponse: 'default' }));
@@ -341,7 +402,7 @@ describe('withListeners', () => {
 
     test('a listener can reword a prompt before it reaches the inner host', async () => {
       const host = withListeners(inner);
-      host.rewrite(I7010, () => 'reworded question');
+      host.rewrite(byCode(I7010), () => 'reworded question');
 
       await host.requestResponse(request());
 
@@ -350,7 +411,7 @@ describe('withListeners', () => {
 
     test('preventDefault on a request resolves with the default response without asking', async () => {
       const host = withListeners(inner);
-      host.on(I7010, () => ({ preventDefault: true }));
+      host.on(byCode(I7010), () => ({ preventDefault: true }));
 
       const answer = await host.requestResponse(request({ defaultResponse: 'the-default' }));
 
@@ -362,7 +423,7 @@ describe('withListeners', () => {
       const host = withListeners(inner);
       // I2901 is a notification, not a request: there is nothing to answer, so
       // respond must not drop the message.
-      host.respond(I2901, true);
+      host.respond(byCode(I2901), true);
 
       await host.notify(notification());
 
@@ -371,11 +432,144 @@ describe('withListeners', () => {
 
     test('respondOnce on a notification code leaves the message alone instead of suppressing it', async () => {
       const host = withListeners(inner);
-      host.respondOnce(I2901, true);
+      host.respondOnce(byCode(I2901), true);
 
       await host.notify(notification());
 
       expect(inner.notified).toHaveLength(1);
+    });
+  });
+
+  describe('action override', () => {
+    test('reaches the effective message forwarded to the inner host', async () => {
+      const host = withListeners(inner);
+      host.on(byCode(I2901), () => ({ action: 'metadata' as const }));
+
+      await host.notify(notification({ action: 'list' }));
+
+      expect(inner.notified[0].action).toBe('metadata');
+    });
+
+    test('matching still keys off the emitted action, not the override', async () => {
+      const host = withListeners(inner);
+      host.on(byCode(I2901), () => ({ action: 'metadata' as const }));
+      const fn = jest.fn();
+      host.on((m) => m.action === 'metadata', fn);
+
+      await host.notify(notification({ action: 'list' }));
+
+      expect(fn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('DisposeListener', () => {
+    test('removes the listener when the `using` scope exits, including on a throw', async () => {
+      const host = withListeners(inner);
+      const fn = jest.fn();
+
+      await expect((async () => {
+        using _listener = host.on(byCode(I2901), fn);
+        await host.notify(notification());
+        throw new Error('boom');
+      })()).rejects.toThrow('boom');
+
+      await host.notify(notification());
+
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    test('is idempotent: disposing twice does not remove a later listener', async () => {
+      const host = withListeners(inner);
+      const first = jest.fn();
+      const second = jest.fn();
+      const dispose = host.on(byCode(I2901), first);
+      dispose();
+      host.on(byCode(I2901), second);
+      dispose();
+
+      await host.notify(notification());
+
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('the returned host is the host you passed in', () => {
+    class ChattyIoHost extends RecordingIoHost {
+      public logLevel = 'info';
+      private greeting = 'hello';
+
+      public get shout(): string {
+        return this.greeting.toUpperCase();
+      }
+
+      public set salutation(value: string) {
+        this.greeting = value;
+      }
+
+      public greet(name: string): string {
+        return `${this.greeting}, ${name}`;
+      }
+    }
+
+    test('methods keep working, with `this` bound to the inner host', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      expect(host.greet('world')).toBe('hello, world');
+    });
+
+    test('getters and setters keep working and act on the inner host', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      expect(host.shout).toBe('HELLO');
+
+      host.salutation = 'howdy';
+
+      expect(host.shout).toBe('HOWDY');
+      expect(chatty.greet('world')).toBe('howdy, world');
+    });
+
+    test('plain properties can be read and written through the wrapper', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      host.logLevel = 'trace';
+
+      expect(chatty.logLevel).toBe('trace');
+    });
+
+    test('`in` reports both the inner members and the added ones', () => {
+      const host = withListeners(new ChattyIoHost());
+
+      expect('greet' in host).toBe(true);
+      expect('on' in host).toBe(true);
+      expect('nope' in host).toBe(false);
+    });
+
+    test('wrapping is idempotent, so a second wrap does not double-handle messages', async () => {
+      const once = withListeners(inner);
+      const twice = withListeners(once);
+
+      expect(twice).toBe(once);
+
+      const fn = jest.fn();
+      twice.on(byCode(I2901), fn);
+      await twice.notify(notification());
+
+      expect(fn).toHaveBeenCalledTimes(1);
+      expect(inner.notified).toHaveLength(1);
+    });
+
+    test('listeners registered before the second wrap still fire through it', async () => {
+      const host = withListeners(inner);
+      const fn = jest.fn();
+      host.on(byCode(I2901), fn);
+
+      await withListeners(host).notify(notification());
+
+      expect(fn).toHaveBeenCalledTimes(1);
     });
   });
 });

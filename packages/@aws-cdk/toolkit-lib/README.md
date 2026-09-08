@@ -279,6 +279,55 @@ The CDK Toolkit awaits the completion of each call, allowing clients to perform 
 When you implement an `IoHost` interface, you can either process these communications (for example, logging to CloudWatch or prompting users for input) or return immediately without taking action.
 If your implementation doesn’t provide a response to a request, the CDK Toolkit proceeds with a default value.
 
+#### Attaching listeners to an IoHost
+
+Writing a whole `IoHost` is more than you need when you only care about a handful of messages.
+`withListeners` wraps any `IoHost`, whether that is the default `NonInteractiveIoHost` or one you wrote yourself, and lets you attach listeners to the messages and requests flowing through it.
+The wrapped host is the host you passed in, so all of its own methods and properties keep working:
+
+```ts
+import { Toolkit, NonInteractiveIoHost, withListeners, byCode } from '@aws-cdk/toolkit-lib';
+
+const ioHost = withListeners(new NonInteractiveIoHost());
+
+const toolkit = new Toolkit({ ioHost });
+```
+
+Pick messages with a _matcher_: `byCode` for one or more message codes, or any `(msg) => boolean` predicate.
+The [message registry](https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-registry/) lists every code and the payload it carries.
+
+Every registration returns a disposer. Call it to remove the listener, or bind it to a scope with a `using` declaration to remove it automatically:
+
+```ts
+declare const ioHost: ReturnType<typeof withListeners<NonInteractiveIoHost>>;
+
+// Observe a message. Pass the payload type to get `msg.data` typed.
+const dispose = ioHost.on<{ stacks: unknown[] }>(byCode('CDK_TOOLKIT_I2901'), (msg) => {
+  console.log(`${msg.data.stacks.length} stacks`);
+});
+dispose();
+
+// Any predicate works, so you can match a whole level.
+ioHost.on((msg) => msg.level === 'warn', (msg) => {
+  myWarnings.push(msg.message);
+});
+
+// Change how a message is presented, without the host knowing about it.
+using _formatter = ioHost.rewrite<{ stacks: unknown[] }>(
+  byCode('CDK_TOOLKIT_I2901'),
+  (msg) => `${msg.data.stacks.length} stacks`,
+);
+
+// Answer a request so the host is never asked to prompt.
+using _autoConfirm = ioHost.respond(byCode('CDK_TOOLKIT_I7010'), true);
+```
+
+A listener can also return a result to influence how the message is handled: `message` and `level` change how it is presented, and `preventDefault` drops it before the wrapped host sees it.
+
+Use `once`, `rewriteOnce`, and `respondOnce` for listeners that should apply to only the first matching message.
+
+Wrapping is idempotent. Passing an already-wrapped host returns it unchanged, so there is never a second set of listeners handling the same message twice.
+
 #### Default `NonInteractiveIoHost`
 
 By default the CDK Toolkit Library will use a `NonInteractiveIoHost ` implementation that mimics the behavior of the AWS CDK Toolkit CLI.

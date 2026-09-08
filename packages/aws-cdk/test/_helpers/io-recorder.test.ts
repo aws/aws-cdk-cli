@@ -1,6 +1,6 @@
+import { byCode } from '@aws-cdk/toolkit-lib';
 import { IoHostRecorder } from './io-recorder';
 import { asIoHelper, IO } from '../../lib/api-private';
-import type { IoMessage } from '../../lib/cli/io-host';
 import { CliIoHost } from '../../lib/cli/io-host';
 
 describe('IoHostRecorder', () => {
@@ -85,7 +85,7 @@ describe('IoHostRecorder', () => {
     // Answer the prompt the documented way, exactly as a rerouted command test
     // would (no `jest.spyOn(ioHost, 'requestResponse')` pass-through needed).
     // suppressQuestion=false keeps the (shown) prompt in the recorded stream.
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true, false);
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010.is, true, { suppressQuestion: false });
 
     await ioHelper.defaults.info('before');
     const answer = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req('proceed?', { motivation: 'testing' }));
@@ -144,7 +144,7 @@ describe('IoHostRecorder', () => {
     const recorder = IoHostRecorder.create(ioHost);
     const ioHelper = asIoHelper(ioHost, 'destroy');
 
-    const dispose = ioHost.rewrite({ is: (m: IoMessage<unknown>) => m.code === 'CDK_TOOLKIT_I9998' } as any, () => 'rewritten by listener');
+    const dispose = ioHost.rewrite((m) => m.code === 'CDK_TOOLKIT_I9998', () => 'rewritten by listener');
 
     await ioHelper.notify({ time: new Date(), level: 'info', code: 'CDK_TOOLKIT_I9998', message: 'original', data: undefined });
 
@@ -159,7 +159,7 @@ describe('IoHostRecorder', () => {
     const recorder = IoHostRecorder.create(ioHost);
     const ioHelper = asIoHelper(ioHost, 'list');
 
-    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I9997' } as any, () => ({ action: 'metadata' }));
+    const dispose = ioHost.on(byCode('CDK_TOOLKIT_I9997'), () => ({ action: 'metadata' }));
 
     await ioHelper.notify({ time: new Date(), level: 'result', code: 'CDK_TOOLKIT_I9997', message: 'metadata', data: undefined });
 

@@ -1,4 +1,4 @@
-import type { IoMessage, IoRequest, IMessageMatcher, IRequestMatcher, IoMessageCode, IoMessageLevel } from '../io-message';
+import type { IoMessage, IoRequest, IoMessageCode, IoMessageLevel } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 
 /**
@@ -40,7 +40,7 @@ interface MessageInfo extends CodeInfo {
 /**
  * An interface that can produce messages for a specific code.
  */
-export interface IoMessageMaker<T> extends MessageInfo, IMessageMatcher<T> {
+export interface IoMessageMaker<T> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
@@ -48,8 +48,11 @@ export interface IoMessageMaker<T> extends MessageInfo, IMessageMatcher<T> {
 
   /**
    * Returns whether the given `IoMessage` instance matches the current message definition
+   *
+   * Declared as a property holding a bound function, not a method, so it can be
+   * passed around on its own, as in `host.on(IO.MY_CODE.is, listener)`.
    */
-  is(x: IoMessage<unknown>): x is IoMessage<T>;
+  readonly is: (x: IoMessage<unknown>) => x is IoMessage<T>;
 }
 
 /**
@@ -109,7 +112,7 @@ interface RequestInfo<U> extends CodeInfo {
 /**
  * An interface that can produce requests for a specific code.
  */
-export interface IoRequestMaker<T, U> extends MessageInfo, IRequestMatcher<T, U> {
+export interface IoRequestMaker<T, U> extends MessageInfo {
   /**
    * Create a message for this code, with or without payload.
    */
@@ -121,8 +124,11 @@ export interface IoRequestMaker<T, U> extends MessageInfo, IRequestMatcher<T, U>
 
   /**
    * Returns whether the given `IoMessage` instance matches this request definition
+   *
+   * Declared as a property holding a bound function, not a method, so it can be
+   * passed around on its own, as in `host.respond(IO.MY_CODE.is, value)`.
    */
-  is(x: IoMessage<unknown>): x is IoRequest<T, U>;
+  readonly is: (x: IoMessage<unknown>) => x is IoRequest<T, U>;
 }
 
 /**

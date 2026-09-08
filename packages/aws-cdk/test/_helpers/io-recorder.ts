@@ -204,7 +204,7 @@ export interface IoHostRecorderOptions {
  * test('destroys after confirmation', async () => {
  *   // Answer the confirmation prompt the real way: a one-shot responder, so
  *   // the real requestResponse runs and the request is recorded.
- *   ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+ *   ioHost.respondOnce(IO.CDK_TOOLKIT_I7010.is, true);
  *   await toolkit.destroy({ ... });
  *   recorder.matchSnapshot();
  * });

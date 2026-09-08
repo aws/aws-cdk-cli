@@ -1,77 +1,16 @@
-import type { IoMessage, IoMessageLevel, IMessageMatcher } from '../io-message';
+// `DisposeListener` uses `Symbol.dispose`, which must exist in the
+// environment. This file can be imported without going through the package
+// entrypoint (which normally loads the polyfill), so load it here too.
+import '../../../private/dispose-polyfill';
+import type { IoMessage, IoMessageLevel } from '../io-message';
+import type { DisposeListener, MessageMatcher, MessageListenerResultOrPromise, RespondOptions } from '../listeners';
 
 /**
- * The result a message listener may return to influence how a message is handled.
- *
- * A listener may update the message _text_ and/or its _level_; it cannot change
- * any other field of the message (such as its `code`), which keeps the
- * code-keyed listener registry valid.
+ * Make a plain remover function usable as a `Disposable` (see `DisposeListener`).
  */
-export interface MessageListenerResult {
-  /**
-   * Replace the text that is printed for this message.
-   *
-   * @default - the message text is left unchanged
-   */
-  readonly message?: string;
-
-  /**
-   * Override the level of this message.
-   *
-   * A host may use the level for verbosity filtering and for deciding where to
-   * route the message, so overriding it can change whether and where the message
-   * is shown. The `code` is intentionally left unchanged.
-   *
-   * @default - the message level is left unchanged
-   */
-  readonly level?: IoMessageLevel;
-
-  /**
-   * Skip the default handling of the message.
-   *
-   * For a notification this means the host is not asked to handle it. For a
-   * request it stops processing entirely: the host is not asked to prompt, and
-   * the request resolves with its (possibly `respond`-overridden) default
-   * response.
-   *
-   * @default false
-   */
-  readonly preventDefault?: boolean;
-
-  /**
-   * For requests only: the value to resolve the request with. It is folded into
-   * the request's default response and skips the prompt (the host is not asked
-   * to answer). The question is still surfaced unless `preventDefault` is also
-   * set. Ignored for plain notifications.
-   *
-   * The presence of the key is what matters, so `false`/`0`/`''` are valid
-   * answers. Use the `respond`/`respondOnce` helpers for the common case.
-   *
-   * @default - this listener does not supply a response
-   */
-  readonly respond?: unknown;
+function disposeListener(dispose: () => void): DisposeListener {
+  return Object.assign(dispose, { [Symbol.dispose]: dispose });
 }
-
-/**
- * What a message listener may return: nothing, a `MessageListenerResult`, or a
- * `Promise` of either.
- *
- * Listeners may be async. The registry awaits each listener before running the
- * next, so registration order — and the cumulative effect on the message — is
- * preserved regardless of whether listeners are sync or async.
- */
-export type MessageListenerResultOrPromise = void | MessageListenerResult | Promise<void | MessageListenerResult>;
-
-/**
- * Selects which messages a listener applies to.
- *
- * Either an `IMessageMatcher` — the makers implement this, so a maker fires for
- * its own messages — or a custom *predicate* over the message (e.g. to match a
- * family of codes, or on the message level). Use `matchAny` to combine several.
- */
-export type MessageSelector<T> =
-  | IMessageMatcher<T>
-  | ((msg: IoMessage<any>) => boolean);
 
 /**
  * A function a listener runs when a matching message appears.
@@ -85,18 +24,9 @@ interface MessageListener {
   readonly once: boolean;
   readonly fn: MessageListenerFn;
   /**
-   * Decides which messages this listener applies to. For a listener registered
-   * with a maker this matches by `code`; for one registered with a predicate it
-   * is the predicate itself.
+   * Decides which messages this listener applies to.
    */
-  readonly matches: (msg: IoMessage<unknown>) => boolean;
-  /**
-   * Whether this is one of a host's own internal listeners (e.g. stack-activity
-   * routing). Internal listeners are not removed by `removeUserListeners`.
-   *
-   * @default false - a user listener registered via `on`/`once`/`rewrite`/`respond`
-   */
-  readonly internal?: boolean;
+  readonly matches: MessageMatcher;
 }
 
 /**
@@ -121,8 +51,7 @@ export interface AppliedListeners<T> {
 }
 
 /**
- * A registry of message listeners, keyed by code or predicate, run in
- * registration order.
+ * A registry of message listeners, run in registration order.
  *
  * This is the shared listener engine: both the CLI's terminal host and the
  * public `withListeners` wrapper own one and run their messages through it, so
@@ -131,40 +60,23 @@ export interface AppliedListeners<T> {
  * prompting, telemetry) around `apply`.
  */
 export class ListenerRegistry {
-  // Listeners in registration order. Each carries a matcher (by code, or a
-  // custom predicate). See `on`/`once`/`rewrite`/`respond`.
+  // Listeners in registration order. See `on`/`once`/`rewrite`/`respond`.
   private readonly listeners: MessageListener[] = [];
 
   /**
-   * Register a listener that is invoked for every message that matches the
-   * selector. Returns a function that removes the listener again.
+   * Register a listener that is invoked for every message the matcher accepts.
+   * Returns a remover for it (callable and `using`-compatible).
    */
-  public on<T>(
-    selector: IMessageMatcher<T> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public on(
-    predicate: (msg: IoMessage<any>) => boolean,
-    listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public on(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
-    return this.add({ once: false, fn: listener, matches: messageMatcher(selector) });
+  public on(matches: MessageMatcher, listener: MessageListenerFn): DisposeListener {
+    return this.add({ once: false, fn: listener, matches });
   }
 
   /**
    * Like `on`, but the listener is automatically removed after it has been
    * invoked once.
    */
-  public once<T>(
-    selector: IMessageMatcher<T> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public once(
-    predicate: (msg: IoMessage<any>) => boolean,
-    listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public once(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
-    return this.add({ once: true, fn: listener, matches: messageMatcher(selector) });
+  public once(matches: MessageMatcher, listener: MessageListenerFn): DisposeListener {
+    return this.add({ once: true, fn: listener, matches });
   }
 
   /**
@@ -172,80 +84,42 @@ export class ListenerRegistry {
    * optionally also overriding the level. Syntactic sugar for an `on` listener
    * that returns `{ message, level? }`.
    */
-  public rewrite(
-    selector: MessageSelector<any>,
-    formatter: (msg: IoMessage<any>) => string,
-    level?: IoMessageLevel,
-  ): () => void {
-    const fn = (msg: IoMessage<any>) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
-    return this.add({ once: false, fn, matches: messageMatcher(selector) });
+  public rewrite(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
+    return this.add({ once: false, fn: rewriteFn(formatter, level), matches });
   }
 
   /**
    * Like `rewrite`, but the formatter is removed after it has been applied once.
    */
-  public rewriteOnce(
-    selector: MessageSelector<any>,
-    formatter: (msg: IoMessage<any>) => string,
-    level?: IoMessageLevel,
-  ): () => void {
-    const fn = (msg: IoMessage<any>) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
-    return this.add({ once: true, fn, matches: messageMatcher(selector) });
+  public rewriteOnce(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
+    return this.add({ once: true, fn: rewriteFn(formatter, level), matches });
   }
 
   /**
-   * Answer a request (by its code) with a fixed value so the host does not
-   * prompt. Syntactic sugar for an `on` listener returning
-   * `{ respond: value, preventDefault: suppressQuestion }`.
-   *
-   * @param suppressQuestion - whether to also suppress surfacing the question
-   *   text. Defaults to `true` (answer silently).
+   * Answer a matching request with a fixed value so the host does not prompt.
+   * Syntactic sugar for an `on` listener returning
+   * `{ respond: value, preventDefault: options.suppressQuestion }`.
    */
-  public respond(selector: MessageSelector<any>, value: unknown, suppressQuestion = true): () => void {
-    const fn = (msg: IoMessage<unknown>) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
-    return this.add({ once: false, fn, matches: messageMatcher(selector) });
+  public respond(matches: MessageMatcher, value: unknown, options: RespondOptions = {}): DisposeListener {
+    return this.add({ once: false, fn: respondFn(value, options), matches });
   }
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  public respondOnce(selector: MessageSelector<any>, value: unknown, suppressQuestion = true): () => void {
-    const fn = (msg: IoMessage<unknown>) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
-    return this.add({ once: true, fn, matches: messageMatcher(selector) });
-  }
-
-  /**
-   * Register one of the host's own internal listeners (e.g. stack-activity
-   * routing). Unlike listeners added via `on`/`once`/etc., an internal listener
-   * survives `removeUserListeners`. Returns a function that removes it.
-   */
-  public addInternal(matches: (msg: IoMessage<unknown>) => boolean, fn: MessageListenerFn): () => void {
-    return this.add({ once: false, internal: true, fn, matches });
-  }
-
-  /**
-   * Remove every listener registered via `on`/`once`/`rewrite`/`respond`,
-   * keeping the host's internal listeners so the host keeps working afterwards.
-   */
-  public removeUserListeners(): void {
-    // Drop user listeners in place (preserving array identity for any
-    // outstanding dispose closures); keep the host's internal listeners.
-    for (let i = this.listeners.length - 1; i >= 0; i--) {
-      if (!this.listeners[i].internal) {
-        this.listeners.splice(i, 1);
-      }
-    }
+  public respondOnce(matches: MessageMatcher, value: unknown, options: RespondOptions = {}): DisposeListener {
+    return this.add({ once: true, fn: respondFn(value, options), matches });
   }
 
   /**
    * Run every registered listener that matches the message, in registration
-   * order. A listener matches by its code (maker) or its custom predicate.
+   * order.
    *
-   * A listener may update the message text/level (passed on to subsequent
-   * listeners and the host), prevent the default handling, or (for requests)
-   * answer it. `once` listeners are removed after they have run. Matching is
-   * decided against the message as emitted, so a rewrite by an earlier listener
-   * does not change which later listeners apply.
+   * A listener may update the message text, level, and/or action (passed on to
+   * subsequent listeners and the host), prevent the default handling, or (for
+   * requests) answer it. `once` listeners are removed after they have run.
+   * Matching is decided against the message as emitted, so a rewrite by an
+   * earlier listener does not change which later listeners apply.
    *
    * Returns the (possibly updated) message, whether the default handling was
    * prevented, and whether a listener answered the request (folded into the
@@ -284,6 +158,9 @@ export class ListenerRegistry {
         if (result.level !== undefined) {
           current = { ...current, level: result.level };
         }
+        if (result.action !== undefined) {
+          current = { ...current, action: result.action };
+        }
         if (result.preventDefault) {
           preventDefault = true;
         }
@@ -300,43 +177,33 @@ export class ListenerRegistry {
   }
 
   /**
-   * Add a listener to the registry and return a function that removes it.
+   * Add a listener to the registry and return a remover for it (callable and
+   * `using`-compatible, see `DisposeListener`).
    */
-  private add(listener: MessageListener): () => void {
+  private add(listener: MessageListener): DisposeListener {
     this.listeners.push(listener);
 
-    return () => {
+    return disposeListener(() => {
       const index = this.listeners.indexOf(listener);
       if (index >= 0) {
         this.listeners.splice(index, 1);
       }
-    };
+    });
   }
 }
 
 /**
- * Convert a `MessageSelector` into a predicate that decides whether a listener
- * applies to a message. A matcher uses its `is` type guard; a predicate (any
- * `(msg) => boolean`) is used as-is.
+ * The listener behind `rewrite`/`rewriteOnce`.
  */
-export function messageMatcher(selector: MessageSelector<any>): (msg: IoMessage<unknown>) => boolean {
-  if (typeof selector === 'function') {
-    return selector;
-  }
-  return (msg) => selector.is(msg);
+function rewriteFn(formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): MessageListenerFn {
+  return (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
 }
 
 /**
- * Combine several selectors into a single predicate that matches a message when
- * *any* of them matches. Each selector may be a maker (matched by its `code`)
- * or a predicate.
- *
- * @example
- * ```ts
- * host.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502), listener);
- * ```
+ * The listener behind `respond`/`respondOnce`. Only answers requests; a plain
+ * notification that happens to match is left untouched.
  */
-export function matchAny(...selectors: MessageSelector<any>[]): (msg: IoMessage<unknown>) => boolean {
-  const matchers = selectors.map(messageMatcher);
-  return (msg) => matchers.some((matches) => matches(msg));
+function respondFn(value: unknown, options: RespondOptions): MessageListenerFn {
+  const suppressQuestion = options.suppressQuestion ?? true;
+  return (msg) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
 }
