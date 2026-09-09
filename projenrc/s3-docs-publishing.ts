@@ -60,6 +60,8 @@ export class S3DocsPublishing extends Component {
     const docsStreamId= `${safePackageName}-${this.props.docsStream.toLowerCase()}`;
     const s3PathPrefix = this.props.s3PathPrefix ? `${this.props.s3PathPrefix}-v` : `${safePackageName}-v`;
 
+    const roleSessionName = limit(64)`s3-${docsStreamId}-docs-publishing@aws-cdk-cli`;
+
     releaseWf.addJob(`${safePackageName}_release_docs_${this.props.docsStream}`, {
       name: `${this.project.name}: Publish docs ${niceName} to S3`,
       environment: 'releasing', // <-- this has the configuration
@@ -84,7 +86,7 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-            'role-session-name': `s3-${docsStreamId}-docs-publishing@aws-cdk-cli`,
+            'role-session-name': roleSessionName,
             'mask-aws-account-id': true,
           },
         },
@@ -95,7 +97,7 @@ export class S3DocsPublishing extends Component {
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': this.props.roleToAssume,
-            'role-session-name': `s3-${docsStreamId}-docs-publishing@aws-cdk-cli`,
+            'role-session-name': roleSessionName,
             'mask-aws-account-id': true,
             'role-chaining': true,
           },
@@ -117,7 +119,7 @@ if OUTPUT=$(aws s3api put-object \\
   --key "$S3_PATH" \\
   --body dist/${this.props.artifactPath} \\
   --if-none-match "*" 2>&1); then
-  
+
   # File was uploaded successfully, update the latest pointer
   echo "New ${docsStreamId} artifact uploaded successfully, updating latest pointer"
   echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
@@ -136,4 +138,14 @@ fi`,
       ],
     });
   }
+}
+
+function limit(n: number) {
+  return (s: TemplateStringsArray, hole: string): string => {
+    return [
+      s[0],
+      hole.slice(-Math.max(n - s[0].length - s[1].length, 0)),
+      s[1],
+    ].join('');
+  };
 }

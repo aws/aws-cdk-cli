@@ -1760,7 +1760,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: s3-aws-cdk-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
+          role-session-name: s3-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
@@ -1768,7 +1768,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
-          role-session-name: s3-aws-cdk-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
+          role-session-name: s3-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
           mask-aws-account-id: true
           role-chaining: true
       - name: Publish docs @aws-cdk/toolkit-lib toolkit-lib-api-model
@@ -1788,7 +1788,7 @@ jobs:
             --key "$S3_PATH" \
             --body dist/api-extractor-docs.zip \
             --if-none-match "*" 2>&1); then
-            
+
             # File was uploaded successfully, update the latest pointer
             echo "New aws-cdk-toolkit-lib-toolkit-lib-api-model artifact uploaded successfully, updating latest pointer"
             echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
@@ -1853,7 +1853,7 @@ jobs:
             --key "$S3_PATH" \
             --body dist/toolkit-versions.zip \
             --if-none-match "*" 2>&1); then
-            
+
             # File was uploaded successfully, update the latest pointer
             echo "New aws-cdk-cli artifact uploaded successfully, updating latest pointer"
             echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
