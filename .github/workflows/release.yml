@@ -1760,7 +1760,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: s3-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
+          role-session-name: s3-pub-toolkit-lib-api-model@aws-cdk-cli
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
@@ -1768,7 +1768,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
-          role-session-name: s3-toolkit-lib-toolkit-lib-api-model-docs-publishing@aws-cdk-cli
+          role-session-name: s3-pub-toolkit-lib-api-model@aws-cdk-cli
           mask-aws-account-id: true
           role-chaining: true
       - name: Publish docs @aws-cdk/toolkit-lib toolkit-lib-api-model
@@ -1777,9 +1777,10 @@ jobs:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
           DOCS_STREAM: toolkit-lib-api-model
         run: |-
-          echo "Uploading aws-cdk-toolkit-lib-toolkit-lib-api-model to S3"
+          echo "Uploading toolkit-lib-api-model docs to S3"
           echo "::add-mask::$BUCKET_NAME"
-          S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-api-model-v$(cat dist/version.txt).zip"
+          VERSION="$(cat dist/version.txt)"
+          S3_PATH="$DOCS_STREAM/aws-cdk-toolkit-lib-api-model-v$VERSION.zip"
           LATEST="latest-toolkit-lib-api-model"
 
           # Capture both stdout and stderr
@@ -1789,9 +1790,15 @@ jobs:
             --body dist/api-extractor-docs.zip \
             --if-none-match "*" 2>&1); then
 
-            # File was uploaded successfully, update the latest pointer
-            echo "New aws-cdk-toolkit-lib-toolkit-lib-api-model artifact uploaded successfully, updating latest pointer"
-            echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
+            # File was uploaded successfully, update the latest pointer.
+            echo "New toolkit-lib-api-model artifact uploaded successfully, updating latest pointer"
+            # This is a "#manifest-version:2" manifest
+            printf '#manifest-version:2\nartifact_path=%s\nversion=%s\npublished=%s\nrebuild_nonce=%s\n' \
+              "$S3_PATH" \
+              "$VERSION" \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              "$GITHUB_SHA" \
+              | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
           elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
             # Check specifically for PreconditionFailed in the error output
@@ -1800,7 +1807,7 @@ jobs:
 
           else
             # Any other error (permissions, etc)
-            echo "::error::Failed to upload aws-cdk-toolkit-lib-toolkit-lib-api-model artifact"
+            echo "::error::Failed to upload toolkit-lib-api-model artifact"
             exit 1
           fi
   aws-cdk_release_docs_CLI:
@@ -1825,7 +1832,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: s3-aws-cdk-cli-docs-publishing@aws-cdk-cli
+          role-session-name: s3-pub-cli@aws-cdk-cli
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
@@ -1833,7 +1840,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}
-          role-session-name: s3-aws-cdk-cli-docs-publishing@aws-cdk-cli
+          role-session-name: s3-pub-cli@aws-cdk-cli
           mask-aws-account-id: true
           role-chaining: true
       - name: Publish docs aws-cdk CLI
@@ -1842,9 +1849,10 @@ jobs:
           BUCKET_NAME: ${{ vars.DOCS_BUCKET_NAME }}
           DOCS_STREAM: CLI
         run: |-
-          echo "Uploading aws-cdk-cli to S3"
+          echo "Uploading cli docs to S3"
           echo "::add-mask::$BUCKET_NAME"
-          S3_PATH="$DOCS_STREAM/toolkit-versions-v$(cat dist/version.txt).zip"
+          VERSION="$(cat dist/version.txt)"
+          S3_PATH="$DOCS_STREAM/toolkit-versions-v$VERSION.zip"
           LATEST="latest-CLI"
 
           # Capture both stdout and stderr
@@ -1854,9 +1862,15 @@ jobs:
             --body dist/toolkit-versions.zip \
             --if-none-match "*" 2>&1); then
 
-            # File was uploaded successfully, update the latest pointer
-            echo "New aws-cdk-cli artifact uploaded successfully, updating latest pointer"
-            echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
+            # File was uploaded successfully, update the latest pointer.
+            echo "New cli artifact uploaded successfully, updating latest pointer"
+            # This is a "#manifest-version:2" manifest
+            printf '#manifest-version:2\nartifact_path=%s\nversion=%s\npublished=%s\nrebuild_nonce=%s\n' \
+              "$S3_PATH" \
+              "$VERSION" \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              "$GITHUB_SHA" \
+              | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
           elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
             # Check specifically for PreconditionFailed in the error output
@@ -1865,6 +1879,6 @@ jobs:
 
           else
             # Any other error (permissions, etc)
-            echo "::error::Failed to upload aws-cdk-cli artifact"
+            echo "::error::Failed to upload cli artifact"
             exit 1
           fi
