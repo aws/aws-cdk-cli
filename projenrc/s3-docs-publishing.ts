@@ -57,10 +57,10 @@ export class S3DocsPublishing extends Component {
     // Declare variables used for naming various things
     const niceName = `${this.project.name} ${this.props.docsStream}`;
     const safePackageName = this.project.name.replace('@', '').replace('/', '-');
-    const docsStreamId= `${safePackageName}-${this.props.docsStream.toLowerCase()}`;
+    const docsStreamId= this.props.docsStream.toLowerCase();
     const s3PathPrefix = this.props.s3PathPrefix ? `${this.props.s3PathPrefix}-v` : `${safePackageName}-v`;
 
-    const roleSessionName = limit(64)`s3-${docsStreamId}-docs-publishing@aws-cdk-cli`;
+    const roleSessionName = limit(64)`s3-pub-${docsStreamId}@aws-cdk-cli`;
 
     releaseWf.addJob(`${safePackageName}_release_docs_${this.props.docsStream}`, {
       name: `${this.project.name}: Publish docs ${niceName} to S3`,
@@ -108,9 +108,10 @@ export class S3DocsPublishing extends Component {
             BUCKET_NAME: this.props.bucketName,
             DOCS_STREAM: this.props.docsStream,
           },
-          run: `echo "Uploading ${docsStreamId} to S3"
+          run: `echo "Uploading ${docsStreamId} docs to S3"
 echo "::add-mask::$BUCKET_NAME"
-S3_PATH="$DOCS_STREAM/${s3PathPrefix}$(cat dist/version.txt).zip"
+VERSION="$(cat dist/version.txt)"
+S3_PATH="$DOCS_STREAM/${s3PathPrefix}$VERSION.zip"
 LATEST="latest-${this.props.docsStream}"
 
 # Capture both stdout and stderr
@@ -120,9 +121,15 @@ if OUTPUT=$(aws s3api put-object \\
   --body dist/${this.props.artifactPath} \\
   --if-none-match "*" 2>&1); then
 
-  # File was uploaded successfully, update the latest pointer
+  # File was uploaded successfully, update the latest pointer.
   echo "New ${docsStreamId} artifact uploaded successfully, updating latest pointer"
-  echo "$S3_PATH" | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
+  # This is a "#manifest-version:2" manifest
+  printf '#manifest-version:2\\nartifact_path=%s\\nversion=%s\\npublished=%s\\nrebuild_nonce=%s\\n' \\
+    "$S3_PATH" \\
+    "$VERSION" \\
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+    "$GITHUB_SHA" \\
+    | aws s3 cp - "s3://$BUCKET_NAME/$LATEST"
 
 elif echo "$OUTPUT" | grep -q "PreconditionFailed"; then
   # Check specifically for PreconditionFailed in the error output
