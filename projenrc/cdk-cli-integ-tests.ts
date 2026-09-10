@@ -14,19 +14,12 @@ const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr
 
 /**
  * Label that opts a pull request into the Windows integ suites.
- *
- * Apply it to a PR touching platform-sensitive code (paths, subprocess
- * spawning, shell quoting); a failure then blocks the PR like any other integ
- * failure.
  */
 const WINDOWS_LABEL = 'pr/test-windows';
 
 /**
- * Windows runs on a manual dispatch or on a PR that opted in via label.
- *
- * `workflow_dispatch` is the only one of the two reachable from a branch
- * (`pull_request_target` reads the workflow from the base branch), so it is
- * what makes these jobs testable before they merge.
+ * Condition under which the Windows jobs run: a manual dispatch or a PR
+ * carrying the `pr/test-windows` label.
  */
 const WINDOWS_REQUESTED_EXPR = [
   "github.event_name == 'workflow_dispatch'",
@@ -34,11 +27,7 @@ const WINDOWS_REQUESTED_EXPR = [
 ].join(' || ');
 
 /**
- * Tests that build or run Linux Docker images.
- *
- * GitHub-hosted Windows runners run Docker in Windows-containers mode and
- * cannot pull or build Linux images ('no matching manifest for windows/amd64'),
- * so these tests are skipped on Windows.
+ * Test names skipped on Windows.
  */
 const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'deploy same docker asset to multiple regions',
@@ -54,9 +43,6 @@ const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'all calls from isolated container go through proxy',
   'docker-credential-cdk-assets can assume role and fetch ECR credentials',
   'toolkit deploy stack with multiple docker assets',
-  // These do not have 'docker' in the name, but build Linux images as a side
-  // effect: python lambda bundling, SAM asset bundling, a DockerImageAsset in
-  // the fixture stack, and a docker-app deploy from a copied assembly.
   'CDK synth bundled functions as expected',
   'CDK synth add the metadata properties expected by sam',
   'can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles',
@@ -192,9 +178,9 @@ export interface CdkCliIntegTestsWorkflowProps {
    * If given, additionally run every integ test matrix job on this Windows
    * runner (in addition to the `testRunsOn` runner).
    *
-   * The Windows jobs are suffixed with `_windows` and run all steps under Git
-   * Bash so the shared bash step scripts keep working. They only run on a manual
-   * dispatch or when a PR opts in with the `pr/test-windows` label.
+   * The Windows jobs are suffixed with `_windows`, run all steps under bash,
+   * and only run on a manual dispatch or when a PR carries the
+   * `pr/test-windows` label.
    *
    * @default - integ tests only run on `testRunsOn`
    */
@@ -359,15 +345,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
       committed: false,
       lines: [
         '#!/bin/bash',
-        // Verdaccio was installed once in the 'prepare' job and shipped here
-        // as a tarball; extracting it is much faster than an npm install,
-        // especially on Windows. No process manager: Verdaccio only has to
-        // outlive this job, and the runner kills leftover processes at job
-        // teardown.
-        //
-        // Fallback: if the tarball is not present (e.g. when pull_request_target
-        // uses the base branch workflow which lacks the bundle step), install
-        // Verdaccio on the fly. Slower, but keeps the run working.
+        // Extract the Verdaccio bundle built in the 'prepare' job, or install
+        // it via npm if the bundle is not present.
         'mkdir -p $HOME/verdaccio-app',
         'if [ -f .projen/verdaccio-bundle.tgz ]; then',
         '  tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
@@ -376,11 +355,10 @@ export class CdkCliIntegTestsWorkflow extends Component {
         'fi',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        // Point at Verdaccio's JS entrypoint; bin shims were not created
-        // (--no-bin-links) and would not be bash-spawnable on Windows anyway.
+        // Start Verdaccio from its JS entrypoint in the background.
         'VERDACCIO_BIN="$HOME/verdaccio-app/node_modules/verdaccio/bin/verdaccio"',
         'nohup node "$VERDACCIO_BIN" --config $HOME/.config/verdaccio/config.yaml > verdaccio.log 2>&1 &',
-        // Wait for Verdaccio to accept requests instead of sleeping a fixed time
+        // Poll until Verdaccio accepts requests.
         'for i in $(seq 1 60); do',
         '  if curl -fsS -o /dev/null http://localhost:4873/; then break; fi',
         '  if [ $i -eq 60 ]; then echo "Verdaccio did not start:"; cat verdaccio.log; exit 1; fi',
@@ -519,21 +497,11 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         {
-          // Install Verdaccio once here and ship it to the test jobs as a
-          // tarball. Installing it in every job through npm costs ~60s on
-          // Windows runners (thousands of small file writes); extracting a
-          // single archive is much faster. Verdaccio has no native or
-          // platform-specific dependencies, so a Linux-built tree runs
-          // anywhere; --no-bin-links keeps symlinks out of the archive
-          // (jobs invoke the JS entrypoint directly).
+          // Install Verdaccio and pack it into a tarball artifact for the
+          // test jobs to extract.
           name: 'Bundle Verdaccio for the test jobs',
           run: [
             'mkdir -p /tmp/verdaccio-bundle',
-            // The bundle is built once but runs under every Node version in
-            // the test matrix, so Verdaccio's engine range must include the
-            // oldest of them: 6.9 requires Node >= 22, 6.8 still allows 20.
-            // (A per-job npm install used to hide this by resolving an
-            // engines-compatible version for each job's own Node.)
             '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)',
             'tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules',
           ].join('\n'),
@@ -686,10 +654,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
       },
-      // Run the steps under Git Bash (preinstalled) so the shared bash step
-      // scripts work unchanged on Windows. Windows only: naming the shell
-      // explicitly also switches it to `bash --noprofile --norc -eo pipefail`,
-      // and the Linux jobs stay on GitHub's implicit `bash -e`.
+      // Run the Windows steps under bash.
       ...platform.windows ? {
         defaults: {
           run: {
@@ -708,9 +673,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         IS_CANARY: 'true',
         CI: 'true',
         ...platform.windows ? {
-          // The skip file is newline-separated; the CDK_INTEG_SKIP_TESTS
-          // environment variable is comma-separated and cannot express
-          // test names that contain commas.
+          // Path to the newline-separated list of test names to skip.
           CDK_INTEG_SKIP_TESTS_FILE: '${{ github.workspace }}\\windows-skip-tests.txt',
         } : {},
         // add extra env at end so it can override
@@ -738,11 +701,8 @@ export class CdkCliIntegTestsWorkflow extends Component {
       },
       steps: [
         ...platform.windows ? [{
-          // The integ tests are dominated by npm installs and toolchain builds:
-          // many small file writes, which are slow on the runner's NTFS OS disk.
-          // A Dev Drive (ReFS VHDX) is much faster for this pattern. Create one
-          // and point TEMP at it, which is where all test fixtures live
-          // (the harness creates its working directories under os.tmpdir()).
+          // Create a Dev Drive (ReFS VHDX) and point TEMP and the npm cache at
+          // it.
           name: 'Set up Dev Drive for TEMP and npm cache',
           shell: 'powershell',
           run: [
@@ -752,8 +712,6 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'New-Item -ItemType Directory -Path "${drive}:\\npm-cache" | Out-Null',
             'echo "TEMP=${drive}:\\temp" >> $env:GITHUB_ENV',
             'echo "TMP=${drive}:\\temp" >> $env:GITHUB_ENV',
-            // Every npm invocation in the job (global installs, per-test installs)
-            // reads and writes the cache, so move it onto the Dev Drive too
             'echo "npm_config_cache=${drive}:\\npm-cache" >> $env:GITHUB_ENV',
           ].join('\n'),
         }, {
@@ -897,10 +855,7 @@ interface PlatformOptions {
   readonly windows?: boolean;
 
   /**
-   * Hard cap on job duration, instead of GitHub's 6 hour default.
-   *
-   * Note this does not pre-empt AWS session expiry: Atmosphere credentials last
-   * 1 hour and are obtained part-way into the job, at a variable offset.
+   * Hard cap on job duration, in minutes.
    *
    * @default - GitHub's default
    */
