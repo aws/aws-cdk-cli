@@ -56,14 +56,14 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
    */
   public notify(msg: IoMessage<unknown>): void {
     switch (true) {
-      case IO.CDK_TOOLKIT_I5501.is(msg):
+      case IO.CDK_TOOLKIT_I5501(msg):
         this.isStackUpdate = (msg.data as any)?.isStackUpdate ?? false;
         this.start(msg.data);
         break;
-      case IO.CDK_TOOLKIT_I5502.is(msg):
+      case IO.CDK_TOOLKIT_I5502(msg):
         this.activity(msg.data);
         break;
-      case IO.CDK_TOOLKIT_I5503.is(msg):
+      case IO.CDK_TOOLKIT_I5503(msg):
         this.stop();
         break;
       default:

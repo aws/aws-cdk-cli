@@ -231,7 +231,7 @@ export class CdkToolkit {
     IO.CDK_TOOLKIT_I1000, // ✨ Synthesis time (info)
   )
   public async metadata(stackName: string, json: boolean) {
-    using _formatter = this.ioHost.once(
+    using _formatter = this.ioHost.listeners.once(
       IO.CDK_TOOLKIT_I2901,
       (msg) => ({
         action: 'metadata',
@@ -471,7 +471,7 @@ export class CdkToolkit {
     // Both deploy paths resolve through this host, so one listener covers both.
     // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
     // each run must register a rewrite for its own `requireApproval` value.
-    using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+    using _approvalFraming = this.ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
       const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
         ? 'security-sensitive updates'
         : 'updates';
@@ -1039,17 +1039,17 @@ export class CdkToolkit {
     }
 
     // The success line was `info` in the historical `cdk destroy`, not `result`.
-    using _successLevel = this.ioHost.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
+    using _successLevel = this.ioHost.listeners.on(IO.CDK_TOOLKIT_I7900, () => ({ level: 'info' })); // ✅ <stack>: destroyed
 
     // toolkit-lib logs a declined confirmation (E7010) and returns gracefully.
     // The CLI surfaces a decline as a non-zero, soft exit instead: throwing from
     // the listener both suppresses the log and aborts the command (the top-level
     // renders `AbortError` as "Deletion cancelled").
-    using _declineAborts = this.ioHost.on(IO.CDK_TOOLKIT_E7010, () => {
+    using _declineAborts = this.ioHost.listeners.on(IO.CDK_TOOLKIT_E7010, () => {
       throw new AbortError('DestroyAborted', 'Deletion cancelled');
     });
 
-    using _forceConfirms = options.force ? this.ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true) : undefined;
+    using _forceConfirms = options.force ? this.ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I7010, true) : undefined;
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore - `_destroyWithAction` is private; the CLI sets the action label.
@@ -1070,7 +1070,7 @@ export class CdkToolkit {
   ): Promise<number> {
     // One-shot: disposes itself when the listing (I2901) is emitted; the
     // `using` covers the case where `list` throws before that happens.
-    using _formatter = this.ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
+    using _formatter = this.ioHost.listeners.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => formatStackList(msg.data.stacks, options));
 
     await this.toolkit.list(this.props.cloudExecutable, {
       stacks: selectors.length > 0 ? selectWithUpstream(...selectors) : undefined,

@@ -5,9 +5,9 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
-import { IO } from '../../../lib/api-private';
+import { IO, matchAny } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost, matchAny, suppressMessages } from '../../../lib/cli/io-host';
+import { CliIoHost, suppressMessages } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 import { StackActivityProgress } from '../../../lib/commands/deploy';
 
@@ -184,7 +184,7 @@ describe('CliIoHost', () => {
 
     test('on() invokes the observer for every matching message without changing output', async () => {
       const observed: string[] = [];
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       }));
 
@@ -199,7 +199,7 @@ describe('CliIoHost', () => {
 
     test('once() invokes the observer only for the first matching message', async () => {
       const observed: string[] = [];
-      track(ioHost.once(IO.CDK_TOOLKIT_I2901, (msg) => {
+      track(ioHost.listeners.once(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       }));
 
@@ -211,7 +211,7 @@ describe('CliIoHost', () => {
 
     test('on() supports async listeners and awaits them before the message is processed', async () => {
       const order: string[] = [];
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
         await new Promise((resolve) => setImmediate(resolve));
         order.push(`listener:${msg.message}`);
         return { message: `async:${msg.message}` };
@@ -227,7 +227,7 @@ describe('CliIoHost', () => {
     });
 
     test('requestResponse() awaits an async listener that answers the request', async () => {
-      track(ioHost.on(IO.CDK_TOOLKIT_I7010, async () => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I7010, async () => {
         await new Promise((resolve) => setImmediate(resolve));
         return { respond: true, preventDefault: true };
       }));
@@ -245,51 +245,9 @@ describe('CliIoHost', () => {
       expect(answer).toBe(true);
     });
 
-    test('removeAllListeners() removes every user-registered listener', async () => {
-      const observed: string[] = [];
-      // Register via on() and once() and rewrite() — all user listeners.
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
-        observed.push(msg.message);
-      }));
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
-
-      await ioHost.notify(listMessage('before'));
-      ioHost.removeAllListeners();
-      await ioHost.notify(listMessage('after'));
-
-      // The on() listener stopped firing and the rewrite no longer applies.
-      expect(observed).toEqual(['before']);
-      expect(mockStdout).toHaveBeenCalledWith('after\n');
-    });
-
-    test('removeAllListeners() keeps the host internal stack-activity routing', async () => {
-      // Clear all (user) listeners, then verify a stack-activity message is
-      // still routed to the printer and suppressed — i.e. the internal listener
-      // survived.
-      ioHost.removeAllListeners();
-      (ioHost as any).activityPrinter = undefined;
-      const fakePrinter = { notify: jest.fn() };
-      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
-
-      const activity = plainMessage({
-        time: new Date(),
-        level: 'info',
-        action: 'deploy',
-        code: 'CDK_TOOLKIT_I5502',
-        message: 'raw activity text',
-      });
-      await ioHost.notify(activity);
-
-      expect(fakePrinter.notify).toHaveBeenCalledWith(activity);
-      expect(mockStdout).not.toHaveBeenCalled();
-      expect(mockStderr).not.toHaveBeenCalled();
-
-      makeSpy.mockRestore();
-    });
-
     test('on() accepts a maker `.is` type guard as the selector', async () => {
       const observed: string[] = [];
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901.is, (msg) => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       }));
 
@@ -309,7 +267,7 @@ describe('CliIoHost', () => {
     test('on() accepts an arbitrary predicate as the selector', async () => {
       const observed: string[] = [];
       // Match any message whose code is in the I29xx family.
-      track(ioHost.on((msg) => (msg.code ?? '').startsWith('CDK_TOOLKIT_I29'), (msg) => {
+      track(ioHost.listeners.on((msg) => (msg.code ?? '').startsWith('CDK_TOOLKIT_I29'), (msg) => {
         observed.push(msg.message);
       }));
 
@@ -327,7 +285,7 @@ describe('CliIoHost', () => {
 
     test('a request maker `.is` predicate can answer a request', async () => {
       // The motivating example: pass IO.<code>.is as the selector for a request.
-      track(ioHost.on(IO.CDK_TOOLKIT_I7010.is, () => ({ respond: true, preventDefault: true })));
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true })));
 
       const answer = await ioHost.requestResponse({
         time: new Date(),
@@ -344,7 +302,7 @@ describe('CliIoHost', () => {
 
     test('listener removers are using-compatible (Symbol.dispose)', async () => {
       {
-        using _suppress = ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true }));
+        using _suppress = ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true }));
         await ioHost.notify(listMessage('inside'));
       }
 
@@ -357,7 +315,7 @@ describe('CliIoHost', () => {
 
     test('on() with matchAny() fires for any of the given codes', async () => {
       const observed: string[] = [];
-      track(ioHost.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
+      track(ioHost.listeners.on(matchAny(IO.CDK_TOOLKIT_I2901, IO.CDK_TOOLKIT_I1000), (msg) => {
         observed.push(`${msg.code}:${msg.message}`);
       }));
 
@@ -422,7 +380,7 @@ describe('CliIoHost', () => {
     });
 
     test('rewrite() replaces the printed text for every matching message', async () => {
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+      track(ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
 
       await ioHost.notify(listMessage('first'));
       await ioHost.notify(listMessage('second'));
@@ -437,7 +395,7 @@ describe('CliIoHost', () => {
       // (they already ran on the first pass), otherwise a rewrite would
       // re-transform its own output.
       let calls = 0;
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${++calls}:${msg.message}`));
+      track(ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${++calls}:${msg.message}`));
 
       await ioHost.withCorkedLogging(async () => {
         await ioHost.notify(listMessage('first'));
@@ -449,7 +407,7 @@ describe('CliIoHost', () => {
     });
 
     test('rewriteOnce() replaces the text of only the first matching message', async () => {
-      track(ioHost.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
+      track(ioHost.listeners.rewriteOnce(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
 
       await ioHost.notify(listMessage('first'));
       await ioHost.notify(listMessage('second'));
@@ -461,7 +419,7 @@ describe('CliIoHost', () => {
     test('rewrite() can also override the level, moving the message between streams', async () => {
       // A result-level message normally goes to stdout; rewriting it to info
       // (and changing the text) sends it to stderr in non-CI mode.
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, 'info'));
+      track(ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, { level: 'info' }));
 
       await ioHost.notify(listMessage('first'));
 
@@ -470,7 +428,7 @@ describe('CliIoHost', () => {
     });
 
     test('on() can override only the level, leaving the text unchanged', async () => {
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ level: 'info' })));
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, () => ({ level: 'info' })));
 
       await ioHost.notify(listMessage('first'));
 
@@ -484,8 +442,8 @@ describe('CliIoHost', () => {
       let emittedAction: string | undefined;
       let effectiveAction: string | undefined;
 
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ action: 'metadata' })));
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, () => ({ action: 'metadata' })));
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         actionSeenByLaterListener = msg.action;
       }));
       track(ioHost.observeMessages((observation) => {
@@ -502,7 +460,7 @@ describe('CliIoHost', () => {
 
     test('the returned dispose function removes the listener', async () => {
       const observed: string[] = [];
-      const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+      const dispose = ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       });
 
@@ -515,7 +473,7 @@ describe('CliIoHost', () => {
 
     test('listeners only fire for the registered message code', async () => {
       const observed: string[] = [];
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       }));
 
@@ -532,7 +490,7 @@ describe('CliIoHost', () => {
 
     test('listeners receive the typed message payload', async () => {
       let seenIds: string[] = [];
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => {
+      track(ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => {
         seenIds = msg.data.stacks.map(s => s.id);
         return seenIds.join(', ');
       }));
@@ -547,7 +505,7 @@ describe('CliIoHost', () => {
     });
 
     test('on() updates the printed text when it returns { message }', async () => {
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => ({ message: `updated:${msg.message}` })));
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => ({ message: `updated:${msg.message}` })));
 
       await ioHost.notify(listMessage('hello'));
 
@@ -555,7 +513,7 @@ describe('CliIoHost', () => {
     });
 
     test('on() prevents the default processing when it returns { preventDefault: true }', async () => {
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true })));
+      track(ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, () => ({ preventDefault: true })));
 
       await ioHost.notify(listMessage('suppressed'));
 
@@ -566,7 +524,7 @@ describe('CliIoHost', () => {
 
     test('disposing a listener twice is a no-op', async () => {
       const observed: string[] = [];
-      const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
+      const dispose = ioHost.listeners.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       });
 
@@ -1124,7 +1082,7 @@ describe('CliIoHost', () => {
       }
 
       test('respond() answers a request without prompting or printing', async () => {
-        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+        const dispose = ioHost.listeners.respond(IO.CDK_TOOLKIT_I7010, true);
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1134,7 +1092,7 @@ describe('CliIoHost', () => {
       });
 
       test('respondOnce() answers only the first request, then defers to the prompt', async () => {
-        const dispose = ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+        const dispose = ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I7010, true);
 
         const first = await ioHost.requestResponse(confirmRequest());
         const second = await requestResponse('y', confirmRequest());
@@ -1147,7 +1105,7 @@ describe('CliIoHost', () => {
       });
 
       test('a listener can reword the question that is prompted', async () => {
-        const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I7010, () => 'Really delete everything?');
+        const dispose = ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I7010, () => 'Really delete everything?');
 
         const response = await requestResponse('y', confirmRequest());
 
@@ -1157,7 +1115,7 @@ describe('CliIoHost', () => {
       });
 
       test('the returned dispose function removes the responder', async () => {
-        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
+        const dispose = ioHost.listeners.respond(IO.CDK_TOOLKIT_I7010, true);
         dispose();
 
         // responder gone, so the host prompts as usual
@@ -1170,7 +1128,7 @@ describe('CliIoHost', () => {
       test('a respond value skips the prompt but still surfaces the question', async () => {
         // No preventDefault, so the question is written; but the prompt is
         // skipped and the request resolves with the supplied value.
-        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true }));
+        const dispose = ioHost.listeners.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true }));
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1181,7 +1139,7 @@ describe('CliIoHost', () => {
       });
 
       test('respond + preventDefault skips the prompt and suppresses the question', async () => {
-        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true }));
+        const dispose = ioHost.listeners.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true }));
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1194,7 +1152,7 @@ describe('CliIoHost', () => {
       test('preventDefault alone skips the prompt silently and resolves with the default', async () => {
         // confirmRequest()'s defaultResponse is false; preventDefault means the
         // listener handled it, so we return that default without prompting.
-        const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ preventDefault: true }));
+        const dispose = ioHost.listeners.on(IO.CDK_TOOLKIT_I7010, () => ({ preventDefault: true }));
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1204,8 +1162,8 @@ describe('CliIoHost', () => {
         dispose();
       });
 
-      test('respond(..., false) answers the request while still surfacing the question', async () => {
-        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true, /* suppressQuestion */ false);
+      test('respond with { showQuestion: true } answers the request while still surfacing the question', async () => {
+        const dispose = ioHost.listeners.respond(IO.CDK_TOOLKIT_I7010, true, { showQuestion: true });
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1518,8 +1476,10 @@ describe('CliIoHost', () => {
         // CLI's `--require-approval` framing to the library's flag-free question.
         // Register the same listener here so the reframed prompt can be asserted
         // in isolation, keyed off the message payload and the configured flag.
+        let disposeReframing: () => void;
+
         beforeEach(() => {
-          ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+          disposeReframing = ioHost.listeners.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
             const updateTypeText = msg.data.permissionChangeType !== 'none'
               ? 'security-sensitive updates'
               : 'updates';
@@ -1528,7 +1488,7 @@ describe('CliIoHost', () => {
         });
 
         afterEach(() => {
-          ioHost.removeAllListeners();
+          disposeReframing();
         });
 
         test('BROADENING + has-security adds the --require-approval suffix and breaks the question to a new line', async () => {
