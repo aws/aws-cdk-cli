@@ -2,8 +2,8 @@
 // environment. This file can be imported without going through the package
 // entrypoint (which normally loads the polyfill), so load it here too.
 import '../../../private/dispose-polyfill';
-import type { IoMessage, IoMessageLevel } from '../io-message';
-import type { DisposeListener, MessageMatcher, MessageListenerResultOrPromise, RespondOptions } from '../listeners';
+import type { IoMessage } from '../io-message';
+import type { DisposeListener, MessageMatcher, MessageListenerResultOrPromise, RespondOptions, RewriteOptions } from '../listeners';
 
 /**
  * Make a plain remover function usable as a `Disposable` (see `DisposeListener`).
@@ -13,9 +13,25 @@ function disposeListener(dispose: () => void): DisposeListener {
 }
 
 /**
+ * Combine several matchers into a single matcher that fires when *any* of them
+ * matches.
+ *
+ * Private, because the only callers are inside the CLI, where the message makers
+ * needed to build anything interesting are also private.
+ *
+ * @example
+ * ```ts
+ * host.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502), listener);
+ * ```
+ */
+export function matchAny(...matchers: MessageMatcher[]): MessageMatcher {
+  return (msg) => matchers.some((matches) => matches(msg));
+}
+
+/**
  * A function a listener runs when a matching message appears.
  */
-export type MessageListenerFn = (msg: IoMessage<any>) => MessageListenerResultOrPromise;
+type MessageListenerFn = (msg: IoMessage<any>) => MessageListenerResultOrPromise;
 
 /**
  * A registered message listener.
@@ -84,21 +100,21 @@ export class ListenerRegistry {
    * optionally also overriding the level. Syntactic sugar for an `on` listener
    * that returns `{ message, level? }`.
    */
-  public rewrite(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
-    return this.add({ once: false, fn: rewriteFn(formatter, level), matches });
+  public rewrite(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options: RewriteOptions = {}): DisposeListener {
+    return this.add({ once: false, fn: rewriteFn(formatter, options), matches });
   }
 
   /**
    * Like `rewrite`, but the formatter is removed after it has been applied once.
    */
-  public rewriteOnce(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
-    return this.add({ once: true, fn: rewriteFn(formatter, level), matches });
+  public rewriteOnce(matches: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options: RewriteOptions = {}): DisposeListener {
+    return this.add({ once: true, fn: rewriteFn(formatter, options), matches });
   }
 
   /**
    * Answer a matching request with a fixed value so the host does not prompt.
    * Syntactic sugar for an `on` listener returning
-   * `{ respond: value, preventDefault: options.suppressQuestion }`.
+   * `{ respond: value, preventDefault: !options.showQuestion }`.
    */
   public respond(matches: MessageMatcher, value: unknown, options: RespondOptions = {}): DisposeListener {
     return this.add({ once: false, fn: respondFn(value, options), matches });
@@ -195,8 +211,8 @@ export class ListenerRegistry {
 /**
  * The listener behind `rewrite`/`rewriteOnce`.
  */
-function rewriteFn(formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): MessageListenerFn {
-  return (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) });
+function rewriteFn(formatter: (msg: IoMessage<any>) => string, options: RewriteOptions): MessageListenerFn {
+  return (msg) => ({ message: formatter(msg), ...(options.level !== undefined ? { level: options.level } : {}) });
 }
 
 /**
@@ -204,6 +220,6 @@ function rewriteFn(formatter: (msg: IoMessage<any>) => string, level?: IoMessage
  * notification that happens to match is left untouched.
  */
 function respondFn(value: unknown, options: RespondOptions): MessageListenerFn {
-  const suppressQuestion = options.suppressQuestion ?? true;
-  return (msg) => ('defaultResponse' in msg ? { respond: value, preventDefault: suppressQuestion } : undefined);
+  const preventDefault = !(options.showQuestion ?? false);
+  return (msg) => ('defaultResponse' in msg ? { respond: value, preventDefault } : undefined);
 }

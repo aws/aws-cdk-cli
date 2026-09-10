@@ -286,23 +286,27 @@ Writing a whole `IoHost` is more than you need when you only care about a handfu
 The wrapped host is the host you passed in, so all of its own methods and properties keep working:
 
 ```ts
-import { Toolkit, NonInteractiveIoHost, withListeners, byCode } from '@aws-cdk/toolkit-lib';
+import { Toolkit, NonInteractiveIoHost, withListeners } from '@aws-cdk/toolkit-lib';
 
 const ioHost = withListeners(new NonInteractiveIoHost());
 
 const toolkit = new Toolkit({ ioHost });
 ```
 
-Pick messages with a _matcher_: `byCode` for one or more message codes, or any `(msg) => boolean` predicate.
+Pick messages with a _matcher_, which is any `(msg) => boolean` predicate over the message.
+To match by message code, use `byCode`, and pass it the payload type to get `msg.data` typed inside the listener.
 The [message registry](https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-registry/) lists every code and the payload it carries.
 
 Every registration returns a disposer. Call it to remove the listener, or bind it to a scope with a `using` declaration to remove it automatically:
 
 ```ts
-declare const ioHost: ReturnType<typeof withListeners<NonInteractiveIoHost>>;
+import { byCode, EmittingIoHost, IoRequest, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
 
-// Observe a message. Pass the payload type to get `msg.data` typed.
-const dispose = ioHost.on<{ stacks: unknown[] }>(byCode('CDK_TOOLKIT_I2901'), (msg) => {
+declare const ioHost: EmittingIoHost<NonInteractiveIoHost>;
+declare const myWarnings: string[];
+
+// Observe a message. `byCode` narrows `msg.data` to the payload type you give it.
+const dispose = ioHost.on(byCode<{ stacks: unknown[] }>('CDK_TOOLKIT_I2901'), (msg) => {
   console.log(`${msg.data.stacks.length} stacks`);
 });
 dispose();
@@ -313,18 +317,24 @@ ioHost.on((msg) => msg.level === 'warn', (msg) => {
 });
 
 // Change how a message is presented, without the host knowing about it.
-using _formatter = ioHost.rewrite<{ stacks: unknown[] }>(
-  byCode('CDK_TOOLKIT_I2901'),
+using _formatter = ioHost.rewrite(
+  byCode<{ stacks: unknown[] }>('CDK_TOOLKIT_I2901'),
   (msg) => `${msg.data.stacks.length} stacks`,
 );
 
-// Answer a request so the host is never asked to prompt.
-using _autoConfirm = ioHost.respond(byCode('CDK_TOOLKIT_I7010'), true);
+// Answer a request so the host is never asked to prompt. Narrowing to the
+// request type is what makes the answer checked against it.
+using _autoConfirm = ioHost.respond(byCode<IoRequest<void, boolean>>('CDK_TOOLKIT_I7010'), true);
 ```
 
-A listener can also return a result to influence how the message is handled: `message` and `level` change how it is presented, and `preventDefault` drops it before the wrapped host sees it.
+By default `respond` answers silently. Pass `{ showQuestion: true }` to surface the question anyway, which is useful when the answer comes from a flag the user passed and you still want the prompt in the log.
+
+A listener can also return a result to influence how the message is handled: `message` and `level` change how it is presented, `preventDefault` drops it before the wrapped host sees it, and `respond` answers a request conditionally.
 
 Use `once`, `rewriteOnce`, and `respondOnce` for listeners that should apply to only the first matching message.
+
+Listeners run in registration order, and each one is awaited before the next starts, so listeners may be async.
+Matching is decided against the message as emitted, so a rewrite by an earlier listener never changes which later listeners apply.
 
 Wrapping is idempotent. Passing an already-wrapped host returns it unchanged, so there is never a second set of listeners handling the same message twice.
 

@@ -1,7 +1,3 @@
-// The `DisposeListener` interface uses `Symbol.dispose`, which must exist in
-// the environment. This file can be imported without going through the
-// package entrypoint (which normally loads the polyfill), so load it here too.
-import '../../private/dispose-polyfill';
 import type { IIoHost } from './io-host';
 import type { IoMessage, IoRequest, IoMessageCode, IoMessageLevel } from './io-message';
 import { ListenerRegistry } from './private/listener-registry';
@@ -11,41 +7,42 @@ import type { ToolkitAction } from './toolkit-action';
  * Decides whether a listener applies to a message.
  *
  * This is the only selector concept: every way of picking messages is a
- * predicate over the public `IoMessage` shape. Use `byCode` to match one or
- * more message codes, `matchAny` to combine matchers, or write any
- * `(msg) => boolean`, such as `(msg) => msg.level === 'warn'` for a whole level.
+ * predicate over the public `IoMessage` shape. Write any `(msg) => boolean`,
+ * such as `(msg) => msg.level === 'warn'` to select a whole level, or use
+ * `byCode` to select by message code.
  *
  * A matcher may also be a type guard (`(msg) => msg is IoMessage<T>`), in which
- * case the listener receives a typed payload.
+ * case the listener receives a typed payload. `byCode` produces one.
  */
 export type MessageMatcher = (msg: IoMessage<unknown>) => boolean;
 
 /**
  * Build a matcher that fires for messages carrying any of the given codes.
  *
- * The codes are listed in the message registry:
+ * The codes and the payload each one carries are listed in the message registry:
  * https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-registry/
  *
- * @example
- * ```ts
- * host.on(byCode('CDK_TOOLKIT_I2901'), listener);
- * ```
- */
-export function byCode(...codes: IoMessageCode[]): MessageMatcher {
-  return (msg) => msg.code !== undefined && codes.includes(msg.code);
-}
-
-/**
- * Combine several matchers into a single matcher that fires when *any* of them
- * matches.
+ * The result is a type guard, so passing the payload type narrows `msg.data` in
+ * the listener. To answer a request you narrow to the request instead, which is
+ * what makes the response value type-checked.
  *
  * @example
  * ```ts
- * host.on(matchAny(IO.CDK_TOOLKIT_I5501.is, IO.CDK_TOOLKIT_I5502.is), listener);
+ * // Untyped payload.
+ * host.on(byCode('CDK_TOOLKIT_I2901'), (msg) => { ... });
+ *
+ * // Typed payload.
+ * host.on(byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'), (msg) => msg.data.stacks);
+ *
+ * // Typed request, so the response value is checked.
+ * host.respond(byCode<IoRequest<void, boolean>>('CDK_TOOLKIT_I7010'), true);
  * ```
  */
-export function matchAny(...matchers: MessageMatcher[]): MessageMatcher {
-  return (msg) => matchers.some((matches) => matches(msg));
+export function byCode<T = unknown>(
+  ...codes: IoMessageCode[]
+): (msg: IoMessage<unknown>) => msg is (T extends IoMessage<unknown> ? T : IoMessage<T>) {
+  return (msg): msg is (T extends IoMessage<unknown> ? T : IoMessage<T>) =>
+    msg.code !== undefined && codes.includes(msg.code);
 }
 
 /**
@@ -144,23 +141,49 @@ export interface DisposeListener {
  */
 export interface RespondOptions {
   /**
-   * Whether to also suppress surfacing the question text.
+   * Whether to still surface the question text while answering it.
    *
-   * @default true - answer silently
+   * @default false - answer silently
    */
-  readonly suppressQuestion?: boolean;
+  readonly showQuestion?: boolean;
+}
+
+/**
+ * Options for `rewrite`/`rewriteOnce`.
+ */
+export interface RewriteOptions {
+  /**
+   * Override the level of the rewritten message as well as its text.
+   *
+   * @default - the message level is left unchanged
+   */
+  readonly level?: IoMessageLevel;
 }
 
 /**
  * Attaches listeners to the stream of messages and requests flowing through an
  * `IIoHost`.
  *
- * The result of `withListeners`. Listeners observe individual messages,
- * reshape how they are presented, or answer requests, without subclassing a
- * host. Messages are selected with a `MessageMatcher`; every registration
- * returns a `DisposeListener` that removes the listener again.
+ * The result of `withListeners`. Listeners observe individual messages, reshape
+ * how they are presented, or answer requests, without subclassing a host.
+ * Messages are selected with a `MessageMatcher`; every registration returns a
+ * `DisposeListener` that removes the listener again.
+ *
+ * Dispatch contract, shared by every method here:
+ *
+ * - Listeners run in registration order, and each one is awaited before the next
+ *   one starts, so the cumulative effect on a message is deterministic.
+ * - Matching is decided against the message as emitted, so a rewrite by an
+ *   earlier listener never changes which later listeners apply.
+ * - A listener that throws aborts the whole dispatch and the error propagates to
+ *   the caller that emitted the message. The message is not written.
+ * - The set of listeners is snapshotted when a message arrives, so registering or
+ *   disposing during a dispatch only takes effect from the next message. A newly
+ *   registered listener does not see the message in flight, and a disposed one
+ *   still runs for it.
+ * - If two listeners both answer a request, the last one wins.
  */
-export interface IIoEmitter {
+export interface IoEmitter {
   /**
    * Register a listener that is invoked for every message the matcher accepts.
    *
@@ -171,13 +194,13 @@ export interface IIoEmitter {
    * message is handled further.
    *
    * When the matcher is a type guard, the listener receives a typed payload.
-   * Otherwise the payload is delivered as `unknown`; see the message registry
-   * for the shape carried by each code, and pass the payload type explicitly
-   * if you want it typed.
+   * `byCode` and the message makers are type guards. Otherwise the payload is
+   * delivered as `unknown`; see the message registry for the shape carried by
+   * each code.
    *
    * @example
    * ```ts
-   * const dispose = host.on<StackDetailsPayload>(byCode('CDK_TOOLKIT_I2901'), async (msg) => {
+   * const dispose = host.on(byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'), async (msg) => {
    *   myCount += msg.data.stacks.length;
    *   await persist(myCount);
    * });
@@ -218,24 +241,24 @@ export interface IIoEmitter {
    * This lets a caller define _how_ a message is presented without the host
    * needing to know about it.
    *
-   * Optionally pass a `level` to also override the message's level. Syntactic
-   * sugar for an `on` listener that returns the new `message` and `level`.
+   * Syntactic sugar for an `on` listener that returns the new `message`, and the
+   * new `level` if one is given.
    *
    * @example
    * ```ts
-   * const dispose = host.rewrite<StackDetailsPayload>(byCode('CDK_TOOLKIT_I2901'), (msg) =>
+   * const dispose = host.rewrite(byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'), (msg) =>
    *   `${msg.data.stacks.length} stacks`);
    * ```
    */
   rewrite<T>(
     matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
     formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
+    options?: RewriteOptions,
   ): DisposeListener;
   rewrite<T = unknown>(
     matcher: MessageMatcher,
     formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
+    options?: RewriteOptions,
   ): DisposeListener;
 
   /**
@@ -245,12 +268,12 @@ export interface IIoEmitter {
   rewriteOnce<T>(
     matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
     formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
+    options?: RewriteOptions,
   ): DisposeListener;
   rewriteOnce<T = unknown>(
     matcher: MessageMatcher,
     formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
+    options?: RewriteOptions,
   ): DisposeListener;
 
   /**
@@ -259,26 +282,25 @@ export interface IIoEmitter {
    * that responds with the value and prevents the default; for conditional
    * answers or to also reword the question, use `on`/`once` directly.
    *
-   * By default the question is answered silently; pass
-   * `{ suppressQuestion: false }` to still surface the question while
-   * answering it. Plain notifications that happen to match are left untouched.
+   * The matcher must narrow to `IoRequest`, which is what makes `value` checked
+   * against the request's response type. The message makers do this, and so does
+   * `byCode` when you give it the request type. A plain predicate carries no
+   * response type, so it cannot be used here; use `on` with
+   * `{ respond: value, preventDefault: true }` if you need to select requests
+   * some other way.
    *
-   * When the matcher is a request type guard, the value is checked against the
-   * request's response type.
+   * By default the question is answered silently. Pass `{ showQuestion: true }`
+   * to surface the question anyway, which is useful when the answer comes from a
+   * flag the user passed and you still want the prompt in the log.
    *
    * @example
    * ```ts
-   * const dispose = host.respond(byCode('CDK_TOOLKIT_I7010'), true);
+   * const dispose = host.respond(byCode<IoRequest<void, boolean>>('CDK_TOOLKIT_I7010'), true);
    * ```
    */
   respond<T, U>(
     matcher: (msg: IoMessage<unknown>) => msg is IoRequest<T, U>,
     value: U,
-    options?: RespondOptions,
-  ): DisposeListener;
-  respond(
-    matcher: MessageMatcher,
-    value: unknown,
     options?: RespondOptions,
   ): DisposeListener;
 
@@ -290,25 +312,30 @@ export interface IIoEmitter {
     value: U,
     options?: RespondOptions,
   ): DisposeListener;
-  respondOnce(
-    matcher: MessageMatcher,
-    value: unknown,
-    options?: RespondOptions,
-  ): DisposeListener;
 }
 
 /**
- * Marks a host that already went through `withListeners`, making the wrapper
- * idempotent (wrapping twice returns the same proxy, so there is never a
- * second registry double-handling messages).
+ * An `IIoHost` that listeners can be attached to, as returned by
+ * `withListeners`. The original host type is preserved, so all of its own
+ * methods and properties remain available and correctly typed.
  */
-const LISTENING = Symbol('withListeners');
+export type EmittingIoHost<T extends IIoHost = IIoHost> = T & IoEmitter;
+
+/**
+ * Hosts that have already been wrapped, keyed on the host they wrap.
+ *
+ * Keyed on the host itself (rather than marked on the wrapper) so that wrapping
+ * the *same* host twice returns the same wrapper, instead of quietly building a
+ * second registry whose listeners never fire. Each wrapper is also registered
+ * under itself, so re-wrapping a wrapper is a no-op too.
+ */
+const WRAPPED = new WeakMap<IIoHost, EmittingIoHost<any>>();
 
 /**
  * Wrap any `IIoHost` so listeners can be attached to it.
  *
  * The returned host is the host you pass in. Every property and method of it
- * keeps working, and its type is preserved, extended with the `IIoEmitter`
+ * keeps working, and its type is preserved, extended with the `IoEmitter`
  * methods, and with `notify` and `requestResponse` running matching listeners
  * before forwarding. On `notify` it runs the listeners, applies any rewrite,
  * and skips the wrapped host's write if a listener prevented the default. On
@@ -316,20 +343,21 @@ const LISTENING = Symbol('withListeners');
  * `respond`, in which case the request resolves without asking the wrapped
  * host to prompt.
  *
- * Wrapping is idempotent: passing an already-wrapped host returns it
- * unchanged. Its lifecycle stays yours: you wrap a host, register listeners,
- * and pass it to the toolkit, all explicit.
+ * Wrapping is idempotent: passing a host that is already wrapped, or a wrapper
+ * itself, returns the existing wrapper. Its lifecycle stays yours: you wrap a
+ * host, register listeners, and pass it to the toolkit, all explicit.
  *
  * @example
  * ```ts
  * const host = withListeners(new NonInteractiveIoHost()); // or your own host
- * host.on<StackDetailsPayload>(byCode('CDK_TOOLKIT_I2901'), (m) => { count += m.data.stacks.length; });
+ * host.on(byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'), (m) => { count += m.data.stacks.length; });
  * const toolkit = new Toolkit({ ioHost: host });
  * ```
  */
-export function withListeners<T extends IIoHost>(host: T): T & IIoEmitter {
-  if ((host as any)[LISTENING]) {
-    return host as T & IIoEmitter;
+export function withListeners<T extends IIoHost>(host: T): EmittingIoHost<T> {
+  const existing = WRAPPED.get(host);
+  if (existing) {
+    return existing;
   }
 
   const registry = new ListenerRegistry();
@@ -337,9 +365,7 @@ export function withListeners<T extends IIoHost>(host: T): T & IIoEmitter {
   // Everything the proxy adds to (or intercepts on) the wrapped host: the
   // listener registrations, and the `notify`/`requestResponse` that run the
   // registry around the host's own handling.
-  const additions: IIoEmitter & IIoHost & { [LISTENING]: true } = {
-    [LISTENING]: true,
-
+  const additions: IoEmitter & IIoHost = {
     async notify(msg: IoMessage<unknown>): Promise<void> {
       const { message, preventDefault } = await registry.apply(msg);
       if (preventDefault) {
@@ -373,31 +399,69 @@ export function withListeners<T extends IIoHost>(host: T): T & IIoEmitter {
       registry.on(matcher, listener),
     once: (matcher: MessageMatcher, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise) =>
       registry.once(matcher, listener),
-    rewrite: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel) =>
-      registry.rewrite(matcher, formatter, level),
-    rewriteOnce: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel) =>
-      registry.rewriteOnce(matcher, formatter, level),
+    rewrite: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options?: RewriteOptions) =>
+      registry.rewrite(matcher, formatter, options),
+    rewriteOnce: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options?: RewriteOptions) =>
+      registry.rewriteOnce(matcher, formatter, options),
     respond: (matcher: MessageMatcher, value: unknown, options?: RespondOptions) =>
       registry.respond(matcher, value, options),
     respondOnce: (matcher: MessageMatcher, value: unknown, options?: RespondOptions) =>
       registry.respondOnce(matcher, value, options),
   };
 
-  return new Proxy(host, {
+  // Forwarded methods are bound to the host, not to the proxy, so that `this`
+  // inside them is the real instance. That is load-bearing rather than cosmetic:
+  // a host that uses `#private` fields throws a `TypeError` if its methods run
+  // with the proxy as `this`. The bound copies are memoized so method identity
+  // is stable (`p.foo === p.foo`); a write through the proxy invalidates the
+  // memo for that property.
+  const boundCache = new Map<string | symbol, unknown>();
+
+  const proxy = new Proxy(host, {
     get(target, prop) {
-      if (prop in additions) {
+      // `Object.hasOwn`, not `prop in additions`: `in` walks
+      // `Object.prototype`, which would shadow the host's `constructor`,
+      // `toString`, `valueOf` and friends with the literal's inherited ones.
+      if (Object.hasOwn(additions, prop)) {
         return (additions as any)[prop];
       }
-      // Bind functions to the wrapped host so its methods and accessors keep
-      // their `this` (the proxy is a view over the host, not a new identity).
       const value = Reflect.get(target, prop, target);
-      return typeof value === 'function' ? value.bind(target) : value;
+      // `constructor` is excluded from binding: it is compared by identity
+      // (`host.constructor === MyHost`), and binding would hand back a
+      // different function object named `bound MyHost`.
+      if (typeof value !== 'function' || prop === 'constructor') {
+        return value;
+      }
+      let bound = boundCache.get(prop);
+      if (bound === undefined) {
+        bound = value.bind(target);
+        boundCache.set(prop, bound);
+      }
+      return bound;
     },
     set(target, prop, value) {
+      boundCache.delete(prop);
       return Reflect.set(target, prop, value);
     },
     has(target, prop) {
-      return prop in additions || Reflect.has(target, prop);
+      return Object.hasOwn(additions, prop) || Reflect.has(target, prop);
     },
-  }) as T & IIoEmitter;
+    ownKeys(target) {
+      return [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(additions)])];
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (Object.hasOwn(additions, prop)) {
+        // Non-enumerable, so the additions behave like the methods on a class's
+        // prototype: `'on' in host` is true and `Object.keys(host)` and
+        // `{ ...host }` are unchanged from the unwrapped host.
+        return { value: (additions as any)[prop], writable: false, enumerable: false, configurable: true };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    },
+  }) as EmittingIoHost<T>;
+
+  WRAPPED.set(host, proxy);
+  WRAPPED.set(proxy, proxy);
+
+  return proxy;
 }

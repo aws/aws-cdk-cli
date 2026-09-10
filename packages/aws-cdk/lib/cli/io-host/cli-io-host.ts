@@ -1,15 +1,15 @@
 import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import { matchAny, ToolkitError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type {
-  DisposeListener, HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest,
-  MessageListenerResult, MessageListenerResultOrPromise, MessageMatcher, RespondOptions, ToolkitAction,
+  HotswapResult, IIoHost, IoEmitter, IoMessage, IoMessageCode, IoMessageLevel, IoRequest,
+  MessageListenerResult, MessageMatcher, ToolkitAction,
 } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, ListenerRegistry } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, ListenerRegistry, matchAny } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -25,8 +25,6 @@ import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
-export type { DisposeListener, MessageListenerResult, MessageListenerResultOrPromise, MessageMatcher, RespondOptions };
-export { matchAny };
 
 /**
  * The current action being performed by the CLI. 'none' represents the absence of an action.
@@ -239,8 +237,17 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
 
   // The shared listener engine. Registration and message transformation live
   // there; this host does its own I/O (writing, prompting, telemetry,
-  // observers) around `registry.apply`. See `on`/`once`/`rewrite`/`respond`.
+  // observers) around `registry.apply`.
   private readonly registry = new ListenerRegistry();
+
+  /**
+   * Listeners on the messages flowing through this host.
+   *
+   * The same engine and the same surface `withListeners` gives a programmatic
+   * host: register with `on`/`once`/`rewrite`/`respond` to observe a message,
+   * restyle it, drop it, or answer a request.
+   */
+  public readonly listeners: IoEmitter = this.registry;
 
   // Observers of how messages are handled (see ObservableIoHost / observeMessages).
   private readonly messageObservers = new Set<(observation: IoMessageObservation) => void>();
@@ -407,37 +414,6 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   }
 
   /**
-   * Register a listener that is invoked for every message the matcher accepts.
-   *
-   * The listener may return a `MessageListenerResult` to update the message
-   * text, level, and/or action or prevent the default processing (writing it to
-   * a stream); returning nothing leaves the message untouched. The listener may
-   * be async (return a `Promise`); the host awaits it before processing the
-   * message further. Returns a function that removes the listener again.
-   *
-   * A maker's `.is` type guard is the usual matcher (and types the payload),
-   * but any `(msg) => boolean` works (e.g. to match a family of codes, or on
-   * the message level).
-   *
-   * @example
-   * const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901.is, async (msg) => {
-   *   myCount += msg.data.stacks.length;
-   *   await persist(myCount);
-   * });
-   */
-  public on<T>(
-    matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): DisposeListener;
-  public on<T = unknown>(
-    matcher: MessageMatcher,
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): DisposeListener;
-  public on(matcher: MessageMatcher, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise): DisposeListener {
-    return this.registry.on(matcher, listener);
-  }
-
-  /**
    * Register an observer that is invoked for every message the host handles —
    * both notifications and requests — with the disposition the host computed
    * for it (its effective form after listeners and whether it was dropped). For
@@ -451,100 +427,6 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     return () => {
       this.messageObservers.delete(observer);
     };
-  }
-
-  /**
-   * Like `on`, but the listener is automatically removed after it has been
-   * invoked once.
-   */
-  public once<T>(
-    matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): DisposeListener;
-  public once<T = unknown>(
-    matcher: MessageMatcher,
-    listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): DisposeListener;
-  public once(matcher: MessageMatcher, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise): DisposeListener {
-    return this.registry.once(matcher, listener);
-  }
-
-  /**
-   * Answer matching requests on the user's behalf with a fixed value, so the
-   * host does not prompt. Syntactic sugar for an `on` listener returning
-   * `{ respond: value, preventDefault: suppressQuestion }`; for conditional
-   * answers or to also reword the question, use `on`/`once` directly. Returns a
-   * function that removes the responder again.
-   *
-   * @example
-   * // Under --force, auto-confirm the destroy prompt without prompting.
-   * const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010.is, true);
-   *
-   * @example
-   * // Answer, but still show the question.
-   * const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010.is, true, { suppressQuestion: false });
-   */
-  public respond<T, U>(matcher: (msg: IoMessage<unknown>) => msg is IoRequest<T, U>, value: U, options?: RespondOptions): DisposeListener;
-  public respond(matcher: MessageMatcher, value: unknown, options?: RespondOptions): DisposeListener;
-  public respond(matcher: MessageMatcher, value: unknown, options: RespondOptions = {}): DisposeListener {
-    return this.registry.respond(matcher, value, options);
-  }
-
-  /**
-   * Like `respond`, but the answer is given only once and then removed.
-   */
-  public respondOnce<T, U>(matcher: (msg: IoMessage<unknown>) => msg is IoRequest<T, U>, value: U, options?: RespondOptions): DisposeListener;
-  public respondOnce(matcher: MessageMatcher, value: unknown, options?: RespondOptions): DisposeListener;
-  public respondOnce(matcher: MessageMatcher, value: unknown, options: RespondOptions = {}): DisposeListener {
-    return this.registry.respondOnce(matcher, value, options);
-  }
-
-  /**
-   * Register a formatter that replaces the printed text of messages with the
-   * given code. This lets a caller define _how_ a toolkit message is presented
-   * without the IoHost needing to know about it.
-   *
-   * Optionally pass a `level` to also override the message's level (which moves
-   * it between stdout/stderr and changes verbosity filtering). For the rarer
-   * case of overriding only the level, use `on`/`once` returning `{ level }`.
-   *
-   * Syntactic sugar for an `on` listener that returns `{ message, level? }`.
-   * Returns a function that removes the formatter again.
-   *
-   * @example
-   * const dispose = ioHost.rewrite(IO.CDK_TOOLKIT_I2901.is, (msg) =>
-   *   serializeStructure(msg.data.stacks, true));
-   */
-  public rewrite<T>(
-    matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): DisposeListener;
-  public rewrite<T = unknown>(
-    matcher: MessageMatcher,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): DisposeListener;
-  public rewrite(matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
-    return this.registry.rewrite(matcher, formatter, level);
-  }
-
-  /**
-   * Like `rewrite`, but the formatter is automatically removed after it has
-   * been applied once.
-   */
-  public rewriteOnce<T>(
-    matcher: (msg: IoMessage<unknown>) => msg is IoMessage<T>,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): DisposeListener;
-  public rewriteOnce<T = unknown>(
-    matcher: MessageMatcher,
-    formatter: (msg: IoMessage<T>) => string,
-    level?: IoMessageLevel,
-  ): DisposeListener;
-  public rewriteOnce(matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, level?: IoMessageLevel): DisposeListener {
-    return this.registry.rewriteOnce(matcher, formatter, level);
   }
 
   /**
@@ -643,7 +525,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     };
 
     // A single listener matching any of the activity codes.
-    this.registry.on(matchAny(IO.CDK_TOOLKIT_I5501.is, IO.CDK_TOOLKIT_I5502.is, IO.CDK_TOOLKIT_I5503.is), route);
+    this.listeners.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502, IO.CDK_TOOLKIT_I5503), route);
   }
 
   /**
@@ -877,7 +759,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
  * of the decorated method.
  *
  * Before the method runs, a single `preventDefault` listener covering all
- * given matchers is registered on the instance's `ioHost`; when the method
+ * given matchers is registered on the instance's `ioHost.listeners`; when the method
  * settles (returns or throws), exactly that listener is removed again. This
  * replaces the manual pattern of registering drop-listeners at the top of a
  * method and cleaning them up in a `finally`, and it does not disturb
@@ -888,7 +770,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
  *
  * @example
  * class CdkToolkit {
- *   \@suppressMessages(IO.CDK_TOOLKIT_I1001.is, IO.CDK_TOOLKIT_I1000.is)
+ *   \@suppressMessages(IO.CDK_TOOLKIT_I1001, IO.CDK_TOOLKIT_I1000)
  *   public async metadata(stackName: string, json: boolean) {
  *     // I1001/I1000 are dropped while this runs
  *   }
@@ -905,7 +787,7 @@ export function suppressMessages(...matchers: MessageMatcher[]) {
       throw new ToolkitError('InvalidDecoratorTarget', 'suppressMessages can only decorate methods');
     }
     descriptor.value = async function (this: { readonly ioHost: CliIoHost }, ...args: A): Promise<R> {
-      using _suppress = this.ioHost.on(matchAny(...matchers), () => ({ preventDefault: true }));
+      using _suppress = this.ioHost.listeners.on(matchAny(...matchers), () => ({ preventDefault: true }));
       // `return await` (not a bare `return`) so the listener is only disposed
       // after the method has actually settled.
       return await original.apply(this, args);
@@ -970,25 +852,25 @@ function targetStreamObject(x: TargetStream): NodeJS.WriteStream | undefined {
 }
 
 function isNoticesMessage(msg: IoMessage<unknown>): msg is IoMessage<void> {
-  return IO.CDK_TOOLKIT_I0100.is(msg) || IO.CDK_TOOLKIT_W0101.is(msg) || IO.CDK_TOOLKIT_E0101.is(msg) || IO.CDK_TOOLKIT_I0101.is(msg);
+  return IO.CDK_TOOLKIT_I0100(msg) || IO.CDK_TOOLKIT_W0101(msg) || IO.CDK_TOOLKIT_E0101(msg) || IO.CDK_TOOLKIT_I0101(msg);
 }
 
 function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
-  if (CLI_PRIVATE_IO.CDK_CLI_I1001.is(msg)) {
+  if (CLI_PRIVATE_IO.CDK_CLI_I1001(msg)) {
     return eventResult('SYNTH', msg);
   }
-  if (CLI_PRIVATE_IO.CDK_CLI_I2001.is(msg)) {
+  if (CLI_PRIVATE_IO.CDK_CLI_I2001(msg)) {
     return eventResult('INVOKE', msg);
   }
-  if (CLI_PRIVATE_IO.CDK_CLI_I3001.is(msg)) {
+  if (CLI_PRIVATE_IO.CDK_CLI_I3001(msg)) {
     return eventResult('DEPLOY', msg);
   }
-  if (CLI_PRIVATE_IO.CDK_CLI_I3003.is(msg)) {
+  if (CLI_PRIVATE_IO.CDK_CLI_I3003(msg)) {
     return eventResult('ASSET', msg);
   }
   // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
   // Instead we reuse the existing Hotswap span.
-  if (IO.CDK_TOOLKIT_I5410.is(msg)) {
+  if (IO.CDK_TOOLKIT_I5410(msg)) {
     // Create a telemetry-compatible result
     return hotswapToEventResult(msg.data);
   }

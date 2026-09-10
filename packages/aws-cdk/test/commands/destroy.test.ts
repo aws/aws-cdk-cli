@@ -154,9 +154,9 @@ describe('force: false (confirmation prompt)', () => {
   test('asks for confirmation and proceeds when the user confirms', async () => {
     // Answer the confirmation prompt with a one-shot responder. The real
     // requestResponse runs (so the request is recorded in the snapshot); no
-    // spy/pass-through is needed. suppressQuestion=false: a non-forced destroy
+    // spy/pass-through is needed. showQuestion: true: a non-forced destroy
     // shows the prompt to the user, so it stays in the snapshot.
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010.is, true, { suppressQuestion: false });
+    ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I7010, true, { showQuestion: true });
 
     await toolkit.destroy({
       selector: selectExact('Test-Stack-B'),
@@ -170,8 +170,8 @@ describe('force: false (confirmation prompt)', () => {
   test('aborts with an AbortError and destroys nothing when the user declines', async () => {
     // The IoHost returns the answer; declining is `false` and the command aborts
     // by throwing an AbortError (non-zero exit, presented softly by the CLI).
-    // suppressQuestion=false: the prompt is shown to the user (non-forced).
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I7010.is, false, { suppressQuestion: false });
+    // showQuestion: true: the prompt is shown to the user (non-forced).
+    ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I7010, false, { showQuestion: true });
 
     const error = await toolkit.destroy({
       selector: selectExact('Test-Stack-B'),

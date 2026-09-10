@@ -1,5 +1,5 @@
-import type { IIoHost, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
-import { byCode, matchAny, withListeners } from '../../../lib/api/io';
+import type { EmittingIoHost, IIoHost, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
+import { byCode, withListeners } from '../../../lib/api/io';
 
 /**
  * A minimal `IIoHost` that records what it is asked to handle, so we can assert
@@ -24,6 +24,12 @@ class RecordingIoHost implements IIoHost {
 
 const I2901: IoMessageCode = 'CDK_TOOLKIT_I2901'; // list result, payload has `stacks`
 const I7010: IoMessageCode = 'CDK_TOOLKIT_I7010'; // destroy confirmation request (boolean)
+
+/**
+ * `I7010` selected as the yes/no request it is. `respond` only takes a matcher
+ * that narrows to `IoRequest`, which is what makes the answer type-checked.
+ */
+const isConfirm = byCode<IoRequest<void, boolean>>(I7010);
 
 function notification(over: Partial<IoMessage<any>> = {}): IoMessage<any> {
   return {
@@ -200,29 +206,18 @@ describe('withListeners', () => {
       expect(fn).not.toHaveBeenCalled();
     });
 
-    test('matchAny combines type guards and plain predicates', async () => {
+    test('byCode with a payload type narrows `msg.data` in the listener', async () => {
       const host = withListeners(inner);
-      const isList = (m: IoMessage<unknown>): m is IoMessage<{ stacks: unknown[] }> => m.code === I2901;
-      const seen: Array<string | undefined> = [];
-      host.on(matchAny(isList, (m) => m.level === 'warn'), (m) => {
-        seen.push(m.code);
+      const seen: number[] = [];
+      // No generic on `on` and no cast: the guard `byCode` returns carries the
+      // payload type.
+      host.on(byCode<{ stacks: unknown[] }>(I2901), (m) => {
+        seen.push(m.data.stacks.length);
       });
 
       await host.notify(notification());
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001', level: 'warn' }));
-      await host.notify(notification({ code: 'CDK_TOOLKIT_I0001' }));
 
-      expect(seen).toEqual([I2901, 'CDK_TOOLKIT_I0001']);
-    });
-
-    test('matchAny with no matchers never matches', async () => {
-      const host = withListeners(inner);
-      const fn = jest.fn();
-      host.on(matchAny(), fn);
-
-      await host.notify(notification());
-
-      expect(fn).not.toHaveBeenCalled();
+      expect(seen).toEqual([0]);
     });
   });
 
@@ -280,7 +275,7 @@ describe('withListeners', () => {
 
     test('can also override the level', async () => {
       const host = withListeners(inner);
-      host.rewrite(byCode(I2901), (m) => m.message, 'debug');
+      host.rewrite(byCode(I2901), (m) => m.message, { level: 'debug' });
 
       await host.notify(notification());
 
@@ -343,6 +338,71 @@ describe('withListeners', () => {
     });
   });
 
+  describe('dispatch contract', () => {
+    test('a listener that throws aborts the dispatch and the error reaches the emitter', async () => {
+      const host = withListeners(inner);
+      const later = jest.fn();
+      host.on(byCode(I2901), () => {
+        throw new Error('listener exploded');
+      });
+      host.on(byCode(I2901), later);
+
+      await expect(host.notify(notification())).rejects.toThrow('listener exploded');
+
+      expect(later).not.toHaveBeenCalled();
+      expect(inner.notified).toHaveLength(0);
+    });
+
+    test('a rejected async listener aborts the dispatch too', async () => {
+      const host = withListeners(inner);
+      host.on(byCode(I2901), async () => {
+        throw new Error('async explosion');
+      });
+
+      await expect(host.notify(notification())).rejects.toThrow('async explosion');
+
+      expect(inner.notified).toHaveLength(0);
+    });
+
+    test('a listener registered during dispatch does not see the message being dispatched', async () => {
+      const host = withListeners(inner);
+      const late = jest.fn();
+      host.on(byCode(I2901), () => {
+        host.on(byCode(I2901), late);
+      });
+
+      await host.notify(notification());
+
+      expect(late).not.toHaveBeenCalled();
+
+      // But it does see the next one.
+      await host.notify(notification());
+
+      expect(late).toHaveBeenCalledTimes(1);
+    });
+
+    test('a listener disposed during dispatch still runs for the message being dispatched', async () => {
+      const host = withListeners(inner);
+      const later = jest.fn();
+      // The first listener removes the second one, which is already part of this
+      // dispatch. Like `EventEmitter`, the set of listeners is snapshotted when
+      // the message arrives, so the removal only takes effect from the next one.
+      let dispose: () => void;
+      host.on(byCode(I2901), () => {
+        dispose();
+      });
+      dispose = host.on(byCode(I2901), later);
+
+      await host.notify(notification());
+
+      expect(later).toHaveBeenCalledTimes(1);
+
+      await host.notify(notification());
+
+      expect(later).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('requestResponse', () => {
     test('forwards to the inner host when no listener answers', async () => {
       const host = withListeners(inner);
@@ -356,7 +416,7 @@ describe('withListeners', () => {
 
     test('respond answers without asking the inner host, suppressing the question', async () => {
       const host = withListeners(inner);
-      host.respond(byCode(I7010), true);
+      host.respond(isConfirm, true);
 
       const answer = await host.requestResponse(request({ defaultResponse: false }));
 
@@ -365,9 +425,9 @@ describe('withListeners', () => {
       expect(inner.notified).toHaveLength(0);
     });
 
-    test('respond with suppressQuestion=false surfaces the question but still answers', async () => {
+    test('respond with { showQuestion: true } surfaces the question but still answers', async () => {
       const host = withListeners(inner);
-      host.respond(byCode(I7010), true, { suppressQuestion: false });
+      host.respond(isConfirm, true, { showQuestion: true });
 
       const answer = await host.requestResponse(request({ defaultResponse: false }));
 
@@ -379,7 +439,7 @@ describe('withListeners', () => {
 
     test('respond treats presence of the value as the answer, so false is a valid answer', async () => {
       const host = withListeners(inner);
-      host.respond(byCode(I7010), false);
+      host.respond(isConfirm, false);
 
       const answer = await host.requestResponse(request({ defaultResponse: true }));
 
@@ -390,7 +450,7 @@ describe('withListeners', () => {
     test('respondOnce answers only the first request', async () => {
       const host = withListeners(inner);
       inner.prompted = 'PROMPTED';
-      host.respondOnce(byCode(I7010), false);
+      host.respondOnce(isConfirm, false);
 
       const first = await host.requestResponse(request({ defaultResponse: 'default' }));
       const second = await host.requestResponse(request({ defaultResponse: 'default' }));
@@ -421,9 +481,10 @@ describe('withListeners', () => {
 
     test('respond on a notification code leaves the message alone instead of suppressing it', async () => {
       const host = withListeners(inner);
-      // I2901 is a notification, not a request: there is nothing to answer, so
-      // respond must not drop the message.
-      host.respond(byCode(I2901), true);
+      // I2901 is a notification, not a request. The types cannot catch a caller
+      // claiming otherwise, so the runtime must: there is nothing to answer, so
+      // respond leaves the message alone rather than dropping it.
+      host.respond(byCode<IoRequest<void, boolean>>(I2901), true);
 
       await host.notify(notification());
 
@@ -432,11 +493,22 @@ describe('withListeners', () => {
 
     test('respondOnce on a notification code leaves the message alone instead of suppressing it', async () => {
       const host = withListeners(inner);
-      host.respondOnce(byCode(I2901), true);
+      host.respondOnce(byCode<IoRequest<void, boolean>>(I2901), true);
 
       await host.notify(notification());
 
       expect(inner.notified).toHaveLength(1);
+    });
+
+    test('when two listeners answer the same request, the last one wins', async () => {
+      const host = withListeners(inner);
+      host.respond(isConfirm, false);
+      host.respond(isConfirm, true);
+
+      const answer = await host.requestResponse(request({ defaultResponse: false }));
+
+      expect(answer).toBe(true);
+      expect(inner.requested).toHaveLength(0);
     });
   });
 
@@ -546,6 +618,69 @@ describe('withListeners', () => {
       expect('greet' in host).toBe(true);
       expect('on' in host).toBe(true);
       expect('nope' in host).toBe(false);
+    });
+
+    test('the inner class is still reported by `instanceof` and `constructor`', () => {
+      const host = withListeners(new ChattyIoHost());
+
+      expect(host).toBeInstanceOf(ChattyIoHost);
+      expect(host).toBeInstanceOf(RecordingIoHost);
+      expect(host.constructor).toBe(ChattyIoHost);
+      expect(host.constructor.name).toBe('ChattyIoHost');
+    });
+
+    test('inherited object methods still come from the inner host, not from the additions', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      // A regression guard: the additions are a plain object literal, so
+      // resolving them with `in` rather than `Object.hasOwn` would shadow
+      // everything inherited from `Object.prototype`.
+      expect(host.toString()).toBe('[object Object]');
+      expect(host.valueOf()).toBe(chatty);
+    });
+
+    test('the added methods are not enumerable, so spreading is unchanged', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      expect(Object.keys(host)).toEqual(Object.keys(chatty));
+      expect(Object.keys({ ...host })).toEqual(Object.keys({ ...chatty }));
+      expect(Object.keys(host)).not.toContain('on');
+    });
+
+    test('method identity is stable, so a forwarded method can be used as a callback', () => {
+      const host = withListeners(new ChattyIoHost());
+
+      expect(host.greet).toBe(host.greet);
+      expect(host.on).toBe(host.on);
+    });
+
+    test('overwriting a method through the wrapper takes effect', () => {
+      const chatty = new ChattyIoHost();
+      const host = withListeners(chatty);
+
+      // Read once so the original is memoized, then replace it.
+      expect(host.greet('world')).toBe('hello, world');
+      host.greet = (name: string) => `bye, ${name}`;
+
+      expect(host.greet('world')).toBe('bye, world');
+      expect(chatty.greet('world')).toBe('bye, world');
+    });
+
+    test('the wrapped host is assignable to EmittingIoHost of the inner type', async () => {
+      // The alias exists so callers can name a wrapped host in their own
+      // signatures without spelling out the intersection.
+      const host: EmittingIoHost<ChattyIoHost> = withListeners(new ChattyIoHost());
+
+      expect(host.greet('world')).toBe('hello, world');
+      await host.notify(notification());
+
+      expect(host.notified).toHaveLength(1);
+    });
+
+    test('wrapping the same host twice returns the same wrapper', () => {
+      expect(withListeners(inner)).toBe(withListeners(inner));
     });
 
     test('wrapping is idempotent, so a second wrap does not double-handle messages', async () => {
