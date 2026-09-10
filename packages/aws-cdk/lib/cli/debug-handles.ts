@@ -105,12 +105,19 @@ interface WatchedResource {
 }
 
 /**
+ * Grace period before the handle report fires. The timer is unref'd, so it
+ * never fires when Node exits cleanly within this window.
+ */
+const HANDLE_DUMP_GRACE_MS = 1000;
+
+/**
  * Tracks async resources via async_hooks and, on demand, reports the ones still
  * keeping the event loop alive together with where they were created.
  *
- * The cost lands only when opted in: tracking is off until `start()` is called.
+ * The cost lands only when opted in: nothing is tracked until `start()` is
+ * called, which `trackLeakedHandles()` does.
  */
-class LeakedHandleTracker {
+export class LeakedHandleTracker {
   private readonly watched = new Map<number, WatchedResource>();
 
   private readonly hook = createHook({
@@ -134,26 +141,36 @@ class LeakedHandleTracker {
    * are created, and only when the user opted in — the hook adds a small
    * per-resource cost.
    */
-  public start = (): void => {
+  public start(): void {
     this.hook.enable();
-  };
+  }
 
   /**
    * Stop watching and discard all tracked state.
-   *
-   * @internal exposed only so tests can isolate the shared singleton.
    */
-  public reset = (): void => {
+  public stop(): void {
     this.hook.disable();
     this.watched.clear();
-  };
+  }
+
+  /**
+   * Report the leaked handles once the grace period has passed, which is the
+   * only way this report should ever be triggered: if the process exits cleanly
+   * within the window the timer never fires, and because it is unref'd it does
+   * not hold the process open itself.
+   */
+  public scheduleReport(ioHelper: IoHelper): void {
+    setTimeout(() => {
+      void this.report(ioHelper);
+    }, HANDLE_DUMP_GRACE_MS).unref();
+  }
 
   /**
    * Report every resource still holding the event loop open, each with the
    * source location where it was created. Call at the very end of execution, by
    * which point only genuinely leaked handles should remain.
    */
-  public report = async (ioHelper: IoHelper): Promise<void> => {
+  public async report(ioHelper: IoHelper): Promise<void> {
     this.hook.disable();
 
     const leaks = [...this.watched.values()].filter((r) => {
@@ -166,22 +183,22 @@ class LeakedHandleTracker {
     });
     this.watched.clear();
 
-    await ioHelper.defaults.info(`${leaks.length} ${leaks.length === 1 ? 'handle' : 'handles'} still keeping the CLI process alive:`);
+    await ioHelper.defaults.debug(`${leaks.length} ${leaks.length === 1 ? 'handle' : 'handles'} still keeping the CLI process alive:`);
     for (const leak of leaks) {
       await this.describe(leak, ioHelper);
     }
-  };
+  }
 
   private async describe(leak: WatchedResource, ioHelper: IoHelper): Promise<void> {
     const frames = actionableFrames(leak.creationStack);
 
-    await ioHelper.defaults.info('');
+    await ioHelper.defaults.debug('');
     const description = TYPE_DESCRIPTIONS[leak.type];
     const heading = description ? `# ${leak.type} (${description})` : `# ${leak.type}`;
-    await ioHelper.defaults.info(chalk.bold(heading));
+    await ioHelper.defaults.debug(chalk.bold(heading));
 
     if (frames.length === 0) {
-      await ioHelper.defaults.info('  (no application stack frames)');
+      await ioHelper.defaults.debug('  (no application stack frames)');
       return;
     }
 
@@ -189,14 +206,14 @@ class LeakedHandleTracker {
     // from anonymous internal callbacks where the name says nothing.
     const [origin] = frames;
     if (origin.func && origin.func !== '<anonymous>') {
-      await ioHelper.defaults.info(`  created in ${origin.func}()`);
+      await ioHelper.defaults.debug(`  created in ${origin.func}()`);
     }
 
-    await ioHelper.defaults.info('  call stack:');
+    await ioHelper.defaults.debug('  call stack:');
     for (const frame of frames) {
       const source = sourceAt(frame);
       if (source) {
-        await ioHelper.defaults.info(`    ${chalk.dim(source)}`);
+        await ioHelper.defaults.debug(`    ${chalk.dim(source)}`);
       }
     }
   }
@@ -260,21 +277,14 @@ function sourceAt(frame: SourceFrame): string | undefined {
   }
 }
 
-const tracker = new LeakedHandleTracker();
-
 /**
- * Start tracking async resources. See {@link LeakedHandleTracker.start}.
- */
-export const enableHandleTracking = tracker.start;
-
-/**
- * Report handles still keeping the loop alive. See {@link LeakedHandleTracker.report}.
- */
-export const reportLeakedHandles = tracker.report;
-
-/**
- * Stop tracking and discard all state.
+ * Start watching async resources and return the tracker doing so.
  *
- * @internal exposed only so tests can isolate the shared singleton.
+ * Call this as early as possible, and only when the user asked for it: the
+ * tracker can only report on resources created after it starts.
  */
-export const resetHandleTracking = tracker.reset;
+export function trackLeakedHandles(): LeakedHandleTracker {
+  const tracker = new LeakedHandleTracker();
+  tracker.start();
+  return tracker;
+}
