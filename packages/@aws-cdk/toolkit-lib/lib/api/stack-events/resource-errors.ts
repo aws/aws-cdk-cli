@@ -90,6 +90,15 @@ export interface ResourceError {
    * hook type appearing in the resource's status reason.
    */
   readonly hookFailures?: ResourceHookFailure[];
+
+  /**
+   * Warnings related to this error that should be surfaced alongside it, if any.
+   *
+   * For example, a note that CloudFormation Hook failure detail could not be fetched
+   * (e.g. `ListHookResults` failed due to missing permissions). Rendered as additional
+   * context after the main error message.
+   */
+  readonly warnings?: string[];
 }
 
 /**

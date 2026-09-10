@@ -1265,7 +1265,7 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
 }
 
 /**
- * Build an exponential-backoff delay function whose result is capped at a maximum.
+ * Build a jittered exponential-backoff delay function whose result is capped at a maximum.
  *
  * An uncapped exponential backoff (`base * 2^attempt`) grows without bound as the
  * number of retries increases. For the retry counts we use on the CloudFormation
@@ -1276,9 +1276,20 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
  * time to a few minutes at worst, while still giving the SDK plenty of
  * opportunity to ride out transient server problems or throttling.
  *
+ * The delay is jittered because `ConfiguredRetryStrategy` replaces the SDK's own
+ * jittered backoff with whatever function it is handed. Without jitter, requests
+ * that were throttled at the same moment retry at the same moments, and a herd of
+ * pollers stays a herd instead of dispersing over the retry window. We use equal
+ * jitter - a random point in `[floor(delay/2), delay - 1]` - rather than the SDK's
+ * full jitter, so that the worst case stays under the capped delay above and the
+ * wait before a retry never collapses to nearly zero.
+ *
  * @param baseMs - base delay in milliseconds (used in `baseMs * 2^attempt`)
  * @param capMs - maximum delay in milliseconds; any computed delay larger than this is clamped
  */
 export function cappedExponentialBackoff(baseMs: number, capMs: number): (attempt: number) => number {
-  return (attempt: number) => Math.min(baseMs * (2 ** attempt), capMs);
+  return (attempt: number) => {
+    const delay = Math.min(baseMs * (2 ** attempt), capMs);
+    return Math.floor(delay / 2 + Math.random() * (delay / 2));
+  };
 }

@@ -1,10 +1,9 @@
 import '../../../private/dispose-polyfill';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import chalk from 'chalk';
-import { isMatch as picomatch } from 'picomatch';
+import picomatch from 'picomatch';
 import { major } from 'semver';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
-import { flatten } from '../../../util';
 import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import { StackCollection } from '../stack-collection';
@@ -194,7 +193,7 @@ export class StackAssembly implements IReadableCloudAssembly {
 
         return {
           stacks: matched,
-          suggestions: options.suggestPatternMatches ? this.suggestionsForPatterns(patterns, matched) : undefined,
+          suggestions: options.suggestPatternMatches ? this.suggestionsForPatterns(patterns) : undefined,
         };
     }
   }
@@ -205,14 +204,21 @@ export class StackAssembly implements IReadableCloudAssembly {
    * at least one stack are omitted; the array is empty when there is no close
    * match. Pure computation, never throws, emits no output.
    */
-  private suggestionsForPatterns(patterns: string[], matched: StackCollection): Record<string, string[]> {
+  private suggestionsForPatterns(patterns: string[]): Record<string, string[]> {
     const suggestions: Record<string, string[]> = {};
     for (const pattern of patterns) {
-      if (matched.stackArtifacts.some((stack) => picomatch(stack.hierarchicalId, pattern))) {
+      const exact = picomatch(pattern, undefined, true);
+      const loose = picomatch(pattern.toLowerCase());
+      // The stacks the pattern is about; for a negation, the stacks it excludes
+      const refersTo = exact.state.negated
+        ? (matches: picomatch.Matcher, id: string) => !matches(id)
+        : (matches: picomatch.Matcher, id: string) => matches(id);
+
+      if (this.allStacks.some((stack) => refersTo(exact, stack.hierarchicalId))) {
         continue;
       }
       suggestions[pattern] = this.allStacks
-        .filter((stack) => picomatch(stack.hierarchicalId.toLowerCase(), pattern.toLowerCase()))
+        .filter((stack) => refersTo(loose, stack.hierarchicalId.toLowerCase()))
         .map((stack) => stack.hierarchicalId);
     }
     return suggestions;
@@ -233,8 +239,8 @@ export class StackAssembly implements IReadableCloudAssembly {
     patterns: string[],
     extend: ExpandStackSelection = ExpandStackSelection.NONE,
   ): Promise<StackCollection> {
-    const matchingPattern = (pattern: string) => (stack: cxapi.CloudFormationStackArtifact) => picomatch(stack.hierarchicalId, pattern);
-    const matchedStacks = flatten(patterns.map(pattern => stacks.filter(matchingPattern(pattern))));
+    const selects = matcherFor(patterns);
+    const matchedStacks = stacks.filter(stack => selects(stack.hierarchicalId));
 
     return this.extendStacks(matchedStacks, stacks, extend);
   }
@@ -265,6 +271,33 @@ export class StackAssembly implements IReadableCloudAssembly {
 
     return new StackCollection(this, selectedList);
   }
+}
+
+/**
+ * Match the stacks a set of patterns selects: OR over the selecting patterns,
+ * AND over the negated ones. Every pattern is compiled exactly as picomatch
+ * defines it - a negated matcher accepts the stacks that survive it - and
+ * its parse state's `negated` decides which group a pattern belongs to.
+ *
+ * Negations on their own start from every stack, so `!Stack` selects every
+ * stack but that one. No patterns at all still selects nothing.
+ */
+function matcherFor(patterns: string[]): (hierarchicalId: string) => boolean {
+  const positives: picomatch.Matcher[] = [];
+  const negatives: picomatch.Matcher[] = [];
+  for (const pattern of patterns) {
+    const parsed = picomatch(pattern, undefined, true);
+    (parsed.state.negated ? negatives : positives).push(parsed);
+  }
+
+  if (positives.length === 0 && negatives.length === 0) {
+    return () => false;
+  }
+
+  return (hierarchicalId) => {
+    const included = positives.length === 0 || positives.some(matches => matches(hierarchicalId));
+    return included && negatives.every(matches => matches(hierarchicalId));
+  };
 }
 
 function indexByHierarchicalId(stacks: cxapi.CloudFormationStackArtifact[]): Map<string, cxapi.CloudFormationStackArtifact> {

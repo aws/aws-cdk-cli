@@ -26,8 +26,8 @@ __metadata:
     "@aws-sdk/client-sso": "npm:^3"
     "@aws-sdk/client-sts": "npm:^3"
     "@aws-sdk/credential-providers": "npm:^3"
-    "@cdklabs/cdk-atmosphere-client": "npm:^0.0.116"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/cdk-atmosphere-client": "npm:^0.0.117"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@octokit/rest": "npm:^20"
     "@smithy/types": "npm:^4"
     "@smithy/util-retry": "npm:^4"
@@ -46,7 +46,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-glob: "npm:^3.3.3"
@@ -58,10 +58,10 @@ __metadata:
     mockttp: "npm:^3"
     node-pty: "npm:^1.1.0"
     npm: "npm:^11"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -94,13 +94,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-cdk/aws-service-spec@npm:^0.1.206":
-  version: 0.1.206
-  resolution: "@aws-cdk/aws-service-spec@npm:0.1.206"
+"@aws-cdk/aws-service-spec@npm:^0.1.208":
+  version: 0.1.208
+  resolution: "@aws-cdk/aws-service-spec@npm:0.1.208"
   dependencies:
-    "@aws-cdk/service-spec-types": "npm:^0.0.272"
+    "@aws-cdk/service-spec-types": "npm:^0.0.274"
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/405ae2f3a245c11179b5a2eb9a9d2e3e25b4146538b7621277e27fc40887a408612d95d829be3debc955099855723e5dff011dcb4ba5bf3bfc23afdc9219976e
+  checksum: 10c0/17b703e6df1ab910383df96997707e0aff30456f7663beb5606e0efbeda496e4c30765adbbe61ee95fdd30f9828c8af07f55328f424f520a71f81b15307dbcd2
   languageName: node
   linkType: hard
 
@@ -117,7 +117,7 @@ __metadata:
     "@aws-sdk/client-sts": "npm:^3"
     "@aws-sdk/credential-providers": "npm:^3"
     "@aws-sdk/lib-storage": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@smithy/config-resolver": "npm:^4"
     "@smithy/node-config-provider": "npm:^4"
     "@stylistic/eslint-plugin": "npm:^3"
@@ -138,7 +138,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-glob: "npm:^3.3.3"
@@ -150,10 +150,10 @@ __metadata:
     license-checker: "npm:^25.0.1"
     mime: "npm:^2"
     mock-fs: "npm:^5"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     picomatch: "npm:^4.0.7"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
     yazl: "npm:^3.3.1"
@@ -167,7 +167,7 @@ __metadata:
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@jridgewell/trace-mapping": "npm:^0.3"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/convert-source-map": "npm:^2"
@@ -182,14 +182,14 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
     vscode-jsonrpc: "npm:^8"
@@ -203,7 +203,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cli-plugin-contract@workspace:packages/@aws-cdk/cli-plugin-contract"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -215,15 +215,15 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
   languageName: unknown
@@ -234,7 +234,7 @@ __metadata:
   resolution: "@aws-cdk/cloud-assembly-api@workspace:packages/@aws-cdk/cloud-assembly-api"
   dependencies:
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/json-source-map": "npm:^0.6.0"
@@ -247,7 +247,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
@@ -255,9 +255,9 @@ __metadata:
     json-source-map: "npm:^0.6.1"
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
@@ -295,21 +295,21 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloud-assembly-schema@workspace:packages/@aws-cdk/cloud-assembly-schema"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
     "@types/semver": "npm:^7.8.0"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    cdk-generate-synthetic-examples: "npm:^0.2.56"
+    cdk-generate-synthetic-examples: "npm:^0.2.57"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
@@ -321,12 +321,12 @@ __metadata:
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
     mock-fs: "npm:^5.5.0"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.12"
-    tsx: "npm:^4.23.12"
+    tsx: "npm:^4.23.13"
     typescript: "npm:5.9"
     typescript-json-schema: "npm:^0.68.0"
   languageName: unknown
@@ -346,9 +346,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/cloudformation-diff@workspace:packages/@aws-cdk/cloudformation-diff"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.206"
-    "@aws-cdk/service-spec-types": "npm:^0.0.272"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.208"
+    "@aws-cdk/service-spec-types": "npm:^0.0.274"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -362,7 +362,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-check: "npm:^3.23.2"
@@ -370,9 +370,9 @@ __metadata:
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.12"
@@ -398,7 +398,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/integ-runner@workspace:packages/@aws-cdk/integ-runner"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.206"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.208"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
@@ -406,7 +406,7 @@ __metadata:
     "@aws-cdk/integ-tests-alpha": "npm:2.184.1-alpha.0"
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-sdk/client-cloudformation": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/fs-extra": "npm:^11"
     "@types/jest": "npm:^29.5.14"
@@ -416,7 +416,7 @@ __metadata:
     "@types/yargs": "npm:^17.0.35"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.267.0"
+    aws-cdk-lib: "npm:2.268.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -425,7 +425,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fs-extra: "npm:^11"
@@ -433,10 +433,10 @@ __metadata:
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
     mock-fs: "npm:^5"
-    node-backpack: "npm:^1.1.46"
-    nx: "npm:^22.7.8"
+    node-backpack: "npm:^1.1.47"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.12"
     ts-node: "npm:^10.9.2"
@@ -462,7 +462,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/private-tools@workspace:packages/@aws-cdk/private-tools"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/cross-spawn": "npm:^6.0.6"
     "@types/jest": "npm:^29.5.14"
@@ -476,16 +476,16 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-glob: "npm:^3.3.3"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     jszip: "npm:^3.10.1"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     timezone-mock: "npm:^1.4.3"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
@@ -493,12 +493,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@aws-cdk/service-spec-types@npm:^0.0.272":
-  version: 0.0.272
-  resolution: "@aws-cdk/service-spec-types@npm:0.0.272"
+"@aws-cdk/service-spec-types@npm:^0.0.274":
+  version: 0.0.274
+  resolution: "@aws-cdk/service-spec-types@npm:0.0.274"
   dependencies:
     "@cdklabs/tskb": "npm:^0.0.4"
-  checksum: 10c0/878e36a8590c7422dbfe2c4dbb511d3c102c123929b561b28f811f10e8af4fcff11a6f85e35d79813a43a0db6f75a3ebcdd828be288da0b4c83cb3ec5cb3220e
+  checksum: 10c0/386e75592f9253b6320b019228a1919b83a87360427cf47bb7ca0d734132143d97ddc6cb83c4d10357cbcfc5ef86787c923070afa0bd7e02c435594f2aa2c342
   languageName: node
   linkType: hard
 
@@ -506,7 +506,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/toolkit-lib@workspace:packages/@aws-cdk/toolkit-lib"
   dependencies:
-    "@aws-cdk/aws-service-spec": "npm:^0.1.206"
+    "@aws-cdk/aws-service-spec": "npm:^0.1.208"
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cli-plugin-contract": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-api": "npm:^0.0.0"
@@ -537,7 +537,7 @@ __metadata:
     "@aws-sdk/credential-providers": "npm:^3"
     "@aws-sdk/ec2-metadata-service": "npm:^3"
     "@aws-sdk/lib-storage": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@jest/environment": "npm:^29.7.0"
     "@jest/globals": "npm:^29.7.0"
     "@jest/types": "npm:^29.6.3"
@@ -556,10 +556,10 @@ __metadata:
     "@types/picomatch": "npm:^4"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.267.0"
+    aws-cdk-lib: "npm:2.268.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
-    cdk-from-cfn: "npm:^0.327.0"
+    cdk-from-cfn: "npm:^0.329.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -570,7 +570,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-check: "npm:^4.9.0"
@@ -583,14 +583,14 @@ __metadata:
     jest-when: "npm:^3.7.0"
     license-checker: "npm:^25.0.1"
     nock: "npm:13"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.12"
-    tsx: "npm:^4.23.12"
+    tsx: "npm:^4.23.13"
     typescript: "npm:5.9"
     wrap-ansi: "npm:^7"
     yaml: "npm:^1"
@@ -604,7 +604,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/user-input-gen@workspace:packages/@aws-cdk/user-input-gen"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@cdklabs/typewriter": "npm:^0.0.16"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
@@ -620,15 +620,15 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     lodash.clonedeep: "npm:^4.5.0"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
   languageName: unknown
@@ -638,7 +638,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@aws-cdk/yarn-cling@workspace:packages/@aws-cdk/yarn-cling"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -651,15 +651,15 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-check: "npm:^4.9.0"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
@@ -1228,9 +1228,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/credential-provider-node@npm:^3.972.58, @aws-sdk/credential-provider-node@npm:^3.972.61, @aws-sdk/credential-provider-node@npm:^3.972.81":
-  version: 3.972.81
-  resolution: "@aws-sdk/credential-provider-node@npm:3.972.81"
+"@aws-sdk/credential-provider-node@npm:^3.972.58, @aws-sdk/credential-provider-node@npm:^3.972.61, @aws-sdk/credential-provider-node@npm:^3.972.82":
+  version: 3.972.82
+  resolution: "@aws-sdk/credential-provider-node@npm:3.972.82"
   dependencies:
     "@aws-sdk/credential-provider-env": "npm:^3.972.70"
     "@aws-sdk/credential-provider-http": "npm:^3.972.72"
@@ -1243,7 +1243,7 @@ __metadata:
     "@smithy/credential-provider-imds": "npm:^4.4.16"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/b0e60a641a4648dcae0e20b3f2fe3866bb1b5aeba64617146888b4208d94878a8421cd74bbf1f8b921a50cc1e8410fa707ca30af0349ec54be43ce5e8004a748
+  checksum: 10c0/c79c2381c1e76fecadb5adf9a8623946d819b20bfc0eaa236a384115027cdea3fe1f0a294c75edbb6aee1a0ccbbc4ec606c2eee8e1c4d720ed2ef281aa1175c8
   languageName: node
   linkType: hard
 
@@ -1289,9 +1289,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/credential-providers@npm:^3, @aws-sdk/credential-providers@npm:^3.1116.0":
-  version: 3.1120.0
-  resolution: "@aws-sdk/credential-providers@npm:3.1120.0"
+"@aws-sdk/credential-providers@npm:^3, @aws-sdk/credential-providers@npm:^3.1121.0":
+  version: 3.1126.0
+  resolution: "@aws-sdk/credential-providers@npm:3.1126.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.977.9"
     "@aws-sdk/credential-provider-cognito-identity": "npm:^3.972.69"
@@ -1299,7 +1299,7 @@ __metadata:
     "@aws-sdk/credential-provider-http": "npm:^3.972.72"
     "@aws-sdk/credential-provider-ini": "npm:^3.973.15"
     "@aws-sdk/credential-provider-login": "npm:^3.972.77"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.81"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.82"
     "@aws-sdk/credential-provider-process": "npm:^3.972.70"
     "@aws-sdk/credential-provider-sso": "npm:^3.973.14"
     "@aws-sdk/credential-provider-web-identity": "npm:^3.972.76"
@@ -1309,7 +1309,7 @@ __metadata:
     "@smithy/credential-provider-imds": "npm:^4.4.16"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/151d36aed3e24a2a6e42dfaaeb2747cb54de9cb3414f4c8890380db14d3b342e2ec64c12429064b7345cd560b26b970778aa2499b970721650ee123605c112d4
+  checksum: 10c0/a4f20cd7ae430b2a72f17994b2b71322d0d5345110d633caa3dd13301ef26e0b544e604beb718f9fcc80c100fc6bd713ac29c8fae9c21d5320a32904bb5931aa
   languageName: node
   linkType: hard
 
@@ -1487,10 +1487,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws/cloudformation-validate@npm:1.7.0-beta":
-  version: 1.7.0-beta
-  resolution: "@aws/cloudformation-validate@npm:1.7.0-beta"
-  checksum: 10c0/3d86cc956f479216bcbbe8feab300320ac49d1d77e26f86eeb30b61041454d3f83f10cac7574e04957cb54b623e61ceb0b1f21ffe55cbcf1eca73556d34fd664
+"@aws/cloudformation-validate@npm:1.8.0-beta":
+  version: 1.8.0-beta
+  resolution: "@aws/cloudformation-validate@npm:1.8.0-beta"
+  checksum: 10c0/9aac10a19b57e760a1147dc6b57138ca40ba11d75777bed8e00eae8b86c6cba3aed40677a6c9d88e3d680b07da1d03dd94bfa7dec18e47b73375c036cb6d884a
   languageName: node
   linkType: hard
 
@@ -1884,26 +1884,26 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cdklabs/cdk-atmosphere-client@npm:^0.0.116":
-  version: 0.0.116
-  resolution: "@cdklabs/cdk-atmosphere-client@npm:0.0.116"
+"@cdklabs/cdk-atmosphere-client@npm:^0.0.117":
+  version: 0.0.117
+  resolution: "@cdklabs/cdk-atmosphere-client@npm:0.0.117"
   dependencies:
-    "@aws-sdk/credential-providers": "npm:^3.1116.0"
+    "@aws-sdk/credential-providers": "npm:^3.1121.0"
     aws4fetch: "npm:^1.0.20"
-  checksum: 10c0/7b467b5e9ac1f2919bfe65be5fa288d634c223244e7ae0f0fe1fe18da61d9fcdcdf5714edd9a35f7da4a3026a4d3fdef4a2514fe47ee759974fb8f3aa86fea34
+  checksum: 10c0/fed915940566470e9e9fc005c4ce2be19d1b9a013da1c4da1c7f04b023d825dc6baeef06f4a11bf2b8a145a9d06fa8dcaea0b8feae77481f9298f296b1b9e768
   languageName: node
   linkType: hard
 
-"@cdklabs/eslint-plugin@npm:^2.0.18":
-  version: 2.0.18
-  resolution: "@cdklabs/eslint-plugin@npm:2.0.18"
+"@cdklabs/eslint-plugin@npm:^2.0.19":
+  version: 2.0.19
+  resolution: "@cdklabs/eslint-plugin@npm:2.0.19"
   dependencies:
-    "@typescript-eslint/utils": "npm:^8.67.0"
+    "@typescript-eslint/utils": "npm:^8.68.0"
     fs-extra: "npm:^11.4.0"
     typescript: "npm:^5.9.3"
   peerDependencies:
     eslint: ">=9 <11"
-  checksum: 10c0/8e737c92c6cb8e28950c4d06acd6516ac3b4ec8cb795c8a0a0cd9d0d0a533e0894b71827ebe8d1c948e816920ca4bd59622182f613e20e0e6764cfefd0c5bc74
+  checksum: 10c0/a24e62eff0bf01c89d757213380815b75dedc634d3a1b31a9b5ceb3d00a346a63006bc6554f52230d4af55715f97975630e8a191e8b401c2f358121a7ed74bfd
   languageName: node
   linkType: hard
 
@@ -3002,16 +3002,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jsii/check-node@npm:1.139.0":
-  version: 1.139.0
-  resolution: "@jsii/check-node@npm:1.139.0"
-  dependencies:
-    chalk: "npm:^4.1.2"
-    semver: "npm:^7.8.5"
-  checksum: 10c0/240413fd8240519f750d215652103933df67446d3bf38f879346be790b88ee1e21ed3515eed19dbd1b782b546fd9c37f726980fc0b36e52c3779389c197d7d28
-  languageName: node
-  linkType: hard
-
 "@jsii/check-node@npm:1.140.0":
   version: 1.140.0
   resolution: "@jsii/check-node@npm:1.140.0"
@@ -3039,14 +3029,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jsii/spec@npm:1.139.0, @jsii/spec@npm:^1.139.0":
-  version: 1.139.0
-  resolution: "@jsii/spec@npm:1.139.0"
-  checksum: 10c0/6b8ac762a3f0220381bfab51f170baa6e611393f18d4482da09538ee589b11d2b145da107ea3b265a7cc66bd265b156fb2510acd0e74601e6ef431b68786d4a1
-  languageName: node
-  linkType: hard
-
-"@jsii/spec@npm:1.140.0":
+"@jsii/spec@npm:1.140.0, @jsii/spec@npm:^1.140.0":
   version: 1.140.0
   resolution: "@jsii/spec@npm:1.140.0"
   checksum: 10c0/096180c3fd86a35bdd48fb8fb26dbd123439f25a4287652a14244903689b83df90ef8f1aa55ecbcaf7ce5025f5ee4249c5f0b7bd2ecaaa52924163c24c8db508
@@ -3371,72 +3354,72 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nx/nx-darwin-arm64@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-darwin-arm64@npm:22.7.8"
+"@nx/nx-darwin-arm64@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-darwin-arm64@npm:22.7.9"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@nx/nx-darwin-x64@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-darwin-x64@npm:22.7.8"
+"@nx/nx-darwin-x64@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-darwin-x64@npm:22.7.9"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@nx/nx-freebsd-x64@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-freebsd-x64@npm:22.7.8"
+"@nx/nx-freebsd-x64@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-freebsd-x64@npm:22.7.9"
   conditions: os=freebsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@nx/nx-linux-arm-gnueabihf@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-linux-arm-gnueabihf@npm:22.7.8"
+"@nx/nx-linux-arm-gnueabihf@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-linux-arm-gnueabihf@npm:22.7.9"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@nx/nx-linux-arm64-gnu@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-linux-arm64-gnu@npm:22.7.8"
+"@nx/nx-linux-arm64-gnu@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-linux-arm64-gnu@npm:22.7.9"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@nx/nx-linux-arm64-musl@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-linux-arm64-musl@npm:22.7.8"
+"@nx/nx-linux-arm64-musl@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-linux-arm64-musl@npm:22.7.9"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@nx/nx-linux-x64-gnu@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-linux-x64-gnu@npm:22.7.8"
+"@nx/nx-linux-x64-gnu@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-linux-x64-gnu@npm:22.7.9"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@nx/nx-linux-x64-musl@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-linux-x64-musl@npm:22.7.8"
+"@nx/nx-linux-x64-musl@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-linux-x64-musl@npm:22.7.9"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@nx/nx-win32-arm64-msvc@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-win32-arm64-msvc@npm:22.7.8"
+"@nx/nx-win32-arm64-msvc@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-win32-arm64-msvc@npm:22.7.9"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@nx/nx-win32-x64-msvc@npm:22.7.8":
-  version: 22.7.8
-  resolution: "@nx/nx-win32-x64-msvc@npm:22.7.8"
+"@nx/nx-win32-x64-msvc@npm:22.7.9":
+  version: 22.7.9
+  resolution: "@nx/nx-win32-x64-msvc@npm:22.7.9"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -4596,16 +4579,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/project-service@npm:8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/project-service@npm:8.67.0"
+"@typescript-eslint/project-service@npm:8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/project-service@npm:8.69.0"
   dependencies:
-    "@typescript-eslint/tsconfig-utils": "npm:^8.67.0"
-    "@typescript-eslint/types": "npm:^8.67.0"
+    "@typescript-eslint/tsconfig-utils": "npm:^8.69.0"
+    "@typescript-eslint/types": "npm:^8.69.0"
     debug: "npm:^4.4.3"
   peerDependencies:
     typescript: ">=4.8.4 <6.1.0"
-  checksum: 10c0/d8f89dc209f2186c04fb1c42c1a5c69c21696a7a57c5f2be2222682a6440b49ec32687ae85cbd1c1c164431635fbc37bb9404b336e5748966e270ee1347e028c
+  checksum: 10c0/f0ab3f0e54f88bcf9480bdad421655c7cbce4005613aae548900e6d94063808aff99c0d588d595ab2903ffd1927fe70342e29a6116c10dd96fb3baf4274b6051
   languageName: node
   linkType: hard
 
@@ -4629,13 +4612,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/scope-manager@npm:8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/scope-manager@npm:8.67.0"
+"@typescript-eslint/scope-manager@npm:8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/scope-manager@npm:8.69.0"
   dependencies:
-    "@typescript-eslint/types": "npm:8.67.0"
-    "@typescript-eslint/visitor-keys": "npm:8.67.0"
-  checksum: 10c0/8f1fe7dffcb6929ad66dcdca77dd1e4a703f18ab3ab1d685458af74dad10b9be05795e64bd58ff60b45cda8d45737240c84874674d39140c2689e00e3ee82bb9
+    "@typescript-eslint/types": "npm:8.69.0"
+    "@typescript-eslint/visitor-keys": "npm:8.69.0"
+  checksum: 10c0/6052d17248807c198d531183ca2c412db8215cc97fc498fed9d54cec57339e4f142a25394c53643cacd11a75d2319d6733cc383596a3b4e03531a1cca66bf8bc
   languageName: node
   linkType: hard
 
@@ -4657,12 +4640,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/tsconfig-utils@npm:8.67.0, @typescript-eslint/tsconfig-utils@npm:^8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/tsconfig-utils@npm:8.67.0"
+"@typescript-eslint/tsconfig-utils@npm:8.69.0, @typescript-eslint/tsconfig-utils@npm:^8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/tsconfig-utils@npm:8.69.0"
   peerDependencies:
     typescript: ">=4.8.4 <6.1.0"
-  checksum: 10c0/c19161347ea3d7a0081653c4d399275a3e0d66f87a24131fb5a358e6b55bc27d709781dbda16382f3f721d790338dcf42c65c9e6c26077123e9f3d076d37a894
+  checksum: 10c0/41145d10ed1930014eef4b2464624b705c49df3c3a352fd2bfdb920b279ccfba730e6bc4ee1820528de3bc780a9338d72682ce8779c3b9e9539f37c1fe4dfbd5
   languageName: node
   linkType: hard
 
@@ -4703,10 +4686,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/types@npm:8.67.0, @typescript-eslint/types@npm:^8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/types@npm:8.67.0"
-  checksum: 10c0/b892a00d4cbea9604a0abf6eedd0ea019b27df4220a1d90e0035101cb4f846722c9e3eeadce40b423c1e0240709bbc787c6ca49bcc4f8c25ba23b4bd0436492a
+"@typescript-eslint/types@npm:8.69.0, @typescript-eslint/types@npm:^8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/types@npm:8.69.0"
+  checksum: 10c0/f260a33c5befb591e01dd8fa3e19de8cb599d04ca8f063b745a48f1b3314fce29682b43727531aed076761a8a56added5e51a9e123ae885944729626411e6288
   languageName: node
   linkType: hard
 
@@ -4748,14 +4731,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/typescript-estree@npm:8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/typescript-estree@npm:8.67.0"
+"@typescript-eslint/typescript-estree@npm:8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/typescript-estree@npm:8.69.0"
   dependencies:
-    "@typescript-eslint/project-service": "npm:8.67.0"
-    "@typescript-eslint/tsconfig-utils": "npm:8.67.0"
-    "@typescript-eslint/types": "npm:8.67.0"
-    "@typescript-eslint/visitor-keys": "npm:8.67.0"
+    "@typescript-eslint/project-service": "npm:8.69.0"
+    "@typescript-eslint/tsconfig-utils": "npm:8.69.0"
+    "@typescript-eslint/types": "npm:8.69.0"
+    "@typescript-eslint/visitor-keys": "npm:8.69.0"
     debug: "npm:^4.4.3"
     minimatch: "npm:^10.2.2"
     semver: "npm:^7.7.3"
@@ -4763,7 +4746,7 @@ __metadata:
     ts-api-utils: "npm:^2.5.0"
   peerDependencies:
     typescript: ">=4.8.4 <6.1.0"
-  checksum: 10c0/449350fcf4f4ee55a6bb7a73302c4eef072a1282d366344cb625c0f17231eb4088251e6ce61fb48d0d536febb9a28f3725b9bd78ac8d0dbf9c161cf51745870c
+  checksum: 10c0/b13db97c45fa724a78af823ac125b1fe35711f6e4883e4c375bc8eaf5a2b1b6304a041893ae945017918169d2183cfb1f213e7b502bd6c10d641e157395afc8d
   languageName: node
   linkType: hard
 
@@ -4815,18 +4798,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/utils@npm:^8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/utils@npm:8.67.0"
+"@typescript-eslint/utils@npm:^8.68.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/utils@npm:8.69.0"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.9.1"
-    "@typescript-eslint/scope-manager": "npm:8.67.0"
-    "@typescript-eslint/types": "npm:8.67.0"
-    "@typescript-eslint/typescript-estree": "npm:8.67.0"
+    "@typescript-eslint/scope-manager": "npm:8.69.0"
+    "@typescript-eslint/types": "npm:8.69.0"
+    "@typescript-eslint/typescript-estree": "npm:8.69.0"
   peerDependencies:
     eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
     typescript: ">=4.8.4 <6.1.0"
-  checksum: 10c0/cccaca1aeba52ec332ee95f3367b84eaf5dd9d60a0d1b4332ebe41b775fa7e8b8faf412de4d88b73a22f84b01f6ab48496c61863407b08fcbef9af429b6b89f1
+  checksum: 10c0/e9da8dc8b67ca8183b0fb2fa8b9e69de2cea908ee213d3de735f2cb5727406f5f7282180f172dbf5aee2196116963b31096147c8dc6254aecc7359aac2f9ba77
   languageName: node
   linkType: hard
 
@@ -4860,13 +4843,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/visitor-keys@npm:8.67.0":
-  version: 8.67.0
-  resolution: "@typescript-eslint/visitor-keys@npm:8.67.0"
+"@typescript-eslint/visitor-keys@npm:8.69.0":
+  version: 8.69.0
+  resolution: "@typescript-eslint/visitor-keys@npm:8.69.0"
   dependencies:
-    "@typescript-eslint/types": "npm:8.67.0"
+    "@typescript-eslint/types": "npm:8.69.0"
     eslint-visitor-keys: "npm:^5.0.0"
-  checksum: 10c0/d43e6151cd1cdbcfb2f9fa54946198baaebaf0b7a9057ccb2f1aeba1aa3eb46708a97cd7773dcfd0eba3bd45642a5520f4607001cd27d8958e41aa56b2fe7a35
+  checksum: 10c0/c86639e3a2a86729c77f9391d0fc3db32884d1740dc29f7316e958ff0e839640cd597628056dd3e8c8f21fbdcb312ccf3f5217d6a74a3a41f8ba01bbd414ce01
   languageName: node
   linkType: hard
 
@@ -5580,7 +5563,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3"
     "@aws-sdk/credential-providers": "npm:^3"
     "@aws-sdk/lib-storage": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -5593,17 +5576,17 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-glob: "npm:^3.3.3"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     semver: "npm:^7.8.5"
-    tsx: "npm:^4.23.12"
+    tsx: "npm:^4.23.13"
     typescript: "npm:5.9"
   dependenciesMeta:
     esbuild:
@@ -5613,15 +5596,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"aws-cdk-lib@npm:2.267.0":
-  version: 2.267.0
-  resolution: "aws-cdk-lib@npm:2.267.0"
+"aws-cdk-lib@npm:2.268.0":
+  version: 2.268.0
+  resolution: "aws-cdk-lib@npm:2.268.0"
   dependencies:
     "@aws-cdk/asset-awscli-v1": "npm:2.2.292"
     "@aws-cdk/asset-node-proxy-agent-v6": "npm:^2.1.2"
     "@aws-cdk/cloud-assembly-api": "npm:^2.2.6"
     "@aws-cdk/cloud-assembly-schema": "npm:^54.11.0"
-    "@aws/cloudformation-validate": "npm:1.7.0-beta"
+    "@aws/cloudformation-validate": "npm:1.8.0-beta"
     "@balena/dockerignore": "npm:^1.0.2"
     case: "npm:1.6.3"
     fs-extra: "npm:^11.3.6"
@@ -5634,7 +5617,7 @@ __metadata:
     yaml: "npm:1.10.3"
   peerDependencies:
     constructs: ^10.5.0
-  checksum: 10c0/173ba4e71aab5566ce3e627ffa311190a72059162ed2dd3ea1cddfd95bacb6bc7b4125cc43d374e06cb3df82aa318afa44665a9647ce0e2a8f7e3d28555c79b1
+  checksum: 10c0/c87c32dd16e11abcdc1f09ac5d7194fefb82e524e6c41a35d3b9c5ecf91915c14cb94d69b82a72bec2c031bf8e98ec473986fbbaea0b057d37468fdabe1f5d6f
   languageName: node
   linkType: hard
 
@@ -5674,7 +5657,7 @@ __metadata:
     "@aws-sdk/credential-providers": "npm:^3"
     "@aws-sdk/ec2-metadata-service": "npm:^3"
     "@aws-sdk/lib-storage": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@smithy/middleware-endpoint": "npm:^4"
     "@smithy/property-provider": "npm:^4"
     "@smithy/shared-ini-file-loader": "npm:^4"
@@ -5695,11 +5678,11 @@ __metadata:
     "@types/yazl": "npm:^3.3.1"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
-    aws-cdk-lib: "npm:2.267.0"
+    aws-cdk-lib: "npm:2.268.0"
     aws-sdk-client-mock: "npm:^4.1.0"
     aws-sdk-client-mock-jest: "npm:^4.1.0"
     camelcase: "npm:^6"
-    cdk-from-cfn: "npm:^0.327.0"
+    cdk-from-cfn: "npm:^0.329.0"
     chalk: "npm:^4"
     chokidar: "npm:^4"
     commit-and-tag-version: "npm:^12"
@@ -5712,7 +5695,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     fast-check: "npm:^3.23.2"
@@ -5724,13 +5707,13 @@ __metadata:
     jest-mock: "npm:^29.7.0"
     license-checker: "npm:^25.0.1"
     nock: "npm:13"
-    node-backpack: "npm:^1.1.46"
-    nx: "npm:^22.7.8"
+    node-backpack: "npm:^1.1.47"
+    nx: "npm:^22.7.9"
     p-limit: "npm:^3"
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.7"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
     semver: "npm:^7.8.5"
@@ -5738,7 +5721,7 @@ __metadata:
     strip-ansi: "npm:^6"
     ts-jest: "npm:^29.4.12"
     ts-mock-imports: "npm:^1.3.19"
-    tsx: "npm:^4.23.12"
+    tsx: "npm:^4.23.13"
     typescript: "npm:5.9"
     wrap-ansi: "npm:^7"
     yaml: "npm:^1"
@@ -6233,7 +6216,7 @@ __metadata:
     "@aws-cdk/cdk-assets-lib": "npm:^0.0.0"
     "@aws-cdk/cloud-assembly-schema": "npm:^0.0.0"
     "@aws-sdk/client-s3": "npm:^3"
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -6247,16 +6230,16 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
-    node-backpack: "npm:^1.1.46"
-    nx: "npm:^22.7.8"
+    node-backpack: "npm:^1.1.47"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.3"
@@ -6266,23 +6249,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdk-from-cfn@npm:^0.327.0":
-  version: 0.327.0
-  resolution: "cdk-from-cfn@npm:0.327.0"
-  checksum: 10c0/d8f59f5ca6a1fe39c491bd1140798a801a4fcbbc376a9d80ee905f0f4d6e448c9e1d4057110385db8e280ed7400137cb68e5db554432cf4c20a7acaa53bc7108
+"cdk-from-cfn@npm:^0.329.0":
+  version: 0.329.0
+  resolution: "cdk-from-cfn@npm:0.329.0"
+  checksum: 10c0/11a55a96478e31cf24ca4a7b3768b39544d660b185f459a8f6080ff9ebc2bc33c931e21d377bca4790b1fe829b6bb16d6c9fd3a52f03f3571edcdec80597377e
   languageName: node
   linkType: hard
 
-"cdk-generate-synthetic-examples@npm:^0.2.56":
-  version: 0.2.56
-  resolution: "cdk-generate-synthetic-examples@npm:0.2.56"
+"cdk-generate-synthetic-examples@npm:^0.2.57":
+  version: 0.2.57
+  resolution: "cdk-generate-synthetic-examples@npm:0.2.57"
   dependencies:
-    "@jsii/spec": "npm:^1.139.0"
-    jsii-reflect: "npm:^1.139.0"
+    "@jsii/spec": "npm:^1.140.0"
+    jsii-reflect: "npm:^1.140.0"
     yargs: "npm:^17.7.3"
   bin:
     cdk-generate-synthetic-examples: bin/cdk-generate-synthetic-examples
-  checksum: 10c0/cf2fb13c81c839a89611650499bad1ce4ce0306d63f3b30c31b2dff1b45e3f6cb262a7c05c6896f839e190d1c650812c71f0b409034564b681705bcff8fb4d60
+  checksum: 10c0/ba428eb688327da6af624282b085339cef4371a60117a9278bb5fce2e2927efdafd063e7be7b4b2b352ffb5db70f830a866799224fc89fbdf344ec471b507b5e
   languageName: node
   linkType: hard
 
@@ -6290,7 +6273,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "cdk@workspace:packages/cdk"
   dependencies:
-    "@cdklabs/eslint-plugin": "npm:^2.0.18"
+    "@cdklabs/eslint-plugin": "npm:^2.0.19"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/node": "npm:^20"
@@ -6303,15 +6286,15 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"
     eslint-plugin-import: "npm:^2.32.0"
-    eslint-plugin-jest: "npm:^29.16.5"
+    eslint-plugin-jest: "npm:^29.16.6"
     eslint-plugin-jsdoc: "npm:^62.9.0"
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
-    nx: "npm:^22.7.8"
+    nx: "npm:^22.7.9"
     prettier: "npm:^2.8"
-    projen: "npm:^0.103.5"
+    projen: "npm:^0.103.18"
     ts-jest: "npm:^29.4.12"
     typescript: "npm:5.9"
   bin:
@@ -8128,9 +8111,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint-plugin-jest@npm:^29.16.5":
-  version: 29.16.5
-  resolution: "eslint-plugin-jest@npm:29.16.5"
+"eslint-plugin-jest@npm:^29.16.6":
+  version: 29.16.6
+  resolution: "eslint-plugin-jest@npm:29.16.6"
   dependencies:
     "@typescript-eslint/utils": "npm:^8.0.0"
   peerDependencies:
@@ -8145,7 +8128,7 @@ __metadata:
       optional: true
     typescript:
       optional: true
-  checksum: 10c0/ef9736cf77a5d48349d143441662ddbae77d810529dbd7a3bfe0314cf5866adbcc87c437d91c3b147a00e7d1473290bae1ce2d528be784a984f6282d469fb5ca
+  checksum: 10c0/c483057f6b7c6500c6208eb965b61fe3a81dbd86123dd1a129584ed8c490336275a8815196922c20bd4895761a7d5b993f7b37869c69d57594b522fe318def8d
   languageName: node
   linkType: hard
 
@@ -10701,14 +10684,14 @@ __metadata:
   linkType: hard
 
 "js-yaml@npm:^3.13.1":
-  version: 3.15.1
-  resolution: "js-yaml@npm:3.15.1"
+  version: 3.15.2
+  resolution: "js-yaml@npm:3.15.2"
   dependencies:
     argparse: "npm:^1.0.7"
     esprima: "npm:^4.0.0"
   bin:
     js-yaml: bin/js-yaml.js
-  checksum: 10c0/6c693b8c59ffe12021df3b36994b090df19d920826dd810baab81652b40861e1974509dd11fe92225ab4c00cc14de053300c94db015c2c0e211edea39b118737
+  checksum: 10c0/e341df211dece9d4b784849647ad7568b5b6a58a9ee58ead750482316d83276387343649fe4b71522705dc6c76acf97718588f23dc19443833ef3e75033af967
   languageName: node
   linkType: hard
 
@@ -10776,23 +10759,6 @@ __metadata:
   bin:
     jsii-pacmak: bin/jsii-pacmak
   checksum: 10c0/9a38bbd9cab3860be13645f924fefcb860544d2b3111e0bb47d94f973f520fb0f04301cec5302de16e0e6c6487f94d51538789570f8ec8c076be098b05cbe9e4
-  languageName: node
-  linkType: hard
-
-"jsii-reflect@npm:^1.139.0":
-  version: 1.139.0
-  resolution: "jsii-reflect@npm:1.139.0"
-  dependencies:
-    "@jsii/check-node": "npm:1.139.0"
-    "@jsii/spec": "npm:1.139.0"
-    chalk: "npm:^4"
-    fs-extra: "npm:^10.1.0"
-    oo-ascii-tree: "npm:^1.139.0"
-    yargs: "npm:^17.7.3"
-  bin:
-    jsii-query: bin/jsii-query
-    jsii-tree: bin/jsii-tree
-  checksum: 10c0/cd82ab4bb73b191153fc504843ea8db452c064c6371b21141049ad0231ed5c4fc20d6fba4e3e59459ef21ffdf4a718d7156a0293a873ed3a8f2f96faa62405ac
   languageName: node
   linkType: hard
 
@@ -10994,10 +10960,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsonschema@npm:^1.5.0":
+"jsonschema@npm:1.5.0, jsonschema@npm:^1.5.0":
   version: 1.5.0
   resolution: "jsonschema@npm:1.5.0"
   checksum: 10c0/c24ddb8d741f02efc0da3ad9b597a275f6b595062903d3edbfaa535c3f9c4c98613df68da5cb6635ed9aeab30d658986fea61d7662fc5b2b92840d5a1e21235e
+  languageName: node
+  linkType: hard
+
+"jsonschema@patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch":
+  version: 1.5.0
+  resolution: "jsonschema@patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch::version=1.5.0&hash=07d501"
+  checksum: 10c0/6ddaa50071e800b800914d138c7f9d6df5f873b1acb79756fa6018e30b80ab1c25a0eb0a674624054d0a82abcf223b2d5c8866f581ac96a9e12b2f4d631d15b4
   languageName: node
   linkType: hard
 
@@ -12006,9 +11979,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-backpack@npm:^1.1.46":
-  version: 1.1.46
-  resolution: "node-backpack@npm:1.1.46"
+"node-backpack@npm:^1.1.47":
+  version: 1.1.47
+  resolution: "node-backpack@npm:1.1.47"
   dependencies:
     esbuild: "npm:^0.28.2"
     fs-extra: "npm:^10.1.0"
@@ -12018,7 +11991,7 @@ __metadata:
     yargs: "npm:^17.7.3"
   bin:
     node-backpack: bin/node-backpack
-  checksum: 10c0/bc191ca5a37c9eb223ca9da477aabb7474dc4653be80988e9576405c605ed89488ec91dbe9ae3d2fde7bb79ebfa9ca45c76f7112d5d66f738d5e82f4c9ff7c26
+  checksum: 10c0/020839369ab6327d44c431d81014e634db7cbccdaa71606549424c368d4a15be34eb53bad3806db9c5e06a001a3cce79ace0b61d90053c918bd51707d8db130a
   languageName: node
   linkType: hard
 
@@ -12353,25 +12326,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nx@npm:^22.7.8":
-  version: 22.7.8
-  resolution: "nx@npm:22.7.8"
+"nx@npm:^22.7.9":
+  version: 22.7.9
+  resolution: "nx@npm:22.7.9"
   dependencies:
     "@emnapi/core": "npm:1.4.5"
     "@emnapi/runtime": "npm:1.4.5"
     "@emnapi/wasi-threads": "npm:1.0.4"
     "@jest/diff-sequences": "npm:30.0.1"
     "@napi-rs/wasm-runtime": "npm:0.2.4"
-    "@nx/nx-darwin-arm64": "npm:22.7.8"
-    "@nx/nx-darwin-x64": "npm:22.7.8"
-    "@nx/nx-freebsd-x64": "npm:22.7.8"
-    "@nx/nx-linux-arm-gnueabihf": "npm:22.7.8"
-    "@nx/nx-linux-arm64-gnu": "npm:22.7.8"
-    "@nx/nx-linux-arm64-musl": "npm:22.7.8"
-    "@nx/nx-linux-x64-gnu": "npm:22.7.8"
-    "@nx/nx-linux-x64-musl": "npm:22.7.8"
-    "@nx/nx-win32-arm64-msvc": "npm:22.7.8"
-    "@nx/nx-win32-x64-msvc": "npm:22.7.8"
+    "@nx/nx-darwin-arm64": "npm:22.7.9"
+    "@nx/nx-darwin-x64": "npm:22.7.9"
+    "@nx/nx-freebsd-x64": "npm:22.7.9"
+    "@nx/nx-linux-arm-gnueabihf": "npm:22.7.9"
+    "@nx/nx-linux-arm64-gnu": "npm:22.7.9"
+    "@nx/nx-linux-arm64-musl": "npm:22.7.9"
+    "@nx/nx-linux-x64-gnu": "npm:22.7.9"
+    "@nx/nx-linux-x64-musl": "npm:22.7.9"
+    "@nx/nx-win32-arm64-msvc": "npm:22.7.9"
+    "@nx/nx-win32-x64-msvc": "npm:22.7.9"
     "@tybys/wasm-util": "npm:0.9.0"
     "@yarnpkg/lockfile": "npm:1.1.0"
     "@zkochan/js-yaml": "npm:0.0.7"
@@ -12513,7 +12486,7 @@ __metadata:
   bin:
     nx: ./dist/bin/nx.js
     nx-cloud: ./dist/bin/nx-cloud.js
-  checksum: 10c0/f35026ba49dff1754fe7134a786237352a8908462d9a4649a8eb47814b7eb0e550cf009bddeb86e6883b146ac735dc2f8a8073824a2355cc18686b5b81f99556
+  checksum: 10c0/d5280116602b35738f7fade4aff72a061a21de001ac2420771067867bb09cd131367e4f01b0bdf44587083f1ffd84cd0d4524265eae7d17d540211e13cf06a11
   languageName: node
   linkType: hard
 
@@ -12646,13 +12619,6 @@ __metadata:
   dependencies:
     mimic-fn: "npm:^2.1.0"
   checksum: 10c0/ffcef6fbb2692c3c40749f31ea2e22677a876daea92959b8a80b521d95cca7a668c884d8b2045d1d8ee7d56796aa405c405462af112a1477594cc63531baeb8f
-  languageName: node
-  linkType: hard
-
-"oo-ascii-tree@npm:^1.139.0":
-  version: 1.139.0
-  resolution: "oo-ascii-tree@npm:1.139.0"
-  checksum: 10c0/b395ee7bb2ccd329fed0fa1fe9a13392fe0b72dc26eb5724b09b03688946b80cb1ca53ae9019134276afaae7c0173d47cc04bc648322cded861e59af19105ebb
   languageName: node
   linkType: hard
 
@@ -13383,9 +13349,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.103.5":
-  version: 0.103.5
-  resolution: "projen@npm:0.103.5"
+"projen@npm:^0.103.18":
+  version: 0.103.18
+  resolution: "projen@npm:0.103.18"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
@@ -13407,7 +13373,7 @@ __metadata:
     constructs: ^10.5.0
   bin:
     projen: bin/projen
-  checksum: 10c0/38d188f45392d9ef1c242a6698790940c7e07691bd5702562fd72c8f1800df5c3b42b4d975cb1e599026d95cbefe567f054fbbf5cf420d666654a6b5e1701ea8
+  checksum: 10c0/466b8e04aa9d1e32200a33abfc56104d7889ef776dd15a0cbee76968e776147cfa539ec05ab3700a9b1435d9e9e037b777d6039ff9b6a0689c35a6776d91dcdc
   languageName: node
   linkType: hard
 
@@ -15354,9 +15320,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsx@npm:^4.23.12":
-  version: 4.23.12
-  resolution: "tsx@npm:4.23.12"
+"tsx@npm:^4.23.13":
+  version: 4.23.13
+  resolution: "tsx@npm:4.23.13"
   dependencies:
     esbuild: "npm:~0.28.0"
     fsevents: "npm:~2.3.3"
@@ -15365,7 +15331,7 @@ __metadata:
       optional: true
   bin:
     tsx: dist/cli.mjs
-  checksum: 10c0/cdd7f03754021fb337c13839f25f5f5edee01ed12e1e176da50cc34bc5c5fc4e7b533aeba89127055be969d4ff292c6accdb6b9d977ed022c524349eca6ff841
+  checksum: 10c0/dc99c8988b42ec2443963a0b9051f42d068bc7e2a44e82f3b94b40539a991c5c01ea3ee049cf317d1040b2245711dd4c64ace9ac875f3b07edee29f610702e3c
   languageName: node
   linkType: hard
 

@@ -56,7 +56,7 @@ export class AdcPublishing extends Component {
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
+          uses: 'aws-actions/configure-aws-credentials@v6',
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',

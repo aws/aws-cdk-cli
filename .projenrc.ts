@@ -14,7 +14,7 @@ import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
@@ -392,6 +392,11 @@ repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 const repo = configureProject(repoProject);
 
+// Exclude dist from the NX cache to avoid restoring stale release artifacts
+repoProject.tryFindObjectFile('nx.json')!.patch(
+  pj.JsonPatch.remove('/targetDefaults/build/outputs/4'), // {projectRoot}/dist
+);
+
 interface GenericProps {
   private?: boolean;
 }
@@ -475,6 +480,12 @@ const cloudAssemblySchema = configureProject(
   }),
 );
 fixupTestTask(cloudAssemblySchema);
+
+// Patch jsonschema: local $ref resolution crashes with "Invalid URL" on Node >= 24.20.0
+// Fix from https://github.com/tdegrunt/jsonschema/pull/424
+repoProject.package.addField('resolutions', {
+  [`${cloudAssemblySchema.name}/jsonschema`]: 'patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch',
+});
 
 cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
@@ -1016,7 +1027,7 @@ new S3DocsPublishing(toolkitLib, {
   artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-  docType: DocType.API_EXTRACTOR,
+  s3PathPrefix: 'aws-cdk-toolkit-lib-api-model',
 });
 
 // Add API Extractor configuration
@@ -1466,6 +1477,25 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('vendor/**/*');
 }
 
+// Publishing Toolkit CLI version
+// We don't actually publish CLI docs here, but we can collect some interesting version information
+const cliVersionsTask = cli.addTask('versions', {
+  exec: [
+    'tsx --tsconfig test/tsconfig.json scripts/gen-versions-json.ts',
+    'rm -f dist/toolkit-versions.zip',
+    'zip -j -q dist/toolkit-versions.zip dist/versions.json',
+  ].join(' && '),
+});
+cli.packageTask.spawn(cliVersionsTask);
+
+new S3DocsPublishing(cli, {
+  docsStream: 'CLI',
+  artifactPath: 'toolkit-versions.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}',
+  s3PathPrefix: 'toolkit-versions',
+});
+
 // #endregion
 //////////////////////////////////////////////////////////////////////
 // #region cdk
@@ -1773,6 +1803,9 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
+  // Also run the integ suites on Windows, opt-in per-PR via the
+  // 'pr/test-windows' label or manually via workflow_dispatch.
+  windowsTestRunsOn: 'windows-latest',
 
   allowUpstreamVersions: [
     // cloud-assembly-schema gets referenced under multiple versions

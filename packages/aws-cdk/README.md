@@ -291,7 +291,43 @@ You can have multiple stacks in a cdk app. An example can be found in [how to cr
 
 In order to deploy them, you can list the stacks you want to deploy. If your application contains pipeline stacks, the `cdk list` command will show stack names as paths, showing where they are in the pipeline hierarchy (e.g., `PipelineStack`, `PipelineStack/Prod`, `PipelineStack/Prod/MyService` etc).
 
-If you want to deploy all of them, you can use the flag `--all` or the wildcard `*` to deploy all stacks in an app. Please note that, if you have a hierarchy of stacks as described above, `--all` and `*` will only match the stacks on the top level. If you want to match all the stacks in the hierarchy, use `**`. You can also combine these patterns. For example, if you want to deploy all stacks in the `Prod` stage, you can use `cdk deploy PipelineStack/Prod/**`.
+To deploy every stack in the app, use the `--all` flag or the wildcard `*`.
+If your app has stacks inside stages, keep in mind how far each wildcard reaches:
+
+- `*` matches one level, so it only picks up top-level stacks (same as `--all`)
+- `**` matches any number of levels, so it picks up stacks at every depth
+
+You can also combine these patterns.
+For example, to deploy everything inside the `Prod` stage of a pipeline:
+
+```console
+cdk deploy 'PipelineStack/Prod/**'
+```
+
+##### Excluding stacks
+
+Put a `!` in front of a pattern to leave those stacks out.
+Wrap the pattern in quotes so your shell leaves the `!` alone.
+
+Every stack except `NlbStack`:
+
+```
+cdk deploy '!NlbStack'
+```
+
+Everything under `Prod`, except the canary:
+
+```
+cdk deploy 'PipelineStack/Prod/**' '!PipelineStack/Prod/Canary'
+```
+
+CDK picks the stacks your normal patterns match, then drops the ones your `!` patterns match.
+If you only pass `!` patterns, they apply to every stack in the app.
+`--all` doesn't work together with patterns, so use `**` instead.
+An excluded stack still deploys if a selected stack needs it — add `--exclusively` (`-e`) to skip dependencies.
+And `!(...)` is shell syntax, not a CDK exclusion.
+
+##### Deploying stacks in parallel
 
 `--concurrency N` allows deploying multiple stacks in parallel while respecting inter-stack dependencies to speed up deployments. It does not protect against CloudFormation and other AWS account rate limiting.
 

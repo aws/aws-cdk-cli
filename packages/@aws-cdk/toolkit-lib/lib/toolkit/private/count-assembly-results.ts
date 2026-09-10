@@ -10,7 +10,7 @@ export function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.Cl
   span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
 
   const annotationErrorCodes = stacksRecursively
-    .flatMap(s => Object.values(s.metadata)
+    .flatMap(s => Object.values(s.metadata ?? {})
       .flatMap(ms => ms.filter(m => m.type === ANNOTATION_ERROR_CODE_TYPE)));
   for (const annotationErrorCode of annotationErrorCodes) {
     span.incCounter(`errorAnn:${annotationErrorCode.data}`);
