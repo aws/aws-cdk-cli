@@ -1803,6 +1803,12 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
+  // Also run the integ suites on Windows to catch platform-specific
+  // regressions (paths, subprocess spawning). Opt in per-PR with the
+  // 'pr/test-windows' label, or trigger manually via workflow_dispatch.
+  // Uses the free standard runner for now; switch to a larger runner label
+  // once one is provisioned.
+  windowsTestRunsOn: 'windows-latest',
 
   allowUpstreamVersions: [
     // cloud-assembly-schema gets referenced under multiple versions
