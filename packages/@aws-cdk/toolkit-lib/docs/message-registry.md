@@ -158,6 +158,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_E9600` | Policy validation failed | `error` | {@link ValidateResult} |
 | `CDK_TOOLKIT_I9601` | No policy validation report found | `info` | n/a |
 | `CDK_TOOLKIT_W9602` | Online validation could not be completed for a stack | `warn` | n/a |
+| `CDK_TOOLKIT_I9603` | Online validation is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I9604` | Online validation has finished. Provides online validation timing and validation outcome counters. | `trace` | {@link OnlineValidationResult} |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |

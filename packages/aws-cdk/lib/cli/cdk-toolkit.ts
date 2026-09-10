@@ -636,6 +636,10 @@ export class CdkToolkit {
       return this.validateWatch(validateOptions);
     }
 
+    // Telemetry for the validate action is emitted from toolkit-lib: an
+    // ONLINE_VALIDATE event times the online validation phase and carries the
+    // validation outcome counters. Offline validation time is already captured
+    // by the SYNTH event, so there is nothing to time here.
     const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
     return result.conclusion === 'failure' ? 1 : 0;
   }

@@ -101,6 +101,24 @@ export interface Operation extends Duration {
 }
 
 /**
+ * The result of the online validation phase of the `validate` action.
+ *
+ * Offline validation is performed during synthesis and its timing is captured
+ * by the synth event, so this only times the online (CloudFormation change set)
+ * validation phase. The `counters` summarize the outcome of the whole validate
+ * run (offline and online violation counts, and whether offline validation
+ * would have failed a deploy).
+ */
+export interface OnlineValidationResult extends Duration {
+  /**
+   * Counters describing the outcome of the validate run.
+   *
+   * @default - no counters
+   */
+  readonly counters?: Record<string, number>;
+}
+
+/**
  * Generic payload of a simple yes/no question.
  *
  * The expectation is that 'yes' means moving on,

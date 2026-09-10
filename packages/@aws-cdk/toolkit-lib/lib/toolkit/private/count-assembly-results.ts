@@ -1,6 +1,7 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import type { IMessageSpan } from '../../api/io/private/span';
+import { sum } from '../../util';
 
 export function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
   const stacksRecursively = assembly.stacksRecursively;
@@ -19,10 +20,6 @@ export function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.Cl
   function asmCount(x: cxapi.CloudAssembly): number {
     return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
   }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }
 
 /**
