@@ -3,6 +3,7 @@ import {
   DeleteStackCommand,
   DescribeStacksCommand,
   UpdateTerminationProtectionCommand,
+  GetTemplateCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
@@ -178,6 +179,20 @@ export class AwsClients {
           throw new Error(`Delete of '${stackName}' not complete yet, status: '${status}'`);
         }
       });
+    }
+  }
+
+  public async stackTemplate(stackName: string): Promise<any | undefined> {
+    try {
+      const response = await this.cloudFormation.send(new GetTemplateCommand({
+        StackName: stackName,
+      }));
+      return response.TemplateBody ? JSON.parse(response.TemplateBody) : undefined;
+    } catch (e: any) {
+      if (isStackMissingError(e)) {
+        return undefined;
+      }
+      throw e;
     }
   }
 

@@ -4,8 +4,8 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Stack } from '@aws-sdk/client-cloudformation';
-import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
 import type { AwsClients } from './aws';
 import { outputFromStack, sleep } from './aws';
@@ -31,6 +31,11 @@ export interface CdkAppContextOptions {
    */
   readonly aws?: AwsContextOptions;
 }
+
+export type UnmanagedResourceToCleanup =
+  | { type: 'bucket'; bucketName: string }
+  | { type: 'bucket-contents'; bucketName: string }
+  | { type: 'ecr-repository'; repositoryName: string };
 
 /**
  * Higher order function to execute a block with a CDK app fixture
@@ -407,7 +412,10 @@ export interface CdkGarbageCollectionCommandOptions {
 
 export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
-  private readonly bucketsToDelete = new Array<string>();
+  /**
+   * Order-sensitive map keyed by JSON representation for speedy duplicate checks.
+   */
+  private readonly resourcesToCleanup: Record<string, UnmanagedResourceToCleanup> = {};
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
@@ -826,40 +834,39 @@ export class TestFixture extends ShellHelper {
   }
 
   /**
-   * Append this to the list of buckets to potentially delete
+   * Append this to the list of resources to potentially delete at the end of the test
    *
-   * At the end of a test, we clean up buckets that may not have gotten destroyed
-   * (for whatever reason).
+   * You can safely queue the same resource multiple times, it will only be deleted once.
+   *
+   * You can safely queue resources that are managed by CloudFormation; we will let CloudFormation
+   * manage the deletion of those resources.
    */
-  public rememberToDeleteBucket(bucketName: string) {
-    this.bucketsToDelete.push(bucketName);
+  public queueResourceCleanup(...resources: UnmanagedResourceToCleanup[]) {
+    for (const resource of resources) {
+      this.resourcesToCleanup[JSON.stringify(resource)] = resource;
+    }
+  }
+
+  public unqueueResourceCleanup(...resources: UnmanagedResourceToCleanup[]) {
+    for (const resource of resources) {
+      delete this.resourcesToCleanup[JSON.stringify(resource)];
+    }
   }
 
   /**
    * Cleanup leftover stacks and bootstrapped resources
    */
   public async dispose(success: boolean) {
-    // when using the atmosphere service, it does resource cleanup on our behalf
-    // so we don't have to wait for it.
+    const stacksToDelete = await this.deleteableStacks(this.stackNamePrefix);
+    this.sortBootstrapStacksToTheEnd(stacksToDelete);
+
+    await this.queueStackResourcesForCleanup(stacksToDelete);
+
+    // Cleanup unmanaged resources (including bucket contents)
+    await this.cleanupResources();
+
+    // Cleanup stacks if we are not running in Atmosphere.
     if (!atmosphereEnabled()) {
-      const stacksToDelete = await this.deleteableStacks(this.stackNamePrefix);
-
-      this.sortBootstrapStacksToTheEnd(stacksToDelete);
-
-      // Bootstrap stacks have buckets that need to be cleaned
-      const bucketNames = stacksToDelete.map(stack => outputFromStack('BucketName', stack)).filter(defined);
-      // Parallelism will be reasonable
-      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-      await Promise.all(bucketNames.map(b => this.aws.emptyBucket(b)));
-      // The bootstrap bucket has a removal policy of RETAIN by default, so add it to the buckets to be cleaned up.
-      this.bucketsToDelete.push(...bucketNames);
-
-      // Bootstrap stacks have ECR repositories with images which should be deleted
-      const imageRepositoryNames = stacksToDelete.map(stack => outputFromStack('ImageRepositoryName', stack)).filter(defined);
-      // Parallelism will be reasonable
-      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-      await Promise.all(imageRepositoryNames.map(r => this.aws.deleteImageRepository(r)));
-
       await this.aws.deleteStacks(
         ...stacksToDelete.map((s) => {
           if (!s.StackName) {
@@ -868,12 +875,6 @@ export class TestFixture extends ShellHelper {
           return s.StackName;
         }),
       );
-
-      // We might have leaked some buckets by upgrading the bootstrap stack. Be
-      // sure to clean everything.
-      for (const bucket of this.bucketsToDelete) {
-        await this.aws.deleteBucket(bucket);
-      }
     }
 
     // If the tests completed successfully, happily delete the fixture
@@ -882,6 +883,92 @@ export class TestFixture extends ShellHelper {
       const cleaned = rimraf(this.integTestDir);
       if (!cleaned) {
         console.error(`Failed to clean up ${this.integTestDir} due to permissions issues (Docker running as root?)`);
+      }
+    }
+  }
+
+  /**
+   * Queue unmanaged resources for cleanup
+   *
+   * Queues 2 things right now:
+   *
+   * - Buckets managed by CloudFormation are queued for cleaning
+   * - Buckets that will remain unmanaged by CloudFormation after stack deletion are queued for deleting
+   */
+  private async queueStackResourcesForCleanup(stacks: Stack[]) {
+    for (const stack of stacks) {
+      const resources = await StackResources.load(this.aws.cloudFormation, stack.StackName!);
+
+      // Queue all buckets for cleanup.
+      for (const resource of resources.ofType('AWS::S3::Bucket')) {
+        this.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
+      }
+
+      // From the stack:
+      // - Queue all resources that will be leaked (i.e. not deleted by CloudFormation) for cleanup.
+      // - Remove all managed resources from the list of resources to cleanup, since they will be deleted by CloudFormation.
+      //   (They were probably added just-in-case, in case the test suite failed and we never got to cleanup)
+      const { leakable, managed } = await this.partititionStackResources(stack);
+
+      // Queue leakable resources for deletion.
+      const physicalLeakables = resources.resolveLogical(leakable);
+      this.queueResourceCleanup(...physicalLeakables.map(cleanableResourceFromPhysical).filter(defined));
+
+      const physicalManaged = resources.resolveLogical(managed);
+      this.unqueueResourceCleanup(...physicalManaged.map(cleanableResourceFromPhysical).filter(defined));
+    }
+  }
+
+  /**
+   * Find resources in a stack that have a removal policy that causes it to be left behind if the stack is deleted.
+   */
+  private async partititionStackResources(stack: Stack) {
+    interface Template {
+      Resources?: {
+        [logicalId: string]: {
+          Type: string;
+          DeletionPolicy?: 'Delete' | 'Retain' | 'Snapshot';
+        };
+      };
+    }
+
+    const managed: LogicalResource[] = [];
+    const leakable: LogicalResource[] = [];
+
+    const template: Template = await this.aws.stackTemplate(stack.StackName!);
+    for (const [logicalId, resource] of Object.entries(template?.Resources ?? {})) {
+      const logicalResource: LogicalResource = {
+        cloudFormationType: resource.Type,
+        logicalId,
+      };
+
+      if (resource.DeletionPolicy === 'Retain') {
+        leakable.push(logicalResource);
+      } else {
+        managed.push(logicalResource);
+      }
+    }
+
+    return { managed, leakable };
+  }
+
+  private async cleanupResources() {
+    for (const resource of Object.values(this.resourcesToCleanup)) {
+      switch (resource.type) {
+        case 'bucket':
+          await this.aws.deleteBucket(resource.bucketName);
+          break;
+
+        case 'bucket-contents':
+          await this.aws.emptyBucket(resource.bucketName);
+          break;
+
+        case 'ecr-repository':
+          await this.aws.deleteImageRepository(resource.repositoryName);
+          break;
+
+        default:
+          assertNever(resource);
       }
     }
   }
@@ -1194,3 +1281,71 @@ async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
 }
 
 const ALREADY_BOOTSTRAPPED_IN_THIS_RUN = new Set();
+
+interface LogicalResource {
+  readonly cloudFormationType: string;
+  readonly logicalId: string;
+}
+
+interface PhysicalResource {
+  readonly cloudFormationType: string;
+  readonly physicalId: string;
+}
+
+class StackResources {
+  public static async load(cloudFormation: CloudFormationClient, stackName: string): Promise<StackResources> {
+    const ret: StackResourceSummary[] = [];
+
+    let nextToken: string | undefined;
+    do {
+      const response = await cloudFormation.send(new ListStackResourcesCommand({
+        StackName: stackName,
+        NextToken: nextToken,
+      }));
+      ret.push(...response.StackResourceSummaries ?? []);
+
+      nextToken = response.NextToken;
+    } while (nextToken);
+
+    return new StackResources(ret);
+  }
+
+  private readonly logicalMap: Record<string, string> = {};
+
+  constructor(private readonly resources: StackResourceSummary[]) {
+    this.logicalMap = Object.fromEntries(resources.map(r => [r.LogicalResourceId!, r.PhysicalResourceId!]));
+  }
+
+  public ofType(type: string): PhysicalResource[] {
+    return this.resources
+      .filter(r => r.ResourceType === type)
+      .map(r => ({ cloudFormationType: type, physicalId: r.PhysicalResourceId! }));
+  }
+
+  public resolveLogical(logicalResources: LogicalResource[]): PhysicalResource[] {
+    // Then look up the logical resources in the map and return the physical resources
+    return logicalResources.flatMap(logical => {
+      const physicalId = this.logicalMap[logical.logicalId];
+      return physicalId ? [{ ...logical, physicalId }] : [];
+    });
+  }
+}
+
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${x}`);
+}
+
+function cleanableResourceFromPhysical(resource: PhysicalResource): UnmanagedResourceToCleanup | undefined {
+  switch (resource.cloudFormationType) {
+    case 'AWS::S3::Bucket':
+      return { type: 'bucket', bucketName: resource.physicalId };
+      break;
+
+    case 'AWS::ECR::Repository':
+      return { type: 'ecr-repository', repositoryName: resource.physicalId };
+      break;
+
+    default:
+      return undefined;
+  }
+}
