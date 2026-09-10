@@ -84,12 +84,13 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     }
   }
 
-  // Debugging the CLI has to show what it switches on, and that includes AWS SDK
-  // tracing (emitted at TRACE level). Without raising the level, asking for
-  // --debug-cli would enable tracing the user then cannot see. TRACE is the most
-  // verbose level, so this can never lower what -v asked for.
-  if (argv.debugCli) {
-    ioMessageLevel = 'trace';
+  // `--debug-cli` raises the CLI-side log level, which is what makes its own
+  // handle report visible without a second flag. Only as far as DEBUG, never
+  // TRACE: TRACE also unmasks AWS SDK request logging, whose payloads include
+  // whole CloudFormation templates. `verbose` is only ever raised above this, so
+  // taking the more verbose of the two can never walk back what `-v` asked for.
+  if (argv.debugCli && ioMessageLevel === 'info') {
+    ioMessageLevel = 'debug';
   }
 
   const ioHost = CliIoHost.instance({
