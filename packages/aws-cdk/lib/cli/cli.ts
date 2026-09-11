@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -50,6 +51,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const libraryLoadTime = performance.now();
 
   const argv = await parseCommandLineArguments(args);
+
+  // Start tracking async resources as early as possible, so we can identify the
+  // ones still alive at exit time.
+  const handleTracker = argv.debugCli ? trackLeakedHandles() : undefined;
+
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
@@ -78,6 +84,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioMessageLevel = 'trace';
         break;
     }
+  }
+
+  // `--debug-cli` raises the CLI-side log level, which is what makes its own
+  // handle report visible without a second flag. Only as far as DEBUG, never
+  // TRACE: TRACE also unmasks AWS SDK request logging, whose payloads include
+  // whole CloudFormation templates. `verbose` is only ever raised above this, so
+  // taking the more verbose of the two can never walk back what `-v` asked for.
+  if (argv.debugCli && ioMessageLevel === 'info') {
+    ioMessageLevel = 'debug';
   }
 
   const ioHost = CliIoHost.instance({
@@ -267,6 +282,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     } else if (shouldDisplayNotices && cmd !== 'version') {
       await trapErrors(ioHelper, 'Could not display notices', () => notices.display());
     }
+
+    // If the process is still alive after the grace period, something is keeping
+    // the event loop busy. Dump the leaked handles so the user can see why.
+    handleTracker?.scheduleReport(ioHelper);
   }
 
   async function main(command: string, args: any): Promise<number | void> {
