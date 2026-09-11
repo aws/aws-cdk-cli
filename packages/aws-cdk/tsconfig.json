@@ -11,6 +11,7 @@
     "inlineSources": true,
     "lib": [
       "es2019",
+      "es2021.weakref",
       "es2022.error"
     ],
     "module": "commonjs",

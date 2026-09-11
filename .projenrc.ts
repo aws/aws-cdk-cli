@@ -1306,7 +1306,9 @@ const cli = configureProject(
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2019', 'es2022.error'],
+        // 'es2021.weakref' for WeakRef, which the handle tracker holds resources
+        // through so that tracking them cannot itself keep them alive.
+        lib: ['es2019', 'es2021.weakref', 'es2022.error'],
 
         // Changes the meaning of 'import' for libraries whose top-level export is a function
         // 'aws-cdk' has been written against `false` for interop
@@ -1319,7 +1321,7 @@ const cli = configureProject(
     tsconfigDev: {
       compilerOptions: {
         ...defaultTsOptions,
-        lib: ['es2019', 'esnext.disposable', 'es2022.error'],
+        lib: ['es2019', 'es2021.weakref', 'esnext.disposable', 'es2022.error'],
         esModuleInterop: false,
         skipLibCheck: true,
       },

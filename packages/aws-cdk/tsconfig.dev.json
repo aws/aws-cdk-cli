@@ -9,6 +9,7 @@
     "inlineSources": true,
     "lib": [
       "es2019",
+      "es2021.weakref",
       "esnext.disposable",
       "es2022.error"
     ],
