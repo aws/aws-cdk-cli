@@ -439,7 +439,12 @@ class FullCloudFormationDeployment {
     const deploymentMethod = this.deploymentMethod ?? { method: 'change-set' };
 
     // if there is a hotswap cache, clear it when a full Cloudformation of any kind happens
-    await invalidateHotswapTemplateCache(this.stackArtifact.assembly.directory, this.stackArtifact.stackName);
+    const deploymentEnv = this.options.resolvedEnvironment;
+    await invalidateHotswapTemplateCache(
+      this.stackArtifact.assembly.directory,
+      this.stackArtifact.stackName,
+      `${deploymentEnv.account}/${deploymentEnv.region}`,
+    );
 
     if (deploymentMethod.method === 'direct' && this.options.resourcesToImport) {
       throw new ToolkitError('ImportRequiresChangeSet', 'Importing resources requires a changeset deployment');
@@ -967,10 +972,12 @@ async function canSkipDeploy(
   }
 
   // treat template in the hotswap cache as the source of truth
+  const hotswapCacheEnv = deployStackOptions.resolvedEnvironment;
   const hotswapCache = await readHotswapTemplateCache(
     deployStackOptions.stack.assembly.directory,
     deployStackOptions.stack.stackName,
     deployStackOptions.stack.template,
+    `${hotswapCacheEnv.account}/${hotswapCacheEnv.region}`,
   );
   if (hotswapCache && diffTemplate(hotswapCache.deployedRootTemplate, deployStackOptions.stack.template).differenceCount > 0) {
     await ioHelper.defaults.debug(`${deployName}: template has changed in relation to last successful hotswap deployment`);
