@@ -4,6 +4,7 @@ import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { guessAgent } from '../../lib/cli/util/guess-agent';
 import { StackActivityProgress } from '../../lib/commands/deploy';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -17,6 +18,9 @@ jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('../../lib/cli/util/guess-agent');
+const guessAgentMock = jest.mocked(guessAgent);
 
 jest.mock('../../lib/cli/user-configuration', () => ({
   Configuration: jest.fn().mockImplementation(() => ({
@@ -618,21 +622,12 @@ describe('publish-assets command tests', () => {
 });
 
 describe('AI agent progress auto-default', () => {
-  let originalEnv: Record<string, string | undefined>;
   let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
   let deploySpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Clear all env vars that guessAgent() detects, so the test environment doesn't interfere
-    originalEnv = {};
-    for (const key of Object.keys(process.env)) {
-      if (['AI_AGENT', 'AGENT', 'CLAUDECODE', 'CURSOR_AGENT', 'VSCODE_AGENT', 'AWS_EXECUTION_ENV'].includes(key)
-        || key.startsWith('CODEX_') || key.startsWith('CLINE_')) {
-        originalEnv[key] = process.env[key];
-        delete process.env[key];
-      }
-    }
+    guessAgentMock.mockReturnValue(undefined);
     // A Configuration mock that reflects the command line arguments, like the real one
     originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
     Configuration.fromArgsAndFiles = jest.fn().mockImplementation((_ioHelper: any, props: any) => ({
@@ -649,19 +644,12 @@ describe('AI agent progress auto-default', () => {
   });
 
   afterEach(() => {
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
     Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
     deploySpy.mockRestore();
   });
 
   test('defaults to errors-only progress when an agent is detected', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy']);
 
@@ -675,7 +663,7 @@ describe('AI agent progress auto-default', () => {
   });
 
   test('an explicit progress preference wins over agent detection', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy', '--progress', 'events']);
 
@@ -683,7 +671,7 @@ describe('AI agent progress auto-default', () => {
   });
 
   test('verbose mode wins over agent detection', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy', '-v']);
 
