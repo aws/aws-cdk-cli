@@ -153,7 +153,7 @@ describe('require-approval', () => {
   test('--require-approval any-change prompts and proceeds when confirmed', async () => {
     // Answer the approval prompt the real way: a one-shot responder, so the
     // real requestResponse runs and the request is recorded in the snapshot.
-    ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I5060, true);
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
 
     await toolkit.deploy({
       selector: selectExact('Test-Stack-A-Display-Name'),
@@ -165,7 +165,7 @@ describe('require-approval', () => {
   });
 
   test('--require-approval any-change aborts and deploys nothing when declined', async () => {
-    ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I5060, false);
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
 
     await expect(toolkit.deploy({
       selector: selectExact('Test-Stack-A-Display-Name'),
@@ -183,7 +183,7 @@ describe('require-approval', () => {
     // Answer "yes" but keep the question visible (showQuestion: true) so the
     // recorder captures the effective, listener-reframed prompt text. The default
     // mock stack has no security-sensitive changes (permissionChangeType: none).
-    ioHost.listeners.respondOnce(IO.CDK_TOOLKIT_I5060, true, { showQuestion: true });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, { showQuestion: true });
 
     await toolkit.deploy({
       selector: selectExact('Test-Stack-A-Display-Name'),

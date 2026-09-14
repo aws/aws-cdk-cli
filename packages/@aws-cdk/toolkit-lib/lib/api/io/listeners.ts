@@ -1,6 +1,6 @@
 import type { IIoHost } from './io-host';
 import type { IoMessage, IoRequest, IoMessageCode, IoMessageLevel } from './io-message';
-import { ListenerRegistry } from './private/listener-registry';
+import { attachListeners } from './private/listener-wrapper';
 import type { ToolkitAction } from './toolkit-action';
 
 /**
@@ -23,8 +23,10 @@ export type MessageMatcher = (msg: IoMessage<unknown>) => boolean;
  * https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-registry/
  *
  * The result is a type guard, so passing the payload type narrows `msg.data` in
- * the listener. To answer a request you narrow to the request instead, which is
- * what makes the response value type-checked.
+ * the listener. The payload type is *asserted*, not derived from the code
+ * string, so it is only as accurate as the type you name: look the code up in
+ * the registry. Narrow to an `IoRequest` instead to answer a request, which is
+ * what gives `respond` a response type to check its value against.
  *
  * @example
  * ```ts
@@ -82,12 +84,15 @@ export interface MessageListenerResult {
   readonly action?: ToolkitAction;
 
   /**
-   * Skip the default handling of the message.
+   * Skip the default handling of the message, so the host is never asked to
+   * handle it.
    *
-   * For a notification this means the host is not asked to handle it. For a
-   * request it stops processing entirely: the host is not asked to prompt, and
-   * the request resolves with its (possibly `respond`-overridden) default
-   * response.
+   * For a notification that means it is not written. For a request it means the
+   * question is not put to the host, which leaves nothing to produce an answer,
+   * so `respond` must be supplied alongside it. Preventing a request without
+   * answering it throws, rather than silently resolving the request with its
+   * declared default (which for a confirmation is `true`, i.e. approval). The
+   * `respond`/`respondOnce` helpers set both.
    *
    * @default false
    */
@@ -182,6 +187,8 @@ export interface RewriteOptions {
  *   registered listener does not see the message in flight, and a disposed one
  *   still runs for it.
  * - If two listeners both answer a request, the last one wins.
+ * - Suppressing a request via `preventDefault` without also answering it throws,
+ *   so a listener can never approve a confirmation by accident.
  */
 export interface IoEmitter {
   /**
@@ -282,9 +289,10 @@ export interface IoEmitter {
    * that responds with the value and prevents the default; for conditional
    * answers or to also reword the question, use `on`/`once` directly.
    *
-   * The matcher must narrow to `IoRequest`, which is what makes `value` checked
-   * against the request's response type. The message makers do this, and so does
-   * `byCode` when you give it the request type. A plain predicate carries no
+   * The matcher must narrow to `IoRequest`, which is what gives `value` a
+   * response type to be checked against. `byCode` narrows when you give it the
+   * request type, though that type is asserted rather than looked up from the
+   * code, so check it against the message registry. A plain predicate carries no
    * response type, so it cannot be used here; use `on` with
    * `{ respond: value, preventDefault: true }` if you need to select requests
    * some other way.
@@ -315,23 +323,6 @@ export interface IoEmitter {
 }
 
 /**
- * An `IIoHost` that listeners can be attached to, as returned by
- * `withListeners`. The original host type is preserved, so all of its own
- * methods and properties remain available and correctly typed.
- */
-export type EmittingIoHost<T extends IIoHost = IIoHost> = T & IoEmitter;
-
-/**
- * Hosts that have already been wrapped, keyed on the host they wrap.
- *
- * Keyed on the host itself (rather than marked on the wrapper) so that wrapping
- * the *same* host twice returns the same wrapper, instead of quietly building a
- * second registry whose listeners never fire. Each wrapper is also registered
- * under itself, so re-wrapping a wrapper is a no-op too.
- */
-const WRAPPED = new WeakMap<IIoHost, EmittingIoHost<any>>();
-
-/**
  * Wrap any `IIoHost` so listeners can be attached to it.
  *
  * The returned host is the host you pass in. Every property and method of it
@@ -342,6 +333,10 @@ const WRAPPED = new WeakMap<IIoHost, EmittingIoHost<any>>();
  * `requestResponse` a listener can reword the prompt text or answer it with
  * `respond`, in which case the request resolves without asking the wrapped
  * host to prompt.
+ *
+ * The return type is an intersection rather than a named interface, so nothing
+ * new enters the type system and the inner host keeps its full fidelity: a
+ * wrapped `MyHost` is still a `MyHost` to every signature that takes one.
  *
  * Wrapping is idempotent: passing a host that is already wrapped, or a wrapper
  * itself, returns the existing wrapper. Its lifecycle stays yours: you wrap a
@@ -354,114 +349,6 @@ const WRAPPED = new WeakMap<IIoHost, EmittingIoHost<any>>();
  * const toolkit = new Toolkit({ ioHost: host });
  * ```
  */
-export function withListeners<T extends IIoHost>(host: T): EmittingIoHost<T> {
-  const existing = WRAPPED.get(host);
-  if (existing) {
-    return existing;
-  }
-
-  const registry = new ListenerRegistry();
-
-  // Everything the proxy adds to (or intercepts on) the wrapped host: the
-  // listener registrations, and the `notify`/`requestResponse` that run the
-  // registry around the host's own handling.
-  const additions: IoEmitter & IIoHost = {
-    async notify(msg: IoMessage<unknown>): Promise<void> {
-      const { message, preventDefault } = await registry.apply(msg);
-      if (preventDefault) {
-        return;
-      }
-      return host.notify(message);
-    },
-
-    async requestResponse<D, R>(msg: IoRequest<D, R>): Promise<R> {
-      const { message, preventDefault, responded } = await registry.apply(msg);
-
-      // A listener suppressed the default handling: resolve with the (possibly
-      // overridden) default response without asking the wrapped host.
-      if (preventDefault) {
-        return message.defaultResponse;
-      }
-
-      // A listener answered the request but wants the question surfaced: show it
-      // via the wrapped host, then resolve with the answer instead of prompting.
-      if (responded) {
-        await host.notify(message);
-        return message.defaultResponse;
-      }
-
-      // No listener answered: let the wrapped host resolve the (possibly
-      // reworded) request as it sees fit (it may prompt, or use its own default).
-      return host.requestResponse(message);
-    },
-
-    on: (matcher: MessageMatcher, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise) =>
-      registry.on(matcher, listener),
-    once: (matcher: MessageMatcher, listener: (msg: IoMessage<any>) => MessageListenerResultOrPromise) =>
-      registry.once(matcher, listener),
-    rewrite: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options?: RewriteOptions) =>
-      registry.rewrite(matcher, formatter, options),
-    rewriteOnce: (matcher: MessageMatcher, formatter: (msg: IoMessage<any>) => string, options?: RewriteOptions) =>
-      registry.rewriteOnce(matcher, formatter, options),
-    respond: (matcher: MessageMatcher, value: unknown, options?: RespondOptions) =>
-      registry.respond(matcher, value, options),
-    respondOnce: (matcher: MessageMatcher, value: unknown, options?: RespondOptions) =>
-      registry.respondOnce(matcher, value, options),
-  };
-
-  // Forwarded methods are bound to the host, not to the proxy, so that `this`
-  // inside them is the real instance. That is load-bearing rather than cosmetic:
-  // a host that uses `#private` fields throws a `TypeError` if its methods run
-  // with the proxy as `this`. The bound copies are memoized so method identity
-  // is stable (`p.foo === p.foo`); a write through the proxy invalidates the
-  // memo for that property.
-  const boundCache = new Map<string | symbol, unknown>();
-
-  const proxy = new Proxy(host, {
-    get(target, prop) {
-      // `Object.hasOwn`, not `prop in additions`: `in` walks
-      // `Object.prototype`, which would shadow the host's `constructor`,
-      // `toString`, `valueOf` and friends with the literal's inherited ones.
-      if (Object.hasOwn(additions, prop)) {
-        return (additions as any)[prop];
-      }
-      const value = Reflect.get(target, prop, target);
-      // `constructor` is excluded from binding: it is compared by identity
-      // (`host.constructor === MyHost`), and binding would hand back a
-      // different function object named `bound MyHost`.
-      if (typeof value !== 'function' || prop === 'constructor') {
-        return value;
-      }
-      let bound = boundCache.get(prop);
-      if (bound === undefined) {
-        bound = value.bind(target);
-        boundCache.set(prop, bound);
-      }
-      return bound;
-    },
-    set(target, prop, value) {
-      boundCache.delete(prop);
-      return Reflect.set(target, prop, value);
-    },
-    has(target, prop) {
-      return Object.hasOwn(additions, prop) || Reflect.has(target, prop);
-    },
-    ownKeys(target) {
-      return [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(additions)])];
-    },
-    getOwnPropertyDescriptor(target, prop) {
-      if (Object.hasOwn(additions, prop)) {
-        // Non-enumerable, so the additions behave like the methods on a class's
-        // prototype: `'on' in host` is true and `Object.keys(host)` and
-        // `{ ...host }` are unchanged from the unwrapped host.
-        return { value: (additions as any)[prop], writable: false, enumerable: false, configurable: true };
-      }
-      return Reflect.getOwnPropertyDescriptor(target, prop);
-    },
-  }) as EmittingIoHost<T>;
-
-  WRAPPED.set(host, proxy);
-  WRAPPED.set(proxy, proxy);
-
-  return proxy;
+export function withListeners<T extends IIoHost>(host: T): T & IoEmitter {
+  return attachListeners(host);
 }

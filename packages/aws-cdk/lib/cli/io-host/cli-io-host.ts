@@ -8,8 +8,8 @@ import type {
 } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as promptly from 'promptly';
-import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, ListenerRegistry, matchAny } from '../../../lib/api-private';
+import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoDefaultMessages, ListenerVerdict } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, attachListeners, matchAny } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -117,31 +117,11 @@ export type TargetStream = 'stdout' | 'stderr' | 'drop';
  * Both notifications (`notify`) and requests (`requestResponse`) are reported,
  * so an observer sees the complete, ordered stream the host handled. Use
  * `type` to tell them apart.
+ *
+ * The listener layer computes this, so it is exactly `ListenerVerdict`. Named
+ * here because that is the vocabulary the CLI's own observers are written in.
  */
-export interface IoMessageObservation {
-  /**
-   * Whether this observation describes a plain notification (`notify`) or a
-   * request that asked for a response (`requestResponse`).
-   */
-  readonly type: 'notify' | 'request';
-
-  /**
-   * The message exactly as it was emitted to the host (before any listeners).
-   */
-  readonly emitted: IoMessage<unknown>;
-
-  /**
-   * The message after the host's listeners ran (text, level, and/or action may differ).
-   */
-  readonly effective: IoMessage<unknown>;
-
-  /**
-   * Whether a listener prevented this message from being written, i.e. the user
-   * would not see it. Always `false` for requests (a request is reported once
-   * it has been resolved, regardless of how it was answered).
-   */
-  readonly dropped: boolean;
-}
+export type IoMessageObservation = ListenerVerdict;
 
 /**
  * An IoHost whose message handling can be observed.
@@ -164,7 +144,26 @@ export interface ObservableIoHost {
 }
 
 /**
+ * The listener surface of a `CliIoHost`.
+ *
+ * `CliIoHost` does not implement these itself: every instance is handed out
+ * wrapped by `attachListeners`, which is what supplies them. Merging them into
+ * the class type is what lets the CLI call `ioHost.on(...)` on a plain
+ * `CliIoHost` annotation, using exactly the surface a programmatic caller gets
+ * from the public `withListeners`.
+ */
+export interface CliIoHost extends IoEmitter {
+}
+
+/**
  * A simple IO host for the CLI that writes messages to the console.
+ *
+ * Instances are always wrapped in the shared listener layer (see
+ * `attachListeners`, the private half of the public `withListeners`), so this
+ * class is only the *inner* host: it writes messages to streams, prompts for
+ * requests, and reports telemetry. Matching, rewriting, dropping, and answering
+ * requests all happen in the wrapper, so there is exactly one implementation of
+ * them and the CLI is a consumer of it rather than a second copy.
  */
 export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
@@ -172,7 +171,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   static instance(props: CliIoHostProps = {}, forceNew = false): CliIoHost {
     if (forceNew || !CliIoHost._instance) {
-      CliIoHost._instance = new CliIoHost(props);
+      CliIoHost._instance = CliIoHost.withListeners(new CliIoHost(props));
     }
     return CliIoHost._instance;
   }
@@ -188,6 +187,33 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Singleton instance of the CliIoHost
    */
   private static _instance: CliIoHost | undefined;
+
+  /**
+   * Wrap a freshly constructed host in the listener layer and finish its setup.
+   *
+   * Everything that registers a listener has to happen here rather than in the
+   * constructor, because the listeners live on the wrapper and the wrapper does
+   * not exist until the host does.
+   */
+  private static withListeners(host: CliIoHost): CliIoHost {
+    const wrapped = attachListeners(host, (verdict) => host.notifyObservers(verdict));
+    host.wrapper = wrapped;
+
+    // Telemetry is registered first so it runs before any other listener: it
+    // therefore sees the message as emitted rather than as rewritten, and a
+    // later listener's `preventDefault` cannot stop it, so a dropped message is
+    // still counted. Both were true before only because no other listener
+    // happened to match a telemetry code; now it is guaranteed by ordering.
+    // Matches everything, because deciding which messages carry telemetry is
+    // `eventFromMessage`'s job and it already ignores the rest.
+    wrapped.on(() => true, (msg) => host.maybeEmitTelemetry(msg));
+
+    // Stack-activity messages are handled by the activity printer rather than
+    // written to a stream.
+    host.routeStackActivityToPrinter();
+
+    return wrapped;
+  }
 
   /**
    * The current action being performed by the CLI.
@@ -235,25 +261,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
 
-  // The shared listener engine. Registration and message transformation live
-  // there; this host does its own I/O (writing, prompting, telemetry,
-  // observers) around `registry.apply`.
-  private readonly registry = new ListenerRegistry();
-
-  /**
-   * Listeners on the messages flowing through this host.
-   *
-   * The same engine and the same surface `withListeners` gives a programmatic
-   * host: register with `on`/`once`/`rewrite`/`respond` to observe a message,
-   * restyle it, drop it, or answer a request.
-   */
-  public readonly listeners: IoEmitter = this.registry;
-
   // Observers of how messages are handled (see ObservableIoHost / observeMessages).
   private readonly messageObservers = new Set<(observation: IoMessageObservation) => void>();
 
-  // True while replaying corked messages, so observers aren't notified twice.
-  private corkReplaying = false;
+  // This host wrapped in the listener layer, i.e. the object every other part of
+  // the CLI holds. See `self`.
+  private wrapper?: CliIoHost;
 
   private readonly autoRespond: boolean;
 
@@ -272,10 +285,21 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
     this.autoRespond = props.autoRespond ?? false;
+  }
 
-    // Stack-activity messages are handled by the activity printer rather than
-    // written to a stream. This is wired up as message listeners.
-    this.routeStackActivityToPrinter();
+  /**
+   * This host as the rest of the CLI sees it, i.e. wrapped in the listener
+   * layer.
+   *
+   * Methods on the wrapper are bound to the instance, so `this` inside them is
+   * this object and not the wrapper. That matters wherever we hand the host to
+   * something that will emit through it: passing a bare `this` would hand over
+   * the *inner* host, and its messages would then bypass the listeners and go
+   * unobserved. Falls back to `this` only before wrapping has happened, which
+   * the private constructor makes unreachable from outside.
+   */
+  private get self(): CliIoHost {
+    return this.wrapper ?? this;
   }
 
   public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
@@ -295,7 +319,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     if (telemetryFilePath) {
       try {
         sinks.push(new FileTelemetrySink({
-          ioHost: this,
+          ioHost: this.self,
           logFilePath: telemetryFilePath,
         }));
         await this.asIoHelper().defaults.trace('File Telemetry connected');
@@ -308,7 +332,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
         sinks.push(new EndpointTelemetrySink({
-          ioHost: this,
+          ioHost: this.self,
           agent: proxyAgent,
           endpoint: telemetryEndpoint,
         }));
@@ -322,7 +346,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
 
     if (sinks.length > 0) {
       this.telemetry = new TelemetrySession({
-        ioHost: this,
+        ioHost: this.self,
         client: new Funnel({ sinks }),
         arguments: args,
         context: context,
@@ -380,7 +404,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   }
 
   public asIoHelper(): IoHelper {
-    return asIoHelper(this, this.currentAction as any);
+    return asIoHelper(this.self, this.currentAction as any);
   }
 
   /**
@@ -398,14 +422,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     } finally {
       this.corkedCounter--;
       if (this.corkedCounter === 0) {
-        // Process each buffered message through notify
-        this.corkReplaying = true;
-        try {
-          for (const ioMessage of this.corkedLoggingBuffer) {
-            await this.notify(ioMessage);
-          }
-        } finally {
-          this.corkReplaying = false;
+        // Write each buffered message out. Straight to `writeMessage`, not back
+        // through `notify`: these messages have already been through the
+        // listeners, already been observed, and already been counted for
+        // telemetry on the way in, so a second pass would repeat all three.
+        for (const ioMessage of this.corkedLoggingBuffer) {
+          this.writeMessage(ioMessage);
         }
         // remove all buffered messages in-place
         this.corkedLoggingBuffer.splice(0);
@@ -432,34 +454,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
    * Notifies the host of a message.
    * The caller waits until the notification completes.
+   *
+   * By the time a message gets here the listener layer has already run, so this
+   * is only the write. Messages a listener dropped never arrive.
    */
   public async notify(msg: IoMessage<unknown>): Promise<void> {
-    await this.maybeEmitTelemetry(msg);
-
-    // Run any registered listeners. A listener may update the message text,
-    // level, and/or action or prevent the default processing (e.g.
-    // stack-activity messages are routed to the activity printer and not
-    // written to a stream).
-    //
-    // Skip this while replaying corked messages: the listeners already ran on
-    // the first pass, and running them again would re-transform an
-    // already-transformed message.
-    const { message, preventDefault } = this.corkReplaying
-      ? { message: msg, preventDefault: false }
-      : await this.registry.apply(msg);
-
-    // Tell observers how this message was handled (its effective form and
-    // whether it was dropped). Skipped while replaying corked messages so each
-    // message is observed exactly once.
-    if (!this.corkReplaying) {
-      this.notifyObservers({ type: 'notify', emitted: msg, effective: message, dropped: preventDefault });
-    }
-
-    if (preventDefault) {
-      return;
-    }
-
-    this.writeMessage(message);
+    this.writeMessage(msg);
   }
 
   /**
@@ -525,7 +525,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     };
 
     // A single listener matching any of the activity codes.
-    this.listeners.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502, IO.CDK_TOOLKIT_I5503), route);
+    this.self.on(matchAny(IO.CDK_TOOLKIT_I5501, IO.CDK_TOOLKIT_I5502, IO.CDK_TOOLKIT_I5503), route);
   }
 
   /**
@@ -586,45 +586,14 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   /**
    * Notifies the host of a message that requires a response.
    *
-   * Registered listeners run first: a listener may reword the question (its text
-   * or level) or answer it outright via `respond` (e.g. `--force` auto-confirms
-   * a destroy). If no listener answers and the host cannot prompt, the suggested
-   * default response is used.
+   * By the time a request gets here the listener layer has already run, so a
+   * listener has neither answered it nor suppressed it and this host is the one
+   * that has to produce an answer: by prompting the user, or by falling back to
+   * the suggested default where it cannot prompt.
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
-    // Listeners run exactly once here (so we don't go back through `notify`):
-    // they may answer the request, or reword/relevel/retag the question shown below.
-    const { message, ...listenerResult } = await this.registry.apply(msg);
-
-    const response = await this.resolveRequest(message, listenerResult);
-
-    // Tell observers how this request was handled: the effective (possibly reworded) question
-    // and the resolved response. When a listener answered the request with the question suppressed
-    // (`preventDefault`, e.g. `--force` auto-confirm), it is reported as `dropped` since the user never saw it.
-    this.notifyObservers({ type: 'request', emitted: msg, effective: message, dropped: listenerResult.preventDefault });
-
-    return response;
-  }
-
-  /**
-   * Resolve a request to its response: a listener's answer if one was given,
-   * otherwise the answer prompted from the user, otherwise the suggested
-   * default when the host cannot prompt.
-   *
-   * Kept separate from `requestResponse` so the response can be observed in a
-   * single place regardless of which of these paths produced it.
-   */
-  private async resolveRequest<DataType, ResponseType>(
-    msg: IoRequest<DataType, ResponseType>,
-    listenerResult: { preventDefault: boolean; responded: boolean },
-  ): Promise<ResponseType> {
-    // stop processing, a listener has taken care of it
-    if (listenerResult.preventDefault) {
-      return msg.defaultResponse;
-    }
-
-    // if a listener provided a response, we skip interaction
-    if (!isPromptableRequest(msg) || listenerResult.responded) {
+    // Nothing to prompt for, so just show the question and take the default.
+    if (!isPromptableRequest(msg)) {
       this.writeMessage(msg);
       return msg.defaultResponse;
     }
@@ -759,7 +728,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
  * of the decorated method.
  *
  * Before the method runs, a single `preventDefault` listener covering all
- * given matchers is registered on the instance's `ioHost.listeners`; when the method
+ * given matchers is registered on the instance's `ioHost`; when the method
  * settles (returns or throws), exactly that listener is removed again. This
  * replaces the manual pattern of registering drop-listeners at the top of a
  * method and cleaning them up in a `finally`, and it does not disturb
@@ -787,7 +756,7 @@ export function suppressMessages(...matchers: MessageMatcher[]) {
       throw new ToolkitError('InvalidDecoratorTarget', 'suppressMessages can only decorate methods');
     }
     descriptor.value = async function (this: { readonly ioHost: CliIoHost }, ...args: A): Promise<R> {
-      using _suppress = this.ioHost.listeners.on(matchAny(...matchers), () => ({ preventDefault: true }));
+      using _suppress = this.ioHost.on(matchAny(...matchers), () => ({ preventDefault: true }));
       // `return await` (not a bare `return`) so the listener is only disposed
       // after the method has actually settled.
       return await original.apply(this, args);

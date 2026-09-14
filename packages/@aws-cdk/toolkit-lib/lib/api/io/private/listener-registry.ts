@@ -47,8 +47,12 @@ interface MessageListener {
 
 /**
  * The outcome of running the registry's listeners over a single message.
+ *
+ * Not exported: it is only ever consumed inline at the `apply` call sites, and
+ * the public `MessageListenerResult` already names the listener-facing half of
+ * this contract.
  */
-export interface AppliedListeners<T> {
+interface AppliedListeners<T> {
   /**
    * The (possibly rewritten) message to hand to the host's default handling.
    */
@@ -69,11 +73,11 @@ export interface AppliedListeners<T> {
 /**
  * A registry of message listeners, run in registration order.
  *
- * This is the shared listener engine: both the CLI's terminal host and the
- * public `withListeners` wrapper own one and run their messages through it, so
- * there is a single implementation of matching, ordering, rewriting, and
- * request answering. A host composes a registry and does its own I/O (writing,
- * prompting, telemetry) around `apply`.
+ * The engine behind `withListeners`, and reached only through it: the wrapper
+ * owns one registry per wrapped host and is the sole caller of `apply`. Keeping
+ * it private means matching, ordering, rewriting, and request answering have a
+ * single implementation, and the typed signatures are declared once, on the
+ * public `IoEmitter` — this class needs only one broad signature per method.
  */
 export class ListenerRegistry {
   // Listeners in registration order. See `on`/`once`/`rewrite`/`respond`.

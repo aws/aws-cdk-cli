@@ -300,25 +300,28 @@ The [message registry](https://docs.aws.amazon.com/cdk/api/toolkit-lib/message-r
 Every registration returns a disposer. Call it to remove the listener, or bind it to a scope with a `using` declaration to remove it automatically:
 
 ```ts
-import { byCode, EmittingIoHost, IoRequest, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
+import { byCode, IoEmitter, IoRequest, NonInteractiveIoHost, StackDetailsPayload } from '@aws-cdk/toolkit-lib';
 
-declare const ioHost: EmittingIoHost<NonInteractiveIoHost>;
+declare const ioHost: NonInteractiveIoHost & IoEmitter;
 declare const myWarnings: string[];
+declare let myStackCount: number;
 
 // Observe a message. `byCode` narrows `msg.data` to the payload type you give it.
-const dispose = ioHost.on(byCode<{ stacks: unknown[] }>('CDK_TOOLKIT_I2901'), (msg) => {
-  console.log(`${msg.data.stacks.length} stacks`);
+const dispose = ioHost.on(byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'), (msg) => {
+  myStackCount += msg.data.stacks.length;
 });
 dispose();
 
-// Any predicate works, so you can match a whole level.
+// Any predicate works, so you can match a whole level. Note that a message's
+// level is indicative and may change without notice, so match the code instead
+// whenever you care about a specific message.
 ioHost.on((msg) => msg.level === 'warn', (msg) => {
   myWarnings.push(msg.message);
 });
 
 // Change how a message is presented, without the host knowing about it.
 using _formatter = ioHost.rewrite(
-  byCode<{ stacks: unknown[] }>('CDK_TOOLKIT_I2901'),
+  byCode<StackDetailsPayload>('CDK_TOOLKIT_I2901'),
   (msg) => `${msg.data.stacks.length} stacks`,
 );
 
@@ -329,7 +332,8 @@ using _autoConfirm = ioHost.respond(byCode<IoRequest<void, boolean>>('CDK_TOOLKI
 
 By default `respond` answers silently. Pass `{ showQuestion: true }` to surface the question anyway, which is useful when the answer comes from a flag the user passed and you still want the prompt in the log.
 
-A listener can also return a result to influence how the message is handled: `message` and `level` change how it is presented, `preventDefault` drops it before the wrapped host sees it, and `respond` answers a request conditionally.
+A listener can also return a result to influence how the message is handled: `message`, `level` and `action` change how it is presented, `preventDefault` drops it before the wrapped host sees it, and `respond` answers a request conditionally.
+On a request, `preventDefault` on its own throws, because suppressing the question leaves nothing to answer it and a request's declared default is often approval — pair it with `respond`, or use `respond` itself, which sets both.
 
 Use `once`, `rewriteOnce`, and `respondOnce` for listeners that should apply to only the first matching message.
 

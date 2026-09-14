@@ -1,4 +1,4 @@
-import type { EmittingIoHost, IIoHost, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
+import type { IIoHost, IoEmitter, IoMessage, IoMessageCode, IoRequest } from '../../../lib/api/io';
 import { byCode, withListeners } from '../../../lib/api/io';
 
 /**
@@ -469,14 +469,27 @@ describe('withListeners', () => {
       expect(inner.requested[0].message).toBe('reworded question');
     });
 
-    test('preventDefault on a request resolves with the default response without asking', async () => {
+    test('preventDefault on a request without a response throws instead of answering for the user', async () => {
       const host = withListeners(inner);
+      // Suppressing the question leaves nothing to produce an answer. Resolving
+      // with the declared default would approve a confirmation on the user's
+      // behalf, which no listener ever means to do, so this is an error.
       host.on(byCode(I7010), () => ({ preventDefault: true }));
+
+      await expect(host.requestResponse(request({ defaultResponse: 'the-default' })))
+        .rejects.toThrow(/prevented the default handling of request .* without answering it/);
+      expect(inner.requested).toHaveLength(0);
+    });
+
+    test('preventDefault alongside respond answers the request without asking', async () => {
+      const host = withListeners(inner);
+      host.on(byCode(I7010), () => ({ respond: 'from-listener', preventDefault: true }));
 
       const answer = await host.requestResponse(request({ defaultResponse: 'the-default' }));
 
-      expect(answer).toBe('the-default');
+      expect(answer).toBe('from-listener');
       expect(inner.requested).toHaveLength(0);
+      expect(inner.notified).toHaveLength(0);
     });
 
     test('respond on a notification code leaves the message alone instead of suppressing it', async () => {
@@ -668,10 +681,49 @@ describe('withListeners', () => {
       expect(chatty.greet('world')).toBe('bye, world');
     });
 
-    test('the wrapped host is assignable to EmittingIoHost of the inner type', async () => {
-      // The alias exists so callers can name a wrapped host in their own
-      // signatures without spelling out the intersection.
-      const host: EmittingIoHost<ChattyIoHost> = withListeners(new ChattyIoHost());
+    test('a forwarded method can be replaced by a test double, mock methods intact', () => {
+      const host = withListeners(new ChattyIoHost());
+
+      // Read once so the original is memoized, then spy. The forwarded copy the
+      // wrapper hands back has to be the mock itself, not a bound clone of it,
+      // or `jest.spyOn` returns something without `mockReturnValue`.
+      expect(host.greet('world')).toBe('hello, world');
+      const spy = jest.spyOn(host, 'greet').mockReturnValue('mocked');
+
+      expect(host.greet('world')).toBe('mocked');
+      expect(spy).toHaveBeenCalledWith('world');
+
+      spy.mockRestore();
+
+      expect(host.greet('world')).toBe('hello, world');
+    });
+
+    test('a replaced `notify` wraps the listener layer rather than being wrapped by it', async () => {
+      const host = withListeners(inner);
+      host.rewrite(byCode(I2901), () => 'rewritten');
+
+      const spy = jest.spyOn(host, 'notify');
+      await host.notify(notification());
+
+      // The override sees the message as emitted, and the listeners still run
+      // underneath it. Forwarding to `host.notify` instead of to the method as it
+      // was at wrap time would re-enter the override here and recurse forever.
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ message: 'the original text' }));
+      expect(inner.notified.map((m) => m.message)).toEqual(['rewritten']);
+
+      spy.mockRestore();
+      await host.notify(notification());
+
+      // Restoring uncovers the wrapper's own `notify` again, rather than pinning
+      // a copy of it onto the host that would then call itself.
+      expect(inner.notified.map((m) => m.message)).toEqual(['rewritten', 'rewritten']);
+    });
+
+    test('the wrapped host is assignable to the inner type intersected with IoEmitter', async () => {
+      // No named type for a wrapped host: the intersection is what callers spell
+      // out when they need to name one, which keeps the inner host's own type
+      // intact instead of erasing it behind a wrapper type.
+      const host: ChattyIoHost & IoEmitter = withListeners(new ChattyIoHost());
 
       expect(host.greet('world')).toBe('hello, world');
       await host.notify(notification());

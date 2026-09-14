@@ -6,4 +6,5 @@ export * from './span';
 export * from './message-maker';
 export * from './messages';
 export * from './listener-registry';
+export * from './listener-wrapper';
 export * from './types';
