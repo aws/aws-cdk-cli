@@ -5,32 +5,17 @@ import chalk from 'chalk';
 import type { IoHelper } from '../api-private';
 
 /**
- * The async resource types we track, mapped to a plain-language description.
+ * Async resource types we track, with a plain-language description for the report.
  *
- * This is an allowlist of libuv *handles* — the things that can actually hold
- * the event loop open — and it deliberately excludes *requests* (a pending DNS
- * lookup, a stream write) and bookkeeping resources. Two reasons:
+ * Only libuv *handles*, the resources that can hold the event loop open. Requests
+ * (a DNS lookup, a stream write) have completed by the time the report runs.
+ * `PROMISE` and `TickObject` are excluded on volume alone: they dominate every
+ * async resource a synth creates, and each one would cost a stack capture.
  *
- * - Requests are transient. By the time the report runs they have completed, so
- *   tracking them costs a stack capture per resource and reports nothing.
- * - The volume is the cost. `PROMISE` and `TickObject` alone are created tens of
- *   thousands of times in a single synth, and a stack capture is ~60x the cost
- *   of the bookkeeping around it.
- *
- * The trade-off of an allowlist is that a handle type we don't know about is
- * invisible. That is the right way round for this tool: a missed exotic handle
- * costs one unexplained hang, whereas tracking everything makes the flag too
- * slow to leave on and buries the real leak in noise.
- *
- * Every type here must expose `hasRef()`, because that is the only way to tell a
- * handle that is holding the loop open from one that has already been closed. A
- * type without it cannot be checked, and reporting it unchecked is how this
- * report ends up confidently naming things that are not leaks — `TLSWRAP` in
- * particular has no `hasRef()` and never fires its `destroy` hook, so every
- * completed HTTPS request would be listed as a leak forever.
- *
- * Leaving `TLSWRAP` out costs less than it appears to: a leaked TLS connection is
- * still reported, via the `TCPWRAP` underneath it, which does expose `hasRef()`.
+ * Every type here exposes `hasRef()`, the only way to tell a handle holding the
+ * loop open from one already closed. `TLSWRAP` has neither `hasRef()` nor a
+ * `destroy` hook, so including it would report every completed HTTPS request as a
+ * leak forever. A leaked TLS connection still surfaces as the `TCPWRAP` under it.
  */
 const TRACKED_TYPES: Readonly<Record<string, string>> = {
   TCPWRAP: 'open network connection',
@@ -52,49 +37,43 @@ const TRACKED_TYPES: Readonly<Record<string, string>> = {
 /**
  * How many stack frames to capture per resource.
  *
- * Node's default (`Error.stackTraceLimit`, 10) is far too shallow here: a socket
- * opened by an HTTP agent sits behind ~9 frames of `node:internal/async_hooks`,
- * `node:net`, `node:_http_agent` and `node:tls` before any CLI code appears, so
- * every frame gets filtered as an internal and the report has nothing to show.
+ * Node's default of 10 is too shallow here. A socket opened through an HTTPS agent
+ * sits behind enough frames of `node:internal/tls/wrap`, `node:https`,
+ * `node:_http_agent` and `node:_http_client` to consume that whole budget, leaving
+ * no application frame for the report to show.
  */
 const STACK_CAPTURE_DEPTH = 60;
 
 /**
- * Grace period before the handle report fires. The timer is unref'd, so it
- * never fires when Node exits cleanly within this window.
+ * Grace period before the handle report fires. The timer is unref'd, so it never
+ * fires when Node exits cleanly within this window.
  */
 const HANDLE_DUMP_GRACE_MS = 1000;
 
 /**
- * Upper bound on how many resources we hold provenance for at once.
+ * Cap on how many resources we hold provenance for at once.
  *
  * A long-lived command (`cdk watch`, a deploy of many stacks) opens and closes
- * handles continuously. Every one costs a stack capture, and while the `destroy`
- * hook normally removes it again, handle types that never fire `destroy` would
- * otherwise accumulate for the life of the process. Capping trades completeness
- * for a bounded footprint, which is the right way round: the report says when it
- * stopped tracking, and the handles that matter for a hang are usually the ones
- * opened early.
+ * handles continuously. The `destroy` hook normally removes them again, but types
+ * that never fire it would accumulate for the life of the process. The report says
+ * when the cap was hit, so a truncated list is not read as a complete one.
  */
 const MAX_TRACKED_HANDLES = 10_000;
 
 /**
- * How much of a source line to show beneath a stack frame.
- *
- * Long enough to read a statement, short enough that a single minified line from
- * the bundled CLI (which can be hundreds of kilobytes) cannot flood the report.
+ * How much of a source line to show beneath a stack frame. Long enough to read a
+ * statement, short enough that one minified line from the bundled CLI cannot
+ * flood the report.
  */
 const SOURCE_SNIPPET_CHARS = 200;
 
 /**
- * A single stack frame: the function name (used for the report heading), plus
- * the file, line and column, which we use both to print the location and to read
- * back the line of code that created the handle.
+ * One stack frame: the function name, plus the file, line and column, used both to
+ * print the location and to read back the line of code.
  *
- * The column matters more than it looks. In the published CLI every frame points
- * into one bundled, whitespace-minified file, so line numbers alone barely
- * discriminate between frames and the column is the only thing that says *where*
- * on the line the call was.
+ * The column is load-bearing. In the published CLI every frame points into one
+ * bundled, whitespace-minified file, where the line number barely distinguishes
+ * one frame from another.
  */
 interface SourceFrame {
   readonly func: string;
@@ -104,8 +83,8 @@ interface SourceFrame {
 }
 
 /**
- * A resource we are watching: a weak reference to the handle (so tracking does
- * not itself keep it alive) and the stack of where it was created.
+ * A resource we are watching: a weak reference to the handle, so tracking does not
+ * itself keep it alive, and the stack of where it was created.
  */
 interface WatchedResource {
   readonly type: string;
@@ -114,10 +93,9 @@ interface WatchedResource {
 }
 
 /**
- * The parts of a libuv handle we interrogate to decide whether it is still
- * holding the event loop open. Both are optional because neither is guaranteed:
- * `hasRef` only exists on `HandleWrap`-backed types, and `_destroyed` is a Node
- * internal that only timers set.
+ * The parts of a libuv handle we interrogate. Both are optional because neither is
+ * guaranteed: `hasRef` exists only on `HandleWrap`-backed types, and `_destroyed`
+ * is a Node internal that only timers set.
  */
 interface TrackedHandle {
   _destroyed?: boolean;
@@ -126,18 +104,17 @@ interface TrackedHandle {
 
 /**
  * Tracks async resources via async_hooks and, on demand, reports the ones still
- * keeping the event loop alive together with where they were created.
+ * keeping the event loop alive, with where they were created.
  *
- * The cost lands only when opted in: nothing is tracked until `start()` is
- * called, which `trackLeakedHandles()` does. Not exported as a value — the only
- * way to get one is `trackLeakedHandles()`, which guarantees a started tracker.
+ * Nothing is tracked until `start()` runs. Not exported as a value, so the only
+ * way to get one is `trackLeakedHandles()`, which returns a started tracker.
  */
 class LeakedHandleTracker {
   private readonly watched = new Map<number, WatchedResource>();
 
   /**
-   * Whether we stopped recording because {@link MAX_TRACKED_HANDLES} was
-   * reached. Reported, so a short list is never mistaken for a complete one.
+   * Whether we stopped recording because {@link MAX_TRACKED_HANDLES} was reached.
+   * Reported, so a short list is never mistaken for a complete one.
    */
   private atCapacity = false;
 
@@ -151,10 +128,9 @@ class LeakedHandleTracker {
         return;
       }
       // An exception thrown from an async_hooks callback is not catchable by the
-      // application: Node prints "Error in AsyncHook callback" and aborts the
-      // process. A diagnostic must never be able to kill the process it is
-      // observing, so anything that goes wrong here costs us one handle's
-      // provenance and nothing more.
+      // application. Node prints "Error in AsyncHook callback" and aborts the
+      // process, so anything that goes wrong here must cost no more than one
+      // handle's provenance.
       try {
         this.watched.set(asyncId, {
           type,
@@ -172,7 +148,7 @@ class LeakedHandleTracker {
 
   /**
    * Begin watching async resources. Must run before the resources we care about
-   * are created, and only when the user opted in — the hook adds a small
+   * are created, and only when the user opted in, since the hook adds a small
    * per-resource cost.
    */
   public start(): void {
@@ -188,33 +164,27 @@ class LeakedHandleTracker {
   }
 
   /**
-   * Report the leaked handles once the grace period has passed, which is the
-   * only way this report should ever be triggered in production: if the process
-   * exits cleanly within the window the timer never fires, and because it is
-   * unref'd it does not hold the process open itself.
+   * Report the leaked handles once the grace period has passed. The timer is
+   * unref'd, so it never fires if the process exits cleanly within the window and
+   * never holds the process open itself.
    */
   public scheduleReport(ioHelper: IoHelper): void {
     setTimeout(() => {
-      // This callback runs detached from the CLI's own error handling — by now
-      // the command has finished and there is no one left to hand a rejection
-      // to. Swallowing is deliberate: a diagnostic that crashes the process it
-      // is diagnosing is worse than one that goes quiet.
+      // Runs detached from the CLI's error handling: the command has finished and
+      // there is no one left to hand a rejection to. A diagnostic must not crash
+      // the process it is diagnosing.
       this.report(ioHelper).catch(() => undefined);
     }, HANDLE_DUMP_GRACE_MS).unref();
   }
 
   /**
-   * Report every resource still holding the event loop open, each with the
-   * source location where it was created. Call at the very end of execution, by
-   * which point only genuinely leaked handles should remain.
+   * Report every resource still holding the event loop open, each with the source
+   * location where it was created. Call at the very end of execution, by which
+   * point only genuinely leaked handles should remain.
    *
-   * Emitted as one message rather than one per line: the report is a single
-   * coherent block, and splitting it lets unrelated output interleave into the
-   * middle of a stack trace.
-   *
-   * Emitted at DEBUG, not INFO: this is debugging detail, and nothing reaches
-   * here unless the user passed `--debug-cli`, which raises the CLI log level to
-   * DEBUG for exactly this reason.
+   * Emitted as one message, so unrelated output cannot interleave into the middle
+   * of a stack trace, and at DEBUG, which is the level `--debug-cli` raises the
+   * CLI to.
    */
   public async report(ioHelper: IoHelper): Promise<void> {
     this.hook.disable();
@@ -225,18 +195,15 @@ class LeakedHandleTracker {
       if (handle === undefined) {
         return false;
       }
-      // A fired one-shot timer keeps answering `hasRef() === true` for the rest of
-      // the process, and only marks itself `_destroyed`. The `destroy` hook does
-      // eventually drop it from `watched`, but a tick later than this, and timers
-      // are the CLI's most common resource — so check the flag rather than trust
-      // the hook to have landed first.
+      // A fired one-shot timer answers `hasRef() === true` for the rest of the
+      // process and only marks itself `_destroyed`. The `destroy` hook does drop
+      // it from `watched`, but a tick later than this, and timers are the CLI's
+      // most common resource.
       if (handle._destroyed === true) {
         return false;
       }
       // Ask the handle itself, and believe only a clear yes. A closed socket
-      // answers `false`, and anything that cannot answer is not evidence of a
-      // leak — claiming otherwise is how a diagnostic starts lying, which is
-      // worse than staying quiet.
+      // answers false, and anything that cannot answer is not evidence of a leak.
       return typeof handle.hasRef === 'function' && handle.hasRef();
     });
     this.watched.clear();
@@ -246,10 +213,9 @@ class LeakedHandleTracker {
 
   private renderReport(leaks: WatchedResource[]): string[] {
     if (leaks.length === 0) {
-      // This report only runs because the process was still alive after the
-      // grace period, so something *is* holding the loop open. Finding nothing
-      // means the leak is outside what we track, not that there is no leak, so
-      // hand over what Node itself sees rather than just shrugging.
+      // This report only runs because the process was still alive, so something
+      // is holding the loop open. Finding nothing means the cause is outside what
+      // we track, so hand over what Node itself sees.
       return [
         'The CLI process is still alive, but no tracked handle explains it.',
         `Node reports these resources still active: ${activeResourceSummary()}`,
@@ -262,19 +228,17 @@ class LeakedHandleTracker {
       lines.push(`Stopped recording after ${MAX_TRACKED_HANDLES} handles, so this list may be incomplete.`);
     }
 
-    // One report pass can revisit the same file for every frame of every handle.
-    // In a bundled CLI that file is tens of megabytes, so read each one once.
+    // One report pass can revisit the same file for every frame of every handle,
+    // and in the published CLI that file is the entire bundle.
     const sources = new SourceCache();
     for (const leak of leaks) {
       lines.push(...describeLeak(leak, sources));
     }
 
     if (sources.sawMinifiedLine) {
-      // Worth saying outright, because the reader's instinct is to open the file
-      // at that line and find the CLI's own source. The published CLI is one
-      // bundled and whitespace-minified file with no source map, so a location
-      // is a position in the bundle, and the snippet beneath it is the only part
-      // that maps back to something recognisable.
+      // The published CLI is one bundled, minified file with no source map, so a
+      // location is a position in the bundle and the snippet beneath it is the
+      // only part that maps back to something recognisable.
       lines.push('');
       lines.push('Locations above are positions in the bundled CLI, not in the original source files.');
     }
@@ -292,8 +256,8 @@ function describeLeak(leak: WatchedResource, sources: SourceCache): string[] {
     return lines;
   }
 
-  // Headline the function only when it has a real name; sockets often open
-  // from anonymous internal callbacks where the name says nothing.
+  // Headline the function only when it has a real name. Sockets often open from
+  // anonymous internal callbacks, where the name says nothing.
   const [origin] = frames;
   if (origin.func && origin.func !== '<anonymous>') {
     lines.push(`  created in ${origin.func}()`);
@@ -301,8 +265,8 @@ function describeLeak(leak: WatchedResource, sources: SourceCache): string[] {
 
   lines.push('  call stack:');
   for (const frame of frames) {
-    // Always print the location. It is the part that identifies the frame, so
-    // a frame whose file we cannot read must still appear.
+    // The location is what identifies the frame, so print it even when the file
+    // cannot be read.
     lines.push(`    ${frame.func} (${frame.file}:${frame.line}:${frame.column})`);
     const snippet = sources.snippetAt(frame);
     if (snippet) {
@@ -315,20 +279,19 @@ function describeLeak(leak: WatchedResource, sources: SourceCache): string[] {
 /**
  * Capture the call site of the current async resource as structured frames.
  *
- * We install a structured `prepareStackTrace` formatter, capture (using this
- * function as the cut-off so neither it nor the async hook appears), then
- * restore the previous formatter so we don't disturb anyone else's stacks.
+ * Installs a structured `prepareStackTrace`, captures with this function as the
+ * cut-off, then restores the previous formatter so other stacks are unaffected.
  *
- * `captureStackTrace` removes this function and everything above it, but the
- * caller is the tracker's own `init` hook, which sits just below it and would
- * otherwise show up as the top frame. We drop that one frame by position rather
- * than by filename, since after bundling every frame shares the same file name.
+ * The cut-off removes this function and everything above it, but the caller is the
+ * tracker's own `init` hook, which sits just below and would otherwise be the top
+ * frame. We drop that frame by position rather than by filename, since after
+ * bundling every frame shares one filename.
  */
 function captureCreationStack(): SourceFrame[] {
   const carrier: { stack?: SourceFrame[] } = {};
 
   // `Error.prepareStackTrace` is a V8 formatting hook we save and restore, not a
-  // method we invoke, so the unbound-method concern does not apply here.
+  // method we invoke, so the unbound-method concern does not apply.
   // eslint-disable-next-line @typescript-eslint/unbound-method
   const previous = Error.prepareStackTrace;
   const previousLimit = Error.stackTraceLimit;
@@ -344,8 +307,8 @@ function captureCreationStack(): SourceFrame[] {
   });
   try {
     Error.captureStackTrace(carrier, captureCreationStack);
-    // Drop the `init` hook frame (always the top one) so reports point at the
-    // application code that created the resource, not at this tracker.
+    // Drop the `init` hook frame, always the top one, so the report points at the
+    // code that created the resource rather than at this tracker.
     return carrier.stack?.slice(1) ?? [];
   } finally {
     Error.prepareStackTrace = previous;
@@ -354,11 +317,10 @@ function captureCreationStack(): SourceFrame[] {
 }
 
 /**
- * What Node itself says is still holding the loop open, as `2x Timeout, 1x TCP`.
+ * What Node itself reports as still holding the loop open, as `2x Timeout, 1x TCP`.
  *
- * This is the ground truth our own tracking is an attempt to explain, so it is
- * worth printing when the two disagree: it tells the reader whether the tracker
- * missed something or whether the hang is somewhere else entirely.
+ * This is the ground truth our own tracking tries to explain, so printing it tells
+ * the reader whether we missed something or the hang is somewhere else.
  */
 function activeResourceSummary(): string {
   const counts = new Map<string, number>();
@@ -372,8 +334,8 @@ function activeResourceSummary(): string {
 }
 
 /**
- * Keep only frames the user can act on by dropping Node internals. Our own
- * `init` frame is already removed at capture time (see captureCreationStack).
+ * Keep only frames the user can act on by dropping Node internals. Our own `init`
+ * frame is already removed at capture time, see {@link captureCreationStack}.
  */
 function actionableFrames(frames: SourceFrame[]): SourceFrame[] {
   return frames.filter((frame) => frame.file && !frame.file.startsWith('node:'));
@@ -383,10 +345,9 @@ function actionableFrames(frames: SourceFrame[]): SourceFrame[] {
  * Reads the line of code behind a stack frame, holding each file's lines so a
  * report pass reads any given file at most once.
  *
- * This matters more than it looks: the published CLI is a single bundle of over
- * half a million lines, and a report can hold dozens of frames pointing into it.
- * Re-reading and re-splitting per frame turns the report into a multi-second
- * stall, at the exact moment the user is already waiting on a hung CLI.
+ * The published CLI is one large bundle, and a single report can hold many frames
+ * pointing into it. Re-reading and re-splitting it per frame stalls the report, at
+ * the moment the user is already waiting on a hung CLI.
  */
 class SourceCache {
   /**
@@ -406,9 +367,8 @@ class SourceCache {
       return line.trim() || undefined;
     }
 
-    // Too long to be source anyone wrote, so show a window centred on the
-    // column. Taking the first N characters instead would, in a bundle, reliably
-    // show some unrelated module from the top of the line.
+    // Too long to be source anyone wrote, so show a window centred on the column
+    // rather than the start of the line.
     this.sawMinifiedLine = true;
     const start = Math.max(0, frame.column - 1 - Math.floor(SOURCE_SNIPPET_CHARS / 2));
     const end = Math.min(line.length, start + SOURCE_SNIPPET_CHARS);
@@ -428,8 +388,8 @@ function readLines(file: string): string[] | undefined {
   try {
     return readFileSync(file, 'utf-8').split(/\r?\n/);
   } catch {
-    // The source file may not be readable (e.g. a bundled or eval'd frame). The
-    // location is still reported on its own, so reporting continues without it.
+    // Bundled and eval'd frames have filenames that are not on disk. The location
+    // is still reported on its own, so reporting continues without the snippet.
     return undefined;
   }
 }
@@ -437,8 +397,8 @@ function readLines(file: string): string[] | undefined {
 /**
  * Start watching async resources and return the tracker doing so.
  *
- * Call this as early as possible, and only when the user asked for it: the
- * tracker can only report on resources created after it starts.
+ * Call as early as possible, and only when the user asked for it. The tracker can
+ * only report on resources created after it starts.
  */
 export function trackLeakedHandles(): LeakedHandleTracker {
   const tracker = new LeakedHandleTracker();

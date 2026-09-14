@@ -11,10 +11,15 @@ integTest(
   withDefaultFixture(async (fixture) => {
     const stackName = fixture.fullStackName('test-1');
 
+    // `verbose: false` is essential. `fixture.cdk` injects `-v` by default, which
+    // raises the log level on its own and would make this test pass whether or not
+    // `--debug-cli` did anything.
+    //
     // `fixture.cdk` throws on a non-zero exit, so this also asserts the flag does
     // not break the command it is diagnosing.
     const withFlag = await fixture.cdk(['synth', stackName, '--debug-cli'], {
       captureStderr: true,
+      verbose: false,
     });
 
     // `--debug-cli` on its own, with no `-v`, has to be enough to see the CLI's
@@ -23,9 +28,10 @@ integTest(
     expect(withFlag).toContain(DEBUG_MARKER);
 
     // Control, so the assertion above is attributable to the flag rather than to
-    // the CLI being verbose by default.
+    // the CLI being verbose by default. Same `verbose: false` for the same reason.
     const withoutFlag = await fixture.cdk(['synth', stackName], {
       captureStderr: true,
+      verbose: false,
     });
     expect(withoutFlag).not.toContain(DEBUG_MARKER);
 
