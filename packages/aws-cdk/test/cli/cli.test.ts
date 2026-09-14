@@ -627,7 +627,7 @@ describe('AI agent progress auto-default', () => {
     // Clear all env vars that guessAgent() detects, so the test environment doesn't interfere
     originalEnv = {};
     for (const key of Object.keys(process.env)) {
-      if (['CLAUDECODE', 'CURSOR_AGENT', 'VSCODE_AGENT', 'AWS_EXECUTION_ENV'].includes(key)
+      if (['AI_AGENT', 'AGENT', 'CLAUDECODE', 'CURSOR_AGENT', 'VSCODE_AGENT', 'AWS_EXECUTION_ENV'].includes(key)
         || key.startsWith('CODEX_') || key.startsWith('CLINE_')) {
         originalEnv[key] = process.env[key];
         delete process.env[key];

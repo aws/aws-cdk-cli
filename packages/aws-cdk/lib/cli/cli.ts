@@ -119,7 +119,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   // Progress updates are wasted tokens for AI agents
   if (guessAgent() && !argv.verbose && configuration.settings.get(['progress']) === undefined) {
     ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
-    await ioHost.defaults.info('AI agent detected, using --progress "errors-only" (set --progress or the "progress" key in cdk.json to change)');
+    await ioHost.defaults.info('AI agent detected');
+    await ioHost.defaults.debug('Using --progress "errors-only" (set --progress or the "progress" key in cdk.json to change)');
   }
 
   // Always create and use ProxyAgent to support configuration via env vars
@@ -602,6 +603,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
+        if (args.watch) {
+          return cli.synthWatch({
+            stacks: specificStacksOrAllRecursively(args.STACKS),
+            validateStacks: args.validation,
+          });
+        }
         const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
         return cli.synth({
           stackNames: args.STACKS,

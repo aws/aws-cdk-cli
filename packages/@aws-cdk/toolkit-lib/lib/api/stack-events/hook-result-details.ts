@@ -1,8 +1,6 @@
 import * as util from 'node:util';
 import type { GetHookResultCommandOutput, HookResultSummary } from '@aws-sdk/client-cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
-import { isAccessDeniedError } from '../aws-auth/util';
-import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private';
 
 /**
@@ -63,14 +61,6 @@ export interface FetchHookResultDetailsOptions {
    * The IoHelper used to warn when the fetch fails.
    */
   readonly ioHelper: IoHelper;
-
-  /**
-   * Environment resources, used to look up the bootstrap toolkit version when
-   * diagnosing hook result fetch failures caused by missing permissions.
-   *
-   * @default - Bootstrap version is not reported in error messages
-   */
-  readonly envResources?: EnvironmentResources;
 }
 
 /**
@@ -79,9 +69,9 @@ export interface FetchHookResultDetailsOptions {
  *
  * For Guard Hooks the details come from the failed annotations; for other hooks
  * (e.g. Lambda Hooks) they come from the hook result's own status reason.
- * Returns undefined if the fetch fails (emitting a warning, with a bootstrap
- * upgrade hint if the failure looks permissions-related) or the result carries
- * no failure details.
+ * Returns undefined if the fetch fails (emitting a warning at normal verbosity, so the
+ * user knows extra detail may exist but couldn't be retrieved) or the result carries no
+ * failure details.
  */
 export async function fetchHookResultDetails(
   cfn: ICloudFormationClient,
@@ -93,31 +83,9 @@ export async function fetchHookResultDetails(
     return formatHookResultDetails(result);
   } catch (e: any) {
     const errorMessage = e instanceof Error ? e.message : String(e);
-
-    const isPermissionsError =
-      isAccessDeniedError(e) ||
-      (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
-
-    if (isPermissionsError && options.envResources) {
-      let currentVersion: number | undefined = undefined;
-      try {
-        currentVersion = (await options.envResources.lookupToolkit()).version;
-      } catch {
-        // ignore errors looking up the bootstrap version
-      }
-
-      await options.ioHelper.defaults.warn(
-        `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. ` +
-        'Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment ' +
-        "by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack. " +
-        `Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
-      );
-    } else {
-      await options.ioHelper.defaults.warn(
-        util.format('Failed to fetch Hook details for invocation %s: %s', hookInvocationId, errorMessage),
-      );
-    }
-
+    await options.ioHelper.defaults.warn(
+      util.format('Could not fetch extra detail for Hook invocation %s (%s). Run again with -v to see the full error.', hookInvocationId, errorMessage),
+    );
     return undefined;
   }
 }

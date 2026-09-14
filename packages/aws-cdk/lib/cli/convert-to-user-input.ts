@@ -58,6 +58,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         validation: args.validation,
         quiet: args.quiet,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -414,6 +415,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
     quiet: config.synth?.quiet,
+    watch: config.synth?.watch,
   };
   const bootstrapOptions = {
     bootstrapBucketName: config.bootstrap?.bootstrapBucketName,
