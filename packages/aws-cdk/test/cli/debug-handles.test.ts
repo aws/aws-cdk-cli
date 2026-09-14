@@ -238,10 +238,12 @@ test('does not report a TLS connection that has finished', async () => {
 
   tracker = trackLeakedHandles();
 
-  // Creates a real TLSWRAP. No certificate is needed: a failed handshake creates
-  // the same resource, and the point is only what survives in the tracker.
+  // Creates a real TLSWRAP. No certificate is needed, and validation is left on:
+  // the resource is created synchronously by `tls.connect`, before any handshake,
+  // so the handshake failing against this plain TCP server is fine. All the test
+  // cares about is what survives in the tracker.
   function openTlsThenClose(): tls.TLSSocket {
-    const socket = tls.connect({ port, host: '127.0.0.1', rejectUnauthorized: false });
+    const socket = tls.connect({ port, host: '127.0.0.1' });
     socket.on('error', () => undefined);
     return socket;
   }
