@@ -32,6 +32,9 @@ export interface CdkAppContextOptions {
   readonly aws?: AwsContextOptions;
 }
 
+export type UnmanagedResourceToCleanup =
+  | { type: 'bucket'; bucketName: string };
+
 /**
  * Higher order function to execute a block with a CDK app fixture
  *
@@ -407,7 +410,7 @@ export interface CdkGarbageCollectionCommandOptions {
 
 export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
-  private readonly bucketsToDelete = new Array<string>();
+  private readonly unmanagedResourcesToCleanup = new Array<UnmanagedResourceToCleanup>();
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
@@ -831,8 +834,8 @@ export class TestFixture extends ShellHelper {
    * At the end of a test, we clean up buckets that may not have gotten destroyed
    * (for whatever reason).
    */
-  public rememberToDeleteBucket(bucketName: string) {
-    this.bucketsToDelete.push(bucketName);
+  public cleanupUnmanagedResource(resource: UnmanagedResourceToCleanup) {
+    this.unmanagedResourcesToCleanup.push(resource);
   }
 
   /**
@@ -852,7 +855,7 @@ export class TestFixture extends ShellHelper {
       // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
       await Promise.all(bucketNames.map(b => this.aws.emptyBucket(b)));
       // The bootstrap bucket has a removal policy of RETAIN by default, so add it to the buckets to be cleaned up.
-      this.bucketsToDelete.push(...bucketNames);
+      this.unmanagedResourcesToCleanup.push(...bucketNames.map(bucketName => ({ type: 'bucket', bucketName } as const)));
 
       // Bootstrap stacks have ECR repositories with images which should be deleted
       const imageRepositoryNames = stacksToDelete.map(stack => outputFromStack('ImageRepositoryName', stack)).filter(defined);
@@ -868,13 +871,9 @@ export class TestFixture extends ShellHelper {
           return s.StackName;
         }),
       );
-
-      // We might have leaked some buckets by upgrading the bootstrap stack. Be
-      // sure to clean everything.
-      for (const bucket of this.bucketsToDelete) {
-        await this.aws.deleteBucket(bucket);
-      }
     }
+
+    await this.cleanupUnmanagedResources();
 
     // If the tests completed successfully, happily delete the fixture
     // (otherwise leave it for humans to inspect)
@@ -882,6 +881,19 @@ export class TestFixture extends ShellHelper {
       const cleaned = rimraf(this.integTestDir);
       if (!cleaned) {
         console.error(`Failed to clean up ${this.integTestDir} due to permissions issues (Docker running as root?)`);
+      }
+    }
+  }
+
+  private async cleanupUnmanagedResources() {
+    for (const resource of this.unmanagedResourcesToCleanup) {
+      switch (resource.type) {
+        case 'bucket':
+          await this.aws.deleteBucket(resource.bucketName);
+          break;
+
+        default:
+          throw new Error(`Unknown resource type to cleanup: ${resource.type}`);
       }
     }
   }
