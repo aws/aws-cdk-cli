@@ -94,6 +94,21 @@ function assertEvaluatesToString(intrinsic: string, value: any): asserts value i
   }
 }
 
+/**
+ * The top-level CloudFormation property name of a `createOnlyProperties`
+ * JSON pointer (e.g. `/properties/QueueName` maps to `QueueName`).
+ *
+ * A nested path maps to its top-level property, since patching anything
+ * under it fails the same way. Returns `undefined` for malformed entries.
+ */
+function topLevelPropertyName(pointer: unknown): string | undefined {
+  if (typeof pointer !== 'string' || !pointer.startsWith('/properties/')) {
+    return undefined;
+  }
+  const [first] = pointer.slice('/properties/'.length).split('/');
+  return first?.replace(/~1/g, '/').replace(/~0/g, '~') || undefined;
+}
+
 export interface ResourceDefinition {
   readonly LogicalId: string;
   readonly Type: string;
@@ -131,6 +146,7 @@ export class EvaluateCloudFormationTemplate {
 
   private cachedUrlSuffix: string | undefined;
   private _cloudControl: ICloudControlClient | undefined;
+  private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -375,6 +391,51 @@ export class EvaluateCloudFormationTemplate {
       return parts.join('|');
     }
     return physicalId;
+  }
+
+  /**
+   * Best-effort lookup of the top-level property names the resource type
+   * declares as create-only (e.g. `QueueName` for `AWS::SQS::Queue`).
+   *
+   * Read from the registry schema via `cloudformation:DescribeType` and
+   * cached per resource type. Returns an empty set when the schema cannot be
+   * retrieved, so callers keep their previous behavior instead of failing
+   * on the lookup itself.
+   */
+  public async getCreateOnlyProperties(resourceType: string): Promise<Set<string>> {
+    const cached = this.createOnlyPropertiesCache.get(resourceType);
+    if (cached) {
+      return cached;
+    }
+    const createOnly = await this.fetchCreateOnlyProperties(resourceType);
+    this.createOnlyPropertiesCache.set(resourceType, createOnly);
+    return createOnly;
+  }
+
+  private async fetchCreateOnlyProperties(resourceType: string): Promise<Set<string>> {
+    try {
+      const response = await this.sdk.cloudFormation().describeType({
+        Type: 'RESOURCE',
+        TypeName: resourceType,
+      });
+      if (!response.Schema) {
+        return new Set();
+      }
+      const schema = JSON.parse(response.Schema) as { createOnlyProperties?: unknown };
+      if (!Array.isArray(schema.createOnlyProperties)) {
+        return new Set();
+      }
+      const names = new Set<string>();
+      for (const pointer of schema.createOnlyProperties) {
+        const topLevel = topLevelPropertyName(pointer);
+        if (topLevel) {
+          names.add(topLevel);
+        }
+      }
+      return names;
+    } catch {
+      return new Set();
+    }
   }
 
   public getResourceProperty(logicalId: string, propertyName: string): any {
