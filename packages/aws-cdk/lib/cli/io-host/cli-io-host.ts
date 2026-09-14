@@ -1235,6 +1235,12 @@ function eventFromMessage(msg: IoMessage<unknown>): TelemetryEvent | undefined {
   if (CLI_PRIVATE_IO.CDK_CLI_I3003.is(msg)) {
     return eventResult('ASSET', msg);
   }
+  // Online validation lives in toolkit-lib, so (like hotswap) it cannot use a
+  // CDK_CLI code. We translate the toolkit-lib ONLINE_VALIDATE span end message
+  // into the telemetry event instead.
+  if (IO.CDK_TOOLKIT_I9604.is(msg)) {
+    return eventResult('ONLINE_VALIDATE', msg);
+  }
   // Hotswap lives in the cdk-toolkit so it cannot be a CDK_CLI error code.
   // Instead we reuse the existing Hotswap span.
   if (IO.CDK_TOOLKIT_I5410.is(msg)) {
