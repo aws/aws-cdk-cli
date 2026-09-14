@@ -18,14 +18,23 @@ export async function isHotswappableCloudControlChange(
   if (changedPropNames.length === 0) {
     return ret;
   }
-  const classifiedChanges = classifyChanges(change, changedPropNames);
+
+  const resourceType = change.newValue.Type;
+
+  // Create-only properties require replacement, so a PATCH can never apply
+  // them. Classify them as non-hotswappable up front: --hotswap skips them
+  // and --hotswap-fallback falls back to a full deployment, instead of both
+  // hard-failing on a doomed UpdateResource call.
+  const createOnlyProps = await evaluateCfnTemplate.getCreateOnlyProperties(resourceType);
+  const classifiedChanges = classifyChanges(
+    change,
+    changedPropNames.filter((name) => !createOnlyProps.has(name)),
+  );
   classifiedChanges.reportNonHotswappablePropertyChanges(ret);
 
   if (classifiedChanges.namesOfHotswappableProps.length === 0) {
     return ret;
   }
-
-  const resourceType = change.newValue.Type;
 
   const identifier = await resolveCloudControlIdentifier(logicalId, resourceType, evaluateCfnTemplate);
   if (!identifier) {
