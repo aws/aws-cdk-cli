@@ -6,6 +6,8 @@ import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import type { LeakedHandleTracker } from './debug-handles';
+import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -44,12 +46,29 @@ import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
+/**
+ * The handle tracker for this process, if `--debug-cli` asked for one.
+ *
+ * Split across the two functions on purpose. `exec()` creates it, because only it
+ * has the parsed arguments and because tracking has to start before the CLI opens
+ * anything. `cli()` is what schedules the report, for two reasons: a command that
+ * fails before reaching `exec`'s own cleanup still gets one, and the grace period
+ * starts after telemetry has finished its network calls rather than during them,
+ * so telemetry's own sockets are not reported as leaks.
+ */
+let handleTracker: LeakedHandleTracker | undefined;
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
   // Measure that.
   const libraryLoadTime = performance.now();
 
   const argv = await parseCommandLineArguments(args);
+
+  // Start tracking async resources as early as possible, so we can identify the
+  // ones still alive at exit time. `cli()` schedules the report.
+  handleTracker = argv.debugCli ? trackLeakedHandles() : undefined;
+
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
@@ -78,6 +97,15 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioMessageLevel = 'trace';
         break;
     }
+  }
+
+  // `--debug-cli` raises the CLI-side log level, which is what makes its own
+  // handle report visible without a second flag. Only as far as DEBUG, never
+  // TRACE: TRACE also unmasks AWS SDK request logging, whose payloads include
+  // whole CloudFormation templates. `verbose` is only ever raised above this, so
+  // taking the more verbose of the two can never walk back what `-v` asked for.
+  if (argv.debugCli && ioMessageLevel === 'info') {
+    ioMessageLevel = 'debug';
   }
 
   const ioHost = CliIoHost.instance({
@@ -970,6 +998,15 @@ export function cli(args: string[] = process.argv.slice(2)) {
         await CliIoHost.get()?.telemetry?.end(error);
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
+
+      // Last thing we do, on both the success and the failure path: if the
+      // process is still alive after the grace period, something is keeping the
+      // event loop busy, so report the leaked handles. All of the CLI's own work
+      // is finished by now, so anything left is genuinely unaccounted for.
+      const ioHelper = CliIoHost.get()?.asIoHelper();
+      if (ioHelper) {
+        handleTracker?.scheduleReport(ioHelper);
       }
     });
 }
