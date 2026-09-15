@@ -33,6 +33,11 @@ import { StackArtifactSourceTracer } from '../source-tracing/private/stack-sourc
  */
 const STALE_REVIEW_READ_ATTEMPTS = 3;
 
+/**
+ * Default name for the change set created to compute a diff, used when no `changeSetName` is provided.
+ */
+export const DEFAULT_DIFF_CHANGE_SET_NAME = 'cdk-diff-change-set';
+
 export type PrepareChangeSetOptions = {
   stack: cxapi.CloudFormationStackArtifact;
   deployments: Deployments;
@@ -42,6 +47,12 @@ export type PrepareChangeSetOptions = {
   resourcesToImport?: ResourcesToImport;
   importExistingResources?: boolean;
   includeNestedStacks?: boolean;
+  /**
+   * Name to use for the CloudFormation change set.
+   *
+   * @default 'cdk-diff-change-set'
+   */
+  changeSetName?: string;
   /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
@@ -82,7 +93,7 @@ export async function createDiffChangeSet(
 
     return await createChangeSetAndCleanup(ioHelper, {
       cfn,
-      changeSetName: 'cdk-diff-change-set',
+      changeSetName: options.changeSetName ?? DEFAULT_DIFF_CHANGE_SET_NAME,
       stack: options.stack,
       exists,
       uuid: options.uuid,

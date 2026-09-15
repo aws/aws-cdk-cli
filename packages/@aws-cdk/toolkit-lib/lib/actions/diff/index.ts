@@ -33,6 +33,13 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Name to use for the CloudFormation change set created to compute the diff.
+   *
+   * @default 'cdk-diff-change-set'
+   */
+  readonly changeSetName?: string;
 }
 
 export interface LocalFileDiffOptions {
