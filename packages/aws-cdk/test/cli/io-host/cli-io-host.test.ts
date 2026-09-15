@@ -5,9 +5,9 @@ import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
-import { IO } from '../../../lib/api-private';
+import { IO, matchAny } from '../../../lib/api-private';
 import type { IoMessage, IoMessageLevel, IoRequest } from '../../../lib/cli/io-host';
-import { CliIoHost, matchAny, suppressMessages } from '../../../lib/cli/io-host';
+import { CliIoHost, suppressMessages } from '../../../lib/cli/io-host';
 import { CLI_PRIVATE_IO } from '../../../lib/cli/telemetry/messages';
 import { StackActivityProgress } from '../../../lib/commands/deploy';
 
@@ -245,51 +245,9 @@ describe('CliIoHost', () => {
       expect(answer).toBe(true);
     });
 
-    test('removeAllListeners() removes every user-registered listener', async () => {
-      const observed: string[] = [];
-      // Register via on() and once() and rewrite() — all user listeners.
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
-        observed.push(msg.message);
-      }));
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`));
-
-      await ioHost.notify(listMessage('before'));
-      ioHost.removeAllListeners();
-      await ioHost.notify(listMessage('after'));
-
-      // The on() listener stopped firing and the rewrite no longer applies.
-      expect(observed).toEqual(['before']);
-      expect(mockStdout).toHaveBeenCalledWith('after\n');
-    });
-
-    test('removeAllListeners() keeps the host internal stack-activity routing', async () => {
-      // Clear all (user) listeners, then verify a stack-activity message is
-      // still routed to the printer and suppressed — i.e. the internal listener
-      // survived.
-      ioHost.removeAllListeners();
-      (ioHost as any).activityPrinter = undefined;
-      const fakePrinter = { notify: jest.fn() };
-      const makeSpy = jest.spyOn(ioHost as any, 'makeActivityPrinter').mockReturnValue(fakePrinter);
-
-      const activity = plainMessage({
-        time: new Date(),
-        level: 'info',
-        action: 'deploy',
-        code: 'CDK_TOOLKIT_I5502',
-        message: 'raw activity text',
-      });
-      await ioHost.notify(activity);
-
-      expect(fakePrinter.notify).toHaveBeenCalledWith(activity);
-      expect(mockStdout).not.toHaveBeenCalled();
-      expect(mockStderr).not.toHaveBeenCalled();
-
-      makeSpy.mockRestore();
-    });
-
     test('on() accepts a maker `.is` type guard as the selector', async () => {
       const observed: string[] = [];
-      track(ioHost.on(IO.CDK_TOOLKIT_I2901.is, (msg) => {
+      track(ioHost.on(IO.CDK_TOOLKIT_I2901, (msg) => {
         observed.push(msg.message);
       }));
 
@@ -327,7 +285,7 @@ describe('CliIoHost', () => {
 
     test('a request maker `.is` predicate can answer a request', async () => {
       // The motivating example: pass IO.<code>.is as the selector for a request.
-      track(ioHost.on(IO.CDK_TOOLKIT_I7010.is, () => ({ respond: true, preventDefault: true })));
+      track(ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ respond: true, preventDefault: true })));
 
       const answer = await ioHost.requestResponse({
         time: new Date(),
@@ -461,7 +419,7 @@ describe('CliIoHost', () => {
     test('rewrite() can also override the level, moving the message between streams', async () => {
       // A result-level message normally goes to stdout; rewriting it to info
       // (and changing the text) sends it to stderr in non-CI mode.
-      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, 'info'));
+      track(ioHost.rewrite(IO.CDK_TOOLKIT_I2901, (msg) => `rewritten:${msg.message}`, { level: 'info' }));
 
       await ioHost.notify(listMessage('first'));
 
@@ -1191,21 +1149,21 @@ describe('CliIoHost', () => {
         dispose();
       });
 
-      test('preventDefault alone skips the prompt silently and resolves with the default', async () => {
-        // confirmRequest()'s defaultResponse is false; preventDefault means the
-        // listener handled it, so we return that default without prompting.
+      test('preventDefault alone on a request throws instead of answering for the user', async () => {
+        // Suppressing the question leaves nothing to answer it, and a request's
+        // declared default is often `true` (i.e. approval), so resolving with it
+        // would approve on the user's behalf. Listeners have to say `respond`.
         const dispose = ioHost.on(IO.CDK_TOOLKIT_I7010, () => ({ preventDefault: true }));
 
-        const response = await ioHost.requestResponse(confirmRequest());
+        await expect(ioHost.requestResponse(confirmRequest()))
+          .rejects.toThrow(/prevented the default handling of request .* without answering it/);
 
-        expect(response).toBe(false);
         expect(mockStdout).not.toHaveBeenCalled();
-        expect(mockStderr).not.toHaveBeenCalled();
         dispose();
       });
 
-      test('respond(..., false) answers the request while still surfacing the question', async () => {
-        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true, /* suppressQuestion */ false);
+      test('respond with { showQuestion: true } answers the request while still surfacing the question', async () => {
+        const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true, { showQuestion: true });
 
         const response = await ioHost.requestResponse(confirmRequest());
 
@@ -1296,8 +1254,6 @@ describe('CliIoHost', () => {
       }, true);
 
       test('it does not prompt the user and return true', async () => {
-        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
-
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -1310,15 +1266,11 @@ describe('CliIoHost', () => {
 
         // THEN
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          message: chalk.cyan('test message') + ' (auto-confirmed)',
-        }));
+        expect(mockStderr).toHaveBeenCalledWith(expect.stringContaining(chalk.cyan('test message') + ' (auto-confirmed)'));
         expect(response).toBe(true);
       });
 
       test('messages with default are skipped', async () => {
-        const notifySpy = jest.spyOn(autoRespondingIoHost, 'notify');
-
         // WHEN
         const response = await autoRespondingIoHost.requestResponse(plainMessage({
           time: new Date(),
@@ -1331,9 +1283,9 @@ describe('CliIoHost', () => {
 
         // THEN
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
-        expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
-          message: chalk.cyan('test message') + ' (auto-responded with default: foobar)',
-        }));
+        expect(mockStderr).toHaveBeenCalledWith(
+          expect.stringContaining(chalk.cyan('test message') + ' (auto-responded with default: foobar)'),
+        );
         expect(response).toBe('foobar');
       });
 
@@ -1518,8 +1470,10 @@ describe('CliIoHost', () => {
         // CLI's `--require-approval` framing to the library's flag-free question.
         // Register the same listener here so the reframed prompt can be asserted
         // in isolation, keyed off the message payload and the configured flag.
+        let disposeReframing: () => void;
+
         beforeEach(() => {
-          ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
+          disposeReframing = ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
             const updateTypeText = msg.data.permissionChangeType !== 'none'
               ? 'security-sensitive updates'
               : 'updates';
@@ -1528,7 +1482,7 @@ describe('CliIoHost', () => {
         });
 
         afterEach(() => {
-          ioHost.removeAllListeners();
+          disposeReframing();
         });
 
         test('BROADENING + has-security adds the --require-approval suffix and breaks the question to a new line', async () => {

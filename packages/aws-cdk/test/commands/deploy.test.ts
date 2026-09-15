@@ -180,10 +180,10 @@ describe('require-approval', () => {
   });
 
   test('the approval question is reframed with the CLI `--require-approval` flag', async () => {
-    // Answer "yes" but keep the question visible (suppressQuestion=false) so the
+    // Answer "yes" but keep the question visible (showQuestion: true) so the
     // recorder captures the effective, listener-reframed prompt text. The default
     // mock stack has no security-sensitive changes (permissionChangeType: none).
-    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, { showQuestion: true });
 
     await toolkit.deploy({
       selector: selectExact('Test-Stack-A-Display-Name'),
