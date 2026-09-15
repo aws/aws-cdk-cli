@@ -333,7 +333,7 @@ using _autoConfirm = ioHost.respond(byCode<IoRequest<void, boolean>>('CDK_TOOLKI
 By default `respond` answers silently. Pass `{ showQuestion: true }` to surface the question anyway, which is useful when the answer comes from a flag the user passed and you still want the prompt in the log.
 
 A listener can also return a result to influence how the message is handled: `message`, `level` and `action` change how it is presented, `preventDefault` drops it before the wrapped host sees it, and `respond` answers a request conditionally.
-On a request, `preventDefault` on its own throws, because suppressing the question leaves nothing to answer it and a request's declared default is often approval — pair it with `respond`, or use `respond` itself, which sets both.
+On a request, `preventDefault` on its own throws, because suppressing the question leaves nothing to answer it and a request's declared default is often approval. Pair it with `respond`, or use `respond` itself, which sets both.
 
 Use `once`, `rewriteOnce`, and `respondOnce` for listeners that should apply to only the first matching message.
 
