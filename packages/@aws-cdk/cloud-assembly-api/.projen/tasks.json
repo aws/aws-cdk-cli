@@ -119,7 +119,8 @@
             "--summary",
             "--production",
             "--onlyAllow",
-            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD"
+            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD",
+            "--excludePrivatePackages"
           ],
           "receiveArgs": true
         }
