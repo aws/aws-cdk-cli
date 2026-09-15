@@ -240,6 +240,17 @@ export interface DeployOptions extends BaseDeployOptions {
   readonly parameters?: StackParameters;
 
   /**
+   * Use the template currently deployed to the stack instead of the synthesized template.
+   *
+   * Deploys only the parameter changes, without publishing assets or uploading a new
+   * template. The stack must already exist; this option is invalid on stack creation
+   * and is incompatible with a `hotswap` deployment method.
+   *
+   * @default false
+   */
+  readonly usePreviousTemplate?: boolean;
+
+  /**
    * Path to file where stack outputs will be written after a successful deploy as JSON
    * @default - Outputs are not written to any file
    */
