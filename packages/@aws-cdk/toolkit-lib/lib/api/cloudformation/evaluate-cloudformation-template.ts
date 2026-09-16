@@ -101,11 +101,11 @@ function assertEvaluatesToString(intrinsic: string, value: any): asserts value i
  * A nested path maps to its top-level property, since patching anything
  * under it fails the same way. Returns `undefined` for malformed entries.
  */
-function topLevelPropertyName(pointer: unknown): string | undefined {
-  if (typeof pointer !== 'string' || !pointer.startsWith('/properties/')) {
+function topLevelPropertyName(property: unknown): string | undefined {
+  if (typeof property !== 'string' || !property.startsWith('/properties/')) {
     return undefined;
   }
-  const [first] = pointer.slice('/properties/'.length).split('/');
+  const [first] = property.slice('/properties/'.length).split('/');
   return first?.replace(/~1/g, '/').replace(/~0/g, '~') || undefined;
 }
 
@@ -426,8 +426,8 @@ export class EvaluateCloudFormationTemplate {
         return new Set();
       }
       const names = new Set<string>();
-      for (const pointer of schema.createOnlyProperties) {
-        const topLevel = topLevelPropertyName(pointer);
+      for (const property of schema.createOnlyProperties) {
+        const topLevel = topLevelPropertyName(property);
         if (topLevel) {
           names.add(topLevel);
         }
