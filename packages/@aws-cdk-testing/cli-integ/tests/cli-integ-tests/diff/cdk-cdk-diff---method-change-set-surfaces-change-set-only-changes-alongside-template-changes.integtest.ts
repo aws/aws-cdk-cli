@@ -1,4 +1,3 @@
-import { DeleteParameterCommand, PutParameterCommand } from '@aws-sdk/client-ssm';
 import { integTest, withDefaultFixture } from '../../../lib';
 
 /**
@@ -18,24 +17,14 @@ integTest(
     const stackName = fixture.fullStackName('ssm-resolve-queue');
 
     // GIVEN - deployed with an initial SSM value and an initial receive-wait-time
-    await fixture.aws.ssm.send(new PutParameterCommand({
-      Name: parameterName,
-      Type: 'String',
-      Value: queueNameV1,
-    }));
-    fixture.aws.addCleanup(() => fixture.aws.ssm.send(new DeleteParameterCommand({ Name: parameterName })));
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV1);
 
     await fixture.cdkDeploy('ssm-resolve-queue', {
       modEnv: { SSM_PARAMETER_NAME: parameterName, SSM_RESOLVE_QUEUE_WAIT_TIME: '10' },
     });
 
     // WHEN - the SSM value changes out-of-band (queue name -> replacement, only in the change set)
-    await fixture.aws.ssm.send(new PutParameterCommand({
-      Name: parameterName,
-      Type: 'String',
-      Value: queueNameV2,
-      Overwrite: true,
-    }));
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV2);
 
     // ...and the template also changes the receive-wait-time (a normal, template-visible update)
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {

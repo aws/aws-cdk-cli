@@ -21,7 +21,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { CreateTopicCommand, DeleteTopicCommand, SNSClient } from '@aws-sdk/client-sns';
-import { SSMClient } from '@aws-sdk/client-ssm';
+import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
@@ -331,6 +331,32 @@ export class AwsClients {
     }
   }
 
+  public async temporarySsmParameter(parameterName: string, parameterValue: string) {
+    await this.ssm.send(new PutParameterCommand({
+      Name: parameterName,
+      Value: parameterValue,
+      Type: 'String',
+      Tags: this.apiTags(),
+      Overwrite: true,
+    }));
+    this.queueResourceCleanup({ type: 'ssm-parameter', parameterName });
+  }
+
+  public async deleteSsmParameter(parameterName: string) {
+    try {
+      await this.ssm.send(
+        new DeleteParameterCommand({
+          Name: parameterName,
+        }),
+      );
+    } catch (e: any) {
+      if (e.name === 'ParameterNotFound') {
+        return;
+      }
+      throw e;
+    }
+  }
+
   /**
    * Create a role that will be cleaned up when the AwsClients object is cleaned up
    */
@@ -416,6 +442,10 @@ export class AwsClients {
 
         case 'topic':
           await this.deleteTopic(resource.topicArn);
+          break;
+
+        case 'ssm-parameter':
+          await this.deleteSsmParameter(resource.parameterName);
           break;
 
         default:
@@ -544,6 +574,7 @@ export type CleanupResource =
   | { type: 'ecr-repository'; repositoryName: string }
   | { type: 'role'; roleName: string }
   | { type: 'topic'; topicArn: string }
+  | { type: 'ssm-parameter'; parameterName: string }
   ;
 
 function assertNever(x: never): never {
