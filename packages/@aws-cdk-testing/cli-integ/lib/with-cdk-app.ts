@@ -32,7 +32,7 @@ export interface CdkAppContextOptions {
   readonly aws?: AwsContextOptions;
 }
 
-export type UnmanagedResourceToCleanup =
+export type CleanupResource =
   | { type: 'bucket'; bucketName: string }
   | { type: 'bucket-contents'; bucketName: string }
   | { type: 'ecr-repository'; repositoryName: string };
@@ -415,7 +415,7 @@ export class TestFixture extends ShellHelper {
   /**
    * Order-sensitive map keyed by JSON representation for speedy duplicate checks.
    */
-  private readonly resourcesToCleanup: Record<string, UnmanagedResourceToCleanup> = {};
+  private readonly resourcesToCleanup: Record<string, CleanupResource> = {};
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
@@ -841,7 +841,7 @@ export class TestFixture extends ShellHelper {
    * You can safely queue resources that are managed by CloudFormation; we will let CloudFormation
    * manage the deletion of those resources.
    */
-  public queueResourceCleanup(...resources: UnmanagedResourceToCleanup[]) {
+  public queueResourceCleanup(...resources: CleanupResource[]) {
     for (const resource of resources) {
       this.resourcesToCleanup[JSON.stringify(resource)] = resource;
     }
@@ -850,7 +850,7 @@ export class TestFixture extends ShellHelper {
   /**
    * Remove the given resource(s) from the resources that will be deleted.
    */
-  public unqueueResourceCleanup(...resources: UnmanagedResourceToCleanup[]) {
+  public unqueueResourceCleanup(...resources: CleanupResource[]) {
     for (const resource of resources) {
       delete this.resourcesToCleanup[JSON.stringify(resource)];
     }
@@ -1336,7 +1336,7 @@ function assertNever(x: never): never {
   throw new Error(`Unexpected value: ${x}`);
 }
 
-function cleanableResourceFromPhysical(resource: PhysicalResource): UnmanagedResourceToCleanup | undefined {
+function cleanableResourceFromPhysical(resource: PhysicalResource): CleanupResource | undefined {
   switch (resource.cloudFormationType) {
     case 'AWS::S3::Bucket':
       return { type: 'bucket', bucketName: resource.physicalId };
