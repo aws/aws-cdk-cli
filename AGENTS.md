@@ -232,6 +232,10 @@ Integration tests require AWS credentials and run against real accounts. During 
 
 **SHOULD: prefer a new fixture app over extending the default app.** When a test needs new stacks or resources, create a dedicated app under `packages/@aws-cdk-testing/cli-integ/resources/cdk-apps/<name>/` (an `app.js` plus `cdk.json`, see `simple-app` for a minimal example) and use it via `withSpecificFixture('<name>', ...)`. Only add to the shared default app (`resources/cdk-apps/app/app.js`, used by `withDefaultFixture`) when the test genuinely needs to interact with its existing stacks — every stack added there is synthesized by every default-fixture test.
 
+**MUST: tag resources created for testing purposes.** When a test
+creates any resource to test with, the `CreateXxxCommand` must include
+`{ Tags: fixture.aws.apiTags }`.
+
 ### Redacting Secrets from Integration Test Output
 
 Integration test output is captured and written to logs, and on PR runs it can end up in a public GitHub Actions job log. Secrets must never appear there. [`lib/corking.ts`](./packages/@aws-cdk-testing/cli-integ/lib/corking.ts) provides the two halves of the mechanism: `registerSecrets()` records the values, and `redactSecrets()` scrubs them out of text.

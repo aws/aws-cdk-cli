@@ -24,10 +24,12 @@ let failed = false;
 
 export interface TestContext {
   readonly randomString: string;
-  readonly name: string;
+  readonly testName: string;
+  readonly testTags: Record<string, string>;
   readonly output: NodeJS.WritableStream;
   log(s: string): void;
   reportWaitTime(ms: number): void;
+
 }
 
 /**
@@ -62,7 +64,11 @@ export function integTest(
       const ret = await callback({
         output,
         randomString: randomString(),
-        name,
+        testName: name,
+        testTags: {
+          'aws-cdk:integ:test': name.slice(0, 255),
+          'aws-cdk:integ:created': new Date().toISOString().slice(0, 12),
+        },
         log(s: string) {
           output.write(`${s}\n`);
         },

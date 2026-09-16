@@ -9,7 +9,7 @@ import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/clien
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
 import type { AwsClients } from './aws';
 import { outputFromStack, sleep } from './aws';
-import type { TestContext } from './integ-test';
+import { type TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
 import { isWindows } from './platform';
@@ -65,6 +65,7 @@ export function withSpecificCdkApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     if (context.disableBootstrap) {
       // Tests that disable the default bootstrap manage their own bootstrap
@@ -132,6 +133,7 @@ export function withCdkMigrateApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     await fixture.ecrPublicLogin();
 
@@ -145,6 +147,7 @@ export function withCdkMigrateApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     await testFixture.writeAppContext();
 
@@ -426,7 +429,9 @@ export class TestFixture extends ShellHelper {
     public readonly stackNamePrefix: string,
     public readonly output: NodeJS.WritableStream,
     public readonly aws: AwsClients,
-    public readonly randomString: string) {
+    public readonly randomString: string,
+    public readonly testTags: Record<string, string>,
+  ) {
     super(integTestDir, output);
 
     this.qualifier = this.randomString.slice(0, 10);
@@ -576,6 +581,7 @@ export class TestFixture extends ShellHelper {
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
       ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
+      ...Object.entries(this.testTags).map(([k, v]) => `--tags=${k}=${v}`),
     ];
   }
 

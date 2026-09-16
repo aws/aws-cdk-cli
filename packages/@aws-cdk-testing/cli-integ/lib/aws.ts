@@ -20,7 +20,7 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { SNSClient } from '@aws-sdk/client-sns';
+import { CreateTopicCommand, DeleteTopicCommand, SNSClient } from '@aws-sdk/client-sns';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
@@ -43,12 +43,18 @@ export const CREDENTIAL_ENV_VARS = [
 ];
 
 export class AwsClients {
-  public static async forIdentity(randomString: string, region: string, identity: AwsCredentialIdentity, output: NodeJS.WritableStream) {
-    return new AwsClients(randomString, region, output, identity);
+  public static async forIdentity(
+    randomString: string,
+    region: string,
+    testTags: Record<string, string>,
+    identity: AwsCredentialIdentity,
+    output: NodeJS.WritableStream,
+  ) {
+    return new AwsClients(randomString, region, output, testTags, identity);
   }
 
-  public static async forRegion(randomString: string, region: string, output: NodeJS.WritableStream) {
-    return new AwsClients(randomString, region, output);
+  public static async forRegion(randomString: string, region: string, testTags: Record<string, string>, output: NodeJS.WritableStream) {
+    return new AwsClients(randomString, region, output, testTags, undefined);
   }
 
   private readonly cleanup: (() => Promise<void>)[] = [];
@@ -73,6 +79,7 @@ export class AwsClients {
     private readonly randomString: string,
     public readonly region: string,
     private readonly output: NodeJS.WritableStream,
+    public readonly testTags: Record<string, string>,
     public readonly identity?: AwsCredentialIdentity) {
     this.config = {
       credentials: this.identity ?? chainableCredentials(this.region),
@@ -272,6 +279,31 @@ export class AwsClients {
     }
   }
 
+  public async temporaryTopic(topicName: string) {
+    const response = await this.sns.send(new CreateTopicCommand({
+      Name: topicName,
+      Tags: this.apiTags(),
+    }));
+    this.addCleanup(() => this.deleteTopic(response.TopicArn!));
+
+    return response.TopicArn!;
+  }
+
+  public async deleteTopic(topicArn: string) {
+    try {
+      await this.sns.send(
+        new DeleteTopicCommand({
+          TopicArn: topicArn,
+        }),
+      );
+    } catch (e: any) {
+      if (e.name === 'NotFound') {
+        return;
+      }
+      throw e;
+    }
+  }
+
   /**
    * Create a role that will be cleaned up when the AwsClients object is cleaned up
    */
@@ -287,6 +319,7 @@ export class AwsClients {
           Key: 'deleteme',
           Value: 'true',
         },
+        ...this.apiTags(),
       ],
     }));
     await this.iam.send(new PutRolePolicyCommand({
@@ -329,6 +362,10 @@ export class AwsClients {
     await this.iam.send(new DeleteRoleCommand({
       RoleName: name,
     }));
+  }
+
+  public apiTags() {
+    return Object.entries(this.testTags).map(([key, value]) => ({ Key: key, Value: value }));
   }
 }
 
