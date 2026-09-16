@@ -120,6 +120,7 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_W5400` | Hotswap disclosure message | `warn` | n/a |
 | `CDK_TOOLKIT_E5001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E5500` | Stack Monitoring error | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_W5500` | Stack events could not be read; the reported event log may be incomplete | `warn` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I6000` | Provides rollback times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I6100` | Stack rollback progress | `info` | {@link StackRollbackProgress} |
 | `CDK_TOOLKIT_E6001` | No stacks found | `error` | n/a |
@@ -129,6 +130,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7010` | Confirm destroy stacks | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
 | `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
+| `CDK_TOOLKIT_W7010` | A provided stack name does not match any stack | `warn` | n/a |
+| `CDK_TOOLKIT_W7011` | No stacks match the provided names, nothing to destroy | `warn` | n/a |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
 | `CDK_TOOLKIT_W7902` | Express Mode deletion completed with resources still tearing down | `warn` | n/a |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |

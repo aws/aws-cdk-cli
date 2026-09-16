@@ -74,3 +74,62 @@ test('detect addition of all types of rules', () => {
     ],
   });
 });
+
+test('detect a rule moving from one security group to a different one', () => {
+  // A rule with the same protocol/port/peer moves from WebSG to DbSG between the
+  // old and new templates. This must be reported as a removal from WebSG and an
+  // addition to DbSG -- it must not be treated as unchanged just because the
+  // rule's shape (ignoring which group it's attached to) happens to match.
+  const oldTemplate = template({
+    WebSG: resource('AWS::EC2::SecurityGroup', {
+      SecurityGroupIngress: [
+        {
+          CidrIp: '10.0.0.0/24',
+          FromPort: 22,
+          ToPort: 22,
+          IpProtocol: 'tcp',
+        },
+      ],
+    }),
+    DbSG: resource('AWS::EC2::SecurityGroup', {}),
+  });
+
+  const newTemplate = template({
+    WebSG: resource('AWS::EC2::SecurityGroup', {}),
+    DbSG: resource('AWS::EC2::SecurityGroup', {
+      SecurityGroupIngress: [
+        {
+          CidrIp: '10.0.0.0/24',
+          FromPort: 22,
+          ToPort: 22,
+          IpProtocol: 'tcp',
+        },
+      ],
+    }),
+  });
+
+  // WHEN
+  const diff = fullDiff(oldTemplate, newTemplate);
+
+  // THEN
+  expect(diff.securityGroupChanges.toJson()).toEqual({
+    ingressRuleAdditions: [
+      {
+        groupId: '${DbSG.GroupId}',
+        ipProtocol: 'tcp',
+        fromPort: 22,
+        toPort: 22,
+        peer: { kind: 'cidr-ip', ip: '10.0.0.0/24' },
+      },
+    ],
+    ingressRuleRemovals: [
+      {
+        groupId: '${WebSG.GroupId}',
+        ipProtocol: 'tcp',
+        fromPort: 22,
+        toPort: 22,
+        peer: { kind: 'cidr-ip', ip: '10.0.0.0/24' },
+      },
+    ],
+  });
+});

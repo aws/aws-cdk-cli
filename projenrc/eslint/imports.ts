@@ -1,3 +1,8 @@
+export const PUNYCODE_IMPORT_RESTRICTION = {
+  name: 'punycode',
+  message: 'Package \'punycode\' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation',
+};
+
 export default {
   'import/no-unresolved': ['error'], // Require all imported libraries actually resolve (!!required for import/no-extraneous-dependencies to work!!)
   'import/no-duplicates': 'error', // Cannot import from the same module twice (we prefer `import/no-duplicate` over `no-duplicate-imports` since the former can handle type imports)
@@ -15,9 +20,15 @@ export default {
   'no-restricted-imports': [
     'error', {
       paths: [
+        PUNYCODE_IMPORT_RESTRICTION,
+        // Route child process spawning through the shared subprocess tool.
         {
-          name: 'punycode',
-          message: 'Package \'punycode\' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation',
+          name: 'child_process',
+          message: 'Do not use `child_process` directly. Use `run`/`runSync`/`runUserCommandLine` from the subprocess tool (\'./private/tools\').',
+        },
+        {
+          name: 'node:child_process',
+          message: 'Do not use `child_process` directly. Use `run`/`runSync`/`runUserCommandLine` from the subprocess tool (\'./private/tools\').',
         },
       ],
       patterns: ['!punycode/'],

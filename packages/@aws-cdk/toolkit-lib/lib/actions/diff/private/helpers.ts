@@ -84,8 +84,9 @@ async function cfnDiff(
     const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
+    const environment = await deployments.resolveEnvironment(stack);
     const migrator = new ResourceMigrator({ deployments, ioHelper });
-    const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
+    const resourcesToImport = await migrator.tryGetResources(environment);
     if (resourcesToImport) {
       removeNonImportResources(stack);
     }
@@ -118,6 +119,7 @@ async function cfnDiff(
       nestedStacks,
       changeSet,
       mappings,
+      environment,
     });
   }
 

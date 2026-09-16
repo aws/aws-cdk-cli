@@ -229,12 +229,37 @@ function slugify(x: string) {
   return x.replace(/[^a-zA-Z0-9_,]+/g, '-');
 }
 
-async function atomicWrite(fileName: string, contents: string) {
+/**
+ * Write a file by writing to a temp file and renaming it into place.
+ *
+ * On POSIX the final rename atomically replaces any existing destination, and
+ * concurrent writers of the same target harmlessly clobber each other. On
+ * Windows, replacing a destination that another process currently has open (or
+ * that is in a "delete pending" state from a concurrent replace) fails with
+ * EPERM/EACCES. Multiple test workers rewrite shared log files (notably
+ * `0-header.md`) at once, so ride out that transient window by retrying the
+ * rename a handful of times before giving up.
+ */
+export async function atomicWrite(fileName: string, contents: string) {
   await fs.promises.mkdir(path.dirname(fileName), { recursive: true });
 
   const tmp = `${fileName}.${process.pid}`;
   await fs.promises.writeFile(tmp, contents);
-  await fs.promises.rename(tmp, fileName);
+
+  const maxAttempts = 10;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.promises.rename(tmp, fileName);
+      return;
+    } catch (e: any) {
+      if (!['EPERM', 'EACCES'].includes(e.code) || attempt >= maxAttempts) {
+        // Final failure: don't leave the temp file behind as litter.
+        await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
+        throw e;
+      }
+      await new Promise(ok => setTimeout(ok, Math.floor(Math.random() * 20) + 5));
+    }
+  }
 }
 
 function readSkipFile(filePath?: string): string[] {

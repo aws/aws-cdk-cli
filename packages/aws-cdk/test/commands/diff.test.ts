@@ -1627,3 +1627,128 @@ describe('stack display names', () => {
     expect(exitCode).toBe(0);
   });
 });
+
+describe('environment annotation', () => {
+  const templatePath = 'oldTemplateForEnv.json';
+
+  beforeEach(async () => {
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(
+      (_stackArtifact: CloudFormationStackArtifact) => {
+        return Promise.resolve({
+          deployedRootTemplate: {},
+          nestedStacks: {},
+        });
+      },
+    );
+  });
+
+  async function setUpToolkit(env?: string) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        {
+          stackName: 'A',
+          env,
+          template: {
+            Resources: {
+              SomeResource: {
+                Type: 'AWS::SomeService::SomeResource',
+                Properties: { Something: 'new-value' },
+              },
+            },
+          },
+        },
+      ],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test('the stack header shows the environment the stack will be deployed to', async () => {
+    // GIVEN - mocked here rather than in beforeEach, so that every other test in
+    // this file keeps resolving `undefined` and its header assertions keep holding
+    cloudFormation.resolveEnvironment.mockResolvedValue({
+      name: 'aws://123456789012/us-east-1',
+      account: '123456789012',
+      region: 'us-east-1',
+    });
+    await setUpToolkit();
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    expect(output()).toContain('Stack A (aws://123456789012/us-east-1)');
+    expect(exitCode).toBe(0);
+  });
+
+  test('the stack header is unannotated when the environment cannot be resolved', async () => {
+    // GIVEN - resolveEnvironment left returning undefined
+    await setUpToolkit();
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A\n');
+    expect(plainTextOutput).not.toContain('aws://');
+    expect(exitCode).toBe(0);
+  });
+
+  test('an environment-agnostic stack shows the resolved environment, not unknown-*', async () => {
+    // GIVEN - the reported case in aws/aws-cdk-cli#286: the artifact is
+    // environment-agnostic, but the CLI still resolves a concrete target
+    cloudFormation.resolveEnvironment.mockResolvedValue({
+      name: 'aws://123456789012/eu-west-1',
+      account: '123456789012',
+      region: 'eu-west-1',
+    });
+    await setUpToolkit('aws://unknown-account/unknown-region');
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A (aws://123456789012/eu-west-1)');
+    expect(plainTextOutput).not.toContain('unknown-account');
+    expect(plainTextOutput).not.toContain('unknown-region');
+    expect(exitCode).toBe(0);
+  });
+
+  test('diffing against a local template does not resolve the environment', async () => {
+    // GIVEN - `cdk diff --template` must stay entirely offline; resolving an
+    // environment reaches STS and can throw for unresolved accounts
+    await setUpToolkit();
+    fs.writeFileSync(templatePath, JSON.stringify({
+      Resources: {
+        SomeResource: {
+          Type: 'AWS::SomeService::SomeResource',
+          Properties: { Something: 'old-value' },
+        },
+      },
+    }));
+
+    try {
+      // WHEN
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        method: undefined,
+        templatePath,
+      });
+
+      // THEN
+      expect(cloudFormation.resolveEnvironment).not.toHaveBeenCalled();
+      expect(output()).not.toContain('aws://');
+      expect(exitCode).toBe(0);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+});

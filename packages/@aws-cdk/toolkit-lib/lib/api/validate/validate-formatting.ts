@@ -40,7 +40,7 @@ function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
     const pluginName = report.pluginName;
     return report.violations.flatMap((violation) => {
       return violation.violatingConstructs.map((construct) => ({
-        severity: normalizeSeverity(violation.severity),
+        severity: normalizeSeverity(violation.severity, violation.customSeverity),
         description: violation.description,
         ruleName: violation.ruleName,
         pluginName,

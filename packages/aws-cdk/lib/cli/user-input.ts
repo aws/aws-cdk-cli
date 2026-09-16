@@ -455,6 +455,13 @@ export interface SynthOptions {
   readonly quiet?: boolean;
 
   /**
+   * Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
+
+  /**
    * Positional argument for synth
    */
   readonly STACKS?: Array<string>;

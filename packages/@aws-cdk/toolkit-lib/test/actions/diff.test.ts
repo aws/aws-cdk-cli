@@ -765,3 +765,43 @@ describe('diff', () => {
     await realDispose();
   });
 });
+
+describe('environment annotation', () => {
+  test('the stack header shows the environment the stack will be deployed to', async () => {
+    // GIVEN - `resolveEnvironment` is mocked in the global beforeEach
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      message: expect.stringContaining(`Stack ${chalk.bold('Stack1')}${chalk.grey(' (aws://123456789012/us-east-1)')}`),
+    }));
+  });
+
+  test('a local file diff is not annotated, because it never resolves an environment', async () => {
+    // GIVEN - `resolveEnvironment` is mocked in the global beforeEach and would
+    // return a real environment if it were called; a LocalFile diff must stay offline
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      message: expect.not.stringContaining('aws://'),
+    }));
+  });
+});

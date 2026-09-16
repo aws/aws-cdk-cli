@@ -61,6 +61,7 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private _commandSpan?: IMessageSpan<EventResult>;
+  private sigintListener?: () => void;
   private _nextEventCounters?: Record<string, number>;
   private count = 0;
   private loadTime?: number;
@@ -119,17 +120,24 @@ export class TelemetrySession {
 
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
-    process.on('SIGINT', async () => {
-      try {
-        await this.end({
-          name: USER_INTERRUPTED_CODE,
-          message: ABORTED_ERROR_MESSAGE,
-        });
-      } catch (e: any) {
-        await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
-      }
-      process.exit(1);
-    });
+    // The listener is removed in end() -- without that, every begin() call (e.g. one per
+    // exec() invocation in a long-running host process) would permanently add another
+    // listener to the process-global SIGINT emitter, leaking the retained TelemetrySession
+    // (and everything it references) for the lifetime of the process.
+    this.sigintListener = () => {
+      void (async () => {
+        try {
+          await this.end({
+            name: USER_INTERRUPTED_CODE,
+            message: ABORTED_ERROR_MESSAGE,
+          });
+        } catch (e: any) {
+          await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
+        }
+        process.exit(1);
+      })();
+    };
+    process.on('SIGINT', this.sigintListener);
 
     // Begin the session span
     this._commandSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
@@ -221,6 +229,10 @@ export class TelemetrySession {
    * and notifies with an optional error message in the data.
    */
   public async end(error?: ErrorDetails) {
+    if (this.sigintListener) {
+      process.removeListener('SIGINT', this.sigintListener);
+      this.sigintListener = undefined;
+    }
     await this._commandSpan?.end({ error });
     // Ideally span.end() should no-op if called twice, but that is not the case right now
     this._commandSpan = undefined;

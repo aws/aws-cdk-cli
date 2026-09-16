@@ -596,4 +596,52 @@ describe('generateTemplate', () => {
     const template = await generateTemplate(opts);
     expect(template).toEqual(defaultExpectedResult);
   });
+
+  test('generateTemplate does not drop distinct resources that share the first key of a compound ResourceIdentifier', async () => {
+    // AWS::Route53::KeySigningKey (among other resource types) is uniquely identified by a *pair*
+    // of keys: HostedZoneId + Name. Two distinct resources sharing the same HostedZoneId but a
+    // different Name must both be retained by deduplication.
+    const compoundResourceA = {
+      ResourceType: 'AWS::Route53::KeySigningKey',
+      ManagedByStack: false,
+      ResourceIdentifier: { HostedZoneId: 'Z1', Name: 'ksk-one' },
+      LogicalResourceId: 'ksk-one',
+    };
+    const compoundResourceB = {
+      ResourceType: 'AWS::Route53::KeySigningKey',
+      ManagedByStack: false,
+      ResourceIdentifier: { HostedZoneId: 'Z1', Name: 'ksk-two' },
+      LogicalResourceId: 'ksk-two',
+    };
+
+    mockCloudFormationClient
+      .on(ListResourceScanResourcesCommand)
+      .resolves({
+        Resources: [compoundResourceA, compoundResourceB],
+      });
+
+    const opts: GenerateTemplateOptions = {
+      ioHelper,
+      stackName: stackName,
+      filters: [],
+      fromScan: FromScan.NEW,
+      sdkProvider: sdkProvider,
+      environment: environment,
+    };
+
+    await generateTemplate(opts);
+
+    // Both resources must survive deduplication -- they only share the leading identifier key
+    // (HostedZoneId), not the full compound identifier (HostedZoneId + Name) -- and so both
+    // must be sent along to CreateGeneratedTemplate.
+    const createCalls = mockCloudFormationClient.commandCalls(CreateGeneratedTemplateCommand);
+    expect(createCalls).toHaveLength(1);
+    const sentResources = createCalls[0].args[0].input.Resources;
+    expect(sentResources).toContainEqual(
+      expect.objectContaining({ ResourceIdentifier: { HostedZoneId: 'Z1', Name: 'ksk-one' } }),
+    );
+    expect(sentResources).toContainEqual(
+      expect.objectContaining({ ResourceIdentifier: { HostedZoneId: 'Z1', Name: 'ksk-two' } }),
+    );
+  });
 });

@@ -1,5 +1,5 @@
 import type { Environment } from '@aws-cdk/cloud-assembly-api';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { BootstrapError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SDK } from '../aws-auth/private';
 import { isAccessDeniedError } from '../aws-auth/util';
@@ -125,9 +125,10 @@ export class EnvironmentResources {
         notices.addBootstrappedEnvironment({ bootstrapStackVersion: version, environment });
       }
       if (defExpectedVersion > version) {
-        throw new ToolkitError(
+        throw new BootstrapError(
           'OutdatedBootstrapStack',
-          `This CDK deployment requires bootstrap stack version '${expectedVersion}', found '${version}'. Please run 'cdk bootstrap'.`,
+          `This CDK deployment requires bootstrap stack version '${expectedVersion}', found '${version}' in ${environment.name}. Please run 'cdk bootstrap'.`,
+          { account: environment.account, region: environment.region },
         );
       }
     }
@@ -163,9 +164,11 @@ export class EnvironmentResources {
       return asNumber;
     } catch (e: any) {
       if (e.name === 'ParameterNotFound') {
-        throw new ToolkitError(
+        throw new BootstrapError(
           'SsmParameterNotFound',
-          `SSM parameter ${parameterName} not found. Has the environment been bootstrapped? Please run \'cdk bootstrap\' (see https://docs.aws.amazon.com/cdk/latest/guide/bootstrapping.html)`,
+          `SSM parameter ${parameterName} not found in ${this.environment.name}. Has the environment been bootstrapped? Please run \'cdk bootstrap\' (see https://docs.aws.amazon.com/cdk/latest/guide/bootstrapping.html)`,
+          { account: this.environment.account, region: this.environment.region },
+          e,
         );
       }
       throw e;

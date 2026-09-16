@@ -36,6 +36,24 @@ describe('formatValidateResult', () => {
     ]);
   });
 
+  test('uses the plugin-supplied customSeverity label for a "custom" severity violation', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'r1',
+        description: 'blocker issue',
+        severity: 'custom',
+        customSeverity: 'BLOCKER',
+        violatingConstructs: [{ constructPath: 'Stack/A' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('BLOCKER');
+    expect(output).not.toContain('INFO');
+  });
+
   test('formats construct path with logical id', () => {
     const result = makeResult([{
       pluginName: 'TestPlugin',

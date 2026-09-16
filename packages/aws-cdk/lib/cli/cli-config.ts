@@ -75,6 +75,12 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only synthesize requested stacks, don\'t include dependencies' },
           validation: { type: 'boolean', desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)', default: true },
           quiet: { type: 'boolean', alias: 'q', desc: 'Do not output CloudFormation Template to stdout', default: false },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and synthesize the given stack(s) automatically when changes are detected. ' +
+              'Never deploys, and never prints templates to stdout (--quiet and --json have no effect)',
+          },
         },
       },
       'bootstrap': {

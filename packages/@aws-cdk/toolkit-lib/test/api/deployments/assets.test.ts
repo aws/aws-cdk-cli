@@ -3,6 +3,8 @@ import type { AssetMetadataEntry } from '@aws-cdk/cloud-assembly-schema';
 import { addMetadataAssetsToManifest, AssetManifestBuilder } from '../../../lib/api/deployments';
 import type { EnvironmentResources } from '../../../lib/api/environment';
 import { EnvironmentResourcesRegistry } from '../../../lib/api/environment';
+import { ToolkitInfo } from '../../../lib/api/toolkit-info';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { MockSdk } from '../../_helpers/mock-sdk';
 import { MockToolkitInfo } from '../_helpers/mock-toolkitinfo';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -257,3 +259,34 @@ function mockFn<F extends (...xs: any[]) => any>(fn: F): jest.Mock<ReturnType<F>
   }
   return fn;
 }
+
+describe('without a bootstrap stack', () => {
+  test('throws a BootstrapError naming the resolved environment', async () => {
+    // GIVEN - no toolkit stack. The stack artifact's own environment
+    // (aws://123456789012/here) differs from the resolved one, and may hold
+    // the `unknown-account`/`unknown-region` placeholders in real life.
+    toolkitMock.dispose();
+    toolkitMock = MockToolkitInfo.setup(ToolkitInfo.bootstrapStackNotFoundInfo('CDKToolkit'));
+
+    const stack = stackWithAssets([
+      {
+        sourceHash: 'source-hash',
+        path: __filename,
+        id: 'SomeStackSomeResource4567',
+        packaging: 'file',
+        s3BucketParameter: 'BucketParameter',
+        s3KeyParameter: 'KeyParameter',
+        artifactHashParameter: 'ArtifactHashParameter',
+      },
+    ]);
+
+    // WHEN
+    const error = await addMetadataAssetsToManifest(ioHelper, stack, assets, envResources)
+      .then(() => undefined, (e) => e);
+
+    // THEN - the resolved environment is reported, not the artifact's
+    expect(ToolkitError.isBootstrapError(error)).toBe(true);
+    expect(error.environment).toEqual({ account: '11111111', region: 'us-nowhere' });
+    expect(error.message).toContain('cdk bootstrap aws://11111111/us-nowhere');
+  });
+});

@@ -1,7 +1,7 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
+import { StackAssembly } from '../../lib/api';
 import type { IoHelper } from '../../lib/api-private';
 import { BorrowedAssembly, countAssemblyResults } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
@@ -43,19 +43,17 @@ export interface CloudExecutableProps {
  * Represent the Cloud Executable and the synthesis we can do on it
  */
 export class CloudExecutable implements ICloudAssemblySource {
-  private _cloudAssembly?: CloudAssembly;
+  private _cloudAssembly?: StackAssembly;
 
   constructor(private readonly props: CloudExecutableProps) {
   }
 
   public async produce(): Promise<IReadableCloudAssembly> {
-    const synthesisResult = await this.synthesize(true);
-
-    // We must return an `IReadableCloudAssembly` here, but this Cloud Assembly is only used in the context
-    // of the CLI and `cli.ts` currently manages its own locking in the "synthesizer" callback function.
-    //
-    // All the lock-related functions are therefore no-ops.
-    return new BorrowedAssembly(synthesisResult.assembly);
+    // We must return an `IReadableCloudAssembly` here. The `StackAssembly` produced by
+    // `synthesize()` is one, and it is only used in the context of the CLI: `cli.ts`
+    // currently manages its own locking in the "synthesizer" callback function,
+    // so all lock-related functions on it are no-ops.
+    return this.synthesize(true);
   }
 
   /**
@@ -68,8 +66,7 @@ export class CloudExecutable implements ICloudAssemblySource {
   public uncachedSource(): ICloudAssemblySource {
     return {
       produce: async () => {
-        const synthesisResult = await this.synthesize(false);
-        return new BorrowedAssembly(synthesisResult.assembly);
+        return this.synthesize(false);
       },
     };
   }
@@ -100,14 +97,14 @@ export class CloudExecutable implements ICloudAssemblySource {
    *   This is 'true' by default, and only set to 'false' for 'cdk watch',
    *   which needs to re-synthesize the Assembly each time it detects a change to the project files
    */
-  public async synthesize(cacheCloudAssembly: boolean = true): Promise<CloudAssembly> {
+  public async synthesize(cacheCloudAssembly: boolean = true): Promise<StackAssembly> {
     if (!this._cloudAssembly || !cacheCloudAssembly) {
       this._cloudAssembly = await this.doSynthesize();
     }
     return this._cloudAssembly;
   }
 
-  private async doSynthesize(): Promise<CloudAssembly> {
+  private async doSynthesize(): Promise<StackAssembly> {
     // We may need to run the cloud executable multiple times in order to satisfy all missing context
     // (When the executable runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
@@ -166,7 +163,9 @@ export class CloudExecutable implements ICloudAssemblySource {
         }
 
         countAssemblyResults(synthSpan, assembly);
-        return new CloudAssembly(assembly, this.props.ioHelper);
+        // Locking is managed by `cli.ts` in the "synthesizer" callback,
+        // so all lock-related functions on the wrapper are no-ops.
+        return new StackAssembly(new BorrowedAssembly(assembly), this.props.ioHelper);
       }
     } catch (e: any) {
       error = {

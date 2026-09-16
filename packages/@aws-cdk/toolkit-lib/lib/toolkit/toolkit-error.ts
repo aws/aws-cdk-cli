@@ -8,6 +8,7 @@ const ASSEMBLY_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.AssemblyError');
 const CONTEXT_PROVIDER_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextProviderError');
 const NO_RESULTS_FOUND_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.NoResultsFoundError');
 const LOCK_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.LockError');
+const BOOTSTRAP_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.BootstrapError');
 const CONTEXT_LOOKUPS_DISABLED_ERROR_SYMBOL = Symbol.for('@aws-cdk/toolkit-lib.ContextLookupsDisabledError');
 
 /**
@@ -54,6 +55,13 @@ export class ToolkitError extends Error {
    */
   public static isLockError(x: any): x is LockError {
     return ToolkitError.isToolkitError(x) && LOCK_ERROR_SYMBOL in x;
+  }
+
+  /**
+   * Determines if a given error is an instance of BootstrapError.
+   */
+  public static isBootstrapError(x: any): x is BootstrapError {
+    return ToolkitError.isToolkitError(x) && BOOTSTRAP_ERROR_SYMBOL in x;
   }
 
   /**
@@ -155,6 +163,49 @@ export class LockError extends ToolkitError {
     super(errorCode, message, 'lock');
     Object.setPrototypeOf(this, LockError.prototype);
     Object.defineProperty(this, LOCK_ERROR_SYMBOL, { value: true });
+  }
+}
+
+/**
+ * The AWS environment (account and region) a bootstrap error occurred in
+ */
+export interface BootstrapEnvironment {
+  /**
+   * The AWS account ID
+   */
+  readonly account: string;
+
+  /**
+   * The AWS region
+   */
+  readonly region: string;
+}
+
+/**
+ * Represents an error caused by a missing or outdated bootstrap stack.
+ *
+ * This error is thrown when an environment has not been bootstrapped
+ * (the bootstrap stack or its version SSM parameter cannot be found),
+ * or when the bootstrap stack version is insufficient for the deployment.
+ * It carries the environment so callers can tell the user exactly which
+ * account and region needs `cdk bootstrap`.
+ */
+export class BootstrapError extends ToolkitError {
+  /**
+   * Denotes the source of the error as user (they need to bootstrap the environment).
+   */
+  public readonly source = 'user';
+
+  /**
+   * The AWS environment (account and region) where the bootstrap error occurred
+   */
+  public readonly environment: BootstrapEnvironment;
+
+  constructor(errorCode: string, message: string, environment: BootstrapEnvironment, cause?: unknown) {
+    super(errorCode, message, 'bootstrap', cause);
+    Object.setPrototypeOf(this, BootstrapError.prototype);
+    Object.defineProperty(this, BOOTSTRAP_ERROR_SYMBOL, { value: true });
+    this.environment = environment;
   }
 }
 

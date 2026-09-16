@@ -3,7 +3,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import chalk from 'chalk';
 import type { AssetManifestBuilder } from './asset-manifest-builder';
-import { ToolkitError } from '../../toolkit/toolkit-error';
+import { BootstrapError, ToolkitError } from '../../toolkit/toolkit-error';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ToolkitInfo } from '../toolkit-info';
@@ -30,8 +30,12 @@ export async function addMetadataAssetsToManifest(
 
   const toolkitInfo = await envResources.lookupToolkit();
   if (!toolkitInfo.found) {
+    // Use the resolved environment: `stack.environment` may still hold the
+    // `unknown-account`/`unknown-region` placeholders for an env-agnostic
+    // stack, which would make the suggested command unusable.
+    const environment = envResources.environment;
     // eslint-disable-next-line @stylistic/max-len
-    throw new ToolkitError('BootstrapStackRequired', `This stack uses assets, so the toolkit stack must be deployed to the environment (Run "${chalk.blue('cdk bootstrap ' + stack.environment!.name)}")`);
+    throw new BootstrapError('BootstrapStackRequired', `This stack uses assets, so the toolkit stack must be deployed to the environment (Run "${chalk.blue('cdk bootstrap ' + environment.name)}")`, { account: environment.account, region: environment.region });
   }
 
   const params: Record<string, string> = {};

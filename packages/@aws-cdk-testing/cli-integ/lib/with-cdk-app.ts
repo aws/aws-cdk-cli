@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -11,12 +12,14 @@ import { outputFromStack, sleep } from './aws';
 import type { TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
+import { isWindows } from './platform';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
+import { XpMutexPool } from './xpmutex';
 import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
@@ -279,9 +282,10 @@ export interface CdkDestroyCliOptions extends CdkCliOptions {
  * Prepare a target dir byreplicating a source directory
  */
 export async function cloneDirectory(source: string, target: string, output?: NodeJS.WritableStream) {
-  await shell(['rm', '-rf', target], { outputs: output ? [output] : [] });
-  await shell(['mkdir', '-p', target], { outputs: output ? [output] : [] });
-  await shell(['cp', '-R', source + '/*', target], { outputs: output ? [output] : [] });
+  output?.write(`Cloning ${source} into ${target}\n`);
+  await fs.promises.rm(target, { recursive: true, force: true });
+  await fs.promises.mkdir(target, { recursive: true });
+  await fs.promises.cp(source, target, { recursive: true });
 }
 
 interface CommonCdkBootstrapCommandOptions {
@@ -505,19 +509,38 @@ export class TestFixture extends ShellHelper {
     const tokenResponse = await this.aws.ecrPublic.send(new GetAuthorizationTokenCommand({}));
     const authData = tokenResponse.authorizationData?.authorizationToken;
 
-    const docker = process.env.CDK_DOCKER ?? 'docker';
-
     if (!authData) {
       throw new Error('Could not retrieve ECR public auth token.');
     }
 
+    if (isWindows()) {
+      // `docker login` on Windows stores credentials through the wincred credential
+      // helper (auto-detected even if `credsStore` is empty in the config file), and
+      // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
+      // 2560-byte limit ('The stub received bad data'). Write the auth directly into
+      // the per-test Docker config file instead, which is exactly what `docker login`
+      // produces on the Linux runners, where no credential helper is installed.
+      // The plaintext `auths` entry takes precedence over any credential helper.
+      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(this.dockerConfigDir, 'config.json'),
+        JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
+      );
+      return;
+    }
+
+    const docker = process.env.CDK_DOCKER ?? 'docker';
+
     const decoded = Buffer.from(authData, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
 
+    // Reference the password via an environment variable so it doesn't leak into
+    // process listings; the shell expands it.
     await this.shell([docker, 'login',
       '--username', username,
       '--password', '${ECR_PASSWORD}',
       'public.ecr.aws'], {
+      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
       shell: true,
       modEnv: {
         ECR_PASSWORD: password,
@@ -1011,9 +1034,13 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Install the given NPM packages, identified by their names and versions
  *
- * Works by writing the packages to a `package.json` file, and
- * then running NPM7's "install" on it. The use of NPM7 will automatically
- * install required peerDependencies.
+ * Works by writing the packages to a `package.json` file, and then running NPM7's
+ * "install" on it. The use of NPM7 will automatically install required
+ * peerDependencies.
+ *
+ * The install itself is shared: because every test asks for the same handful of
+ * packages at the same resolved versions, they are installed once per machine and
+ * linked into each test directory. See `sharedPackageSetInstall`.
  *
  * If we're running in REPO mode and we find the package in the set of local
  * packages in the repository, we'll write the directory name to `package.json`
@@ -1027,6 +1054,8 @@ function hasJsonFlag(args: string[]): boolean {
  * for Node's dependency lookup mechanism).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
+  let hasLocalPackages = false;
+
   if (process.env.REPO_ROOT) {
     const monoRepo = await findYarnPackages(process.env.REPO_ROOT);
 
@@ -1034,6 +1063,7 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     for (const key of Object.keys(packages)) {
       if (key in monoRepo) {
         packages[key] = monoRepo[key];
+        hasLocalPackages = true;
       }
     }
   }
@@ -1045,6 +1075,99 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     devDependencies: packages,
   }, undefined, 2), { encoding: 'utf-8' });
 
+  if (hasLocalPackages) {
+    // A local package is referenced by directory, so the package set no longer
+    // identifies its own contents: rebuilding changes what is on disk without
+    // changing the requested version. Install per test, so that the dev cycle
+    // of 'rebuild, rerun the test' keeps working.
+    await npmInstallWithRetry(fixture, fixture.integTestDir);
+    return;
+  }
+
+  // Every test installs the same small set of packages, and `aws-cdk-lib` alone is
+  // tens of thousands of files, so installing per test is pure duplicated work: it
+  // is very slow on Windows (minutes instead of seconds), and on every platform it
+  // means many concurrent `npm install` processes, which is a source of ECONNRESET
+  // failures. Install each distinct package set once per machine and link it into
+  // the test directory instead.
+  const sharedNodeModules = await sharedPackageSetInstall(fixture, packages);
+  fs.symlinkSync(
+    sharedNodeModules,
+    path.join(fixture.integTestDir, 'node_modules'),
+    // Ignored on POSIX. On Windows a 'junction' works for unprivileged users,
+    // where a 'dir' symlink needs elevation.
+    isWindows() ? 'junction' : 'dir',
+  );
+
+  // `npm` writes the lock file next to the `package.json` it installed, which is now
+  // the shared directory, so copy it back into the test directory. Constructs that
+  // bundle (`NodejsFunction`) find their project root by searching upwards from the
+  // app for a lock file, and bundle-mount that directory into Docker; without a lock
+  // file here the search escapes the test directory and synth fails.
+  fs.copyFileSync(
+    path.join(sharedNodeModules, '..', 'package-lock.json'),
+    path.join(fixture.integTestDir, 'package-lock.json'),
+  );
+}
+
+/**
+ * Mutex pool guarding the shared installs, created on first use.
+ *
+ * Constructing a pool starts an `fs.watch`, so don't do it for test runs that
+ * never install anything.
+ */
+let installMutexPool: XpMutexPool | undefined;
+
+/**
+ * Install the given package set into a machine-shared directory, once.
+ *
+ * Concurrent callers (jest workers are separate processes) coordinate through a
+ * cross-process mutex: whoever holds it installs, and everyone else waits and then
+ * finds the completion marker already there. A worker that dies while installing
+ * holds a lock nobody would ever release, so `XpMutex` reclaims it once the owning
+ * pid is gone.
+ *
+ * The shared directory is keyed on the requested package set. Those versions are
+ * always fully resolved by the time they get here (see `requestedVersion()` on the
+ * library sources), so the key identifies the contents and the directory can be
+ * reused across runs on the same machine.
+ *
+ * @returns the path of the installed `node_modules` directory.
+ */
+async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<string, string>): Promise<string> {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(packages)).digest('hex').slice(0, 16);
+  const sharedDir = path.join(os.tmpdir(), `cdk-integ-shared-${hash}`);
+  const nodeModules = path.join(sharedDir, 'node_modules');
+
+  // Only ever written after a successful install, so a half-installed directory
+  // (from a worker that was killed) is never handed out.
+  const completeMarker = path.join(sharedDir, '.install-complete');
+
+  if (fs.existsSync(completeMarker)) {
+    return nodeModules;
+  }
+
+  if (!installMutexPool) {
+    installMutexPool = XpMutexPool.fromName('cdk-integ-shared-install');
+  }
+  const lock = await installMutexPool.mutex(hash).acquire();
+  try {
+    if (fs.existsSync(completeMarker)) {
+      return nodeModules;
+    }
+
+    fixture.log(`Installing shared package set into '${sharedDir}'`);
+    fs.mkdirSync(sharedDir, { recursive: true });
+    fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+    await npmInstallWithRetry(fixture, sharedDir);
+    fs.writeFileSync(completeMarker, '');
+    return nodeModules;
+  } finally {
+    await lock.release();
+  }
+}
+
+async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
   // we often ECONNRESET from NPM so lets retry. this might be because of high concurrency
   // which overwhelmes system resources.
   const timeoutMinutes = 10;
@@ -1054,7 +1177,10 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
   while (true) {
     try {
       // Now install that `package.json` using NPM7
-      await fixture.shell(['node', require.resolve('npm'), 'install']);
+      await shell(['node', require.resolve('npm'), 'install'], {
+        cwd,
+        outputs: [fixture.output],
+      });
       break;
     } catch (e: any) {
       if (Date.now() < timeoutDate.getTime() && fixture.output.toString().includes('ECONNRESET' )) {

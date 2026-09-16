@@ -1,4 +1,5 @@
 // Helper functions for CDK Exec
+// eslint-disable-next-line no-restricted-imports -- integ-runner is test tooling; exec() spawns an argv array with no shell, so this is safe. Migrating onto the shared subprocess tool is deferred follow-up work.
 import { spawnSync } from 'child_process';
 
 /**

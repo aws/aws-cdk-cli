@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
 
@@ -260,6 +261,19 @@ function quoteShellPart(part: string) {
     return part;
   }
   if (isWindows) {
+    // cmd.exe expands `%VAR%` even inside double quotes, and a `cmd /c` command
+    // line — which is how `runUserCommandLine` reaches the shell on Windows —
+    // has no reliable way to escape a percent (doubling only works in batch
+    // files). A discovered path carrying a `%...%` reference would therefore be
+    // silently rewritten (an env var spliced into the path). Refuse it loudly
+    // rather than execute something other than what is on disk.
+    if (/%[^%]*%/.test(part)) {
+      throw new ToolkitError(
+        'UnsafeWindowsPath',
+        `Cannot safely run a path containing a '%...%' substring through the Windows shell: '${part}'. ` +
+        'Rename the file or directory to remove the percent signs.',
+      );
+    }
     return `"${part}"`;
   }
   return `"${part.replace(/([\\"$`])/g, '\\$1')}"`;

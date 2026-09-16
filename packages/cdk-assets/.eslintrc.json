@@ -122,6 +122,10 @@
       {
         "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
         "message": "Use the md5hash() function from the core library if you want md5"
+      },
+      {
+        "selector": "Property:matches([key.name='shell'], [key.value='shell']):not([value.type='Literal'][value.value=false])",
+        "message": "Do not enable the `shell` spawn option. Use `run`/`runSync` (argv, no shell) from the subprocess tool, or `runUserCommandLine` for a user-authored command line."
       }
     ],
     "no-throw-literal": [
@@ -152,6 +156,14 @@
           {
             "name": "punycode",
             "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
+          },
+          {
+            "name": "child_process",
+            "message": "Do not use `child_process` directly. Use `run`/`runSync`/`runUserCommandLine` from the subprocess tool ('./private/tools')."
+          },
+          {
+            "name": "node:child_process",
+            "message": "Do not use `child_process` directly. Use `run`/`runSync`/`runUserCommandLine` from the subprocess tool ('./private/tools')."
           }
         ],
         "patterns": [
@@ -317,5 +329,41 @@
       "off"
     ]
   },
-  "overrides": []
+  "overrides": [
+    {
+      "files": [
+        "**/test/**",
+        "**/tests/**",
+        "**/*.test.ts",
+        "**/*.integtest.ts",
+        "projenrc/**",
+        "**/projenrc/**",
+        ".projenrc.ts",
+        "**/.projenrc.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "punycode",
+                "message": "Package 'punycode' has to be imported with trailing slash, see warning in https://github.com/bestiejs/punycode.js#installation"
+              }
+            ],
+            "patterns": [
+              "!punycode/"
+            ]
+          }
+        ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "CallExpression:matches([callee.name='createHash'], [callee.property.name='createHash']) Literal[value='md5']",
+            "message": "Use the md5hash() function from the core library if you want md5"
+          }
+        ]
+      }
+    }
+  ]
 }

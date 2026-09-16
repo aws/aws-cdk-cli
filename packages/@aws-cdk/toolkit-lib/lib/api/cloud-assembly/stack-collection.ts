@@ -1,8 +1,22 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
-import type { IStackAssembly } from './stack-assembly';
 import { type StackDetails } from '../../payloads/stack-details';
 import { AssemblyError, ToolkitError } from '../../toolkit/toolkit-error';
+
+/**
+ * A Cloud Assembly wrapper that stacks can be selected from
+ */
+export interface IStackAssembly {
+  /**
+   * The directory this CloudAssembly was read from
+   */
+  directory: string;
+
+  /**
+   * Select a single stack by its ID
+   */
+  stackById(stackId: string): StackCollection;
+}
 
 /**
  * A collection of stacks and related artifacts

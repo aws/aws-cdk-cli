@@ -722,7 +722,7 @@ export class ResourceDifference implements IDifference<Resource> {
         return ResourceImpact.WILL_CREATE;
       }
       if (this.resourceTypes.newType === undefined) {
-        return this.oldValue!.DeletionPolicy === 'Retain'
+        return this.oldValue!.DeletionPolicy === 'Retain' || this.oldValue!.DeletionPolicy === 'RetainExceptOnCreate'
           ? ResourceImpact.WILL_ORPHAN
           : ResourceImpact.WILL_DESTROY;
       }

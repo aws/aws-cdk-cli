@@ -1,5 +1,5 @@
-import { AbortError } from '@aws-cdk/toolkit-lib';
-import { Deployments } from '../../lib/api';
+import { AbortError, ExpandStackSelection } from '@aws-cdk/toolkit-lib';
+import { Deployments, selectAllTopLevel, selectExact, selectWithDownstream } from '../../lib/api';
 import type { DestroyStackOptions } from '../../lib/api/deployments';
 import { IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
@@ -81,8 +81,7 @@ afterEach(() => {
 describe('force: true (no confirmation prompt)', () => {
   test('destroys a single (nested) stack; "fromDeploy" makes it say "deployed"', async () => {
     await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A/Test-Stack-C'),
       force: true,
       fromDeploy: true,
     });
@@ -92,8 +91,7 @@ describe('force: true (no confirmation prompt)', () => {
 
   test('destroys all top-level stacks with concurrency', async () => {
     await toolkit.destroy({
-      selector: { patterns: ['*'] },
-      exclusively: false,
+      selector: selectWithDownstream('*'),
       force: true,
       concurrency: 5,
     });
@@ -130,8 +128,7 @@ describe('force: true (no confirmation prompt)', () => {
     });
 
     await toolkit.destroy({
-      selector: { allTopLevel: true, patterns: [] },
-      exclusively: false,
+      selector: selectAllTopLevel(ExpandStackSelection.DOWNSTREAM),
       force: true,
       concurrency: 10,
     });
@@ -142,8 +139,7 @@ describe('force: true (no confirmation prompt)', () => {
 
   test('forwards the roleArn to destroyStack', async () => {
     await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: true,
       roleArn: 'arn:aws:iam::123456789012:role/DestroyRole',
     });
@@ -163,8 +159,7 @@ describe('force: false (confirmation prompt)', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, true, false);
 
     await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: false,
     });
 
@@ -179,8 +174,7 @@ describe('force: false (confirmation prompt)', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I7010, false, false);
 
     const error = await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: false,
     }).catch((e) => e);
 
@@ -197,8 +191,7 @@ describe('destroy failure', () => {
     destroyStackMock.mockRejectedValue(new Error('Deletion failed'));
 
     await expect(toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: true,
     })).rejects.toThrow('Deletion failed');
   });
@@ -218,8 +211,7 @@ describe('--express', () => {
     } as any);
 
     await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: true,
       express: true,
     });
@@ -238,8 +230,7 @@ describe('--express', () => {
     } as any);
 
     await toolkit.destroy({
-      selector: { patterns: ['Test-Stack-B'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-B'),
       force: true,
       express: true,
     });

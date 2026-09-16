@@ -120,7 +120,8 @@
             "--summary",
             "--production",
             "--onlyAllow",
-            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD"
+            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD",
+            "--excludePrivatePackages"
           ],
           "receiveArgs": true
         }
@@ -158,7 +159,17 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
+          "execArgs": [
+            "eslint",
+            "--ext",
+            ".ts,.tsx",
+            "--fix",
+            "--no-error-on-unmatched-pattern",
+            "$@",
+            "lib",
+            "test",
+            "build-tools"
+          ],
           "receiveArgs": true
         }
       ]
@@ -208,6 +219,9 @@
         },
         {
           "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --metafile dist/metafile.json"
+        },
+        {
+          "spawn": "versions"
         }
       ]
     },
@@ -253,7 +267,11 @@
       },
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
+          "execArgs": [
+            "jest",
+            "--passWithNoTests",
+            "--updateSnapshot"
+          ],
           "receiveArgs": true
         },
         {
@@ -267,7 +285,10 @@
       "description": "Run jest in watch mode",
       "steps": [
         {
-          "exec": "jest --watch"
+          "execArgs": [
+            "jest",
+            "--watch"
+          ]
         }
       ]
     },
@@ -334,6 +355,14 @@
         },
         {
           "spawn": "post-upgrade"
+        }
+      ]
+    },
+    "versions": {
+      "name": "versions",
+      "steps": [
+        {
+          "exec": "tsx --tsconfig test/tsconfig.json scripts/gen-versions-json.ts && rm -f dist/toolkit-versions.zip && zip -j -q dist/toolkit-versions.zip dist/versions.json"
         }
       ]
     },

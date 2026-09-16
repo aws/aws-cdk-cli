@@ -635,14 +635,20 @@ describe('CloudFormationStackDiagnoser', () => {
       expect(problem.problems[0].errorCode).not.toEqual('HookFailed');
     });
 
-    test('reports the non-specific change set error when ListHookResults fails', async () => {
-      mockCloudFormationClient.on(ListHookResultsCommand).rejects(new Error('not authorized'));
+    test('reports a note about missing hook detail after the main error, when ListHookResults fails', async () => {
+      mockCloudFormationClient.on(ListHookResultsCommand).rejects(new Error(
+        'User: arn:aws:sts::123456789012:assumed-role/cdk-pipeline-deploy-role/example-runner is not authorized ' +
+        'to perform: cloudformation:ListHookResults on resource: ' + STACK_ARN,
+      ));
 
       const result = await makeDiagnoser().diagnoseChangeSet(failedChangeSet());
 
       const problem = assertProblem(result);
       expect(problem.problems).toEqual([expect.objectContaining({
         message: expect.stringContaining('The following hook(s) failed'),
+        additionalContext: [expect.objectContaining({
+          messages: [expect.stringContaining('Could not fetch extra hook failure detail for change set my-cs')],
+        })],
       })]);
     });
 
