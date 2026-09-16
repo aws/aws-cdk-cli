@@ -27,6 +27,7 @@ import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider, NodeHttpHandlerOptions } from '@smithy/types';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
+import * as yaml from 'yaml';
 
 interface ClientConfig {
   readonly credentials: AwsCredentialIdentityProvider | AwsCredentialIdentity;
@@ -187,7 +188,7 @@ export class AwsClients {
       const response = await this.cloudFormation.send(new GetTemplateCommand({
         StackName: stackName,
       }));
-      return response.TemplateBody ? JSON.parse(response.TemplateBody) : undefined;
+      return response.TemplateBody ? yaml.parse(response.TemplateBody, { schema: 'core' }) : undefined;
     } catch (e: any) {
       if (isStackMissingError(e)) {
         return undefined;
