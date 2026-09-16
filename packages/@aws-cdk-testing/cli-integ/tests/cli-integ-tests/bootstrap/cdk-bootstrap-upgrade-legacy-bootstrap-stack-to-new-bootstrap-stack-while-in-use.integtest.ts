@@ -5,7 +5,11 @@ integTest('upgrade legacy bootstrap stack to new bootstrap stack while in use', 
 
   const legacyBootstrapBucketName = `aws-cdk-bootstrap-integ-test-legacy-bckt-${randomString()}`;
   const newBootstrapBucketName = `aws-cdk-bootstrap-integ-test-v2-bckt-${randomString()}`;
-  fixture.queueResourceCleanup({ type: 'bucket', bucketName: legacyBootstrapBucketName }); // This one will leak
+
+  // This one will leak
+  fixture.queueResourceCleanup({ type: 'bucket', bucketName: legacyBootstrapBucketName });
+  // This one shouldn't leak if the test succeeds, but let's be safe in case it doesn't
+  fixture.queueResourceCleanup({ type: 'bucket', bucketName: newBootstrapBucketName });
 
   // Legacy bootstrap
   await fixture.cdkBootstrapLegacy({
