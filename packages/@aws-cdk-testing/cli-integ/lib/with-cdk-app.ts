@@ -847,6 +847,9 @@ export class TestFixture extends ShellHelper {
     }
   }
 
+  /**
+   * Remove the given resource(s) from the resources that will be deleted.
+   */
   public unqueueResourceCleanup(...resources: UnmanagedResourceToCleanup[]) {
     for (const resource of resources) {
       delete this.resourcesToCleanup[JSON.stringify(resource)];
@@ -860,12 +863,12 @@ export class TestFixture extends ShellHelper {
     const stacksToDelete = await this.deleteableStacks(this.stackNamePrefix);
     this.sortBootstrapStacksToTheEnd(stacksToDelete);
 
-    await this.queueStackResourcesForCleanup(stacksToDelete);
+    await this.fixCleanupQueue(stacksToDelete);
 
-    // Cleanup unmanaged resources (including bucket contents)
+    // Cleanup resources that a stack deletion would not clean up
     await this.cleanupResources();
 
-    // Cleanup stacks if we are not running in Atmosphere.
+    // Cleanup stacks unless Atmosphere will do it
     if (!atmosphereEnabled()) {
       await this.aws.deleteStacks(
         ...stacksToDelete.map((s) => {
@@ -888,34 +891,32 @@ export class TestFixture extends ShellHelper {
   }
 
   /**
-   * Queue unmanaged resources for cleanup
+   * Fix the cleanup queue w.r.t. the given stacks
    *
-   * Queues 2 things right now:
+   * - Resources that will be leaked if those stacks are deleted are queued for deletion.
+   * - Resources that will be deleted along with those stacks are removed from the queue.
    *
-   * - Buckets managed by CloudFormation are queued for cleaning
-   * - Buckets that will remain unmanaged by CloudFormation after stack deletion are queued for deleting
+   * Always queues cleaning of bucket contents for all buckets found; bucket contents
+   * always considered "unmanaged".
    */
-  private async queueStackResourcesForCleanup(stacks: Stack[]) {
+  private async fixCleanupQueue(stacks: Stack[]) {
     for (const stack of stacks) {
       const resources = await StackResources.load(this.aws.cloudFormation, stack.StackName!);
 
-      // Queue all buckets for cleanup.
+      // Queue all bucket contents for cleanup.
       for (const resource of resources.ofType('AWS::S3::Bucket')) {
         this.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
       }
 
-      // From the stack:
-      // - Queue all resources that will be leaked (i.e. not deleted by CloudFormation) for cleanup.
-      // - Remove all managed resources from the list of resources to cleanup, since they will be deleted by CloudFormation.
-      //   (They were probably added just-in-case, in case the test suite failed and we never got to cleanup)
+      // Reconcile queue with stack resources; leakables and managed resources.
       const { leakable, managed } = await this.partititionStackResources(stack);
 
-      // Queue leakable resources for deletion.
-      const physicalLeakables = resources.resolveLogical(leakable);
-      this.queueResourceCleanup(...physicalLeakables.map(cleanableResourceFromPhysical).filter(defined));
-
-      const physicalManaged = resources.resolveLogical(managed);
-      this.unqueueResourceCleanup(...physicalManaged.map(cleanableResourceFromPhysical).filter(defined));
+      this.queueResourceCleanup(...resources.resolveLogical(leakable)
+        .map(cleanableResourceFromPhysical)
+        .filter(defined));
+      this.unqueueResourceCleanup(...resources.resolveLogical(managed)
+        .map(cleanableResourceFromPhysical)
+        .filter(defined));
     }
   }
 
