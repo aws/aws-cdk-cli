@@ -909,7 +909,7 @@ export class TestFixture extends ShellHelper {
       }
 
       // Reconcile queue with stack resources; leakables and managed resources.
-      const { leakable, managed } = await this.partititionStackResources(stack);
+      const { leakable, managed } = await this.partitionStackResources(stack);
 
       this.queueResourceCleanup(...resources.resolveLogical(leakable)
         .map(cleanableResourceFromPhysical)
@@ -923,7 +923,7 @@ export class TestFixture extends ShellHelper {
   /**
    * Find resources in a stack that have a removal policy that causes it to be left behind if the stack is deleted.
    */
-  private async partititionStackResources(stack: Stack) {
+  private async partitionStackResources(stack: Stack) {
     interface Template {
       Resources?: {
         [logicalId: string]: {
@@ -1340,11 +1340,9 @@ function cleanableResourceFromPhysical(resource: PhysicalResource): CleanupResou
   switch (resource.cloudFormationType) {
     case 'AWS::S3::Bucket':
       return { type: 'bucket', bucketName: resource.physicalId };
-      break;
 
     case 'AWS::ECR::Repository':
       return { type: 'ecr-repository', repositoryName: resource.physicalId };
-      break;
 
     default:
       return undefined;
