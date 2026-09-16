@@ -222,35 +222,42 @@ export class AwsClients {
   }
 
   public async emptyBucket(bucketName: string, options?: { bypassGovernance?: boolean }) {
-    const objects = await this.s3.send(
-      new ListObjectVersionsCommand({
-        Bucket: bucketName,
-      }),
-    );
+    try {
+      const objects = await this.s3.send(
+        new ListObjectVersionsCommand({
+          Bucket: bucketName,
+        }),
+      );
 
-    const deletes = [...(objects.Versions || []), ...(objects.DeleteMarkers || [])].reduce((acc, obj) => {
-      if (typeof obj.VersionId !== 'undefined' && typeof obj.Key !== 'undefined') {
-        acc.push({ Key: obj.Key, VersionId: obj.VersionId });
-      } else if (typeof obj.Key !== 'undefined') {
-        acc.push({ Key: obj.Key });
+      const deletes = [...(objects.Versions || []), ...(objects.DeleteMarkers || [])].reduce((acc, obj) => {
+        if (typeof obj.VersionId !== 'undefined' && typeof obj.Key !== 'undefined') {
+          acc.push({ Key: obj.Key, VersionId: obj.VersionId });
+        } else if (typeof obj.Key !== 'undefined') {
+          acc.push({ Key: obj.Key });
+        }
+        return acc;
+      }, [] as ObjectIdentifier[]);
+
+      if (deletes.length === 0) {
+        return;
       }
-      return acc;
-    }, [] as ObjectIdentifier[]);
 
-    if (deletes.length === 0) {
-      return Promise.resolve();
+      return await this.s3.send(
+        new DeleteObjectsCommand({
+          Bucket: bucketName,
+          Delete: {
+            Objects: deletes,
+            Quiet: false,
+          },
+          BypassGovernanceRetention: options?.bypassGovernance ? true : undefined,
+        }),
+      );
+    } catch (e: any) {
+      if (isBucketMissingError(e)) {
+        return;
+      }
+      throw e;
     }
-
-    return this.s3.send(
-      new DeleteObjectsCommand({
-        Bucket: bucketName,
-        Delete: {
-          Objects: deletes,
-          Quiet: false,
-        },
-        BypassGovernanceRetention: options?.bypassGovernance ? true : undefined,
-      }),
-    );
   }
 
   public async deleteImageRepository(repositoryName: string) {
