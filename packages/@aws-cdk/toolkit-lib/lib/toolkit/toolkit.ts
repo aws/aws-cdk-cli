@@ -36,7 +36,7 @@ import type {
   EnvironmentBootstrapResult,
 } from '../actions/bootstrap';
 import { BootstrapSource } from '../actions/bootstrap';
-import { AssetBuildTime, type DeployOptions } from '../actions/deploy';
+import { AssetBuildTime, type DeployOptions, type DeployParametersOnlyOptions } from '../actions/deploy';
 import {
   buildParameterMap,
   isChangeSetDeployment,
@@ -80,7 +80,7 @@ import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import type { StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
-import { createValidationChangeSet } from '../api/deployments/cfn-api';
+import { createValidationChangeSet, waitForStackDeploy } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter } from '../api/diff';
@@ -790,6 +790,66 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
 
     return await this._deploy(assembly, 'deploy', assembly.synthDuration, options);
+  }
+
+  /**
+   * Updates only the parameters of an already-deployed stack, reusing its
+   * currently-deployed template (CloudFormation's `UsePreviousTemplate`).
+   *
+   * Unlike `deploy()`, this does not require a cloud assembly: there is no
+   * synthesized template to inspect or upload, since the deployed template
+   * is left untouched. Only the account/region, stack name, and the
+   * parameters being overridden need to be known. Any other parameters on
+   * the stack keep their currently-deployed values (`UsePreviousValue`).
+   *
+   * Because there's no synthesized stack artifact for this deploy, some
+   * things `deploy()` normally does from the CDK app's own metadata are not
+   * available here and are simply skipped: tags, notification ARNs, and the
+   * "stack synthesized with zero resources -> delete instead" safety check.
+   * If the target stack doesn't already exist, this throws instead of
+   * attempting to create it - `UsePreviousTemplate` requires an existing
+   * deployed template to reuse.
+   */
+  public async deployParametersOnly(options: DeployParametersOnlyOptions): Promise<void> {
+    const ioHelper = asIoHelper(this.ioHost, 'deploy');
+    const sdkProvider = await this.sdkProvider('deploy');
+    const environment = cxapi.EnvironmentUtils.make(options.account, options.region);
+    const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForWriting)).sdk.cloudFormation();
+
+    const describeResult = await cfn.describeStacks({ StackName: options.stackName }).catch(() => undefined);
+    const existingStack = describeResult?.Stacks?.[0];
+    if (!existingStack) {
+      throw new ToolkitError(
+        'StackNotFound',
+        `Cannot deploy stack ${options.stackName} with a previous template: the stack does not exist yet, so there is no previous template to reuse`,
+      );
+    }
+
+    const overrideKeys = new Set(Object.keys(options.parameters));
+    const parameters = [
+      ...(existingStack.Parameters ?? [])
+        .filter((p) => p.ParameterKey && !overrideKeys.has(p.ParameterKey))
+        .map((p) => ({ ParameterKey: p.ParameterKey, UsePreviousValue: true })),
+      ...Object.entries(options.parameters).map(([ParameterKey, ParameterValue]) => ({ ParameterKey, ParameterValue })),
+    ];
+
+    try {
+      await cfn.updateStack({
+        StackName: options.stackName,
+        UsePreviousTemplate: true,
+        Parameters: parameters,
+        Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
+        RoleARN: options.roleArn,
+      });
+    } catch (e: any) {
+      if (e.name === 'ValidationError' && /No updates are to be performed/.test(e.message ?? '')) {
+        await ioHelper.defaults.info(`${options.stackName}: no updates to perform`);
+        return;
+      }
+      throw e;
+    }
+
+    await waitForStackDeploy(cfn, ioHelper, options.stackName);
   }
 
   /**
