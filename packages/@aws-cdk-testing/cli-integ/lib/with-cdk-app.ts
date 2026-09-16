@@ -7,7 +7,7 @@ import * as path from 'path';
 import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
-import type { AwsClients } from './aws';
+import type { AwsClients, CleanupResource } from './aws';
 import { outputFromStack, sleep } from './aws';
 import { type TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
@@ -31,11 +31,6 @@ export interface CdkAppContextOptions {
    */
   readonly aws?: AwsContextOptions;
 }
-
-export type CleanupResource =
-  | { type: 'bucket'; bucketName: string }
-  | { type: 'bucket-contents'; bucketName: string }
-  | { type: 'ecr-repository'; repositoryName: string };
 
 /**
  * Higher order function to execute a block with a CDK app fixture
@@ -415,10 +410,6 @@ export interface CdkGarbageCollectionCommandOptions {
 
 export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
-  /**
-   * Order-sensitive map keyed by JSON representation for speedy duplicate checks.
-   */
-  private readonly resourcesToCleanup: Record<string, CleanupResource> = {};
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
@@ -840,29 +831,6 @@ export class TestFixture extends ShellHelper {
   }
 
   /**
-   * Append this to the list of resources to potentially delete at the end of the test
-   *
-   * You can safely queue the same resource multiple times, it will only be deleted once.
-   *
-   * You can safely queue resources that are managed by CloudFormation; we will let CloudFormation
-   * manage the deletion of those resources.
-   */
-  public queueResourceCleanup(...resources: CleanupResource[]) {
-    for (const resource of resources) {
-      this.resourcesToCleanup[JSON.stringify(resource)] = resource;
-    }
-  }
-
-  /**
-   * Remove the given resource(s) from the resources that will be deleted.
-   */
-  public unqueueResourceCleanup(...resources: CleanupResource[]) {
-    for (const resource of resources) {
-      delete this.resourcesToCleanup[JSON.stringify(resource)];
-    }
-  }
-
-  /**
    * Cleanup leftover stacks and bootstrapped resources
    */
   public async dispose(success: boolean) {
@@ -871,8 +839,11 @@ export class TestFixture extends ShellHelper {
 
     await this.fixCleanupQueue(stacksToDelete);
 
-    // Cleanup resources that a stack deletion would not clean up
-    await this.cleanupResources();
+    // Cleanup resources that a stack deletion would not clean up.
+    // The queued resources would get deleted when the 'aws' object is cleaned up anyway,
+    // but we're doing it early so that bucket contents are emptied before we go to do
+    // stacks.
+    await this.aws.cleanupResources();
 
     // Cleanup stacks unless Atmosphere will do it
     if (!atmosphereEnabled()) {
@@ -911,16 +882,16 @@ export class TestFixture extends ShellHelper {
 
       // Queue all bucket contents for cleanup.
       for (const resource of resources.ofType('AWS::S3::Bucket')) {
-        this.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
+        this.aws.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
       }
 
       // Reconcile queue with stack resources; leakables and managed resources.
       const { leakable, managed } = await this.partitionStackResources(stack);
 
-      this.queueResourceCleanup(...resources.resolveLogical(leakable)
+      this.aws.queueResourceCleanup(...resources.resolveLogical(leakable)
         .map(cleanableResourceFromPhysical)
         .filter(defined));
-      this.unqueueResourceCleanup(...resources.resolveLogical(managed)
+      this.aws.unqueueResourceCleanup(...resources.resolveLogical(managed)
         .map(cleanableResourceFromPhysical)
         .filter(defined));
     }
@@ -957,27 +928,6 @@ export class TestFixture extends ShellHelper {
     }
 
     return { managed, leakable };
-  }
-
-  private async cleanupResources() {
-    for (const resource of Object.values(this.resourcesToCleanup)) {
-      switch (resource.type) {
-        case 'bucket':
-          await this.aws.deleteBucket(resource.bucketName);
-          break;
-
-        case 'bucket-contents':
-          await this.aws.emptyBucket(resource.bucketName);
-          break;
-
-        case 'ecr-repository':
-          await this.aws.deleteImageRepository(resource.repositoryName);
-          break;
-
-        default:
-          assertNever(resource);
-      }
-    }
   }
 
   /**
@@ -1336,10 +1286,6 @@ class StackResources {
       return physicalId ? [{ ...logical, physicalId }] : [];
     });
   }
-}
-
-function assertNever(x: never): never {
-  throw new Error(`Unexpected value: ${x}`);
 }
 
 function cleanableResourceFromPhysical(resource: PhysicalResource): CleanupResource | undefined {

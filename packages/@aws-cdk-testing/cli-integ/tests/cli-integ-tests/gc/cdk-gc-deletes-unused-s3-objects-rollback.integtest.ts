@@ -9,7 +9,7 @@ integTest(
   withoutBootstrap(async (fixture) => {
     const toolkitStackName = fixture.bootstrapStackName;
     const bootstrapBucketName = `aws-cdk-garbage-collect-integ-test-bckt-${randomString()}`;
-    fixture.queueResourceCleanup({ type: 'bucket', bucketName: bootstrapBucketName });
+    fixture.aws.queueResourceCleanup({ type: 'bucket', bucketName: bootstrapBucketName });
 
     await fixture.cdkBootstrapModern({
       toolkitStackName,

@@ -57,8 +57,12 @@ export class AwsClients {
     return new AwsClients(randomString, region, output, testTags, undefined);
   }
 
-  private readonly cleanup: (() => Promise<void>)[] = [];
   private readonly config: ClientConfig;
+
+  /**
+   * Order-sensitive map keyed by JSON representation for speedy duplicate checks.
+   */
+  private readonly resourcesToCleanup: Record<string, CleanupResource> = {};
 
   public readonly cloudFormation: CloudFormationClient;
   public readonly s3: S3Client;
@@ -102,19 +106,35 @@ export class AwsClients {
     this.dynamoDb = new DynamoDB(this.config);
   }
 
-  public addCleanup(cleanup: () => Promise<any>) {
-    this.cleanup.push(cleanup);
+  /**
+   * Append this to the list of resources to potentially delete at the end of the test
+   *
+   * You can safely queue the same resource multiple times, it will only be deleted once.
+   *
+   * You can safely queue resources that are managed by CloudFormation; we will let CloudFormation
+   * manage the deletion of those resources.
+   */
+  public queueResourceCleanup(...resources: CleanupResource[]) {
+    for (const resource of resources) {
+      this.resourcesToCleanup[JSON.stringify(resource)] = resource;
+    }
+  }
+
+  /**
+   * Remove the given resource(s) from the resources that will be deleted.
+   */
+  public unqueueResourceCleanup(...resources: CleanupResource[]) {
+    for (const resource of resources) {
+      delete this.resourcesToCleanup[JSON.stringify(resource)];
+    }
   }
 
   public async dispose() {
-    for (const cleanup of this.cleanup) {
-      try {
-        await cleanup();
-      } catch (e: any) {
-        this.output.write(`⚠️ Error during cleanup: ${e.message}\n`);
-      }
+    try {
+      await this.cleanupResources();
+    } catch (e: any) {
+      this.output.write(`⚠️ Error during cleanup: ${e.message}\n`);
     }
-    this.cleanup.splice(0, this.cleanup.length);
   }
 
   public async account(): Promise<string> {
@@ -291,7 +311,7 @@ export class AwsClients {
       Name: topicName,
       Tags: this.apiTags(),
     }));
-    this.addCleanup(() => this.deleteTopic(response.TopicArn!));
+    this.queueResourceCleanup({ type: 'topic', topicArn: response.TopicArn! });
 
     return response.TopicArn!;
   }
@@ -338,7 +358,7 @@ export class AwsClients {
       }, undefined, 2),
     }));
 
-    this.addCleanup(() => this.deleteRole(response.Role!.RoleName!));
+    this.queueResourceCleanup({ type: 'role', roleName: response.Role!.RoleName! });
 
     return response.Role?.Arn ?? '*CreateRole did not return an ARN*';
   }
@@ -373,6 +393,37 @@ export class AwsClients {
 
   public apiTags() {
     return Object.entries(this.testTags).map(([key, value]) => ({ Key: key, Value: value }));
+  }
+
+  public async cleanupResources() {
+    for (const [key, resource] of Object.entries(this.resourcesToCleanup)) {
+      switch (resource.type) {
+        case 'bucket':
+          await this.deleteBucket(resource.bucketName);
+          break;
+
+        case 'bucket-contents':
+          await this.emptyBucket(resource.bucketName);
+          break;
+
+        case 'ecr-repository':
+          await this.deleteImageRepository(resource.repositoryName);
+          break;
+
+        case 'role':
+          await this.deleteRole(resource.roleName);
+          break;
+
+        case 'topic':
+          await this.deleteTopic(resource.topicArn);
+          break;
+
+        default:
+          assertNever(resource);
+      }
+
+      delete this.resourcesToCleanup[key];
+    }
   }
 }
 
@@ -485,4 +536,16 @@ function chainableCredentials(region: string): AwsCredentialIdentityProvider {
 
 function isAwsCredentialIdentity(x: any): x is AwsCredentialIdentity {
   return Boolean(x && typeof x === 'object' && x.accessKeyId);
+}
+
+export type CleanupResource =
+  | { type: 'bucket'; bucketName: string }
+  | { type: 'bucket-contents'; bucketName: string }
+  | { type: 'ecr-repository'; repositoryName: string }
+  | { type: 'role'; roleName: string }
+  | { type: 'topic'; topicArn: string }
+  ;
+
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${x}`);
 }
