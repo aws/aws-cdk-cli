@@ -1,4 +1,4 @@
-import type { IoMessage, IoMessageCode, IoMessageLevel } from '../io-message';
+import type { IoMessage, IoRequest, IoMessageCode, IoMessageLevel } from '../io-message';
 import type { ActionLessMessage, ActionLessRequest } from './io-helper';
 
 /**
@@ -39,17 +39,21 @@ interface MessageInfo extends CodeInfo {
 
 /**
  * An interface that can produce messages for a specific code.
+ *
+ * The maker is itself a type guard over `IoMessage`, so it can be handed
+ * directly to anything that selects messages, as in `host.on(IO.MY_CODE, fn)`,
+ * and the listener receives a typed payload.
  */
 export interface IoMessageMaker<T> extends MessageInfo {
+  /**
+   * Returns whether the given `IoMessage` instance matches this message definition.
+   */
+  (x: IoMessage<unknown>): x is IoMessage<T>;
+
   /**
    * Create a message for this code, with or without payload.
    */
   msg: [T] extends [AbsentData] ? (message: string) => ActionLessMessage<AbsentData> : (message: string, data: T) => ActionLessMessage<T>;
-
-  /**
-   * Returns whether the given `IoMessage` instance matches the current message definition
-   */
-  is(x: IoMessage<unknown>): x is IoMessage<T>;
 }
 
 /**
@@ -64,12 +68,13 @@ function message<T = AbsentData>(level: IoMessageLevel, details: CodeInfo): IoMe
     data,
   } as ActionLessMessage<T>);
 
-  return {
+  const matches = (m: IoMessage<unknown>): m is IoMessage<T> => m.code === details.code;
+
+  return Object.assign(matches, {
     ...details,
     level,
     msg: maker as any,
-    is: (m): m is IoMessage<T> => m.code === details.code,
-  };
+  });
 }
 
 /**
@@ -108,8 +113,17 @@ interface RequestInfo<U> extends CodeInfo {
 
 /**
  * An interface that can produce requests for a specific code.
+ *
+ * Like `IoMessageMaker`, the maker is itself a type guard, and it narrows all
+ * the way to `IoRequest`, so `host.respond(IO.MY_CODE, value)` checks `value`
+ * against this request's response type.
  */
 export interface IoRequestMaker<T, U> extends MessageInfo {
+  /**
+   * Returns whether the given `IoMessage` instance matches this request definition.
+   */
+  (x: IoMessage<unknown>): x is IoRequest<T, U>;
+
   /**
    * Create a message for this code, with or without payload.
    */
@@ -118,11 +132,6 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
     : [U] extends [boolean]
       ? (message: string, data: T) => ActionLessRequest<T, U>
       : (message: string, data: T, defaultResponse: U) => ActionLessRequest<T, U>;
-
-  /**
-   * Returns whether the given `IoMessage` instance matches this request definition
-   */
-  is(x: IoMessage<unknown>): x is IoMessage<T>;
 }
 
 /**
@@ -138,12 +147,13 @@ function request<T = AbsentData, U = ImpossibleType>(level: IoMessageLevel, deta
     defaultResponse: details.defaultResponse,
   } as ActionLessRequest<T, U>);
 
-  return {
+  const matches = (m: IoMessage<unknown>): m is IoRequest<T, U> => m.code === details.code;
+
+  return Object.assign(matches, {
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoMessage<T> => m.code === details.code,
-  };
+  });
 }
 
 /**
@@ -158,7 +168,7 @@ export const confirm = <T extends object = ImpossibleType>(details: Required<Omi
  * An open ended question with a string answer, typically provided on-demand by a user.
  */
 export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
-  const level = 'info';
+  const level: IoMessageLevel = 'info';
   const maker = (text: string, data: T, defaultResponse: string) => ({
     time: new Date(),
     level,
@@ -168,10 +178,11 @@ export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
     defaultResponse,
   } as ActionLessRequest<T, string>);
 
-  return {
+  const matches = (m: IoMessage<unknown>): m is IoRequest<T, string> => m.code === details.code;
+
+  return Object.assign(matches, {
     ...details,
     level,
     req: maker as any,
-    is: (m): m is IoMessage<T> => m.code === details.code,
-  };
+  });
 }
