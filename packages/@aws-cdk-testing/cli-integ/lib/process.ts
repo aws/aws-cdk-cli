@@ -76,6 +76,8 @@ export class Process {
   public static spawn(command: string, args: string[], options: child.SpawnOptions = {}): IProcess {
     const process = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      // eslint-disable-next-line no-restricted-syntax
+      shell: options.shell,
       ...options,
     });
     return new NonPtyProcess(process);
