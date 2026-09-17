@@ -331,13 +331,13 @@ export class AwsClients {
     }
   }
 
-  public async temporarySsmParameter(parameterName: string, parameterValue: string) {
+  public async temporarySsmParameter(parameterName: string, parameterValue: string, op: 'create' | 'update') {
     await this.ssm.send(new PutParameterCommand({
       Name: parameterName,
       Value: parameterValue,
       Type: 'String',
-      Tags: this.apiTags(),
-      Overwrite: true,
+      ...op === 'create' ? { Tags: this.apiTags() } : undefined,
+      ...op === 'update' ? { Overwrite: true } : undefined,
     }));
     this.queueResourceCleanup({ type: 'ssm-parameter', parameterName });
   }

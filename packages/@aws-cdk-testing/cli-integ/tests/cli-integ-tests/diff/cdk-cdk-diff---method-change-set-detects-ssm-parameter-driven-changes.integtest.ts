@@ -21,14 +21,14 @@ integTest(
     const stackName = fixture.fullStackName('ssm-resolve-queue');
 
     // GIVEN - an SSM parameter with an initial value, and a deployed stack that names its queue after it
-    await fixture.aws.temporarySsmParameter(parameterName, queueNameV1);
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV1, 'create');
 
     await fixture.cdkDeploy('ssm-resolve-queue', {
       modEnv: { SSM_PARAMETER_NAME: parameterName },
     });
 
     // WHEN - the SSM parameter value changes out-of-band (the CDK app/template is unchanged)
-    await fixture.aws.temporarySsmParameter(parameterName, queueNameV2);
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV2, 'update');
 
     // THEN - a template-only diff sees nothing, because the template is byte-for-byte identical
     const templateDiff = await fixture.cdk(['diff', '--method=template', stackName], {

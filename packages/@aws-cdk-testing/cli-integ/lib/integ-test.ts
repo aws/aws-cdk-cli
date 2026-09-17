@@ -66,8 +66,8 @@ export function integTest(
         randomString: randomString(),
         testName: name,
         testTags: {
-          'aws-cdk:integ:test': name.slice(0, 255),
-          'aws-cdk:integ:created': new Date().toISOString().slice(0, 12),
+          'aws-cdk:integ:test': name.slice(0, 255).replaceAll(/[^_./=+-]/g, '_'),
+          'aws-cdk:integ:created': new Date().toISOString().slice(0, 10),
         },
         log(s: string) {
           output.write(`${s}\n`);
