@@ -1676,6 +1676,7 @@ const cliInteg = configureProject(
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',
+      'cross-spawn',
     ],
     devDeps: [
       yarnCling,

@@ -229,6 +229,10 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "type": "runtime"
+    },
+    {
       "name": "fast-glob",
       "type": "runtime"
     },
