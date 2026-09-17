@@ -135,16 +135,6 @@ export interface DeployStackOptions {
   readonly usePreviousParameters?: boolean;
 
   /**
-   * Use the template currently deployed to the stack instead of the synthesized template.
-   *
-   * Deploys only the parameter changes, without publishing assets or uploading a new
-   * template. The stack must already exist; this option is invalid on stack creation.
-   *
-   * @default false
-   */
-  readonly usePreviousTemplate?: boolean;
-
-  /**
    * Rollback failed deployments
    *
    * @default true
@@ -440,7 +430,6 @@ export class Deployments {
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
-      usePreviousTemplate: options.usePreviousTemplate,
       rollback: options.rollback,
       extraUserAgent: options.extraUserAgent,
       resourcesToImport: options.resourcesToImport,

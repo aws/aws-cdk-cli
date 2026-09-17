@@ -1424,51 +1424,6 @@ describe('revert-drift', () => {
   });
 });
 
-describe('usePreviousTemplate', () => {
-  test('sends UsePreviousTemplate and omits the template body/URL', async () => {
-    // GIVEN
-    givenStackExists({ StackName: 'withouterrors' });
-
-    // WHEN
-    await testDeployStack({
-      ...standardDeployStackArguments(),
-      usePreviousTemplate: true,
-    });
-
-    // THEN
-    expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
-      ...expect.anything,
-      UsePreviousTemplate: true,
-      TemplateBody: undefined,
-      TemplateURL: undefined,
-    });
-  });
-
-  test('throws if the stack does not exist yet', async () => {
-    // WHEN / THEN
-    await expect(
-      testDeployStack({
-        ...standardDeployStackArguments(),
-        usePreviousTemplate: true,
-      }),
-    ).rejects.toThrow(/there is no previous template to reuse/);
-  });
-
-  test('throws when combined with a hotswap deployment method', async () => {
-    // GIVEN
-    givenStackExists({ StackName: 'withouterrors' });
-
-    // WHEN / THEN
-    await expect(
-      testDeployStack({
-        ...standardDeployStackArguments(),
-        usePreviousTemplate: true,
-        deploymentMethod: { method: 'hotswap' },
-      }),
-    ).rejects.toThrow(/hotswap deployments need the synthesized template/);
-  });
-});
-
 describe('express mode', () => {
   test('passes EXPRESS mode in DeploymentConfig when creating a new stack via change-set', async () => {
     // WHEN
