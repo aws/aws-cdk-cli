@@ -25,10 +25,19 @@ export interface CanaryArtifactUploadProps {
   readonly bucketName: string;
 
   /**
-   * The role (or GitHub expression) to assume via OIDC for the upload. This is
-   * the repo's existing release role, which cdk-ops grants S3 write on `cli/*`.
+   * The role (or GitHub expression) to assume via OIDC as the first hop. This
+   * is the repo's existing release role that has a trust relationship with the
+   * GitHub OIDC provider.
    */
   readonly roleToAssume: string;
+
+  /**
+   * The role (or GitHub expression) to role-chain into for the actual upload
+   * (second hop). This is the dedicated canary publishing role in the cdk-ops
+   * account, which trusts `roleToAssume` and is granted `s3:PutObject` on the
+   * bucket's `cli/*` prefix.
+   */
+  readonly publishingRoleToAssume: string;
 
   /**
    * Only run the upload on these repositories. Prevents forks from attempting
@@ -61,6 +70,11 @@ export interface CanaryArtifactUploadProps {
  *
  * This is NOT a release gate -- it does not block anything and does not wait on
  * tests. It only emits the artifact for continuous daily monitoring of `main`.
+ *
+ * Authentication is a two-hop role chain (mirroring the S3 docs-publishing
+ * jobs): the GitHub OIDC token first assumes the repo's release role, which
+ * then role-chains into the dedicated canary publishing role in the cdk-ops
+ * account that actually holds the `cli/*` write grant.
  */
 export class CanaryArtifactUpload extends Component {
   public readonly workflow: github.GithubWorkflow;
@@ -114,6 +128,21 @@ export class CanaryArtifactUpload extends Component {
           ].join('\n'),
         },
         {
+          // Register the role ARNs as log masks before they are used, so their
+          // full values (role names, not just the account id) never appear in
+          // the public workflow logs. These are non-sensitive identifiers;
+          // masking is defense-in-depth, not a security boundary.
+          name: 'Mask role ARNs in logs',
+          env: {
+            ROLE_TO_ASSUME: props.roleToAssume,
+            PUBLISHING_ROLE_TO_ASSUME: props.publishingRoleToAssume,
+          },
+          run: [
+            'echo "::add-mask::$ROLE_TO_ASSUME"',
+            'echo "::add-mask::$PUBLISHING_ROLE_TO_ASSUME"',
+          ].join('\n'),
+        },
+        {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
           uses: 'aws-actions/configure-aws-credentials@v6',
@@ -122,6 +151,18 @@ export class CanaryArtifactUpload extends Component {
             'role-to-assume': props.roleToAssume,
             'role-session-name': roleSessionName,
             'mask-aws-account-id': true,
+          },
+        },
+        {
+          name: 'Assume the canary publishing role',
+          id: 'publishing-creds',
+          uses: 'aws-actions/configure-aws-credentials@v6',
+          with: {
+            'aws-region': awsRegion,
+            'role-to-assume': props.publishingRoleToAssume,
+            'role-session-name': roleSessionName,
+            'mask-aws-account-id': true,
+            'role-chaining': true,
           },
         },
         {
