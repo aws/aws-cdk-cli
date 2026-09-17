@@ -1276,6 +1276,7 @@ class StackResources {
   public ofType(type: string): PhysicalResource[] {
     return this.resources
       .filter(r => r.ResourceType === type)
+      .filter(r => r.PhysicalResourceId !== undefined && r.PhysicalResourceId !== '')
       .map(r => ({ cloudFormationType: type, physicalId: r.PhysicalResourceId! }));
   }
 
