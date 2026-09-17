@@ -42,6 +42,7 @@ __metadata:
     chalk: "npm:^4"
     commit-and-tag-version: "npm:^12"
     constructs: "npm:^10.0.0"
+    cross-spawn: "npm:^7.0.6"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.5"

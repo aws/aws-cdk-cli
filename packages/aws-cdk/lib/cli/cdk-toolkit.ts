@@ -969,10 +969,8 @@ export class CdkToolkit {
 
     // Import the resources according to the given mapping
     await this.ioHost.asIoHelper().defaults.info('%s: importing resources into stack...', chalk.bold(stack.displayName));
-    const tags = tagsForStack(stack);
     await resourceImporter.importResourcesFromMap(actualImport, {
       roleArn: options.roleArn,
-      tags,
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
       rollback: options.rollback,
