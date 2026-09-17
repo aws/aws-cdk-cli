@@ -49,7 +49,6 @@ export async function fromStackCreatesDeployableApp(fixture: TestFixture, langua
     verbose: true,
     captureStderr: false,
   });
-  await fixture.shell(['cd', path.join(fixture.integTestDir, migrateStackName)]);
   await fixture.cdk(['deploy', migrateStackName], {
     neverRequireApproval: true,
     verbose: true,
