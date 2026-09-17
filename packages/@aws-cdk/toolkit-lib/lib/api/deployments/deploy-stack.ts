@@ -167,16 +167,6 @@ export interface DeployStackOptions {
   readonly usePreviousParameters?: boolean;
 
   /**
-   * Use the template currently deployed to the stack instead of the synthesized template.
-   *
-   * Deploys only the parameter changes, without publishing assets or uploading a new
-   * template. The stack must already exist; this option is invalid on stack creation.
-   *
-   * @default false
-   */
-  readonly usePreviousTemplate?: boolean;
-
-  /**
    * Deploy even if the deployed template is identical to the one we are about to deploy.
    * @default false
    */
@@ -261,20 +251,6 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     return fullDeployment.performDeployment();
   }
 
-  if (options.usePreviousTemplate && !cloudFormationStack.exists) {
-    throw new ToolkitError(
-      'UsePreviousTemplateRequiresExistingStack',
-      `Cannot deploy stack ${deployName} with usePreviousTemplate: the stack does not exist yet, so there is no previous template to reuse`,
-    );
-  }
-
-  if (options.usePreviousTemplate && deploymentMethod.method === 'hotswap') {
-    throw new ToolkitError(
-      'UsePreviousTemplateIncompatibleWithHotswap',
-      `Cannot deploy stack ${deployName} with usePreviousTemplate: hotswap deployments need the synthesized template to compute changes`,
-    );
-  }
-
   if (cloudFormationStack.stackStatus.isCreationFailure) {
     await ioHelper.defaults.debug(
       `Found existing stack ${deployName} that had previously failed creation. Deleting it before attempting to re-create it.`,
@@ -336,28 +312,24 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
     await ioHelper.defaults.debug(`${deployName}: deploying...`);
   }
 
-  const bodyParameter = options.usePreviousTemplate
-    ? {}
-    : await makeBodyParameter(
-      ioHelper,
-      stackArtifact,
-      options.resolvedEnvironment,
-      legacyAssets,
-      options.envResources,
-      options.overrideTemplate,
-    );
-  if (!options.usePreviousTemplate) {
-    let bootstrapStackName: string | undefined;
-    try {
-      bootstrapStackName = (await options.envResources.lookupToolkit()).stackName;
-    } catch (e) {
-      await ioHelper.defaults.debug(`Could not determine the bootstrap stack name: ${e}`);
-    }
-    await publishAssets(legacyAssets.toManifest(stackArtifact.assembly.directory), options.sdkProvider, stackEnv, {
-      parallel: options.assetParallelism,
-      allowCrossAccount: await determineAllowCrossAccountAssetPublishing(options.sdk, ioHelper, bootstrapStackName),
-    }, ioHelper);
+  const bodyParameter = await makeBodyParameter(
+    ioHelper,
+    stackArtifact,
+    options.resolvedEnvironment,
+    legacyAssets,
+    options.envResources,
+    options.overrideTemplate,
+  );
+  let bootstrapStackName: string | undefined;
+  try {
+    bootstrapStackName = (await options.envResources.lookupToolkit()).stackName;
+  } catch (e) {
+    await ioHelper.defaults.debug(`Could not determine the bootstrap stack name: ${e}`);
   }
+  await publishAssets(legacyAssets.toManifest(stackArtifact.assembly.directory), options.sdkProvider, stackEnv, {
+    parallel: options.assetParallelism,
+    allowCrossAccount: await determineAllowCrossAccountAssetPublishing(options.sdk, ioHelper, bootstrapStackName),
+  }, ioHelper);
 
   // attempt to short-circuit the deployment if possible
   if (deploymentMethod?.method === 'hotswap') {
@@ -631,7 +603,6 @@ class FullCloudFormationDeployment {
       DeploymentMode: revertDrift ? 'REVERT_DRIFT' : undefined,
       IncludeNestedStacks: (this.options.resourcesToImport || revertDrift) ? undefined : true,
       ...this.commonPrepareOptions(),
-      ...this.usePreviousTemplateOption(),
       DeploymentConfig: this.deployConfig(),
     });
 
@@ -701,7 +672,6 @@ class FullCloudFormationDeployment {
           ClientRequestToken: `update${this.uuid}`,
           DeploymentConfig: this.deployConfig(),
           ...this.commonPrepareOptions(),
-          ...this.usePreviousTemplateOption(),
           ...this.commonExecuteOptions(),
         });
         return await this.monitorDeployment(startTime, stack.StackId!, undefined);
@@ -815,21 +785,10 @@ class FullCloudFormationDeployment {
       NotificationARNs: this.options.notificationArns,
       Parameters: this.stackParams.apiParameters,
       RoleARN: this.options.roleArn,
-      TemplateBody: this.options.usePreviousTemplate ? undefined : this.bodyParameter.TemplateBody,
-      TemplateURL: this.options.usePreviousTemplate ? undefined : this.bodyParameter.TemplateURL,
+      TemplateBody: this.bodyParameter.TemplateBody,
+      TemplateURL: this.bodyParameter.TemplateURL,
       Tags: this.options.tags,
     };
-  }
-
-  /**
-   * `UsePreviousTemplate` for update/change-set operations.
-   *
-   * Only valid for UpdateStack and CreateChangeSet, not CreateStack (there is no
-   * previous template on initial creation) — kept separate from
-   * `commonPrepareOptions()`, which is shared by all three.
-   */
-  private usePreviousTemplateOption(): { UsePreviousTemplate?: boolean } {
-    return this.options.usePreviousTemplate ? { UsePreviousTemplate: true } : {};
   }
 
   /**

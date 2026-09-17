@@ -965,7 +965,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         forceDeployment: options.forceDeployment,
         parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
         usePreviousParameters: options.parameters?.keepExistingParameters,
-        usePreviousTemplate: options.usePreviousTemplate,
         rollback: options.rollback,
         notificationArns,
         extraUserAgent: options.extraUserAgent,
