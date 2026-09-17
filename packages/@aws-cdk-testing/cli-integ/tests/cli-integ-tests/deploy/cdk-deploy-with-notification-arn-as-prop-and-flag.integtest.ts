@@ -11,7 +11,6 @@ integTest('deploy with notification ARN as prop and flag', withDefaultFixture(as
   await fixture.cdkDeploy('notification-arns', {
     modEnv: {
       INTEG_NOTIFICATION_ARNS: topic1Arn,
-
     },
     options: ['--notification-arns', topic2Arn],
   });
@@ -22,7 +21,8 @@ integTest('deploy with notification ARN as prop and flag', withDefaultFixture(as
       StackName: fixture.fullStackName('notification-arns'),
     }),
   );
-  expect(describeResponse.Stacks?.[0].NotificationARNs).toEqual([topic1Arn, topic2Arn]);
+  const arns = describeResponse.Stacks?.[0].NotificationARNs?.sort();
+  expect(arns).toEqual([topic1Arn, topic2Arn]);
 }));
 
 // NOTE: this doesn't currently work with modern-style synthesis, as the bootstrap
