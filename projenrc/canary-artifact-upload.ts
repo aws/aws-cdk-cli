@@ -109,9 +109,14 @@ export class CanaryArtifactUpload extends Component {
         ...repo.renderWorkflowSetup(),
         {
           name: 'Build and pack the CLI',
-          // The `package` target produces the installable npm tarball at
-          // packages/aws-cdk/dist/js/*.tgz (same output as `npm pack`).
-          run: `yarn nx run ${props.cliPackageName}:package`,
+          // The `build` target compiles the package (producing lib/index.js and
+          // copying runtime assets into lib/) and, as its final phase, packs the
+          // installable npm tarball to packages/aws-cdk/dist/js/*.tgz (same
+          // output as `npm pack`). NX builds the package's dependencies first.
+          // We must run `build`, not `package` alone: `package` only packs
+          // already-compiled output and fails with "Unable to locate
+          // entrypoint: lib/index.js" if nothing has compiled yet.
+          run: `yarn nx run ${props.cliPackageName}:build`,
         },
         {
           name: 'Resolve the packed tarball',

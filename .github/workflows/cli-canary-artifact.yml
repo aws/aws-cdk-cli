@@ -32,7 +32,7 @@ jobs:
         run: yarn install --immutable
       - name: Build and pack the CLI
         id: build_and_pack_the_cli
-        run: yarn nx run aws-cdk:package
+        run: yarn nx run aws-cdk:build
       - name: Resolve the packed tarball
         id: tarball
         run: |-
