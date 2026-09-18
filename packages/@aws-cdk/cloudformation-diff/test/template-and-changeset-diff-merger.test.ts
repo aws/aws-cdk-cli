@@ -859,7 +859,7 @@ describe('fullDiff tests that include changeset', () => {
       expect(queueDiff.changeImpact).toBe(ResourceImpact.WILL_REPLACE);
     });
 
-    test('does not add Add/Remove/Import change set actions as synthesized changes', () => {
+    test('does not add Import change set actions as synthesized changes', () => {
       // GIVEN identical templates
       const template = {
         Resources: {
@@ -867,13 +867,13 @@ describe('fullDiff tests that include changeset', () => {
         },
       };
 
-      // WHEN the change set only carries non-Modify actions for a resource not in the diff
+      // WHEN the change set only carries an Import action for a resource not in the diff
       const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
         Changes: [
           {
             Type: 'Resource',
             ResourceChange: {
-              Action: 'Add',
+              Action: 'Import',
               LogicalResourceId: 'SomethingElse',
               ResourceType: 'AWS::SQS::Queue',
               AfterContext: '{"Properties":{"QueueName":"x"}}',
@@ -884,6 +884,78 @@ describe('fullDiff tests that include changeset', () => {
 
       // THEN
       expect(differences.resources.differenceCount).toBe(0);
+    });
+
+    test('surfaces a change set Add for a resource not visible in the template diff', () => {
+      // GIVEN identical templates - a real-world example is a resource guarded by a Condition:
+      // the resource (with its Condition attribute) is present, byte-for-byte identical, in
+      // both templates - only the parameter driving the condition changed, which a purely
+      // textual template diff can never see.
+      const template = {
+        Resources: {
+          Queue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: { Ref: 'P' } } },
+          ConditionalBucket: {
+            Type: 'AWS::S3::Bucket',
+            Condition: 'CreateBucket',
+            Properties: { BucketName: 'my-bucket' },
+          },
+        },
+      };
+
+      // WHEN the change set reports the condition-gated resource as a real Add
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Add',
+              LogicalResourceId: 'ConditionalBucket',
+              ResourceType: 'AWS::S3::Bucket',
+              AfterContext: '{"Properties":{"BucketName":"my-bucket"}}',
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      const bucketDiff = differences.resources.get('ConditionalBucket');
+      expect(bucketDiff.isAddition).toBe(true);
+      expect(bucketDiff.changeImpact).toBe(ResourceImpact.WILL_CREATE);
+    });
+
+    test('surfaces a change set Remove for a resource not visible in the template diff', () => {
+      // GIVEN identical templates
+      const template = {
+        Resources: {
+          ConditionalBucket: {
+            Type: 'AWS::S3::Bucket',
+            Condition: 'CreateBucket',
+            Properties: { BucketName: 'my-bucket' },
+          },
+        },
+      };
+
+      // WHEN the change set reports the condition-gated resource as a real Remove
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Remove',
+              LogicalResourceId: 'ConditionalBucket',
+              ResourceType: 'AWS::S3::Bucket',
+              BeforeContext: '{"Properties":{"BucketName":"my-bucket"}}',
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      const bucketDiff = differences.resources.get('ConditionalBucket');
+      expect(bucketDiff.isRemoval).toBe(true);
+      expect(bucketDiff.changeImpact).toBe(ResourceImpact.WILL_DESTROY);
     });
 
     test('skips SAM resources reported by the change set', () => {

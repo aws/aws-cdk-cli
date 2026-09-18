@@ -206,6 +206,14 @@ export class TemplateAndChangeSetDiffMerger {
    * even though a pure template diff cannot, so we synthesize a `ResourceDifference` from the
    * change set's before/after data.
    *
+   * The same textual blind spot applies to a resource guarded by a `Condition`: the resource is
+   * present, byte-for-byte identical, in both templates (only the `Condition` attribute exists,
+   * not its evaluated result), so a purely textual diff can never see it start or stop being
+   * created just because a parameter that drives the condition changed. The change set evaluates
+   * conditions for real and reports these as ordinary `Add`/`Remove` actions, so we synthesize a
+   * `ResourceDifference` for those the same way, using the change set's before/after data (or an
+   * explicit `undefined` on the missing side, matching what an `Add`/`Remove` actually means).
+   *
    * @param resourceDiffs - the resource differences to add to (mutated in place)
    * @param resourcesInTemplateDiff - the logical IDs that the template diff already reported as
    *   changed, captured *before* any change-set overrides were applied. Those resources are
@@ -223,10 +231,8 @@ export class TemplateAndChangeSetDiffMerger {
         continue;
       }
 
-      // Additions, removals and imports are already reflected in the template diff (a new or
-      // deleted resource shows up textually), or are handled by the dedicated import path. We
-      // only need to synthesize changes for modifications that are invisible to a textual diff.
-      if (rc.Action !== 'Modify') {
+      // Imports are handled by the dedicated import path, not here.
+      if (rc.Action === 'Import') {
         continue;
       }
 
@@ -243,11 +249,34 @@ export class TemplateAndChangeSetDiffMerger {
         continue;
       }
 
-      const resourceDiff = this.resourceDifferenceFromChangeSetResource(rc);
+      const resourceDiff =
+        rc.Action === 'Add' || rc.Action === 'Remove'
+          ? this.resourceDifferenceFromConditionalAddOrRemove(rc)
+          : this.resourceDifferenceFromChangeSetResource(rc);
       if (resourceDiff?.isDifferent) {
         resourceDiffs.set(logicalId, resourceDiff);
       }
     }
+  }
+
+  /**
+   * Build a `ResourceDifference` for a condition-gated resource that the change set reports as
+   * `Add` or `Remove`. Unlike a `Modify`, there is no "before" (for `Add`) or "after" (for
+   * `Remove`) resource state to reconstruct - the missing side is explicitly `undefined`, which
+   * is what makes `ResourceDifference.isAddition`/`isRemoval` (and therefore the impact symbol)
+   * come out correctly.
+   */
+  private resourceDifferenceFromConditionalAddOrRemove(rc: ChangeSetResourceChange): types.ResourceDifference | undefined {
+    const resourceType = rc.ResourceType;
+    const logicalId = rc.LogicalResourceId;
+
+    const afterResource = this.parseResourceContext(rc.AfterContext, resourceType);
+    const beforeResource = this.parseResourceContext(rc.BeforeContext, resourceType);
+
+    const oldResource = rc.Action === 'Add' ? undefined : (beforeResource ?? { Type: resourceType ?? TemplateAndChangeSetDiffMerger.UNKNOWN_RESOURCE_TYPE, Properties: {} });
+    const newResource = rc.Action === 'Remove' ? undefined : (afterResource ?? { Type: resourceType ?? TemplateAndChangeSetDiffMerger.UNKNOWN_RESOURCE_TYPE, Properties: {} });
+
+    return diffResource(oldResource, newResource, logicalId);
   }
 
   /**
