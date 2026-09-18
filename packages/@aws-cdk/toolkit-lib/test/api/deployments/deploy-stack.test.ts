@@ -1603,13 +1603,19 @@ test.each([
 
 // CloudFormation's RollbackStack API is not supported for stacks last deployed
 // with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
-// must never route through the rollback path. It always fix-forwards via the
-// change set / UpdateStack and lets CloudFormation surface any error (including a
-// rejected replacement on a disable-rollback stack). `--express --rollback`
-// explicitly opts back into the rollback-enabled path.
+// must never route through the rollback path.
+//
+// It must, however, still refuse to submit a replacement while rollback is disabled:
+// CloudFormation rejects those and leaves the stack in UPDATE_FAILED, from which an
+// express stack cannot be rolled back. `--express --rollback` re-enables rollback
+// server-side (DisableRollback: false) and is the route users are sent to.
+//
+// See aws/aws-cdk-cli#1931. The `express, no explicit rollback` expectation below was
+// changed from 'replacement-requires-rollback' to 'did-deploy-stack' by #1745, which is
+// why the regression shipped unnoticed; #1785 then restructured the guard it removed.
 test.each([
-  // --express alone (rollback defaults off): always fix-forward, never divert to rollback
-  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
+  // --express alone (rollback disabled server-side): a replacement must not be submitted
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
@@ -1636,11 +1642,15 @@ test.each([
 
 // A stack last deployed with express mode that is in a paused fail state
 // (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
-// --express` must therefore always fix-forward via createChangeSet/UpdateStack
-// instead of routing to the rollback path.
+// --express` must therefore never return 'failpaused-need-rollback-first'; it
+// fix-forwards via createChangeSet/UpdateStack instead.
+//
+// A replacement while rollback is disabled is still refused (with the
+// retry-with-rollback result, not the rollback-first result), because submitting it
+// would only deepen the wedge. See aws/aws-cdk-cli#1931.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
-  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
+  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'replacement-requires-rollback'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(
