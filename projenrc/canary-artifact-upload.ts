@@ -64,8 +64,8 @@ export interface CanaryArtifactUploadProps {
  * This is NOT a release gate -- it does not block anything and does not wait on
  * tests. It only emits the artifact for continuous daily monitoring of `main`.
  *
- * The GitHub OIDC token directly assumes the dedicated canary publishing role 
- *  in the cdk-ops account, which holds the `cli/*` write grant. 
+ * The GitHub OIDC token directly assumes the dedicated canary publishing role
+ *  in the cdk-ops account, which holds the `cli/*` write grant.
  */
 export class CanaryArtifactUpload extends Component {
   public readonly workflow: github.GithubWorkflow;
