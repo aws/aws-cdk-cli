@@ -350,8 +350,8 @@ live revision should still be the one from before the failed deployment). If it 
 succeeds. If it is not, the replay is itself a replacement back to the earlier state and will fail in exactly the same
 way, and you will need to deploy with rollback enabled instead.
 
-> CloudFormation is expected to lift this restriction for rollback-disabled deployments around 2026-11-15. Once that
-> ships, replacements will work under `--express` without `--rollback` and this section no longer applies.
+> This applies until CloudFormation lifts the restriction on replacements in rollback-disabled deployments. Once it
+> does, replacements will work under `--express` without `--rollback` and this section no longer applies.
 
 #### Deploying multiple stacks
 
