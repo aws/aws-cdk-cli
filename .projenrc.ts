@@ -5,6 +5,7 @@ import * as pj from 'projen';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
+import { CanaryArtifactUpload } from './projenrc/canary-artifact-upload';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
 import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
@@ -1846,6 +1847,23 @@ new CdkCliIntegTestsWorkflow(repo, {
 new CodeCovWorkflow(repo, {
   restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
+});
+
+// On every push to `main`, build + pack the CLI and upload the tarball to the
+// shared cdk-ops canary bucket, keyed by commit hash, along with a
+// `cli/latest.json` pointer. The cdk-ops daily Windows canary consumes these to
+// run the cli-integ-tests suite against the built CLI. This only emits the
+// artifact; it is not a release gate and does not run the Windows tests here.
+new CanaryArtifactUpload(repo, {
+  restrictToRepos: ['aws/aws-cdk-cli'],
+  cliPackageName: cli.name,
+  cliWorkspaceDirectory: cli.workspaceDirectory,
+  bucketName: '${{ vars.CANARY_ARTIFACT_BUCKET_NAME }}',
+  // First hop: repo release role (trusts the GitHub OIDC provider).
+  roleToAssume: '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
+  // Second hop: dedicated canary publishing role in the cdk-ops account,
+  // which holds the s3:PutObject grant on the bucket's cli/* prefix.
+  publishingRoleToAssume: '${{ vars.CANARY_ARTIFACT_ROLE_ARN }}',
 });
 
 new IssueLabeler(repo);
