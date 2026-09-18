@@ -817,9 +817,11 @@ class FullCloudFormationDeployment {
    * Tell the user how to perform a replacement when CloudFormation rejected one because rollback was disabled.
    *
    * The `--method=direct` path has no change set to inspect, so it cannot be gated up front the way the change set
-   * path is; a replacement there is only discovered from the failure CloudFormation reports. We deliberately do not
-   * refuse `--express --method=direct` up front either, because redeploying the previous configuration that way is
-   * the documented way to unwedge a stack that is already stuck.
+   * path is; a replacement there is only discovered from the failure CloudFormation reports.
+   *
+   * `--express --method=direct` is deliberately NOT refused up front, and that gap should not be "fixed": replaying the
+   * previous configuration that way is the only exit from a stack already stranded in UPDATE_FAILED, so refusing the
+   * combination would strand users permanently.
    *
    * The original error is left to propagate untouched, so a genuinely failing replacement still reports its real
    * underlying service error.
@@ -1121,6 +1123,11 @@ function arrayEquals(a: any[], b: any[]): boolean {
 
 /**
  * Find the resource changes in a change set that CloudFormation would perform by replacement
+ *
+ * `Replacement: 'Conditional'` is deliberately excluded: `CDKMetadata` reports it on essentially every CDK deployment
+ * (its `Analytics` property is `RequiresRecreation: 'Conditionally'`), so gating on it would gate almost every express
+ * deployment. A `Conditional` change that does turn out to replace is caught after the fact by
+ * `routeReplacementRejectedWithRollbackDisabled`.
  */
 function findReplacements(report: ChangeSetReport): ReplacedResource[] {
   return (report.changeSet.Changes ?? []).flatMap((c) => {
@@ -1148,8 +1155,9 @@ function findReplacements(report: ChangeSetReport): ReplacedResource[] {
  *
  * CloudFormation surfaces this as a resource status reason with no structured error code attached (`extractErrorCode`
  * finds no `HandlerErrorCode:`/`Error Code:` prefix in it), so matching this text is the only trigger available. That
- * makes it fragile: CloudFormation owns the string and has a change landing around 2026-11-15. A miss is logged at
- * debug level and only costs the extra guidance - the underlying CloudFormation error is reported either way.
+ * makes it fragile: CloudFormation owns the string and has a change landing around 2026-11-15. Replace this match with
+ * a structured discriminator if CloudFormation ever exposes one. A miss is logged at debug level and only costs the
+ * extra guidance - the underlying CloudFormation error is reported either way.
  */
 export const CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON = 'Replacement type updates not supported on stack with disable-rollback';
 
