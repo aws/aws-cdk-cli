@@ -1645,12 +1645,12 @@ test.each([
 // --express` must therefore never return 'failpaused-need-rollback-first'; it
 // fix-forwards via createChangeSet/UpdateStack instead.
 //
-// A replacement while rollback is disabled is still refused (with the
-// retry-with-rollback result, not the rollback-first result), because submitting it
-// would only deepen the wedge. See aws/aws-cdk-cli#1931.
+// The replacement case is deliberately absent here: it does not return a result at
+// all, it throws, because deploying with rollback enabled cannot update an
+// already-failed stack either. It is covered by
+// deploy-stack-express-replacement.test.ts. See aws/aws-cdk-cli#1931.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
-  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'replacement-requires-rollback'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(

@@ -597,15 +597,22 @@ class FullCloudFormationDeployment {
     // all regions, the express half of this guard - and CDK_TOOLKIT_W5903 - can be deleted.
     if (replacements.length > 0 && this.rollbackDisabled()) {
       if (this.options.express) {
-        await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(
-          replacementRoutingMessage({ rejected: false, needsUnwedge: isPausedFailState }),
-          {
-            stackName: this.stackName,
-            changeSetId: changeSetReport.changeSet.ChangeSetId,
-            replacements,
-            detectedBy: 'change-set',
-          },
-        ));
+        const guidance = replacementRoutingMessage({ rejected: false, needsUnwedge: isPausedFailState });
+
+        // A stack that is already in a failed state cannot be updated with rollback enabled either - CloudFormation
+        // answers "This stack is currently in a non-terminal [UPDATE_FAILED] state". Returning
+        // `replacement-requires-rollback` here would make the toolkit offer exactly that deployment, and because the
+        // confirmation defaults to yes, a non-interactive caller would run it and fail a second time. Report once.
+        if (isPausedFailState) {
+          throw new ToolkitError('ReplacementRequiresUnwedge', guidance);
+        }
+
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(guidance, {
+          stackName: this.stackName,
+          changeSetId: changeSetReport.changeSet.ChangeSetId,
+          replacements,
+          detectedBy: 'change-set',
+        }));
       }
       return { type: 'replacement-requires-rollback' };
     }
@@ -827,7 +834,10 @@ class FullCloudFormationDeployment {
    * underlying service error.
    */
   private async routeReplacementRejectedWithRollbackDisabled(error: any, errors: ResourceErrors): Promise<void> {
-    if (!this.rollbackDisabled()) {
+    // Express only: the guidance below names Express Mode flags, and switching a standard-mode deployment to Express
+    // Mode would be actively harmful (the mode is sticky and gives up `cdk rollback`). A standard `--no-rollback`
+    // deployment that hits this recovers with a plain `cdk deploy`, which the README already documents.
+    if (!this.options.express || !this.rollbackDisabled()) {
       return;
     }
 
@@ -851,10 +861,12 @@ class FullCloudFormationDeployment {
       replacementRoutingMessage({ rejected: true, needsUnwedge: true }),
       {
         stackName: this.stackName,
-        replacements: rejected.map((e) => ({
-          logicalId: e.logicalId ?? this.stackName,
-          resourceType: e.resourceType,
-        })),
+        replacements: rejected
+          .filter((e) => e.logicalId !== undefined)
+          .map((e) => ({
+            logicalId: e.logicalId,
+            resourceType: e.resourceType,
+          })),
         detectedBy: 'service-error',
       },
     ));
@@ -907,13 +919,14 @@ class FullCloudFormationDeployment {
    * deployed everywhere yet.
    */
   private commonExecuteOptions(): Partial<Pick<UpdateStackCommandInput, CommonExecuteOptions>> {
-    // Not `rollbackDisabled()`: express deployments also run with rollback disabled, but they must express that
-    // through `DeploymentConfig` rather than by sending `DisableRollback` on the call.
-    const shouldDisableRollback = this.options.rollback === false;
+    // Deliberately not `rollbackDisabled()`, which is also true for plain `--express`. This flag tracks the explicit
+    // `--no-rollback` request only, so that plain `--express` does not start sending a `DisableRollback` it never
+    // asked for. `--express --no-rollback` sends both this flag and `DeploymentConfig`, which is intended.
+    const shouldSendDisableRollbackFlag = this.options.rollback === false;
 
     return {
       StackName: this.stackName,
-      ...(shouldDisableRollback ? { DisableRollback: true } : undefined),
+      ...(shouldSendDisableRollbackFlag ? { DisableRollback: true } : undefined),
     };
   }
 }
@@ -1142,7 +1155,7 @@ function findReplacements(report: ChangeSetReport): ReplacedResource[] {
     }
 
     return [{
-      logicalId: change.LogicalResourceId ?? '<unknown>',
+      logicalId: change.LogicalResourceId,
       resourceType: change.ResourceType,
       replacement: change.Replacement,
       policyAction,

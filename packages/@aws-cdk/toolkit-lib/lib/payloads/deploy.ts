@@ -82,8 +82,10 @@ export interface PublishAssetEvent {
 export interface ReplacedResource {
   /**
    * Logical ID of the resource being replaced
+   *
+   * Absent when CloudFormation reported the change or failure without naming a resource.
    */
-  readonly logicalId: string;
+  readonly logicalId?: string;
 
   /**
    * CloudFormation resource type, when known

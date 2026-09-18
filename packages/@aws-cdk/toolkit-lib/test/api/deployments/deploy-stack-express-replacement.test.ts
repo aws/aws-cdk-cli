@@ -214,11 +214,22 @@ function conditionalChange(logicalId = 'CDKMetadata'): Change {
 }
 
 /**
- * The change shapes the guard must recognise.
+ * A replacement CloudFormation reports only via `Replacement: 'True'`, with no policy action attached.
+ *
+ * Not gated up front today - see the negative test below and #1971.
  */
-const REPLACEMENT_FIXTURES: Array<[string, (logicalId?: string) => Change]> = [
-  ['policy action with Replacement=True', policyActionReplacementChange],
-];
+function replacementOnlyChange(logicalId = 'TaskDef54694570'): Change {
+  return {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: logicalId,
+      ResourceType: 'AWS::ECS::TaskDefinition',
+      Replacement: 'True',
+      Scope: ['Properties'],
+    },
+  };
+}
 
 /**
  * Make any attempt to actually mutate the stack a hard test failure.
@@ -240,7 +251,8 @@ function expectNoStackMutation() {
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateStackCommand);
 }
 
-describe.each(REPLACEMENT_FIXTURES)('change set path, replacement reported as %s', (_shape, replacementChange) => {
+describe('change set path, replacement reported as policy action with Replacement=True', () => {
+  const replacementChange = policyActionReplacementChange;
   test('express with rollback disabled is gated before ExecuteChangeSet', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
@@ -344,29 +356,32 @@ describe.each(REPLACEMENT_FIXTURES)('change set path, replacement reported as %s
     expectNoStackMutation();
   });
 
-  // Verified against CloudFormation: retrying with rollback enabled from a stack that is already in a failed state is
-  // answered with "This stack is currently in a non-terminal [UPDATE_FAILED] state", so telling the user to deploy with
-  // `--rollback` and nothing else would send them into a second failure. The previous configuration must be replayed
-  // first, so an already-failed stack gets the recovery steps up front.
-  test('express from an already-failed stack explains that it has to be unwedged first', async () => {
+  // Verified against CloudFormation: a stack already in a failed state cannot be updated with rollback enabled either -
+  // it answers "This stack is currently in a non-terminal [UPDATE_FAILED] state". Returning
+  // `replacement-requires-rollback` would make the toolkit offer that deployment, and since the confirmation defaults
+  // to yes, a non-interactive caller would run it and fail again. So this must be a terminal error, not a prompt.
+  test('express from an already-failed stack fails terminally instead of offering a doomed retry', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_FAILED });
     fakeCfn.overrideChangeSetChanges = [replacementChange()];
     failOnAnyStackMutation();
 
     // WHEN
-    const result = await testDeployStack({
+    const deployment = testDeployStack({
       ...standardDeployStackArguments(),
       express: true,
       forceDeployment: true,
     });
 
-    // THEN
-    expect(result.type).toEqual('replacement-requires-rollback');
+    // THEN - thrown, so there is no result the toolkit could turn into a retry prompt
+    await expect(deployment).rejects.toThrow(/in a failed state/);
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ReplacementRequiresUnwedge' }));
+    await expect(deployment).rejects.toThrow(/Revert your change/);
+    await expect(deployment).rejects.toThrow(/cdk deploy --express --method=direct/);
     expectNoStackMutation();
-    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'in a failed state' });
-    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'Revert your change' });
-    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'cdk deploy --express --method=direct' });
+
+    // ... and it is reported once, by the error, not also as a warning
+    expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 });
 
@@ -390,6 +405,27 @@ describe('change set path', () => {
       ...expect.anything,
       DeploymentConfig: { Mode: 'EXPRESS' },
     } as CreateChangeSetCommandInput);
+    expect(ioHost.messagesWithCode(W5903)).toEqual([]);
+  });
+
+  // Pins today's behaviour for #1971: detection keys on `PolicyAction`, so a replacement CloudFormation reports only
+  // via `Replacement: 'True'` is NOT gated up front. It is still caught after the fact on the failure path. If #1971 is
+  // fixed by widening detection, this test should flip to expecting the gate.
+  test('a replacement reported without a policy action is not gated up front (#1971)', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.overrideChangeSetChanges = [replacementOnlyChange()];
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      express: true,
+      forceDeployment: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
     expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 
@@ -509,6 +545,25 @@ describe('REGRESSION aws/aws-cdk-cli#1931: the express replacement guard must no
 });
 
 describe('direct path', () => {
+  // Standard mode also runs with rollback disabled under `--no-rollback`, and CloudFormation rejects replacements the
+  // same way - but the guidance names Express Mode flags, and Express Mode is sticky and gives up `cdk rollback`. A
+  // wedged standard-mode user recovers with a plain `cdk deploy`, so they must NOT be pushed towards `--express`.
+  test('a non-express --no-rollback rejection is not routed towards Express Mode', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+
+    // WHEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK_REJECTING_REPLACEMENT),
+      deploymentMethod: { method: 'direct' },
+      rollback: false,
+      forceDeployment: true,
+    })).rejects.toThrow(CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON);
+
+    // THEN - the real CloudFormation error, and no Express Mode guidance
+    expect(ioHost.messagesWithCode(W5903)).toEqual([]);
+  });
+
   test('a rejected replacement strands the stack, and the user is routed to --express --rollback', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
