@@ -620,6 +620,71 @@ IAM Statement Changes
       // THEN
       successfulDeployment();
     });
+
+    // The confirm-and-retry-with-rollback prompt is the entire user-visible recovery path for
+    // aws/aws-cdk-cli#1931, so pin both what the user is told and what we do when they agree.
+    test('replacement-requires-rollback under --express explains that rollback is disabled, and retries with it enabled', async () => {
+      // GIVEN
+      mockDeployStack.mockImplementation(async (params) => {
+        if (params.rollback === true) {
+          return {
+            type: 'did-deploy-stack',
+            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+            outputs: {},
+            noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
+          } satisfies DeployStackResult;
+        }
+        return { type: 'replacement-requires-rollback' } satisfies DeployStackResult;
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { express: true });
+
+      // THEN
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5050',
+        data: expect.objectContaining({
+          motivation: 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)',
+        }),
+      }));
+
+      // ... and we retried the deployment ourselves with rollback enabled
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({ express: true, rollback: true }));
+      successfulDeployment();
+    });
+
+    test('replacement-requires-rollback without --express keeps the --no-rollback wording', async () => {
+      // GIVEN
+      mockDeployStack.mockImplementation(async (params) => {
+        if (params.rollback === true) {
+          return {
+            type: 'did-deploy-stack',
+            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+            outputs: {},
+            noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
+          } satisfies DeployStackResult;
+        }
+        return { type: 'replacement-requires-rollback' } satisfies DeployStackResult;
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { rollback: false });
+
+      // THEN
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5050',
+        data: expect.objectContaining({
+          motivation: 'Change includes a replacement which cannot be deployed with "--no-rollback"',
+        }),
+      }));
+      successfulDeployment();
+    });
   });
 
   test('deploy returns stack information', async () => {
