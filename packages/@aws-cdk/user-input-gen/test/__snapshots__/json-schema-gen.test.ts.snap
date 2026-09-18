@@ -1,0 +1,90 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`renderJsonSchema snapshot schema output matches snapshot 1`] = `
+"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cdn.jsdelivr.net/npm/aws-cdk/schema/cdk-config.schema.json",
+  "title": "CDK Configuration",
+  "description": "JSON Schema for cdk.json. Generated from packages/aws-cdk/lib/cli/cli-config.ts. Do not edit by hand.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "app": {
+      "type": "string",
+      "description": "Command-line for executing your app",
+      "markdownDescription": "Command-line for executing your app"
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Debug mode",
+      "markdownDescription": "Debug mode",
+      "default": false
+    },
+    "lookups": {
+      "type": "boolean",
+      "description": "Perform context lookups",
+      "markdownDescription": "Perform context lookups",
+      "default": true
+    },
+    "context": {
+      "type": "object",
+      "description": "Context values for the CDK app. Keys are context keys, values are context values.",
+      "additionalProperties": true
+    },
+    "watch": {
+      "type": "object",
+      "description": "Configuration for \`cdk watch\`. Includes file-watching patterns and deployment options.",
+      "additionalProperties": true,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File glob patterns to include in watch."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File glob patterns to exclude from watch."
+        },
+        "hotswap": {
+          "type": "boolean",
+          "description": "Hotswap deploy",
+          "markdownDescription": "Hotswap deploy"
+        }
+      }
+    },
+    "deploy": {
+      "type": "object",
+      "description": "Configuration for \`cdk deploy\`. Deploy stacks",
+      "additionalProperties": false,
+      "properties": {
+        "execute": {
+          "type": "boolean",
+          "description": "(Deprecated) Execute change set",
+          "markdownDescription": "(Deprecated) Execute change set"
+        },
+        "requireApproval": {
+          "type": "string",
+          "description": "Approval level",
+          "markdownDescription": "Approval level",
+          "enum": [
+            "never",
+            "any-change",
+            "broadening"
+          ]
+        },
+        "rollback": {
+          "type": "boolean",
+          "description": "Rollback on failure",
+          "markdownDescription": "Rollback on failure"
+        }
+      }
+    }
+  }
+}
+"
+`;
