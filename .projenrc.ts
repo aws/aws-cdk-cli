@@ -1859,11 +1859,7 @@ new CanaryArtifactUpload(repo, {
   cliPackageName: cli.name,
   cliWorkspaceDirectory: cli.workspaceDirectory,
   bucketName: '${{ vars.CANARY_ARTIFACT_BUCKET_NAME }}',
-  // First hop: repo release role (trusts the GitHub OIDC provider).
-  roleToAssume: '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
-  // Second hop: dedicated canary publishing role in the cdk-ops account,
-  // which holds the s3:PutObject grant on the bucket's cli/* prefix.
-  publishingRoleToAssume: '${{ vars.CANARY_ARTIFACT_ROLE_ARN }}',
+  roleToAssume: '${{ vars.CANARY_ARTIFACT_ROLE_ARN }}',
 });
 
 new IssueLabeler(repo);
