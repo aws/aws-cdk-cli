@@ -44,31 +44,19 @@ jobs:
           fi
           echo "path=$TARBALL" >> "$GITHUB_OUTPUT"
           echo "version=$(node -p "require('./packages/aws-cdk/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Mask role ARNs in logs
-        id: mask_role_arns_in_logs
+      - name: Mask role ARN in logs
+        id: mask_role_arn_in_logs
         env:
-          ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          PUBLISHING_ROLE_TO_ASSUME: ${{ vars.CANARY_ARTIFACT_ROLE_ARN }}
-        run: |-
-          echo "::add-mask::$ROLE_TO_ASSUME"
-          echo "::add-mask::$PUBLISHING_ROLE_TO_ASSUME"
+          ROLE_TO_ASSUME: ${{ vars.CANARY_ARTIFACT_ROLE_ARN }}
+        run: echo "::add-mask::$ROLE_TO_ASSUME"
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
-          role-session-name: cli-canary-upload@aws-cdk-cli
-          mask-aws-account-id: true
-      - name: Assume the canary publishing role
-        id: publishing-creds
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.CANARY_ARTIFACT_ROLE_ARN }}
           role-session-name: cli-canary-upload@aws-cdk-cli
           mask-aws-account-id: true
-          role-chaining: true
       - name: Upload CLI tarball and latest pointer
         id: upload_cli_tarball_and_latest_pointer
         env:
