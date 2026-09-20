@@ -347,8 +347,13 @@ Re-apply it afterwards and deploy it with `cdk deploy --express --rollback`.
 Before replaying, confirm that the replay really will be a no-op: check that the failed resource reported
 `UPDATE_ROLLBACK_COMPLETE` and is still at its previous revision (for an `AWS::ECS::TaskDefinition`, for example, the
 live revision should still be the one from before the failed deployment). If it is, the replay changes nothing and
-succeeds. If it is not, the replay is itself a replacement back to the earlier state and will fail in exactly the same
-way, and you will need to deploy with rollback enabled instead.
+succeeds.
+
+If it is not — if the resource is already at a new revision — then restoring the previous configuration is itself a
+replacement, and CloudFormation refuses it for the same reason. There is no known way to recover such a stack by
+redeploying: `cdk deploy --express --rollback` cannot update a stack that is already in `UPDATE_FAILED`, and
+`cdk rollback` is unavailable for Express Mode stacks. Delete and recreate the stack, or contact AWS Support if it
+holds state you cannot afford to lose.
 
 > This applies until CloudFormation lifts the restriction on replacements in rollback-disabled deployments. Once it
 > does, replacements will work under `--express` without `--rollback` and this section no longer applies.
