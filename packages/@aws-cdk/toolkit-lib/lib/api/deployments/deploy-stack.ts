@@ -544,6 +544,28 @@ class FullCloudFormationDeployment {
   }
 
   /**
+   * Which recovery advice applies to the stack's current state.
+   *
+   * Only `UPDATE_FAILED` is known to be recoverable by replaying the previously deployed configuration - that is the
+   * case verified against CloudFormation. `isRollbackable` is broader (it also covers `CREATE_FAILED` and
+   * `UPDATE_ROLLBACK_FAILED`), and a stack that never deployed successfully has no configuration to replay, so those
+   * must not be given replay instructions.
+   */
+  private replacementRecovery(): ReplacementRecovery {
+    if (!this.cloudFormationStack.stackStatus.isRollbackable) {
+      return 'none';
+    }
+    switch (this.cloudFormationStack.stackStatus.name) {
+      case 'UPDATE_FAILED':
+        return 'replay';
+      case 'CREATE_FAILED':
+        return 'recreate';
+      default:
+        return 'resolve-state';
+    }
+  }
+
+  /**
    * Whether CloudFormation will have rollback disabled for this deployment.
    *
    * Express Mode disables rollback unless it is explicitly requested; standard mode only disables it when
@@ -587,6 +609,24 @@ class FullCloudFormationDeployment {
       }
     }
 
+    // A change set carries its own rollback policy. CloudFormation persists `DeploymentConfig` when the change set is
+    // created and `ExecuteChangeSet` cannot override it, so when we are executing a change set that already pins the
+    // answer it - not this invocation's flags - decides what CloudFormation will do. Reading the current options here
+    // would let `--rollback` (or simply omitting `--express`) appear to enable rollback on a change set that was
+    // created with it disabled, which is how the replacement below would reach CloudFormation anyway.
+    const persistedRollbackDisabled = expressRollbackDisabled(changeSetReport.changeSet.DeploymentConfig);
+    const requestedRollbackDisabled = this.rollbackDisabled();
+
+    if (persistedRollbackDisabled !== undefined && persistedRollbackDisabled !== requestedRollbackDisabled) {
+      throw new ToolkitError(
+        'ChangeSetRollbackPolicyMismatch',
+        changeSetPolicyMismatchMessage(changeSetReport.changeSet.ChangeSetName, persistedRollbackDisabled),
+      );
+    }
+
+    const rollbackWillBeDisabled = persistedRollbackDisabled ?? requestedRollbackDisabled;
+    const isExpress = this.options.express || changeSetReport.changeSet.DeploymentConfig?.Mode === 'EXPRESS';
+
     // CloudFormation rejects replacement-type updates while rollback is disabled. Standard mode only disables rollback
     // for `--no-rollback`, but Express Mode disables it by default - which is why this condition must not be scoped to
     // non-express deployments. #1745 dropped the express half of it, #1785 restructured what was left, and #1931 is the
@@ -595,9 +635,13 @@ class FullCloudFormationDeployment {
     //
     // Shelf life: CloudFormation has a server-side fix with a tentative ECD of 2026-11-15. Once that is confirmed in
     // all regions, the express half of this guard - and CDK_TOOLKIT_W5903 - can be deleted.
-    if (replacements.length > 0 && this.rollbackDisabled()) {
-      if (this.options.express) {
-        const guidance = replacementRoutingMessage({ rejected: false, needsUnwedge: isPausedFailState });
+    if (replacements.length > 0 && rollbackWillBeDisabled) {
+      if (isExpress) {
+        const guidance = replacementRoutingMessage({
+          rejected: false,
+          recovery: this.replacementRecovery(),
+          status: this.cloudFormationStack.stackStatus.name,
+        });
 
         // A stack that is already in a failed state cannot be updated with rollback enabled either - CloudFormation
         // answers "This stack is currently in a non-terminal [UPDATE_FAILED] state". Returning
@@ -858,7 +902,12 @@ class FullCloudFormationDeployment {
     }
 
     await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(
-      replacementRoutingMessage({ rejected: true, needsUnwedge: true }),
+      replacementRoutingMessage({
+        rejected: true,
+        // The failure just happened, so the cached stack status predates it. An update had a previous configuration to
+        // replay; a failed create never did.
+        recovery: this.update ? 'replay' : 'recreate',
+      }),
       {
         stackName: this.stackName,
         replacements: rejected
@@ -1179,6 +1228,40 @@ function mentionsReplacementRejection(message: string): boolean {
 }
 
 /**
+ * Whether a persisted change set `DeploymentConfig` pins the rollback choice, and if so which way.
+ *
+ * Only Express Mode records a rollback choice in `DeploymentConfig`, and `ExecuteChangeSet` cannot override it. Standard
+ * mode carries none: rollback there is decided at execute time by the `DisableRollback` flag, so the current
+ * invocation's options stay authoritative and this returns `undefined`.
+ */
+function expressRollbackDisabled(config: DeploymentConfig | undefined): boolean | undefined {
+  if (config?.Mode !== 'EXPRESS') {
+    return undefined;
+  }
+  return config.DisableRollback !== false;
+}
+
+/**
+ * Explain that an existing change set's rollback policy cannot be changed by executing it differently
+ */
+function changeSetPolicyMismatchMessage(changeSetName: string | undefined, persistedRollbackDisabled: boolean): string {
+  const named = changeSetName ? ` ${chalk.blue(changeSetName)}` : '';
+  const persisted = persistedRollbackDisabled ? 'disabled' : 'enabled';
+  const requested = persistedRollbackDisabled ? 'enabled' : 'disabled';
+  const recreateWith = chalk.blue(`cdk deploy --express${persistedRollbackDisabled ? ' --rollback' : ''}`);
+
+  return [
+    `Change set${named} was created with rollback ${persisted}, but this deployment asks for rollback ${requested}.`,
+    'CloudFormation fixes that choice when the change set is created and executing it cannot change it, so this',
+    'deployment would silently do the opposite of what you asked for.',
+    '',
+    `Create a new change set with the flags you want rather than executing this one: ${recreateWith}`,
+  ].join('\n');
+}
+
+type ReplacementRecovery = 'none' | 'replay' | 'recreate' | 'resolve-state';
+
+/**
  * Explain how to deploy a replacement when rollback is disabled.
  *
  * Replacements are supported in Express Mode; they are not supported while rollback is disabled, which Express Mode
@@ -1190,7 +1273,7 @@ function mentionsReplacementRejection(message: string): boolean {
  *
  * TODO: point at a CloudFormation User Guide anchor for Express Mode rollback behaviour once one exists.
  */
-function replacementRoutingMessage(opts: { rejected: boolean; needsUnwedge: boolean }): string {
+function replacementRoutingMessage(opts: { rejected: boolean; recovery: ReplacementRecovery; status?: string }): string {
   const withRollback = chalk.blue('cdk deploy --express --rollback');
   const direct = chalk.blue('cdk deploy --express --method=direct');
 
@@ -1204,21 +1287,40 @@ function replacementRoutingMessage(opts: { rejected: boolean; needsUnwedge: bool
       'Express Mode disables rollback unless you ask for it with --rollback; replacements themselves are supported.',
     ];
 
-  if (!opts.needsUnwedge) {
-    return headline.join('\n');
-  }
-
   // Deploying with rollback enabled cannot update a stack that is already in a failed state - CloudFormation answers
-  // "This stack is currently in a non-terminal [UPDATE_FAILED] state" (verified against CloudFormation). The previous
-  // configuration has to be replayed first, so say that rather than sending the user into a second failure.
-  return [
-    ...headline,
-    '',
-    `${opts.rejected ? 'The stack may now be' : 'This stack is'} in a failed state, which ${withRollback} cannot update. To recover:`,
-    '  1. Revert your change so your app matches the last configuration that deployed successfully.',
-    `  2. Run ${direct} - this should replay that configuration as a no-op`,
-    '     and return the stack to a terminal state.',
-    `  3. Re-apply your change and deploy it with ${withRollback}.`,
-  ].join('\n');
+  // "This stack is currently in a non-terminal [UPDATE_FAILED] state" (verified against CloudFormation). What to do
+  // instead depends on whether a previously deployed configuration exists to go back to.
+  switch (opts.recovery) {
+    case 'none':
+      return headline.join('\n');
+
+    case 'replay':
+      return [
+        ...headline,
+        '',
+        `${opts.rejected ? 'The stack may now be' : 'This stack is'} in a failed state, which ${withRollback} cannot update. To recover:`,
+        '  1. Revert your change so your app matches the last configuration that deployed successfully.',
+        `  2. Run ${direct} - this should replay that configuration as a no-op`,
+        '     and return the stack to a terminal state.',
+        `  3. Re-apply your change and deploy it with ${withRollback}.`,
+      ].join('\n');
+
+    case 'recreate':
+      return [
+        ...headline,
+        '',
+        `This stack never completed a deployment, so there is no previous configuration to replay and ${withRollback}`,
+        'cannot update it either. Delete the stack and deploy again.',
+      ].join('\n');
+
+    case 'resolve-state':
+      return [
+        ...headline,
+        '',
+        `This stack is in ${opts.status ?? 'a failed state'}, which ${withRollback} cannot update, and it is not a state`,
+        'this command can recover from. Resolve it in CloudFormation first, then deploy the replacement with rollback',
+        'enabled.',
+      ].join('\n');
+  }
 }
 

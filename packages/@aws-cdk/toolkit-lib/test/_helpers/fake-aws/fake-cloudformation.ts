@@ -438,6 +438,7 @@ export class FakeCloudFormation {
     Tags?: Tag[];
     Capabilities?: string[];
     Description?: string;
+    DeploymentConfig?: DeploymentConfig;
   }): CreateChangeSetCommandOutput {
     const stackName = input.StackName;
     const stack = this.requireStack(stackName);
@@ -473,6 +474,7 @@ export class FakeCloudFormation {
       capabilities: input.Capabilities ?? [],
       description: input.Description,
       changes: changes ?? [],
+      deploymentConfig: input.DeploymentConfig,
       creationTime: new Date(),
       changeSetFailureEvents: [],
       earlyValidationErrors: [],
@@ -514,6 +516,9 @@ export class FakeCloudFormation {
       Capabilities: cs.capabilities as any,
       Description: cs.description,
       CreationTime: cs.creationTime,
+      // The real API returns the DeploymentConfig that was persisted by CreateChangeSet. It matters because
+      // ExecuteChangeSet cannot override it, so code executing an existing change set has to read it from here.
+      ...(cs.deploymentConfig ? { DeploymentConfig: cs.deploymentConfig } : undefined),
       NextToken: nextToken,
       $metadata: {},
     };

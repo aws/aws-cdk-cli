@@ -610,7 +610,12 @@ describe('direct path', () => {
 
   // `cdk deploy --express --method=direct` with the previous configuration is the documented way to unwedge a stack
   // that is already stranded in UPDATE_FAILED, so it must stay a plain no-op and must never be refused up front.
-  test('an empty-diff replay from a stranded stack is not blocked', async () => {
+  //
+  // NOTE: the stranded-but-replayable state is hand-seeded here. The fake assigns the failed change set's template to
+  // the stack and does not restore the previous template the way a real resource rollback does, so this pins that we
+  // handle such a state correctly - not that a simulated failed replacement naturally arrives at it. That a real
+  // failed express replacement does leave the stack replayable was established by deploys against CloudFormation.
+  test('a no-op replay against a hand-seeded stranded stack is not blocked', async () => {
     // GIVEN - the stranded stack already has the template we are about to deploy
     givenStackExists({ StackStatus: StackStatus.UPDATE_FAILED });
     fakeCfn.accessStack('withouterrors').template = targetTemplate();
@@ -657,5 +662,174 @@ describe('direct path', () => {
     expect(ioHost.messagesWithCode(W5903)).toEqual([]);
     ioHost.expectMessage({ level: 'debug', containing: 'no reported error mentioned' });
     ioHost.expectMessage({ level: 'debug', containing: 'Some other service error' });
+  });
+});
+
+/**
+ * A change set carries the rollback policy it was created with. CloudFormation persists `DeploymentConfig` on
+ * `CreateChangeSet`, returns it from `DescribeChangeSet`, and `ExecuteChangeSet` cannot override it (its input has no
+ * `DeploymentConfig` field). So when create and execute happen in separate invocations - `--method=change-set
+ * --no-execute` then `--method=execute-change-set`, or the toolkit's own retry - the second invocation's flags do not
+ * decide what CloudFormation does. Deriving rollback safety from the current options there would let the SEV in #1931
+ * back in: the guard would believe rollback is enabled and execute a rollback-disabled change set containing a
+ * replacement.
+ */
+describe('executing a change set created by an earlier invocation', () => {
+  function givenExpressChangeSetExists(opts: { rollbackDisabled: boolean; changes: Change[] }) {
+    fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      Changes: opts.changes,
+      DeploymentConfig: opts.rollbackDisabled
+        ? { Mode: 'EXPRESS' }
+        : { Mode: 'EXPRESS', DisableRollback: false },
+    });
+  }
+
+  const executePrepared: Partial<DeployStackApiOptions> = {
+    deploymentMethod: { method: 'execute-change-set', changeSetName: 'prepared' },
+    forceDeployment: true,
+  };
+
+  test('a rollback-disabled change set is not executed just because this invocation passes --rollback', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [updateChange()] });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+      rollback: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ChangeSetRollbackPolicyMismatch' }));
+    await expect(deployment).rejects.toThrow(/created with rollback disabled/);
+    expectNoStackMutation();
+  });
+
+  // The SEV path: the change set contains a replacement and was created with rollback disabled. Executing it would put
+  // the prohibited combination in front of CloudFormation and strand the stack.
+  test('a rollback-disabled change set containing a replacement is never executed', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [policyActionReplacementChange()] });
+    failOnAnyStackMutation();
+
+    // WHEN - this is what the toolkit's retry does: same change set, rollback flipped on
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+      rollback: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ChangeSetRollbackPolicyMismatch' }));
+    expectNoStackMutation();
+    expect(fakeCfn.accessStack('withouterrors').status).toEqual(StackStatus.UPDATE_COMPLETE);
+  });
+
+  test('omitting --express does not make a persisted Express change set look safe', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [policyActionReplacementChange()] });
+    failOnAnyStackMutation();
+
+    // WHEN - the invocation looks like standard mode, but the change set is still Express + rollback disabled
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ChangeSetRollbackPolicyMismatch' }));
+    expectNoStackMutation();
+  });
+
+  test('the opposite mismatch is refused too: rollback-enabled change set executed as rollback-disabled', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: false, changes: [updateChange()] });
+    failOnAnyStackMutation();
+
+    // WHEN - plain `--express` requests rollback disabled, but the change set was created with it enabled
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ChangeSetRollbackPolicyMismatch' }));
+    await expect(deployment).rejects.toThrow(/created with rollback enabled/);
+    expectNoStackMutation();
+  });
+
+  // The matching case still has to be gated on the replacement itself, using the persisted policy.
+  test('a matching rollback-disabled change set with a replacement is gated, not executed', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [policyActionReplacementChange()] });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expectNoStackMutation();
+    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'does not support while rollback is disabled' });
+  });
+
+  // `isRollbackable` also covers CREATE_FAILED, where there is no previously deployed configuration to replay. Telling
+  // such a user to "revert your change and redeploy the last configuration that deployed successfully" would be
+  // impossible advice, so that state gets its own guidance.
+  test('a failed initial create is not told to replay a configuration that never existed', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.CREATE_FAILED });
+    fakeCfn.overrideChangeSetChanges = [policyActionReplacementChange()];
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      express: true,
+      forceDeployment: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ReplacementRequiresUnwedge' }));
+    await expect(deployment).rejects.toThrow(/no previous configuration to replay/);
+    await expect(deployment).rejects.toThrow(/Delete the stack and deploy again/);
+    await expect(deployment).rejects.not.toThrow(/Revert your change/);
+    expectNoStackMutation();
+  });
+
+  test('a matching change set without a replacement executes normally', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [updateChange()] });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+    expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 });
