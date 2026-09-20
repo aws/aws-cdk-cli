@@ -102,3 +102,46 @@ test('plugin that registers an invalid Context Provider throws', () => {
     expect(e.cause?.message).toMatch(/does not look like a ContextProviderPlugin/);
   }
 });
+
+test('registering an invalid Context Provider does not leak the secrets it carries', () => {
+  const host = new PluginHost();
+
+  // Keep the secrets nested: an object with a `getValue` method would be a valid context provider
+  // and would never reach the error path this test guards.
+  const secrets = {
+    accessKeyId: 'sentinel-access-key-id-context-provider',
+    secretAccessKey: 'sentinel-secret-access-key-context-provider',
+    sessionToken: 'sentinel-session-token-context-provider',
+  };
+
+  jest.mock(THE_PLUGIN, () => {
+    return {
+      version: '1',
+      init(h: PluginHost) {
+        h.registerContextProviderAlpha('my-provider-name', {
+          region: 'us-east-1',
+          credentials: secrets,
+        } as any);
+      },
+    };
+  }, { virtual: true });
+
+  expect(() => host._doLoad(THE_PLUGIN)).toThrow(/Unable to load plug-in/);
+
+  let cause: any;
+  try {
+    host._doLoad(THE_PLUGIN);
+  } catch (e: any) {
+    cause = e.cause;
+  }
+
+  expect(cause?.name).toBe('InvalidContextProvider');
+  expect(cause?.message).toMatch(/does not look like a ContextProviderPlugin/);
+  expect(cause?.message).toContain("context provider 'my-provider-name'");
+  expect(cause?.message).toContain("type 'object'");
+
+  const rendered = [cause?.message, cause?.stack, String(cause)].join('\n');
+  for (const secret of Object.values(secrets)) {
+    expect(rendered).not.toContain(secret);
+  }
+});

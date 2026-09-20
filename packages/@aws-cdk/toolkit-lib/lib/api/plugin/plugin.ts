@@ -1,7 +1,7 @@
-import { inspect } from 'util';
 import type { CredentialProviderSource, IPluginHost, Plugin } from '@aws-cdk/cli-plugin-contract';
 import { type ContextProviderPlugin, isContextProviderPlugin } from './context-provider-plugin';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import { describeValueType } from '../../util';
 import type { IIoHost } from '../io';
 import { IoHelper } from '../io/private';
 
@@ -133,7 +133,8 @@ export class PluginHost implements IPluginHost {
    */
   public registerContextProviderAlpha(pluginProviderName: string, provider: ContextProviderPlugin) {
     if (!isContextProviderPlugin(provider)) {
-      throw new ToolkitError('InvalidContextProvider', `Object you gave me does not look like a ContextProviderPlugin: ${inspect(provider)}`);
+      // Type only, never the value itself: it may hold credentials that reach stderr.
+      throw new ToolkitError('InvalidContextProvider', `Object you gave me does not look like a ContextProviderPlugin: context provider '${pluginProviderName}' was registered with a value of type '${describeValueType(provider)}'. The value is not shown because it may contain credentials. A context provider must be an object with a 'getValue(args)' method.`);
     }
     this.contextProviderPlugins[pluginProviderName] = provider;
   }

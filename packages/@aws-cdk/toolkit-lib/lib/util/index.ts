@@ -4,6 +4,7 @@ export * from './bytes';
 export * from './cfn-express';
 export * from './cloudformation';
 export * from './content-hash';
+export * from './describe-value';
 export * from './directories';
 export * from './format-error';
 export * from './glob-matcher';
