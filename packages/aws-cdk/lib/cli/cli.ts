@@ -84,29 +84,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const cmd = argv._[0];
 
-  // if one -v, log at a DEBUG level
-  // if 2 -v, log at a TRACE level
-  let ioMessageLevel: IoMessageLevel = 'info';
-  if (argv.verbose) {
-    switch (argv.verbose) {
-      case 1:
-        ioMessageLevel = 'debug';
-        break;
-      case 2:
-      default:
-        ioMessageLevel = 'trace';
-        break;
-    }
-  }
-
-  // `--debug-cli` raises the CLI-side log level, which is what makes its own
-  // handle report visible without a second flag. Only as far as DEBUG, never
-  // TRACE: TRACE also unmasks AWS SDK request logging, whose payloads include
-  // whole CloudFormation templates. `verbose` is only ever raised above this, so
-  // taking the more verbose of the two can never walk back what `-v` asked for.
-  if (argv.debugCli && ioMessageLevel === 'info') {
-    ioMessageLevel = 'debug';
-  }
+  const ioMessageLevel = determineIoMessageLevel(argv);
 
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
@@ -726,6 +704,24 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 }
 
 /**
+ * Determine the log level the CLI should run at.
+ *
+ * `--verbose` decides it whenever it is given. Otherwise a flag that needs a certain
+ * level to be useful may raise it, but never past what `--verbose` would have asked
+ * for, so no flag can make the output quieter than another one wanted.
+ */
+function determineIoMessageLevel(argv: { verbose?: number; debugCli?: boolean }): IoMessageLevel {
+  // one -v logs at DEBUG, two or more at TRACE
+  if (argv.verbose) {
+    return argv.verbose === 1 ? 'debug' : 'trace';
+  }
+
+  // `--debug-cli` needs DEBUG, otherwise its handle report is filtered out and the
+  // flag has no visible effect.
+  return argv.debugCli ? 'debug' : 'info';
+}
+
+/**
  * Determine which version of bootstrapping
  */
 async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): Promise<BootstrapSource> {
@@ -1000,10 +996,10 @@ export function cli(args: string[] = process.argv.slice(2)) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
       }
 
-      // Last thing we do, on both the success and the failure path: if the
-      // process is still alive after the grace period, something is keeping the
-      // event loop busy, so report the leaked handles. All of the CLI's own work
-      // is finished by now, so anything left is genuinely unaccounted for.
+      // Last thing we do, on both the success and the failure path. Arms an `unref`'d
+      // timer rather than printing now, so on a clean exit the process is gone before it
+      // fires and nothing is reported. If it does fire, something is still holding the
+      // event loop open, and all of the CLI's own work is already done by then.
       const ioHelper = CliIoHost.get()?.asIoHelper();
       if (ioHelper) {
         handleTracker?.scheduleReport(ioHelper);

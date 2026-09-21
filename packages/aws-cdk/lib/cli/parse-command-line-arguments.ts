@@ -84,7 +84,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug-cli', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK CLI itself. Records where the CLI opens every network connection, timer and other async resource, so that a CLI which fails to exit can report what is keeping it alive, and raises the CLI log level to show that report. Captures a stack trace per resource, so it will slow down execution.',
+      desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.',
     })
     .option('profile', {
       default: undefined,
