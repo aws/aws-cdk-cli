@@ -102,6 +102,19 @@ describe.each(['change-set', 'direct'] as const)('a failing %s deployment of a n
   });
 });
 
+test('deletes the stack after a first-time creation failure', async () => {
+  // GIVEN - a stack that does not exist yet, so this is a first-time creation, not an update
+  const deployment = advanceTime(deployStack({
+    ...standardDeployStackArguments(FAILING_STACK),
+    deploymentMethod: { method: 'change-set' },
+  }, ioHelper));
+  await expect(deployment).rejects.toThrow();
+
+  // THEN - the failed, unusable stack was cleaned up rather than left behind for the next
+  // deploy attempt to find and delete
+  await expect(sdk.cloudFormation().describeStacks({ StackName: 'freshstack' })).rejects.toThrow(/does not exist/);
+});
+
 test('a failing update of an existing stack still reports the CloudFormation failure', async () => {
   // GIVEN - the same failure without the absent-stack path, guarding against a fix that only works
   // when the stack is missing
@@ -116,6 +129,10 @@ test('a failing update of an existing stack still reports the CloudFormation fai
   // THEN
   await expect(deployment).rejects.toThrow(/freshstack\/Bad|UPDATE_ROLLBACK_COMPLETE/);
   await expect(deployment).rejects.not.toThrow(/does not hold a stack/);
+
+  // AND - unlike a first-time creation failure, a failing update must not delete the stack
+  const afterFailure = await sdk.cloudFormation().describeStacks({ StackName: 'freshstack' });
+  expect(afterFailure.Stacks?.[0]?.StackStatus).not.toBe('DELETE_COMPLETE');
 });
 
 test('a failed lookup while diagnosing leaves the deployment error intact', async () => {

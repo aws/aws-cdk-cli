@@ -754,6 +754,10 @@ class FullCloudFormationDeployment {
         await this.diagnoseDeploymentFailure(stackArn, monitor.errors);
       }
 
+      if (!this.update) {
+        await this.deleteFailedCreation(stackArn);
+      }
+
       throw e;
     } finally {
       await monitor.stop();
@@ -792,6 +796,37 @@ class FullCloudFormationDeployment {
       rollbackEnabled: this.options.rollback !== false,
     });
     diagnosis.throwOnError();
+  }
+
+  /**
+   * Delete a stack whose *first-time creation* (not an update) just failed, so a failed, unusable
+   * stack doesn't linger in the account until the next deploy attempt cleans it up (see the
+   * `isCreationFailure` check at the top of `deployStack`).
+   *
+   * Best-effort: this never throws or replaces the original deployment error - it only logs a
+   * warning if the cleanup itself doesn't succeed, since the real failure is more useful to the
+   * caller than a secondary cleanup failure.
+   */
+  private async deleteFailedCreation(stackArn: string): Promise<void> {
+    try {
+      const failedStack = await CloudFormationStack.lookup(this.cfn, stackArn);
+      if (!failedStack.exists || !failedStack.stackStatus.isCreationFailure) {
+        return;
+      }
+
+      await this.ioHelper.defaults.info(format('%s: creation failed, deleting stack...', chalk.bold(this.stackName)));
+      await withThrottleRetry(() => this.cfn.deleteStack({ StackName: stackArn, ClientRequestToken: randomUUID() }));
+      const deletedStack = await waitForStackDelete(this.cfn, this.ioHelper, stackArn, this.options.stackEventPollingInterval);
+      if (deletedStack && deletedStack.stackStatus.name !== 'DELETE_COMPLETE') {
+        await this.ioHelper.defaults.warning(
+          format('%s: failed to delete stack after creation failure (current state: %s)', chalk.bold(this.stackName), deletedStack.stackStatus),
+        );
+      }
+    } catch (e: any) {
+      await this.ioHelper.defaults.warning(
+        format('%s: failed to delete stack after creation failure: %s', chalk.bold(this.stackName), formatErrorMessage(e)),
+      );
+    }
   }
 
   /**
