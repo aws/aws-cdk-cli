@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
-import * as child from 'child_process';
+import type * as child from 'child_process';
 import type { Readable, Writable } from 'stream';
+import { spawn } from 'cross-spawn';
 import * as pty from 'node-pty';
 import { isWindows } from './platform';
 
@@ -73,13 +74,10 @@ export class Process {
    * Spawn a process without a forcing a TTY.
    */
   public static spawn(command: string, args: string[], options: child.SpawnOptions = {}): IProcess {
-    // Join command and args into a single shell string to avoid DEP0190 deprecation warning
-    // (passing args with shell: true is deprecated because they are not escaped).
-    const fullCommand = [command, ...args].join(' ');
-    const process = child.spawn(fullCommand, [], {
-      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
-      shell: true,
+    const process = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      // eslint-disable-next-line no-restricted-syntax
+      shell: options.shell,
       ...options,
     });
     return new NonPtyProcess(process);
