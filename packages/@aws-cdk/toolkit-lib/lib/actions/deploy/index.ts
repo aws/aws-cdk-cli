@@ -274,38 +274,6 @@ export interface DeployOptions extends BaseDeployOptions {
 }
 
 /**
- * Options for `Toolkit.deployParametersOnly()`
- */
-export interface DeployParametersOnlyOptions {
-  /**
-   * The account of the already-deployed stack to update
-   */
-  readonly account: string;
-
-  /**
-   * The region of the already-deployed stack to update
-   */
-  readonly region: string;
-
-  /**
-   * The CloudFormation stack name to update
-   */
-  readonly stackName: string;
-
-  /**
-   * Parameter values to override. Every other parameter on the stack keeps
-   * its currently-deployed value.
-   */
-  readonly parameters: { [name: string]: string };
-
-  /**
-   * IAM service role ARN for CloudFormation to use during the update
-   * @default - CloudFormation uses the stack's existing service role, if any
-   */
-  readonly roleArn?: string;
-}
-
-/**
  * Property overrides for ECS hotswaps
  */
 export interface EcsHotswapProperties {
