@@ -21,6 +21,7 @@ integTest(
         await shell([process.execPath, template, '>', targetName], {
           cwd: cxAsmDir,
           outputs: [fixture.output],
+          shell: true,
           modEnv: {
             TEST_ACCOUNT: await fixture.aws.account(),
             TEST_REGION: fixture.aws.region,

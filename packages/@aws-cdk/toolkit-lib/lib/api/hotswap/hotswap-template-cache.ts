@@ -20,8 +20,16 @@ interface CachedHotswapState {
   readonly nestedStacks: { [logicalId: string]: CachedNestedStack };
 }
 
-function cachePath(assemblyDir: string, stackName: string): string {
-  return path.join(assemblyDir, CACHE_DIR, `${stackName}.json`);
+/**
+ * The cache is only valid for the account/region it was produced against - the
+ * cached deployedRootTemplate and physical resource names are meaningless (or
+ * actively misleading) if replayed against a different environment. Fold the
+ * resolved environment into the cache key so switching accounts/regions
+ * between hotswap-only sessions can never serve another environment's state.
+ */
+function cachePath(assemblyDir: string, stackName: string, environment: string): string {
+  const environmentKey = environment.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(assemblyDir, CACHE_DIR, `${stackName}.${environmentKey}.json`);
 }
 
 /**
@@ -33,8 +41,9 @@ export async function readHotswapTemplateCache(
   assemblyDir: string,
   stackName: string,
   newRootTemplate: Template,
+  environment: string,
 ): Promise<RootTemplateWithNestedStacks | undefined> {
-  const cachedPath = cachePath(assemblyDir, stackName);
+  const cachedPath = cachePath(assemblyDir, stackName, environment);
   try {
     const cached = await fs.readJson(cachedPath);
 
@@ -56,12 +65,13 @@ export async function writeHotswapTemplateCache(
   stackName: string,
   rootTemplate: Template,
   nestedStacks: { [logicalId: string]: NestedStackTemplates },
+  environment: string,
 ): Promise<void> {
   const state: CachedHotswapState = {
     deployedRootTemplate: rootTemplate,
     nestedStacks: toCachedNestedStacks(nestedStacks),
   };
-  const cachedPath = cachePath(assemblyDir, stackName);
+  const cachedPath = cachePath(assemblyDir, stackName, environment);
   await fs.ensureDir(path.dirname(cachedPath));
   await fs.writeJson(cachedPath, state, { spaces: 2 });
 }
@@ -69,8 +79,8 @@ export async function writeHotswapTemplateCache(
 /**
  * Invalidate the hotswap cache for a stack (e.g. after a full CloudFormation deploy).
  */
-export async function invalidateHotswapTemplateCache(assemblyDir: string, stackName: string): Promise<void> {
-  await fs.rm(cachePath(assemblyDir, stackName), { force: true });
+export async function invalidateHotswapTemplateCache(assemblyDir: string, stackName: string, environment: string): Promise<void> {
+  await fs.rm(cachePath(assemblyDir, stackName, environment), { force: true });
 }
 
 /**

@@ -77,7 +77,7 @@ export function withAws<A extends TestContext>(
       const start = Date.now();
       const allocation = await atmosphere.acquire({
         pool: atmospherePool(),
-        requester: context.name,
+        requester: context.testName,
         timeoutSeconds: 60 * 30,
         constraints,
       });
@@ -91,7 +91,7 @@ export function withAws<A extends TestContext>(
       );
 
       try {
-        const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, {
+        const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, context.testTags, {
           accessKeyId: allocation.credentials.accessKeyId,
           secretAccessKey: allocation.credentials.secretAccessKey,
           sessionToken: allocation.credentials.sessionToken,
@@ -112,7 +112,7 @@ export function withAws<A extends TestContext>(
       }
     } else {
       return regionPool().using(async (region) => {
-        const aws = await AwsClients.forRegion(context.randomString, region, context.output);
+        const aws = await AwsClients.forRegion(context.randomString, region, context.testTags, context.output);
         try {
           await sanityCheck(aws);
 
