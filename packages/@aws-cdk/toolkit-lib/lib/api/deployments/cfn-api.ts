@@ -14,6 +14,7 @@ import type { Deployments } from './deployments';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
 import { waitFor } from '../../util/promises';
+import { withThrottleRetry } from '../../util/throttle-retry';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { ChangeSetReport } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
@@ -476,7 +477,7 @@ export async function stabilizeStack(
   let leadingReviewReads = 0;
 
   return waitFor(async () => {
-    const stack = await CloudFormationStack.lookup(cfn, target);
+    const stack = await withThrottleRetry(() => CloudFormationStack.lookup(cfn, target));
     if (!stack.exists) {
       await ioHelper.defaults.debug(format('Stack %s does not exist', stackDisplayName));
       return null;

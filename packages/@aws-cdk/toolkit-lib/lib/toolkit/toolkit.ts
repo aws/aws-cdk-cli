@@ -116,6 +116,7 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { withThrottleRetry } from '../util/throttle-retry';
 import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
@@ -816,7 +817,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const environment = cxapi.EnvironmentUtils.make(options.account, options.region);
     const cfn = (await sdkProvider.forEnvironment(environment, Mode.ForWriting)).sdk.cloudFormation();
 
-    const describeResult = await cfn.describeStacks({ StackName: options.stackName }).catch(() => undefined);
+    const describeResult = await withThrottleRetry(() =>
+      cfn.describeStacks({ StackName: options.stackName }).catch((e: any) => {
+        if (e.name === 'ValidationError' && /does not exist/.test(e.message ?? '')) {
+          return undefined;
+        }
+        throw e;
+      }),
+    );
     const existingStack = describeResult?.Stacks?.[0];
     if (!existingStack) {
       throw new ToolkitError(
@@ -834,13 +842,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     ];
 
     try {
-      await cfn.updateStack({
-        StackName: options.stackName,
-        UsePreviousTemplate: true,
-        Parameters: parameters,
-        Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
-        RoleARN: options.roleArn,
-      });
+      await withThrottleRetry(() =>
+        cfn.updateStack({
+          StackName: options.stackName,
+          UsePreviousTemplate: true,
+          Parameters: parameters,
+          Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
+        }),
+      );
     } catch (e: any) {
       if (e.name === 'ValidationError' && /No updates are to be performed/.test(e.message ?? '')) {
         await ioHelper.defaults.info(`${options.stackName}: no updates to perform`);
