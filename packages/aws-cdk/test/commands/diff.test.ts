@@ -292,6 +292,39 @@ Resources
     expect(exitCode).toBe(0);
   });
 
+  test('passes the change set name to createDiffChangeSet', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
+            },
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
+      };
+    });
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      changeSetName: 'my-custom-change-set',
+    });
+
+    // THEN
+    expect(createDiffChangeSet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ changeSetName: 'my-custom-change-set' }),
+    );
+    expect(exitCode).toBe(0);
+  });
+
   test('when invoked with local template path', async () => {
     const templatePath = 'oldTemplate.json';
     const oldTemplate = {

@@ -959,6 +959,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
             deprecated: 'use --method instead',
           })
+          .option('change-set-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'Name of the CloudFormation change set to create (only if method is not template)',
+          })
           .option('method', {
             default: 'auto',
             alias: 'm',

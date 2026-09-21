@@ -346,6 +346,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
+        const diffMethod = determineDiffMethod(args);
+        if (diffMethod === 'template') {
+          rejectIncompatibleOptions(args, '--method=template', {
+            changeSetName: '--change-set-name',
+          });
+        }
         return cli.diff({
           stackNames: args.STACKS,
           exclusively: args.exclusively,
@@ -356,7 +362,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           fail: args.fail != null ? args.fail : !enableDiffNoFail,
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
-          method: determineDiffMethod(args),
+          method: diffMethod,
+          changeSetName: args.changeSetName,
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],

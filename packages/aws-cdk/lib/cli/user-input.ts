@@ -1494,6 +1494,13 @@ export interface DiffOptions {
   readonly changeSet?: boolean;
 
   /**
+   * Name of the CloudFormation change set to create (only if method is not template)
+   *
+   * @default - undefined
+   */
+  readonly changeSetName?: string;
+
+  /**
    * How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.
    *
    * aliases: m

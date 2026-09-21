@@ -423,6 +423,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
+          'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create (only if method is not template)' },
           'method': {
             alias: 'm',
             type: 'string',
