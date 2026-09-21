@@ -51,6 +51,7 @@ integTest(
         username: 'test-user',
         password: 'test-password',
       }),
+      Tags: fixture.aws.apiTags(),
     }));
     fixture.aws.addCleanup(() => fixture.aws.secretsManager.send(new DeleteSecretCommand({
       SecretId: secret.ARN,
