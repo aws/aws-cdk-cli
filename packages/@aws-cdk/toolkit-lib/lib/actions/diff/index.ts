@@ -37,7 +37,7 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
   /**
    * Name of the CloudFormation change set to create when computing the diff
    *
-   * @default 'cdk-diff-change-set'
+   * @default - a unique name 'cdk-diff-change-set-<uuid>'
    */
   readonly changeSetName?: string;
 }

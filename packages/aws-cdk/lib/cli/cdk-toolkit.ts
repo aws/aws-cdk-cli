@@ -1651,7 +1651,7 @@ export interface DiffOptions {
    *
    * Only used if the method is not 'template'.
    *
-   * @default 'cdk-diff-change-set'
+   * @default 'cdk-diff-change-set-<uuid>'
    */
   readonly changeSetName?: string;
 
