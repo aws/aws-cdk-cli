@@ -160,6 +160,14 @@ The `quiet` option can be set in the `cdk.json` file.
 See the [AWS Documentation](https://docs.aws.amazon.com/cdk/latest/guide/apps.html#apps_cloud_assembly) to learn more about cloud assemblies.
 See the [CDK reference documentation](https://docs.aws.amazon.com/cdk/api/latest/docs/cloud-assembly-schema-readme.html) for details on the cloud assembly specification
 
+> [!IMPORTANT]
+> **A Cloud Assembly is a trust boundary. Do not deploy Cloud Assemblies
+> from sources you do not trust.**
+>
+> For example, if you deploy a Cloud Assembly from an external source like
+> `cdk deploy --app /downloaded/file/path/cdk.out`, the CLI runs external
+> code using with your shell environment and AWS credentials.
+
 ### `cdk diagnose`
 
 > [!CAUTION]
@@ -869,7 +877,8 @@ The server can run your app to keep the cloud assembly current (for example, an
 "auto-synth on save" mode offered through your editor). Because that runs your
 project's `app` command with your shell environment and AWS credentials, enable
 it only for projects you trust. This is the same trust model that `cdk synth`
-and `cdk watch` already use.
+and `cdk watch` already use. Deploying an already-synthesized Cloud Assembly
+carries a related trust boundary — see [`cdk synth`](#cdk-synth).
 
 `cdk lsp` is designed to be driven by an editor extension rather than run by hand.
 For the full feature list, the editor-integration protocol, and the programmatic
