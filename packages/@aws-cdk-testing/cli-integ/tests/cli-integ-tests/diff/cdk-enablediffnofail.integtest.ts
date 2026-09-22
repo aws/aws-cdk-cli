@@ -22,9 +22,12 @@ integTest(
 
     async function diff(props: DiffParameters): Promise<string> {
       await updateContext(props.enableDiffNoFail);
-      const flag = props.fail != null ? (props.fail ? '--fail' : '--no-fail') : '';
 
-      return fixture.cdk(['diff', flag, fixture.fullStackName('test-1')]);
+      return fixture.cdk([
+        'diff',
+        ...(props.fail != null ? (props.fail ? ['--fail'] : ['--no-fail']) : []),
+        fixture.fullStackName('test-1'),
+      ]);
     }
 
     async function updateContext(enableDiffNoFail: boolean) {

@@ -43,6 +43,12 @@ export type PrepareChangeSetOptions = {
   importExistingResources?: boolean;
   includeNestedStacks?: boolean;
   /**
+   * Name of the change set to create
+   *
+   * @default - a unique name 'cdk-diff-change-set-<uuid>'
+   */
+  changeSetName?: string;
+  /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
    *
@@ -82,7 +88,7 @@ export async function createDiffChangeSet(
 
     return await createChangeSetAndCleanup(ioHelper, {
       cfn,
-      changeSetName: 'cdk-diff-change-set',
+      changeSetName: options.changeSetName ?? `cdk-diff-change-set-${options.uuid}`,
       stack: options.stack,
       exists,
       uuid: options.uuid,
@@ -279,7 +285,7 @@ async function createChangeSetAndCleanup(
  */
 export async function createValidationChangeSet(
   ioHelper: IoHelper,
-  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider'>,
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName'>,
 ): Promise<ChangeSetReport> {
   const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = `cdk-validate-${options.uuid}`;

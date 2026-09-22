@@ -107,6 +107,11 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
+    // Handle debug flags
+    if (args.includes('--debug-cli')) {
+      result = { ...result, debugCli: true };
+    }
+
     // Handle progress flag
     const progressIndex = args.findIndex((arg: string) => arg === '--progress');
     if (progressIndex !== -1 && args[progressIndex + 1]) {
@@ -188,6 +193,16 @@ describe('exec verbose flag tests', () => {
 
   test('should set TRACE level with verbose level > 2', async () => {
     await exec(['--verbose', '3', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('trace');
+  });
+
+  test('should set DEBUG level with --debug-cli and no verbose flag', async () => {
+    await exec(['--debug-cli', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('debug');
+  });
+
+  test('should keep TRACE level when --debug-cli is combined with -v -v', async () => {
+    await exec(['-v', '-v', '--debug-cli', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 });

@@ -32,6 +32,7 @@ export async function fromStackCreatesDeployableApp(fixture: TestFixture, langua
         path.join(__dirname, '..', '..', '..', 'resources', 'templates', 'sqs-template.json'),
         'utf8',
       ),
+      Tags: fixture.aws.apiTags(),
     }),
   );
 
@@ -48,7 +49,6 @@ export async function fromStackCreatesDeployableApp(fixture: TestFixture, langua
     verbose: true,
     captureStderr: false,
   });
-  await fixture.shell(['cd', path.join(fixture.integTestDir, migrateStackName)]);
   await fixture.cdk(['deploy', migrateStackName], {
     neverRequireApproval: true,
     verbose: true,

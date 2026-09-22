@@ -41,7 +41,9 @@ export function withSamIntegrationCdkApp<A extends TestContext & AwsContext>(blo
       stackNamePrefix,
       context.output,
       context.aws,
-      context.randomString);
+      context.randomString,
+      context.testTags,
+    );
     await fixture.ecrPublicLogin();
 
     let success = true;
