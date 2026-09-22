@@ -511,6 +511,63 @@ describe('diff', () => {
       }));
     });
 
+    test('ChangeSet diff method uses the provided change set name', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-custom-change-set' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false, changeSetName: 'my-custom-change-set' }),
+      });
+
+      // THEN - the changeset was created with the custom name
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetName: 'my-custom-change-set',
+      }));
+    });
+
+    test('ChangeSet diff method defaults to a uniquely named change set', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN - diffing twice without an explicit change set name
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - each diff used its own unique name
+      const names = mockCloudFormationClient.commandCalls(CreateChangeSetCommand)
+        .map((call) => call.args[0].input.ChangeSetName);
+      expect(names).toHaveLength(2);
+      expect(names[0]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[1]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[0]).not.toEqual(names[1]);
+    });
+
     test('ChangeSet diff deletes stack created in REVIEW_IN_PROGRESS for new stacks', async () => {
       // GIVEN - stack doesn't exist
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);

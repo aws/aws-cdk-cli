@@ -12,6 +12,8 @@ import type { TemporaryDirectoryContext } from './with-temporary-directory';
  * A shell command that does what you want
  *
  * Is platform-aware, handles errors nicely.
+ *
+ * Even though it is called `shell`, it doesn't actually run commands through the shell!
  */
 export async function shell(command: string[], options: ShellOptions = {}): Promise<string> {
   if (options.modEnv && options.env) {

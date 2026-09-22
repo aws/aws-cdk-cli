@@ -22,7 +22,7 @@ const env = {
 };
 
 const templateBody = toYAML(deserializeStructure(serializeStructure(legacyBootstrapTemplate({}), true)));
-const changeSetName = 'cdk-deploy-change-set';
+const changeSetName = 'cdk-bootstrap-change-set';
 
 jest.mock('../../../lib/api/deployments/checks', () => ({
   determineAllowCrossAccountAssetPublishing: jest.fn().mockResolvedValue(true),
@@ -72,6 +72,31 @@ test('do bootstrap', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {
     ChangeSetName: expect.stringContaining(changeSetName),
   });
+});
+
+test('bootstrap creates a uniquely named change set on every run', async () => {
+  // WHEN
+  await bootstrap({ toolkitStackName: 'mockStack' });
+  await bootstrap({ toolkitStackName: 'mockStack', forceDeployment: true });
+
+  // THEN
+  const names = mockCloudFormationClient.commandCalls(CreateChangeSetCommand)
+    .map((call) => call.args[0].input.ChangeSetName);
+  expect(names).toHaveLength(2);
+  expect(names[0]).toMatch(/^cdk-bootstrap-change-set-/);
+  expect(names[1]).toMatch(/^cdk-bootstrap-change-set-/);
+  expect(names[0]).not.toEqual(names[1]);
+});
+
+test('bootstrap with execute=false keeps the stable change set name', async () => {
+  // WHEN
+  await bootstrap({ toolkitStackName: 'mockStack', execute: false });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    ChangeSetName: 'cdk-deploy-change-set',
+  });
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
 });
 
 test('do bootstrap using custom bucket name', async () => {
@@ -241,7 +266,7 @@ test('stack is not termination protected by default', async () => {
     Description: expect.any(String),
     Parameters: [],
     Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
-    ChangeSetName: changeSetName,
+    ChangeSetName: expect.stringContaining(changeSetName),
     TemplateBody: templateBody,
   });
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ExecuteChangeSetCommand, {

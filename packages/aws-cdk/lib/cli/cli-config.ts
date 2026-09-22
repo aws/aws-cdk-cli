@@ -31,7 +31,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
       'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
-      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself.' },
+      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.' },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
@@ -423,6 +423,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
+          'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create (only if method is not template)' },
           'method': {
             alias: 'm',
             type: 'string',

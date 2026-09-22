@@ -447,6 +447,7 @@ export class CdkToolkit {
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       resourcesToImport,
       importExistingResources: options.importExistingResources,
+      changeSetName: options.changeSetName,
       failOnError: options.method === 'change-set',
     });
   }
@@ -969,10 +970,8 @@ export class CdkToolkit {
 
     // Import the resources according to the given mapping
     await this.ioHost.asIoHelper().defaults.info('%s: importing resources into stack...', chalk.bold(stack.displayName));
-    const tags = tagsForStack(stack);
     await resourceImporter.importResourcesFromMap(actualImport, {
       roleArn: options.roleArn,
-      tags,
       deploymentMethod: options.deploymentMethod,
       usePreviousParameters: true,
       rollback: options.rollback,
@@ -1646,6 +1645,15 @@ export interface DiffOptions {
    * @default 'auto'
    */
   readonly method?: 'auto' | 'change-set' | 'template';
+
+  /**
+   * Name of the CloudFormation change set to create when computing the diff
+   *
+   * Only used if the method is not 'template'.
+   *
+   * @default 'cdk-diff-change-set-<uuid>'
+   */
+  readonly changeSetName?: string;
 
   /**
    * Whether or not the change set imports resources that already exist.
