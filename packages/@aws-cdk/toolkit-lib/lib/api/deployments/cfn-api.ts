@@ -45,7 +45,7 @@ export type PrepareChangeSetOptions = {
   /**
    * Name of the change set to create
    *
-   * @default 'cdk-diff-change-set'
+   * @default - a unique name 'cdk-diff-change-set-<uuid>'
    */
   changeSetName?: string;
   /**
@@ -88,7 +88,7 @@ export async function createDiffChangeSet(
 
     return await createChangeSetAndCleanup(ioHelper, {
       cfn,
-      changeSetName: options.changeSetName ?? 'cdk-diff-change-set',
+      changeSetName: options.changeSetName ?? `cdk-diff-change-set-${options.uuid}`,
       stack: options.stack,
       exists,
       uuid: options.uuid,

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   replaceReferences,
@@ -124,6 +125,10 @@ export class ResourceOrphaner {
     const env = await this.deployments.envs.accessStackForReadOnlyStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
 
+    // One UUID shared by all change sets of this orphan operation,
+    // so the steps are correlated and parallel operations cannot collide.
+    const operationId = randomUUID();
+
     // Get physical resource IDs (Ref values)
     const stackResources = await cfn.listStackResources({ StackName: stack.stackName });
     const physicalIds = new Map<string, string>();
@@ -135,7 +140,7 @@ export class ResourceOrphaner {
 
     // Step 1/3: Resolve GetAtt attribute values via temporary stack outputs
     await this.ioHelper.defaults.info('Step 1/3: Resolving attribute values...');
-    const resolvedValues = await this.resolveGetAttValues(stack, cfn, logicalIds, currentTemplate, physicalIds);
+    const resolvedValues = await this.resolveGetAttValues(stack, cfn, logicalIds, currentTemplate, physicalIds, operationId);
 
     // Step 2/3: Decouple — set RETAIN, replace all Ref/GetAtt with literals, remove DependsOn
     await this.ioHelper.defaults.info('Step 2/3: Decoupling resources...');
@@ -146,7 +151,7 @@ export class ResourceOrphaner {
       decoupledTemplate.Resources[id].DeletionPolicy = 'Retain';
       decoupledTemplate.Resources[id].UpdateReplacePolicy = 'Retain';
     }
-    const step2Result = await this.deployStack(stack, decoupledTemplate, 'cdk-orphan-step2');
+    const step2Result = await this.deployStack(stack, decoupledTemplate, `cdk-orphan-step2-${operationId}`);
     assertDeploySucceeded(step2Result, 'Step 2');
 
     // Step 3/3: Remove orphaned resources from the template
@@ -156,7 +161,7 @@ export class ResourceOrphaner {
       delete removalTemplate.Resources[id];
     }
     ensureNonEmptyResources(removalTemplate);
-    const step3Result = await this.deployStack(stack, removalTemplate, 'cdk-orphan-step3');
+    const step3Result = await this.deployStack(stack, removalTemplate, `cdk-orphan-step3-${operationId}`);
     assertDeploySucceeded(step3Result, 'Step 3');
     if (step3Result.noOp) {
       throw new ToolkitError(
@@ -203,6 +208,7 @@ export class ResourceOrphaner {
     logicalIds: string[],
     currentTemplate: any,
     physicalIds: Map<string, string>,
+    operationId: string,
   ): Promise<Map<string, ResolvedValues>> {
     // Build Ref values from physical IDs
     const values = new Map<string, ResolvedValues>();
@@ -232,7 +238,7 @@ export class ResourceOrphaner {
       };
     }
 
-    const step1Result = await this.deployStack(stack, resolveTemplate, 'cdk-orphan-step1');
+    const step1Result = await this.deployStack(stack, resolveTemplate, `cdk-orphan-step1-${operationId}`);
     assertDeploySucceeded(step1Result, 'Step 1');
 
     // Read resolved values from stack outputs
