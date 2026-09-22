@@ -84,7 +84,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug-cli', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK CLI itself.',
+      desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.',
     })
     .option('profile', {
       default: undefined,

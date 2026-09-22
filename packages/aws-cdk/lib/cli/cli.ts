@@ -6,6 +6,8 @@ import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import type { LeakedHandleTracker } from './debug-handles';
+import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
@@ -44,12 +46,29 @@ import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
+/**
+ * The handle tracker for this process, if `--debug-cli` asked for one.
+ *
+ * Split across the two functions on purpose. `exec()` creates it, because only it
+ * has the parsed arguments and because tracking has to start before the CLI opens
+ * anything. `cli()` is what schedules the report, for two reasons: a command that
+ * fails before reaching `exec`'s own cleanup still gets one, and the grace period
+ * starts after telemetry has finished its network calls rather than during them,
+ * so telemetry's own sockets are not reported as leaks.
+ */
+let handleTracker: LeakedHandleTracker | undefined;
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
   // Measure that.
   const libraryLoadTime = performance.now();
 
   const argv = await parseCommandLineArguments(args);
+
+  // Start tracking async resources as early as possible, so we can identify the
+  // ones still alive at exit time. `cli()` schedules the report.
+  handleTracker = argv.debugCli ? trackLeakedHandles() : undefined;
+
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
@@ -65,20 +84,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const cmd = argv._[0];
 
-  // if one -v, log at a DEBUG level
-  // if 2 -v, log at a TRACE level
-  let ioMessageLevel: IoMessageLevel = 'info';
-  if (argv.verbose) {
-    switch (argv.verbose) {
-      case 1:
-        ioMessageLevel = 'debug';
-        break;
-      case 2:
-      default:
-        ioMessageLevel = 'trace';
-        break;
-    }
-  }
+  const ioMessageLevel = determineIoMessageLevel(argv);
 
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
@@ -698,6 +704,24 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 }
 
 /**
+ * Determine the log level the CLI should run at.
+ *
+ * `--verbose` decides it whenever it is given. Otherwise a flag that needs a certain
+ * level to be useful may raise it, but never past what `--verbose` would have asked
+ * for, so no flag can make the output quieter than another one wanted.
+ */
+function determineIoMessageLevel(argv: { verbose?: number; debugCli?: boolean }): IoMessageLevel {
+  // one -v logs at DEBUG, two or more at TRACE
+  if (argv.verbose) {
+    return argv.verbose === 1 ? 'debug' : 'trace';
+  }
+
+  // `--debug-cli` needs DEBUG, otherwise its handle report is filtered out and the
+  // flag has no visible effect.
+  return argv.debugCli ? 'debug' : 'info';
+}
+
+/**
  * Determine which version of bootstrapping
  */
 async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): Promise<BootstrapSource> {
@@ -970,6 +994,15 @@ export function cli(args: string[] = process.argv.slice(2)) {
         await CliIoHost.get()?.telemetry?.end(error);
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
+
+      // Last thing we do, on both the success and the failure path. Arms an `unref`'d
+      // timer rather than printing now, so on a clean exit the process is gone before it
+      // fires and nothing is reported. If it does fire, something is still holding the
+      // event loop open, and all of the CLI's own work is already done by then.
+      const ioHelper = CliIoHost.get()?.asIoHelper();
+      if (ioHelper) {
+        handleTracker?.scheduleReport(ioHelper);
       }
     });
 }

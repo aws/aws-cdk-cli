@@ -68,7 +68,7 @@
     "debug-cli": {
       "type": "boolean",
       "default": false,
-      "desc": "Debug the CDK CLI itself."
+      "desc": "Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution."
     },
     "profile": {
       "type": "string",

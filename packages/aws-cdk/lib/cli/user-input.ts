@@ -256,7 +256,7 @@ export interface GlobalOptions {
   readonly debugApp?: boolean;
 
   /**
-   * Debug the CDK CLI itself.
+   * Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.
    *
    * @default - false
    */
