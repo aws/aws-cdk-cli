@@ -61,6 +61,14 @@ export interface CreateChangeSetOptions {
   cfn: ICloudFormationClient;
   changeSetName: string;
   exists: boolean;
+  /**
+   * Whether a stack was present at all before this change set was created, regardless of its status.
+   *
+   * Distinct from `exists`, which reports a stack in REVIEW_IN_PROGRESS or DELETE_IN_PROGRESS as
+   * absent. Used to decide whether the empty stack left behind is one this change set created, and
+   * is therefore ours to wait for on the way out.
+   */
+  stackExistedBefore: boolean;
   uuid: string;
   stack: cxapi.CloudFormationStackArtifact;
   bodyParameter: TemplateBodyParameter;
@@ -80,7 +88,7 @@ export async function createDiffChangeSet(
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser'>,
 ): Promise<ChangeSetReport | undefined> {
   try {
-    const { cfn, bodyParameter, exists, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+    const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
 
     await ioHelper.defaults.info(
       'Hold on while we create a read-only change set to get a diff with accurate replacement information (use --method=template to use a less accurate but faster template-only diff)\n',
@@ -91,6 +99,7 @@ export async function createDiffChangeSet(
       changeSetName: options.changeSetName ?? `cdk-diff-change-set-${options.uuid}`,
       stack: options.stack,
       exists,
+      stackExistedBefore,
       uuid: options.uuid,
       bodyParameter,
       parameters: options.parameters,
@@ -273,6 +282,18 @@ async function createChangeSetAndCleanup(
         StackName: stackId,
         ClientRequestToken: randomUUID(),
       });
+      // Wait for the delete to actually finish, but only for a shell this change set created.
+      // `DeleteStack` merely submits the request, and `DescribeStacks` keeps answering for the shell
+      // while it is DELETE_IN_PROGRESS. A `cdk deploy` started right after a `cdk diff` therefore
+      // finds a stack that "exists", calls `GetTemplate` on it, and fails with
+      // `Stack [<name>] does not exist` — a REVIEW_IN_PROGRESS/deleting shell has no template.
+      // `Deployments.cleanupChangeSet` already waits after the equivalent delete.
+      //
+      // Gated on `stackExistedBefore` rather than `exists` so that a stack someone else already had
+      // in flight is never something a read-only diff blocks on.
+      if (!options.stackExistedBefore) {
+        await waitForStackDelete(options.cfn, ioHelper, stackId);
+      }
     }
   }
 }
@@ -326,6 +347,10 @@ export async function createValidationChangeSet(
         StackName: changeSet.StackId ?? options.stack.stackName,
         ClientRequestToken: randomUUID(),
       }).catch((e) => ioHelper.defaults.warn(`Failed to clean up REVIEW_IN_PROGRESS stack: ${e}`));
+      // Same reason as in `createChangeSetAndCleanup`: without this the shell stack can still be
+      // DELETE_IN_PROGRESS when the next operation reads it. Best-effort, to match the delete above.
+      await waitForStackDelete(cfn, ioHelper, changeSet.StackId ?? options.stack.stackName)
+        .catch((e) => ioHelper.defaults.warn(`Failed to wait for REVIEW_IN_PROGRESS stack cleanup: ${e}`));
     }
   }
 }
