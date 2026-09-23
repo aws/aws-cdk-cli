@@ -311,6 +311,99 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     }
   });
 
+  test('classifies a create-only property change as non-hotswappable', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({
+        primaryIdentifier: ['/properties/QueueName'],
+        createOnlyProperties: ['/properties/QueueName', '/properties/FifoQueue'],
+      }),
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyQueue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { QueueName: 'sqs-co-repro-v1', VisibilityTimeout: 30 },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyQueue', 'AWS::SQS::Queue', 'https://sqs.us-east-1.amazonaws.com/123456789012/sqs-co-repro-v1'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyQueue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { QueueName: 'sqs-co-repro-v2', VisibilityTimeout: 30 },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN – no doomed UpdateResource PATCH; fall-back mode returns undefined
+    // so the caller does a full deployment instead
+    if (hotswapMode === HotswapMode.FALL_BACK) {
+      expect(deployStackResult).toBeUndefined();
+    } else {
+      expect(deployStackResult).not.toBeUndefined();
+      expect(deployStackResult?.noOp).toEqual(true);
+    }
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+  });
+
+  test('hotswaps only the mutable properties when a change mixes create-only and mutable ones', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeTypeCommand).resolves({
+      Schema: JSON.stringify({
+        primaryIdentifier: ['/properties/QueueName'],
+        createOnlyProperties: ['/properties/QueueName', '/properties/FifoQueue'],
+      }),
+    });
+    setup.setCurrentCfnStackTemplate({
+      Resources: {
+        MyQueue: {
+          Type: 'AWS::SQS::Queue',
+          Properties: { QueueName: 'sqs-co-repro-v1', VisibilityTimeout: 30 },
+        },
+      },
+    });
+    setup.pushStackResourceSummaries(
+      setup.stackSummaryOf('MyQueue', 'AWS::SQS::Queue', 'https://sqs.us-east-1.amazonaws.com/123456789012/sqs-co-repro-v1'),
+    );
+    const cdkStackArtifact = setup.cdkStackArtifactOf({
+      template: {
+        Resources: {
+          MyQueue: {
+            Type: 'AWS::SQS::Queue',
+            Properties: { QueueName: 'sqs-co-repro-v2', VisibilityTimeout: 90 },
+          },
+        },
+      },
+    });
+
+    // WHEN
+    const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+    // THEN – the PATCH names only the mutable property
+    if (hotswapMode === HotswapMode.FALL_BACK) {
+      expect(deployStackResult).toBeUndefined();
+      expect(mockCloudControlClient).not.toHaveReceivedCommand(UpdateResourceCommand);
+    } else {
+      expect(deployStackResult).not.toBeUndefined();
+      expect(mockCloudControlClient).toHaveReceivedCommandWith(UpdateResourceCommand, {
+        TypeName: 'AWS::SQS::Queue',
+        Identifier: 'https://sqs.us-east-1.amazonaws.com/123456789012/sqs-co-repro-v1',
+        PatchDocument: JSON.stringify([
+          { op: 'replace', path: '/VisibilityTimeout', value: 90 },
+        ]),
+      });
+    }
+  });
+
   test('returns non-hotswappable when a property references an unresolvable parameter', async () => {
     // GIVEN
     setup.setCurrentCfnStackTemplate({
