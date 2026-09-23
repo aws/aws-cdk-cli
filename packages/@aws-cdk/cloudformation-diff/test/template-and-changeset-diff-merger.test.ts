@@ -1010,6 +1010,99 @@ describe('fullDiff tests that include changeset', () => {
     });
   });
 
+  describe('stack-level tag changes (issue #1960)', () => {
+    const template = {
+      Resources: {
+        Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'my-bucket' } },
+      },
+    };
+
+    function tagChange(extra: Partial<ResourceChangeDetail['Target']> = {}, context: { before?: string; after?: string } = {}) {
+      return {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'Bucket',
+              ResourceType: 'AWS::S3::Bucket',
+              Replacement: 'False',
+              Scope: ['Tags'],
+              Details: [
+                {
+                  Target: { Attribute: 'Tags', RequiresRecreation: 'Never', ...extra },
+                  Evaluation: 'Static',
+                  ChangeSource: 'DirectModification',
+                },
+              ],
+              BeforeContext: context.before,
+              AfterContext: context.after,
+            },
+          },
+        ],
+      } as any;
+    }
+
+    test('a tag-only change is surfaced as an update to Tags', () => {
+      // WHEN the templates are identical and only the stack tags changed
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), tagChange());
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      const bucketDiff = differences.resources.get('Bucket');
+      expect(bucketDiff.changeImpact).toBe(ResourceImpact.WILL_UPDATE);
+      expect(bucketDiff.propertyUpdates.Tags.isDifferent).toBe(true);
+    });
+
+    test('a tag-only change is surfaced when the resource context is unchanged', () => {
+      // WHEN the change set was described with IncludePropertyValues
+      const context = '{"Properties":{"BucketName":"my-bucket"}}';
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)),
+        tagChange({}, { before: context, after: context }));
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      expect(differences.resources.get('Bucket').propertyUpdates.Tags.changeImpact).toBe(ResourceImpact.WILL_UPDATE);
+    });
+
+    test('tag values from the change set are used when present', () => {
+      // WHEN
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), tagChange({
+        BeforeValue: '[{"Key":"team","Value":"old"}]',
+        AfterValue: '[{"Key":"team","Value":"new"}]',
+      }));
+
+      // THEN
+      const tags = differences.resources.get('Bucket').propertyUpdates.Tags;
+      expect(tags.oldValue).toEqual([{ Key: 'team', Value: 'old' }]);
+      expect(tags.newValue).toEqual([{ Key: 'team', Value: 'new' }]);
+    });
+
+    test('a tag change is added to a resource that also has a template change', () => {
+      // GIVEN
+      const newTemplate = {
+        Resources: {
+          Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'my-bucket', VersioningConfiguration: { Status: 'Enabled' } } },
+        },
+      };
+      const changeSet = tagChange();
+      changeSet.Changes[0].ResourceChange.Scope = ['Properties', 'Tags'];
+      changeSet.Changes[0].ResourceChange.Details.push({
+        Target: { Attribute: 'Properties', Name: 'VersioningConfiguration', RequiresRecreation: 'Never' },
+        Evaluation: 'Static',
+        ChangeSource: 'DirectModification',
+      });
+
+      // WHEN
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), newTemplate, changeSet);
+
+      // THEN
+      const bucketDiff = differences.resources.get('Bucket');
+      expect(Object.keys(bucketDiff.propertyUpdates).sort()).toEqual(['Tags', 'VersioningConfiguration']);
+      expect(bucketDiff.propertyUpdates.Tags.changeImpact).toBe(ResourceImpact.WILL_UPDATE);
+    });
+  });
+
   describe('changeset-only property changes on a resource already in the template diff (issue #641)', () => {
     // A resource that has an ordinary (textual) change to one property, while a *second* property
     // changes only via a deploy-time value (e.g. an SSM parameter) that the template diff cannot see.

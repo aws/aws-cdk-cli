@@ -72,8 +72,9 @@ export class TemplateAndChangeSetDiffMerger {
 
       const propertyReplacementModes: types.PropertyReplacementModeMap = {};
       for (const propertyChange of resourceChange.ResourceChange.Details ?? []) { // Details is only included if resourceChange.Action === 'Modify'
-        if (propertyChange.Target?.Attribute === 'Properties' && propertyChange.Target.Name) {
-          propertyReplacementModes[propertyChange.Target.Name] = {
+        const propertyName = changeSetPropertyName(propertyChange);
+        if (propertyName) {
+          propertyReplacementModes[propertyName] = {
             replacementMode: TemplateAndChangeSetDiffMerger.determineChangeSetReplacementMode(propertyChange),
           };
         }
@@ -279,6 +280,14 @@ export class TemplateAndChangeSetDiffMerger {
       newResource = fromDetails.newResource;
     }
 
+    const tagsChanged = (rc.Details ?? []).some((detail) => detail.Target?.Attribute === 'Tags');
+    if ((oldResource === undefined || newResource === undefined) && tagsChanged) {
+      // Stack-level tags are not part of the template, so there may be nothing else to diff.
+      const type = resourceType ?? TemplateAndChangeSetDiffMerger.UNKNOWN_RESOURCE_TYPE;
+      oldResource = { Type: type, Properties: {} };
+      newResource = { Type: type, Properties: {} };
+    }
+
     if (oldResource === undefined || newResource === undefined) {
       return undefined;
     }
@@ -288,6 +297,11 @@ export class TemplateAndChangeSetDiffMerger {
     // Refine the change impact (replacement vs. update) using the change set, exactly like we do
     // for resources that originate from the template diff.
     this.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(rc.LogicalResourceId!, resourceDiff);
+
+    // A stack-level tag change leaves the resource definition (and so its context) unchanged.
+    if (tagsChanged && !('Tags' in resourceDiff.propertyUpdates)) {
+      this.addChangeSetPropertiesNotInTemplateDiff(rc.LogicalResourceId!, resourceDiff);
+    }
 
     return resourceDiff;
   }
@@ -395,7 +409,7 @@ export class TemplateAndChangeSetDiffMerger {
 
     for (const detail of resourceChange?.Details ?? []) {
       const target = detail.Target;
-      if (target?.Attribute === 'Properties' && target.Name === propertyName) {
+      if (target && changeSetPropertyName(detail) === propertyName) {
         if (target.BeforeValue !== undefined) {
           oldValue = tryJsonParse(target.BeforeValue);
         }
@@ -452,6 +466,23 @@ function tryJsonParse(value: string): any {
     return JSON.parse(value);
   } catch {
     return value;
+  }
+}
+
+/**
+ * The template property that a change set detail refers to, if any.
+ *
+ * Changes to stack-level tags are reported with `Attribute: 'Tags'` and no `Name`. They end up
+ * in the resource's `Tags` property, so they are reported as a change to that property.
+ */
+function changeSetPropertyName(detail: ChangeSetResourceChangeDetail): string | undefined {
+  switch (detail.Target?.Attribute) {
+    case 'Properties':
+      return detail.Target.Name;
+    case 'Tags':
+      return 'Tags';
+    default:
+      return undefined;
   }
 }
 
