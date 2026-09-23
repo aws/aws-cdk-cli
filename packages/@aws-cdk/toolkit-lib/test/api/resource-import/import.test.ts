@@ -328,6 +328,86 @@ test('issue 1575: IMPORT change set preserves DependsOn order of non-imported re
   expect(submittedTemplate.Resources.Existing.DependsOn).toEqual(naturalOrder);
 });
 
+test('issue 1915: IMPORT change set keeps non-ASCII characters that GetTemplate mangled', async () => {
+  // GIVEN a deployed resource whose description holds an em dash. `GetTemplate` hands that back
+  // with a literal '?' in its place, which is what the fake deployed template has here.
+  const description = 'Scoped access \u2014 resources only.';
+  const stackToImportInto = testStack({
+    stackName: 'StackImport1915',
+    template: {
+      Resources: {
+        Existing: { Type: 'AWS::IAM::ManagedPolicy', Properties: { Description: description } },
+        MyQueue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'TheQueueName' } },
+      },
+    },
+  });
+
+  givenCurrentStack(stackToImportInto.stackName, {
+    Resources: {
+      Existing: {
+        Type: 'AWS::IAM::ManagedPolicy',
+        Properties: { Description: 'Scoped access ? resources only.' },
+      },
+    },
+  });
+
+  const importer = new ResourceImporter(stackToImportInto, props);
+  const { additions } = await importer.discoverImportableResources();
+  const importMap: ImportMap = {
+    importResources: additions,
+    resourceMap: { MyQueue: { QueueName: 'TheQueueName' } },
+  };
+
+  // WHEN
+  await advanceTime(importer.importResourcesFromMap(importMap));
+
+  // THEN - the submitted template carries the real character, so `Existing` is not a modification
+  const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+  expect(calls.length).toBeGreaterThan(0);
+  const submittedTemplate = yaml.parse((calls[calls.length - 1].args[0].input as any).TemplateBody);
+  expect(submittedTemplate.Resources.Existing.Properties.Description).toEqual(description);
+});
+
+test('issue 1915: a real change to a non-ASCII string is still submitted as deployed', async () => {
+  // GIVEN a deployed value that is not just the mangled form of the local one
+  const stackToImportInto = testStack({
+    stackName: 'StackImport1915Changed',
+    template: {
+      Resources: {
+        Existing: {
+          Type: 'AWS::IAM::ManagedPolicy',
+          Properties: { Description: 'Something else \u2014 entirely.' },
+        },
+        MyQueue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'TheQueueName' } },
+      },
+    },
+  });
+
+  givenCurrentStack(stackToImportInto.stackName, {
+    Resources: {
+      Existing: {
+        Type: 'AWS::IAM::ManagedPolicy',
+        Properties: { Description: 'Scoped access ? resources only.' },
+      },
+    },
+  });
+
+  const importer = new ResourceImporter(stackToImportInto, props);
+  const { additions } = await importer.discoverImportableResources();
+  const importMap: ImportMap = {
+    importResources: additions,
+    resourceMap: { MyQueue: { QueueName: 'TheQueueName' } },
+  };
+
+  // WHEN
+  await advanceTime(importer.importResourcesFromMap(importMap));
+
+  // THEN - the deployed value is left alone, the import does not quietly apply the local change
+  const calls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+  const submittedTemplate = yaml.parse((calls[calls.length - 1].args[0].input as any).TemplateBody);
+  expect(submittedTemplate.Resources.Existing.Properties.Description).toEqual('Scoped access ? resources only.');
+});
+
 test('importing resources from migrate strips cdk metadata and outputs', async () => {
   // GIVEN
   const MyQueue = {
