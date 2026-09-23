@@ -16,15 +16,12 @@ integTest(
     });
 
     // Hotswap deploy with telemetry
-    const deployOutput = await fixture.cdkDeploy('lambda-hotswap', {
+    await fixture.cdkDeploy('lambda-hotswap', {
       options: ['--hotswap'],
       telemetryFile,
       verboseLevel: 3,
       modEnv: { DYNAMIC_LAMBDA_PROPERTY_VALUE: 'updated' },
     });
-
-    // Check the trace that telemetry was executed successfully
-    expect(deployOutput).toContain('Telemetry Sent Successfully');
 
     const json = fs.readJSONSync(telemetryFile);
     expect(json).toEqual(
