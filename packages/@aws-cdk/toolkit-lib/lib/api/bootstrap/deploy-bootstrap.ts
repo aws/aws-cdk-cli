@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as os from 'os';
 import * as path from 'path';
 import type { Environment } from '@aws-cdk/cloud-assembly-api';
@@ -147,6 +148,11 @@ export class BootstrapStack {
         deploymentMethod: {
           method: 'change-set',
           execute: options.execute,
+          // A unique name when executing, so parallel bootstraps don't collide.
+          // With --no-execute the change set is left in review for the user, so
+          // keep the stable default name: re-running replaces the pending change
+          // set instead of accumulating one per run.
+          changeSetName: (options.execute ?? true) ? `cdk-bootstrap-change-set-${randomUUID()}` : undefined,
           importExistingResources: options.importExistingResources ?? true,
         },
         parameters,

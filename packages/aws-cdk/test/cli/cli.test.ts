@@ -4,6 +4,7 @@ import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { guessAgent } from '../../lib/cli/util/guess-agent';
 import { StackActivityProgress } from '../../lib/commands/deploy';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -17,6 +18,9 @@ jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('../../lib/cli/util/guess-agent');
+const guessAgentMock = jest.mocked(guessAgent);
 
 jest.mock('../../lib/cli/user-configuration', () => ({
   Configuration: jest.fn().mockImplementation(() => ({
@@ -103,6 +107,11 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
+    // Handle debug flags
+    if (args.includes('--debug-cli')) {
+      result = { ...result, debugCli: true };
+    }
+
     // Handle progress flag
     const progressIndex = args.findIndex((arg: string) => arg === '--progress');
     if (progressIndex !== -1 && args[progressIndex + 1]) {
@@ -184,6 +193,16 @@ describe('exec verbose flag tests', () => {
 
   test('should set TRACE level with verbose level > 2', async () => {
     await exec(['--verbose', '3', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('trace');
+  });
+
+  test('should set DEBUG level with --debug-cli and no verbose flag', async () => {
+    await exec(['--debug-cli', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('debug');
+  });
+
+  test('should keep TRACE level when --debug-cli is combined with -v -v', async () => {
+    await exec(['-v', '-v', '--debug-cli', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 });
@@ -618,21 +637,12 @@ describe('publish-assets command tests', () => {
 });
 
 describe('AI agent progress auto-default', () => {
-  let originalEnv: Record<string, string | undefined>;
   let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
   let deploySpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Clear all env vars that guessAgent() detects, so the test environment doesn't interfere
-    originalEnv = {};
-    for (const key of Object.keys(process.env)) {
-      if (['AI_AGENT', 'AGENT', 'CLAUDECODE', 'CURSOR_AGENT', 'VSCODE_AGENT', 'AWS_EXECUTION_ENV'].includes(key)
-        || key.startsWith('CODEX_') || key.startsWith('CLINE_')) {
-        originalEnv[key] = process.env[key];
-        delete process.env[key];
-      }
-    }
+    guessAgentMock.mockReturnValue(undefined);
     // A Configuration mock that reflects the command line arguments, like the real one
     originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
     Configuration.fromArgsAndFiles = jest.fn().mockImplementation((_ioHelper: any, props: any) => ({
@@ -649,19 +659,12 @@ describe('AI agent progress auto-default', () => {
   });
 
   afterEach(() => {
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
     Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
     deploySpy.mockRestore();
   });
 
   test('defaults to errors-only progress when an agent is detected', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy']);
 
@@ -675,7 +678,7 @@ describe('AI agent progress auto-default', () => {
   });
 
   test('an explicit progress preference wins over agent detection', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy', '--progress', 'events']);
 
@@ -683,7 +686,7 @@ describe('AI agent progress auto-default', () => {
   });
 
   test('verbose mode wins over agent detection', async () => {
-    process.env.CLAUDECODE = '1';
+    guessAgentMock.mockReturnValue(true);
 
     await exec(['deploy', '-v']);
 

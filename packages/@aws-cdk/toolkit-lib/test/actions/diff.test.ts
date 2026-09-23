@@ -511,6 +511,63 @@ describe('diff', () => {
       }));
     });
 
+    test('ChangeSet diff method uses the provided change set name', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-custom-change-set' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false, changeSetName: 'my-custom-change-set' }),
+      });
+
+      // THEN - the changeset was created with the custom name
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetName: 'my-custom-change-set',
+      }));
+    });
+
+    test('ChangeSet diff method defaults to a uniquely named change set', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN - diffing twice without an explicit change set name
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - each diff used its own unique name
+      const names = mockCloudFormationClient.commandCalls(CreateChangeSetCommand)
+        .map((call) => call.args[0].input.ChangeSetName);
+      expect(names).toHaveLength(2);
+      expect(names[0]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[1]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[0]).not.toEqual(names[1]);
+    });
+
     test('ChangeSet diff deletes stack created in REVIEW_IN_PROGRESS for new stacks', async () => {
       // GIVEN - stack doesn't exist
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
@@ -536,6 +593,46 @@ describe('diff', () => {
       expect(mockCloudFormationClient).toHaveReceivedCommandWith(DeleteStackCommand, {
         StackName: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
       });
+    });
+
+    test('ChangeSet diff waits for the REVIEW_IN_PROGRESS stack to finish deleting', async () => {
+      // GIVEN - stack doesn't exist, so the CREATE change set leaves a shell stack behind
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      let deleteIssued = false;
+      let statusReadsAfterDelete = 0;
+      mockCloudFormationClient.on(DeleteStackCommand).callsFake(() => {
+        deleteIssued = true;
+        return {};
+      });
+      mockCloudFormationClient.on(DescribeStacksCommand).callsFake(() => {
+        if (deleteIssued) {
+          statusReadsAfterDelete += 1;
+        }
+        return { Stacks: [] };
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the diff does not return until the shell stack's deletion has been confirmed.
+      // Without the wait DeleteStack is fire-and-forget, so a `cdk deploy` started straight after a
+      // `cdk diff` reads the still-deleting shell and fails on GetTemplate.
+      expect(deleteIssued).toBe(true);
+      expect(statusReadsAfterDelete).toBeGreaterThan(0);
     });
 
     test('ChangeSet diff describes the change set with IncludePropertyValues so deploy-time-only changes are surfaced', async () => {

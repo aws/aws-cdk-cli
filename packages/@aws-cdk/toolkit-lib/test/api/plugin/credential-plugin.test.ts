@@ -136,6 +136,55 @@ test('plugin must not return something that is not a credential', async () => {
   await expect(fetchNow()).rejects.toThrow(/Plugin returned a value that/);
 });
 
+test('error for an invalid initial value only describes the value by its keys', async () => {
+  // GIVEN a value that fails the V3 guard (falsy accessKeyId)
+  mockCredentialFunction(() => Promise.resolve({
+    accessKeyId: '',
+    secretAccessKey: 'sentinel-initial-a',
+    sessionToken: 'sentinel-initial-b',
+  } as any));
+
+  // WHEN
+  const error = await fetchNow().then(() => undefined, (e) => e);
+
+  // THEN
+  expect(error?.message).toMatch(/Plugin returned a value that/);
+  expect(error?.message).toContain('accessKeyId');
+  expect(error?.message).not.toContain('sentinel-initial-a');
+  expect(error?.message).not.toContain('sentinel-initial-b');
+});
+
+test('error for a refresh type mismatch only describes the value by its keys', async () => {
+  // GIVEN a plugin that first returns expiring V3 credentials, then V2-shaped credentials
+  const mockProducer = jest.fn()
+    .mockImplementationOnce(() => Promise.resolve({
+      accessKeyId: 'initialkeyid',
+      secretAccessKey: 'initialsecret',
+      sessionToken: 'initialsession',
+      expiration: new Date(Date.now() + 300_000), // 5 minutes from now
+    } satisfies SDKv3CompatibleCredentials))
+    .mockImplementationOnce(() => Promise.resolve({
+      accessKeyId: 'sentinel-refresh-a',
+      secretAccessKey: 'sentinel-refresh-b',
+      sessionToken: 'sentinel-refresh-c',
+      expired: false,
+      getPromise: () => Promise.resolve({}),
+    }));
+  mockCredentialFunction(mockProducer);
+
+  // WHEN
+  await fetchNow();
+  jest.advanceTimersByTime(300_000); // Make the credentials expire
+  const error = await fetchNow().then(() => undefined, (e) => e);
+
+  // THEN
+  expect(error?.message).toMatch(/Plugin initially returned static V3/);
+  expect(error?.message).toContain('getPromise');
+  expect(error?.message).not.toContain('sentinel-refresh-a');
+  expect(error?.message).not.toContain('sentinel-refresh-b');
+  expect(error?.message).not.toContain('sentinel-refresh-c');
+});
+
 test('token expiration is allowed to be null', () => {
   expect(credentialsAboutToExpire({
     accessKeyId: 'key',

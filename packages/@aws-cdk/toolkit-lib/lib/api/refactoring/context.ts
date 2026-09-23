@@ -1,6 +1,4 @@
-import { DefaultAwsClient, type IAws } from '@aws-cdk/cdk-assets-lib';
 import type { Environment } from '@aws-cdk/cloud-assembly-api';
-import { EnvironmentPlaceholders } from '@aws-cdk/cloud-assembly-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
 import type { CloudFormationStack } from './cloudformation';
 import { ResourceLocation, ResourceMapping } from './cloudformation';
@@ -12,6 +10,7 @@ import type { SDK } from '../aws-auth/sdk';
 import type { SdkProvider } from '../aws-auth/sdk-provider';
 import { stabilizeStack } from '../deployments/cfn-api';
 import { EnvironmentResourcesRegistry } from '../environment';
+import { replaceEnvPlaceholders } from '../environment/placeholders';
 import type { IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
@@ -176,8 +175,8 @@ export class RefactoringContext {
     const arn = Array.from(roleArns)[0];
     if (arn != null) {
       const resolvedEnv = await sdkProvider.resolveEnvironment(env);
-      const region = resolvedEnv.region;
-      return (await replaceAwsPlaceholders({ region, assumeRoleArn: arn }, new DefaultAwsClient())).assumeRoleArn;
+      const { assumeRoleArn } = await replaceEnvPlaceholders({ assumeRoleArn: arn }, resolvedEnv, sdkProvider);
+      return assumeRoleArn;
     }
 
     // If we couldn't find a role ARN, we can proceed without assuming a role.
@@ -423,40 +422,5 @@ function partitionByAmbiguity(overrides: ResourceMapping[], moves: ResourceMove[
   }
 
   return [nonAmbiguous, ambiguous];
-}
-
-/**
- * Replace the {ACCOUNT} and {REGION} placeholders in all strings found in a complex object.
- *
- * Duplicated between cdk-assets and aws-cdk CLI because we don't have a good single place to put it
- * (they're nominally independent tools).
- */
-export async function replaceAwsPlaceholders<A extends { region?: string }>(
-  object: A,
-  aws: IAws,
-): Promise<A> {
-  let partition = async () => {
-    const p = await aws.discoverPartition();
-    partition = () => Promise.resolve(p);
-    return p;
-  };
-
-  let account = async () => {
-    const a = await aws.discoverCurrentAccount();
-    account = () => Promise.resolve(a);
-    return a;
-  };
-
-  return EnvironmentPlaceholders.replaceAsync(object, {
-    async region() {
-      return object.region ?? aws.discoverDefaultRegion();
-    },
-    async accountId() {
-      return (await account()).accountId;
-    },
-    async partition() {
-      return partition();
-    },
-  });
 }
 

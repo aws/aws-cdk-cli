@@ -447,6 +447,7 @@ export class CdkToolkit {
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       resourcesToImport,
       importExistingResources: options.importExistingResources,
+      changeSetName: options.changeSetName,
       failOnError: options.method === 'change-set',
     });
   }
@@ -1644,6 +1645,15 @@ export interface DiffOptions {
    * @default 'auto'
    */
   readonly method?: 'auto' | 'change-set' | 'template';
+
+  /**
+   * Name of the CloudFormation change set to create when computing the diff
+   *
+   * Only used if the method is not 'template'.
+   *
+   * @default 'cdk-diff-change-set-<uuid>'
+   */
+  readonly changeSetName?: string;
 
   /**
    * Whether or not the change set imports resources that already exist.
