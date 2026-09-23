@@ -595,6 +595,46 @@ describe('diff', () => {
       });
     });
 
+    test('ChangeSet diff waits for the REVIEW_IN_PROGRESS stack to finish deleting', async () => {
+      // GIVEN - stack doesn't exist, so the CREATE change set leaves a shell stack behind
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      let deleteIssued = false;
+      let statusReadsAfterDelete = 0;
+      mockCloudFormationClient.on(DeleteStackCommand).callsFake(() => {
+        deleteIssued = true;
+        return {};
+      });
+      mockCloudFormationClient.on(DescribeStacksCommand).callsFake(() => {
+        if (deleteIssued) {
+          statusReadsAfterDelete += 1;
+        }
+        return { Stacks: [] };
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the diff does not return until the shell stack's deletion has been confirmed.
+      // Without the wait DeleteStack is fire-and-forget, so a `cdk deploy` started straight after a
+      // `cdk diff` reads the still-deleting shell and fails on GetTemplate.
+      expect(deleteIssued).toBe(true);
+      expect(statusReadsAfterDelete).toBeGreaterThan(0);
+    });
+
     test('ChangeSet diff describes the change set with IncludePropertyValues so deploy-time-only changes are surfaced', async () => {
       // GIVEN - an existing stack
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
