@@ -68,12 +68,20 @@ export class TestIoHost implements IIoHost {
     return spyResponse ?? msg.defaultResponse;
   }
 
-  public expectMessage(m: { containing: string; level?: IoMessageLevel }) {
+  public expectMessage(m: { containing: string; level?: IoMessageLevel; code?: IoMessageCode }) {
     expect(this.messages).toContainEqual(expect.objectContaining({
       ...m.level ? { level: m.level } : undefined,
+      ...m.code ? { code: m.code } : undefined,
       // Can be a partial string as well
       message: expect.stringContaining(m.containing),
     }));
+  }
+
+  /**
+   * Return all messages emitted with a given code
+   */
+  public messagesWithCode(code: IoMessageCode): Array<IoMessage<unknown>> {
+    return this.messages.filter((m) => m.code === code);
   }
 
   /**
