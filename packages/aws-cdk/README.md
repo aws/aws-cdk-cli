@@ -293,6 +293,79 @@ a regular replacement instead. If the stack rollback is currently paused
 and you are trying to perform an deployment that contains a replacement, you
 will be prompted to roll back first.
 
+#### Express Mode and resource replacements
+
+Express Mode (`cdk deploy --express`) has rollback disabled by default, and CloudFormation does not perform
+replacement-type updates while rollback is disabled. CloudFormation classifies this as expected behavior, so this is a
+documented constraint of deploying with rollback disabled. Express Mode supports resource replacements; it needs
+rollback enabled to perform them.
+
+To deploy a change that replaces a resource in Express Mode, enable rollback for that deployment:
+
+```console
+$ cdk deploy --express --rollback
+```
+
+This works on both the change set path and `--method=direct`. If the replacement is genuinely invalid, the deployment
+fails with the underlying service error and CloudFormation rolls the stack back to a terminal state, rather than
+leaving it stuck.
+
+If you deploy a replacing change with `--express` and rollback disabled, CloudFormation rejects the update with
+`Replacement type updates not supported on stack with disable-rollback` and the stack is left in `UPDATE_FAILED`.
+Adding `--rollback` at that point does not help, because `--express --rollback` cannot update a stack that is already
+in a failed state:
+
+```console
+ValidationError: This stack is currently in a non-terminal [UPDATE_FAILED] state.
+```
+
+`cdk rollback` does not help either, because CloudFormation does not offer `RollbackStack` for stacks last deployed
+with Express Mode:
+
+```console
+❌  MyStack failed: RollbackStack is not supported for stacks that were last updated using EXPRESS deployment mode and are in a failed state. To recover this stack, submit an UpdateStack request with the last known stable template.
+Rollback failed (use --force to orphan failing resources)
+```
+
+The `use --force to orphan failing resources` hint does not apply here: `cdk rollback --force` fails identically.
+
+##### Unwedging a stack left in `UPDATE_FAILED`
+
+To return such a stack to a terminal state, replay the configuration that last deployed successfully:
+
+1. Revert your source so that your CDK app synthesizes the template that was last deployed successfully.
+2. Run:
+
+   ```console
+   $ cdk deploy --express --method=direct
+   ```
+
+Both flags are required:
+
+- `--express`, because CloudFormation deployment mode is sticky: follow-up operations on the stack must stay in
+  `EXPRESS` mode until the stack reaches a `*_COMPLETE` state.
+- `--method=direct`, because the change set path diffs against the template CloudFormation has already recorded —
+  which is the template you are replaying. That produces an empty diff, so the deployment reports `✅ (no changes)` and
+  exits 0 while the stack remains in `UPDATE_FAILED`.
+
+This *unwedges* the stack; it does not recover anything. The resource that failed already rolled itself back to its
+previous revision, so the replay is a no-op that emits no resource events. **Your change is still not deployed.**
+Re-apply it afterwards and deploy it with `cdk deploy --express --rollback`.
+
+Before replaying, confirm that the replay really will be a no-op: check that the failed resource reported
+`UPDATE_ROLLBACK_COMPLETE` and is still at its previous revision (for an `AWS::ECS::TaskDefinition`, for example, the
+live revision should still be the one from before the failed deployment). If it is, the replay changes nothing and
+succeeds.
+
+If it is not — if the resource is already at a new revision — then restoring the previous configuration is itself a
+replacement, and CloudFormation refuses it for the same reason. There is no known way to recover such a stack by
+redeploying: `cdk deploy --express --rollback` cannot update a stack that is already in `UPDATE_FAILED`, and
+`cdk rollback` is unavailable for Express Mode stacks. Delete and recreate the stack, or contact AWS Support if it
+holds state you cannot afford to lose.
+
+> This applies until CloudFormation lifts the restriction on replacements in rollback-disabled deployments. Once it
+> does, replacements will work under `--express` without `--rollback` and this section no longer applies.
+
 #### Deploying multiple stacks
 
 You can have multiple stacks in a cdk app. An example can be found in [how to create multiple stacks](https://docs.aws.amazon.com/cdk/latest/guide/stack_how_to_create_multiple_stacks.html).
@@ -768,6 +841,12 @@ Some resources may fail to roll back. If they do, you can try again by calling
 `cdk rollback --orphan <LogicalId>` (can be specified multiple times). Or, run
 `cdk rollback --force` to have the CDK CLI automatically orphan all failing
 resources.
+
+`cdk rollback` is not available for stacks whose last deployment used Express Mode
+(`cdk deploy --express`): CloudFormation does not support `RollbackStack` for those stacks while they are in
+a failed state, and `--force` does not change that. See
+[Express Mode and resource replacements](#express-mode-and-resource-replacements) for how to unwedge such a
+stack.
 
 (`cdk rollback` requires version 23 of the bootstrap stack, since it depends on
 new permissions necessary to call the appropriate CloudFormation APIs)
