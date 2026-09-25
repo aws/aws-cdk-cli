@@ -133,6 +133,13 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
 
       if (code === 0 || options.allowErrExit) {
         resolve(out);
+      } else if (code === 127) {
+        logAndReject(new Error(
+          `'${command.join(' ')}' exited with error code 127. ` +
+          'An executable invoked by this command ' +
+          'was not found on PATH when it ran. This points to a missing or ' +
+          `unavailable executable, not to a failure within '${command[0]}' itself.`,
+        ));
       } else {
         logAndReject(new Error(`'${command.join(' ')}' exited with error code ${code}.`));
       }
