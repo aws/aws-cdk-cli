@@ -637,6 +637,9 @@ export class CdkToolkit {
       return this.validateWatch(validateOptions);
     }
 
+    // Offline validation runs during synthesis; its outcome (offlineWouldFailDeploy)
+    // is recorded on the SYNTH telemetry event. Online validation timing and state
+    // are emitted separately by toolkit-lib as a VALIDATE_ONLINE event.
     const result = await this.toolkit.validate(this.props.cloudExecutable, validateOptions);
     return result.conclusion === 'failure' ? 1 : 0;
   }

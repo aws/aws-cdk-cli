@@ -88,26 +88,36 @@ export async function throwIfValidationFailures(
   const result: ValidateResult = { conclusion, pluginReports };
   await ioHelper.notify(hostMessageFromValidation(process.cwd(), result));
 
+  if (!wouldFailDeploy(pluginReports, failAt)) {
+    return;
+  }
+
+  if (failAt === 'warn') {
+    const error = AssemblyError.withStacks('Synthesis finished with warnings (--strict mode)', stacks.stackArtifacts);
+    error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+    throw error;
+  }
+
+  const error = AssemblyError.withStacks('Synthesis finished with errors', stacks.stackArtifacts);
+  error.attachSynthesisErrorCode('AnnotationErrors');
+  throw error;
+}
+
+/**
+ * Whether the given validation reports make a deploy-like action fail at the given severity threshold
+ *
+ * This is the exact predicate applied by `throwIfValidationFailures`.
+ */
+export function wouldFailDeploy(pluginReports: PluginReportJson[], failAt: MinimumSeverity): boolean {
   switch (failAt) {
     case 'error':
-      if (conclusion === 'failure') {
-        const error = AssemblyError.withStacks('Synthesis finished with errors', stacks.stackArtifacts);
-        error.attachSynthesisErrorCode('AnnotationErrors');
-        throw error;
-      }
-      break;
+      return combineConclusions(pluginReports) === 'failure';
     case 'warn':
-      // if we're failing at 'warn', then both warnings and errors cause failure, so the initial conclusion is correct
-      if (conclusion === 'failure' || hasWarnings(pluginReports)) {
-        const error = AssemblyError.withStacks('Synthesis finished with warnings (--strict mode)', stacks.stackArtifacts);
-        error.attachSynthesisErrorCode('StrictAnnotationWarnings');
-        throw error;
-      }
-
-      break;
+      // if we're failing at 'warn', then both warnings and errors cause failure
+      return combineConclusions(pluginReports) === 'failure' || hasWarnings(pluginReports);
     case 'none':
       // if we're not failing at all, then the conclusion is always success
-      break;
+      return false;
   }
 }
 

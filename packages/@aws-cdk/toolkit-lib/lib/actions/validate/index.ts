@@ -41,6 +41,18 @@ export interface ValidateResult {
    * Reports from each validation plugin
    */
   readonly pluginReports: PluginReportJson[];
+
+  /**
+   * The subset of `pluginReports` produced by online (CloudFormation change
+   * set) validation, as opposed to offline sources: policy validation plugins
+   * and construct annotations, both read from the cloud assembly.
+   *
+   * Contains the same object references as `pluginReports`. An empty array
+   * means online validation ran and found no problems.
+   *
+   * @default - online validation was skipped
+   */
+  readonly onlineReports?: PluginReportJson[];
 }
 
 export type { PolicyValidationReportJson, PolicyValidationReportConclusion, PluginReportJson };

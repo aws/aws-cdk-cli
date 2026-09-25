@@ -101,6 +101,34 @@ export interface Operation extends Duration {
 }
 
 /**
+ * The result of the online (CloudFormation change set) validation phase of the
+ * `validate` action.
+ *
+ * This payload is only emitted when online validation actually runs. `duration`
+ * times the online phase and `counters` describe only its outcome. Offline
+ * validation runs during synthesis and its counters are reported separately.
+ */
+export interface OnlineValidationResult extends Duration {
+  /**
+   * Counters describing the outcome of the online validation phase.
+   *
+   * @default - no counters
+   */
+  readonly counters?: Record<string, number>;
+
+  /**
+   * Set when the online validation engine could not run at all.
+   *
+   * Online validation finding template problems is not an error; this is only
+   * set when the validation itself could not be performed (for example, when
+   * the CloudFormation calls failed for every selected stack).
+   *
+   * @default - online validation ran
+   */
+  readonly error?: Error;
+}
+
+/**
  * Generic payload of a simple yes/no question.
  *
  * The expectation is that 'yes' means moving on,
