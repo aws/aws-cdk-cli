@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
 import { spawnSync } from 'child_process';
+import * as path from 'path';
 import * as semver from 'semver';
 import { shell } from './shell';
 
@@ -24,6 +25,72 @@ export async function npmMostRecentMatching(packageName: string, range: string) 
   // Otherwise an array that may or may not be sorted. Sort it then get the top one.
   output.sort((a: string, b: string) => semver.compare(a, b));
   return output[output.length - 1];
+}
+
+/**
+ * `npm install <spec>` into `dir`, retrying a bounded number of times on failure.
+ *
+ * npm registry degradations are transient: a single install may fail or land
+ * incomplete (e.g. a package's version gets recorded but its `bin` never makes
+ * it into `node_modules/.bin`). A short bounded retry lets a brief blip
+ * self-heal instead of failing a canary.
+ */
+export async function npmInstallWithRetry(spec: string, dir: string, attempts: number = 3) {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await shell(['node', require.resolve('npm'), 'install', spec], {
+        cwd: dir,
+        show: 'error',
+        outputs: [process.stderr],
+      });
+      return;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < attempts) {
+        // Linear backoff; keep it short so we don't stall a canary for long.
+        const delayMs = attempt * 2000;
+        process.stderr.write(`npm install ${spec} failed (attempt ${attempt}/${attempts}), retrying in ${delayMs}ms...\n`);
+        await new Promise((res) => setTimeout(res, delayMs));
+      }
+    }
+  }
+  throw new Error(`npm install ${spec} failed after ${attempts} attempts: ${lastErr}`);
+}
+
+/**
+ * Verify that the CLI binary installed under `installRoot` is actually runnable.
+ *
+ * `npm install` recording a version (see `npmQueryInstalledVersion`) does not
+ * guarantee the package's `bin` landed in `node_modules/.bin` or that it runs.
+ * During an npm registry degradation an install can be incomplete: the version
+ * is recorded but the `cdk` binary is missing, which only surfaces much later
+ * as `cdk: not found` (exit 127) from inside a test's `cdk synth` — pointing
+ * investigators at CDK/synth instead of at the install.
+ *
+ * Invoking `<bin> --version` through the same install root the tests will use
+ * turns that downstream failure into a clear, install-time diagnosis.
+ *
+ * @param binName - the executable to run (e.g. `cdk`)
+ * @param installRoot - the directory that contains `node_modules/.bin`
+ * @param installSpec - the `<pkg>@<range>` that was installed, for the error message
+ */
+export async function verifyCliRunnable(binName: string, installRoot: string, installSpec: string) {
+  const binPath = path.join(installRoot, 'node_modules', '.bin', binName);
+  try {
+    await shell([binPath, '--version'], {
+      cwd: installRoot,
+      show: 'error',
+      captureStderr: true,
+      outputs: [process.stderr],
+    });
+  } catch (e) {
+    throw new Error(
+      `CLI install verification failed: '${binName} --version' did not run after installing ${installSpec}. ` +
+      'This usually indicates an incomplete or degraded npm install rather than a CDK defect. ' +
+      `(underlying error: ${e})`,
+    );
+  }
 }
 
 export async function npmQueryInstalledVersion(packageName: string, dir: string) {
