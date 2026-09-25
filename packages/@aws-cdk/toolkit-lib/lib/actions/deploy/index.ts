@@ -222,11 +222,97 @@ export interface BaseDeployOptions {
   readonly stackEventPollingInterval?: number;
 }
 
+/**
+ * The resource type of a rollback trigger.
+ *
+ * @see https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_RollbackTrigger.html
+ */
+export enum RollbackTriggerType {
+  /**
+   * A CloudWatch metric alarm (`AWS::CloudWatch::Alarm`).
+   */
+  ALARM = 'AWS::CloudWatch::Alarm',
+
+  /**
+   * A CloudWatch composite alarm (`AWS::CloudWatch::CompositeAlarm`).
+   */
+  COMPOSITE_ALARM = 'AWS::CloudWatch::CompositeAlarm',
+}
+
+/**
+ * A CloudWatch alarm that CloudFormation monitors during a stack operation.
+ *
+ * If the alarm goes into the `ALARM` state during deployment (or during the
+ * monitoring period afterwards), CloudFormation rolls the operation back.
+ */
+export interface RollbackTrigger {
+  /**
+   * The ARN of the CloudWatch alarm that CloudFormation monitors.
+   */
+  readonly arn: string;
+
+  /**
+   * The resource type of the alarm identified by `arn`.
+   *
+   * A metric alarm and a composite alarm cannot be told apart from their ARN,
+   * so the type must be stated explicitly when using composite alarms.
+   *
+   * @default RollbackTriggerType.ALARM
+   */
+  readonly type?: RollbackTriggerType;
+}
+
+/**
+ * Configuration of CloudFormation rollback triggers.
+ *
+ * Rollback triggers let CloudFormation monitor the state of your application
+ * during and after a stack create or update, and roll the operation back if any
+ * of the specified CloudWatch alarms breach.
+ *
+ * @see https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-rollback-triggers.html
+ */
+export interface RollbackConfiguration {
+  /**
+   * The CloudWatch alarms that CloudFormation monitors during the stack operation.
+   *
+   * A maximum of 5 triggers can be specified.
+   *
+   * @default - No rollback triggers
+   */
+  readonly triggers?: RollbackTrigger[];
+
+  /**
+   * The amount of time, in minutes, during which CloudFormation should monitor
+   * all the rollback triggers after the stack operation reaches its complete
+   * state.
+   *
+   * If no value is specified, the default is 0 minutes (CloudFormation monitors
+   * the triggers only while the stack operation is in progress). The maximum
+   * value is 180 minutes.
+   *
+   * @default - CloudFormation default (0 minutes)
+   */
+  readonly monitoringTimeInMinutes?: number;
+}
+
 export interface DeployOptions extends BaseDeployOptions {
   /**
    * ARNs of SNS topics that CloudFormation will notify with stack related events
    */
   readonly notificationArns?: string[];
+
+  /**
+   * CloudFormation rollback triggers to monitor during the deployment.
+   *
+   * Following the same semantics as `notificationArns`:
+   *
+   *  - `undefined`: CDK ignores it (allows external management).
+   *  - `{ triggers: [] }`: CDK manages it and clears any existing triggers.
+   *  - `{ triggers: [...] }`: CDK sets the triggers to the provided list.
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * Tags to pass to CloudFormation for deployment
