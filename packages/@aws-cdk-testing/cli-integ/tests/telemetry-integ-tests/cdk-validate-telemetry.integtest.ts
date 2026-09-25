@@ -10,7 +10,7 @@ integTest(
     // --no-online keeps the run deterministic; offline validation still runs
     // during synthesis, and its deploy-blocking outcome is recorded on the
     // SYNTH event as offlineWouldFailDeploy (visible for synth/deploy/validate).
-    const output = await fixture.cdk(
+    await fixture.cdk(
       ['--unstable=validate', 'validate', fixture.fullStackName('validate'), '--no-online', `--telemetry-file=${telemetryFile}`],
       {
         verboseLevel: 3, // trace mode
@@ -18,10 +18,10 @@ integTest(
       },
     );
 
-    // The endpoint sink POSTs the whole event batch to the real telemetry
-    // endpoint, which validates it against a request schema.
-    expect(output).toContain('Telemetry Sent Successfully');
-
+    // Assert against the local telemetry file: the CLI dispatches the batch to
+    // the endpoint from a background process, so its own output only confirms
+    // dispatch, not delivery. Real endpoint delivery is covered separately by
+    // cdk-telemetry-reaches-the-endpoint.integtest.ts.
     const json = fs.readJSONSync(telemetryFile);
     const synthEvent = json.find((e: any) => e.event?.eventType === 'SYNTH');
     expect(synthEvent).toBeDefined();
