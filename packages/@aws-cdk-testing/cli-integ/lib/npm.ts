@@ -28,37 +28,6 @@ export async function npmMostRecentMatching(packageName: string, range: string) 
 }
 
 /**
- * `npm install <spec>` into `dir`, retrying a bounded number of times on failure.
- *
- * npm registry degradations are transient: a single install may fail or land
- * incomplete (e.g. a package's version gets recorded but its `bin` never makes
- * it into `node_modules/.bin`). A short bounded retry lets a brief blip
- * self-heal instead of failing a canary.
- */
-export async function npmInstallWithRetry(spec: string, dir: string, attempts: number = 3) {
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      await shell(['node', require.resolve('npm'), 'install', spec], {
-        cwd: dir,
-        show: 'error',
-        outputs: [process.stderr],
-      });
-      return;
-    } catch (e) {
-      lastErr = e;
-      if (attempt < attempts) {
-        // Linear backoff; keep it short so we don't stall a canary for long.
-        const delayMs = attempt * 2000;
-        process.stderr.write(`npm install ${spec} failed (attempt ${attempt}/${attempts}), retrying in ${delayMs}ms...\n`);
-        await new Promise((res) => setTimeout(res, delayMs));
-      }
-    }
-  }
-  throw new Error(`npm install ${spec} failed after ${attempts} attempts: ${lastErr}`);
-}
-
-/**
  * Verify that the CLI binary installed under `installRoot` is actually runnable.
  *
  * `npm install` recording a version (see `npmQueryInstalledVersion`) does not

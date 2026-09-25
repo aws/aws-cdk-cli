@@ -2,8 +2,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import type { IRunnerSource, ITestCliSource, IPreparedRunnerSource } from './source';
-import { npmInstallWithRetry, npmQueryInstalledVersion, verifyCliRunnable } from '../npm';
-import { addToShellPath, rimraf } from '../shell';
+import { npmQueryInstalledVersion, verifyCliRunnable } from '../npm';
+import { addToShellPath, rimraf, shell } from '../shell';
 
 /**
  * The executable that a given CLI package installs into `node_modules/.bin`.
@@ -33,9 +33,11 @@ export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
 
     const installSpec = `${this.packageName}@${this.range}`;
 
-    // Bounded retry: npm registry degradations are transient, so a brief blip
-    // shouldn't cut a canary ticket.
-    await npmInstallWithRetry(installSpec, tempDir);
+    await shell(['node', require.resolve('npm'), 'install', installSpec], {
+      cwd: tempDir,
+      show: 'error',
+      outputs: [process.stderr],
+    });
 
     const installedVersion = await npmQueryInstalledVersion(this.packageName, tempDir);
 
