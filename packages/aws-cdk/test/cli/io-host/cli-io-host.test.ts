@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { PassThrough } from 'stream';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import { Context } from '../../../lib/api/context';
@@ -832,6 +833,62 @@ describe('CliIoHost', () => {
       expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
         eventType: 'INVOKE',
         duration: 123,
+      }));
+    });
+
+    test('emit telemetry on VALIDATE_ONLINE event', async () => {
+      // Online validation lives in toolkit-lib, so its telemetry is translated
+      // from the toolkit-lib span end message (CDK_TOOLKIT_I9604), not a CDK_CLI code.
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'validate',
+        code: 'CDK_TOOLKIT_I9604',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          counters: {
+            'onlineViolations': 2,
+            'online:stacksIncomplete': 0,
+          },
+        },
+      };
+
+      // Send the notification
+      await telemetryIoHost.notify(message);
+
+      // Verify that the emit method was called with the correct parameters
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'VALIDATE_ONLINE',
+        duration: 123,
+        counters: {
+          'onlineViolations': 2,
+          'online:stacksIncomplete': 0,
+        },
+      }));
+    });
+
+    test('VALIDATE_ONLINE event carries an error name when the online engine could not run', async () => {
+      // The span end message carries a raw `Error`; the CLI converts it to a
+      // telemetry error name so the event state becomes FAILED.
+      const message: IoMessage<unknown> = {
+        time: new Date(),
+        level: 'info',
+        action: 'validate',
+        code: 'CDK_TOOLKIT_I9604',
+        message: 'telemetry message',
+        data: {
+          duration: 123,
+          counters: { onlineViolations: 0 },
+          error: new ToolkitError('OnlineValidationIncomplete', 'online validation could not be completed for any selected stack'),
+        },
+      };
+
+      await telemetryIoHost.notify(message);
+
+      expect(telemetryEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+        eventType: 'VALIDATE_ONLINE',
+        error: { name: 'OnlineValidationIncomplete' },
       }));
     });
 

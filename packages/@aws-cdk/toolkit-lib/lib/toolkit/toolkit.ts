@@ -116,7 +116,9 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
+import { countOnlineValidationResults } from './private/count-validation-results';
 import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
+import type { IMessageSpan } from '../api/io/private/span';
 
 export interface ToolkitOptions {
   /**
@@ -702,13 +704,37 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const reports = await obtainUnifiedValidationReport(assembly, stacks);
 
-    // Online validation: submit templates to CloudFormation for early validation
+    // Online validation: submit templates to CloudFormation for early validation.
+    //
+    // This is an optional phase that runs after synthesis and calls
+    // CloudFormation, so it is measured by its own VALIDATE_ONLINE telemetry
+    // event.
+    let onlineReports: PluginReportJson[] | undefined;
     if (options.online ?? true) {
-      const deployments = await this.deploymentsForAction('validate');
+      const onlineSpan = await ioHelper.span(SPAN.VALIDATE_ONLINE).begin({ stacks: selectStacks });
+      let onlineError: Error | undefined;
+      try {
+        const deployments = await this.deploymentsForAction('validate');
 
-      const onlineReport = await this.validateOnline(ioHelper, stacks, deployments);
-      if (onlineReport) {
-        reports.push(onlineReport);
+        const { report, incompleteStacks } = await this.validateOnline(ioHelper, onlineSpan, stacks, deployments);
+        onlineReports = report ? [report] : [];
+        reports.push(...onlineReports);
+
+        // Online validation finding template problems is a successful run, not a
+        // failure of the validator. The engine itself failing to run is a failure
+        // recorded per-stack as `online:stacksIncomplete` and left non-fatal
+        // to the command, but if no stack could be validated at all we mark the
+        // phase as failed.
+        const stackCount = stacks.stackArtifacts.length;
+        if (stackCount > 0 && incompleteStacks === stackCount) {
+          onlineError = new ToolkitError('OnlineValidationIncomplete', 'online validation could not be completed for any selected stack');
+        }
+      } catch (e: any) {
+        onlineError = e;
+        throw e;
+      } finally {
+        countOnlineValidationResults(onlineSpan, onlineReports);
+        await onlineSpan.end(onlineError ? { error: onlineError } : {});
       }
     }
 
@@ -718,6 +744,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       conclusion: combineConclusions(reports),
       title: undefined,
       pluginReports: reports,
+      onlineReports,
     };
 
     if (!hasAnyViolations) {
@@ -731,10 +758,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async validateOnline(
     ioHelper: IoHelper,
+    span: IMessageSpan<any>,
     stacks: StackCollection,
     deployments: Deployments,
-  ): Promise<PluginReportJson | undefined> {
+  ): Promise<{ report: PluginReportJson | undefined; incompleteStacks: number }> {
     const violations: PluginReportJson['violations'] = [];
+    let incompleteStacks = 0;
 
     for (const stack of stacks.stackArtifacts) {
       try {
@@ -765,18 +794,23 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           }
         }
       } catch (e: any) {
+        incompleteStacks += 1;
+        span.incCounter('online:stacksIncomplete');
         await ioHelper.notify(IO.CDK_TOOLKIT_W9602.msg(`Online validation could not be completed for stack '${stack.hierarchicalId}': ${e.message}`));
       }
     }
 
     if (violations.length === 0) {
-      return undefined;
+      return { report: undefined, incompleteStacks };
     }
 
     return {
-      pluginName: 'CloudFormation',
-      conclusion: 'failure',
-      violations,
+      report: {
+        pluginName: 'CloudFormation',
+        conclusion: 'failure',
+        violations,
+      },
+      incompleteStacks,
     };
   }
 
