@@ -133,6 +133,23 @@ export async function shell(command: string[], options: ShellOptions = {}): Prom
 
       if (code === 0 || options.allowErrExit) {
         resolve(out);
+      } else if (code === 127) {
+        // Exit 127 is the shell's "command not found". It means the executable
+        // named in the command wasn't resolvable on PATH when this ran — NOT
+        // that the command itself did something wrong. This most often happens
+        // when the CLI-under-test isn't installed/on PATH, or when the test's
+        // environment has already been torn down (e.g. this shell ran after the
+        // test was killed on timeout). Surfacing that here keeps investigators
+        // from chasing the named command (e.g. `cdk synth`) instead of the real
+        // cause.
+        logAndReject(new Error(
+          `'${command.join(' ')}' exited with error code 127 (command not found): ` +
+          `'${command[0]}' was not resolvable on PATH when it ran. ` +
+          'This usually means the executable is not installed or not on PATH, ' +
+          'or the test environment was torn down before this command ran ' +
+          '(for example, after the test was killed on timeout) — not a defect in ' +
+          `'${command[0]}' itself.`,
+        ));
       } else {
         logAndReject(new Error(`'${command.join(' ')}' exited with error code ${code}.`));
       }
