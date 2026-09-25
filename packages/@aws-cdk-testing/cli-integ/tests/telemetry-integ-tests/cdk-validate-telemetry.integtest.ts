@@ -27,10 +27,12 @@ integTest(
     expect(synthEvent).toBeDefined();
 
     // The app's single S3 bucket makes SecurityPlugin report a fatal/error
-    // violation, which is what would have failed a deploy.
+    // violation (what would have failed a deploy) and a warning-severity
+    // violation (counted by offlineValidationWarnings, separate from annotation warnings).
     expect(synthEvent.counters).toEqual(
       expect.objectContaining({
         offlineWouldFailDeploy: 1,
+        offlineValidationWarnings: 1,
       }),
     );
 

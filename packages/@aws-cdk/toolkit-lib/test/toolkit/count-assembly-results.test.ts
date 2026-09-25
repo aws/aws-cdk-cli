@@ -3,7 +3,7 @@ import * as path from 'path';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import * as fs from 'fs-extra';
-import { countAssemblyResults, offlineWouldFailDeploy } from '../../lib/toolkit/private/count-assembly-results';
+import { countAssemblyResults, offlineValidationSummary } from '../../lib/toolkit/private/count-assembly-results';
 
 let dir: string;
 
@@ -49,13 +49,18 @@ function assembly(messageLevels: SynthesisMessageLevel[]): cxapi.CloudAssembly {
   } as any;
 }
 
-function writeReport(pluginReports: Array<{ conclusion: 'success' | 'failure' }>) {
+function writeReport(pluginReports: Array<{ pluginName?: string; conclusion: 'success' | 'failure'; severities?: string[] }>) {
   fs.writeJSONSync(path.join(dir, 'validation-report.json'), {
     version: '1.0.0',
     pluginReports: pluginReports.map((r, i) => ({
-      pluginName: `Plugin${i}`,
+      pluginName: r.pluginName ?? `Plugin${i}`,
       conclusion: r.conclusion,
-      violations: [],
+      violations: (r.severities ?? []).map((severity) => ({
+        ruleName: 'some-rule',
+        description: 'some description',
+        severity,
+        violatingConstructs: [],
+      })),
     })),
   });
 }
@@ -86,24 +91,50 @@ describe('countAssemblyResults', () => {
   });
 });
 
-describe('offlineWouldFailDeploy', () => {
-  test('false when there are no error annotations and no validation report', () => {
-    expect(offlineWouldFailDeploy(assembly([SynthesisMessageLevel.WARNING]))).toBe(false);
+describe('offlineValidationSummary', () => {
+  describe('wouldFailDeploy', () => {
+    test('false when there are no error annotations and no validation report', () => {
+      expect(offlineValidationSummary(assembly([SynthesisMessageLevel.WARNING])).wouldFailDeploy).toBe(false);
+    });
+
+    test('true when a stack has an error-level annotation', () => {
+      expect(offlineValidationSummary(assembly([SynthesisMessageLevel.ERROR])).wouldFailDeploy).toBe(true);
+    });
+
+    test('true when the validation report has a failing plugin report', () => {
+      writeReport([{ conclusion: 'success' }, { conclusion: 'failure' }]);
+
+      expect(offlineValidationSummary(assembly([])).wouldFailDeploy).toBe(true);
+    });
+
+    test('false when the validation report has only successful plugin reports', () => {
+      writeReport([{ conclusion: 'success' }]);
+
+      expect(offlineValidationSummary(assembly([])).wouldFailDeploy).toBe(false);
+    });
   });
 
-  test('true when a stack has an error-level annotation', () => {
-    expect(offlineWouldFailDeploy(assembly([SynthesisMessageLevel.ERROR]))).toBe(true);
-  });
+  describe('offlineValidationWarnings', () => {
+    test('zero when there is no validation report', () => {
+      expect(offlineValidationSummary(assembly([])).offlineValidationWarnings).toBe(0);
+    });
 
-  test('true when the validation report has a failing plugin report', () => {
-    writeReport([{ conclusion: 'success' }, { conclusion: 'failure' }]);
+    test('counts warning-severity violations across policy plugin reports', () => {
+      writeReport([
+        { conclusion: 'failure', severities: ['error', 'warning', 'warning'] },
+        { conclusion: 'success', severities: ['warning', 'info'] },
+      ]);
 
-    expect(offlineWouldFailDeploy(assembly([]))).toBe(true);
-  });
+      expect(offlineValidationSummary(assembly([])).offlineValidationWarnings).toBe(3);
+    });
 
-  test('false when the validation report has only successful plugin reports', () => {
-    writeReport([{ conclusion: 'success' }]);
+    test('excludes construct annotation warnings (counted by the warnings counter)', () => {
+      writeReport([
+        { pluginName: 'Construct Annotations', conclusion: 'success', severities: ['warning', 'warning'] },
+        { pluginName: 'SomePolicyPlugin', conclusion: 'success', severities: ['warning'] },
+      ]);
 
-    expect(offlineWouldFailDeploy(assembly([]))).toBe(false);
+      expect(offlineValidationSummary(assembly([])).offlineValidationWarnings).toBe(1);
+    });
   });
 });
