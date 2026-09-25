@@ -1,4 +1,19 @@
-import { countAssemblyResults } from '../../lib/toolkit/private/count-assembly-results';
+import * as os from 'os';
+import * as path from 'path';
+import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
+import * as fs from 'fs-extra';
+import { countAssemblyResults, offlineWouldFailDeploy } from '../../lib/toolkit/private/count-assembly-results';
+
+let dir: string;
+
+beforeEach(() => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'count-assembly-results-'));
+});
+
+afterEach(() => {
+  fs.removeSync(dir);
+});
 
 // Minimal span that records incCounter calls; only the surface
 // countAssemblyResults touches is implemented.
@@ -19,9 +34,30 @@ function fakeSpan() {
 // Object.values(stack.metadata) with no null guard.
 function assemblyWithStack(stack: any): any {
   return {
+    directory: dir,
     stacksRecursively: [stack],
     nestedAssemblies: [],
   };
+}
+
+function assembly(messageLevels: SynthesisMessageLevel[]): cxapi.CloudAssembly {
+  return {
+    directory: dir,
+    stacksRecursively: [{
+      messages: messageLevels.map((level) => ({ level, id: 'some-id', entry: { type: 'aws:cdk:error', data: 'msg' } })),
+    }],
+  } as any;
+}
+
+function writeReport(pluginReports: Array<{ conclusion: 'success' | 'failure' }>) {
+  fs.writeJSONSync(path.join(dir, 'validation-report.json'), {
+    version: '1.0.0',
+    pluginReports: pluginReports.map((r, i) => ({
+      pluginName: `Plugin${i}`,
+      conclusion: r.conclusion,
+      violations: [],
+    })),
+  });
 }
 
 describe('countAssemblyResults', () => {
@@ -47,5 +83,27 @@ describe('countAssemblyResults', () => {
     countAssemblyResults(span, assemblyWithStack(stack));
 
     expect(counters).toContainEqual({ name: 'errorAnn:MY_ERROR', delta: undefined });
+  });
+});
+
+describe('offlineWouldFailDeploy', () => {
+  test('false when there are no error annotations and no validation report', () => {
+    expect(offlineWouldFailDeploy(assembly([SynthesisMessageLevel.WARNING]))).toBe(false);
+  });
+
+  test('true when a stack has an error-level annotation', () => {
+    expect(offlineWouldFailDeploy(assembly([SynthesisMessageLevel.ERROR]))).toBe(true);
+  });
+
+  test('true when the validation report has a failing plugin report', () => {
+    writeReport([{ conclusion: 'success' }, { conclusion: 'failure' }]);
+
+    expect(offlineWouldFailDeploy(assembly([]))).toBe(true);
+  });
+
+  test('false when the validation report has only successful plugin reports', () => {
+    writeReport([{ conclusion: 'success' }]);
+
+    expect(offlineWouldFailDeploy(assembly([]))).toBe(false);
   });
 });

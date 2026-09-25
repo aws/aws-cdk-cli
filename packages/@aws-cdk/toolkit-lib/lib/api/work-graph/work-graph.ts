@@ -1,7 +1,7 @@
 import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode, MarkerNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import { parallelPromises } from '../../util';
+import { parallelPromises, sum } from '../../util';
 import type { IoHelper } from '../io/private';
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
@@ -414,14 +414,6 @@ export interface WorkGraphActions {
   buildAsset: (assetNode: AssetBuildNode) => Promise<void>;
   publishAsset: (assetNode: AssetPublishNode) => Promise<void>;
   marker: (markerNode: MarkerNode) => Promise<void>;
-}
-
-function sum(xs: number[]) {
-  let ret = 0;
-  for (const x of xs) {
-    ret += x;
-  }
-  return ret;
 }
 
 function retainOnly<A>(xs: A[], pred: (x: A) => boolean) {
