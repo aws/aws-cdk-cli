@@ -59,10 +59,7 @@ export function offlineValidationSummary(assembly: cxapi.CloudAssembly): Offline
     s => s.messages.some(m => m.level === SynthesisMessageLevel.ERROR),
   );
 
-  const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
-  const pluginReports: PluginReportJson[] = fs.existsSync(reportPath)
-    ? Manifest.loadValidationReport(reportPath).pluginReports
-    : [];
+  const pluginReports = loadValidationReport(assembly);
 
   const offlineValidationWarnings = pluginReports
     .filter(r => r.pluginName !== CONSTRUCT_ANNOTATIONS_PLUGINNAME)
@@ -72,6 +69,25 @@ export function offlineValidationSummary(assembly: cxapi.CloudAssembly): Offline
     wouldFailDeploy: hasErrorAnnotations || pluginReports.some(r => r.conclusion === 'failure'),
     offlineValidationWarnings,
   };
+}
+
+/**
+ * Load the policy validation report, if any
+ *
+ * These counters are best-effort telemetry that run on every synth, so a
+ * missing or malformed report must never fail the command: on any read or
+ * schema error we behave as if there were no report.
+ */
+function loadValidationReport(assembly: cxapi.CloudAssembly): PluginReportJson[] {
+  const reportPath = path.join(assembly.directory, VALIDATION_REPORT_FILE);
+  if (!fs.existsSync(reportPath)) {
+    return [];
+  }
+  try {
+    return Manifest.loadValidationReport(reportPath).pluginReports;
+  } catch {
+    return [];
+  }
 }
 
 /**

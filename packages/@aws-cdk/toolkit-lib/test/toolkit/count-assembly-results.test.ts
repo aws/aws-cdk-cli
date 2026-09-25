@@ -137,4 +137,21 @@ describe('offlineValidationSummary', () => {
       expect(offlineValidationSummary(assembly([])).offlineValidationWarnings).toBe(1);
     });
   });
+
+  describe('malformed validation report', () => {
+    beforeEach(() => {
+      fs.writeFileSync(path.join(dir, 'validation-report.json'), 'this is not valid json {');
+    });
+
+    test('does not throw and reports no policy warnings', () => {
+      const summary = offlineValidationSummary(assembly([]));
+
+      expect(summary.offlineValidationWarnings).toBe(0);
+      expect(summary.wouldFailDeploy).toBe(false);
+    });
+
+    test('still reports wouldFailDeploy from error-level annotations', () => {
+      expect(offlineValidationSummary(assembly([SynthesisMessageLevel.ERROR])).wouldFailDeploy).toBe(true);
+    });
+  });
 });
