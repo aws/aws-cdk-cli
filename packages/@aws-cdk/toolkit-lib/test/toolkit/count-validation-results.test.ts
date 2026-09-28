@@ -28,23 +28,23 @@ function report(pluginName: string, conclusion: 'success' | 'failure', severitie
 }
 
 describe('countOnlineValidationResults', () => {
-  test('counts the total number of online violations', () => {
+  test('counts online violations and records incomplete stacks', () => {
     countOnlineValidationResults(span, [
       report('CloudFormation', 'failure', ['fatal', 'fatal']),
-    ]);
+    ], 0);
 
-    expect(counters).toEqual({ onlineViolations: 2 });
+    expect(counters).toEqual({ 'onlineViolations': 2, 'online:stacksIncomplete': 0 });
   });
 
-  test('no online reports produce a zero counter', () => {
-    countOnlineValidationResults(span, []);
+  test('records the number of stacks that could not be validated', () => {
+    countOnlineValidationResults(span, [], 3);
 
-    expect(counters).toEqual({ onlineViolations: 0 });
+    expect(counters).toEqual({ 'onlineViolations': 0, 'online:stacksIncomplete': 3 });
   });
 
-  test('undefined online reports produce a zero counter', () => {
-    countOnlineValidationResults(span, undefined);
+  test('always emits both counters, even for undefined online reports', () => {
+    countOnlineValidationResults(span, undefined, 0);
 
-    expect(counters).toEqual({ onlineViolations: 0 });
+    expect(counters).toEqual({ 'onlineViolations': 0, 'online:stacksIncomplete': 0 });
   });
 });

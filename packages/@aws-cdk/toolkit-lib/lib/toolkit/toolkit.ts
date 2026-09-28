@@ -118,7 +118,6 @@ import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
 import { countOnlineValidationResults } from './private/count-validation-results';
 import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
-import type { IMessageSpan } from '../api/io/private/span';
 
 export interface ToolkitOptions {
   /**
@@ -713,19 +712,22 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     if (options.online ?? true) {
       const onlineSpan = await ioHelper.span(SPAN.VALIDATE_ONLINE).begin({ stacks: selectStacks });
       let onlineError: Error | undefined;
+      const stackCount = stacks.stackArtifacts.length;
+      // Assume no stack could be validated until validateOnline tells us otherwise
+      let incompleteStacks = stackCount;
       try {
         const deployments = await this.deploymentsForAction('validate');
 
-        const { report, incompleteStacks } = await this.validateOnline(ioHelper, onlineSpan, stacks, deployments);
-        onlineReports = report ? [report] : [];
+        const online = await this.validateOnline(ioHelper, stacks, deployments);
+        onlineReports = online.report ? [online.report] : [];
         reports.push(...onlineReports);
+        incompleteStacks = online.incompleteStacks;
 
         // Online validation finding template problems is a successful run, not a
         // failure of the validator. The engine itself failing to run is a failure
-        // recorded per-stack as `online:stacksIncomplete` and left non-fatal
+        // recorded per-stack in `online:stacksIncomplete` and left non-fatal
         // to the command, but if no stack could be validated at all we mark the
         // phase as failed.
-        const stackCount = stacks.stackArtifacts.length;
         if (stackCount > 0 && incompleteStacks === stackCount) {
           onlineError = new ToolkitError('OnlineValidationIncomplete', 'online validation could not be completed for any selected stack');
         }
@@ -733,7 +735,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         onlineError = e;
         throw e;
       } finally {
-        countOnlineValidationResults(onlineSpan, onlineReports);
+        countOnlineValidationResults(onlineSpan, onlineReports, incompleteStacks);
         await onlineSpan.end(onlineError ? { error: onlineError } : {});
       }
     }
@@ -757,7 +759,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
   private async validateOnline(
     ioHelper: IoHelper,
-    span: IMessageSpan<any>,
     stacks: StackCollection,
     deployments: Deployments,
   ): Promise<{ report: PluginReportJson | undefined; incompleteStacks: number }> {
@@ -794,7 +795,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       } catch (e: any) {
         incompleteStacks += 1;
-        span.incCounter('online:stacksIncomplete');
         await ioHelper.notify(IO.CDK_TOOLKIT_W9602.msg(`Online validation could not be completed for stack '${stack.hierarchicalId}': ${e.message}`));
       }
     }
