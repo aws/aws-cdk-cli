@@ -284,5 +284,32 @@ describe('validate --online', () => {
     traceIoHost.expectMessage({ level: 'warn', containing: 'Access denied while describing the stack' });
     const end = traceIoHost.messages.find(m => m.code === 'CDK_TOOLKIT_I9604');
     expect((end?.data as any).counters['online:stacksIncomplete']).toBe(1);
+    // Every selected stack was incomplete, so the phase is marked failed.
+    expect((end?.data as any).error?.name).toBe('OnlineValidationIncomplete');
+  });
+
+  test('a partially incomplete online run is not marked failed', async () => {
+    // First stack cannot be diagnosed, the second validates cleanly.
+    jest.spyOn(cfnApi, 'createValidationChangeSet')
+      .mockResolvedValueOnce({
+        changeSet: { $metadata: {} } as any,
+        diagnosis: Diagnosis.errorDiagnosing('Access denied while describing the stack'),
+      })
+      .mockResolvedValue({
+        changeSet: { $metadata: {} } as any,
+        diagnosis: Diagnosis.noProblem(),
+      });
+
+    const traceIoHost = new TestIoHost('trace');
+    const traceToolkit = new Toolkit({ ioHost: traceIoHost });
+    const cx = await cdkOutFixture(traceToolkit, 'two-empty-stacks');
+    const result = await traceToolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+
+    const end = traceIoHost.messages.find(m => m.code === 'CDK_TOOLKIT_I9604');
+    expect((end?.data as any).counters['online:stacksIncomplete']).toBe(1);
+    // Not every stack was incomplete, so the phase is not failed.
+    expect((end?.data as any).error).toBeUndefined();
   });
 });
