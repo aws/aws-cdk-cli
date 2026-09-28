@@ -746,7 +746,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       conclusion: combineConclusions(reports),
       title: undefined,
       pluginReports: reports,
-      onlineReports,
     };
 
     if (!hasAnyViolations) {
