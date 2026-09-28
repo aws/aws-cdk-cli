@@ -260,4 +260,29 @@ describe('validate --online', () => {
       message: expect.stringContaining('Access denied'),
     }));
   });
+
+  test('counts a stack whose diagnosis errors out (not just throws) as incomplete', async () => {
+    // createValidationChangeSet resolves a failed diagnosis into an
+    // 'error-diagnosing' result rather than throwing, so it never hits the
+    // catch. The stack was still not validated and must count as incomplete.
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.errorDiagnosing('Access denied while describing the stack'),
+    });
+
+    // trace level so the VALIDATE_ONLINE (CDK_TOOLKIT_I9604) counters are captured
+    const traceIoHost = new TestIoHost('trace');
+    const traceToolkit = new Toolkit({ ioHost: traceIoHost });
+    const cx = await cdkOutFixture(traceToolkit, 'stack-with-bucket');
+    const result = await traceToolkit.validate(cx, { online: true });
+
+    // Offline is clean and an incomplete online run is non-fatal, so the command succeeds.
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+
+    // The un-validatable stack is surfaced as a warning and counted as incomplete.
+    traceIoHost.expectMessage({ level: 'warn', containing: 'Access denied while describing the stack' });
+    const end = traceIoHost.messages.find(m => m.code === 'CDK_TOOLKIT_I9604');
+    expect((end?.data as any).counters['online:stacksIncomplete']).toBe(1);
+  });
 });

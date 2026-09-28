@@ -792,6 +792,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
               }],
             });
           }
+        } else if (diagnosis.type === 'error-diagnosing') {
+          // The diagnosis itself failed (createValidationChangeSet resolves such
+          // failures into a result rather than throwing), so this stack was not
+          // actually validated -- count it as incomplete, like a thrown error.
+          incompleteStacks += 1;
+          await ioHelper.notify(IO.CDK_TOOLKIT_W9602.msg(`Online validation could not be completed for stack '${stack.hierarchicalId}': ${diagnosis.message}`));
         }
       } catch (e: any) {
         incompleteStacks += 1;
