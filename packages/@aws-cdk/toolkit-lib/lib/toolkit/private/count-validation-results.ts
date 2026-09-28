@@ -11,4 +11,5 @@ import { sum } from '../../util';
  */
 export function countOnlineValidationResults(span: IMessageSpan<any>, onlineReports: PluginReportJson[] | undefined) {
   span.incCounter('onlineViolations', sum((onlineReports ?? []).map((r) => r.violations.length)));
+  span.incCounter('online:stacksIncomplete', 0);
 }
