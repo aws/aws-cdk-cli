@@ -54,8 +54,8 @@
     "license-checker": "^25.0.1",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.103.24",
-    "ts-jest": "^29.4.12",
+    "projen": "^0.103.27",
+    "ts-jest": "^29.4.13",
     "typescript": "5.9"
   },
   "dependencies": {
