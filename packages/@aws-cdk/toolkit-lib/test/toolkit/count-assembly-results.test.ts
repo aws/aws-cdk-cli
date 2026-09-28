@@ -89,6 +89,19 @@ describe('countAssemblyResults', () => {
 
     expect(counters).toContainEqual({ name: 'errorAnn:MY_ERROR', delta: undefined });
   });
+
+  test('warnings counter sums message warnings and report-only construct annotation warnings', () => {
+    const { span, counters } = fakeSpan();
+    writeReport([{ pluginName: 'Construct Annotations', conclusion: 'success', severities: ['warning', 'warning'] }]);
+    const stack = {
+      messages: [{ level: SynthesisMessageLevel.WARNING }],
+      metadata: {},
+    };
+
+    countAssemblyResults(span, assemblyWithStack(stack));
+
+    expect(counters).toContainEqual({ name: 'warnings', delta: 3 }); // 1 message + 2 report
+  });
 });
 
 describe('offlineValidationSummary', () => {
@@ -134,7 +147,23 @@ describe('offlineValidationSummary', () => {
         { pluginName: 'SomePolicyPlugin', conclusion: 'success', severities: ['warning'] },
       ]);
 
-      expect(offlineValidationSummary(assembly([])).offlineValidationWarnings).toBe(1);
+      const summary = offlineValidationSummary(assembly([]));
+      expect(summary.offlineValidationWarnings).toBe(1);
+      expect(summary.reportAnnotationWarnings).toBe(2);
+    });
+  });
+
+  describe('reportAnnotationWarnings', () => {
+    test('zero when there is no validation report', () => {
+      expect(offlineValidationSummary(assembly([])).reportAnnotationWarnings).toBe(0);
+    });
+
+    test('counts only warning-severity construct annotations in the report', () => {
+      writeReport([
+        { pluginName: 'Construct Annotations', conclusion: 'failure', severities: ['error', 'warning', 'warning'] },
+      ]);
+
+      expect(offlineValidationSummary(assembly([])).reportAnnotationWarnings).toBe(2);
     });
   });
 

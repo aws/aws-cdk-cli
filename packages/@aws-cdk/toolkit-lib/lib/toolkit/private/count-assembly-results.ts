@@ -12,10 +12,14 @@ const VALIDATION_REPORT_FILE = 'validation-report.json';
 export function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
   const stacksRecursively = assembly.stacksRecursively;
   const summary = offlineValidationSummary(assembly);
+  const messageWarnings = sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length));
   span.incCounter('stacks', stacksRecursively.length);
   span.incCounter('assemblies', asmCount(assembly));
   span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
+  // Construct annotation warnings live in stack.messages for legacy assemblies
+  // and in the validation report (report-only mode) for newer ones; the two are
+  // mutually exclusive, so summing them counts each once.
+  span.incCounter('warnings', messageWarnings + summary.reportAnnotationWarnings);
   span.incCounter('offlineValidationWarnings', summary.offlineValidationWarnings);
   span.incCounter('offlineWouldFailDeploy', summary.wouldFailDeploy ? 1 : 0);
 
@@ -45,10 +49,19 @@ export interface OfflineValidationSummary {
   /**
    * The number of warning-severity violations reported by policy plugins
    *
-   * Construct annotation warnings are excluded (they are counted separately by
-   * the `warnings` counter), so this only reflects the policy validation report.
+   * Construct annotation warnings are excluded (they are counted by the
+   * `warnings` counter), so this only reflects policy validation plugins.
    */
   readonly offlineValidationWarnings: number;
+
+  /**
+   * The number of warning-severity construct annotations recorded in the
+   * validation report (report-only assemblies)
+   *
+   * These are folded into the `warnings` counter, not `offlineValidationWarnings`,
+   * so report-only annotation warnings are counted like message-based ones.
+   */
+  readonly reportAnnotationWarnings: number;
 }
 
 /**
@@ -61,13 +74,14 @@ export function offlineValidationSummary(assembly: cxapi.CloudAssembly): Offline
 
   const pluginReports = loadValidationReport(assembly);
 
-  const offlineValidationWarnings = pluginReports
-    .filter(r => r.pluginName !== CONSTRUCT_ANNOTATIONS_PLUGINNAME)
+  const warningsFor = (isAnnotation: boolean) => pluginReports
+    .filter(r => (r.pluginName === CONSTRUCT_ANNOTATIONS_PLUGINNAME) === isAnnotation)
     .reduce((acc, r) => acc + r.violations.filter(v => v.severity === 'warning').length, 0);
 
   return {
     wouldFailDeploy: hasErrorAnnotations || pluginReports.some(r => r.conclusion === 'failure'),
-    offlineValidationWarnings,
+    offlineValidationWarnings: warningsFor(false),
+    reportAnnotationWarnings: warningsFor(true),
   };
 }
 
