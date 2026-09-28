@@ -609,11 +609,12 @@ class FullCloudFormationDeployment {
       }
     }
 
-    // A change set carries its own rollback policy. CloudFormation persists `DeploymentConfig` when the change set is
-    // created and `ExecuteChangeSet` cannot override it, so when we are executing a change set that already pins the
-    // answer it - not this invocation's flags - decides what CloudFormation will do. Reading the current options here
-    // would let `--rollback` (or simply omitting `--express`) appear to enable rollback on a change set that was
-    // created with it disabled, which is how the replacement below would reach CloudFormation anyway.
+    // A change set carries its own rollback policy: CloudFormation persists `DeploymentConfig` when the change set is
+    // created. `ExecuteChangeSet` takes a top-level `DisableRollback` but no `DeploymentConfig`, and whether that flag
+    // can override a persisted EXPRESS policy is undocumented - so when we are executing a change set that already pins
+    // the answer we treat the persisted value, not this invocation's flags, as what CloudFormation will do. Reading the
+    // current options here would let `--rollback` (or simply omitting `--express`) appear to enable rollback on a change
+    // set that was created with it disabled, which is how the replacement below would reach CloudFormation anyway.
     const persistedRollbackDisabled = expressRollbackDisabled(changeSetReport.changeSet.DeploymentConfig);
     const requestedRollbackDisabled = this.rollbackDisabled();
 
@@ -627,11 +628,18 @@ class FullCloudFormationDeployment {
     const rollbackWillBeDisabled = persistedRollbackDisabled ?? requestedRollbackDisabled;
     const isExpress = this.options.express || changeSetReport.changeSet.DeploymentConfig?.Mode === 'EXPRESS';
 
-    // CloudFormation rejects replacement-type updates while rollback is disabled. Standard mode only disables rollback
-    // for `--no-rollback`, but Express Mode disables it by default - which is why this condition must not be scoped to
-    // non-express deployments. #1745 dropped the express half of it, #1785 restructured what was left, and #1931 is the
-    // resulting SEV: the update is submitted, CloudFormation refuses it, and the express stack is left in UPDATE_FAILED
-    // with no rollback available.
+    // CloudFormation rejects replacement-type updates while rollback is disabled. This is documented under "Express
+    // mode and rollback" in
+    // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-failure-options.html: "Disabling rollback
+    // isn't supported for immutable update operations. If an update requires replacing a resource and the operation
+    // fails, the failed state can't be preserved for retry." That last sentence is why we refuse up front instead of
+    // letting CloudFormation surface the error: there is no preserved failed state to retry from.
+    //
+    // Standard mode only disables rollback for `--no-rollback`, but Express Mode disables it by default - which is why
+    // this condition must not be scoped to non-express deployments. #1745 disabled it for express twice over (an
+    // unconditional early return to `executeChangeSet`, plus deletion of the `expressNoRollback` disjunct), #1785
+    // restructured what was left, and #1931 is the resulting SEV: the update is submitted, CloudFormation refuses it,
+    // and the express stack is left in UPDATE_FAILED with no rollback available.
     //
     // Shelf life: CloudFormation has a server-side fix with a tentative ECD of 2026-11-15. Once that is confirmed in
     // all regions, the express half of this guard - and CDK_TOOLKIT_W5903 - can be deleted.
@@ -1230,9 +1238,9 @@ function mentionsReplacementRejection(message: string): boolean {
 /**
  * Whether a persisted change set `DeploymentConfig` pins the rollback choice, and if so which way.
  *
- * Only Express Mode records a rollback choice in `DeploymentConfig`, and `ExecuteChangeSet` cannot override it. Standard
- * mode carries none: rollback there is decided at execute time by the `DisableRollback` flag, so the current
- * invocation's options stay authoritative and this returns `undefined`.
+ * Only Express Mode records a rollback choice in `DeploymentConfig`, and `ExecuteChangeSet` has no `DeploymentConfig`
+ * parameter to restate it with. Standard mode carries none: rollback there is decided at execute time by the
+ * `DisableRollback` flag, so the current invocation's options stay authoritative and this returns `undefined`.
  */
 function expressRollbackDisabled(config: DeploymentConfig | undefined): boolean | undefined {
   if (config?.Mode !== 'EXPRESS') {

@@ -492,8 +492,10 @@ describe('change set path', () => {
 /**
  * The express replacement guard has been deleted once and restructured once without the suite noticing:
  *
- * - aws/aws-cdk-cli#1745 removed `expressNoRollback` from the guard condition and relaxed the test that covered it,
- *   which shipped the regression in CLI 2.1133.0.
+ * - aws/aws-cdk-cli#1745 disabled it twice over - an unconditional early return to `executeChangeSet` for express, plus
+ *   deletion of the `expressNoRollback` disjunct from the guard condition - and inverted the case that covered it, so
+ *   `['express, no explicit rollback', { express: true }]` asserted `did-deploy-stack` rather than
+ *   `replacement-requires-rollback`. That shipped the regression in CLI 2.1133.0.
  * - aws/aws-cdk-cli#1785 then restructured what was left into `if (!this.options.express) { ... }`.
  * - aws/aws-cdk-cli#1931 is the resulting SEV: `cdk deploy --express` submits a replacement while CloudFormation has
  *   rollback disabled, CloudFormation rejects it, and the stack is stranded in UPDATE_FAILED.
