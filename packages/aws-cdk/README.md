@@ -288,9 +288,10 @@ will be prompted to roll back first.
 #### Express Mode and resource replacements
 
 Express Mode (`cdk deploy --express`) has rollback disabled by default, and CloudFormation does not perform
-replacement-type updates while rollback is disabled. CloudFormation classifies this as expected behavior, so this is a
-documented constraint of deploying with rollback disabled. Express Mode supports resource replacements; it needs
-rollback enabled to perform them.
+replacement-type updates while rollback is disabled. This is a documented constraint of deploying with rollback
+disabled — [Stack failure options](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-failure-options.html#express-mode-and-rollback)
+states that "disabling rollback isn't supported for immutable update operations". Express Mode supports resource
+replacements; it needs rollback enabled to perform them.
 
 To deploy a change that replaces a resource in Express Mode, enable rollback for that deployment:
 
@@ -344,10 +345,9 @@ This *unwedges* the stack; it does not recover anything. The resource that faile
 previous revision, so the replay is a no-op that emits no resource events. **Your change is still not deployed.**
 Re-apply it afterwards and deploy it with `cdk deploy --express --rollback`.
 
-Before replaying, confirm that the replay really will be a no-op: check that the failed resource reported
-`UPDATE_ROLLBACK_COMPLETE` and is still at its previous revision (for an `AWS::ECS::TaskDefinition`, for example, the
-live revision should still be the one from before the failed deployment). If it is, the replay changes nothing and
-succeeds.
+Before replaying, confirm that the replay really will be a no-op: check that the failed resource is still at its
+previous revision (for an `AWS::ECS::TaskDefinition`, for example, the live revision should still be the one from
+before the failed deployment). If it is, the replay changes nothing and succeeds.
 
 If it is not — if the resource is already at a new revision — then restoring the previous configuration is itself a
 replacement, and CloudFormation refuses it for the same reason. There is no known way to recover such a stack by
