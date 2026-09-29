@@ -1,4 +1,4 @@
-import { SESSION_COOKIE } from '../../lib/web/local-only';
+import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, DEFAULT_PORT, type WebServer, type WebServerOptions } from '../../lib/web/server';
 
@@ -143,11 +143,32 @@ describe('Web Server', () => {
       });
       expect(headers['x-powered-by']).toBeUndefined();
       // Same-origin only: the SPA's own bundle, its inlined assets, and its fetches.
-      expect(headers['content-security-policy']).toContain("default-src 'none'");
-      expect(headers['content-security-policy']).toContain("script-src 'self'");
-      expect(headers['content-security-policy']).toContain("connect-src 'self'");
-      expect(headers['content-security-policy']).toContain("frame-ancestors 'none'");
+      // `connect-src 'self'` is the one that matters most — it is what stops a script
+      // injected into a rendered project file from exfiltrating what it can read.
+      for (const directive of [
+        "default-src 'none'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self' data:",
+        "connect-src 'self'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+      ]) {
+        expect(headers['content-security-policy']).toContain(directive);
+      }
     }
+  });
+
+  test('hardens a JSON 404 as well, since it is written past the SPA routes', async () => {
+    server = await start();
+    const res = await authed('/api/does-not-exist');
+
+    expect(res.status).toBe(404);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
   });
 
   test('carries hardening headers on a rejected request too', async () => {
@@ -164,6 +185,24 @@ describe('Web Server', () => {
     // A `<script src>`/`<link href>` from an attacker page: loopback Host, no Origin.
     const res = await authed('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
     expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/cross-site/);
+  });
+
+  test('rejects a same-site request, which a page on another localhost port sends', async () => {
+    server = await start();
+    // Cookies on localhost are not isolated by port, so `http://localhost:3000` would
+    // hand over the session cookie the `authed` helper is simulating here.
+    const res = await authed('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'same-site' } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/cross-site/);
+  });
+
+  test('serves a same-origin fetch from the SPA', async () => {
+    server = await start();
+    const res = await authed('/api/health', {
+      headers: { 'Origin': server.url, 'Sec-Fetch-Site': 'same-origin' },
+    });
+    expect(res.status).toBe(200);
   });
 
   describe('session token', () => {
@@ -198,9 +237,58 @@ describe('Web Server', () => {
       const setCookie = res.headers.get('set-cookie');
       expect(setCookie).toContain(`${SESSION_COOKIE}=${server.token}`);
       // HttpOnly keeps script on another localhost port from reading it; Strict keeps
-      // the browser from attaching it to a cross-site request.
+      // the browser from attaching it to a cross-site request. Path=/ so the one
+      // handshake at `/` covers the API and the bundled assets too.
       expect(setCookie).toMatch(/HttpOnly/i);
       expect(setCookie).toMatch(/SameSite=Strict/i);
+      expect(setCookie).toMatch(/Path=\//i);
+    });
+
+    test('keeps the rest of the query when it redirects the token out of the address bar', async () => {
+      server = await start();
+
+      // A deep link the CLI or a colleague pasted: only the token comes off.
+      const res = await req(`${server.url}/?token=${server.token}&stack=Foo`, { redirect: 'manual' });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/?stack=Foo');
+    });
+
+    test('refuses a repeated token parameter rather than picking one of them', async () => {
+      server = await start();
+
+      // Two values parse to an array, which is not the string the check accepts —
+      // so a caller cannot smuggle a good token past a bad one.
+      const res = await req(`${server.url}/api/health?token=nope&token=${server.token}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    test('finds the session cookie alongside the other cookies a browser sends', async () => {
+      server = await start();
+
+      // The Cookie header is hand-parsed, so the name must not match by prefix and
+      // the value must survive neighbours and the spaces between them.
+      const res = await req(`${server.url}/api/health`, {
+        headers: {
+          Cookie: `other=1; ${SESSION_COOKIE}_decoy=nope; ${SESSION_COOKIE}=${server.token}; last=2`,
+        },
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ status: 'ok' });
+    });
+
+    test('accepts the cookie even when the query carries a wrong token', async () => {
+      server = await start();
+
+      // The cookie is checked first, so an already-authenticated SPA is not locked
+      // out by a stale `?token=` left in a reloaded URL.
+      const res = await req(`${server.url}/api/health?token=nope`, {
+        headers: { Cookie: `${SESSION_COOKIE}=${server.token}` },
+      });
+
+      expect(res.status).toBe(200);
     });
 
     test('the cookie from the handshake is what then serves the SPA', async () => {
@@ -225,11 +313,41 @@ describe('Web Server', () => {
       server = await start();
 
       // A bookmark from a previous session: the accepted cost of a per-session token.
-      const res = await req(`${server.url}/`, { headers: { Accept: 'text/html' } });
+      // The Accept header is the one Chrome and Firefox send on a navigation, so the
+      // check has to find `text/html` among the other types rather than match it whole.
+      const res = await req(`${server.url}/`, {
+        headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8' },
+      });
 
       expect(res.status).toBe(403);
       expect(res.headers.get('content-type')).toMatch(/text\/plain/);
       expect(await res.text()).toMatch(/cdk explore/);
+    });
+
+    test('answers a wildcard Accept with JSON, so a programmatic caller does not get prose', async () => {
+      server = await start();
+
+      // What `fetch` and curl default to. A wildcard technically matches html, which
+      // is why the refusal tests for a literal `text/html` rather than negotiating.
+      const res = await req(`${server.url}/api/health`, { headers: { Accept: '*/*' } });
+
+      expect(res.status).toBe(403);
+      expect(res.headers.get('content-type')).toMatch(/application\/json/);
+      expect((await res.json()).error).toMatch(/session token/);
+    });
+
+    test('carries the hardening headers on a token refusal too', async () => {
+      server = await start();
+
+      // securityHeaders is registered ahead of sessionAuth, so a refusal is hardened
+      // the same as a served response — including the plain-text page a browser gets.
+      const res = await req(`${server.url}/`, { headers: { Accept: 'text/html' } });
+
+      expect(res.status).toBe(403);
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('x-frame-options')).toBe('DENY');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
     });
 
     test('serves an API call carrying the token in the query without redirecting it', async () => {
@@ -244,6 +362,8 @@ describe('Web Server', () => {
     test('issues a distinct token per session, so a stale one does not carry over', async () => {
       server = await start();
       const first = server.token;
+      // base64url, so it survives the printed URL and the Set-Cookie unescaped.
+      expect(first).toMatch(/^[A-Za-z0-9_-]+$/);
       await server.stop();
 
       server = await start();
