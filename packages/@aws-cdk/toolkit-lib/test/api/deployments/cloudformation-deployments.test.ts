@@ -15,6 +15,8 @@ import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from '../../../lib/api/deployments/checks';
 import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
+import type { BootstrapError } from '../../../lib/toolkit/toolkit-error';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
@@ -336,6 +338,37 @@ test('deployment fails if bootstrap stack is too old', async () => {
       }),
     }),
   ).rejects.toThrow(/requires bootstrap stack version '99', found '5'/);
+});
+
+test('bootstrap version failure keeps the BootstrapError as cause', async () => {
+  // GIVEN
+  mockSuccessfulBootstrapStackLookup({
+    BootstrapVersion: 5,
+  });
+  setDefaultSTSMocks();
+
+  // WHEN
+  const error = await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+      properties: {
+        assumeRoleArn: 'bloop:${AWS::Region}:${AWS::AccountId}',
+        requiresBootstrapStackVersion: 99,
+      },
+    }),
+  }).then(() => undefined, (e) => e);
+
+  // THEN - the stack name and the generic error code are preserved...
+  expect(error.name).toBe('BootstrapVersionValidation');
+  expect(error.message).toMatch(/^boop: /);
+
+  // ...and the BootstrapError (with its environment) remains discoverable
+  // by walking the cause chain
+  expect(ToolkitError.isBootstrapError(error.cause)).toBe(true);
+  expect((error.cause as BootstrapError).environment).toEqual({
+    account: '123456789012',
+    region: 'here',
+  });
 });
 
 test.each([false, true])(
@@ -1067,6 +1100,26 @@ test('rollback stack allows rolling back from UPDATE_FAILED', async () => {
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommand(RollbackStackCommand);
+});
+
+test('rollback stack is not failed by a throttled stack event poll', async () => {
+  // GIVEN - reading stack events fails throughout, including the final poll in monitor.stop()
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_FAILED' },
+  });
+  mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+    Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }),
+  );
+
+  // WHEN
+  const response = await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+  });
+
+  // THEN - the rollback succeeded, and the final poll failure was only reported
+  expect(response).toMatchObject({ success: true });
+  ioHost.expectMessage({ level: 'warn', containing: 'the event log may be incomplete' });
 });
 
 test('rollback stack allows continue rollback from UPDATE_ROLLBACK_FAILED', async () => {

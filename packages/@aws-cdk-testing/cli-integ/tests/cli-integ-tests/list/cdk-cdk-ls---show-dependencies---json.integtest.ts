@@ -3,7 +3,7 @@ import { integTest, withDefaultFixture } from '../../../lib';
 integTest(
   'cdk ls --show-dependencies --json',
   withDefaultFixture(async (fixture) => {
-    const listing = await fixture.cdk(['ls --show-dependencies --json'], { captureStderr: false });
+    const listing = await fixture.cdk(['ls', '--show-dependencies', '--json'], { captureStderr: false });
 
     const expectedStacks = [
       {

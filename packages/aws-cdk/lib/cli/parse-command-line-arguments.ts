@@ -84,7 +84,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug-cli', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK CLI itself.',
+      desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.',
     })
     .option('profile', {
       default: undefined,
@@ -222,6 +222,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'q',
           desc: 'Do not output CloudFormation Template to stdout',
+        })
+        .option('watch', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)',
         }),
     )
     .command('bootstrap [ENVIRONMENTS..]', 'Deploys the CDK toolkit stack into an AWS environment', (yargs: Argv) =>
@@ -953,6 +958,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             alias: 'changeset',
             desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
             deprecated: 'use --method instead',
+          })
+          .option('change-set-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'Name of the CloudFormation change set to create (only if method is not template)',
           })
           .option('method', {
             default: 'auto',

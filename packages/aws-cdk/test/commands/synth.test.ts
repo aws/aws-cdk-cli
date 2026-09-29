@@ -70,13 +70,13 @@ describe('cdk synth', () => {
       strict: options.strict,
       ignoreErrors: options.ignoreErrors,
     });
-    await toolkit.synth(
+    await toolkit.synth({
       stackNames,
-      options.exclusively ?? true,
-      options.quiet ?? false,
-      options.autoValidate,
-      options.json,
-    );
+      exclusively: options.exclusively ?? true,
+      quiet: options.quiet ?? false,
+      autoValidate: options.autoValidate,
+      json: options.json,
+    });
   }
 
   const STACK_A = {

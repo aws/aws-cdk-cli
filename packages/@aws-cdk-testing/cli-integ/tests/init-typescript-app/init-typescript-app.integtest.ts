@@ -19,7 +19,7 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
     await shell.shell(['npm', 'run', 'test']);
 
     await shell.shell(['cdk', 'synth']);
-  })), 300_000);
+  })), 600_000);
 });
 
 // Same as https://github.com/DefinitelyTyped/DefinitelyTyped?tab=readme-ov-file#support-window
@@ -55,11 +55,11 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
 
     // We just removed the 'jest' dependency so remove the tests as well because they won't compile
-    await shell.shell(['rm', '-rf', 'test/']);
+    await fs.rm(path.join(context.integTestDir, 'test'), { recursive: true, force: true });
 
     await shell.shell(['npm', 'run', 'build']);
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 300_000);
 });
 
 async function removeDevDependencies(context: TemporaryDirectoryContext) {

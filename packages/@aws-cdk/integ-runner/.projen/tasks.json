@@ -35,7 +35,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/integ-runner@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "BUMP_PACKAGE": "commit-and-tag-version@^13",
         "MAJOR": "2"
       },
       "steps": [
@@ -103,7 +103,8 @@
             "--summary",
             "--production",
             "--onlyAllow",
-            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD"
+            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD",
+            "--excludePrivatePackages"
           ],
           "receiveArgs": true
         }
@@ -141,7 +142,17 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
+          "execArgs": [
+            "eslint",
+            "--ext",
+            ".ts,.tsx",
+            "--fix",
+            "--no-error-on-unmatched-pattern",
+            "$@",
+            "lib",
+            "test",
+            "build-tools"
+          ],
           "receiveArgs": true
         }
       ]
@@ -223,7 +234,11 @@
       },
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
+          "execArgs": [
+            "jest",
+            "--passWithNoTests",
+            "--updateSnapshot"
+          ],
           "receiveArgs": true
         },
         {
@@ -237,7 +252,10 @@
       "description": "Run jest in watch mode",
       "steps": [
         {
-          "exec": "jest --watch"
+          "execArgs": [
+            "jest",
+            "--watch"
+          ]
         }
       ]
     },
@@ -251,7 +269,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/integ-runner@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12"
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {

@@ -1,279 +1,122 @@
-import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { createTestEvent } from './util';
-import { NetworkDetector } from '../../../../lib/api/network-detector';
-import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
-import { EndpointTelemetrySink } from '../../../../lib/cli/telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../../../../lib/cli/telemetry/sink/file-sink';
 import { Funnel } from '../../../../lib/cli/telemetry/sink/funnel';
+import type { ITelemetrySink } from '../../../../lib/cli/telemetry/sink/sink-interface';
 
-// Mock the https module
-jest.mock('https', () => ({
-  request: jest.fn(),
-}));
-
-// Mock NetworkDetector
-jest.mock('../../../../lib/api/network-detector', () => ({
-  NetworkDetector: {
-    hasConnectivity: jest.fn(),
-  },
-}));
-
+/**
+ * A funnel only fans `emit` and `flush` out to the sinks it was given, so real sinks writing to real
+ * files are what proves it: each one is independently observable, and a sink that was skipped leaves
+ * an empty file behind.
+ */
 describe('Funnel', () => {
   let tempDir: string;
-  let logFilePath: string;
   let ioHost: CliIoHost;
 
   beforeEach(() => {
-    jest.resetAllMocks();
-
-    // Mock NetworkDetector to return true by default for all tests
-    (NetworkDetector.hasConnectivity as jest.Mock).mockResolvedValue(true);
-
-    // Create a fresh temp directory for each test
-    tempDir = path.join(os.tmpdir(), `telemetry-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
-    fs.mkdirSync(tempDir, { recursive: true });
-    logFilePath = path.join(tempDir, 'telemetry.json');
-
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'telemetry-funnel-'));
     ioHost = CliIoHost.instance();
   });
 
   afterEach(() => {
-    // Clean up temp directory after each test
-    if (fs.existsSync(tempDir)) {
-      fs.rmdirSync(tempDir, { recursive: true });
-    }
-
-    // Restore all mocks
-    jest.restoreAllMocks();
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  // Helper to create a mock request object with the necessary event handlers
-  function setupMockRequest() {
-    // Create a mock response object with a successful status code
-    const mockResponse = {
-      statusCode: 200,
-      statusMessage: 'OK',
+  function fileSink(name: string): { sink: FileTelemetrySink; contents: () => any[] } {
+    const logFilePath = path.join(tempDir, `${name}.json`);
+    return {
+      sink: new FileTelemetrySink({ ioHost, logFilePath }),
+      contents: () => fs.readJSONSync(logFilePath),
     };
-
-    // Create the mock request object
-    const mockRequest = {
-      on: jest.fn(),
-      end: jest.fn(),
-      setTimeout: jest.fn(),
-    };
-
-    // Mock the https.request to return our mockRequest
-    (https.request as jest.Mock).mockImplementation((_, callback) => {
-      // If a callback was provided, call it with our mock response
-      if (callback) {
-        setTimeout(() => callback(mockResponse), 0);
-      }
-      return mockRequest;
-    });
-
-    return mockRequest;
   }
 
-  describe('File and Endpoint', () => {
-    let fileSink: FileTelemetrySink;
-    let endpointSink: EndpointTelemetrySink;
-    const traceSpy = jest.fn();
+  test('emit reaches every sink', async () => {
+    const first = fileSink('first');
+    const second = fileSink('second');
+    const event = createTestEvent('INVOKE', { context: { foo: true } });
 
-    beforeEach(() => {
-      // Create a mock IoHelper with trace spy
-      const mockIoHelper = {
-        defaults: {
-          trace: traceSpy,
-        },
-      };
+    await new Funnel({ sinks: [first.sink, second.sink] }).emit(event);
 
-      // Mock IoHelper.fromActionAwareIoHost to return our mock
-      jest.spyOn(IoHelper, 'fromActionAwareIoHost').mockReturnValue(mockIoHelper as any);
+    expect(first.contents()).toEqual([event]);
+    expect(second.contents()).toEqual([event]);
+  });
 
-      fileSink = new FileTelemetrySink({ ioHost, logFilePath });
-      endpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
+  test('every event reaches every sink, in order', async () => {
+    const first = fileSink('first');
+    const second = fileSink('second');
+    const funnel = new Funnel({ sinks: [first.sink, second.sink] });
+    const one = createTestEvent('INVOKE', { foo: 'one' });
+    const two = createTestEvent('SYNTH', { foo: 'two' });
+
+    await funnel.emit(one);
+    await funnel.emit(two);
+
+    expect(first.contents()).toEqual([one, two]);
+    expect(second.contents()).toEqual([one, two]);
+  });
+
+  test('flush reaches every sink', async () => {
+    const flushed: string[] = [];
+    const recording = (name: string): ITelemetrySink => ({
+      emit: async () => undefined,
+      flush: async () => {
+        flushed.push(name);
+      },
     });
 
-    test('saves data to a file', async () => {
-      // GIVEN
-      const testEvent = createTestEvent('INVOKE', { context: { foo: true } });
-      const client = new Funnel({ sinks: [fileSink, endpointSink] });
+    await new Funnel({ sinks: [recording('a'), recording('b'), recording('c')] }).flush();
 
-      // WHEN
-      await client.emit(testEvent);
+    expect(flushed.sort()).toEqual(['a', 'b', 'c']);
+  });
 
-      // THEN
-      expect(fs.existsSync(logFilePath)).toBe(true);
-      const fileJson = fs.readJSONSync(logFilePath, 'utf8');
-      expect(fileJson).toEqual([testEvent]);
-    });
+  test('a single sink is a valid funnel', async () => {
+    const only = fileSink('only');
+    const event = createTestEvent('INVOKE');
 
-    test('makes a POST request to the specified endpoint', async () => {
-      // GIVEN
-      const mockRequest = setupMockRequest();
-      const testEvent = createTestEvent('INVOKE', { foo: 'bar' });
-      const client = new Funnel({ sinks: [fileSink, endpointSink] });
+    const funnel = new Funnel({ sinks: [only.sink] });
+    await funnel.emit(event);
+    await funnel.flush();
 
-      // WHEN
-      await client.emit(testEvent);
-      await client.flush();
+    expect(only.contents()).toEqual([event]);
+  });
 
-      // THEN
-      const expectedPayload = JSON.stringify({ events: [testEvent] });
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
+  test('a funnel with no sinks is inert', async () => {
+    const funnel = new Funnel({ sinks: [] });
 
-      expect(mockRequest.end).toHaveBeenCalledWith(expectedPayload);
-    });
+    await expect(funnel.emit(createTestEvent('INVOKE'))).resolves.toBeUndefined();
+    await expect(funnel.flush()).resolves.toBeUndefined();
+  });
 
-    test('flush is called every 30 seconds on the endpoint sink only', async () => {
-      // GIVEN
-      jest.useFakeTimers();
-      setupMockRequest();
+  test('a throwing sink surfaces, but the other sinks still received the event', async () => {
+    // The funnel does not isolate failures -- it relies on sinks swallowing their own, which both
+    // real sinks do. This pins the actual behaviour so a future sink that throws is not a surprise.
+    const healthy = fileSink('healthy');
+    const throwing: ITelemetrySink = {
+      emit: async () => {
+        throw new Error('sink is down');
+      },
+      flush: async () => undefined,
+    };
+    const event = createTestEvent('INVOKE');
 
-      // Spy on the EndpointTelemetrySink prototype flush method BEFORE creating any instances
-      const flushSpy = jest.spyOn(EndpointTelemetrySink.prototype, 'flush').mockResolvedValue();
+    await expect(new Funnel({ sinks: [throwing, healthy.sink] }).emit(event)).rejects.toThrow('sink is down');
 
-      // Create a fresh endpoint sink for this test - the setInterval will be set up in constructor
-      const testEndpointSink = new EndpointTelemetrySink({ ioHost, endpoint: 'https://example.com/telemetry' });
-      new Funnel({ sinks: [fileSink, testEndpointSink] });
+    expect(healthy.contents()).toEqual([event]);
+  });
 
-      // Reset the spy call count since the constructor might have called flush
-      flushSpy.mockClear();
+  test('throws when too many sinks are added', () => {
+    const only = fileSink('only').sink;
 
-      // WHEN & THEN
-      // Initially no calls from the interval (the setInterval hasn't fired yet)
-      expect(flushSpy).toHaveBeenCalledTimes(0);
+    expect(() => new Funnel({ sinks: [only, only, only, only, only, only] }))
+      .toThrow(/Funnel class supports a maximum of 5 parallel sinks, got 6 sinks./);
+  });
 
-      // Advance the timer by 30 seconds - this should trigger the first interval flush
-      jest.advanceTimersByTime(30000);
+  test('accepts the maximum number of sinks', () => {
+    const only = fileSink('only').sink;
 
-      // Verify flush was called once
-      expect(flushSpy).toHaveBeenCalledTimes(1);
-
-      // Advance the timer by another 30 seconds - this should trigger the second interval flush
-      jest.advanceTimersByTime(30000);
-
-      // Verify flush was called again (total of 2 times)
-      expect(flushSpy).toHaveBeenCalledTimes(2);
-
-      // Clean up
-      flushSpy.mockRestore();
-      jest.useRealTimers();
-    });
-
-    test('failed flush does not clear events cache', async () => {
-      // GIVEN
-      const mockRequest = {
-        on: jest.fn(),
-        end: jest.fn(),
-        setTimeout: jest.fn(),
-      };
-      // Mock the https.request to return the first response as 503
-      (https.request as jest.Mock).mockImplementationOnce((_, callback) => {
-        // If a callback was provided, call it with our mock response
-        if (callback) {
-          setTimeout(() => callback({
-            statusCode: 503,
-            statusMessage: 'Service Unavailable',
-          }), 0);
-        }
-        return mockRequest;
-      }).mockImplementation((_, callback) => {
-        if (callback) {
-          setTimeout(() => callback({
-            statusCode: 200,
-            statusMessage: 'Success',
-          }), 0);
-        }
-        return mockRequest;
-      });
-
-      const testEvent1 = createTestEvent('INVOKE', { foo: 'bar' });
-      const testEvent2 = createTestEvent('INVOKE', { foo: 'bazoo' });
-      const client = new Funnel({ sinks: [fileSink, endpointSink] });
-
-      // WHEN
-      await client.emit(testEvent1);
-
-      // mocked to fail
-      await client.flush();
-
-      await client.emit(testEvent2);
-
-      // mocked to succeed
-      await client.flush();
-
-      // THEN
-      const expectedPayload1 = JSON.stringify({ events: [testEvent1] });
-      expect(https.request).toHaveBeenCalledTimes(2);
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload1.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
-
-      const expectedPayload2 = JSON.stringify({ events: [testEvent1, testEvent2] });
-      expect(https.request).toHaveBeenCalledWith({
-        hostname: 'example.com',
-        port: null,
-        path: '/telemetry',
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': expectedPayload2.length,
-        },
-        agent: undefined,
-        timeout: 500,
-      }, expect.anything());
-    });
-
-    test('handles errors gracefully and logs to trace without throwing', async () => {
-      // GIVEN
-      const testEvent = createTestEvent('INVOKE');
-
-      const client = new Funnel({ sinks: [fileSink, endpointSink] });
-
-      // Mock https.request to throw an error
-      (https.request as jest.Mock).mockImplementation(() => {
-        throw new Error('Network error');
-      });
-
-      await client.emit(testEvent);
-
-      // WHEN & THEN - flush should not throw even when https.request fails
-      await client.flush();
-
-      // Verify that the error was lt
-      // logged to trace
-      expect(traceSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Telemetry Error: POST example.com/telemetry:'),
-      );
-    });
-
-    test('throws when too many sinks are added', async () => {
-      expect(() => new Funnel({ sinks: [fileSink, fileSink, fileSink, fileSink, fileSink, fileSink] })).toThrow(/Funnel class supports a maximum of 5 parallel sinks, got 6 sinks./);
-    });
+    expect(() => new Funnel({ sinks: [only, only, only, only, only] })).not.toThrow();
   });
 });

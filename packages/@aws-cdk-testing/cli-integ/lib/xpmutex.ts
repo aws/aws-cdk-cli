@@ -2,6 +2,30 @@ import { watch, promises as fs, mkdirSync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+/**
+ * Error codes that mean "the lock file is currently held or in the middle of a
+ * transition", i.e. we could not create it right now and should back off.
+ *
+ * On POSIX the only such signal is `EEXIST` (the exclusive create found the
+ * file already there). On Windows a file that another process still has open,
+ * or that was just unlinked, enters a "delete pending" state: it lingers in the
+ * directory but `open()` against it fails with `EPERM`/`EACCES` instead of
+ * `EEXIST`. Under contention (many workers racing for the same lock) this is a
+ * routine, transient condition, not a fatal error, so we treat it the same as
+ * `EEXIST` and retry.
+ */
+const CONTENDED_CODES = ['EEXIST', 'EPERM', 'EACCES'];
+
+/**
+ * Error codes that mean "the lock file is not readable right now", which we
+ * treat as "it isn't there" and retry.
+ *
+ * `ENOENT` is the file being gone; on Windows `EPERM`/`EACCES` additionally
+ * cover the delete-pending window, where the name still exists but cannot be
+ * opened for reading.
+ */
+const UNREADABLE_CODES = ['ENOENT', 'EPERM', 'EACCES'];
+
 export class XpMutexPool {
   public static fromDirectory(directory: string) {
     mkdirSync(directory, { recursive: true });
@@ -96,7 +120,9 @@ export class XpMutex {
       try {
         return await this.writePidFile('wx'); // Fails if the file already exists
       } catch (e: any) {
-        if (e.code !== 'EEXIST') {
+        // EEXIST: the lock is held. On Windows a delete-pending lock file
+        // surfaces as EPERM/EACCES instead; treat those the same way and retry.
+        if (!CONTENDED_CODES.includes(e.code)) {
           throw e;
         }
       }
@@ -104,7 +130,9 @@ export class XpMutex {
       // File already exists. Read the contents, see if it's an existent PID (if so, the lock is taken)
       const ownerPid = await this.readPidFile();
       if (ownerPid === undefined) {
-        // File got deleted just now, maybe we can acquire it again
+        // File got deleted just now (or is mid-transition on Windows). Pause
+        // briefly so we don't spin on a delete-pending file, then try again.
+        await randomSleep(10);
         continue;
       }
       if (processExists(ownerPid)) {
@@ -164,7 +192,9 @@ export class XpMutex {
       try {
         contents = await fs.readFile(this.fileName, { encoding: 'utf-8' });
       } catch (e: any) {
-        if (e.code === 'ENOENT') {
+        // ENOENT: the file is gone. On Windows a delete-pending file is still
+        // named but unreadable (EPERM/EACCES); treat it as gone and retry.
+        if (UNREADABLE_CODES.includes(e.code)) {
           return undefined;
         }
         throw e;

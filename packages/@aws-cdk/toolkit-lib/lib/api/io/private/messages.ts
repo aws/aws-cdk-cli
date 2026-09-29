@@ -348,6 +348,11 @@ export const IO = {
     description: 'Stack Monitoring error',
     interface: 'ErrorPayload',
   }),
+  CDK_TOOLKIT_W5500: make.warn<ErrorPayload>({
+    code: 'CDK_TOOLKIT_W5500',
+    description: 'Stack events could not be read; the reported event log may be incomplete',
+    interface: 'ErrorPayload',
+  }),
 
   // 6: Rollback (6xxx)
   CDK_TOOLKIT_I6000: make.info<Duration>({

@@ -11,7 +11,6 @@ import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
 import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
-import type { Tag } from '../tags';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
@@ -35,13 +34,6 @@ export interface ImportDeploymentOptions {
    * @default - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
-
-  /**
-   * Stack tags (pass through to CloudFormation)
-   *
-   * @default - No tags
-   */
-  readonly tags?: Tag[];
 
   /**
    * Use previous values for unspecified parameters

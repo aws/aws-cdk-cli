@@ -53,7 +53,7 @@
     },
     {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
@@ -226,6 +226,10 @@
     {
       "name": "chalk",
       "version": "^4",
+      "type": "runtime"
+    },
+    {
+      "name": "cross-spawn",
       "type": "runtime"
     },
     {

@@ -18,6 +18,9 @@ afterEach(async () => {
 });
 
 const STACK_NAME = 'MyStack';
+const ENV_A = '111111111111/us-east-1';
+const ENV_B = '222222222222/us-west-2';
+const ENV_A_KEY = '111111111111_us-east-1';
 
 function nestedStackResource(assetPath: string): any {
   return {
@@ -49,8 +52,8 @@ describe('hotswap-template-cache', () => {
       },
     };
 
-    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, nestedStacks);
-    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate);
+    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, nestedStacks, ENV_A);
+    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A);
 
     expect(result).toBeDefined();
     expect(result!.deployedRootTemplate).toEqual(rootTemplate);
@@ -59,7 +62,7 @@ describe('hotswap-template-cache', () => {
   });
 
   test('read returns undefined when no cache exists', async () => {
-    const result = await readHotswapTemplateCache(assemblyDir, 'NoSuchStack', {});
+    const result = await readHotswapTemplateCache(assemblyDir, 'NoSuchStack', {}, ENV_A);
     expect(result).toBeUndefined();
   });
 
@@ -76,13 +79,13 @@ describe('hotswap-template-cache', () => {
         generatedTemplate: originalGenerated,
         nestedStackTemplates: {},
       },
-    });
+    }, ENV_A);
 
     // Modify the asset file on disk to simulate a new synthesis
     const updatedGenerated: Template = { Resources: { Fn: { Type: 'AWS::Lambda::Function', Properties: { Code: 'v2' } } } };
     writeNestedTemplateAsset('nested.template.json', updatedGenerated);
 
-    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate);
+    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A);
     expect(result!.nestedStacks.Nested.generatedTemplate).toEqual(updatedGenerated);
   });
 
@@ -98,9 +101,9 @@ describe('hotswap-template-cache', () => {
         generatedTemplate: generated,
         nestedStackTemplates: {},
       },
-    });
+    }, ENV_A);
 
-    const cachedTemplate = await fs.readJson(path.join(assemblyDir, '.hotswap-cache', `${STACK_NAME}.json`));
+    const cachedTemplate = await fs.readJson(path.join(assemblyDir, '.hotswap-cache', `${STACK_NAME}.${ENV_A_KEY}.json`));
     // The cached deployedTemplate should be what was the generatedTemplate at write time
     expect(cachedTemplate.nestedStacks.Nested.deployedTemplate).toEqual(generated);
   });
@@ -124,9 +127,9 @@ describe('hotswap-template-cache', () => {
         generatedTemplate: nestedGenerated,
         nestedStackTemplates: {},
       },
-    });
+    }, ENV_A);
 
-    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate);
+    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A);
     expect(Object.keys(result!.nestedStacks)).toEqual(['Nested']);
   });
 
@@ -155,9 +158,9 @@ describe('hotswap-template-cache', () => {
           },
         },
       },
-    });
+    }, ENV_A);
 
-    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate);
+    const result = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A);
     const level1 = result!.nestedStacks.Level1;
     expect(level1.generatedTemplate).toEqual(level1Template);
     expect(level1.physicalName).toBe('phys-l1');
@@ -168,15 +171,42 @@ describe('hotswap-template-cache', () => {
   });
 
   test('invalidateHotswapTemplateCache removes the cache file', async () => {
-    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, { Resources: { SomeFunc: { Type: 'AWS::Lambda::Function' } } }, {});
-    const cacheFile = path.join(assemblyDir, '.hotswap-cache', `${STACK_NAME}.json`);
+    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, { Resources: { SomeFunc: { Type: 'AWS::Lambda::Function' } } }, {}, ENV_A);
+    const cacheFile = path.join(assemblyDir, '.hotswap-cache', `${STACK_NAME}.${ENV_A_KEY}.json`);
     expect(await fs.pathExists(cacheFile)).toBe(true);
-    await invalidateHotswapTemplateCache(assemblyDir, STACK_NAME);
+    await invalidateHotswapTemplateCache(assemblyDir, STACK_NAME, ENV_A);
     expect(await fs.pathExists(cacheFile)).toBe(false);
   });
 
   test('invalidateHotswapTemplateCache is a no-op when cache does not exist', async () => {
     // Should not throw
-    expect(await invalidateHotswapTemplateCache(assemblyDir, 'NonExistent')).toBe(undefined);
+    expect(await invalidateHotswapTemplateCache(assemblyDir, 'NonExistent', ENV_A)).toBe(undefined);
+  });
+
+  test('cache from one environment is never returned for a different environment (regression)', async () => {
+    // Regression test: the cache used to be keyed only by assemblyDir + stackName,
+    // so switching accounts/regions between hotswap-only deployments (no full
+    // CloudFormation deploy in between to invalidate it) would silently reuse
+    // stale deployedRootTemplate/physicalName data from a *different* environment.
+    const rootTemplate: Template = { Resources: { Fn: { Type: 'AWS::Lambda::Function', Properties: { Code: 'account-a-code' } } } };
+    const nestedStacks: Record<string, NestedStackTemplates> = {};
+
+    // Simulate a successful hotswap deployment against environment A.
+    await writeHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, nestedStacks, ENV_A);
+
+    // A hotswap deployment for the *same* stack name and assembly directory, but
+    // targeting a completely different account/region (e.g. after switching
+    // AWS_PROFILE), must not see environment A's cached state.
+    const resultForEnvB = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_B);
+    expect(resultForEnvB).toBeUndefined();
+
+    // Reading back with the original environment must still return the cached state.
+    const resultForEnvA = await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A);
+    expect(resultForEnvA).toBeDefined();
+    expect(resultForEnvA!.deployedRootTemplate).toEqual(rootTemplate);
+
+    // Invalidating environment B's (nonexistent) cache must not remove environment A's.
+    await invalidateHotswapTemplateCache(assemblyDir, STACK_NAME, ENV_B);
+    expect(await readHotswapTemplateCache(assemblyDir, STACK_NAME, rootTemplate, ENV_A)).toBeDefined();
   });
 });

@@ -1,22 +1,25 @@
 /* eslint-disable no-console */
 import assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Stack } from '@aws-sdk/client-cloudformation';
-import { DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
-import type { AwsClients } from './aws';
+import type { AwsClients, CleanupResource } from './aws';
 import { outputFromStack, sleep } from './aws';
-import type { TestContext } from './integ-test';
+import { type TestContext } from './integ-test';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
+import { isWindows } from './platform';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
+import { XpMutexPool } from './xpmutex';
 import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
@@ -57,6 +60,7 @@ export function withSpecificCdkApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     if (context.disableBootstrap) {
       // Tests that disable the default bootstrap manage their own bootstrap
@@ -124,6 +128,7 @@ export function withCdkMigrateApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     await fixture.ecrPublicLogin();
 
@@ -137,6 +142,7 @@ export function withCdkMigrateApp(
       context.output,
       context.aws,
       context.randomString,
+      context.testTags,
     );
     await testFixture.writeAppContext();
 
@@ -279,9 +285,10 @@ export interface CdkDestroyCliOptions extends CdkCliOptions {
  * Prepare a target dir byreplicating a source directory
  */
 export async function cloneDirectory(source: string, target: string, output?: NodeJS.WritableStream) {
-  await shell(['rm', '-rf', target], { outputs: output ? [output] : [] });
-  await shell(['mkdir', '-p', target], { outputs: output ? [output] : [] });
-  await shell(['cp', '-R', source + '/*', target], { outputs: output ? [output] : [] });
+  output?.write(`Cloning ${source} into ${target}\n`);
+  await fs.promises.rm(target, { recursive: true, force: true });
+  await fs.promises.mkdir(target, { recursive: true });
+  await fs.promises.cp(source, target, { recursive: true });
 }
 
 interface CommonCdkBootstrapCommandOptions {
@@ -403,7 +410,6 @@ export interface CdkGarbageCollectionCommandOptions {
 
 export class TestFixture extends ShellHelper {
   public readonly qualifier: string;
-  private readonly bucketsToDelete = new Array<string>();
   public readonly cli: ITestCliSource;
   public readonly cdkAssets: ITestCliSource;
   public readonly library: ITestLibrarySource;
@@ -414,7 +420,9 @@ export class TestFixture extends ShellHelper {
     public readonly stackNamePrefix: string,
     public readonly output: NodeJS.WritableStream,
     public readonly aws: AwsClients,
-    public readonly randomString: string) {
+    public readonly randomString: string,
+    public readonly testTags: Record<string, string>,
+  ) {
     super(integTestDir, output);
 
     this.qualifier = this.randomString.slice(0, 10);
@@ -505,19 +513,38 @@ export class TestFixture extends ShellHelper {
     const tokenResponse = await this.aws.ecrPublic.send(new GetAuthorizationTokenCommand({}));
     const authData = tokenResponse.authorizationData?.authorizationToken;
 
-    const docker = process.env.CDK_DOCKER ?? 'docker';
-
     if (!authData) {
       throw new Error('Could not retrieve ECR public auth token.');
     }
 
+    if (isWindows()) {
+      // `docker login` on Windows stores credentials through the wincred credential
+      // helper (auto-detected even if `credsStore` is empty in the config file), and
+      // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
+      // 2560-byte limit ('The stub received bad data'). Write the auth directly into
+      // the per-test Docker config file instead, which is exactly what `docker login`
+      // produces on the Linux runners, where no credential helper is installed.
+      // The plaintext `auths` entry takes precedence over any credential helper.
+      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
+      await fs.promises.writeFile(
+        path.join(this.dockerConfigDir, 'config.json'),
+        JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
+      );
+      return;
+    }
+
+    const docker = process.env.CDK_DOCKER ?? 'docker';
+
     const decoded = Buffer.from(authData, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
 
+    // Reference the password via an environment variable so it doesn't leak into
+    // process listings; the shell expands it.
     await this.shell([docker, 'login',
       '--username', username,
       '--password', '${ECR_PASSWORD}',
       'public.ecr.aws'], {
+      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
       shell: true,
       modEnv: {
         ECR_PASSWORD: password,
@@ -545,6 +572,7 @@ export class TestFixture extends ShellHelper {
       '--progress', 'events',
       ...(skipStackRename ? stackNames : this.fullStackName(stackNames)),
       ...(options.telemetryFile ? [`--telemetry-file=${options.telemetryFile}`] : []),
+      ...Object.entries(this.testTags).map(([k, v]) => `--tags=${k}=${v}`),
     ];
   }
 
@@ -803,40 +831,22 @@ export class TestFixture extends ShellHelper {
   }
 
   /**
-   * Append this to the list of buckets to potentially delete
-   *
-   * At the end of a test, we clean up buckets that may not have gotten destroyed
-   * (for whatever reason).
-   */
-  public rememberToDeleteBucket(bucketName: string) {
-    this.bucketsToDelete.push(bucketName);
-  }
-
-  /**
    * Cleanup leftover stacks and bootstrapped resources
    */
   public async dispose(success: boolean) {
-    // when using the atmosphere service, it does resource cleanup on our behalf
-    // so we don't have to wait for it.
+    const stacksToDelete = await this.deleteableStacks(this.stackNamePrefix);
+    this.sortBootstrapStacksToTheEnd(stacksToDelete);
+
+    await this.fixCleanupQueue(stacksToDelete);
+
+    // Cleanup resources that a stack deletion would not clean up.
+    // The queued resources would get deleted when the 'aws' object is cleaned up anyway,
+    // but we're doing it early so that bucket contents are emptied before we go to do
+    // stacks.
+    await this.aws.cleanupResources();
+
+    // Cleanup stacks unless Atmosphere will do it
     if (!atmosphereEnabled()) {
-      const stacksToDelete = await this.deleteableStacks(this.stackNamePrefix);
-
-      this.sortBootstrapStacksToTheEnd(stacksToDelete);
-
-      // Bootstrap stacks have buckets that need to be cleaned
-      const bucketNames = stacksToDelete.map(stack => outputFromStack('BucketName', stack)).filter(defined);
-      // Parallelism will be reasonable
-      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-      await Promise.all(bucketNames.map(b => this.aws.emptyBucket(b)));
-      // The bootstrap bucket has a removal policy of RETAIN by default, so add it to the buckets to be cleaned up.
-      this.bucketsToDelete.push(...bucketNames);
-
-      // Bootstrap stacks have ECR repositories with images which should be deleted
-      const imageRepositoryNames = stacksToDelete.map(stack => outputFromStack('ImageRepositoryName', stack)).filter(defined);
-      // Parallelism will be reasonable
-      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-      await Promise.all(imageRepositoryNames.map(r => this.aws.deleteImageRepository(r)));
-
       await this.aws.deleteStacks(
         ...stacksToDelete.map((s) => {
           if (!s.StackName) {
@@ -845,12 +855,6 @@ export class TestFixture extends ShellHelper {
           return s.StackName;
         }),
       );
-
-      // We might have leaked some buckets by upgrading the bootstrap stack. Be
-      // sure to clean everything.
-      for (const bucket of this.bucketsToDelete) {
-        await this.aws.deleteBucket(bucket);
-      }
     }
 
     // If the tests completed successfully, happily delete the fixture
@@ -861,6 +865,69 @@ export class TestFixture extends ShellHelper {
         console.error(`Failed to clean up ${this.integTestDir} due to permissions issues (Docker running as root?)`);
       }
     }
+  }
+
+  /**
+   * Fix the cleanup queue w.r.t. the given stacks
+   *
+   * - Resources that will be leaked if those stacks are deleted are queued for deletion.
+   * - Resources that will be deleted along with those stacks are removed from the queue.
+   *
+   * Always queues cleaning of bucket contents for all buckets found; bucket contents
+   * always considered "unmanaged".
+   */
+  private async fixCleanupQueue(stacks: Stack[]) {
+    for (const stack of stacks) {
+      const resources = await StackResources.load(this.aws.cloudFormation, stack.StackName!);
+
+      // Queue all bucket contents for cleanup.
+      for (const resource of resources.ofType('AWS::S3::Bucket')) {
+        this.aws.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
+      }
+
+      // Reconcile queue with stack resources; leakables and managed resources.
+      const { leakable, managed } = await this.partitionStackResources(stack);
+
+      this.aws.queueResourceCleanup(...resources.resolveLogical(leakable)
+        .map(cleanableResourceFromPhysical)
+        .filter(defined));
+      this.aws.unqueueResourceCleanup(...resources.resolveLogical(managed)
+        .map(cleanableResourceFromPhysical)
+        .filter(defined));
+    }
+  }
+
+  /**
+   * Find resources in a stack that have a removal policy that causes it to be left behind if the stack is deleted.
+   */
+  private async partitionStackResources(stack: Stack) {
+    interface Template {
+      Resources?: {
+        [logicalId: string]: {
+          Type: string;
+          DeletionPolicy?: 'Delete' | 'Retain' | 'Snapshot';
+        };
+      };
+    }
+
+    const managed: LogicalResource[] = [];
+    const leakable: LogicalResource[] = [];
+
+    const template: Template = await this.aws.stackTemplate(stack.StackName!);
+    for (const [logicalId, resource] of Object.entries(template?.Resources ?? {})) {
+      const logicalResource: LogicalResource = {
+        cloudFormationType: resource.Type,
+        logicalId,
+      };
+
+      if (resource.DeletionPolicy === 'Retain') {
+        leakable.push(logicalResource);
+      } else {
+        managed.push(logicalResource);
+      }
+    }
+
+    return { managed, leakable };
   }
 
   /**
@@ -1011,9 +1078,13 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Install the given NPM packages, identified by their names and versions
  *
- * Works by writing the packages to a `package.json` file, and
- * then running NPM7's "install" on it. The use of NPM7 will automatically
- * install required peerDependencies.
+ * Works by writing the packages to a `package.json` file, and then running NPM7's
+ * "install" on it. The use of NPM7 will automatically install required
+ * peerDependencies.
+ *
+ * The install itself is shared: because every test asks for the same handful of
+ * packages at the same resolved versions, they are installed once per machine and
+ * linked into each test directory. See `sharedPackageSetInstall`.
  *
  * If we're running in REPO mode and we find the package in the set of local
  * packages in the repository, we'll write the directory name to `package.json`
@@ -1027,6 +1098,8 @@ function hasJsonFlag(args: string[]): boolean {
  * for Node's dependency lookup mechanism).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
+  let hasLocalPackages = false;
+
   if (process.env.REPO_ROOT) {
     const monoRepo = await findYarnPackages(process.env.REPO_ROOT);
 
@@ -1034,6 +1107,7 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     for (const key of Object.keys(packages)) {
       if (key in monoRepo) {
         packages[key] = monoRepo[key];
+        hasLocalPackages = true;
       }
     }
   }
@@ -1045,6 +1119,99 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     devDependencies: packages,
   }, undefined, 2), { encoding: 'utf-8' });
 
+  if (hasLocalPackages) {
+    // A local package is referenced by directory, so the package set no longer
+    // identifies its own contents: rebuilding changes what is on disk without
+    // changing the requested version. Install per test, so that the dev cycle
+    // of 'rebuild, rerun the test' keeps working.
+    await npmInstallWithRetry(fixture, fixture.integTestDir);
+    return;
+  }
+
+  // Every test installs the same small set of packages, and `aws-cdk-lib` alone is
+  // tens of thousands of files, so installing per test is pure duplicated work: it
+  // is very slow on Windows (minutes instead of seconds), and on every platform it
+  // means many concurrent `npm install` processes, which is a source of ECONNRESET
+  // failures. Install each distinct package set once per machine and link it into
+  // the test directory instead.
+  const sharedNodeModules = await sharedPackageSetInstall(fixture, packages);
+  fs.symlinkSync(
+    sharedNodeModules,
+    path.join(fixture.integTestDir, 'node_modules'),
+    // Ignored on POSIX. On Windows a 'junction' works for unprivileged users,
+    // where a 'dir' symlink needs elevation.
+    isWindows() ? 'junction' : 'dir',
+  );
+
+  // `npm` writes the lock file next to the `package.json` it installed, which is now
+  // the shared directory, so copy it back into the test directory. Constructs that
+  // bundle (`NodejsFunction`) find their project root by searching upwards from the
+  // app for a lock file, and bundle-mount that directory into Docker; without a lock
+  // file here the search escapes the test directory and synth fails.
+  fs.copyFileSync(
+    path.join(sharedNodeModules, '..', 'package-lock.json'),
+    path.join(fixture.integTestDir, 'package-lock.json'),
+  );
+}
+
+/**
+ * Mutex pool guarding the shared installs, created on first use.
+ *
+ * Constructing a pool starts an `fs.watch`, so don't do it for test runs that
+ * never install anything.
+ */
+let installMutexPool: XpMutexPool | undefined;
+
+/**
+ * Install the given package set into a machine-shared directory, once.
+ *
+ * Concurrent callers (jest workers are separate processes) coordinate through a
+ * cross-process mutex: whoever holds it installs, and everyone else waits and then
+ * finds the completion marker already there. A worker that dies while installing
+ * holds a lock nobody would ever release, so `XpMutex` reclaims it once the owning
+ * pid is gone.
+ *
+ * The shared directory is keyed on the requested package set. Those versions are
+ * always fully resolved by the time they get here (see `requestedVersion()` on the
+ * library sources), so the key identifies the contents and the directory can be
+ * reused across runs on the same machine.
+ *
+ * @returns the path of the installed `node_modules` directory.
+ */
+async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<string, string>): Promise<string> {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(packages)).digest('hex').slice(0, 16);
+  const sharedDir = path.join(os.tmpdir(), `cdk-integ-shared-${hash}`);
+  const nodeModules = path.join(sharedDir, 'node_modules');
+
+  // Only ever written after a successful install, so a half-installed directory
+  // (from a worker that was killed) is never handed out.
+  const completeMarker = path.join(sharedDir, '.install-complete');
+
+  if (fs.existsSync(completeMarker)) {
+    return nodeModules;
+  }
+
+  if (!installMutexPool) {
+    installMutexPool = XpMutexPool.fromName('cdk-integ-shared-install');
+  }
+  const lock = await installMutexPool.mutex(hash).acquire();
+  try {
+    if (fs.existsSync(completeMarker)) {
+      return nodeModules;
+    }
+
+    fixture.log(`Installing shared package set into '${sharedDir}'`);
+    fs.mkdirSync(sharedDir, { recursive: true });
+    fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+    await npmInstallWithRetry(fixture, sharedDir);
+    fs.writeFileSync(completeMarker, '');
+    return nodeModules;
+  } finally {
+    await lock.release();
+  }
+}
+
+async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
   // we often ECONNRESET from NPM so lets retry. this might be because of high concurrency
   // which overwhelmes system resources.
   const timeoutMinutes = 10;
@@ -1054,7 +1221,10 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
   while (true) {
     try {
       // Now install that `package.json` using NPM7
-      await fixture.shell(['node', require.resolve('npm'), 'install']);
+      await shell(['node', require.resolve('npm'), 'install'], {
+        cwd,
+        outputs: [fixture.output],
+      });
       break;
     } catch (e: any) {
       if (Date.now() < timeoutDate.getTime() && fixture.output.toString().includes('ECONNRESET' )) {
@@ -1068,3 +1238,66 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
 }
 
 const ALREADY_BOOTSTRAPPED_IN_THIS_RUN = new Set();
+
+interface LogicalResource {
+  readonly cloudFormationType: string;
+  readonly logicalId: string;
+}
+
+interface PhysicalResource {
+  readonly cloudFormationType: string;
+  readonly physicalId: string;
+}
+
+class StackResources {
+  public static async load(cloudFormation: CloudFormationClient, stackName: string): Promise<StackResources> {
+    const ret: StackResourceSummary[] = [];
+
+    let nextToken: string | undefined;
+    do {
+      const response = await cloudFormation.send(new ListStackResourcesCommand({
+        StackName: stackName,
+        NextToken: nextToken,
+      }));
+      ret.push(...response.StackResourceSummaries ?? []);
+
+      nextToken = response.NextToken;
+    } while (nextToken);
+
+    return new StackResources(ret);
+  }
+
+  private readonly logicalMap: Record<string, string> = {};
+
+  constructor(private readonly resources: StackResourceSummary[]) {
+    this.logicalMap = Object.fromEntries(resources.map(r => [r.LogicalResourceId!, r.PhysicalResourceId!]));
+  }
+
+  public ofType(type: string): PhysicalResource[] {
+    return this.resources
+      .filter(r => r.ResourceType === type)
+      .filter(r => r.PhysicalResourceId !== undefined && r.PhysicalResourceId !== '')
+      .map(r => ({ cloudFormationType: type, physicalId: r.PhysicalResourceId! }));
+  }
+
+  public resolveLogical(logicalResources: LogicalResource[]): PhysicalResource[] {
+    // Then look up the logical resources in the map and return the physical resources
+    return logicalResources.flatMap(logical => {
+      const physicalId = this.logicalMap[logical.logicalId];
+      return physicalId ? [{ ...logical, physicalId }] : [];
+    });
+  }
+}
+
+function cleanableResourceFromPhysical(resource: PhysicalResource): CleanupResource | undefined {
+  switch (resource.cloudFormationType) {
+    case 'AWS::S3::Bucket':
+      return { type: 'bucket', bucketName: resource.physicalId };
+
+    case 'AWS::ECR::Repository':
+      return { type: 'ecr-repository', repositoryName: resource.physicalId };
+
+    default:
+      return undefined;
+  }
+}

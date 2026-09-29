@@ -375,32 +375,36 @@ export class CloudFormationStackDiagnoser {
 
     // The change set may have been failed by a CloudFormation Hook (e.g. a Lambda Hook
     // targeting change set operations). Those failures don't produce events; their
-    // details are only available through the hook results APIs.
-    const hookErrors = await this._changeSetHookErrors(changeSet);
+    // details are only available through the hook results APIs. If we can't fetch them
+    // (e.g. lack of permissions), report the generic error with a warning attached, so
+    // the user isn't left thinking there simply is no more detail to find.
+    let hookErrors: ResourceError[] = [];
+    let warnings: string[] = [];
+    try {
+      hookErrors = await this._changeSetHookErrors(changeSet);
+    } catch (e: any) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      warnings = [`Could not fetch extra hook failure detail for change set ${changeSet.ChangeSetName} (${errorMessage}). Run again with -v to see the full error.`];
+    }
     if (hookErrors.length > 0) {
       return Diagnosis.problem(detectedBy, await this.enhanceErrors(hookErrors));
     }
 
-    return this._nonSpecificChangeSetError(changeSet, detectedBy);
+    return this._nonSpecificChangeSetError(changeSet, detectedBy, warnings);
   }
 
   /**
    * Find the hooks that failed this change set, and return their failure details as resource errors.
    *
    * Failures of hooks with failure mode WARN don't fail a change set, so those are excluded.
-   * Returns an empty array if hook results can't be listed (e.g. for lack of permissions).
+   * Throws if hook results can't be listed (e.g. lack of permissions, or the API being
+   * unavailable).
    */
   private async _changeSetHookErrors(changeSet: ChangeSetSummary): Promise<ResourceError[]> {
-    let hookResults: HookResultSummary[];
-    try {
-      hookResults = (await this.cfn.listHookResults({
-        TargetType: 'CHANGE_SET',
-        TargetId: changeSet.ChangeSetId,
-      })).HookResults ?? [];
-    } catch (e: any) {
-      await this.props.ioHelper.defaults.debug(`Could not list hook results for change set ${changeSet.ChangeSetName}: ${e.message}`);
-      return [];
-    }
+    const hookResults: HookResultSummary[] = (await this.cfn.listHookResults({
+      TargetType: 'CHANGE_SET',
+      TargetId: changeSet.ChangeSetId,
+    })).HookResults ?? [];
 
     const failedHooks = hookResults.filter((r) => isFailedHookStatus(r.Status) && r.FailureMode === 'FAIL');
 
@@ -431,7 +435,6 @@ export class CloudFormationStackDiagnoser {
     if (hook.HookResultId) {
       const details = await fetchHookResultDetails(this.cfn, hook.HookResultId, {
         ioHelper: this.props.ioHelper,
-        envResources: this.props.envResources,
       });
       if (details) {
         return details;
@@ -459,7 +462,11 @@ export class CloudFormationStackDiagnoser {
       this.hookFailureContext(err),
     ]);
 
-    const allContext = [...hookContext, ...additionalContext];
+    const allContext = [
+      ...hookContext,
+      ...additionalContext,
+      ...(err.warnings?.length ? [{ source: 'Warnings', messages: err.warnings }] : []),
+    ];
     return {
       ...err,
       sourceTrace,
@@ -488,7 +495,6 @@ export class CloudFormationStackDiagnoser {
       let details = hook.hookInvocationId
         ? await fetchHookResultDetails(this.cfn, hook.hookInvocationId, {
           ioHelper: this.props.ioHelper,
-          envResources: this.props.envResources,
         })
         : undefined;
       details = details ?? (hook.hookStatusReason ? normalizeHookMessage(hook.hookStatusReason) : undefined);
@@ -521,8 +527,12 @@ export class CloudFormationStackDiagnoser {
    * Build a generic stack error from the given change set information
    *
    * We can't point to a specific resource.
+   *
+   * @param warnings - Warnings to attach to the error (e.g. a note that hook detail couldn't
+   * be fetched). Rendered after the main failure message, instead of appearing to precede or
+   * replace it.
    */
-  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource): Promise<Diagnosis> {
+  private async _nonSpecificChangeSetError(changeSet: ChangeSetSummary, detectedBy: StackProblemSource, warnings: string[] = []): Promise<Diagnosis> {
     return Diagnosis.problem(detectedBy, [
       await this.enhanceError({
         // It's about a stack
@@ -532,6 +542,7 @@ export class CloudFormationStackDiagnoser {
         stackArn: changeSet.StackId ?? '',
         physicalId: changeSet.StackId,
         resourceType: 'AWS::CloudFormation::Stack',
+        warnings,
       }),
     ]);
   }

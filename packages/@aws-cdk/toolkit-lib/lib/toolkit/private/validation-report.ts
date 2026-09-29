@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { PluginReportJson, PolicyValidationReportConclusion } from '@aws-cdk/cloud-assembly-schema';
+import type { PluginReportJson, PolicyValidationReportConclusion, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
 import { collectAnnotationReport } from './collect-annotation-report';
@@ -116,29 +116,33 @@ function hasWarnings(reports: PluginReportJson[]): boolean {
 }
 
 /**
- * Remove violations that aren't in onde of the given stacks
+ * Report only violations that are in one of the given stacks
  */
 function filterReportsByStacks(reports: PluginReportJson[], selectedStackIds: Set<string>): PluginReportJson[] {
-  return reports.map((report) => {
-    const filteredViolations = report.violations.filter((violation) => {
-      if (violation.violatingConstructs.length === 0) return true;
-      return violation.violatingConstructs.some((c) =>
-        selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
-      );
-    }).map((violation) => {
-      if (violation.violatingConstructs.length === 0) return violation;
-      return {
-        ...violation,
-        violatingConstructs: violation.violatingConstructs.filter((c) =>
-          selectedStackIds.has(c.constructPath?.split('/')[0] ?? ''),
-        ),
-      };
-    });
+  const stackIds = Array.from(selectedStackIds);
+
+  return reports.map(filterReport);
+
+  function filterReport(report: PluginReportJson): PluginReportJson {
+    // Filter the violations of this report down. In order to be backwards compatible with previously established behavior,
+    // if a violation has no constructs associated with it, we retain it. Otherwise, we remove it if it has no constructs left.
+    const violationsWithoutConstructs = new Set(report.violations.flatMap((v, i) => v.violatingConstructs.length === 0 ? [i] : []));
+
+    const filteredViolations = report
+      .violations.map(v => ({
+        ...v,
+        violatingConstructs: v.violatingConstructs.filter(constructMatches),
+      })).filter((v, i) => v.violatingConstructs.length > 0 || violationsWithoutConstructs.has(i));
 
     return {
       ...report,
       violations: filteredViolations,
       conclusion: filteredViolations.length > 0 ? report.conclusion : ('success' as const),
     };
-  });
+  }
+
+  function constructMatches(c: ViolatingConstructJson) {
+    //  If we don't have a construct path, we can't filter out this violation so we have to keep it.
+    return !c.constructPath || stackIds.some((stackId) => c.constructPath === stackId || c.constructPath?.startsWith(`${stackId}/`));
+  }
 }

@@ -5,6 +5,7 @@ import * as pj from 'projen';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
+import { CanaryArtifactUpload } from './projenrc/canary-artifact-upload';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
 import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
@@ -14,7 +15,7 @@ import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
@@ -392,6 +393,11 @@ repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 const repo = configureProject(repoProject);
 
+// Exclude dist from the NX cache to avoid restoring stale release artifacts
+repoProject.tryFindObjectFile('nx.json')!.patch(
+  pj.JsonPatch.remove('/targetDefaults/build/outputs/4'), // {projectRoot}/dist
+);
+
 interface GenericProps {
   private?: boolean;
 }
@@ -475,6 +481,12 @@ const cloudAssemblySchema = configureProject(
   }),
 );
 fixupTestTask(cloudAssemblySchema);
+
+// Patch jsonschema: local $ref resolution crashes with "Invalid URL" on Node >= 24.20.0
+// Fix from https://github.com/tdegrunt/jsonschema/pull/424
+repoProject.package.addField('resolutions', {
+  [`${cloudAssemblySchema.name}/jsonschema`]: 'patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch',
+});
 
 cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
@@ -1016,7 +1028,7 @@ new S3DocsPublishing(toolkitLib, {
   artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-  docType: DocType.API_EXTRACTOR,
+  s3PathPrefix: 'aws-cdk-toolkit-lib-api-model',
 });
 
 // Add API Extractor configuration
@@ -1473,6 +1485,10 @@ new BundleCli(cli, {
   test: 'bin/cdk --version',
   entryPoints: [
     'lib/index.js',
+    // The detached telemetry sender. A separate entry point so that it stands on its own in the
+    // published package (where `dependencies` are stripped), which is what lets it use the real
+    // `proxy-agent` instead of hand-rolling proxy support out of Node built-ins.
+    'lib/cli/telemetry/sender-bundle.js',
   ],
   minifyWhitespace: true,
 });
@@ -1483,6 +1499,25 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('test/integ/cli/sam_cdk_integ_app/**/*');
   tsconfig?.addExclude('vendor/**/*');
 }
+
+// Publishing Toolkit CLI version
+// We don't actually publish CLI docs here, but we can collect some interesting version information
+const cliVersionsTask = cli.addTask('versions', {
+  exec: [
+    'tsx --tsconfig test/tsconfig.json scripts/gen-versions-json.ts',
+    'rm -f dist/toolkit-versions.zip',
+    'zip -j -q dist/toolkit-versions.zip dist/versions.json',
+  ].join(' && '),
+});
+cli.packageTask.spawn(cliVersionsTask);
+
+new S3DocsPublishing(cli, {
+  docsStream: 'CLI',
+  artifactPath: 'toolkit-versions.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}',
+  s3PathPrefix: 'toolkit-versions',
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1664,6 +1699,7 @@ const cliInteg = configureProject(
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',
+      'cross-spawn',
     ],
     devDeps: [
       yarnCling,
@@ -1791,6 +1827,9 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
+  // Also run the integ suites on Windows, opt-in per-PR via the
+  // 'pr/test-windows' label or manually via workflow_dispatch.
+  windowsTestRunsOn: 'windows-latest',
 
   allowUpstreamVersions: [
     // cloud-assembly-schema gets referenced under multiple versions
@@ -1830,6 +1869,19 @@ new CdkCliIntegTestsWorkflow(repo, {
 new CodeCovWorkflow(repo, {
   restrictToRepos: ['aws/aws-cdk-cli'],
   packages: [cli.name],
+});
+
+// On every push to `main`, build + pack the CLI and upload the tarball to the
+// shared cdk-ops canary bucket, keyed by commit hash, along with a
+// `cli/latest.json` pointer. The cdk-ops daily Windows canary consumes these to
+// run the cli-integ-tests suite against the built CLI. This only emits the
+// artifact; it is not a release gate and does not run the Windows tests here.
+new CanaryArtifactUpload(repo, {
+  restrictToRepos: ['aws/aws-cdk-cli'],
+  cliPackageName: cli.name,
+  cliWorkspaceDirectory: cli.workspaceDirectory,
+  bucketName: '${{ vars.CANARY_ARTIFACT_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.CANARY_ARTIFACT_ROLE_ARN }}',
 });
 
 new IssueLabeler(repo);

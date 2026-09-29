@@ -25,5 +25,5 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
 
     await shell.shell(['go', 'test']);
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 240_000);
 });

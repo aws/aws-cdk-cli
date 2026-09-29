@@ -58,6 +58,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         validation: args.validation,
         quiet: args.quiet,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -249,6 +250,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        changeSetName: args.changeSetName,
         method: args.method,
         importExistingResources: args.importExistingResources,
         includeMoves: args.includeMoves,
@@ -420,6 +422,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
     quiet: config.synth?.quiet,
+    watch: config.synth?.watch,
   };
   const bootstrapOptions = {
     bootstrapBucketName: config.bootstrap?.bootstrapBucketName,
@@ -563,6 +566,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+    changeSetName: config.diff?.changeSetName,
     method: config.diff?.method,
     importExistingResources: config.diff?.importExistingResources,
     includeMoves: config.diff?.includeMoves,

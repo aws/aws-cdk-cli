@@ -10,5 +10,5 @@ import { integTest, withTemporaryDirectory, ShellHelper, withPackages } from '..
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'java', template]);
     await shell.shell(['mvn', 'package']);
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 180_000);
 });

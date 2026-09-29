@@ -7,7 +7,7 @@ integTest(
     await fixture.cdkDeploy('metadata');
 
     // WHEN - changing resource metadata value
-    const diff = await fixture.cdk(['diff --no-change-set', fixture.fullStackName('metadata')], {
+    const diff = await fixture.cdk(['diff', '--no-change-set', fixture.fullStackName('metadata')], {
       verbose: true,
       modEnv: {
         INTEG_METADATA_VALUE: 'custom',

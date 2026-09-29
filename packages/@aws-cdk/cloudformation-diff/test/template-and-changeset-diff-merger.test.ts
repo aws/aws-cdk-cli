@@ -48,6 +48,55 @@ describe('fullDiff tests that include changeset', () => {
     expect(differences.differenceCount).toBe(0);
   });
 
+  test('static changes are not hidden by a changeset that fails to detect them', () => {
+    // GIVEN - CFN does not detect exchanging one empty-object union member for another
+    // (e.g. WAFv2 actions) and returns an empty changeset.
+    // https://github.com/aws/aws-cdk-cli/issues/1922
+    const currentTemplate = {
+      Resources: {
+        WebAcl: {
+          Type: 'AWS::WAFv2::WebACL',
+          Properties: {
+            Scope: 'CLOUDFRONT',
+            DefaultAction: { Allow: {} },
+            VisibilityConfig: {
+              MetricName: 'cf',
+              CloudWatchMetricsEnabled: true,
+              SampledRequestsEnabled: true,
+            },
+          },
+        },
+      },
+    };
+    const newTemplate = {
+      Resources: {
+        WebAcl: {
+          Type: 'AWS::WAFv2::WebACL',
+          Properties: {
+            Scope: 'CLOUDFRONT',
+            DefaultAction: { Block: {} },
+            VisibilityConfig: {
+              MetricName: 'cf',
+              CloudWatchMetricsEnabled: true,
+              SampledRequestsEnabled: true,
+            },
+          },
+        },
+      },
+    };
+
+    // WHEN - the changeset reports no changes at all (as observed from real CloudFormation)
+    const differences = fullDiff(currentTemplate, newTemplate, {
+      Changes: [],
+    });
+
+    // THEN - the purely static DefaultAction change is still surfaced
+    expect(differences.differenceCount).toBe(1);
+    const webAcl = differences.resources.get('WebAcl');
+    expect(webAcl.isDifferent).toBe(true);
+    expect(webAcl.propertyUpdates.DefaultAction.isDifferent).toBe(true);
+  });
+
   test('changeset replacements are respected', () => {
     // GIVEN
     const currentTemplate = {
@@ -1263,7 +1312,7 @@ describe('method tests', () => {
       expect(queue.changeImpact).toBe('NO_CHANGE');
     });
 
-    test('ignores changes that are not in changeset', async () => {
+    test('keeps static changes that are not in changeset', async () => {
       const templateAndChangeSetDiffMerger = new TemplateAndChangeSetDiffMerger({
         changeSet: {},
         changeSetResources: {},
@@ -1282,7 +1331,31 @@ describe('method tests', () => {
       // WHEN
       templateAndChangeSetDiffMerger.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, queue);
 
-      // THEN
+      // THEN - a static difference is a real change even if the changeset failed to report it
+      expect(queue.isDifferent).toBe(true);
+      expect(queue.changeImpact).toBe('WILL_UPDATE');
+    });
+
+    test('ignores deploy-time-resolved changes that are not in changeset', async () => {
+      const templateAndChangeSetDiffMerger = new TemplateAndChangeSetDiffMerger({
+        changeSet: {},
+        changeSetResources: {},
+      });
+      const queue = new ResourceDifference(
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param1' } } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param2' } } },
+        {
+          resourceType: { oldType: 'AWS::CDK::GREAT', newType: 'AWS::CDK::GREAT' },
+          propertyDiffs: { QueueName: new PropertyDifference<any>( { Ref: 'Param1' }, { Ref: 'Param2' }, { changeImpact: ResourceImpact.WILL_UPDATE }) },
+          otherDiffs: {},
+        },
+      );
+      const logicalId = 'Queue';
+
+      // WHEN
+      templateAndChangeSetDiffMerger.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, queue);
+
+      // THEN - the changeset knows how deploy-time values resolve; trust its "no change" verdict
       expect(queue.isDifferent).toBe(false);
       expect(queue.changeImpact).toBe('NO_CHANGE');
     });
@@ -1298,11 +1371,11 @@ describe('method tests', () => {
         },
       });
       const queue = new ResourceDifference(
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'first' } },
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'second' } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param1' } } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param2' } } },
         {
           resourceType: { oldType: 'AWS::CDK::GREAT', newType: 'AWS::CDK::GREAT' },
-          propertyDiffs: { QueueName: new PropertyDifference<string>( 'first', 'second', { changeImpact: ResourceImpact.WILL_UPDATE }) },
+          propertyDiffs: { QueueName: new PropertyDifference<any>( { Ref: 'Param1' }, { Ref: 'Param2' }, { changeImpact: ResourceImpact.WILL_UPDATE }) },
           otherDiffs: {},
         },
       );
@@ -1328,11 +1401,11 @@ describe('method tests', () => {
         },
       });
       const queue = new ResourceDifference(
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'first' } },
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'second' } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param1' } } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param2' } } },
         {
           resourceType: { oldType: 'AWS::CDK::GREAT', newType: 'AWS::CDK::GREAT' },
-          propertyDiffs: { QueueName: new PropertyDifference<string>( 'first', 'second', { changeImpact: ResourceImpact.WILL_UPDATE }) },
+          propertyDiffs: { QueueName: new PropertyDifference<any>( { Ref: 'Param1' }, { Ref: 'Param2' }, { changeImpact: ResourceImpact.WILL_UPDATE }) },
           otherDiffs: {},
         },
       );
@@ -1360,11 +1433,11 @@ describe('method tests', () => {
         },
       });
       const queue = new ResourceDifference(
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'first' } },
-        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: 'second' } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param1' } } },
+        { Type: 'AWS::CDK::GREAT', Properties: { QueueName: { Ref: 'Param2' } } },
         {
           resourceType: { oldType: 'AWS::CDK::GREAT', newType: 'AWS::CDK::GREAT' },
-          propertyDiffs: { QueueName: new PropertyDifference<string>( 'first', 'second', { changeImpact: ResourceImpact.WILL_UPDATE }) },
+          propertyDiffs: { QueueName: new PropertyDifference<any>( { Ref: 'Param1' }, { Ref: 'Param2' }, { changeImpact: ResourceImpact.WILL_UPDATE }) },
           otherDiffs: {},
         },
       );

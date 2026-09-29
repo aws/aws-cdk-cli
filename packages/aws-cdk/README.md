@@ -160,6 +160,14 @@ The `quiet` option can be set in the `cdk.json` file.
 See the [AWS Documentation](https://docs.aws.amazon.com/cdk/latest/guide/apps.html#apps_cloud_assembly) to learn more about cloud assemblies.
 See the [CDK reference documentation](https://docs.aws.amazon.com/cdk/api/latest/docs/cloud-assembly-schema-readme.html) for details on the cloud assembly specification
 
+> [!IMPORTANT]
+> **A Cloud Assembly is a trust boundary. Do not deploy Cloud Assemblies
+> from sources you do not trust.**
+>
+> For example, if you deploy a Cloud Assembly from an external source like
+> `cdk deploy --app /downloaded/file/path/cdk.out`, the CLI runs external
+> code using with your shell environment and AWS credentials.
+
 ### `cdk diagnose`
 
 > [!CAUTION]
@@ -291,7 +299,43 @@ You can have multiple stacks in a cdk app. An example can be found in [how to cr
 
 In order to deploy them, you can list the stacks you want to deploy. If your application contains pipeline stacks, the `cdk list` command will show stack names as paths, showing where they are in the pipeline hierarchy (e.g., `PipelineStack`, `PipelineStack/Prod`, `PipelineStack/Prod/MyService` etc).
 
-If you want to deploy all of them, you can use the flag `--all` or the wildcard `*` to deploy all stacks in an app. Please note that, if you have a hierarchy of stacks as described above, `--all` and `*` will only match the stacks on the top level. If you want to match all the stacks in the hierarchy, use `**`. You can also combine these patterns. For example, if you want to deploy all stacks in the `Prod` stage, you can use `cdk deploy PipelineStack/Prod/**`.
+To deploy every stack in the app, use the `--all` flag or the wildcard `*`.
+If your app has stacks inside stages, keep in mind how far each wildcard reaches:
+
+- `*` matches one level, so it only picks up top-level stacks (same as `--all`)
+- `**` matches any number of levels, so it picks up stacks at every depth
+
+You can also combine these patterns.
+For example, to deploy everything inside the `Prod` stage of a pipeline:
+
+```console
+cdk deploy 'PipelineStack/Prod/**'
+```
+
+##### Excluding stacks
+
+Put a `!` in front of a pattern to leave those stacks out.
+Wrap the pattern in quotes so your shell leaves the `!` alone.
+
+Every stack except `NlbStack`:
+
+```
+cdk deploy '!NlbStack'
+```
+
+Everything under `Prod`, except the canary:
+
+```
+cdk deploy 'PipelineStack/Prod/**' '!PipelineStack/Prod/Canary'
+```
+
+CDK picks the stacks your normal patterns match, then drops the ones your `!` patterns match.
+If you only pass `!` patterns, they apply to every stack in the app.
+`--all` doesn't work together with patterns, so use `**` instead.
+An excluded stack still deploys if a selected stack needs it — add `--exclusively` (`-e`) to skip dependencies.
+And `!(...)` is shell syntax, not a CDK exclusion.
+
+##### Deploying stacks in parallel
 
 `--concurrency N` allows deploying multiple stacks in parallel while respecting inter-stack dependencies to speed up deployments. It does not protect against CloudFormation and other AWS account rate limiting.
 
@@ -833,7 +877,8 @@ The server can run your app to keep the cloud assembly current (for example, an
 "auto-synth on save" mode offered through your editor). Because that runs your
 project's `app` command with your shell environment and AWS credentials, enable
 it only for projects you trust. This is the same trust model that `cdk synth`
-and `cdk watch` already use.
+and `cdk watch` already use. Deploying an already-synthesized Cloud Assembly
+carries a related trust boundary — see [`cdk synth`](#cdk-synth).
 
 `cdk lsp` is designed to be driven by an editor extension rather than run by hand.
 For the full feature list, the editor-integration protocol, and the programmatic
@@ -1519,6 +1564,11 @@ that can be set in many different ways (such as `~/.cdk.json`).
 $ # Check the current status of telemetry
 $ cdk cli-telemetry --status
 ```
+
+Telemetry is delivered by a short-lived background process, so the CLI exits without waiting for the
+network. That also means nothing is reported in the CLI's own output if delivery fails; set
+[`CDK_TELEMETRY_SENDER_DEBUG=1`](#environment) to see it.
+
 ### `cdk flags`
 
 View and modify your feature flag configurations.
@@ -1886,9 +1936,14 @@ in `build` will be executed by the "watch" process before deployment.
 The following environment variables affect aws-cdk:
 
 - `COLUMNS`: When the CLI cannot detect the terminal width (for example, when output is piped or running in CI), this standard variable is used as the rendering width for `cdk diff` tables. If unset, tables render at their natural width.
+- `CDK_DISABLE_CLI_TELEMETRY`: If set to `true`, disable CLI telemetry collection (see [`cdk cli-telemetry`](#cdk-cli-telemetry)).
 - `CDK_DISABLE_VERSION_CHECK`: If set, disable automatic check for newer versions.
 - `CDK_NEW_BOOTSTRAP`: use the modern bootstrapping stack.
 - `CDK_ROLE_SESSION_NAME`: customize the session name used when the CLI assumes a role (for example `cdk-hnb659fds-deploy-role`). When unset, the CLI defaults to `aws-cdk-<username>`. Useful for attributing deployments in CloudTrail when running from a CI/CD pipeline.
+- `CDK_TELEMETRY_SENDER_DEBUG`: If set to `1`, print diagnostics from telemetry delivery. Telemetry is
+  sent by a short-lived background process that the CLI does not wait for, so its output is normally
+  discarded; setting this passes it through to stderr. Only useful when investigating why telemetry is
+  not arriving.
 
 ### Region resolution
 

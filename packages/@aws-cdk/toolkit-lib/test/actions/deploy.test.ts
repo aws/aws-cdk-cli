@@ -4,7 +4,23 @@ import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deploy
 import * as deployments from '../../lib/api/deployments';
 import { WorkGraphBuilder } from '../../lib/api/work-graph';
 import { Toolkit } from '../../lib/toolkit';
+import { BootstrapError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+
+/**
+ * Mirrors how a consumer (the integ-runner) finds a BootstrapError that
+ * toolkit-lib wrapped on its way up the stack.
+ */
+function findBootstrapError(error: unknown): BootstrapError | undefined {
+  let current = error;
+  while (current) {
+    if (ToolkitError.isBootstrapError(current)) {
+      return current;
+    }
+    current = (current as Error).cause;
+  }
+  return undefined;
+}
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -416,6 +432,31 @@ IAM Statement Changes
       await expect(async () => toolkit.deploy(cx, {
         notificationArns: [arn],
       })).rejects.toThrow(/Notification arn arn:aws:sqs:us-east-1:1111111111:resource is not a valid arn for an SNS topic/);
+    });
+
+    test('a BootstrapError from deployment remains discoverable via the cause chain', async () => {
+      // GIVEN - deployment fails because the environment is not bootstrapped
+      const bootstrapError = new BootstrapError(
+        'OutdatedBootstrapStack',
+        "This CDK deployment requires bootstrap stack version '6', found '5'",
+        { account: '11111111', region: 'aq-south-1' },
+      );
+      mockDeployStack.mockRejectedValue(bootstrapError);
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      const error = await toolkit.deploy(cx).then(() => undefined, (e) => e);
+
+      // THEN - the stack name banner and error code are preserved...
+      expect(error.message).toMatch(/failed:/);
+      expect(error.name).toBe('OutdatedBootstrapStack');
+
+      // ...and the BootstrapError is still reachable through the causes, which
+      // is how the integ-runner detects a non-bootstrapped environment
+      expect(findBootstrapError(error)?.environment).toEqual({
+        account: '11111111',
+        region: 'aq-south-1',
+      });
     });
 
     test('forceAssetPublishing: true option is used for asset publishing', async () => {
