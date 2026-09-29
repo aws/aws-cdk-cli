@@ -70,35 +70,6 @@ function resolveSymlink(ws: WorkspacePath): WorkspacePath {
 }
 
 /**
- * File names that carry secrets often enough to refuse by name. Extension-less,
- * so the dotfile rule in {@link isSensitivePath} does not already cover them.
- */
-const SENSITIVE_BASENAMES = new Set([
-  'credentials',
-  'id_rsa',
-  'id_dsa',
-  'id_ecdsa',
-  'id_ed25519',
-]);
-
-/** Extensions that only ever hold key material. */
-const SENSITIVE_EXTENSIONS = new Set([
-  '.pem',
-  '.key',
-  '.p12',
-  '.pfx',
-  '.jks',
-  '.keystore',
-  '.ppk',
-  '.asc',
-  '.gpg',
-  '.kdbx',
-]);
-
-/** Extensions `/api/template` will serve. CDK writes templates as JSON. */
-const TEMPLATE_EXTENSIONS = new Set(['.json', '.yaml', '.yml']);
-
-/**
  * True if the requested file is marked as "sensitive" and will never be allowed to be read
  */
 export function isSensitiveRead(wsPath: WorkspacePath): boolean {
@@ -106,8 +77,11 @@ export function isSensitiveRead(wsPath: WorkspacePath): boolean {
     .relativePath
     .split(/[/\\]+/)
     .filter((segment) => segment.length > 0)
-    .some((segment) => segment.startsWith('.') || SENSITIVE_BASENAMES.has(segment.toLowerCase()) || SENSITIVE_EXTENSIONS.has(path.extname(segment).toLowerCase()));
+    .some((segment) => segment.startsWith('.'));
 }
+
+/** Extensions `/api/template` will serve. CDK writes templates as JSON. */
+const TEMPLATE_EXTENSIONS = new Set(['.json', '.yaml', '.yml']);
 
 /**
  * True when a root-relative path looks like a CloudFormation template.

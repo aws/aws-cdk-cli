@@ -1,10 +1,8 @@
 /**
- * Builds the web explorer SPA into lib/web/static (typechecked via
- * tsconfig.frontend.json, since esbuild only transpiles), then writes the same
- * assets to lib/web/web-assets.generated.json so they ride the require() graph
- * into the published CLI bundle (express.static paths are not bundled).
+ * Builds the web explorer SPA into lib/web/static, then writes the same assets
+ * to lib/web/web-assets.generated.json so they ride the require() graph into
+ * the published CLI bundle (static file paths are not bundled).
  */
-import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as esbuild from 'esbuild';
@@ -15,8 +13,6 @@ const outDir = path.join(packageRoot, 'lib', 'web', 'static');
 const embeddedAssetsFile = path.join(packageRoot, 'lib', 'web', 'web-assets.generated.json');
 
 async function main(): Promise<void> {
-  typecheck();
-
   fs.mkdirSync(outDir, { recursive: true });
 
   await esbuild.build({
@@ -43,13 +39,6 @@ function writeEmbeddedAssets(): void {
     'bundle.css': fs.readFileSync(path.join(outDir, 'bundle.css'), 'utf-8'),
   };
   fs.writeFileSync(embeddedAssetsFile, JSON.stringify(assets));
-}
-
-function typecheck(): void {
-  execFileSync('tsc', ['--noEmit', '-p', path.join(packageRoot, 'tsconfig.frontend.json')], {
-    cwd: packageRoot,
-    stdio: 'inherit',
-  });
 }
 
 main().catch((err) => {

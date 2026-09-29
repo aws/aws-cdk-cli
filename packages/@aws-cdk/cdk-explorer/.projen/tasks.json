@@ -147,6 +147,9 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
+          "exec": "tsc --noEmit -p tsconfig.frontend.json"
+        },
+        {
           "exec": "tsx build-tools/bundle-frontend.ts"
         }
       ]

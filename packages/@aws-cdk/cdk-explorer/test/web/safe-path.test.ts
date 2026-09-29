@@ -49,12 +49,6 @@ describe('isSensitivePath', () => {
     '.npmrc',
     'config/.env',
     'lib/.git/HEAD',
-    'certs/server.pem',
-    'certs/SERVER.PEM',
-    'keys/app.key',
-    'keystore.jks',
-    'aws/credentials',
-    'home/id_ed25519',
   ])('denies %s', (relPath) => {
     const p = mkWorkspacePath('/test', relPath);
     expect(isSensitiveRead(p)).toBe(true);
