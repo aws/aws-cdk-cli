@@ -820,6 +820,253 @@ describe('executing a change set created by an earlier invocation', () => {
     expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 
+  function givenRootWithNestedStackChange(nested: Record<string, unknown>) {
+    givenChangeSetExists({
+      deploymentConfig: { Mode: 'EXPRESS' },
+      changes: [{
+        Type: 'Resource',
+        ResourceChange: {
+          LogicalResourceId: 'NestedChild',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          ...nested,
+        },
+      }],
+    });
+  }
+
+  function givenNestedChain(levels: number, deepestChanges: Change[]) {
+    const deploymentConfig: DeploymentConfig = { Mode: 'EXPRESS' };
+    let child: { id: string; stackName: string } | undefined;
+
+    for (let i = levels; i >= 1; i--) {
+      const stackName = `withouterrors-Nested${i}`;
+      fakeCfn.createStackSync({ StackName: stackName, StackStatus: StackStatus.UPDATE_COMPLETE });
+      const changes: Change[] = child
+        ? [{
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: `Nested${i + 1}`,
+            PhysicalResourceId: child.stackName,
+            ResourceType: 'AWS::CloudFormation::Stack',
+            Replacement: 'False',
+            ChangeSetId: child.id,
+          },
+        }]
+        : deepestChanges;
+
+      const cs = fakeCfn.createChangeSetSync({
+        StackName: stackName,
+        ChangeSetName: `prepared-nested-${i}`,
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: changes,
+        DeploymentConfig: deploymentConfig,
+      });
+      child = { id: cs.Id!, stackName };
+    }
+
+    givenRootWithNestedStackChange({
+      Action: 'Modify',
+      LogicalResourceId: 'Nested1',
+      PhysicalResourceId: child!.stackName,
+      Replacement: 'False',
+      ChangeSetId: child!.id,
+    });
+  }
+
+  async function expectBlockedAsIncomplete(deployment: Promise<unknown>) {
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'NestedChangeSetInspectionIncomplete' }));
+    expectNoStackMutation();
+  }
+
+  test('a nested stack change carrying no child change set blocks instead of assuming no replacement', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenRootWithNestedStackChange({ Action: 'Modify', PhysicalResourceId: 'some-child', Replacement: 'False' });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expectBlockedAsIncomplete(deployment);
+  });
+
+  test('a REMOVED nested stack legitimately has no child change set and does not block', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenRootWithNestedStackChange({ Action: 'Remove', PhysicalResourceId: 'some-child' });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('a malformed or not-found child change set blocks instead of assuming no replacement', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenRootWithNestedStackChange({
+      Action: 'Modify',
+      PhysicalResourceId: 'some-child',
+      Replacement: 'False',
+      ChangeSetId: 'malformed-or-not-found',
+    });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expectBlockedAsIncomplete(deployment);
+  });
+
+  test('a child DescribeChangeSet failure blocks instead of assuming no replacement', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    const { childChangeSetId } = givenNestedChangeSetExists({
+      rollbackDisabled: true,
+      childChanges: [policyActionReplacementChange()],
+    });
+    mockCloudFormationClient
+      .on(DescribeChangeSetCommand, { ChangeSetName: childChangeSetId })
+      .rejects(new Error('Rate exceeded'));
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expectBlockedAsIncomplete(deployment);
+  });
+
+  test('a child change set in CREATE_FAILED blocks instead of reading its absent changes as empty', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    const childStackName = 'withouterrors-NestedChild-FAILED';
+    fakeCfn.createStackSync({ StackName: childStackName, StackStatus: StackStatus.UPDATE_COMPLETE });
+    const child = fakeCfn.createChangeSetSync({
+      StackName: childStackName,
+      ChangeSetName: 'prepared-nested-failed',
+      Status: 'CREATE_FAILED',
+      StatusReason: 'Insufficient permissions to describe the nested template',
+      ExecutionStatus: 'UNAVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+    });
+    givenRootWithNestedStackChange({
+      Action: 'Modify',
+      PhysicalResourceId: childStackName,
+      Replacement: 'False',
+      ChangeSetId: child.Id,
+    });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expectBlockedAsIncomplete(deployment);
+  });
+
+  test('a hierarchy deeper than the traversal cap blocks instead of skipping the unread levels', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenNestedChain(11, [policyActionReplacementChange()]);
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expectBlockedAsIncomplete(deployment);
+  });
+
+  test('a cycle terminates and still reports the replacement it found', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    const childStackName = 'withouterrors-NestedCycle';
+    fakeCfn.createStackSync({ StackName: childStackName, StackStatus: StackStatus.UPDATE_COMPLETE });
+    const root = fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+      Changes: [{
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: 'NestedCycle',
+          PhysicalResourceId: childStackName,
+          ResourceType: 'AWS::CloudFormation::Stack',
+          Replacement: 'False',
+          ChangeSetId: 'cycle-child',
+        },
+      }],
+    });
+    fakeCfn.createChangeSetSync({
+      StackName: childStackName,
+      ChangeSetName: 'cycle-child',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+      Changes: [
+        policyActionReplacementChange(),
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'BackToRoot',
+            PhysicalResourceId: 'withouterrors',
+            ResourceType: 'AWS::CloudFormation::Stack',
+            Replacement: 'False',
+            ChangeSetId: root.Id,
+          },
+        },
+      ],
+    });
+    failOnAnyStackMutation();
+
+    // WHEN
+    const deployment = testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ReplacementRequiresRecreateChangeSet' }));
+    expectNoStackMutation();
+    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'does not support while rollback is disabled' });
+  });
+
   const POLICY_MATRIX = [
     [true, { express: true, rollback: true }, 'reported'],
     [true, { express: true }, 'silent'],

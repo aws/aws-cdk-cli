@@ -573,53 +573,68 @@ class FullCloudFormationDeployment {
     };
   }
 
-  private async findAllReplacements(changeSet: DescribeChangeSetCommandOutput): Promise<ReplacedResource[]> {
+  private async findAllReplacements(changeSet: DescribeChangeSetCommandOutput): Promise<ReplacementScan> {
     const visited = new Set<string>();
+    const uninspected: string[] = [];
 
     const collect = async (current: DescribeChangeSetCommandOutput, depth: number): Promise<ReplacedResource[]> => {
       const replacements = findReplacements(current);
-      if (depth >= MAX_NESTED_CHANGE_SET_DEPTH) {
-        await this.ioHelper.defaults.debug(format(
-          'Stopped looking for nested replacements at depth %d; deeper nested stacks were not inspected.',
+      const nestedStackChanges = (current.Changes ?? [])
+        .map((change) => change.ResourceChange)
+        .filter((nested) => nested?.ResourceType === 'AWS::CloudFormation::Stack')
+        .filter((nested) => nested!.Action !== 'Remove');
+
+      if (nestedStackChanges.length > 0 && depth >= MAX_NESTED_CHANGE_SET_DEPTH) {
+        uninspected.push(format(
+          'nested stacks below depth %d (%s) were not inspected',
           depth,
+          nestedStackChanges.map((nested) => nested!.LogicalResourceId ?? '<unnamed>').join(', '),
         ));
         return replacements;
       }
 
-      for (const change of current.Changes ?? []) {
-        const nested = change.ResourceChange;
-        if (nested?.ResourceType !== 'AWS::CloudFormation::Stack' || !nested.ChangeSetId) {
+      for (const nested of nestedStackChanges) {
+        const logicalId = nested!.LogicalResourceId ?? '<unnamed>';
+
+        if (!nested!.ChangeSetId) {
+          uninspected.push(format('nested stack %s reported no change set to inspect', logicalId));
           continue;
         }
 
-        if (visited.has(nested.ChangeSetId)) {
+        if (visited.has(nested!.ChangeSetId)) {
           continue;
         }
-        visited.add(nested.ChangeSetId);
+        visited.add(nested!.ChangeSetId);
 
+        let child: DescribeChangeSetCommandOutput;
         try {
-          const child = await new ChangeSetDescriber({
+          child = await new ChangeSetDescriber({
             cfn: this.cfn,
             ioHelper: this.ioHelper,
-            stackNameOrArn: nested.PhysicalResourceId ?? nested.LogicalResourceId ?? this.stackName,
-            changeSetNameOrArn: nested.ChangeSetId,
+            stackNameOrArn: nested!.PhysicalResourceId ?? logicalId,
+            changeSetNameOrArn: nested!.ChangeSetId,
           }).waitForSettled();
-
-          replacements.push(...await collect(child, depth + 1));
         } catch (e: any) {
-          await this.ioHelper.defaults.debug(format(
-            'Could not describe nested change set %s for %s, so it was not inspected for replacements: %s',
-            nested.ChangeSetId,
-            nested.LogicalResourceId,
-            formatErrorMessage(e),
-          ));
+          uninspected.push(format('nested stack %s could not be described (%s)', logicalId, formatErrorMessage(e)));
+          continue;
         }
+
+        if (child.Status !== 'CREATE_COMPLETE') {
+          uninspected.push(format(
+            'nested stack %s has change set status %s, so its changes could not be read',
+            logicalId,
+            child.Status ?? '<unknown>',
+          ));
+          continue;
+        }
+
+        replacements.push(...await collect(child, depth + 1));
       }
 
       return replacements;
     };
 
-    return collect(changeSet, 0);
+    return { replacements: await collect(changeSet, 0), uninspected };
   }
 
   private rollbackWillBeDisabled(changeSet: DescribeChangeSetCommandOutput, persistedRollbackDisabled: boolean | undefined): boolean {
@@ -643,7 +658,8 @@ class FullCloudFormationDeployment {
     const persistedRollbackDisabled = expressRollbackDisabled(changeSet.DeploymentConfig);
     const requestedRollbackDisabled = this.rollbackDisabled();
 
-    const replacements = await this.findAllReplacements(changeSet);
+    const scan = await this.findAllReplacements(changeSet);
+    const replacements = scan.replacements;
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
 
@@ -685,6 +701,13 @@ class FullCloudFormationDeployment {
         }
       }
       return { type: 'replacement-requires-rollback' };
+    }
+
+    if (rollbackWillBeDisabled && scan.uninspected.length > 0) {
+      throw new ToolkitError(
+        'NestedChangeSetInspectionIncomplete',
+        nestedInspectionIncompleteMessage(scan.uninspected),
+      );
     }
 
     if (persistedRollbackDisabled !== undefined && persistedRollbackDisabled !== requestedRollbackDisabled) {
@@ -1256,6 +1279,30 @@ function changeSetPolicyMismatchMessage(changeSetName: string | undefined, persi
 }
 
 type ReplacementRecovery = 'none' | 'replay' | 'recreate' | 'resolve-state';
+
+/**
+ * The outcome of scanning a change set hierarchy for replacements.
+ *
+ * `uninspected` is non-empty when part of the hierarchy could not be read, in which case an empty `replacements`
+ * does NOT mean there are none.
+ */
+interface ReplacementScan {
+  readonly replacements: ReplacedResource[];
+  readonly uninspected: string[];
+}
+
+function nestedInspectionIncompleteMessage(uninspected: string[]): string {
+  const withRollback = chalk.blue('cdk deploy --express --rollback');
+
+  return [
+    'Rollback is disabled for this deployment, so a replacement would be rejected mid-execution and leave the stack',
+    'in UPDATE_FAILED. Part of the nested stack hierarchy could not be inspected, so it cannot be confirmed that this',
+    'deployment contains no replacement:',
+    ...uninspected.map((reason) => `  - ${reason}`),
+    '',
+    `Deploy with rollback enabled instead, which allows replacements: ${withRollback}`,
+  ].join('\n');
+}
 
 const MAX_NESTED_CHANGE_SET_DEPTH = 10;
 
