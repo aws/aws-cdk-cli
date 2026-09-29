@@ -14,7 +14,7 @@ import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -283,7 +283,7 @@ export class CdkToolkit {
   public async diff(options: DiffOptions): Promise<number> {
     const assembly = await this.assembly();
     const stacks = await this.selectTopLevelOrMatchingStacks(assembly, options.stackNames, options.exclusively);
-    await this.validateStacks(assembly, stacks);
+    await this.validateStacks(stacks);
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
@@ -508,7 +508,7 @@ export class CdkToolkit {
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly(options.cacheCloudAssembly);
     const stackCollection = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stackCollection);
+    await this.validateStacks(stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
@@ -703,7 +703,7 @@ export class CdkToolkit {
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly();
     const stackCollection = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stackCollection);
+    await this.validateStacks(stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
@@ -875,7 +875,7 @@ export class CdkToolkit {
   public async import(options: ImportOptions) {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stacks);
+    await this.validateStacks(stacks);
 
     // set progress from options, this includes user and app config
     if (options.progress) {
@@ -1101,7 +1101,7 @@ export class CdkToolkit {
       ? assembly.selectStacksForValidation()
       : new StackCollection(assembly, []);
 
-    await this.validateStacks(assembly, stacks.concat(autoValidateStacks));
+    await this.validateStacks(stacks.concat(autoValidateStacks));
 
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
@@ -1441,9 +1441,9 @@ export class CdkToolkit {
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(assembly: StackAssembly, stacks: StackCollection) {
+  private async validateStacks(stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
-    await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
+    await stacks.reportValidationFailuresAndThrow(failAt, this.ioHost.asIoHelper());
   }
 
   private validateMetadataFailAt(): 'warn' | 'error' | 'none' {

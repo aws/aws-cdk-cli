@@ -78,7 +78,7 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
-import type { StackCollection } from '../api/cloud-assembly/stack-collection';
+import { combineConclusions, type StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
@@ -116,7 +116,6 @@ import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obsc
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -366,7 +365,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await throwIfValidationFailures(assembly, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
+
+    const allStacksToValidate = stacks.concat(...autoValidateStacks);
+    await allStacksToValidate.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -545,7 +546,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
@@ -700,7 +701,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(selectStacks);
 
-    const reports = await obtainUnifiedValidationReport(assembly, stacks);
+    const reports = await stacks.unifiedValidationReport();
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
@@ -799,7 +800,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: DeployResult = {
       stacks: [],
@@ -1493,7 +1494,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
 
     const stacks = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stacks, this.assemblyFailureAt, ioHelper);
+    await stacks.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: RollbackResult = {
       stacks: [],
