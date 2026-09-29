@@ -610,11 +610,18 @@ class FullCloudFormationDeployment {
     }
 
     // A change set carries its own rollback policy: CloudFormation persists `DeploymentConfig` when the change set is
-    // created. `ExecuteChangeSet` takes a top-level `DisableRollback` but no `DeploymentConfig`, and whether that flag
-    // can override a persisted EXPRESS policy is undocumented - so when we are executing a change set that already pins
-    // the answer we treat the persisted value, not this invocation's flags, as what CloudFormation will do. Reading the
-    // current options here would let `--rollback` (or simply omitting `--express`) appear to enable rollback on a change
-    // set that was created with it disabled, which is how the replacement below would reach CloudFormation anyway.
+    // created, and `ExecuteChangeSet` cannot change it. Its input takes a top-level `DisableRollback`, but that is a
+    // consistency assertion rather than an override: a value matching the change set is accepted, and a conflicting one
+    // is rejected synchronously with
+    //
+    //   ValidationError: DisableRollback specified on ExecuteChangeSet conflicts with the value DisableRollback the
+    //   ChangeSet was created with.
+    //
+    // (verified against CloudFormation in us-east-1 - see the empirical notes on #1969). So when we are executing a
+    // change set that already pins the answer, the persisted value - not this invocation's flags - is what
+    // CloudFormation will do. Reading the current options here would let `--rollback` (or simply omitting `--express`)
+    // appear to enable rollback on a change set that was created with it disabled, which is how the replacement below
+    // would reach CloudFormation anyway.
     const persistedRollbackDisabled = expressRollbackDisabled(changeSetReport.changeSet.DeploymentConfig);
     const requestedRollbackDisabled = this.rollbackDisabled();
 
@@ -625,7 +632,11 @@ class FullCloudFormationDeployment {
       );
     }
 
-    const rollbackWillBeDisabled = persistedRollbackDisabled ?? requestedRollbackDisabled;
+    // What CloudFormation will actually do. Only Express records a rollback choice on the change set; anything else is
+    // governed by the `DisableRollback` we are about to send, which `commonExecuteOptions()` only sets for an explicit
+    // `--no-rollback`. `--express` arriving at execute time therefore cannot disable rollback on a non-Express change
+    // set, and must not make the replacement guard below believe it did.
+    const rollbackWillBeDisabled = persistedRollbackDisabled ?? this.options.rollback === false;
     const isExpress = this.options.express || changeSetReport.changeSet.DeploymentConfig?.Mode === 'EXPRESS';
 
     // CloudFormation rejects replacement-type updates while rollback is disabled. This is documented under "Express

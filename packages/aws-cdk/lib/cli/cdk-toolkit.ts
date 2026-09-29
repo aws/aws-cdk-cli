@@ -490,6 +490,11 @@ export class CdkToolkit {
         roleArn: options.roleArn,
         forceDeployment: options.force,
         rollback: options.rollback,
+        // Must travel with `rollback`: together they decide the rollback policy this invocation is asking for, and
+        // Express Mode flips what a missing `rollback` means (disabled, rather than standard mode's enabled). Omitting
+        // it made toolkit-lib read plain `--express` as "rollback enabled" and refuse Express change sets this same CLI
+        // had just created with rollback disabled.
+        express: options.express,
         reuseAssets: options.reuseAssets,
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,

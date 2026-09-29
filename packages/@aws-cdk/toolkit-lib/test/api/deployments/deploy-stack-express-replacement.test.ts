@@ -1,5 +1,5 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import type { Change, CreateChangeSetCommandInput, Stack } from '@aws-sdk/client-cloudformation';
+import type { Change, CreateChangeSetCommandInput, DeploymentConfig, Stack } from '@aws-sdk/client-cloudformation';
 import {
   CreateChangeSetCommand,
   DescribeChangeSetCommand,
@@ -669,12 +669,14 @@ describe('direct path', () => {
 
 /**
  * A change set carries the rollback policy it was created with. CloudFormation persists `DeploymentConfig` on
- * `CreateChangeSet`, returns it from `DescribeChangeSet`, and `ExecuteChangeSet` cannot override it (its input has no
- * `DeploymentConfig` field). So when create and execute happen in separate invocations - `--method=change-set
- * --no-execute` then `--method=execute-change-set`, or the toolkit's own retry - the second invocation's flags do not
- * decide what CloudFormation does. Deriving rollback safety from the current options there would let the SEV in #1931
- * back in: the guard would believe rollback is enabled and execute a rollback-disabled change set containing a
- * replacement.
+ * `CreateChangeSet`, returns it from `DescribeChangeSet`, and `ExecuteChangeSet` cannot override it: its input has no
+ * `DeploymentConfig` field, and its top-level `DisableRollback` is a consistency assertion rather than an override - a
+ * matching value is accepted, a conflicting one fails synchronously with `ValidationError: DisableRollback specified on
+ * ExecuteChangeSet conflicts with the value DisableRollback the ChangeSet was created with.` So when create and execute
+ * happen in separate invocations - `--method=change-set --no-execute` then `--method=execute-change-set`, or the
+ * toolkit's own retry - the second invocation's flags do not decide what CloudFormation does. Deriving rollback safety
+ * from the current options there would let the SEV in #1931 back in: the guard would believe rollback is enabled and
+ * execute a rollback-disabled change set containing a replacement.
  */
 describe('executing a change set created by an earlier invocation', () => {
   function givenExpressChangeSetExists(opts: { rollbackDisabled: boolean; changes: Change[] }) {
@@ -791,6 +793,93 @@ describe('executing a change set created by an earlier invocation', () => {
     expect(result.type).toEqual('replacement-requires-rollback');
     expectNoStackMutation();
     ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'does not support while rollback is disabled' });
+  });
+
+  function givenChangeSetExists(opts: { deploymentConfig?: DeploymentConfig; changes: Change[] }) {
+    fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      Changes: opts.changes,
+      DeploymentConfig: opts.deploymentConfig,
+    });
+  }
+
+  /**
+   * The full flag matrix for the policy comparison: `--express` decides what a missing `--rollback` means, so it has to
+   * be read here exactly as it is when the change set is created. aws/aws-cdk-cli#1969 shipped with the CLI dropping
+   * `express` on the `execute-change-set` delegation, which made plain `--express` mean "rollback enabled" and refused
+   * Express change sets the same CLI had just created (`persisted disabled` x `express` x `rollback: undefined` below).
+   */
+  describe.each([
+    // persisted rollback DISABLED (Express default)
+    [true, { express: true, rollback: true }, 'mismatch'],
+    [true, { express: true }, 'match'],
+    [true, { express: true, rollback: false }, 'match'],
+    [true, { rollback: true }, 'mismatch'],
+    [true, {}, 'mismatch'],
+    [true, { rollback: false }, 'match'],
+    // persisted rollback ENABLED
+    [false, { express: true, rollback: true }, 'match'],
+    [false, { express: true }, 'mismatch'],
+    [false, { express: true, rollback: false }, 'mismatch'],
+    [false, { rollback: true }, 'match'],
+    [false, {}, 'match'],
+    [false, { rollback: false }, 'mismatch'],
+  ] as Array<[boolean, Partial<DeployStackApiOptions>, 'match' | 'mismatch']>)(
+    'persisted rollbackDisabled=%s executed with %j',
+    (persistedRollbackDisabled, flags, expected) => {
+      test(`is a ${expected}`, async () => {
+        // GIVEN - a non-replacing change, so a matching policy is free to execute and only the comparison is under test
+        givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+        givenExpressChangeSetExists({ rollbackDisabled: persistedRollbackDisabled, changes: [updateChange()] });
+
+        if (expected === 'mismatch') {
+          failOnAnyStackMutation();
+        }
+
+        // WHEN
+        const deployment = testDeployStack({
+          ...standardDeployStackArguments(),
+          ...executePrepared,
+          ...flags,
+        });
+
+        // THEN
+        if (expected === 'mismatch') {
+          await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ChangeSetRollbackPolicyMismatch' }));
+          expectNoStackMutation();
+        } else {
+          await expect(deployment).resolves.toEqual(expect.objectContaining({ type: 'did-deploy-stack' }));
+          expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+        }
+      });
+    },
+  );
+
+  /**
+   * Only Express records a rollback choice on the change set. A STANDARD change set is governed by the `DisableRollback`
+   * flag sent at execute time, and that flag is only sent for an explicit `--no-rollback` - so `--express` arriving at
+   * execute time cannot disable rollback on it, and must not make the replacement guard think it did. Without this,
+   * plumbing `express` through to the execute path turns `prepare` (standard) + `execute --express` into a false refusal.
+   */
+  test('--express does not imply rollback-disabled for a change set that is not Express', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenChangeSetExists({ deploymentConfig: { Mode: 'STANDARD' }, changes: [policyActionReplacementChange()] });
+
+    // WHEN - rollback is not disabled server-side here, so the replacement is deployable
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+    expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 
   // `isRollbackable` also covers CREATE_FAILED, where there is no previously deployed configuration to replay. Telling
