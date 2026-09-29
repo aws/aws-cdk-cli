@@ -760,7 +760,7 @@ describe('executing a change set created by an earlier invocation', () => {
       StackName: childStackName,
       ChangeSetName: 'prepared-nested-child',
       Status: 'CREATE_COMPLETE',
-      ExecutionStatus: 'AVAILABLE',
+      ExecutionStatus: 'UNAVAILABLE',
       Changes: opts.childChanges,
       DeploymentConfig: deploymentConfig,
     });
@@ -820,9 +820,11 @@ describe('executing a change set created by an earlier invocation', () => {
     expect(ioHost.messagesWithCode(W5903)).toEqual([]);
   });
 
-  function givenRootWithNestedStackChange(nested: Record<string, unknown>) {
+  function givenRootWithNestedStackChange(nested: Record<string, unknown>, opts: { rollbackDisabled?: boolean } = {}) {
     givenChangeSetExists({
-      deploymentConfig: { Mode: 'EXPRESS' },
+      deploymentConfig: opts.rollbackDisabled === false
+        ? { Mode: 'EXPRESS', DisableRollback: false }
+        : { Mode: 'EXPRESS' },
       changes: [{
         Type: 'Resource',
         ResourceChange: {
@@ -834,7 +836,7 @@ describe('executing a change set created by an earlier invocation', () => {
     });
   }
 
-  function givenNestedChain(levels: number, deepestChanges: Change[]) {
+  function givenNestedChain(levels: number, deepestChanges: Change[], opts: { rollbackDisabled?: boolean } = {}) {
     const deploymentConfig: DeploymentConfig = { Mode: 'EXPRESS' };
     let child: { id: string; stackName: string } | undefined;
 
@@ -859,7 +861,7 @@ describe('executing a change set created by an earlier invocation', () => {
         StackName: stackName,
         ChangeSetName: `prepared-nested-${i}`,
         Status: 'CREATE_COMPLETE',
-        ExecutionStatus: 'AVAILABLE',
+        ExecutionStatus: 'UNAVAILABLE',
         Changes: changes,
         DeploymentConfig: deploymentConfig,
       });
@@ -872,11 +874,33 @@ describe('executing a change set created by an earlier invocation', () => {
       PhysicalResourceId: child!.stackName,
       Replacement: 'False',
       ChangeSetId: child!.id,
-    });
+    }, opts);
   }
 
-  async function expectBlockedAsIncomplete(deployment: Promise<unknown>) {
-    await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'NestedChangeSetInspectionIncomplete' }));
+  function givenFailedChildChangeSet(opts: { rollbackDisabled?: boolean } = {}) {
+    const childStackName = 'withouterrors-NestedChild-FAILED';
+    fakeCfn.createStackSync({ StackName: childStackName, StackStatus: StackStatus.UPDATE_COMPLETE });
+    const child = fakeCfn.createChangeSetSync({
+      StackName: childStackName,
+      ChangeSetName: 'prepared-nested-failed',
+      Status: 'CREATE_FAILED',
+      StatusReason: 'Insufficient permissions to describe the nested template',
+      ExecutionStatus: 'UNAVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+    });
+    givenRootWithNestedStackChange({
+      Action: 'Modify',
+      PhysicalResourceId: childStackName,
+      Replacement: 'False',
+      ChangeSetId: child.Id,
+    }, opts);
+  }
+
+  async function expectBlockedAsIncomplete(deployment: Promise<unknown>, containing: string) {
+    await expect(deployment).rejects.toThrow(expect.objectContaining({
+      name: 'NestedChangeSetInspectionIncomplete',
+      message: expect.stringContaining(containing),
+    }));
     expectNoStackMutation();
   }
 
@@ -894,7 +918,7 @@ describe('executing a change set created by an earlier invocation', () => {
     });
 
     // THEN
-    await expectBlockedAsIncomplete(deployment);
+    await expectBlockedAsIncomplete(deployment, 'reported no change set to inspect');
   });
 
   test('a REMOVED nested stack legitimately has no child change set and does not block', async () => {
@@ -933,7 +957,7 @@ describe('executing a change set created by an earlier invocation', () => {
     });
 
     // THEN
-    await expectBlockedAsIncomplete(deployment);
+    await expectBlockedAsIncomplete(deployment, 'could not be described');
   });
 
   test('a child DescribeChangeSet failure blocks instead of assuming no replacement', async () => {
@@ -956,28 +980,13 @@ describe('executing a change set created by an earlier invocation', () => {
     });
 
     // THEN
-    await expectBlockedAsIncomplete(deployment);
+    await expectBlockedAsIncomplete(deployment, 'Rate exceeded');
   });
 
   test('a child change set in CREATE_FAILED blocks instead of reading its absent changes as empty', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
-    const childStackName = 'withouterrors-NestedChild-FAILED';
-    fakeCfn.createStackSync({ StackName: childStackName, StackStatus: StackStatus.UPDATE_COMPLETE });
-    const child = fakeCfn.createChangeSetSync({
-      StackName: childStackName,
-      ChangeSetName: 'prepared-nested-failed',
-      Status: 'CREATE_FAILED',
-      StatusReason: 'Insufficient permissions to describe the nested template',
-      ExecutionStatus: 'UNAVAILABLE',
-      DeploymentConfig: { Mode: 'EXPRESS' },
-    });
-    givenRootWithNestedStackChange({
-      Action: 'Modify',
-      PhysicalResourceId: childStackName,
-      Replacement: 'False',
-      ChangeSetId: child.Id,
-    });
+    givenFailedChildChangeSet();
     failOnAnyStackMutation();
 
     // WHEN
@@ -988,7 +997,7 @@ describe('executing a change set created by an earlier invocation', () => {
     });
 
     // THEN
-    await expectBlockedAsIncomplete(deployment);
+    await expectBlockedAsIncomplete(deployment, 'has change set status CREATE_FAILED');
   });
 
   test('a hierarchy deeper than the traversal cap blocks instead of skipping the unread levels', async () => {
@@ -1005,10 +1014,105 @@ describe('executing a change set created by an earlier invocation', () => {
     });
 
     // THEN
-    await expectBlockedAsIncomplete(deployment);
+    await expectBlockedAsIncomplete(deployment, 'were not inspected');
   });
 
-  test('a cycle terminates and still reports the replacement it found', async () => {
+  test.each([
+    ['a missing child change set', () => givenRootWithNestedStackChange(
+      { Action: 'Modify', PhysicalResourceId: 'some-child', Replacement: 'False' },
+      { rollbackDisabled: false },
+    )],
+    ['a child that cannot be described', () => {
+      const { childChangeSetId } = givenNestedChangeSetExists({
+        rollbackDisabled: false,
+        childChanges: [updateChange()],
+      });
+      mockCloudFormationClient
+        .on(DescribeChangeSetCommand, { ChangeSetName: childChangeSetId })
+        .rejects(new Error('Rate exceeded'));
+    }],
+    ['a child change set that is not CREATE_COMPLETE', () => givenFailedChildChangeSet({ rollbackDisabled: false })],
+    ['a hierarchy deeper than the traversal cap', () => givenNestedChain(
+      11,
+      [policyActionReplacementChange()],
+      { rollbackDisabled: false },
+    )],
+  ])('rollback enabled deploys normally despite %s', async (_name, setup) => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    setup();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+      rollback: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('a cycle with no replacement is cut short by the visited set rather than walked to the depth cap', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    const childStackName = 'withouterrors-NestedCycleClean';
+    fakeCfn.createStackSync({ StackName: childStackName, StackStatus: StackStatus.UPDATE_COMPLETE });
+    const root = fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+      Changes: [{
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: 'NestedCycleClean',
+          PhysicalResourceId: childStackName,
+          ResourceType: 'AWS::CloudFormation::Stack',
+          Replacement: 'False',
+          ChangeSetId: 'cycle-child-clean',
+        },
+      }],
+    });
+    fakeCfn.createChangeSetSync({
+      StackName: childStackName,
+      ChangeSetName: 'cycle-child-clean',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'UNAVAILABLE',
+      DeploymentConfig: { Mode: 'EXPRESS' },
+      Changes: [
+        updateChange(),
+        {
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'BackToRoot',
+            PhysicalResourceId: 'withouterrors',
+            ResourceType: 'AWS::CloudFormation::Stack',
+            Replacement: 'False',
+            ChangeSetId: root.Id,
+          },
+        },
+      ],
+    });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('a replacement is still reported when it is reached through a cycle', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
     const childStackName = 'withouterrors-NestedCycle';
@@ -1035,7 +1139,7 @@ describe('executing a change set created by an earlier invocation', () => {
       StackName: childStackName,
       ChangeSetName: 'cycle-child',
       Status: 'CREATE_COMPLETE',
-      ExecutionStatus: 'AVAILABLE',
+      ExecutionStatus: 'UNAVAILABLE',
       DeploymentConfig: { Mode: 'EXPRESS' },
       Changes: [
         policyActionReplacementChange(),
