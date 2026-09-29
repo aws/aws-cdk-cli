@@ -264,16 +264,23 @@ function expectNoStackMutation() {
  * reordering, which is why these compare offsets.
  *
  * Deliberately anchored on the suggestion phrasing and NOT on `indexOf('--rollback')`: the FIRST occurrence of that flag
- * is the clause saying it cannot update a failed stack, and that one legitimately comes before the unwedge steps. A
+ * is the clause saying it cannot update a failed state, and that one legitimately comes before the unwedge steps. A
  * naive "unwedge before any --rollback mention" assertion would fail on the correct message.
+ *
+ * That carve-out left a blind spot, so it is pinned explicitly: the first mention of the rollback command must be the
+ * "cannot update" clause. Without this, prepending an actionable `Deploy it with cdk deploy --express --rollback` line
+ * ahead of the whole explanation is invisible to every other assertion here - the steps still follow "in a failed
+ * state", and the closing suggestion still comes last.
  */
 function expectUnwedgeBeforeRollbackSuggestion(message: string) {
   const state = message.indexOf('in a failed state');
   const step1 = message.indexOf('Revert your change');
   const step2 = message.indexOf('cdk deploy --express --method=direct');
   const suggestion = message.indexOf('Re-apply your change and deploy it with');
+  const firstRollbackMention = message.indexOf('cdk deploy --express --rollback');
 
   expect(state).toBeGreaterThanOrEqual(0);
+  expect(firstRollbackMention).toBeGreaterThan(state);
   expect(step1).toBeGreaterThan(state);
   expect(step2).toBeGreaterThan(step1);
   expect(suggestion).toBeGreaterThan(step2);
