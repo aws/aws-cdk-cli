@@ -1613,6 +1613,9 @@ test.each([
 // See aws/aws-cdk-cli#1931. The `express, no explicit rollback` expectation below was
 // changed from 'replacement-requires-rollback' to 'did-deploy-stack' by #1745, which is
 // why the regression shipped unnoticed; #1785 then restructured the guard it removed.
+//
+// The result type alone is the surface #1745 edited, so it is not pinned on its own here: each row also asserts whether
+// anything was actually submitted. Flipping an expectation now requires flipping a claim about CloudFormation calls too.
 test.each([
   // --express alone (rollback disabled server-side): a replacement must not be submitted
   ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
@@ -1637,6 +1640,13 @@ test.each([
 
     // THEN
     expect(result.type).toEqual(expectedType);
+
+    if (expectedType === 'replacement-requires-rollback') {
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateStackCommand);
+    } else {
+      expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+    }
   },
 );
 

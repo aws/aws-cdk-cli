@@ -531,6 +531,27 @@ export class FakeCloudFormation {
       cfnError('InvalidChangeSetStatus', `ChangeSet [${cs.name}] is in ${cs.executionStatus} state and cannot be executed`);
     }
 
+    // `DisableRollback` on ExecuteChangeSet is a consistency assertion against the policy the change set was created
+    // with, not an override: a matching value is accepted, and a conflicting one is rejected synchronously, before
+    // anything is submitted and with both the stack and the change set left untouched. Verified against CloudFormation
+    // in us-east-1.
+    //
+    // Scoped to EXPRESS because only EXPRESS persists a rollback choice on the change set. A STANDARD change set
+    // records none, so there the execute-time flag decides and cannot conflict with anything.
+    const persistedRollbackDisabled = cs.deploymentConfig?.Mode === 'EXPRESS'
+      ? cs.deploymentConfig.DisableRollback !== false
+      : undefined;
+    if (
+      input.DisableRollback !== undefined &&
+      persistedRollbackDisabled !== undefined &&
+      input.DisableRollback !== persistedRollbackDisabled
+    ) {
+      cfnError(
+        'ValidationError',
+        'DisableRollback specified on ExecuteChangeSet conflicts with the value DisableRollback the ChangeSet was created with.',
+      );
+    }
+
     // Remove the executed change set from the stack's list. Real CloudFormation
     // also deletes all other change sets, but we skip that to avoid interfering
     // with concurrent operations on the same stack in tests.

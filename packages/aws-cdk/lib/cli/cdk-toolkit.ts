@@ -2570,7 +2570,12 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            // Express Mode disables rollback by DEFAULT, so naming `--no-rollback` here would blame a flag the user
+            // never passed. This path and `toolkit.ts` must stay worded the same: both are reachable from `cdk deploy`
+            // depending on `--method`.
+            const motivation = this.options.express
+              ? 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)'
+              : 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);

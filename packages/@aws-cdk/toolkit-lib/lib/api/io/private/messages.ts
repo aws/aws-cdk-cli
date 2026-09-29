@@ -334,6 +334,11 @@ export const IO = {
     code: 'CDK_TOOLKIT_W5902',
     description: 'Express Mode deployment completed with resources still stabilizing',
   }),
+  /**
+   * Tied to a CloudFormation restriction (replacements are refused while rollback is disabled) that is expected to be
+   * TEMPORARY. If the restriction is lifted this message is removed together with the `ReplacementRequiresRollback` and
+   * `ReplacedResource` payload types - see the REMOVAL CONTRACT comment in `api/deployments/deploy-stack.ts`.
+   */
   CDK_TOOLKIT_W5903: make.warn<ReplacementRequiresRollback>({
     code: 'CDK_TOOLKIT_W5903',
     description: 'Deployment includes a replacement that CloudFormation does not support while rollback is disabled',
