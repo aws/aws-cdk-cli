@@ -410,6 +410,14 @@ export abstract class CloudAssemblySourceBuilder {
    * the CloudAssembly is being used, no CDK app synthesis can take place into
    * that directory.
    *
+   * @remarks
+   * A Cloud Assembly is a trust boundary. Do not deploy Cloud Assemblies
+   * from sources you do not trust. Building assets from an external directory
+   * can run external code. The author who synthesized the Cloud Assembly, or
+   * anyone who can modify it between synthesis and deployment, can affect what
+   * code runs on your shell environment, as well as what resources are deployed
+   * using your AWS credentials.
+   *
    * @param directory - directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
    */

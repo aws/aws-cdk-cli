@@ -68,7 +68,7 @@
     "debug-cli": {
       "type": "boolean",
       "default": false,
-      "desc": "Debug the CDK CLI itself."
+      "desc": "Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution."
     },
     "profile": {
       "type": "string",
@@ -941,6 +941,10 @@
           "desc": "Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.",
           "default": true,
           "deprecated": "use --method instead"
+        },
+        "change-set-name": {
+          "type": "string",
+          "desc": "Name of the CloudFormation change set to create (only if method is not template)"
         },
         "method": {
           "alias": "m",

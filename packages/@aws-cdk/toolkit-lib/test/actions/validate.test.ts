@@ -3,7 +3,7 @@ import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
 import { Toolkit } from '../../lib/toolkit';
-import { cdkOutFixture, TestIoHost } from '../_helpers';
+import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
 import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -109,6 +109,32 @@ describe('validate', () => {
         expect.objectContaining({
           pluginName: 'TestPlugin',
           conclusion: 'failure',
+        }),
+      ]),
+    });
+  });
+
+  test('fails on vaiolations for stacks nested under a grouping construct', async () => {
+    // The stack's hierarchicalId is 'myGroup/MyStack', and the violating construct path is
+    // 'myGroup/MyStack/MyBucket/Resource'. Violations must be matched on the full stack id prefix,
+    // not on the first segment of the construct path only.
+    const cx = await builderFixture(toolkit, 'stack-with-nested-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result).toMatchObject({
+      conclusion: 'failure',
+      pluginReports: expect.arrayContaining([
+        expect.objectContaining({
+          violations: expect.arrayContaining([
+            expect.objectContaining({
+              ruleName: 'no-public-buckets',
+              violatingConstructs: expect.arrayContaining([
+                expect.objectContaining({
+                  constructPath: 'myGroup/MyStack/MyBucket/Resource',
+                }),
+              ]),
+            }),
+          ]),
         }),
       ]),
     });

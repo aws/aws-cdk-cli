@@ -35,7 +35,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
+        "BUMP_PACKAGE": "commit-and-tag-version@^13",
         "MAJOR": "1"
       },
       "steps": [
@@ -293,7 +293,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12"
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {

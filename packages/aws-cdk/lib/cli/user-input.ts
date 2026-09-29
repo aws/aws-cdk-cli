@@ -256,7 +256,7 @@ export interface GlobalOptions {
   readonly debugApp?: boolean;
 
   /**
-   * Debug the CDK CLI itself.
+   * Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.
    *
    * @default - false
    */
@@ -1492,6 +1492,13 @@ export interface DiffOptions {
    * @default - true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Name of the CloudFormation change set to create (only if method is not template)
+   *
+   * @default - undefined
+   */
+  readonly changeSetName?: string;
 
   /**
    * How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.

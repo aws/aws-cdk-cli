@@ -8,6 +8,7 @@
     ".github/workflows/auto-queue.yml",
     ".github/workflows/bootstrap-template-protection.yml",
     ".github/workflows/build.yml",
+    ".github/workflows/cli-canary-artifact.yml",
     ".github/workflows/codecov.yml",
     ".github/workflows/dependency-review.yml",
     ".github/workflows/integ.yml",

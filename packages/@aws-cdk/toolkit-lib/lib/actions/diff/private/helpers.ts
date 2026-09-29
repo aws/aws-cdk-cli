@@ -99,6 +99,7 @@ async function cfnDiff(
       parameters: methodOptions.parameters ?? {},
       failOnError: !(methodOptions.fallbackToTemplate ?? true),
       importExistingResources: methodOptions.importExistingResources,
+      changeSetName: methodOptions.changeSetName,
       uuid: randomUUID(),
     }))?.changeSet : undefined;
 
