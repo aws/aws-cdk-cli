@@ -621,8 +621,9 @@ IAM Statement Changes
       successfulDeployment();
     });
 
-    // The confirm-and-retry-with-rollback prompt is the entire user-visible recovery path for
-    // aws/aws-cdk-cli#1931, so pin both what the user is told and what we do when they agree.
+    // From a healthy stack the guard returns `replacement-requires-rollback`, which the deploy action turns into
+    // this prompt and a retry with rollback enabled. From an already-failed stack it throws instead, since the
+    // retry cannot succeed there.
     test('replacement-requires-rollback under --express explains that rollback is disabled, and retries with it enabled', async () => {
       // GIVEN
       mockDeployStack.mockImplementation(async (params) => {

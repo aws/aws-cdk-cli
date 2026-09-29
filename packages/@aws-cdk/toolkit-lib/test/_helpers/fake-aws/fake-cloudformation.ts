@@ -517,7 +517,7 @@ export class FakeCloudFormation {
       Description: cs.description,
       CreationTime: cs.creationTime,
       // The real API returns the DeploymentConfig that was persisted by CreateChangeSet. It matters because
-      // ExecuteChangeSet cannot override it, so code executing an existing change set has to read it from here.
+      // ExecuteChangeSet cannot change it, so code executing an existing change set has to read it from here.
       ...(cs.deploymentConfig ? { DeploymentConfig: cs.deploymentConfig } : undefined),
       NextToken: nextToken,
       $metadata: {},
@@ -1167,8 +1167,8 @@ export class FakeCloudFormation {
    * Whether CloudFormation would have rollback disabled for this operation.
    *
    * Standard deployments say so with `DisableRollback` on the call. Express Mode has rollback disabled server-side by
-   * default, and re-enables it by sending `DeploymentConfig.DisableRollback: false` - so express operations strand the
-   * stack in `*_FAILED` unless they explicitly opt back into rollback.
+   * default, and re-enables it by sending `DeploymentConfig.DisableRollback: false`. A replacement submitted while
+   * rollback is disabled is rejected by CloudFormation during execution.
    */
   private rollbackIsDisabled(input: { DisableRollback?: boolean; DeploymentConfig?: DeploymentConfig }): boolean {
     if (input.DisableRollback) {
