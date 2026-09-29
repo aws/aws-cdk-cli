@@ -251,6 +251,46 @@ function expectNoStackMutation() {
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateStackCommand);
 }
 
+/**
+ * Assert the `replay` guidance is ordered the way a wedged user needs to read it: the state the stack is actually in,
+ * then the steps that return it to a terminal state, and only then the suggestion to deploy with rollback enabled.
+ *
+ * Ordering is the whole point of this message. `cdk deploy --express --rollback` cannot update a stack that is already
+ * failed - CloudFormation answers "This stack is currently in a non-terminal [UPDATE_FAILED] state" - so guidance that
+ * led with that command would be advice the user cannot act on. Containment assertions alone would not catch a
+ * reordering, which is why these compare offsets.
+ *
+ * Deliberately anchored on the suggestion phrasing and NOT on `indexOf('--rollback')`: the FIRST occurrence of that flag
+ * is the clause saying it cannot update a failed stack, and that one legitimately comes before the unwedge steps. A
+ * naive "unwedge before any --rollback mention" assertion would fail on the correct message.
+ */
+function expectUnwedgeBeforeRollbackSuggestion(message: string) {
+  const state = message.indexOf('in a failed state');
+  const step1 = message.indexOf('Revert your change');
+  const step2 = message.indexOf('cdk deploy --express --method=direct');
+  const suggestion = message.indexOf('Re-apply your change and deploy it with');
+
+  expect(state).toBeGreaterThanOrEqual(0);
+  expect(step1).toBeGreaterThan(state);
+  expect(step2).toBeGreaterThan(step1);
+  expect(suggestion).toBeGreaterThan(step2);
+}
+
+/**
+ * Assert the `recreate` guidance never offers replay instructions.
+ *
+ * A stack that never completed a deployment has no previous configuration to go back to, so telling its owner to
+ * "revert your change and redeploy the last configuration that deployed successfully" is impossible advice. This is the
+ * variant whose wrongness is hardest to spot by hand, so it is pinned positively and negatively.
+ */
+function expectRecreateGuidance(message: string) {
+  expect(message).toMatch(/no previous configuration to replay/);
+  expect(message).toMatch(/Delete the stack and deploy again/);
+  expect(message).not.toMatch(/Revert your change/);
+  expect(message).not.toMatch(/Re-apply your change and deploy it with/);
+  expect(message).not.toMatch(/--method=direct/);
+}
+
 describe('change set path, replacement reported as policy action with Replacement=True', () => {
   const replacementChange = policyActionReplacementChange;
   test('express with rollback disabled is gated before ExecuteChangeSet', async () => {
@@ -378,6 +418,7 @@ describe('change set path, replacement reported as policy action with Replacemen
     await expect(deployment).rejects.toThrow(expect.objectContaining({ name: 'ReplacementRequiresUnwedge' }));
     await expect(deployment).rejects.toThrow(/Revert your change/);
     await expect(deployment).rejects.toThrow(/cdk deploy --express --method=direct/);
+    expectUnwedgeBeforeRollbackSuggestion(await deployment.then(() => '', (e) => e.message));
     expectNoStackMutation();
 
     // ... and it is reported once, by the error, not also as a warning
@@ -585,6 +626,7 @@ describe('direct path', () => {
     ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'Revert your change' });
     ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'cdk deploy --express --method=direct' });
     ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'cdk deploy --express --rollback' });
+    expectUnwedgeBeforeRollbackSuggestion(ioHost.messagesWithCode(W5903)[0].message);
     expect(ioHost.messagesWithCode(W5903)[0].data).toEqual(expect.objectContaining({
       stackName: 'withouterrors',
       detectedBy: 'service-error',
@@ -903,6 +945,7 @@ describe('executing a change set created by an earlier invocation', () => {
     await expect(deployment).rejects.toThrow(/no previous configuration to replay/);
     await expect(deployment).rejects.toThrow(/Delete the stack and deploy again/);
     await expect(deployment).rejects.not.toThrow(/Revert your change/);
+    expectRecreateGuidance(await deployment.then(() => '', (e) => e.message));
     expectNoStackMutation();
   });
 
