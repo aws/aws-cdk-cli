@@ -1,5 +1,5 @@
 import type { PluginReportJson } from '@aws-cdk/cloud-assembly-schema';
-import { relativeFileLocationRenderer, stripAnsi, ValidationReportFormatter } from '../lib/validations-formatter';
+import { relativeFileLocationRenderer, stripAnsi, ValidationReportFormatter } from '../../lib/validation/formatting';
 
 test('renders multiple source locations capped at 5', () => {
   const output = defaultFormatValidateReports([
