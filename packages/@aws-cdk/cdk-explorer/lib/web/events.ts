@@ -1,5 +1,5 @@
-import type { Request, Response } from 'express';
 import type { SseEventName } from './protocol';
+import type { Request, Response } from '../expressy';
 
 /**
  * Simultaneous streams one explorer will hold open. The model is one developer

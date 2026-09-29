@@ -25,11 +25,6 @@
       "type": "build"
     },
     {
-      "name": "@types/express",
-      "version": "^4",
-      "type": "build"
-    },
-    {
       "name": "@types/jest",
       "type": "build"
     },

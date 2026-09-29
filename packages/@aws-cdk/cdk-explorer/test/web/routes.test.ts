@@ -4,15 +4,15 @@ import * as path from 'path';
 import type { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
 import { LockError } from '@aws-cdk/toolkit-lib';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-import express = require('express');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import request = require('supertest');
 import type { AssemblyReadResult, ConstructNode } from '../../lib/core/assembly-reader';
+import type { Express } from '../../lib/expressy';
+import { createApp } from '../../lib/expressy';
 import { createApiRouter } from '../../lib/web/routes';
 import { StalenessTracker } from '../../lib/web/staleness';
 
 let appDir: string;
-let app: express.Express;
+let app: Express;
 
 /** No-op assembly lock; these tests inject readAssembly directly, so no real lock is exercised. */
 const noopAssemblyLock = async () => ({ release: () => Promise.resolve() });
@@ -29,7 +29,7 @@ beforeEach(() => {
   fs.mkdirSync(path.join(appDir, 'lib'));
   fs.writeFileSync(path.join(appDir, 'lib', 'stack.ts'), 'class Stack {}\n');
 
-  app = express();
+  app = createApp();
   app.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock }));
 });
 
@@ -56,7 +56,7 @@ describe('GET /api/file', () => {
     const staleness = new StalenessTracker();
     // Reference well before the fixture file was written, so it reads as stale.
     staleness.onAssemblyRefreshed(0);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
 
     const res = await request(a).get('/api/file').query({ path: 'app.ts' });
@@ -68,7 +68,7 @@ describe('GET /api/file', () => {
     const staleness = new StalenessTracker();
     // Reference far in the future, so no file can be newer than it.
     staleness.onAssemblyRefreshed(Date.now() + 60_000);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
 
     const res = await request(a).get('/api/file').query({ path: 'app.ts' });
@@ -156,10 +156,10 @@ describe('GET /api/tree', () => {
   function appWith(
     readAssembly: (dir: string) => Promise<AssemblyReadResult>,
     opts: { assemblyDir?: string } = {},
-  ): express.Express {
+  ): Express {
     const assemblyDir = opts.assemblyDir ?? path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
     return a;
   }
@@ -242,18 +242,17 @@ describe('GET /api/template', () => {
   function appWith(
     readAssembly: (dir: string) => Promise<AssemblyReadResult>,
     opts: { assemblyDir?: string } = {},
-  ): express.Express {
+  ): Express {
     const assemblyDir = opts.assemblyDir ?? path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
     fs.writeFileSync(path.join(assemblyDir, 'MyStack.template.json'), TEMPLATE_TEXT);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
     return a;
   }
 
   test('returns template content and resource line ranges', async () => {
     const realAppDir = fs.realpathSync(appDir);
-    const assemblyDir = path.join(appDir, 'cdk.out');
     const reader = async (dir: string): Promise<AssemblyReadResult> => {
       const node: ConstructNode = {
         path: 'MyStack/Bucket',
@@ -334,10 +333,10 @@ describe('GET /api/template', () => {
 });
 
 describe('GET /api/policy-validation', () => {
-  function appWith(readAssembly: (dir: string) => Promise<AssemblyReadResult>): express.Express {
+  function appWith(readAssembly: (dir: string) => Promise<AssemblyReadResult>): Express {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock: noopAssemblyLock }));
     return a;
   }
@@ -405,14 +404,14 @@ describe('GET /api/policy-validation', () => {
 });
 
 describe('assembly read lock', () => {
-  function appWithLock(acquireAssemblyLock: () => Promise<{ release: () => Promise<void> }>): express.Express {
+  function appWithLock(acquireAssemblyLock: () => Promise<{ release: () => Promise<void> }>): Express {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
-    const a = express();
+    const a = createApp();
     a.use('/api', createApiRouter({
       appDir,
       assemblyDir,
-      readAssembly: () => ({ status: 'not-found' }),
+      readAssembly: () => Promise.resolve({ status: 'not-found' }),
       acquireAssemblyLock,
     }));
     return a;
@@ -461,8 +460,8 @@ describe('assembly read lock', () => {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
     const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
-    const readAssembly = jest.fn((): AssemblyReadResult => ({ status: 'success', data: { tree: [], warnings: [] } }));
-    const a = express();
+    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [] } }));
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
     await request(a).get('/api/tree');
     await request(a).get('/api/tree');
@@ -474,8 +473,8 @@ describe('assembly read lock', () => {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
     const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
-    const readAssembly = jest.fn((): AssemblyReadResult => ({ status: 'success', data: { tree: [], warnings: [] } }));
-    const a = express();
+    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [] } }));
+    const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
     await request(a).get('/api/tree');
     const future = new Date(Date.now() + 5000);

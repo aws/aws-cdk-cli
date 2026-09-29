@@ -1213,7 +1213,6 @@ const cdkExplorer = configureProject(
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
-      '@types/express@^4',
       'react@^18',
       'react-dom@^18',
       '@types/react@^18',

@@ -1,42 +1,72 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+export interface WorkspacePath {
+  readonly root: string;
+  readonly absolutePath: string;
+  readonly relativePath: string;
+}
+
+export function mkWorkspacePath(root: string, relativeRequested: string): WorkspacePath {
+  const realRoot = realPath(path.resolve(root));
+
+  const absolutePath = path.resolve(realRoot, relativeRequested);
+  return {
+    root: realRoot,
+    absolutePath,
+    relativePath: path.relative(realRoot, absolutePath),
+  };
+}
+
 /**
  * Resolve a client-supplied, root-relative path to an absolute path guaranteed
- * to stay inside `root`. Returns `undefined` when the request escapes the root
- * (via `..` or a symlink pointing outside), which callers must treat as a 403.
+ * to stay inside `root`.
  *
- * `root` is expected to be absolute. A leading `/` on `requested` is stripped so
- * absolute-looking inputs cannot jump to the filesystem root.
+ * Returns `undefined` when the request escapes the root (via `..` or a symlink
+ * pointing outside), which callers must treat as a 403.
+ *
  */
-export function resolveWithinRoot(root: string, requested: string): string | undefined {
-  const realRoot = realOrSelf(path.resolve(root));
-  const relative = requested.replace(/^[/\\]+/, '');
-  const resolved = path.resolve(realRoot, relative);
+export function resolveWithinRoot(root: string, relativeRequested: string): WorkspacePath | undefined {
+  const requested = mkWorkspacePath(root, relativeRequested);
 
-  if (!isInside(realRoot, resolved)) {
+  // Only resolve potential symlinks if the symlink is in the target directory
+  if (escapesRoot(requested)) {
     return undefined;
   }
-  // Follow symlinks on the target: an existing file reached through a symlinked
-  // directory must still land inside the root. A non-existent target resolves to
-  // itself and stays caught by the lexical check above (and the caller 404s it).
-  if (!isInside(realRoot, realOrSelf(resolved))) {
+
+  // Resolve a potential symlink, should still stay inside the target directory
+  const followed = resolveSymlink(requested);
+  if (escapesRoot(followed)) {
     return undefined;
   }
-  return resolved;
+
+  return followed;
 }
 
-function isInside(root: string, candidate: string): boolean {
-  return candidate === root || candidate.startsWith(root + path.sep);
+function escapesRoot(ws: WorkspacePath): boolean {
+  return ws.absolutePath !== ws.root && !ws.absolutePath.startsWith(ws.root + path.sep);
 }
 
-/** Real path with symlinks resolved, or the input unchanged if it does not exist. */
-function realOrSelf(p: string): string {
+/**
+ * Real path with symlinks resolved, or the input unchanged if it does not exist.
+ *
+ * Also makes relative symlinks absolute.
+ */
+function realPath(p: string): string {
   try {
     return fs.realpathSync(p);
   } catch {
     return p;
   }
+}
+
+function resolveSymlink(ws: WorkspacePath): WorkspacePath {
+  const p = realPath(ws.absolutePath);
+  return {
+    root: ws.root,
+    absolutePath: p,
+    relativePath: path.relative(ws.root, p),
+  };
 }
 
 /**
@@ -69,49 +99,14 @@ const SENSITIVE_EXTENSIONS = new Set([
 const TEMPLATE_EXTENSIONS = new Set(['.json', '.yaml', '.yml']);
 
 /**
- * True when a root-relative path names something the explorer refuses to
- * display. Containment answers "does this path stay inside the root?"; this
- * answers "should the root expose it at all?" — the served roots are broad by
- * nature (`appDir` is the whole project tree, the assembly dir holds staged
- * assets), so containment alone still leaves credentials in reach of an
- * unauthenticated read.
- *
- * The broad rule is that any dot-prefixed segment is out of scope: `.env`,
- * `.git/config`, `.ssh/id_rsa`, `.aws/credentials`, `.npmrc`, `.netrc`. That is
- * the policy the source watcher already applies (`SOURCE_WATCH_EXCLUDES`
- * excludes `.*`), and nothing the explorer displays is a dotfile — a CDK app's
- * source files and templates never are. The name and extension lists then cover
- * the secret-bearing files that are not dotfiles.
- *
- * The path must be relative to the served root: an absolute path would trip the
- * dotfile rule on the root's own location (e.g. a project under `~/.local`).
+ * True if the requested file is marked as "sensitive" and will never be allowed to be read
  */
-export function isSensitivePath(relPath: string): boolean {
-  const segments = relPath.split(/[/\\]+/).filter((segment) => segment.length > 0);
-  if (segments.some((segment) => segment.startsWith('.'))) {
-    return true;
-  }
-  const basename = (segments[segments.length - 1] ?? '').toLowerCase();
-  return SENSITIVE_BASENAMES.has(basename) || SENSITIVE_EXTENSIONS.has(path.extname(basename));
-}
-
-/**
- * True when `resolved` — an absolute path {@link resolveWithinRoot} already
- * confined to `root` — is denied by {@link isSensitivePath}. The symlink target
- * is checked too, so a link with an innocuous name (`src/config.ts` pointing at
- * `.env`) cannot launder a denied one; containment already guarantees the target
- * is inside the root, so this only re-runs the name policy on it.
- */
-export function isSensitiveRead(root: string, resolved: string): boolean {
-  // Relativize against the same canonical root resolveWithinRoot resolved against,
-  // or a symlinked root (macOS `/var`) would yield a `..`-prefixed relative path
-  // and deny every read.
-  const realRoot = realOrSelf(path.resolve(root));
-  if (isSensitivePath(path.relative(realRoot, resolved))) {
-    return true;
-  }
-  const real = realOrSelf(resolved);
-  return real !== resolved && isSensitivePath(path.relative(realRoot, real));
+export function isSensitiveRead(wsPath: WorkspacePath): boolean {
+  return wsPath
+    .relativePath
+    .split(/[/\\]+/)
+    .filter((segment) => segment.length > 0)
+    .some((segment) => segment.startsWith('.') || SENSITIVE_BASENAMES.has(segment.toLowerCase()) || SENSITIVE_EXTENSIONS.has(path.extname(segment).toLowerCase()));
 }
 
 /**

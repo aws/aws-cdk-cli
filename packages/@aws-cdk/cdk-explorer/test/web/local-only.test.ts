@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response } from '../../lib/expressy';
 import {
   isAllowedFetchSite,
   isAllowedOrigin,
@@ -7,7 +7,7 @@ import {
   newSessionToken,
   sessionAuth,
   SESSION_COOKIE,
-} from '../../lib/web/local-only';
+} from '../../lib/web/middleware/local-only';
 
 describe('isLoopbackHost', () => {
   test.each([

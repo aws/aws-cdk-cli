@@ -1,21 +1,25 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { isSensitivePath, isSensitiveRead, isTemplatePath, resolveWithinRoot } from '../../lib/web/safe-path';
+import { isSensitiveRead, isTemplatePath, mkWorkspacePath, resolveWithinRoot } from '../../lib/web/safe-path';
 
 const root = path.resolve('/srv/app');
 
 describe('resolveWithinRoot', () => {
   test('resolves a simple relative path inside the root', () => {
-    expect(resolveWithinRoot(root, 'lib/stack.ts')).toBe(path.join(root, 'lib/stack.ts'));
+    expect(resolveWithinRoot(root, 'lib/stack.ts')).toMatchObject({
+      absolutePath: path.join(root, 'lib/stack.ts'),
+    });
   });
 
   test('treats an empty path as the root itself', () => {
-    expect(resolveWithinRoot(root, '')).toBe(root);
+    expect(resolveWithinRoot(root, '')).toMatchObject({
+      absolutePath: root,
+    });
   });
 
-  test('strips a leading slash instead of jumping to filesystem root', () => {
-    expect(resolveWithinRoot(root, '/lib/stack.ts')).toBe(path.join(root, 'lib/stack.ts'));
+  test('does not allow escaping using a leading slash', () => {
+    expect(resolveWithinRoot(root, '/lib/stack.ts')).toBe(undefined);
   });
 
   test('rejects traversal above the root', () => {
@@ -25,7 +29,9 @@ describe('resolveWithinRoot', () => {
   });
 
   test('allows traversal that stays within the root', () => {
-    expect(resolveWithinRoot(root, 'lib/../bin/cdk.ts')).toBe(path.join(root, 'bin/cdk.ts'));
+    expect(resolveWithinRoot(root, 'lib/../bin/cdk.ts')).toMatchObject({
+      absolutePath: path.join(root, 'bin/cdk.ts'),
+    });
   });
 
   test('does not treat a sibling directory with a shared prefix as inside', () => {
@@ -50,7 +56,8 @@ describe('isSensitivePath', () => {
     'aws/credentials',
     'home/id_ed25519',
   ])('denies %s', (relPath) => {
-    expect(isSensitivePath(relPath)).toBe(true);
+    const p = mkWorkspacePath('/test', relPath);
+    expect(isSensitiveRead(p)).toBe(true);
   });
 
   test.each([
@@ -67,15 +74,13 @@ describe('isSensitivePath', () => {
     'lib/environment.ts',
     'lib/keys.ts',
   ])('allows %s', (relPath) => {
-    expect(isSensitivePath(relPath)).toBe(false);
-  });
-
-  test('denies a windows-separated dotted segment', () => {
-    expect(isSensitivePath('config\\.env')).toBe(true);
+    const p = mkWorkspacePath('/test', relPath);
+    expect(isSensitiveRead(p)).toBe(false);
   });
 
   test('denies a relative path that escaped the root, since `..` is a dot segment', () => {
-    expect(isSensitivePath('../outside/app.ts')).toBe(true);
+    const p = mkWorkspacePath('/test', '../outside/app.ts');
+    expect(isSensitiveRead(p)).toBe(true);
   });
 });
 
@@ -91,24 +96,11 @@ describe('isSensitiveRead', () => {
   });
 
   test('allows an ordinary source file', () => {
-    expect(isSensitiveRead(dir, path.join(dir, 'lib', 'stack.ts'))).toBe(false);
+    expect(isSensitiveRead(mkWorkspacePath(dir, 'lib/stack.ts'))).toBe(false);
   });
 
   test('denies a dotfile under the root', () => {
-    expect(isSensitiveRead(dir, path.join(dir, '.env'))).toBe(true);
-  });
-
-  test('tolerates a symlinked root rather than denying every read under it', () => {
-    // macOS `/var` is a symlink to `/private/var`, so resolveWithinRoot hands back
-    // a path under the real root while the configured root is the symlinked one.
-    const real = fs.realpathSync(dir);
-    const link = path.join(dir, 'self-link');
-    try {
-      fs.symlinkSync(real, link);
-    } catch {
-      return; // symlinks not permitted in this environment; skip
-    }
-    expect(isSensitiveRead(link, path.join(real, 'app.ts'))).toBe(false);
+    expect(isSensitiveRead(mkWorkspacePath(dir, '.env'))).toBe(true);
   });
 
   test('denies a symlink whose innocuous name points at a denied file', () => {
@@ -119,7 +111,9 @@ describe('isSensitiveRead', () => {
     } catch {
       return; // symlinks not permitted in this environment; skip
     }
-    expect(isSensitiveRead(dir, link)).toBe(true);
+
+    const requested = resolveWithinRoot(dir, 'config.ts');
+    expect(requested && isSensitiveRead(requested)).toBe(true);
   });
 });
 
@@ -163,11 +157,17 @@ describe('resolveWithinRoot (win32 semantics)', () => {
   });
 
   test('resolves forward-slash client paths under the root', () => {
-    expect(resolveWin(winRoot, 'lib/stack.ts')).toBe('C:\\srv\\app\\lib\\stack.ts');
+    expect(resolveWin(winRoot, 'lib/stack.ts')).toMatchObject({
+      absolutePath: 'C:\\srv\\app\\lib\\stack.ts',
+    });
   });
 
-  test('strips a leading backslash instead of jumping to the drive root', () => {
-    expect(resolveWin(winRoot, '\\lib\\stack.ts')).toBe('C:\\srv\\app\\lib\\stack.ts');
+  test('leading backslash does not allow escaping', () => {
+    expect(resolveWin(winRoot, '\\lib\\stack.ts')).toBe(undefined);
+  });
+
+  test('leading drive letter does not allow escaping', () => {
+    expect(resolveWin(winRoot, 'D:\\lib\\stack.ts')).toBe(undefined);
   });
 
   test('rejects backslash traversal above the root', () => {

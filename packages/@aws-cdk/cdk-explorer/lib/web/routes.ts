@@ -3,9 +3,6 @@ import * as path from 'path';
 import { ConstructIndex, MANIFEST_FILE, resolveAllResourceRanges } from '@aws-cdk/cloud-assembly-api';
 import type { PolicyValidationReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { type Router, type Express, type Response } from 'express';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import express = require('express');
 import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
 import { isSensitiveRead, isTemplatePath, resolveWithinRoot } from './safe-path';
 import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
@@ -13,6 +10,8 @@ import { StalenessTracker } from './staleness';
 import type { AcquireAssemblyLock, AssemblyLock } from '../core/assembly-lock';
 import { readAssembly as defaultReadAssembly, type AssemblyData, type AssemblyReadResult, type ConstructNode } from '../core/assembly-reader';
 import type { SourceLocation } from '../core/source-resolver';
+import type { Express, Response, Router } from '../expressy';
+import { createRouter } from '../expressy';
 
 /** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -105,7 +104,7 @@ export function createApiRouter(options: ApiOptions): Router {
     }
   }
 
-  const router = express.Router();
+  const router = createRouter();
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -126,12 +125,12 @@ export function createApiRouter(options: ApiOptions): Router {
     }
     // The app dir is the whole project tree, so containment is not enough: refuse
     // the files under it that hold secrets rather than app source.
-    if (isSensitiveRead(appDir, resolved)) {
+    if (isSensitiveRead(resolved)) {
       return res.status(403).json({ error: 'path is not readable by the explorer' });
     }
     let stat: fs.Stats;
     try {
-      stat = fs.statSync(resolved);
+      stat = fs.statSync(resolved.absolutePath);
     } catch {
       return res.status(404).json({ error: 'file not found' });
     }
@@ -141,12 +140,12 @@ export function createApiRouter(options: ApiOptions): Router {
     if (stat.size > MAX_FILE_BYTES) {
       return res.status(413).json({ error: `file exceeds ${MAX_FILE_BYTES} byte limit` });
     }
-    const buffer = fs.readFileSync(resolved);
+    const buffer = fs.readFileSync(resolved.absolutePath);
     if (isBinary(buffer)) {
       return res.status(415).json({ error: 'binary file cannot be displayed' });
     }
     return res.json({
-      path: toPosix(path.relative(appDir, resolved)),
+      path: toPosix(resolved.relativePath),
       content: buffer.toString('utf-8'),
       stale: staleness.isStale(stat.mtimeMs),
     });
@@ -181,19 +180,19 @@ export function createApiRouter(options: ApiOptions): Router {
     }
     // The assembly dir also holds staged assets, so serve only what this endpoint
     // exists to render, and apply the same secret-file policy as /api/file.
-    if (!isTemplatePath(resolved) || isSensitiveRead(assemblyDir, resolved)) {
+    if (!isTemplatePath(resolved.absolutePath) || isSensitiveRead(resolved)) {
       return res.status(403).json({ error: 'path is not a readable template' });
     }
     let content: string;
     try {
-      const stat = fs.statSync(resolved);
+      const stat = fs.statSync(resolved.absolutePath);
       if (!stat.isFile()) {
         return res.status(400).json({ error: 'not a file' });
       }
       if (stat.size > MAX_FILE_BYTES) {
         return res.status(413).json({ error: `file exceeds ${MAX_FILE_BYTES} byte limit` });
       }
-      content = fs.readFileSync(resolved, 'utf-8');
+      content = fs.readFileSync(resolved.absolutePath, 'utf-8');
     } catch {
       return res.status(404).json({ error: 'template not found' });
     }
