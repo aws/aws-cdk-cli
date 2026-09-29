@@ -78,11 +78,6 @@ export interface PublishAssetEvent {
 
 /**
  * A resource that CloudFormation reported it would replace
- *
- * This type exists only to describe a CloudFormation restriction: replacements are refused while rollback is disabled.
- * That restriction is expected to be TEMPORARY, so treat this type as provisional - if CloudFormation lifts it, this
- * type, `ReplacementRequiresRollback` and `CDK_TOOLKIT_W5903` are removed together (see the REMOVAL CONTRACT comment in
- * `api/deployments/deploy-stack.ts`). Do not build anything on it that cannot tolerate deprecation.
  */
 export interface ReplacedResource {
   /**
@@ -110,11 +105,6 @@ export interface ReplacedResource {
 
 /**
  * A deployment includes a replacement that CloudFormation will not perform while rollback is disabled
- *
- * This type exists only to describe a CloudFormation restriction that is expected to be TEMPORARY, so treat it as
- * provisional - if CloudFormation lifts the restriction, this type, `ReplacedResource` and `CDK_TOOLKIT_W5903` are
- * removed together (see the REMOVAL CONTRACT comment in `api/deployments/deploy-stack.ts`). Do not build anything on it
- * that cannot tolerate deprecation.
  */
 export interface ReplacementRequiresRollback {
   /**

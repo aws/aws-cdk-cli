@@ -77,9 +77,6 @@ export class TestIoHost implements IIoHost {
     }));
   }
 
-  /**
-   * Return all messages emitted with a given code
-   */
   public messagesWithCode(code: IoMessageCode): Array<IoMessage<unknown>> {
     return this.messages.filter((m) => m.code === code);
   }

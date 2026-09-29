@@ -867,9 +867,6 @@ describe('deploy', () => {
       expect(mockCfnDeployments.prepareStack).not.toHaveBeenCalled();
     });
 
-    // `--express` decides what a missing `--rollback` means: Express Mode disables rollback by default, standard mode
-    // enables it. Dropping the flag here made toolkit-lib read plain `--express` as "rollback enabled", so the
-    // change-set policy guard refused Express change sets that this same CLI had just created.
     test.each([
       ['plain --express', { express: true }, { express: true, rollback: undefined }],
       ['--express --rollback', { express: true, rollback: true }, { express: true, rollback: true }],

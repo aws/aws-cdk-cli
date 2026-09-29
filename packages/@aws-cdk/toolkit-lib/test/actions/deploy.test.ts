@@ -621,9 +621,6 @@ IAM Statement Changes
       successfulDeployment();
     });
 
-    // From a healthy stack the guard returns `replacement-requires-rollback`, which the deploy action turns into
-    // this prompt and a retry with rollback enabled. From an already-failed stack it throws instead, since the
-    // retry cannot succeed there.
     test('replacement-requires-rollback under --express explains that rollback is disabled, and retries with it enabled', async () => {
       // GIVEN
       mockDeployStack.mockImplementation(async (params) => {
@@ -652,7 +649,6 @@ IAM Statement Changes
         }),
       }));
 
-      // ... and we retried the deployment ourselves with rollback enabled
       expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({ express: true, rollback: true }));
       successfulDeployment();
     });

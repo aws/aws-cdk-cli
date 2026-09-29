@@ -516,8 +516,6 @@ export class FakeCloudFormation {
       Capabilities: cs.capabilities as any,
       Description: cs.description,
       CreationTime: cs.creationTime,
-      // The real API returns the DeploymentConfig that was persisted by CreateChangeSet. It matters because
-      // ExecuteChangeSet cannot change it, so code executing an existing change set has to read it from here.
       ...(cs.deploymentConfig ? { DeploymentConfig: cs.deploymentConfig } : undefined),
       NextToken: nextToken,
       $metadata: {},
@@ -531,13 +529,6 @@ export class FakeCloudFormation {
       cfnError('InvalidChangeSetStatus', `ChangeSet [${cs.name}] is in ${cs.executionStatus} state and cannot be executed`);
     }
 
-    // `DisableRollback` on ExecuteChangeSet is a consistency assertion against the policy the change set was created
-    // with, not an override: a matching value is accepted, and a conflicting one is rejected synchronously, before
-    // anything is submitted and with both the stack and the change set left untouched. Verified against CloudFormation
-    // in us-east-1.
-    //
-    // Scoped to EXPRESS because only EXPRESS persists a rollback choice on the change set. A STANDARD change set
-    // records none, so there the execute-time flag decides and cannot conflict with anything.
     const persistedRollbackDisabled = cs.deploymentConfig?.Mode === 'EXPRESS'
       ? cs.deploymentConfig.DisableRollback !== false
       : undefined;
@@ -1184,13 +1175,6 @@ export class FakeCloudFormation {
     });
   }
 
-  /**
-   * Whether CloudFormation would have rollback disabled for this operation.
-   *
-   * Standard deployments say so with `DisableRollback` on the call. Express Mode has rollback disabled server-side by
-   * default, and re-enables it by sending `DeploymentConfig.DisableRollback: false`. A replacement submitted while
-   * rollback is disabled is rejected by CloudFormation during execution.
-   */
   private rollbackIsDisabled(input: { DisableRollback?: boolean; DeploymentConfig?: DeploymentConfig }): boolean {
     if (input.DisableRollback) {
       return true;
@@ -1216,12 +1200,6 @@ export class FakeCloudFormation {
     });
   }
 
-  /**
-   * Emit resource-level failure events for every failing resource that declares a `FailReason`.
-   *
-   * Real CloudFormation reports why an operation failed on a resource event, not on the stack event. Resources that
-   * only set `Fail: true` keep the old behaviour of producing stack-level events only.
-   */
   private addFailedUpdateResourceEvents(stack: InMemoryStack, template: Record<string, any>, operationId?: string, verb: 'UPDATE' | 'CREATE' = 'UPDATE') {
     for (const [logicalId, res] of Object.entries(templateResources(template))) {
       const r = res as any;

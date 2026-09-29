@@ -1603,21 +1603,7 @@ test.each([
 
 // CloudFormation's RollbackStack API is not supported for stacks last deployed
 // with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
-// must never route through the rollback path.
-//
-// It must, however, still refuse to submit a replacement while rollback is disabled:
-// CloudFormation rejects those and leaves the stack in UPDATE_FAILED, from which an
-// express stack cannot be rolled back. `--express --rollback` re-enables rollback
-// server-side (DisableRollback: false) and is the route users are sent to.
-//
-// See aws/aws-cdk-cli#1931. The `express, no explicit rollback` expectation below was
-// changed from 'replacement-requires-rollback' to 'did-deploy-stack' by #1745, which is
-// why the regression shipped unnoticed; #1785 then restructured the guard it removed.
-//
-// The result type alone is the surface #1745 edited, so it is not pinned on its own here: each row also asserts whether
-// anything was actually submitted. Flipping an expectation now requires flipping a claim about CloudFormation calls too.
 test.each([
-  // --express alone (rollback disabled server-side): a replacement must not be submitted
   ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
@@ -1652,13 +1638,6 @@ test.each([
 
 // A stack last deployed with express mode that is in a paused fail state
 // (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
-// --express` must therefore never return 'failpaused-need-rollback-first'; it
-// fix-forwards via createChangeSet/UpdateStack instead.
-//
-// The replacement case is deliberately absent here: it does not return a result at
-// all, it throws, because deploying with rollback enabled cannot update an
-// already-failed stack either. It is covered by
-// deploy-stack-express-replacement.test.ts. See aws/aws-cdk-cli#1931.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],

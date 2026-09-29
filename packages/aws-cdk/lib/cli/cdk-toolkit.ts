@@ -491,10 +491,6 @@ export class CdkToolkit {
         roleArn: options.roleArn,
         forceDeployment: options.force,
         rollback: options.rollback,
-        // Must travel with `rollback`: together they decide the rollback policy this invocation is asking for, and
-        // Express Mode flips what a missing `rollback` means (disabled, rather than standard mode's enabled). Omitting
-        // it made toolkit-lib read plain `--express` as "rollback enabled" and refuse Express change sets this same CLI
-        // had just created with rollback disabled.
         express: options.express,
         reuseAssets: options.reuseAssets,
         concurrency: options.concurrency,
@@ -2570,9 +2566,6 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            // Express Mode disables rollback by DEFAULT, so naming `--no-rollback` here would blame a flag the user
-            // never passed. This path and `toolkit.ts` must stay worded the same: both are reachable from `cdk deploy`
-            // depending on `--method`.
             const motivation = this.options.express
               ? 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)'
               : 'Change includes a replacement which cannot be deployed with "--no-rollback"';
