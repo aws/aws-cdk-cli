@@ -5,7 +5,7 @@
  * Same formatting is used for both the CLI and the CDK app.
  */
 import path from 'path';
-import type { PluginReportJson, PolicyViolationJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import type { PluginReportJson, PolicyViolationJson, PolicyViolationSeverity, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import { Colorize } from '../private/color';
 import type { IStackFrameFinder } from '../stack-trace';
 import { DEFAULT_USER_CODE_FINDER, StackTrace } from '../stack-trace';
@@ -141,7 +141,7 @@ function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
     const pluginName = report.pluginName;
     return report.violations.flatMap((violation) => {
       return violation.violatingConstructs.map((construct) => ({
-        severity: normalizeSeverity(violation.severity),
+        severity: normalizeSeverity(violation.severity, violation.customSeverity),
         description: violation.description,
         ruleName: violation.ruleName,
         pluginName,
@@ -153,15 +153,16 @@ function flattenViolations(reports: PluginReportJson[]): FlattenedViolation[] {
   });
 }
 
-function normalizeSeverity(severity: string | undefined): string {
-  switch (severity?.toLowerCase()) {
-    case 'fatal': return 'FATAL';
-    case 'error': return 'ERROR';
-    case 'warning': return 'WARNING';
-    case 'info': return 'INFO';
+function normalizeSeverity(severity: PolicyViolationSeverity, customSeverity: string | undefined): string {
+  switch (severity) {
+    case 'fatal':
+    case 'error':
+    case 'warning':
+    case 'info':
+      return severity.toUpperCase();
+    case 'custom':
+      return customSeverity ?? 'INFO';
   }
-  if (!severity) return 'WARNING';
-  return sanitize(severity);
 }
 
 function getSeverityColor(severity: string): (str: string) => string {

@@ -65,7 +65,7 @@ export function parseValidationId(id: string): ValidationId {
     throw new Error(`Invalid validation rule ID '${id}'. Missing plugin name before '::'.`);
   }
 
-  const namespace = { [NS]: id.substring(0, nsSeparator) };
+  const namespace = namespaceFromString(id.substring(0, nsSeparator));
   const ruleId = id.substring(nsSeparator + 2);
 
   return { namespace, ruleId };
@@ -78,12 +78,12 @@ export function normalizeValidationId(id: string | ValidationId, defaultNamespac
   const p = typeof id === 'string' ? parseValidationId(id) : id;
 
   const parsed = {
-    namespace: p.namespace ? { namespace: p.namespace[NS].replaceAll(/ /g, '-') } : undefined,
+    namespace: p.namespace ? namespaceFromString(p.namespace[NS].replaceAll(/ /g, '-')) : undefined,
     ruleId: p.ruleId.replaceAll(/ /g, '-'),
   };
 
   // Allow aliases for this namespace, but normalize it to the actual namespace we settled on.
-  if (parsed.namespace && ['annotation', 'Construct-Annotations'].includes(parsed.namespace.namespace)) {
+  if (parsed.namespace && ['annotation', 'Construct-Annotations'].includes(parsed.namespace[NS])) {
     return `${ANNOTATION_PLUGIN_NAMESPACE}::${parsed.ruleId}`;
   }
 
@@ -111,7 +111,17 @@ export function namespaceFromPluginName(pluginName: string): Namespace {
     return ANNOTATION_PLUGIN_NAMESPACE as Namespace;
   }
 
-  return { [NS]: pluginName.replace(/ /g, '-') };
+  return namespaceFromString(pluginName.replace(/ /g, '-'));
+}
+
+function namespaceFromString(namespace: string): Namespace {
+  return Object.assign({
+    [NS]: namespace.replace(/ /g, '-'),
+  }, {
+    toString(this: Namespace): string {
+      return this[NS];
+    },
+  });
 }
 
 /**
