@@ -785,7 +785,7 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
-      fs.rmdirSync(telemetryDir, { recursive: true });
+      fs.rmSync(telemetryDir, { recursive: true });
       jest.restoreAllMocks();
     });
 
