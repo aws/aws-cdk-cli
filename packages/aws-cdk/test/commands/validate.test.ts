@@ -152,6 +152,26 @@ describe('with violations', () => {
   });
 });
 
+describe('telemetry', () => {
+  afterEach(() => {
+    // Remove the spies installed by these tests; the file-level `resetAllMocks`
+    // would otherwise strip the passthrough implementation from `ioHost.notify`
+    // and break tests that run later (test order is randomized).
+    jest.restoreAllMocks();
+  });
+
+  test('does not emit a VALIDATE_ONLINE event when online validation is disabled', async () => {
+    const notifySpy = jest.spyOn(ioHost, 'notify');
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
+    });
+
+    expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_I9603' }));
+    expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_I9604' }));
+  });
+});
+
 describe('stack selection', () => {
   test('validates a single selected stack', async () => {
     const exitCode = await toolkit.validate({
