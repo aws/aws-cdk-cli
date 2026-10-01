@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as http from 'http';
 import * as path from 'path';
 import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { Toolkit, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
@@ -23,10 +22,7 @@ import {
   type SourceWatcherOptions,
 } from '../core/source-watcher';
 import { createApp } from '../expressy';
-
-export const DEFAULT_PORT = 3411;
-const MAX_PORT_ATTEMPTS = 100;
-const HOST = 'localhost';
+import { HttpServer } from '../expressy/http-server';
 
 export interface WebServerOptions {
   readonly port?: number;
@@ -153,11 +149,11 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     res.type(index.contentType).send(index.body);
   });
 
-  const server = http.createServer(app);
-
-  const port = options.port !== undefined
-    ? await listenOnPort(server, options.port, HOST)
-    : await listenWithPortSearch(server, DEFAULT_PORT, HOST);
+  const server = new HttpServer(app, {
+    host: 'localhost',
+    port: options.port,
+  });
+  await server.start();
 
   // Start watching only after the server is listening, so a failed bind does not
   // leave a watcher running. Any synth that rewrites cdk.out (an external
@@ -190,7 +186,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   });
 
   let stopped = false;
-  const url = `http://${HOST}:${port}`;
+  const url = server.urlString;
   return {
     url,
     sessionUrl: `${url}/?${TOKEN_QUERY_PARAM}=${token}`,
@@ -201,47 +197,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       await watcher.close();
       await sourceWatcher.close();
       events.close();
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-        server.closeAllConnections();
-      });
+      await server.close();
     },
   };
-}
-
-async function listenOnPort(
-  server: http.Server,
-  port: number,
-  host: string,
-): Promise<number> {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server.removeListener('error', reject);
-      resolve();
-    });
-  });
-  return port;
-}
-
-async function listenWithPortSearch(
-  server: http.Server,
-  startPort: number,
-  host: string,
-): Promise<number> {
-  for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, host, () => {
-          server.removeListener('error', reject);
-          resolve();
-        });
-      });
-      return port;
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
-    }
-  }
-  throw new Error(`No available port found in range ${startPort}-${startPort + MAX_PORT_ATTEMPTS - 1}`);
 }

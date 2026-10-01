@@ -30,5 +30,5 @@ export function indexHtml(): WebAsset {
 
 /** A named SPA asset (e.g. "bundle.js"), or undefined if not part of the build. */
 export function webAsset(name: string): WebAsset | undefined {
-  return WEB_ASSETS[name];
+  return WEB_ASSETS.hasOwnProperty(name) ? WEB_ASSETS[name] : undefined;
 }

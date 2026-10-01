@@ -9,7 +9,10 @@
  * negotiation, error-handling middleware, etc.) so the CLI can bundle it without
  * pulling in a large dependency tree.
  */
-import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
+import { makeRequest, type Request } from './request';
+import { makeResponse, type Response } from './response';
+export { Request, Response };
 
 /** Marks an object as a mountable router, so `app.use` can tell it from a plain handler. */
 const ROUTER = Symbol('expressy.router');
@@ -23,65 +26,6 @@ export type NextFunction = (err?: unknown) => void;
 
 /** A request handler / middleware function. */
 export type Handler = (req: Request, res: Response, next: NextFunction) => void;
-
-/**
- * The inbound request. A structural subset of express's `Request`, backed by the
- * Node `IncomingMessage` the HTTP server hands us.
- */
-export interface Request {
-  /** Lowercased request headers, exactly as Node parsed them. */
-  readonly headers: IncomingHttpHeaders;
-  /** HTTP method (e.g. "GET"). */
-  readonly method: string;
-  /** Parsed query string. Repeated keys become arrays, matching express. */
-  readonly query: Record<string, string | string[] | undefined>;
-  /** Named route parameters captured from the matched path (e.g. `:asset`). */
-  params: Record<string, string>;
-  /** Request path with the query string removed. Always the full original path. */
-  readonly path: string;
-  /** The full original request URL (path plus query string). */
-  readonly originalUrl: string;
-  /** Subscribe to a raw request event (the explorer uses `'close'`). */
-  on(event: string, listener: (...args: any[]) => void): this;
-}
-
-/** Options accepted by {@link Response.cookie}; a subset of express's. */
-export interface CookieOptions {
-  readonly httpOnly?: boolean;
-  readonly sameSite?: 'strict' | 'lax' | 'none';
-  readonly path?: string;
-}
-
-/**
- * The outbound response. A structural subset of express's `Response`, backed by
- * the Node `ServerResponse`. All setters return `this` so calls chain
- * (`res.status(404).json(...)`), as they do in express.
- */
-export interface Response {
-  /** Set one header, or several at once from an object. */
-  set(field: string, value: string): this;
-  set(fields: Record<string, string>): this;
-  /** Set the status code used by the next `json`/`send`/`end`. */
-  status(code: number): this;
-  /** Send a JSON body (sets `Content-Type: application/json` unless already set). */
-  json(body: unknown): this;
-  /** Send a string/Buffer body. */
-  send(body: string | Buffer): this;
-  /** Set the `Content-Type` header. A bare value is used verbatim when it looks like a MIME type. */
-  type(contentType: string): this;
-  /** Send a redirect with the given status code and `Location`. */
-  redirect(code: number, location: string): void;
-  /** Append a `Set-Cookie` header. */
-  cookie(name: string, value: string, options?: CookieOptions): this;
-  /** Flush the status line and headers to the socket without ending the response (for SSE). */
-  flushHeaders(): void;
-  /** Write a raw chunk to the response body. */
-  write(chunk: string | Buffer): boolean;
-  /** End the response. */
-  end(): void;
-  /** Subscribe to a raw response event (the explorer uses `'error'`). */
-  on(event: string, listener: (...args: any[]) => void): this;
-}
 
 /** How a compiled pattern reports a match against a path. */
 interface MatchResult {
@@ -263,123 +207,6 @@ function isRouter(value: unknown): value is Router {
   return typeof value === 'object' && value !== null && (value as any)[ROUTER] === true;
 }
 
-/** Parse a `URLSearchParams` into express's query shape (arrays for repeated keys). */
-function parseQuery(params: URLSearchParams): Record<string, string | string[] | undefined> {
-  const query: Record<string, string | string[]> = {};
-  for (const key of new Set(params.keys())) {
-    const all = params.getAll(key);
-    query[key] = all.length > 1 ? all : all[0];
-  }
-  return query;
-}
-
-/** Wrap the raw Node request in the {@link Request} surface the handlers use. */
-function makeRequest(raw: IncomingMessage): Request {
-  const url = new URL(raw.url ?? '/', 'http://localhost');
-  const req: Request = {
-    headers: raw.headers,
-    method: raw.method ?? 'GET',
-    query: parseQuery(url.searchParams),
-    params: {},
-    path: url.pathname,
-    originalUrl: raw.url ?? '/',
-    on(event, listener) {
-      raw.on(event, listener);
-      return req;
-    },
-  };
-  return req;
-}
-
-/**
- * Turn a `type` argument into a `Content-Type` value. Anything that already
- * looks like a MIME type (contains `/`) is used verbatim; the only bare name the
- * explorer passes is handled explicitly.
- */
-function normalizeContentType(value: string): string {
-  if (value.includes('/')) return value;
-  if (value === 'html') return 'text/html; charset=utf-8';
-  if (value === 'json') return 'application/json; charset=utf-8';
-  if (value === 'text') return 'text/plain; charset=utf-8';
-  return value;
-}
-
-/** Serialize a cookie into a `Set-Cookie` value from the subset of options we support. */
-function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
-  const parts = [`${name}=${value}`];
-  if (options.path) parts.push(`Path=${options.path}`);
-  if (options.httpOnly) parts.push('HttpOnly');
-  if (options.sameSite) {
-    parts.push(`SameSite=${options.sameSite.charAt(0).toUpperCase()}${options.sameSite.slice(1)}`);
-  }
-  return parts.join('; ');
-}
-
-/** Wrap the raw Node response in the {@link Response} surface the handlers use. */
-function makeResponse(raw: ServerResponse): Response {
-  let statusCode = 200;
-
-  const res: Response = {
-    set(field: string | Record<string, string>, value?: string) {
-      if (typeof field === 'object') {
-        for (const [name, val] of Object.entries(field)) raw.setHeader(name, val);
-      } else {
-        raw.setHeader(field, value as string);
-      }
-      return res;
-    },
-    status(code: number) {
-      statusCode = code;
-      return res;
-    },
-    json(body: unknown) {
-      if (!raw.hasHeader('Content-Type')) raw.setHeader('Content-Type', 'application/json; charset=utf-8');
-      raw.statusCode = statusCode;
-      raw.end(JSON.stringify(body));
-      return res;
-    },
-    send(body: string | Buffer) {
-      raw.statusCode = statusCode;
-      if (!Buffer.isBuffer(body) && !raw.hasHeader('Content-Type')) {
-        raw.setHeader('Content-Type', 'text/html; charset=utf-8');
-      }
-      raw.end(body);
-      return res;
-    },
-    type(contentType: string) {
-      raw.setHeader('Content-Type', normalizeContentType(contentType));
-      return res;
-    },
-    redirect(code: number, location: string) {
-      raw.setHeader('Location', location);
-      raw.statusCode = code;
-      raw.end();
-    },
-    cookie(name: string, value: string, options?: CookieOptions) {
-      const existing = raw.getHeader('Set-Cookie');
-      const cookies = Array.isArray(existing) ? existing.slice() : existing ? [String(existing)] : [];
-      cookies.push(serializeCookie(name, value, options));
-      raw.setHeader('Set-Cookie', cookies);
-      return res;
-    },
-    flushHeaders() {
-      raw.statusCode = statusCode;
-      raw.flushHeaders();
-    },
-    write(chunk: string | Buffer) {
-      return raw.write(chunk);
-    },
-    end() {
-      raw.end();
-    },
-    on(event, listener) {
-      raw.on(event, listener);
-      return res;
-    },
-  };
-  return res;
-}
-
 /**
  * Create an express-like application. Returned as a function so it can be passed
  * directly to `http.createServer`, with the router methods (`get`, `use`) and
@@ -389,16 +216,35 @@ export function createApp(): Express {
   const router = createRouter();
 
   const app = ((raw: IncomingMessage, rawRes: ServerResponse): void => {
-    const req = makeRequest(raw);
     const res = makeResponse(rawRes);
-    router.handle(req, res, req.path, () => {
-      // Nothing matched: mirror express's default 404.
-      if (!rawRes.headersSent) {
-        rawRes.statusCode = 404;
-        rawRes.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      }
-      rawRes.end(`Cannot ${req.method} ${req.path}`);
-    });
+
+    // Parsing the request can fail, handle it gracefully
+    let req: Request;
+    try {
+      req = makeRequest(raw);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(`${raw.method} ${raw.url}:`, e);
+      res.status(400).end();
+      return;
+    }
+
+    try {
+      router.handle(req, res, req.path, () => {
+        // Nothing matched: mirror express's default 404.
+        if (!res.headersSent) {
+          res.status(404);
+          res.set('Content-Type', 'text/plain; charset=utf-8');
+        }
+        res.send(`Cannot ${req.method} ${req.path}`);
+        res.end();
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(`${raw.method} ${raw.url}:`, e);
+      res.status(500).send('Internal Server Error');
+      return;
+    }
   }) as Express;
 
   app.get = (path, ...handlers) => {

@@ -31,7 +31,7 @@ export function newSessionToken(): string {
  */
 export function sessionAuth(token: string): (req: Request, res: Response, next: NextFunction) => void {
   return (req, res, next) => {
-    if (tokenMatches(token, cookieValue(req.headers.cookie, SESSION_COOKIE))) {
+    if (tokenMatches(token, req.cookie(SESSION_COOKIE))) {
       return next();
     }
 
@@ -42,8 +42,10 @@ export function sessionAuth(token: string): (req: Request, res: Response, next: 
         sameSite: 'strict',
         path: '/',
       });
-      // A browser navigation bounces to the token-free URL. An API call cannot be
-      // redirected without breaking the caller, so it is simply served.
+
+      // After setting the cookie: if this is a request for an HTML page, redirect it.
+      // If it is a request for an API endpoint, most clients do not handle redirects so
+      // just serve it.
       return req.path.startsWith('/api/') ? next() : res.redirect(302, urlWithoutToken(req));
     }
 
@@ -61,23 +63,6 @@ function tokenMatches(expected: string, presented: string | undefined): boolean 
   const a = Buffer.from(expected, 'utf-8');
   const b = Buffer.from(presented, 'utf-8');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-/**
- * Read one cookie out of a `Cookie` header. Hand-parsed rather than pulling in
- * `cookie-parser`: the explorer needs exactly one name, and the CLI bundles its
- * runtime dependencies.
- */
-function cookieValue(cookieHeader: string | undefined, name: string): string | undefined {
-  if (!cookieHeader) return undefined;
-  for (const part of cookieHeader.split(';')) {
-    const eq = part.indexOf('=');
-    if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === name) {
-      return decodeURIComponent(part.slice(eq + 1).trim());
-    }
-  }
-  return undefined;
 }
 
 /** The request's own path and query with the token stripped out. */
