@@ -64,21 +64,27 @@ export enum EventType {
    * When a shell command is executed. Emits the the command line arguments given to
    * the subprocess as a string upon shell execution.
    *
-   * Only emitted when subprocessOutputDestination is set to 'publish'
+   * Always emitted.
    */
   SHELL_OPEN = 'shell_open',
 
   /**
    * stdout from a shell command
    *
-   * Only emitted when subprocessOutputDestination is set to 'publish'
+   * Depending on subprocessOutputDestination:
+   * - ignore: never emitted.
+   * - publish: emitted as an event.
+   * - stdio: not emitted but directly printed to parent terminal.
    */
   SHELL_STDOUT = 'shell_stdout',
 
   /**
    * stdout from a shell command
    *
-   * Only emitted when subprocessOutputDestination is set to 'publish'
+   * Depending on subprocessOutputDestination:
+   * - ignore: never emitted.
+   * - publish: emitted as an event.
+   * - stdio: not emitted but directly printed to parent terminal.
    */
   SHELL_STDERR = 'shell_stderr',
 
