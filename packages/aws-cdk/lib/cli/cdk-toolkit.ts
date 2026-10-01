@@ -1495,8 +1495,8 @@ export class CdkToolkit {
 
     try {
       await this.deploy(deployOptions);
-    } catch {
-      // just continue - deploy will show the error
+    } catch (e) {
+      await this.ioHost.asIoHelper().defaults.error(formatErrorMessage(e));
     }
   }
 
