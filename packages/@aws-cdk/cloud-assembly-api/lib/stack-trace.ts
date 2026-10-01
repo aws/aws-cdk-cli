@@ -35,7 +35,7 @@ export class StackTrace {
    * With all the NON-"my code" call frames redacted, the top level frame should
    * be the last user frame that is associated with the given call stack.
    */
-  public findAndParse(finder: IStackFrameFinder): CallSite | undefined {
+  public findAndParse(finder: IStackFrameFinder): StackFrame | undefined {
     for (const frame of this.frames) {
       if (finder.isInterestingFrame(frame)) {
         return parseStackFrame(frame);
@@ -45,7 +45,7 @@ export class StackTrace {
   }
 }
 
-export interface CallSite {
+export interface StackFrame {
   /**
    * Name of the function this call frame is in
    */
@@ -80,7 +80,7 @@ export interface CallSite {
  *
  * See https://v8.dev/docs/stack-trace-api#appendix%3A-stack-trace-format
  */
-function parseStackFrame(frame: string): CallSite {
+function parseStackFrame(frame: string): StackFrame {
   let fileName;
   let functionName;
   let sourceLocation;
