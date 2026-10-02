@@ -1998,6 +1998,85 @@ describe('import', () => {
 });
 
 describe('watch', () => {
+  test('reports a missing required parameter during hotswap deployment', async () => {
+    const template = {
+      Parameters: { Foo: { Type: 'String' } },
+      Resources: {
+        Fn: {
+          Type: 'AWS::Lambda::Function',
+          Properties: {
+            Code: { ZipFile: 'exports.handler = async () => "hello";' },
+            Handler: 'index.handler',
+            Runtime: 'nodejs22.x',
+            Role: 'arn:aws:iam::123456789012:role/lambda-role',
+          },
+        },
+      },
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'Test-Stack', template }],
+    });
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [{
+        StackName: 'Test-Stack',
+        StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack/some-id',
+        StackStatus: StackStatus.CREATE_COMPLETE,
+        CreationTime: new Date(),
+      }],
+    });
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: JSON.stringify(template) });
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: new Deployments({ sdkProvider: cloudExecutable.sdkProvider, ioHelper }),
+    });
+
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'hotswap' },
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+
+    expect(notifySpy.mock.calls.map(([message]) => message).filter(message => message.level === 'error')).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('The following CloudFormation Parameters are missing a value: Foo'),
+      }),
+    ]);
+  });
+
+  test.each(['initial deployment', 'file change'])('reports errors from %s and deploys again on the next change', async (failureOn) => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    const deploySpy = jest.spyOn(toolkit, 'deploy').mockResolvedValue();
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'hotswap' },
+    });
+
+    if (failureOn === 'file change') {
+      await fakeChokidarWatcherOn.readyCallback();
+    }
+    deploySpy.mockRejectedValueOnce(new Error('deployment failed'));
+
+    if (failureOn === 'initial deployment') {
+      await fakeChokidarWatcherOn.readyCallback();
+    } else {
+      await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    }
+
+    expect(notifySpy.mock.calls.map(([message]) => message).filter(message => message.level === 'error')).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('deployment failed') }),
+    ]);
+
+    const deploymentsAfterFailure = deploySpy.mock.calls.length;
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    expect(deploySpy).toHaveBeenCalledTimes(deploymentsAfterFailure + 1);
+    expect(notifySpy.mock.calls.filter(([message]) => message.level === 'error')).toHaveLength(1);
+  });
+
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
 
