@@ -941,6 +941,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             type: 'boolean',
             desc: 'Fail with exit code 1 in case of diff',
           })
+          .option('fail-on-destructive-changes', {
+            default: false,
+            type: 'boolean',
+            desc: 'Fail with exit code 1 if the diff would replace, delete or orphan a resource. Other changes do not cause a failure',
+          })
           .option('processed', {
             default: false,
             type: 'boolean',

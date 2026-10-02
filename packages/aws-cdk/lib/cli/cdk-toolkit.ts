@@ -15,12 +15,14 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions, DestructiveChange } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
   findCloudWatchLogGroups,
+  findDestructiveChanges,
+  formatDestructiveChange,
   GarbageCollector,
   removeNonImportResources,
   ResourceImporter,
@@ -290,6 +292,7 @@ export class CdkToolkit {
     const quiet = options.quiet || false;
 
     let diffs = 0;
+    const destructiveChanges: DestructiveChange[] = [];
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -336,6 +339,10 @@ export class CdkToolkit {
         });
         diffs = diff.numStacksWithChanges;
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
+      }
+
+      if (options.failOnDestructiveChanges) {
+        destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
       }
     } else {
       const allMappings = options.includeMoves
@@ -399,10 +406,22 @@ export class CdkToolkit {
           await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
         }
+
+        if (options.failOnDestructiveChanges) {
+          destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
+        }
       }
     }
 
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
+
+    if (destructiveChanges.length > 0) {
+      const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
+      await this.ioHost.asIoHelper().defaults.error(
+        `❌  Found ${destructiveChanges.length} destructive change(s) (--fail-on-destructive-changes):\n${lines.join('\n')}\n`,
+      );
+      return 1;
+    }
 
     return diffs && options.fail ? 1 : 0;
   }
@@ -1607,6 +1626,15 @@ export interface DiffOptions {
    * @default false
    */
   readonly fail?: boolean;
+
+  /**
+   * Whether to fail with exit code 1 if the diff would replace, delete or orphan a resource
+   *
+   * Other changes do not cause a failure.
+   *
+   * @default false
+   */
+  readonly failOnDestructiveChanges?: boolean;
 
   /**
    * Only run diff on broadened security changes

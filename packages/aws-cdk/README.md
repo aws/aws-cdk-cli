@@ -227,6 +227,27 @@ $ cdk diff --quiet --app='node bin/main.js' MyStackName
 
 Note that the CDK::Metadata resource and the `CheckBootstrapVersion` Rule are excluded from `cdk diff` by default. You can force `cdk diff` to display them by passing the `--strict` flag.
 
+To fail only when a deployment would replace, delete or orphan an existing resource, pass
+`--fail-on-destructive-changes`. The command lists the affected resources and exits with code 1;
+changes that update resources in place or add new resources do not cause a failure (unless
+`--fail` is also passed, which still fails on any difference). This is
+useful in CI to stop changes that would lose data, such as a stateful resource whose logical ID
+changed after it was moved to another construct.
+
+```console
+$ cdk diff --fail-on-destructive-changes MyStackName
+...
+❌  Found 1 destructive change(s) (--fail-on-destructive-changes):
+  MyStackName: AWS::DynamoDB::Table MyTable MyTable794EDED1 will be orphaned
+```
+
+Whether a property change replaces the resource is determined by the change set, so use the default
+`--method=auto` or `--method=change-set` for accurate results. With `--method=template`, a change to
+a property that requires replacement is always reported as a replacement, and a change to a property
+that may require replacement is reported as "may be replaced", which also causes a failure.
+With `--security-only`, changes that are likely mangled non-ASCII characters are not filtered out,
+so they can also be reported as destructive.
+
 The `--method` flag controls how the diff is created:
 
 - `--method=auto` (default): Create a change set for accurate resource replacement info if possible, but fall back to a template-only diff if the change set cannot be created (e.g. due to missing permissions).

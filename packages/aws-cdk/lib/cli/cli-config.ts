@@ -420,6 +420,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'strict': { type: 'boolean', desc: 'Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule', default: false },
           'security-only': { type: 'boolean', desc: 'Only diff for broadened security changes', default: false },
           'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff' },
+          'fail-on-destructive-changes': { type: 'boolean', desc: 'Fail with exit code 1 if the diff would replace, delete or orphan a resource. Other changes do not cause a failure', default: false },
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
