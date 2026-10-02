@@ -1785,3 +1785,225 @@ describe('environment annotation', () => {
     }
   });
 });
+
+describe('--fail-on-destructive-changes', () => {
+  const deployedTemplate = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 30 } },
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'old-name' } },
+      Topic: { Type: 'AWS::SNS::Topic' },
+      Table: { Type: 'AWS::DynamoDB::Table', DeletionPolicy: 'Retain', Properties: {} },
+    },
+  };
+
+  async function setup(
+    newResources: Record<string, any>,
+    nestedStacks: Record<string, NestedStackTemplates> = {},
+    metadata?: Record<string, cxschema.MetadataEntry[]>,
+  ) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template: { Resources: newResources }, metadata }],
+    }, undefined, ioHost);
+
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks,
+    });
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test('does not fail when the diff only updates resources in place', async () => {
+    await setup({
+      ...deployedTemplate.Resources,
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+      NewTopic: { Type: 'AWS::SNS::Topic' },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('Number of stacks with differences: 1');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('fails and lists replaced, destroyed and orphaned resources', async () => {
+    await setup({
+      Queue: deployedTemplate.Resources.Queue,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('❌  Found 3 destructive change(s) (--fail-on-destructive-changes):');
+    expect(plainTextOutput).toContain('A: AWS::S3::Bucket Bucket will be replaced');
+    expect(plainTextOutput).toContain('A: AWS::SNS::Topic Topic will be destroyed');
+    expect(plainTextOutput).toContain('A: AWS::DynamoDB::Table Table will be orphaned');
+    expect(exitCode).toBe(1);
+  });
+
+  test('shows the construct path of a resource like the diff does', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          ...deployedTemplate.Resources,
+          Topic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'A/MyConstruct/Topic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('[-] AWS::SNS::Topic MyConstruct/Topic Topic destroy');
+    expect(output()).toContain('A: AWS::SNS::Topic MyConstruct/Topic Topic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('takes the construct path from the cloud assembly like the diff does', async () => {
+    // The template has no aws:cdk:path metadata, but the cloud assembly knows the path
+    await setup(
+      { ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } },
+      {},
+      { '/A/MyConstruct/Bucket/Resource': [{ type: cxschema.ArtifactMetadataEntryType.LOGICAL_ID, data: 'Bucket' }] },
+    );
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('[~] AWS::S3::Bucket MyConstruct/Bucket Bucket replace');
+    expect(output()).toContain('A: AWS::S3::Bucket MyConstruct/Bucket Bucket will be replaced');
+    expect(exitCode).toBe(1);
+  });
+
+  test('does not fail on destructive changes when the option is not set', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template' });
+
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('--fail still fails on non-destructive changes', async () => {
+    await setup({
+      ...deployedTemplate.Resources,
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', fail: true, failOnDestructiveChanges: true });
+
+    expect(exitCode).toBe(1);
+  });
+
+  test('detects destructive changes in nested stacks', async () => {
+    await setup({ ...deployedTemplate.Resources }, {
+      Nested: {
+        physicalName: 'NestedStackPhysicalName',
+        deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+        generatedTemplate: { Resources: {} },
+        nestedStackTemplates: {},
+      },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('NestedStackPhysicalName: AWS::SNS::Topic NestedTopic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('detects destructive changes with --security-only', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOnDestructiveChanges: true });
+
+    expect(output()).toContain('A: AWS::SNS::Topic Topic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('does not fail on replacements that the change set says will not happen', async () => {
+    await setup({ ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } });
+    cloudFormation.stackExists = jest.fn().mockResolvedValue(true);
+    jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue({
+      changeSet: {
+        $metadata: {},
+        Changes: [{
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'Bucket',
+            ResourceType: 'AWS::S3::Bucket',
+            Replacement: 'False',
+            Details: [{
+              Evaluation: 'Static',
+              Target: { Attribute: 'Properties', Name: 'BucketName', RequiresRecreation: 'Never' },
+            }],
+          },
+        }],
+      },
+      diagnosis: Diagnosis.noProblem(),
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'change-set', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('BucketName');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('does not fail on changes that are omitted as mangled non-ASCII characters', async () => {
+    await setup({
+      ...deployedTemplate.Resources,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '文字化け' } },
+    });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: { ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '????' } } },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOnDestructiveChanges: true });
+
+    expect(output()).toContain('Omitted 1 changes');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('does not fail when only CDK metadata is removed', async () => {
+    await setup({ ...deployedTemplate.Resources });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: { ...deployedTemplate.Resources, CDKMetadata: { Type: 'AWS::CDK::Metadata', Properties: { Analytics: 'v2' } } },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOnDestructiveChanges: true });
+
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('detects destructive changes when comparing against a local template', async () => {
+    const templatePath = 'destructive-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup({ ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } });
+
+      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOnDestructiveChanges: true });
+
+      expect(output()).toContain('A: AWS::S3::Bucket Bucket will be replaced');
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+});

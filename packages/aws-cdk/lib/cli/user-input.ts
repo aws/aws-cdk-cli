@@ -1468,6 +1468,13 @@ export interface DiffOptions {
   readonly fail?: boolean;
 
   /**
+   * Fail with exit code 1 if the diff would replace, delete or orphan a resource. Other changes do not cause a failure
+   *
+   * @default - false
+   */
+  readonly failOnDestructiveChanges?: boolean;
+
+  /**
    * Whether to compare against the template with Transforms already processed
    *
    * @default - false
