@@ -100,6 +100,48 @@ function propertyRanges(pointers: Pointers, escapedId: string): Record<string, O
 }
 
 /**
+ * Resolves block and property ranges for ALL resources in a single parse pass.
+ * Equivalent to calling `resolveResourceRanges` per logical ID, but O(1) parses
+ * instead of O(N).
+ */
+export function resolveAllResourceRanges(templateText: string): Record<string, ResourceRanges> | undefined {
+  const pointers = parsePointers(templateText);
+  if (pointers === undefined) {
+    return undefined;
+  }
+
+  const result: Record<string, ResourceRanges> = {};
+  const resourceProperties = new Map<string, Record<string, OffsetRange>>();
+
+  for (const [pointer, mapping] of Object.entries(pointers)) {
+    const resourceMatch = /^\/Resources\/([^/]+)$/.exec(pointer);
+    if (resourceMatch) {
+      const id = unescapePointerSegment(resourceMatch[1]);
+      result[id] = { block: { start: mapping.value.pos, end: mapping.valueEnd.pos }, properties: {} };
+      continue;
+    }
+    const propMatch = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
+    if (propMatch && mapping.key !== undefined) {
+      const id = unescapePointerSegment(propMatch[1]);
+      let props = resourceProperties.get(id);
+      if (!props) {
+        props = {};
+        resourceProperties.set(id, props);
+      }
+      props[unescapePointerSegment(propMatch[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
+    }
+  }
+
+  for (const [id, props] of resourceProperties) {
+    if (result[id]) {
+      result[id] = { block: result[id].block, properties: props };
+    }
+  }
+
+  return result;
+}
+
+/**
  * The inverse of `resolveResourceRange`: given a character offset into a
  * template's text, returns the logical id of the resource whose block contains
  * that offset, for linking a position in the template back to its construct.

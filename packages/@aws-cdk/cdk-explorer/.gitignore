@@ -51,3 +51,5 @@ jspm_packages/
 /dist/
 !/.eslintrc.json
 !/.eslintrc.js
+lib/web/static/
+lib/web/web-assets.generated.json

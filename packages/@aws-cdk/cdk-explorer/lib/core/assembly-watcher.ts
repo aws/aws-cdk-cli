@@ -2,6 +2,7 @@ import * as path from 'path';
 import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
+import { SYNTH_LOCK_FILE } from '../api-private';
 
 /**
  * The name of the construct tree metadata file emitted alongside the manifest.
@@ -51,6 +52,12 @@ export interface AssemblyWatcherOptions {
   readonly assemblyDir: string;
   /** Invoked (debounced) when the assembly's signal files change. */
   readonly onChange: () => void;
+  /**
+   * Invoked when synth write-lock activity (`synth.lock`) first appears, i.e. a
+   * synth started. `atMs` is the observation time. Lets a consumer date-stamp
+   * source-file staleness against synth start rather than synth finish.
+   */
+  readonly onSynthActivity?: (atMs: number) => void;
   /** Receives non-fatal watcher errors. */
   readonly onError?: (error: unknown) => void;
   /**
@@ -90,9 +97,19 @@ export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyW
 
   const watcher = createWatcher(options.assemblyDir);
 
-  watcher.on('all', (_eventName, filePath) => {
+  watcher.on('all', (eventName, filePath) => {
     if (closed) return;
-    if (!ASSEMBLY_SIGNAL_FILES.has(path.basename(filePath))) return;
+    const base = path.basename(filePath);
+    if (base === SYNTH_LOCK_FILE) {
+      // toolkit-lib's `RWLock` creates this marker for the duration of a synth,
+      // so its appearance is our only signal that a synth has started (the
+      // explorer never starts synths itself). Record it, but never treat it as
+      // an assembly refresh: the lock's create/delete would otherwise cause
+      // spurious reloads.
+      if (eventName === 'add') options.onSynthActivity?.(Date.now());
+      return;
+    }
+    if (!ASSEMBLY_SIGNAL_FILES.has(base)) return;
     if (timer) {
       clearTimeout(timer);
     }

@@ -1225,12 +1225,26 @@ const cdkExplorer = configureProject(
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
+      'react@^18',
+      'react-dom@^18',
+      '@types/react@^18',
+      '@types/react-dom@^18',
+      '@cloudscape-design/components@^3',
+      '@cloudscape-design/global-styles@^1',
+      'esbuild',
+      'tsx',
+      'supertest@^6',
+      '@types/supertest@^6',
       '@types/convert-source-map@^2',
+      'prismjs@^1',
+      '@types/prismjs@^1',
+      'yaml@^2',
     ],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
       },
+      exclude: ['frontend'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
@@ -1245,6 +1259,13 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
+// esbuild only transpiles, so the SPA gets its own `tsc --noEmit` pass before
+// being bundled (the package's main tsc build excludes `frontend/`).
+cdkExplorer.postCompileTask.exec('tsc --noEmit -p tsconfig.frontend.json');
+cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
+cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.json');
+cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
