@@ -1,4 +1,5 @@
 import * as http from 'http';
+import type { AddressInfo } from 'net';
 
 export const DEFAULT_PORT = 3411;
 
@@ -15,7 +16,7 @@ export class HttpServer {
   }
 
   public get port(): number {
-    if (!this._port) {
+    if (this._port === undefined) {
       throw new Error('Server has not been started yet.');
     }
     return this._port;
@@ -74,7 +75,8 @@ async function listenWithPortSearch(
           resolve();
         });
       });
-      return port;
+      const address = server.address() as AddressInfo;
+      return address.port;
     } catch (err: any) {
       if (err.code !== 'EADDRINUSE') {
         throw err;

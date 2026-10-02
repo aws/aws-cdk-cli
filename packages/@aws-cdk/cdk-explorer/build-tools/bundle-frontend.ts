@@ -24,8 +24,9 @@ async function main(): Promise<void> {
     target: 'es2020',
     jsx: 'automatic',
     loader: { '.css': 'css', '.svg': 'dataurl', '.png': 'dataurl' },
-    sourcemap: true,
+    sourcemap: 'external', // does not load map automatically, have to attach manually
     logLevel: 'info',
+    minify: true,
   });
 
   fs.copyFileSync(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));

@@ -1,6 +1,7 @@
+import { DEFAULT_PORT } from '../../lib/expressy/http-server';
 import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
-import { startWebServer, DEFAULT_PORT, type WebServer, type WebServerOptions } from '../../lib/web/server';
+import { startWebServer, type WebServer, type WebServerOptions } from '../../lib/web/server';
 
 /**
  * Node's global `fetch` keeps connections alive in a pool keyed by origin, which
@@ -91,6 +92,22 @@ describe('Web Server', () => {
     } finally {
       await first.stop();
     }
+  });
+
+  /**
+   * Port 0 is the ask "give me any free port", so the port that ends up bound is
+   * chosen by the OS and is never 0. The URL has to name that port rather than
+   * the 0 that was requested: 0 is not a port anything can connect to, and the
+   * URL is what the CLI prints for the user to open.
+   */
+  test('reports the OS-assigned port when asked to bind port 0', async () => {
+    server = await start({ port: 0 });
+
+    expect(Number(new URL(server.url).port)).toBeGreaterThan(0);
+
+    // And the URL is actually usable, which is the whole point of reporting it.
+    const res = await authed('/api/health');
+    expect(res.status).toBe(200);
   });
 
   test('stops cleanly', async () => {
