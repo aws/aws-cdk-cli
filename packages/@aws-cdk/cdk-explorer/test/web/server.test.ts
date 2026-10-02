@@ -2,6 +2,7 @@ import { DEFAULT_PORT } from '../../lib/expressy/http-server';
 import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, type WebServer, type WebServerOptions } from '../../lib/web/server';
+import { fetchHappens } from '../fetch-happens';
 
 /**
  * Node's global `fetch` keeps connections alive in a pool keyed by origin, which
@@ -45,26 +46,27 @@ describe('Web Server', () => {
    * per-port sockets do not accumulate across the file and keep the jest worker
    * from exiting.
    */
-  function req(url: string, init: RequestInit = {}): Promise<Response> {
-    return fetch(url, { ...init, headers: { ...init.headers, Connection: 'close' } });
-  }
+  function req(url: string | URL, init: RequestInit = {}): Promise<Response> {
+    const u = new URL(url, server.sessionUrl);
+    // Merge the search params
+    u.search = new URLSearchParams(Object.fromEntries([
+      ...new URL(server.sessionUrl).searchParams.entries(),
+      ...u.searchParams.entries(),
+    ])).toString();
 
-  /**
-   * Request this server as an already-authenticated browser would: everything past
-   * the one-time `?token=` handshake carries the session cookie, so this is the
-   * state the SPA spends its whole life in.
-   */
-  function authed(path: string, init: RequestInit = {}): Promise<Response> {
-    return req(`${server.url}${path}`, {
+    return fetchHappens(u, {
       ...init,
-      headers: { ...init.headers, Cookie: `${SESSION_COOKIE}=${server.token}` },
+      headers: {
+        ...init.headers,
+        Connection: 'close',
+      },
     });
   }
 
   test('starts and responds to health check', async () => {
     server = await start();
 
-    const res = await authed('/api/health');
+    const res = await req('/api/health');
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -106,7 +108,7 @@ describe('Web Server', () => {
     expect(Number(new URL(server.url).port)).toBeGreaterThan(0);
 
     // And the URL is actually usable, which is the whole point of reporting it.
-    const res = await authed('/api/health');
+    const res = await req('/api/health');
     expect(res.status).toBe(200);
   });
 
@@ -127,7 +129,7 @@ describe('Web Server', () => {
 
   test('unknown /api route returns a JSON 404 rather than the SPA', async () => {
     server = await start();
-    const res = await authed('/api/does-not-exist');
+    const res = await req('/api/does-not-exist');
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toMatch(/application\/json/);
     expect((await res.json()).error).toBeDefined();
@@ -135,7 +137,7 @@ describe('Web Server', () => {
 
   test('serves the SPA index with Cache-Control: no-store so a rebuilt bundle is not served stale', async () => {
     server = await start();
-    const res = await authed('/');
+    const res = await req('/');
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
@@ -146,7 +148,7 @@ describe('Web Server', () => {
     // The SPA document, a bundled asset, and the API: the middleware runs ahead of
     // all three, so every response carries the same headers.
     for (const route of ['/', '/bundle.js', '/api/health']) {
-      const res = await authed(route);
+      const res = await req(route);
       const headers = Object.fromEntries(res.headers);
 
       expect(res.status).toBe(200);
@@ -180,7 +182,7 @@ describe('Web Server', () => {
 
   test('hardens a JSON 404 as well, since it is written past the SPA routes', async () => {
     server = await start();
-    const res = await authed('/api/does-not-exist');
+    const res = await req('/api/does-not-exist');
 
     expect(res.status).toBe(404);
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
@@ -190,7 +192,7 @@ describe('Web Server', () => {
 
   test('carries hardening headers on a rejected request too', async () => {
     server = await start();
-    const res = await authed('/api/health', { headers: { Origin: 'http://evil.com' } });
+    const res = await req('/api/health', { headers: { Origin: 'http://evil.com' } });
 
     expect(res.status).toBe(403);
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
@@ -200,7 +202,7 @@ describe('Web Server', () => {
   test('rejects a cross-site subresource load with 403', async () => {
     server = await start();
     // A `<script src>`/`<link href>` from an attacker page: loopback Host, no Origin.
-    const res = await authed('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    const res = await req('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/cross-site/);
   });
@@ -209,14 +211,14 @@ describe('Web Server', () => {
     server = await start();
     // Cookies on localhost are not isolated by port, so `http://localhost:3000` would
     // hand over the session cookie the `authed` helper is simulating here.
-    const res = await authed('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'same-site' } });
+    const res = await req('/api/file?path=cdk.json', { headers: { 'Sec-Fetch-Site': 'same-site' } });
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/cross-site/);
   });
 
   test('serves a same-origin fetch from the SPA', async () => {
     server = await start();
-    const res = await authed('/api/health', {
+    const res = await req('/api/health', {
       headers: { 'Origin': server.url, 'Sec-Fetch-Site': 'same-origin' },
     });
     expect(res.status).toBe(200);
@@ -228,7 +230,7 @@ describe('Web Server', () => {
 
       // Exactly what `curl http://localhost:4200/api/file?path=...` looks like: a
       // loopback Host, no Origin, no Sec-Fetch-Site, and no token.
-      const res = await req(`${server.url}/api/file?path=cdk.json`);
+      const res = await fetch(`${server.url}/api/file?path=cdk.json`);
 
       expect(res.status).toBe(403);
       expect((await res.json()).error).toMatch(/session token/);
@@ -237,8 +239,8 @@ describe('Web Server', () => {
     test('refuses a wrong token without leaking whether the length was right', async () => {
       server = await start();
 
-      const sameLength = await req(`${server.url}/api/health?token=${'x'.repeat(server.token.length)}`);
-      const shorter = await req(`${server.url}/api/health?token=nope`);
+      const sameLength = await fetch(`${server.url}/api/health?token=${'x'.repeat(server.token.length)}`);
+      const shorter = await fetch(`${server.url}/api/health?token=nope`);
 
       expect(sameLength.status).toBe(403);
       expect(shorter.status).toBe(403);
@@ -247,7 +249,7 @@ describe('Web Server', () => {
     test('trades the printed URL for a cookie and redirects the token out of the address bar', async () => {
       server = await start();
 
-      const res = await req(server.sessionUrl, { redirect: 'manual' });
+      const res = await fetch(server.sessionUrl, { redirect: 'manual' });
 
       expect(res.status).toBe(302);
       expect(res.headers.get('location')).toBe('/');
@@ -265,7 +267,7 @@ describe('Web Server', () => {
       server = await start();
 
       // A deep link the CLI or a colleague pasted: only the token comes off.
-      const res = await req(`${server.url}/?token=${server.token}&stack=Foo`, { redirect: 'manual' });
+      const res = await fetch(`${server.url}/?token=${server.token}&stack=Foo`, { redirect: 'manual' });
 
       expect(res.status).toBe(302);
       expect(res.headers.get('location')).toBe('/?stack=Foo');
@@ -276,7 +278,7 @@ describe('Web Server', () => {
 
       // Two values parse to an array, which is not the string the check accepts —
       // so a caller cannot smuggle a good token past a bad one.
-      const res = await req(`${server.url}/api/health?token=nope&token=${server.token}`);
+      const res = await fetch(`${server.url}/api/health?token=nope&token=${server.token}`);
 
       expect(res.status).toBe(403);
     });
@@ -286,7 +288,7 @@ describe('Web Server', () => {
 
       // The Cookie header is hand-parsed, so the name must not match by prefix and
       // the value must survive neighbours and the spaces between them.
-      const res = await req(`${server.url}/api/health`, {
+      const res = await fetch(`${server.url}/api/health`, {
         headers: {
           Cookie: `other=1; ${SESSION_COOKIE}_decoy=nope; ${SESSION_COOKIE}=${server.token}; last=2`,
         },
@@ -301,7 +303,7 @@ describe('Web Server', () => {
 
       // The cookie is checked first, so an already-authenticated SPA is not locked
       // out by a stale `?token=` left in a reloaded URL.
-      const res = await req(`${server.url}/api/health?token=nope`, {
+      const res = await fetch(`${server.url}/api/health?token=nope`, {
         headers: { Cookie: `${SESSION_COOKIE}=${server.token}` },
       });
 
@@ -314,15 +316,15 @@ describe('Web Server', () => {
       // Node's fetch has no cookie jar, so the browser's two legs are done by hand:
       // follow the printed URL, keep the Set-Cookie, then request the redirect target
       // with it. Without the cookie this second request is a 403 (asserted below).
-      const handshake = await req(server.sessionUrl, { redirect: 'manual' });
+      const handshake = await fetch(server.sessionUrl, { redirect: 'manual' });
       const cookie = handshake.headers.get('set-cookie')!.split(';')[0];
       const location = handshake.headers.get('location')!;
 
-      const withCookie = await req(`${server.url}${location}`, { headers: { Cookie: cookie } });
+      const withCookie = await fetch(`${server.url}${location}`, { headers: { Cookie: cookie } });
       expect(withCookie.status).toBe(200);
       expect(withCookie.headers.get('content-type')).toMatch(/text\/html/);
 
-      const withoutCookie = await req(`${server.url}${location}`);
+      const withoutCookie = await fetch(`${server.url}${location}`);
       expect(withoutCookie.status).toBe(403);
     });
 
@@ -332,7 +334,7 @@ describe('Web Server', () => {
       // A bookmark from a previous session: the accepted cost of a per-session token.
       // The Accept header is the one Chrome and Firefox send on a navigation, so the
       // check has to find `text/html` among the other types rather than match it whole.
-      const res = await req(`${server.url}/`, {
+      const res = await fetch(`${server.url}/`, {
         headers: { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8' },
       });
 
@@ -346,7 +348,7 @@ describe('Web Server', () => {
 
       // What `fetch` and curl default to. A wildcard technically matches html, which
       // is why the refusal tests for a literal `text/html` rather than negotiating.
-      const res = await req(`${server.url}/api/health`, { headers: { Accept: '*/*' } });
+      const res = await fetch(`${server.url}/api/health`, { headers: { Accept: '*/*' } });
 
       expect(res.status).toBe(403);
       expect(res.headers.get('content-type')).toMatch(/application\/json/);
@@ -358,7 +360,7 @@ describe('Web Server', () => {
 
       // securityHeaders is registered ahead of sessionAuth, so a refusal is hardened
       // the same as a served response — including the plain-text page a browser gets.
-      const res = await req(`${server.url}/`, { headers: { Accept: 'text/html' } });
+      const res = await fetch(`${server.url}/`, { headers: { Accept: 'text/html' } });
 
       expect(res.status).toBe(403);
       expect(res.headers.get('x-content-type-options')).toBe('nosniff');
@@ -370,7 +372,7 @@ describe('Web Server', () => {
     test('serves an API call carrying the token in the query without redirecting it', async () => {
       server = await start();
 
-      const res = await req(`${server.url}/api/health?token=${server.token}`, { redirect: 'manual' });
+      const res = await fetch(`${server.url}/api/health?token=${server.token}`, { redirect: 'manual' });
 
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ status: 'ok' });
@@ -421,7 +423,7 @@ describe('Web Server', () => {
       },
     });
 
-    const res = await authed('/api/events');
+    const res = await req('/api/events');
     expect(res.headers.get('content-type')).toMatch(/text\/event-stream/);
     const body = res.body;
     if (!body) throw new Error('SSE response had no body');
@@ -462,7 +464,7 @@ describe('Web Server', () => {
       },
     });
 
-    const res = await authed('/api/events');
+    const res = await req('/api/events');
     const body = res.body;
     if (!body) throw new Error('SSE response had no body');
     const reader = body.getReader();

@@ -1,4 +1,6 @@
 import type { ServerResponse } from 'http';
+import type { SetCookie } from './cookies';
+import { serializeSetCookieValue } from './cookies';
 
 /**
  * The outbound response. A structural subset of express's `Response`, backed by
@@ -22,7 +24,7 @@ export interface Response {
   /** Send a redirect with the given status code and `Location`. */
   redirect(code: number, location: string): void;
   /** Append a `Set-Cookie` header. */
-  cookie(name: string, value: string, options?: CookieOptions): this;
+  cookie(name: string, value: string, options?: SetCookie): this;
   /** Flush the status line and headers to the socket without ending the response (for SSE). */
   flushHeaders(): void;
   /** Write a raw chunk to the response body. */
@@ -76,10 +78,10 @@ export function makeResponse(raw: ServerResponse): Response {
       raw.statusCode = code;
       raw.end();
     },
-    cookie(name: string, value: string, options?: CookieOptions) {
+    cookie(name: string, value: string, options?: SetCookie) {
       const existing = raw.getHeader('Set-Cookie');
-      const cookies = Array.isArray(existing) ? existing.slice() : existing ? [String(existing)] : [];
-      cookies.push(serializeCookie(name, value, options));
+      const cookies = Array.isArray(existing) ? [...existing] : existing ? [String(existing)] : [];
+      cookies.push(serializeSetCookieValue(name, value, options));
       raw.setHeader('Set-Cookie', cookies);
       return res;
     },
@@ -101,13 +103,6 @@ export function makeResponse(raw: ServerResponse): Response {
   return res;
 }
 
-/** Options accepted by {@link Response.cookie}; a subset of express's. */
-export interface CookieOptions {
-  readonly httpOnly?: boolean;
-  readonly sameSite?: 'strict' | 'lax' | 'none';
-  readonly path?: string;
-}
-
 /**
  * Turn a `type` argument into a `Content-Type` value. Anything that already
  * looks like a MIME type (contains `/`) is used verbatim; the only bare name the
@@ -119,15 +114,4 @@ function normalizeContentType(value: string): string {
   if (value === 'json') return 'application/json; charset=utf-8';
   if (value === 'text') return 'text/plain; charset=utf-8';
   return value;
-}
-
-/** Serialize a cookie into a `Set-Cookie` value from the subset of options we support. */
-function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
-  const parts = [`${name}=${value}`];
-  if (options.path) parts.push(`Path=${options.path}`);
-  if (options.httpOnly) parts.push('HttpOnly');
-  if (options.sameSite) {
-    parts.push(`SameSite=${options.sameSite.charAt(0).toUpperCase()}${options.sameSite.slice(1)}`);
-  }
-  return parts.join('; ');
 }

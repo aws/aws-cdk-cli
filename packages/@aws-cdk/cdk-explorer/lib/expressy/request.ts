@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders, IncomingMessage } from 'http';
+import { parseCookieValue } from './cookies';
 
 /**
  * The inbound request. A structural subset of express's `Request`, backed by the
@@ -41,7 +42,8 @@ export function makeRequest(raw: IncomingMessage): Request {
       return req;
     },
     cookie(name: string) {
-      return cookieValue(raw.headers.cookie, name);
+      const cookies = parseCookieValue(raw.headers.cookie);
+      return cookies[name];
     },
   };
   return req;
@@ -55,21 +57,4 @@ function parseQuery(params: URLSearchParams): Record<string, string | string[] |
     query[key] = all.length > 1 ? all : all[0];
   }
   return query;
-}
-
-/**
- * Read one cookie out of a `Cookie` header. Hand-parsed rather than pulling in
- * `cookie-parser`: the explorer needs exactly one name, and the CLI bundles its
- * runtime dependencies.
- */
-function cookieValue(cookieHeader: string | undefined, name: string): string | undefined {
-  if (!cookieHeader) return undefined;
-  for (const part of cookieHeader.split(';')) {
-    const eq = part.indexOf('=');
-    if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === name) {
-      return decodeURIComponent(part.slice(eq + 1).trim());
-    }
-  }
-  return undefined;
 }
