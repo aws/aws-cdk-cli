@@ -75,3 +75,60 @@ export interface PublishAssetEvent {
    */
   readonly asset?: IManifestEntry;
 }
+
+/**
+ * A resource that CloudFormation reported it would replace
+ */
+export interface ReplacedResource {
+  /**
+   * Logical ID of the resource being replaced
+   *
+   * Absent when CloudFormation reported the change or failure without naming a resource.
+   */
+  readonly logicalId?: string;
+
+  /**
+   * CloudFormation resource type, when known
+   */
+  readonly resourceType?: string;
+
+  /**
+   * The `Replacement` field CloudFormation reported for this change, when known
+   */
+  readonly replacement?: string;
+
+  /**
+   * The `PolicyAction` CloudFormation reported for this change, when known
+   */
+  readonly policyAction?: string;
+}
+
+/**
+ * A deployment includes a replacement that CloudFormation will not perform while rollback is disabled
+ */
+export interface ReplacementRequiresRollback {
+  /**
+   * The stack being deployed
+   */
+  readonly stackName: string;
+
+  /**
+   * The change set the replacement was found in, if it was found in one
+   */
+  readonly changeSetId?: string;
+
+  /**
+   * The resources that would be replaced
+   *
+   * Empty when CloudFormation reported the rejection without naming a resource.
+   */
+  readonly replacements: ReplacedResource[];
+
+  /**
+   * How the replacement was detected
+   *
+   * `change-set` means the pre-flight check found it and nothing was submitted. `service-error` means we only found
+   * out from CloudFormation's failure, after the update had already been submitted.
+   */
+  readonly detectedBy: 'change-set' | 'service-error';
+}

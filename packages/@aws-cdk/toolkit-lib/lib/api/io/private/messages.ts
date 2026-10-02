@@ -6,7 +6,7 @@ import type { ValidateResult } from '../../../actions/validate';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
-import type { BuildAsset, DeployConfirmationRequest, PublishAsset, PublishAssetEvent, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
+import type { BuildAsset, DeployConfirmationRequest, PublishAsset, PublishAssetEvent, ReplacementRequiresRollback, StackDeployProgress, SuccessfulDeployStackResult } from '../../../payloads/deploy';
 import type { StackDestroy, StackDestroyProgress } from '../../../payloads/destroy';
 import type { DriftResultPayload } from '../../../payloads/drift';
 import type { FeatureFlagChangeRequest } from '../../../payloads/flags';
@@ -333,6 +333,11 @@ export const IO = {
   CDK_TOOLKIT_W5902: make.warn({
     code: 'CDK_TOOLKIT_W5902',
     description: 'Express Mode deployment completed with resources still stabilizing',
+  }),
+  CDK_TOOLKIT_W5903: make.warn<ReplacementRequiresRollback>({
+    code: 'CDK_TOOLKIT_W5903',
+    description: 'Deployment includes a replacement that CloudFormation does not support while rollback is disabled',
+    interface: 'ReplacementRequiresRollback',
   }),
   CDK_TOOLKIT_W5400: make.warn({
     code: 'CDK_TOOLKIT_W5400',

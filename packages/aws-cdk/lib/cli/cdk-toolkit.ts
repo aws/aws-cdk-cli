@@ -491,6 +491,7 @@ export class CdkToolkit {
         roleArn: options.roleArn,
         forceDeployment: options.force,
         rollback: options.rollback,
+        express: options.express,
         reuseAssets: options.reuseAssets,
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,
@@ -2565,7 +2566,9 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            const motivation = this.options.express
+              ? 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)'
+              : 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);

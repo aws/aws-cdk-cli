@@ -866,6 +866,35 @@ describe('deploy', () => {
       expect(mockCfnDeployments.deployStack).not.toHaveBeenCalled();
       expect(mockCfnDeployments.prepareStack).not.toHaveBeenCalled();
     });
+
+    test.each([
+      ['plain --express', { express: true }, { express: true, rollback: undefined }],
+      ['--express --rollback', { express: true, rollback: true }, { express: true, rollback: true }],
+      ['--express --no-rollback', { express: true, rollback: false }, { express: true, rollback: false }],
+      ['no --express', { rollback: false }, { express: undefined, rollback: false }],
+    ])('forwards the rollback policy flags to toolkit-lib: %s', async (_name, flags, expected) => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockResolvedValue(undefined as any);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
+        ...flags,
+      });
+
+      // THEN
+      expect(toolkitDeploySpy).toHaveBeenCalledWith(cloudExecutable, expect.objectContaining(expected));
+    });
   });
 
   test('fails when no valid stack names are given', async () => {

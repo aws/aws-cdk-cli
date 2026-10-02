@@ -10,6 +10,7 @@ import {
   type DeleteChangeSetCommandOutput,
   type DeleteStackCommandInput,
   type DeleteStackCommandOutput,
+  type DeploymentConfig,
   type DescribeChangeSetCommandInput,
   type DescribeChangeSetCommandOutput,
   type DescribeEventsCommandInput,
@@ -119,6 +120,7 @@ interface InMemoryChangeSet {
   capabilities: string[];
   description?: string;
   changes: Change[];
+  deploymentConfig?: DeploymentConfig;
   creationTime: Date;
   changeSetFailureEvents: OperationEvent[];
   earlyValidationErrors: EarlyValidationErrorPrime[];
@@ -323,7 +325,7 @@ export class FakeCloudFormation {
     const operationId = randomUUID();
     const { id, stack, template } = this.initCreateStack(input, operationId);
     this.scheduleAsync(() => {
-      this.finalizeCreateStack(stack, template, input.DisableRollback, operationId);
+      this.finalizeCreateStack(stack, template, this.rollbackIsDisabled(input), operationId);
     });
     return { StackId: id, $metadata: {} };
   }
@@ -347,7 +349,8 @@ export class FakeCloudFormation {
 
     this.scheduleAsync(() => {
       if (this.shouldFail(template)) {
-        if (input.DisableRollback) {
+        this.addFailedUpdateResourceEvents(stack, template, operationId);
+        if (this.rollbackIsDisabled(input)) {
           this.transitionStack(stack, 'UPDATE_FAILED', 'Resource update failed', operationId);
         } else {
           this.transitionStack(stack, 'UPDATE_ROLLBACK_IN_PROGRESS', 'Resource update failed', operationId);
@@ -435,6 +438,7 @@ export class FakeCloudFormation {
     Tags?: Tag[];
     Capabilities?: string[];
     Description?: string;
+    DeploymentConfig?: DeploymentConfig;
   }): CreateChangeSetCommandOutput {
     const stackName = input.StackName;
     const stack = this.requireStack(stackName);
@@ -470,6 +474,7 @@ export class FakeCloudFormation {
       capabilities: input.Capabilities ?? [],
       description: input.Description,
       changes: changes ?? [],
+      deploymentConfig: input.DeploymentConfig,
       creationTime: new Date(),
       changeSetFailureEvents: [],
       earlyValidationErrors: [],
@@ -511,6 +516,7 @@ export class FakeCloudFormation {
       Capabilities: cs.capabilities as any,
       Description: cs.description,
       CreationTime: cs.creationTime,
+      ...(cs.deploymentConfig ? { DeploymentConfig: cs.deploymentConfig } : undefined),
       NextToken: nextToken,
       $metadata: {},
     };
@@ -521,6 +527,20 @@ export class FakeCloudFormation {
 
     if (cs.executionStatus !== 'AVAILABLE') {
       cfnError('InvalidChangeSetStatus', `ChangeSet [${cs.name}] is in ${cs.executionStatus} state and cannot be executed`);
+    }
+
+    const persistedRollbackDisabled = cs.deploymentConfig?.Mode === 'EXPRESS'
+      ? cs.deploymentConfig.DisableRollback !== false
+      : undefined;
+    if (
+      input.DisableRollback !== undefined &&
+      persistedRollbackDisabled !== undefined &&
+      input.DisableRollback !== persistedRollbackDisabled
+    ) {
+      cfnError(
+        'ValidationError',
+        'DisableRollback specified on ExecuteChangeSet conflicts with the value DisableRollback the ChangeSet was created with.',
+      );
     }
 
     // Remove the executed change set from the stack's list. Real CloudFormation
@@ -550,7 +570,8 @@ export class FakeCloudFormation {
 
       if (this.shouldFail(cs.template)) {
         const failedStatus = isCreate ? 'CREATE_FAILED' : 'UPDATE_FAILED';
-        if (input.DisableRollback) {
+        this.addFailedUpdateResourceEvents(stack, cs.template, operationId, isCreate ? 'CREATE' : 'UPDATE');
+        if (this.rollbackIsDisabled({ ...input, DeploymentConfig: cs.deploymentConfig })) {
           this.transitionStack(stack, failedStatus, 'Resource operation failed', operationId);
         } else {
           const rollbackStatus = isCreate ? 'ROLLBACK_IN_PROGRESS' : 'UPDATE_ROLLBACK_IN_PROGRESS';
@@ -865,6 +886,7 @@ export class FakeCloudFormation {
       capabilities: (input.Capabilities as string[]) ?? [],
       description: input.Description,
       changes: [],
+      deploymentConfig: input.DeploymentConfig,
       creationTime: new Date(),
       changeSetFailureEvents: [],
       earlyValidationErrors: [],
@@ -1153,7 +1175,17 @@ export class FakeCloudFormation {
     });
   }
 
-  private addResourceEvent(stack: InMemoryStack, logicalId: string, resourceType: string, status: string, operationId?: string) {
+  private rollbackIsDisabled(input: { DisableRollback?: boolean; DeploymentConfig?: DeploymentConfig }): boolean {
+    if (input.DisableRollback) {
+      return true;
+    }
+    if (input.DeploymentConfig?.Mode === 'EXPRESS') {
+      return input.DeploymentConfig.DisableRollback !== false;
+    }
+    return false;
+  }
+
+  private addResourceEvent(stack: InMemoryStack, logicalId: string, resourceType: string, status: string, operationId?: string, reason?: string) {
     stack.events.unshift({
       StackId: stack.id,
       StackName: stack.name,
@@ -1162,9 +1194,24 @@ export class FakeCloudFormation {
       PhysicalResourceId: `fake-${logicalId}-${uid()}`,
       ResourceType: resourceType,
       ResourceStatus: status as any,
+      ResourceStatusReason: reason,
       OperationId: operationId,
       Timestamp: new Date(),
     });
+  }
+
+  private addFailedUpdateResourceEvents(stack: InMemoryStack, template: Record<string, any>, operationId?: string, verb: 'UPDATE' | 'CREATE' = 'UPDATE') {
+    for (const [logicalId, res] of Object.entries(templateResources(template))) {
+      const r = res as any;
+      const reason = r.Properties?.FailReason;
+      if (reason === undefined) {
+        continue;
+      }
+      if (this.alwaysFailResources || r.Properties?.Fail === true) {
+        this.addResourceEvent(stack, logicalId, r.Type, `${verb}_IN_PROGRESS`, operationId);
+        this.addResourceEvent(stack, logicalId, r.Type, `${verb}_FAILED`, operationId, reason);
+      }
+    }
   }
 
   private toStackDescription(stack: InMemoryStack): Stack {

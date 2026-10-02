@@ -5,6 +5,7 @@ import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
+  DescribeChangeSetCommandOutput,
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
   Tag,
@@ -27,6 +28,7 @@ import { determineAllowCrossAccountAssetPublishing } from './checks';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, ExecuteChangeSetDeployment } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
+import type { ReplacedResource } from '../../payloads/deploy';
 import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolkit/toolkit-error';
 import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
@@ -43,6 +45,7 @@ import { HotswapPropertyOverrides, ICON, createHotswapPropertyOverrides } from '
 import { tryHotswapDeployment } from '../hotswap/hotswap-deployments';
 import { invalidateHotswapTemplateCache, readHotswapTemplateCache } from '../hotswap/hotswap-template-cache';
 import type { IoHelper } from '../io/private';
+import { IO } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
 import { StackActivityMonitor } from '../stack-events';
 import type { ResourceErrors } from '../stack-events/resource-errors';
@@ -522,7 +525,7 @@ class FullCloudFormationDeployment {
     }
 
     // If there are replacements in the changeset, check the rollback flag and stack status
-    return this.checkAndExecuteChangeSet(changeSetReport);
+    return this.checkAndExecuteChangeSet(changeSetReport, { preExistingChangeSet: false });
   }
 
   private async executeExistingChangeSet(deploymentMethod: ExecuteChangeSetDeployment): Promise<DeployStackResult> {
@@ -538,45 +541,192 @@ class FullCloudFormationDeployment {
       changeSetNameOrArn: deploymentMethod.changeSetName,
     }).describeForExecution({ diagnoser: this.diagnoser });
 
-    return this.checkAndExecuteChangeSet(changeSetReport);
+    return this.checkAndExecuteChangeSet(changeSetReport, { preExistingChangeSet: true });
+  }
+
+  private replacementRecovery(): ReplacementRecovery {
+    if (!this.cloudFormationStack.stackStatus.isRollbackable) {
+      return 'none';
+    }
+    switch (this.cloudFormationStack.stackStatus.name) {
+      case 'UPDATE_FAILED':
+        return 'replay';
+      case 'CREATE_FAILED':
+        return 'recreate';
+      default:
+        return 'resolve-state';
+    }
+  }
+
+  private rollbackDisabled(): boolean {
+    return this.options.express ? this.options.rollback !== true : this.options.rollback === false;
   }
 
   private deployConfig(): DeploymentConfig {
+    if (!this.options.express) {
+      return { Mode: 'STANDARD' };
+    }
+
     return {
-      Mode: this.options.express ? 'EXPRESS' : 'STANDARD',
-      ...(this.options.express && this.options.rollback == true ? { DisableRollback: false } : undefined),
+      Mode: 'EXPRESS',
+      ...(this.rollbackDisabled() ? undefined : { DisableRollback: false }),
     };
   }
 
-  /**
-   * Check rollback/replacement constraints and execute the change set if all checks pass.
-   */
-  private async checkAndExecuteChangeSet(changeSetReport: ChangeSetReport): Promise<DeployStackResult> {
-    const replacement = hasReplacement(changeSetReport);
+  private async findAllReplacements(changeSet: DescribeChangeSetCommandOutput): Promise<ReplacementScan> {
+    const visited = new Set<string>();
+    const uninspected: string[] = [];
+
+    const collect = async (current: DescribeChangeSetCommandOutput, depth: number): Promise<ReplacedResource[]> => {
+      const replacements = findReplacements(current);
+      const nestedStackChanges = (current.Changes ?? [])
+        .map((change) => change.ResourceChange)
+        .filter((nested) => nested?.ResourceType === 'AWS::CloudFormation::Stack')
+        .filter((nested) => nested!.Action !== 'Remove');
+
+      if (nestedStackChanges.length > 0 && depth >= MAX_NESTED_CHANGE_SET_DEPTH) {
+        uninspected.push(format(
+          'nested stacks below depth %d (%s) were not inspected',
+          depth,
+          nestedStackChanges.map((nested) => nested!.LogicalResourceId ?? '<unnamed>').join(', '),
+        ));
+        return replacements;
+      }
+
+      for (const nested of nestedStackChanges) {
+        const logicalId = nested!.LogicalResourceId ?? '<unnamed>';
+
+        if (!nested!.ChangeSetId) {
+          uninspected.push(format('nested stack %s reported no change set to inspect', logicalId));
+          continue;
+        }
+
+        if (visited.has(nested!.ChangeSetId)) {
+          continue;
+        }
+        visited.add(nested!.ChangeSetId);
+
+        let child: DescribeChangeSetCommandOutput;
+        try {
+          child = await new ChangeSetDescriber({
+            cfn: this.cfn,
+            ioHelper: this.ioHelper,
+            stackNameOrArn: nested!.PhysicalResourceId ?? logicalId,
+            changeSetNameOrArn: nested!.ChangeSetId,
+          }).waitForSettled();
+        } catch (e: any) {
+          uninspected.push(format('nested stack %s could not be described (%s)', logicalId, formatErrorMessage(e)));
+          continue;
+        }
+
+        if (child.Status !== 'CREATE_COMPLETE') {
+          uninspected.push(format(
+            'nested stack %s has change set status %s, so its changes could not be read',
+            logicalId,
+            child.Status ?? '<unknown>',
+          ));
+          continue;
+        }
+
+        replacements.push(...await collect(child, depth + 1));
+      }
+
+      return replacements;
+    };
+
+    return { replacements: await collect(changeSet, 0), uninspected };
+  }
+
+  private rollbackWillBeDisabled(changeSet: DescribeChangeSetCommandOutput, persistedRollbackDisabled: boolean | undefined): boolean {
+    if (persistedRollbackDisabled !== undefined) {
+      return persistedRollbackDisabled;
+    }
+    if (changeSet.DeploymentConfig === undefined && this.options.express) {
+      return this.rollbackDisabled();
+    }
+    return this.options.rollback === false;
+  }
+
+  private async checkAndExecuteChangeSet(
+    changeSetReport: ChangeSetReport,
+    opts: { preExistingChangeSet: boolean },
+  ): Promise<DeployStackResult> {
+    const changeSet = changeSetReport.changeSet;
+
+    const persistedMode = changeSet.DeploymentConfig?.Mode;
+    const isExpress = persistedMode !== undefined ? persistedMode === 'EXPRESS' : (this.options.express ?? false);
+    const persistedRollbackDisabled = expressRollbackDisabled(changeSet.DeploymentConfig);
+    const requestedRollbackDisabled = this.rollbackDisabled();
+
+    const scan = await this.findAllReplacements(changeSet);
+    const replacements = scan.replacements;
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const rollback = this.options.rollback ?? true;
 
-    // For express mode deployments, don't check paused and failed, since express mode stacks cannot use rollback API
-    if (!this.options.express) {
-      if (isPausedFailState && replacement) {
+    if (!isExpress) {
+      if (isPausedFailState && replacements.length > 0) {
         return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
       }
       if (isPausedFailState && rollback) {
         return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
       }
-      if (!rollback && replacement) {
-        return { type: 'replacement-requires-rollback' };
-      }
     }
 
-    const changeSet = changeSetReport.changeSet;
+    const rollbackWillBeDisabled = this.rollbackWillBeDisabled(changeSet, persistedRollbackDisabled);
+
+    if (replacements.length > 0 && rollbackWillBeDisabled) {
+      if (isExpress) {
+        const guidance = replacementRoutingMessage({
+          rejected: false,
+          recovery: this.replacementRecovery(),
+          status: this.cloudFormationStack.stackStatus.name,
+        });
+
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(guidance, {
+          stackName: this.stackName,
+          changeSetId: changeSet.ChangeSetId,
+          replacements,
+          detectedBy: 'change-set',
+        }));
+
+        if (opts.preExistingChangeSet && persistedRollbackDisabled === true) {
+          throw new ToolkitError(
+            'ReplacementRequiresRecreateChangeSet',
+            changeSetRecreateForReplacementMessage(changeSet.ChangeSetName),
+          );
+        }
+
+        if (isPausedFailState) {
+          throw new ToolkitError('ReplacementRequiresUnwedge', guidance);
+        }
+      }
+      return { type: 'replacement-requires-rollback' };
+    }
+
+    if (rollbackWillBeDisabled && scan.uninspected.length > 0) {
+      throw new ToolkitError(
+        'NestedChangeSetInspectionIncomplete',
+        nestedInspectionIncompleteMessage(scan.uninspected),
+      );
+    }
+
+    if (persistedRollbackDisabled !== undefined && persistedRollbackDisabled !== requestedRollbackDisabled) {
+      await this.ioHelper.defaults.warn(
+        changeSetPolicyMismatchMessage(changeSet.ChangeSetName, persistedRollbackDisabled),
+      );
+    }
+
     await this.ioHelper.defaults.debug(format('Initiating execution of changeset %s on stack %s', changeSet.ChangeSetId, this.stackName));
+
+    const { DisableRollback, ...sharedExecuteOptions } = this.commonExecuteOptions();
+    const rollbackFlagStillDecides = persistedRollbackDisabled === undefined;
 
     await this.cfn.executeChangeSet({
       StackName: changeSet.StackId ?? this.stackName,
       ChangeSetName: changeSet.ChangeSetId!,
       ClientRequestToken: `exec${this.uuid}`,
-      ...this.commonExecuteOptions(),
+      ...sharedExecuteOptions,
+      ...(rollbackFlagStillDecides && DisableRollback !== undefined ? { DisableRollback } : undefined),
     });
 
     await this.ioHelper.defaults.debug(
@@ -726,6 +876,18 @@ class FullCloudFormationDeployment {
     await monitor.start();
 
     let finalState: CloudFormationStack;
+    let monitorStopped = false;
+
+    // `monitor.stop()` performs a final poll, and that poll is what fills `monitor.errors` with the resource-level
+    // failures CloudFormation reported. Everything that reads those errors has to run after it. `stop()` is not
+    // idempotent (it emits a completion message and polls again), so it must run exactly once.
+    const stopMonitor = async () => {
+      if (!monitorStopped) {
+        monitorStopped = true;
+        await monitor.stop();
+      }
+    };
+
     try {
       const successStack = await waitForStackDeploy(this.cfn, this.ioHelper, stackArn, this.options.stackEventPollingInterval);
 
@@ -735,6 +897,10 @@ class FullCloudFormationDeployment {
       }
       finalState = successStack;
     } catch (e: any) {
+      await stopMonitor();
+
+      await this.routeReplacementRejectedWithRollbackDisabled(e, monitor.errors);
+
       // Deployment errors get replaced by a diagnosis of the underlying resource failures, which says more.
       // Any other error, and any failure to diagnose, leaves `e` to propagate as it is.
       if (ToolkitError.isDeploymentError(e)) {
@@ -743,7 +909,7 @@ class FullCloudFormationDeployment {
 
       throw e;
     } finally {
-      await monitor.stop();
+      await stopMonitor();
     }
     await this.ioHelper.defaults.debug(format('Stack %s has completed updating', this.stackName));
     return {
@@ -754,6 +920,42 @@ class FullCloudFormationDeployment {
       deleteFailures: this.update ? monitor.deleteFailures : [],
       stabilizingResources: monitor.stabilizingResources,
     };
+  }
+
+  private async routeReplacementRejectedWithRollbackDisabled(error: any, errors: ResourceErrors): Promise<void> {
+    if (!this.options.express || !this.rollbackDisabled()) {
+      return;
+    }
+
+    const rejected = errors.all.filter((e) => mentionsReplacementRejection(e.message));
+    const matched = rejected.length > 0 || mentionsReplacementRejection(error?.message ?? '');
+
+    if (!matched) {
+      const reported = errors.allErrorMessages.filter((m) => m.trim() !== '');
+      await this.ioHelper.defaults.debug(format(
+        'Deployment failed with rollback disabled but no reported error mentioned %j, so no replacement guidance was emitted. Reported reasons: %s',
+        CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON,
+        reported.length > 0 ? reported.join(' | ') : '(none)',
+      ));
+      return;
+    }
+
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(
+      replacementRoutingMessage({
+        rejected: true,
+        recovery: this.update ? 'replay' : 'recreate',
+      }),
+      {
+        stackName: this.stackName,
+        replacements: rejected
+          .filter((e) => e.logicalId !== undefined)
+          .map((e) => ({
+            logicalId: e.logicalId,
+            resourceType: e.resourceType,
+          })),
+        detectedBy: 'service-error',
+      },
+    ));
   }
 
   /**
@@ -776,7 +978,7 @@ class FullCloudFormationDeployment {
     }
 
     const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(errors, deployedState, true, {
-      rollbackEnabled: this.options.rollback !== false,
+      rollbackEnabled: !this.rollbackDisabled(),
     });
     diagnosis.throwOnError();
   }
@@ -803,11 +1005,11 @@ class FullCloudFormationDeployment {
    * deployed everywhere yet.
    */
   private commonExecuteOptions(): Partial<Pick<UpdateStackCommandInput, CommonExecuteOptions>> {
-    const shouldDisableRollback = this.options.rollback === false;
+    const shouldSendDisableRollbackFlag = this.options.rollback === false;
 
     return {
       StackName: this.stackName,
-      ...(shouldDisableRollback ? { DisableRollback: true } : undefined),
+      ...(shouldSendDisableRollbackFlag ? { DisableRollback: true } : undefined),
     };
   }
 }
@@ -1015,9 +1217,159 @@ function arrayEquals(a: any[], b: any[]): boolean {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
 }
 
-function hasReplacement(report: ChangeSetReport) {
-  return (report.changeSet.Changes ?? []).some(c => {
-    const a = c.ResourceChange?.PolicyAction;
-    return a === 'ReplaceAndDelete' || a === 'ReplaceAndRetain' || a === 'ReplaceAndSnapshot';
+/**
+ * Find the resource changes in a change set that CloudFormation would perform by replacement
+ */
+function findReplacements(changeSet: DescribeChangeSetCommandOutput): ReplacedResource[] {
+  return (changeSet.Changes ?? []).flatMap((c) => {
+    const change = c.ResourceChange;
+    const policyAction = change?.PolicyAction;
+    const replacesResource = policyAction === 'ReplaceAndDelete'
+      || policyAction === 'ReplaceAndRetain'
+      || policyAction === 'ReplaceAndSnapshot';
+
+    if (!change || !replacesResource) {
+      return [];
+    }
+
+    return [{
+      logicalId: change.LogicalResourceId,
+      resourceType: change.ResourceType,
+      replacement: change.Replacement,
+      policyAction,
+    }];
   });
 }
+
+/**
+ * The reason CloudFormation reports when it refuses a replacement because rollback is disabled.
+ */
+export const CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON = 'Replacement type updates not supported on stack with disable-rollback';
+
+function mentionsReplacementRejection(message: string): boolean {
+  return message.toLowerCase().includes(CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON.toLowerCase());
+}
+
+/**
+ * Whether a persisted change set `DeploymentConfig` pins the rollback choice, and if so which way.
+ */
+function expressRollbackDisabled(config: DeploymentConfig | undefined): boolean | undefined {
+  if (config?.Mode !== 'EXPRESS') {
+    return undefined;
+  }
+  return config.DisableRollback !== false;
+}
+
+/**
+ * Explain that an existing change set's rollback policy cannot be changed by executing it differently
+ */
+function changeSetPolicyMismatchMessage(changeSetName: string | undefined, persistedRollbackDisabled: boolean): string {
+  const named = changeSetName ? ` ${chalk.blue(changeSetName)}` : '';
+  const persisted = persistedRollbackDisabled ? 'disabled' : 'enabled';
+  const requested = persistedRollbackDisabled ? 'enabled' : 'disabled';
+  const recreateWith = chalk.blue(`cdk deploy --express${persistedRollbackDisabled ? ' --rollback' : ''}`);
+
+  return [
+    `Change set${named} was created with rollback ${persisted}, but this deployment asks for rollback ${requested}.`,
+    'CloudFormation fixes that choice when the change set is created and executing it cannot change it, so this',
+    'deployment would silently do the opposite of what you asked for.',
+    '',
+    `Create a new change set with the flags you want rather than executing this one: ${recreateWith}`,
+  ].join('\n');
+}
+
+type ReplacementRecovery = 'none' | 'replay' | 'recreate' | 'resolve-state';
+
+/**
+ * The outcome of scanning a change set hierarchy for replacements.
+ *
+ * `uninspected` is non-empty when part of the hierarchy could not be read, in which case an empty `replacements`
+ * does NOT mean there are none.
+ */
+interface ReplacementScan {
+  readonly replacements: ReplacedResource[];
+  readonly uninspected: string[];
+}
+
+function nestedInspectionIncompleteMessage(uninspected: string[]): string {
+  const withRollback = chalk.blue('cdk deploy --express --rollback');
+
+  return [
+    'Rollback is disabled for this deployment, so a replacement would be rejected mid-execution and leave the stack',
+    'in UPDATE_FAILED. Part of the nested stack hierarchy could not be inspected, so it cannot be confirmed that this',
+    'deployment contains no replacement:',
+    ...uninspected.map((reason) => `  - ${reason}`),
+    '',
+    `Deploy with rollback enabled instead, which allows replacements: ${withRollback}`,
+  ].join('\n');
+}
+
+const MAX_NESTED_CHANGE_SET_DEPTH = 10;
+
+/**
+ * Explain that a replacement cannot be deployed by executing this change set, whatever flags are passed.
+ */
+function changeSetRecreateForReplacementMessage(changeSetName: string | undefined): string {
+  const named = changeSetName ? ` ${chalk.blue(changeSetName)}` : '';
+  const recreateWith = chalk.blue('cdk deploy --express --rollback');
+
+  return [
+    `Change set${named} was created with rollback disabled and replaces a resource, which CloudFormation does not`,
+    'support. A change set fixes its rollback policy when it is created and executing it cannot change that, so there',
+    'is no way to execute this change set successfully.',
+    '',
+    `Create a new change set with rollback enabled instead: ${recreateWith}`,
+  ].join('\n');
+}
+
+/**
+ * Explain how to deploy a replacement when rollback is disabled.
+ */
+function replacementRoutingMessage(opts: { rejected: boolean; recovery: ReplacementRecovery; status?: string }): string {
+  const withRollback = chalk.blue('cdk deploy --express --rollback');
+  const direct = chalk.blue('cdk deploy --express --method=direct');
+
+  const headline = opts.rejected
+    ? [
+      'CloudFormation refused a replacement because rollback is disabled for this stack.',
+      'Express Mode disables rollback by default; replacements themselves are supported.',
+    ]
+    : [
+      'This deployment replaces a resource, which CloudFormation does not support while rollback is disabled.',
+      'Express Mode disables rollback unless you ask for it with --rollback; replacements themselves are supported.',
+    ];
+
+  switch (opts.recovery) {
+    case 'none':
+      return headline.join('\n');
+
+    case 'replay':
+      return [
+        ...headline,
+        '',
+        `${opts.rejected ? 'The stack may now be' : 'This stack is'} in a failed state, which ${withRollback} cannot update. To recover:`,
+        '  1. Revert your change so your app matches the last configuration that deployed successfully.',
+        `  2. Run ${direct} - this should replay that configuration as a no-op`,
+        '     and return the stack to a terminal state.',
+        `  3. Re-apply your change and deploy it with ${withRollback}.`,
+      ].join('\n');
+
+    case 'recreate':
+      return [
+        ...headline,
+        '',
+        `This stack never completed a deployment, so there is no previous configuration to replay and ${withRollback}`,
+        'cannot update it either. Delete the stack and deploy again.',
+      ].join('\n');
+
+    case 'resolve-state':
+      return [
+        ...headline,
+        '',
+        `This stack is in ${opts.status ?? 'a failed state'}, which ${withRollback} cannot update, and it is not a state`,
+        'this command can recover from. Resolve it in CloudFormation first, then deploy the replacement with rollback',
+        'enabled.',
+      ].join('\n');
+  }
+}
+
