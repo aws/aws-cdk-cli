@@ -28,7 +28,17 @@ export class HttpServer {
   public async start(): Promise<void> {
     this.server = http.createServer(this.app);
 
-    this._port = await listenWithPortSearch(this.server, this.options.port ?? DEFAULT_PORT, this.options.host);
+    let startPort: number;
+    let endPort: number;
+    if (this.options.port) {
+      startPort = this.options.port;
+      endPort = startPort;
+    } else {
+      startPort = DEFAULT_PORT;
+      endPort = startPort + 100;
+    }
+
+    this._port = await listenWithPortSearch(this.server, this.options.host, startPort, endPort);
   }
 
   public async close(force = false) {
@@ -51,10 +61,11 @@ export class HttpServer {
 
 async function listenWithPortSearch(
   server: http.Server,
-  startPort: number,
   host: string,
+  startPort: number,
+  endPort: number,
 ): Promise<number> {
-  for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
+  for (let port = startPort; port <= endPort; port++) {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
@@ -64,11 +75,16 @@ async function listenWithPortSearch(
         });
       });
       return port;
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+    } catch (err: any) {
+      if (err.code !== 'EADDRINUSE') {
+        throw err;
+      }
     }
   }
-  throw new Error(`No available port found in range ${startPort}-${startPort + MAX_PORT_ATTEMPTS - 1}`);
-}
 
-const MAX_PORT_ATTEMPTS = 100;
+  if (startPort === endPort) {
+    throw new Error(`Port ${startPort} is already in use`);
+  }
+
+  throw new Error(`No available port found in range ${startPort}-${endPort}`);
+}
