@@ -35,82 +35,96 @@ export class StackTrace {
    * With all the NON-"my code" call frames redacted, the top level frame should
    * be the last user frame that is associated with the given call stack.
    */
-  public findAndParse(finder: IStackFrameFinder): CallSite | undefined {
+  public findAndParse(finder: IStackFrameFinder): StackFrame | undefined {
     for (const frame of this.frames) {
       if (finder.isInterestingFrame(frame)) {
-        return parseStackFrame(frame);
+        return StackFrame.parse(frame);
       }
     }
     return undefined;
   }
 }
 
-export interface CallSite {
+export class StackFrame {
   /**
-   * Name of the function this call frame is in
-   */
-  functionName: string;
-
-  /**
-   * The file name this call frame is in
-   */
-  fileName: string;
-
-  /**
-   * The line and optionally column number this call frame is in
+   * Parse a single line of a stack frame into a structured object
    *
-   * Formatted as `<line> [':' <column>]`.
+   * This is mostly a NodeJS-flavored string we parse here, except that in
+   * a NodeJS stack trace the line would start with `    at `.
+   *
+   * Parses all of these:
+   *
+   * ```
+   * <function> (<file>:<line>:<col>)
+   * <class>.<function> (<file>:<line>:<col>)
+   * Object.<anonymous> (<file>:<line>:<col>)
+   * <function> [as somethingElse] (<file>:<line>:<col>)
+   * new <constructor> (<file>:<line>:<col>)
+   * <file>:<line>:<col>
+   * ```
+   *
+   * See https://v8.dev/docs/stack-trace-api#appendix%3A-stack-trace-format
    */
-  sourceLocation: string;
-}
+  public static parse(frame: string): StackFrame {
+    let fileName;
+    let functionName;
+    let sourceLocation;
 
-/**
- * Parse a single line of a stack frame into a structured object
- *
- * Parses all of these:
- *
- * ```
- * <function> (<file>:<line>:<col>)
- * <class>.<function> (<file>:<line>:<col>)
- * Object.<anonymous> (<file>:<line>:<col>)
- * <function> [as somethingElse] (<file>:<line>:<col>)
- * new <constructor> (<file>:<line>:<col>)
- * <file>:<line>:<col>
- * ```
- *
- * See https://v8.dev/docs/stack-trace-api#appendix%3A-stack-trace-format
- */
-function parseStackFrame(frame: string): CallSite {
-  let fileName;
-  let functionName;
-  let sourceLocation;
+    // line = <function> (<source>) | <source>
+    const paren = frame.indexOf('(');
+    if (paren) {
+      functionName = frame.slice(0, paren - 1);
+      frame = frame.slice(paren + 1, -1);
+    } else {
+      functionName = '<entry>';
+    }
 
-  // line = <function> (<source>) | <source>
-  const paren = frame.indexOf('(');
-  if (paren) {
-    functionName = frame.slice(0, paren - 1);
-    frame = frame.slice(paren + 1, -1);
-  } else {
-    functionName = '<entry>';
+    // Object.<anonymous> looks confusing
+    if (functionName === 'Object.<anonymous>') {
+      functionName = '<anonymous>';
+    }
+
+    // Handle potential alias
+    let asI = functionName.indexOf(' [as ');
+    if (asI > -1) {
+      const endOfAlias = functionName.indexOf(']', asI);
+      const lastPeriod = functionName.lastIndexOf('.', asI);
+      functionName = functionName.slice(0, lastPeriod + 1) + functionName.slice(asI + 5, endOfAlias);
+    }
+
+    // line = <file>:<line>:<col>, but file can contain : as well.
+    // Grab at most 2 groups of only digits from the end of the string for source location
+    const m = frame.match(/(:[0-9]+){0,2}$/);
+
+    fileName = m ? frame.slice(0, -m[0].length) : frame;
+    sourceLocation = m ? m[0].slice(1) : '';
+
+    return {
+      fileName,
+      functionName,
+      sourceLocation,
+    };
   }
 
-  let asI = functionName.indexOf(' [as ');
-  if (asI > -1) {
-    const endOfAlias = functionName.indexOf(']', asI);
-    const lastPeriod = functionName.lastIndexOf('.', asI);
-    functionName = functionName.slice(0, lastPeriod + 1) + functionName.slice(asI + 5, endOfAlias);
+  constructor(
+    /**
+     * Name of the function this call frame is in
+     */
+    public readonly functionName: string,
+
+    /**
+     * The file name this call frame is in
+     */
+    public readonly fileName: string,
+
+    /**
+     * The line and optionally column number this call frame is in
+     *
+     * Formatted as `<line> [':' <column>]`.
+     */
+    public readonly sourceLocation: string,
+  ) {
+
   }
-
-  // line = <file>:<line>:<col>, but file can contain : as well.
-  // Grab at most 2 groups of only digits from the end of the string for source location
-  const m = frame.match(/(:[0-9]+){0,2}$/);
-
-  fileName = m ? frame.slice(0, -m[0].length) : frame;
-  sourceLocation = m ? m[0].slice(1) : '';
-
-  return {
-    fileName,
-    functionName,
-    sourceLocation,
-  };
 }
+
