@@ -585,6 +585,7 @@ test('deploy is skipped if template did not change', async () => {
 
   // THEN
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy is skipped if parameters are the same', async () => {
@@ -781,6 +782,37 @@ test('if existing stack failed to create, it is deleted and recreated even if th
     ...expect.anything,
     ChangeSetType: ChangeSetType.CREATE,
   } as CreateChangeSetCommandInput);
+});
+
+test('deploy is skipped if template did not change and the caller will execute the change set afterwards', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the internal first phase of an executing change-set deployment
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN
+  assertIsSuccessfulDeployStackResult(result);
+  expect(result.noOp).toBe(true);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if template did not change and --no-execute is given', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the change set is the user's final artifact
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy not skipped if template did not change and --force is applied', async () => {
