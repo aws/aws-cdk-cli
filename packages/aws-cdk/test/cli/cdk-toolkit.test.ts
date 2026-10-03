@@ -1545,6 +1545,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1586,6 +1587,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1651,6 +1653,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1710,6 +1713,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1767,6 +1771,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1820,6 +1825,7 @@ describe('deploy', () => {
       await cdkToolkit.deploy({
         selector: selectWithUpstream('Test-Stack-A'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
