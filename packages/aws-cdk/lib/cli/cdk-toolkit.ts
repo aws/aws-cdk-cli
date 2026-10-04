@@ -1286,6 +1286,13 @@ export class CdkToolkit {
     try {
       // if neither fromPath nor fromStack is provided, generate a template using cloudformation
       const scanType = parseSourceOptions(options.fromPath, options.fromStack, options.stackName).source;
+      if (options.filter?.length && scanType !== TemplateSourceOptions.SCAN) {
+        const sourceOption = scanType === TemplateSourceOptions.STACK ? '--from-stack' : '--from-path';
+        throw new ToolkitError(
+          'MigrateFilterRequiresScan',
+          `--filter cannot be used with ${sourceOption}; remove --filter to migrate this source`,
+        );
+      }
       if (scanType == TemplateSourceOptions.SCAN) {
         generateTemplateOutput = await generateTemplate({
           stackName: options.stackName,
