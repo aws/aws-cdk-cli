@@ -213,6 +213,8 @@ values as `cdk deploy --require-approval`:
 - `--fail-on=any-change`: fail on any difference. `--fail` is an alias for this value.
 - `--fail-on=broadening`: fail only on changes that broaden security permissions, such as new IAM
   statements or security group rules. All differences are still shown.
+- `--fail-on=destructive`: fail only on changes that replace, delete or orphan an existing resource.
+  See below.
 - `--fail-on=never`: never fail. `--no-fail` is an alias for this value.
 
 ```console
@@ -223,6 +225,25 @@ $ cdk diff --fail-on=broadening
 `--fail-on` cannot be combined with `--fail` or `--no-fail`. When none of them is given, the command does
 not fail, unless the `aws-cdk:enableDiffNoFail` feature flag is set to `false`, in which case it fails on
 any difference.
+
+`--fail-on=destructive` lists the resources that would be replaced, deleted or orphaned, and exits with
+code 1. Changes that update resources in place or add new resources do not cause a failure. This is
+useful in CI to stop changes that would lose data, such as a stateful resource whose logical ID
+changed after it was moved to another construct.
+
+```console
+$ cdk diff --fail-on=destructive MyStackName
+...
+❌  Found 1 destructive change(s) (--fail-on=destructive):
+  MyStackName: AWS::DynamoDB::Table MyTable MyTable794EDED1 will be orphaned
+```
+
+Whether a property change replaces the resource is determined by the change set, so use the default
+`--method=auto` or `--method=change-set` for accurate results. With `--method=template`, a change to
+a property that requires replacement is always reported as a replacement, and a change to a property
+that may require replacement is reported as "may be replaced", which also causes a failure.
+With `--security-only`, changes that are likely mangled non-ASCII characters are not filtered out,
+so they can also be reported as destructive.
 
 The stack header shows the environment the stack will be deployed to. For environment-agnostic
 stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is

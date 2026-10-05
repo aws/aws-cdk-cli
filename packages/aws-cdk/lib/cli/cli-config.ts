@@ -422,9 +422,9 @@ export async function makeConfig(): Promise<CliConfig> {
           'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change' },
           'fail-on': {
             type: 'string',
-            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING],
+            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, 'destructive'],
             requiresArg: true,
-            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "never" does not fail. Cannot be used with --fail',
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           },
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
