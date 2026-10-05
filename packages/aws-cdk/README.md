@@ -207,6 +207,23 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+Use `--fail-on` to control which kind of change makes the command exit with code 1. It takes the same
+values as `cdk deploy --require-approval`:
+
+- `--fail-on=any-change`: fail on any difference. `--fail` is an alias for this value.
+- `--fail-on=broadening`: fail only on changes that broaden security permissions, such as new IAM
+  statements or security group rules. All differences are still shown.
+- `--fail-on=never`: never fail. `--no-fail` is an alias for this value.
+
+```console
+# Fail in CI only when a change broadens security permissions
+$ cdk diff --fail-on=broadening
+```
+
+`--fail-on` cannot be combined with `--fail` or `--no-fail`. When none of them is given, the command does
+not fail, unless the `aws-cdk:enableDiffNoFail` feature flag is set to `false`, in which case it fails on
+any difference.
+
 The stack header shows the environment the stack will be deployed to. For environment-agnostic
 stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is
 omitted when diffing against a local template with `--template`, which does not contact AWS.

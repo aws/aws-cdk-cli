@@ -1461,11 +1461,18 @@ export interface DiffOptions {
   readonly securityOnly?: boolean;
 
   /**
-   * Fail with exit code 1 in case of diff
+   * Fail with exit code 1 in case of diff. Same as --fail-on=any-change
    *
    * @default - undefined
    */
   readonly fail?: boolean;
+
+  /**
+   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "never" does not fail. Cannot be used with --fail
+   *
+   * @default - undefined
+   */
+  readonly failOn?: string;
 
   /**
    * Whether to compare against the template with Transforms already processed
