@@ -67,6 +67,12 @@ describe('diff --fail-on', () => {
     expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ failOn: 'never' }));
   });
 
+  test('can only be given once', async () => {
+    await expect(
+      exec(['diff', '--app', 'echo', '--fail-on=broadening', '--fail-on=any-change', 'MyStack']),
+    ).rejects.toThrow('--fail-on can only be given once, got: broadening, any-change');
+  });
+
   test.each([
     ['--fail', '--fail cannot be used with --fail-on, use --fail-on=any-change instead of --fail'],
     ['--no-fail', '--no-fail cannot be used with --fail-on, use --fail-on=never instead of --no-fail'],

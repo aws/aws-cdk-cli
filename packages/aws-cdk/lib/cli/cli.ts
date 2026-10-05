@@ -354,6 +354,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
+        if (Array.isArray(args.failOn)) {
+          throw new ToolkitError('InvalidFailOn', `--fail-on can only be given once, got: ${args.failOn.join(', ')}`);
+        }
         if (args.failOn !== undefined && args.fail !== undefined) {
           throw new ToolkitError('IncompatibleOptions', args.fail
             ? '--fail cannot be used with --fail-on, use --fail-on=any-change instead of --fail'
