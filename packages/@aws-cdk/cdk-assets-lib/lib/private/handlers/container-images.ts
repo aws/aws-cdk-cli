@@ -40,7 +40,7 @@ export class ContainerImageAssetHandler implements IAssetHandler {
 
     const dockerForBuilding = await this.host.dockerFactory.forBuild({
       repoUri: initOnce.repoUri,
-      eventEmitter: (m: string) => this.host.emitMessage(EventType.DEBUG, m),
+      eventEmitter: this.host.emitMessage.bind(this.host),
       ecr: initOnce.ecr,
       subprocessOutputDestination: this.options.subprocessOutputDestination,
     });
