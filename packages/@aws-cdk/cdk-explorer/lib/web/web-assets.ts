@@ -5,6 +5,8 @@
  * always generates this file, so its absence is a build error, not a runtime
  * condition we handle (same convention as the CLI's build-info.json).
  */
+import * as fs from 'fs';
+import * as path from 'path';
 export interface WebAsset {
   readonly contentType: string;
   readonly body: string;
@@ -23,12 +25,21 @@ const WEB_ASSETS: Record<string, WebAsset> = Object.fromEntries(
   Object.entries(raw).map(([name, body]) => [name, { contentType: CONTENT_TYPES[name], body }]),
 );
 
-/** The SPA entry document. */
-export function indexHtml(): WebAsset {
-  return WEB_ASSETS['index.html'];
-}
-
 /** A named SPA asset (e.g. "bundle.js"), or undefined if not part of the build. */
 export function webAsset(name: string): WebAsset | undefined {
-  return WEB_ASSETS.hasOwnProperty(name) ? WEB_ASSETS[name] : undefined;
+  if (process.env.CDK_LIVE === undefined) {
+    return WEB_ASSETS.hasOwnProperty(name) ? WEB_ASSETS[name] : undefined;
+  }
+
+  try {
+    return {
+      contentType: CONTENT_TYPES[name],
+      body: fs.readFileSync(path.resolve(__dirname, 'static', `${name}`), 'utf-8'),
+    };
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      return undefined;
+    }
+    throw e;
+  }
 }

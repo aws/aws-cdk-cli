@@ -1,10 +1,4 @@
-import Box from '@cloudscape-design/components/box';
-import Alert from '@cloudscape-design/components/alert';
-import Button from '@cloudscape-design/components/button';
-import Container from '@cloudscape-design/components/container';
-import Header from '@cloudscape-design/components/header';
-import SpaceBetween from '@cloudscape-design/components/space-between';
-import Spinner from '@cloudscape-design/components/spinner';
+import { Box, Alert, Button, Container, Header, SpaceBetween, Spinner, AppLayoutToolbar, SideNavigation, HelpPanel, SplitPanel, Drawer, Tabs, PanelLayout } from '@cloudscape-design/components';
 import * as React from 'react';
 import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
 import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
@@ -68,6 +62,10 @@ export function App(): JSX.Element {
         setViolations(v);
         setAppDir(info.appDir);
         setError(undefined);
+
+        if (v.status === 'ok' && v.violations.length > 0) {
+          setDiagnosticsOpen(true);
+        }
       })
       // Keep the last good render on a transient read (e.g. a mid-synth write);
       // the next assembly-changed event re-fetches once the write has settled.
@@ -248,128 +246,177 @@ export function App(): JSX.Element {
   // Horizontal split inside the top row: file panes' share of that row's width (default 75%; tree gets the remaining 25%).
   const hSplit = useSplit({ orientation: 'horizontal', defaultFraction: 0.75, min: 0.4, max: 0.85 });
 
+  const [navigationOpen, setNavigationOpen] = React.useState(true);
+  const [drawerOpen, setDrawerOpen] = React.useState(true);
+  const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(violations ? violations.status === 'ok' && violations.violations.length > 0 : false);
+
   return (
-    <div style={PAGE_STYLE} ref={vSplit.containerRef}>
-      <header style={TITLE_BLOCK_STYLE}>
-        <Header variant="h1" description={appDir ?? '—'}>CDK Web Explorer</Header>
-      </header>
-      {error && <Box color="text-status-error">{error}</Box>}
-      <div style={topRowStyle(vSplit)} ref={hSplit.containerRef}>
-        <div style={treePaneStyle(hSplit)}>
-          {!hSplit.collapsed && (
-            <div style={GROW_STYLE}>
-              <Container fitHeight header={<Header variant="h2">Construct Tree</Header>}>
-                <ConstructTreeContent tree={tree} onNavigate={navigate} />
-              </Container>
-            </div>
-          )}
-        </div>
-        <Resizer split={hSplit} />
-        <div style={filesPaneStyle(hSplit)}>
-          <div style={CODE_PANES_STYLE}>
-            <div style={CODE_PANE_STYLE}>
-              <Container fitHeight header={
-                <Header variant="h2">
-                  <span style={PICKER_ANCHOR_STYLE}>
-                    <span style={HEADER_WITH_ACTION_STYLE}>
-                      {sourceFile ?? 'Source'}
-                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : setShowFilePicker('source')}>
-                        <FolderIcon />
-                      </button>
-                    </span>
-                    {showFilePicker === 'source' && (
-                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                        <KnownFileList files={knownSourceFiles} onPick={(p) => void pickFile(p, 'source')} />
-                      </div>
-                    )}
-                  </span>
-                </Header>
-              }>
-                <div style={CODE_PANE_INNER_STYLE}>
-                  {sourceContent ? (
-                    <div style={SOURCE_PANE_COLUMN_STYLE}>
-                      {sourceStale && (
-                        <Alert type="warning">
-                          This file has been modified since the last synth, so its violations and diagnostics may be stale. Re-run <code>cdk synth</code> to refresh.
-                        </Alert>
+    <AppLayoutToolbar
+      breadcrumbs={
+        <SpaceBetween direction='horizontal' size='s'>
+          <div style={{ fontWeight: 'bold' }}>CDK Explorer</div>
+          <div style={{ fontWeight: 'light' }}>{appDir ?? '-'}</div>
+        </SpaceBetween>
+      }
+      navigationOpen={navigationOpen}
+      onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
+
+      navigation={
+            <Tabs
+              fitHeight={true}
+              tabs={[{
+                label: 'Construct Tree',
+                id: 'tree',
+                content: (
+                  <ConstructTreeContent tree={tree} onNavigate={navigate} />
+                )
+              }]}
+            />
+      }
+      contentType='table'
+      disableContentPaddings={true}
+      content={
+        <div>
+          {error && <Box color="text-status-error">{error}</Box>}
+          <Tabs
+            fitHeight={true}
+            tabs={[{
+              label: 'Source View',
+              id: 'source',
+              content: (
+                <div>
+                  <Header variant="h2">
+                    <span style={PICKER_ANCHOR_STYLE}>
+                      <span style={HEADER_WITH_ACTION_STYLE}>
+                        {sourceFile ?? 'Source'}
+                        <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : setShowFilePicker('source')}>
+                          <FolderIcon />
+                        </button>
+                      </span>
+                      {showFilePicker === 'source' && (
+                        <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                          <KnownFileList files={knownSourceFiles} onPick={(p) => void pickFile(p, 'source')} />
+                        </div>
                       )}
-                      <div style={GROW_STYLE}>
-                        <CodeViewer
-                          content={sourceContent}
-                          language={detectLanguage(sourceFile)}
-                          highlightStart={nav?.source?.startLine}
-                          highlightEnd={nav?.source?.endLine}
+                    </span>
+                  </Header>
+                  <div style={CODE_PANE_INNER_STYLE}>
+                    {sourceContent ? (
+                      <div style={SOURCE_PANE_COLUMN_STYLE}>
+                        {sourceStale && (
+                          <Alert type="warning">
+                            This file has been modified since the last synth, so its violations and diagnostics may be stale. Re-run <code>cdk synth</code> to refresh.
+                          </Alert>
+                        )}
+                        <div style={GROW_STYLE}>
+                          <CodeViewer
+                            content={sourceContent}
+                            language={detectLanguage(sourceFile)}
+                            highlightStart={nav?.source?.startLine}
+                            highlightEnd={nav?.source?.endLine}
+                            highlightColor={nav?.color}
+                            navCounter={nav?.navCounter}
+                            scrollToLine={nav?.source?.startLine}
+                            onLineDoubleClick={handleSourceDoubleClick}
+                            diagnostics={buildDiagnostics(sourceFile, violations)}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
+                    )}
+                  </div>
+                </div>)
+            }]}
+          />
+        </div>
+      }
+
+      activeDrawerId={drawerOpen ? 'template' : null}
+      drawers={[
+        {
+          id: 'template',
+          content: (
+            <Tabs
+              fitHeight={true}
+              tabs={[{
+                label: 'Template View',
+                id: 'template',
+                content: (
+                  <div>
+                    <Header variant="h2" actions={templateData && <FormatToggle format={templateFormat} onChange={setTemplateFormat} />}>
+                      <span style={PICKER_ANCHOR_STYLE}>
+                        <span style={HEADER_WITH_ACTION_STYLE}>
+                          {templateFile ?? 'Template'}
+                          <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
+                            <FolderIcon />
+                          </button>
+                        </span>
+                        {showFilePicker === 'template' && (
+                          <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
+                            <KnownFileList files={knownTemplateFiles} onPick={(p) => void pickFile(p, 'template')} />
+                          </div>
+                        )}
+                      </span>
+                    </Header>
+                    <div style={CODE_PANE_INNER_STYLE}>
+                      {templateData ? (
+                        <TemplateViewer
+                          jsonContent={templateData.content}
+                          resources={templateData.resources}
+                          highlightLogicalId={nav?.template?.logicalId}
                           highlightColor={nav?.color}
                           navCounter={nav?.navCounter}
-                          scrollToLine={nav?.source?.startLine}
-                          onLineDoubleClick={handleSourceDoubleClick}
-                          diagnostics={buildDiagnostics(sourceFile, violations)}
+                          onResourceDoubleClick={jumpToSource}
+                          templateFile={templateFile}
+                          violations={violations?.status === 'ok' ? violations.violations : undefined}
+                          format={templateFormat}
                         />
-                      </div>
+                      ) : templateFile ? (
+                        <Box color="text-status-error">Could not load {templateFile}</Box>
+                      ) : (
+                        <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
+                      )}
                     </div>
-                  ) : (
-                    <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
-                  )}
-                </div>
-              </Container>
+                  </div>
+                ),
+              }]}
+            />
+          ),
+          resizable: true,
+          defaultSize: 500,
+          trigger: {
+            iconName: 'file-open',
+          },
+          ariaLabels: {
+            drawerName: 'Template Drawer',
+          },
+        },
+      ]}
+      onDrawerChange={(detail) => {
+        setDrawerOpen(!drawerOpen);
+      }}
+
+      splitPanelOpen={diagnosticsOpen}
+      onSplitPanelToggle={(detail) => setDiagnosticsOpen(!diagnosticsOpen)}
+      splitPanel={
+        <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
+          ariaLabel='Diagnostics'
+          headerActions={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+              <ViolationsTitle filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
+              <ViolationsActions search={violationSearch} onSearchChange={setViolationSearch} />
             </div>
-            <div style={CODE_PANE_STYLE}>
-              <Container fitHeight header={
-                <Header variant="h2" actions={templateData && <FormatToggle format={templateFormat} onChange={setTemplateFormat} />}>
-                  <span style={PICKER_ANCHOR_STYLE}>
-                    <span style={HEADER_WITH_ACTION_STYLE}>
-                      {templateFile ?? 'Template'}
-                      <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
-                        <FolderIcon />
-                      </button>
-                    </span>
-                    {showFilePicker === 'template' && (
-                      <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                        <KnownFileList files={knownTemplateFiles} onPick={(p) => void pickFile(p, 'template')} />
-                      </div>
-                    )}
-                  </span>
-                </Header>
-              }>
-                <div style={CODE_PANE_INNER_STYLE}>
-                  {templateData ? (
-                    <TemplateViewer
-                      jsonContent={templateData.content}
-                      resources={templateData.resources}
-                      highlightLogicalId={nav?.template?.logicalId}
-                      highlightColor={nav?.color}
-                      navCounter={nav?.navCounter}
-                      onResourceDoubleClick={jumpToSource}
-                      templateFile={templateFile}
-                      violations={violations?.status === 'ok' ? violations.violations : undefined}
-                      format={templateFormat}
-                    />
-                  ) : templateFile ? (
-                    <Box color="text-status-error">Could not load {templateFile}</Box>
-                  ) : (
-                    <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
-                  )}
-                </div>
-              </Container>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={bottomRowStyle(vSplit)}>
-        <Resizer split={vSplit} />
-        {!vSplit.collapsed && (
-          <div style={GROW_STYLE}>
-            <Container fitHeight header={
-              <Header variant="h2" actions={<ViolationsActions search={violationSearch} onSearchChange={setViolationSearch} />}>
-                <ViolationsTitle filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
-              </Header>
-            }>
-              <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
-            </Container>
-          </div>
-        )}
-      </div>
-    </div>
+          }
+        >
+
+          <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
+        </SplitPanel>}
+      ariaLabels={{
+      }}
+    >
+
+    </AppLayoutToolbar>
   );
 }
 
@@ -413,11 +460,11 @@ function ViolationsContent({ violations, onNavigate, filter, onClearFilter, sear
 }
 
 function ViolationsTitle({ filter, onClearFilter }: { readonly filter?: string; readonly onClearFilter: () => void }): JSX.Element {
-  if (!filter) return <>Violations</>;
+  if (!filter) return <></>;
   const name = filter.split('/').pop() || filter;
   return (
     <span style={VIOLATIONS_TITLE_STYLE}>
-      Violations for
+      Only in scope of
       <span style={FILTER_PILL_STYLE}>
         {name}
         <button type="button" style={FILTER_CLEAR_STYLE} onClick={onClearFilter} title="Show all violations">&times;</button>

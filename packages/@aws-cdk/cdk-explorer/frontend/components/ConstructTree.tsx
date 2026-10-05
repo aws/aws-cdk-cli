@@ -148,9 +148,8 @@ const TYPE_STYLE: React.CSSProperties = {
   fontSize: '12px',
 };
 const CARET_STYLE: React.CSSProperties = {
-  width: '12px',
   flexShrink: 0,
-  fontSize: '10px',
+  fontSize: '20px',
   lineHeight: 1,
 };
 const CARET_SPACER: React.CSSProperties = { display: 'inline-block', width: '12px', flexShrink: 0 };

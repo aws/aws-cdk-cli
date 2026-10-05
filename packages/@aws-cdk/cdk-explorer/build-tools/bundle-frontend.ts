@@ -15,7 +15,7 @@ const embeddedAssetsFile = path.join(packageRoot, 'lib', 'web', 'web-assets.gene
 async function main(): Promise<void> {
   fs.mkdirSync(outDir, { recursive: true });
 
-  await esbuild.build({
+  const context = await esbuild.context({
     entryPoints: [path.join(frontendDir, 'index.tsx')],
     bundle: true,
     outfile: path.join(outDir, 'bundle.js'),
@@ -25,12 +25,43 @@ async function main(): Promise<void> {
     jsx: 'automatic',
     loader: { '.css': 'css', '.svg': 'dataurl', '.png': 'dataurl' },
     sourcemap: 'external', // does not load map automatically, have to attach manually
-    logLevel: 'info',
+    logLevel: 'warning',
     minify: true,
+    logStyle: 'default',
   });
 
-  fs.copyFileSync(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));
-  writeEmbeddedAssets();
+  try {
+    await buildAndPostProcess();
+
+    if (process.argv[2] === '--watch') {
+      const watcher = fs.watch(path.resolve(__dirname, '..', 'frontend'), { recursive: true }, async (eventType, filename) => {
+        console.log(`File changed: ${filename} (${eventType})`);
+        await buildAndPostProcess();
+      });
+
+      await new Promise<void>((resolve) => {
+        process.on('SIGINT', resolve);
+        process.on('SIGTERM', resolve);
+      });
+
+      watcher.close();
+    }
+
+  } finally {
+    await context.dispose();
+  }
+
+
+  async function buildAndPostProcess() {
+    try {
+      await context.rebuild();
+      fs.copyFileSync(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));
+      writeEmbeddedAssets();
+      console.log('Built');
+    } catch (e) {
+      console.error(e);
+    }
+  }
 }
 
 function writeEmbeddedAssets(): void {

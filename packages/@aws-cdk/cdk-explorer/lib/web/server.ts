@@ -9,7 +9,7 @@ import { newSessionToken, sessionAuth, TOKEN_QUERY_PARAM } from './middleware/se
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from './protocol';
 import { registerApi } from './routes';
 import { StalenessTracker } from './staleness';
-import { indexHtml, webAsset } from './web-assets';
+import { webAsset } from './web-assets';
 import { toolkitAssemblyLock } from '../core/assembly-lock';
 import {
   startAssemblyWatcher as defaultStartAssemblyWatcher,
@@ -145,7 +145,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     return res.type(asset.contentType).send(asset.body);
   });
   app.get('*', (_req, res) => {
-    const index = indexHtml();
+    const index = webAsset('index.html')!;
     res.type(index.contentType).send(index.body);
   });
 
