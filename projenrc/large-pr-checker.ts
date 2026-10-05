@@ -69,11 +69,11 @@ export class LargePrChecker extends Component {
         {
           id: 'comment_pr',
           if: `$\{{ fromJSON(steps.get_total_lines_changed.outputs.total_lines_changed) > fromJSON(${maxLinesChanged}) }}`,
-          uses: 'thollander/actions-comment-pull-request@v2',
+          uses: 'thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b', // 3.0.1
           with: {
-            comment_tag: 'pr_size',
-            mode: 'recreate',
-            message: `Total lines changed $\{{ steps.get_total_lines_changed.outputs.total_lines_changed }} is greater than ${maxLinesChanged}. Please consider breaking this PR down.`,
+            'comment-tag': 'pr_size',
+            'mode': 'recreate',
+            'message': `Total lines changed $\{{ steps.get_total_lines_changed.outputs.total_lines_changed }} is greater than ${maxLinesChanged}. Please consider breaking this PR down.`,
           },
         },
         {
