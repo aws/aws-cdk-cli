@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
@@ -353,6 +354,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
+        if (Array.isArray(args.failOn)) {
+          throw new ToolkitError('InvalidFailOn', `--fail-on can only be given once, got: ${args.failOn.join(', ')}`);
+        }
+        if (args.failOn !== undefined && args.fail !== undefined) {
+          throw new ToolkitError('IncompatibleOptions', args.fail
+            ? '--fail cannot be used with --fail-on, use --fail-on=any-change instead of --fail'
+            : '--no-fail cannot be used with --fail-on, use --fail-on=never instead of --no-fail');
+        }
         const diffMethod = determineDiffMethod(args);
         if (diffMethod === 'template') {
           rejectIncompatibleOptions(args, '--method=template', {
@@ -366,7 +375,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           strict: args.strict,
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
-          fail: args.fail != null ? args.fail : !enableDiffNoFail,
+          // --fail is an alias for --fail-on=any-change, and the feature flag decides the default
+          failOn: args.failOn ?? ((args.fail ?? !enableDiffNoFail) ? RequireApproval.ANYCHANGE : RequireApproval.NEVER),
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           method: diffMethod,

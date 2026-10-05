@@ -629,7 +629,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      fail: true,
+      failOn: cxschema.RequireApproval.ANYCHANGE,
     });
 
     // THEN
@@ -652,7 +652,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'D'],
-      fail: true,
+      failOn: cxschema.RequireApproval.ANYCHANGE,
     });
 
     // THEN
@@ -675,7 +675,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['D'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -693,7 +693,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -784,7 +784,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'template',
     });
@@ -802,7 +802,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'auto',
     });
@@ -825,7 +825,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'auto',
     });
@@ -1258,7 +1258,7 @@ There were no differences`);
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['UnchangedParent'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -1276,7 +1276,7 @@ There were no differences`);
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -1783,5 +1783,147 @@ describe('environment annotation', () => {
     } finally {
       fs.rmSync(templatePath);
     }
+  });
+});
+
+describe('--fail-on', () => {
+  const deployedTemplate = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 30 } },
+    },
+  };
+
+  const broadeningResources = {
+    ...deployedTemplate.Resources,
+    Role: {
+      Type: 'AWS::IAM::Role',
+      Properties: {
+        AssumeRolePolicyDocument: {
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+        },
+      },
+    },
+  };
+
+  const updatedResources = {
+    Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+  };
+
+  async function setup(newResources: Record<string, any>) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template: { Resources: newResources } }],
+    }, undefined, ioHost);
+
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks: {},
+    });
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test.each([
+    [cxschema.RequireApproval.ANYCHANGE, updatedResources, 1],
+    [cxschema.RequireApproval.ANYCHANGE, broadeningResources, 1],
+    [cxschema.RequireApproval.ANYCHANGE, deployedTemplate.Resources, 0],
+    [cxschema.RequireApproval.BROADENING, updatedResources, 0],
+    [cxschema.RequireApproval.BROADENING, broadeningResources, 1],
+    [cxschema.RequireApproval.NEVER, broadeningResources, 0],
+  ])('--fail-on=%s exits with the expected code (case %#)', async (failOn, newResources, expectedExitCode) => {
+    await setup(newResources);
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn });
+
+    expect(exitCode).toBe(expectedExitCode);
+  });
+
+  test('--fail-on=broadening still prints the full diff', async () => {
+    await setup({ ...broadeningResources, ...updatedResources });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.BROADENING });
+
+    expect(output()).toContain('VisibilityTimeout');
+    expect(output()).toContain('AWS::IAM::Role');
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works with --security-only', async () => {
+    await setup(broadeningResources);
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      securityOnly: true,
+      failOn: cxschema.RequireApproval.BROADENING,
+    });
+
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works when comparing against a local template', async () => {
+    const templatePath = 'fail-on-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup(broadeningResources);
+
+      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOn: cxschema.RequireApproval.BROADENING });
+
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+
+  test('--fail-on=broadening detects broadening changes in nested stacks', async () => {
+    await setup(deployedTemplate.Resources);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: {},
+          generatedTemplate: { Resources: { Role: broadeningResources.Role } },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.BROADENING });
+
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works with --security-only when comparing against a local template', async () => {
+    const templatePath = 'fail-on-security-only-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup(broadeningResources);
+
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        templatePath,
+        securityOnly: true,
+        failOn: cxschema.RequireApproval.BROADENING,
+      });
+
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+
+  test('does not fail by default', async () => {
+    await setup(broadeningResources);
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template' });
+
+    expect(exitCode).toBe(0);
   });
 });
