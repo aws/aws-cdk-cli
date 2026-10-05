@@ -693,40 +693,49 @@ class FullCloudFormationDeployment {
 
     const rollbackWillBeDisabled = this.rollbackWillBeDisabled(changeSet, persistedExpressRollbackDisabled);
 
-    if (replacements.length > 0 && rollbackWillBeDisabled) {
-      if (isExpress) {
-        const guidance = replacementRoutingMessage({
-          rejected: false,
-          recovery: this.replacementRecovery(),
-          status: this.cloudFormationStack.stackStatus.name,
-        });
+    // An incomplete scan means we could not prove the hierarchy contains no replacement, so it is treated as a
+    // presumed one. It takes the same routing as a confirmed replacement rather than a harsher terminal error for
+    // the weaker signal.
+    const inspectionIncomplete = replacements.length === 0 && scan.uninspected.length > 0;
 
+    if ((replacements.length > 0 || inspectionIncomplete) && rollbackWillBeDisabled) {
+      const routingMessage = replacementRoutingMessage({
+        rejected: false,
+        recovery: this.replacementRecovery(),
+        status: this.cloudFormationStack.stackStatus.name,
+      });
+      const guidance = inspectionIncomplete
+        ? nestedInspectionIncompleteMessage(scan.uninspected, isExpress)
+        : routingMessage;
+
+      // A confirmed replacement outside Express Mode is explained by the prompt the caller raises for
+      // `replacement-requires-rollback`. An incomplete scan is not, so it reports why it blocked either way.
+      if (isExpress || inspectionIncomplete) {
         await this.ioHelper.notify(IO.CDK_TOOLKIT_W5903.msg(guidance, {
           stackName: this.stackName,
           changeSetId: changeSet.ChangeSetId,
           replacements,
           detectedBy: 'change-set',
         }));
+      }
 
-        if (opts.preExistingChangeSet && persistedExpressRollbackDisabled === true) {
-          throw new ToolkitError(
+      // Only a change set prepared by an earlier command is beyond this invocation's reach: its rollback policy is
+      // already fixed and recreating it is not ours to decide. Anything this deploy owns can be recreated by the
+      // caller's retry loop with rollback enabled.
+      if (opts.preExistingChangeSet && persistedExpressRollbackDisabled === true) {
+        throw inspectionIncomplete
+          ? new ToolkitError('NestedChangeSetInspectionIncomplete', guidance)
+          : new ToolkitError(
             'ReplacementRequiresRecreateChangeSet',
             changeSetRecreateForReplacementMessage(changeSet.ChangeSetName),
           );
-        }
-
-        if (isPausedFailState) {
-          throw new ToolkitError('ReplacementRequiresUnwedge', guidance);
-        }
       }
-      return { type: 'replacement-requires-rollback' };
-    }
 
-    if (rollbackWillBeDisabled && scan.uninspected.length > 0) {
-      throw new ToolkitError(
-        'NestedChangeSetInspectionIncomplete',
-        nestedInspectionIncompleteMessage(scan.uninspected),
-      );
+      if (isExpress && isPausedFailState) {
+        throw new ToolkitError('ReplacementRequiresUnwedge', routingMessage);
+      }
+
+      return { type: 'replacement-requires-rollback' };
     }
 
     if (persistedExpressRollbackDisabled !== undefined && persistedExpressRollbackDisabled !== invocationRollbackDisabled) {
@@ -1310,8 +1319,8 @@ interface ReplacementScan {
   readonly uninspected: string[];
 }
 
-function nestedInspectionIncompleteMessage(uninspected: string[]): string {
-  const withRollback = chalk.blue('cdk deploy --express --rollback');
+function nestedInspectionIncompleteMessage(uninspected: string[], isExpress: boolean): string {
+  const withRollback = chalk.blue(isExpress ? 'cdk deploy --express --rollback' : 'cdk deploy --rollback');
 
   return [
     'Rollback is disabled for this deployment, so a replacement would be rejected mid-execution and leave the stack',

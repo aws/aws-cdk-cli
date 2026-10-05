@@ -1447,3 +1447,94 @@ describe('the replacement guidance states the rollback condition instead of retr
     expect(guidance).not.toContain('return the stack to a terminal state');
   });
 });
+
+describe('an incomplete nested scan is no harsher than a confirmed replacement', () => {
+  // A confirmed replacement returns the recoverable `replacement-requires-rollback` that --force can proceed past,
+  // so mere UNCERTAINTY about a replacement must not be treated more harshly than certainty. Only a change set
+  // prepared by an earlier command is terminal, because its rollback policy is already fixed.
+  const unreadableNestedChange: Change = {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'NestedChild',
+      PhysicalResourceId: 'some-child',
+      ResourceType: 'AWS::CloudFormation::Stack',
+      Replacement: 'False',
+    },
+  };
+
+  test('a standard --no-rollback deploy is recoverable and is never told to switch to Express Mode', async () => {
+    // GIVEN a plain `cdk deploy --revert-drift --no-rollback`: the change set is created without
+    // IncludeNestedStacks, so the modified nested stack carries no ChangeSetId to inspect.
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.overrideChangeSetChanges = [unreadableNestedChange];
+    failOnAnyStackMutation();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'change-set', changeSetName: 'cdk-deploy-change-set', revertDrift: true },
+      rollback: false,
+      forceDeployment: true,
+    });
+
+    // THEN it still fails closed - the unreadable hierarchy counts as a presumed replacement - but the caller
+    // can prompt and retry rather than hitting a dead end.
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expectNoStackMutation();
+
+    const guidance = ioHost.messagesWithCode(W5903)[0].message;
+    expect(guidance).toContain('reported no change set to inspect');
+    expect(guidance).toContain('cdk deploy --rollback');
+    expect(guidance).not.toContain('--express');
+  });
+
+  test('an express deploy that created its own change set is recoverable too', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.overrideChangeSetChanges = [unreadableNestedChange];
+    failOnAnyStackMutation();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      express: true,
+      forceDeployment: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expectNoStackMutation();
+
+    const guidance = ioHost.messagesWithCode(W5903)[0].message;
+    expect(guidance).toContain('reported no change set to inspect');
+    expect(guidance).toContain('cdk deploy --express --rollback');
+  });
+
+  test('the same incomplete scan stays terminal for a change set left behind by an earlier command', async () => {
+    // GIVEN the identical unreadable hierarchy, but pinned to a change set this invocation did not create.
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      Changes: [unreadableNestedChange],
+      DeploymentConfig: { Mode: 'EXPRESS' },
+    });
+    failOnAnyStackMutation();
+
+    // WHEN / THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'prepared' },
+      express: true,
+      forceDeployment: true,
+    })).rejects.toThrow(expect.objectContaining({
+      name: 'NestedChangeSetInspectionIncomplete',
+      message: expect.stringContaining('reported no change set to inspect'),
+    }));
+
+    expectNoStackMutation();
+  });
+});
