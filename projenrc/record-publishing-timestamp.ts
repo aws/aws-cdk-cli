@@ -44,7 +44,7 @@ export class RecordPublishingTimestamp extends Component {
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v6',
+          uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',

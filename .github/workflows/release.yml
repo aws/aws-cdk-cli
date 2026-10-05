@@ -1691,7 +1691,7 @@ jobs:
           path: dist/standalone
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
@@ -1727,7 +1727,7 @@ jobs:
         run: echo "version=$(cat dist/version.txt)" >> $GITHUB_OUTPUT
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
@@ -1756,7 +1756,7 @@ jobs:
           path: dist
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
@@ -1764,7 +1764,7 @@ jobs:
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}
@@ -1828,7 +1828,7 @@ jobs:
           path: dist
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}
@@ -1836,7 +1836,7 @@ jobs:
           mask-aws-account-id: true
       - name: Assume the publishing role
         id: publishing-creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}

@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Checkout merge commit
         id: checkout_merge_commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
@@ -116,7 +116,7 @@ jobs:
       - name: Post comment
         id: post_comment
         if: steps.template-changed.outputs.changed == 'true' && github.event.pull_request.head.repo.fork != true
-        uses: thollander/actions-comment-pull-request@v3
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
         with:
           comment-tag: bootstrap-template-protection
           mode: recreate
