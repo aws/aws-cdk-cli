@@ -944,9 +944,9 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('fail-on', {
             default: undefined,
             type: 'string',
-            choices: ['never', 'any-change', 'broadening'],
+            choices: ['never', 'any-change', 'broadening', 'destructive'],
             requiresArg: true,
-            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "never" does not fail. Cannot be used with --fail',
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           })
           .option('processed', {
             default: false,

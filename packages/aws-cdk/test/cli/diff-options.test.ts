@@ -43,7 +43,7 @@ describe('diff --change-set-name', () => {
 });
 
 describe('diff --fail-on', () => {
-  test.each(['never', 'any-change', 'broadening'])('passes --fail-on=%s through to CdkToolkit.diff', async (failOn) => {
+  test.each(['never', 'any-change', 'broadening', 'destructive'])('passes --fail-on=%s through to CdkToolkit.diff', async (failOn) => {
     await exec(['diff', '--app', 'echo', `--fail-on=${failOn}`, 'MyStack']);
 
     expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ failOn }));

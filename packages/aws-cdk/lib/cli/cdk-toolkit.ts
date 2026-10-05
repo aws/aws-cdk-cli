@@ -15,12 +15,14 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, DestructiveChange, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
   findCloudWatchLogGroups,
+  findDestructiveChanges,
+  formatDestructiveChange,
   GarbageCollector,
   removeNonImportResources,
   ResourceImporter,
@@ -292,6 +294,7 @@ export class CdkToolkit {
     const failOn = options.failOn ?? RequireApproval.NEVER;
     let diffs = 0;
     let hasBroadeningChanges = false;
+    const destructiveChanges: DestructiveChange[] = [];
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -342,6 +345,10 @@ export class CdkToolkit {
         if (failOn === RequireApproval.BROADENING) {
           hasBroadeningChanges = formatter.formatSecurityDiff().permissionChangeType === PermissionChangeType.BROADENING;
         }
+      }
+
+      if (failOn === DIFF_FAIL_ON_DESTRUCTIVE) {
+        destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
       }
     } else {
       const allMappings = options.includeMoves
@@ -410,12 +417,23 @@ export class CdkToolkit {
             hasBroadeningChanges = true;
           }
         }
+
+        if (failOn === DIFF_FAIL_ON_DESTRUCTIVE) {
+          destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
+        }
       }
     }
 
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
-    return diffFails(failOn, diffs, hasBroadeningChanges) ? 1 : 0;
+    if (destructiveChanges.length > 0) {
+      const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
+      await this.ioHost.asIoHelper().defaults.error(
+        `❌  Found ${destructiveChanges.length} destructive change(s) (--fail-on=destructive):\n${lines.join('\n')}\n`,
+      );
+    }
+
+    return diffFails(failOn, diffs, hasBroadeningChanges, destructiveChanges.length > 0) ? 1 : 0;
   }
 
   /**
@@ -1576,6 +1594,16 @@ export interface SynthOptions {
 }
 
 /**
+ * `--fail-on` value that fails the diff on changes that replace, delete or orphan an existing resource
+ */
+export const DIFF_FAIL_ON_DESTRUCTIVE = 'destructive';
+
+/**
+ * Kinds of change that can make `cdk diff` fail: the `--require-approval` values, plus destructive changes
+ */
+export type DiffFailOn = RequireApproval | typeof DIFF_FAIL_ON_DESTRUCTIVE;
+
+/**
  * Options for the diff command
  */
 export interface DiffOptions {
@@ -1624,11 +1652,12 @@ export interface DiffOptions {
    *
    * - `any-change`: any difference
    * - `broadening`: a change that broadens security permissions
+   * - `destructive`: a change that replaces, deletes or orphans an existing resource
    * - `never`: the diff never fails
    *
    * @default RequireApproval.NEVER
    */
-  readonly failOn?: RequireApproval;
+  readonly failOn?: DiffFailOn;
 
   /**
    * Only run diff on broadened security changes
@@ -2680,12 +2709,14 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
 /**
  * Whether a diff with the given changes fails, according to `--fail-on`
  */
-function diffFails(failOn: RequireApproval, numStacksWithChanges: number, hasBroadeningChanges: boolean): boolean {
+function diffFails(failOn: DiffFailOn, numStacksWithChanges: number, hasBroadeningChanges: boolean, hasDestructiveChanges: boolean): boolean {
   switch (failOn) {
     case RequireApproval.ANYCHANGE:
       return numStacksWithChanges > 0;
     case RequireApproval.BROADENING:
       return hasBroadeningChanges;
+    case DIFF_FAIL_ON_DESTRUCTIVE:
+      return hasDestructiveChanges;
     case RequireApproval.NEVER:
       return false;
   }

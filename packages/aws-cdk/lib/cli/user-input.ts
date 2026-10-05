@@ -1468,7 +1468,7 @@ export interface DiffOptions {
   readonly fail?: boolean;
 
   /**
-   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "never" does not fail. Cannot be used with --fail
+   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail
    *
    * @default - undefined
    */
