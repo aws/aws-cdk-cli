@@ -141,8 +141,10 @@ export interface DeployStackOptions {
    *
    * When a change set is created without being executed (change-set method
    * with `execute: false`) and this is false, the change set is the user's
-   * final artifact (`--no-execute`) and is announced as waiting for manual
-   * execution.
+   * final artifact (`--no-execute`): it is always created, even if nothing
+   * changed, and is announced as waiting for manual execution. When this is
+   * true, the deployment is skipped if nothing changed, as for an executing
+   * change-set deployment.
    *
    * @default false
    */
@@ -1092,10 +1094,12 @@ async function canSkipDeploy(
     return false;
   }
 
-  // Creating changeset only (default true), never skip
+  // Creating changeset only for the user (--no-execute), never skip. The
+  // internal first phase of an executing deployment can still skip.
   if (
     deployStackOptions.deploymentMethod?.method === 'change-set' &&
-    deployStackOptions.deploymentMethod.execute === false
+    deployStackOptions.deploymentMethod.execute === false &&
+    !deployStackOptions.willExecuteChangeSet
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
     return false;

@@ -106,7 +106,8 @@ export interface DeployStackOptions {
    * - `false`: the change set is the user's final artifact (`--no-execute`);
    *   it is announced as waiting for manual execution, and `prepareStack()`
    *   keeps it even if it contains no changes.
-   * - `true`: the change set is about to be executed by the caller; it is not
+   * - `true`: the change set is about to be executed by the caller; the
+   *   deployment is skipped if nothing changed, the change set is not
    *   announced, and `prepareStack()` cleans it up if it contains no changes.
    *
    * @default false
