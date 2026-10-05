@@ -1538,3 +1538,66 @@ describe('an incomplete nested scan is no harsher than a confirmed replacement',
     expectNoStackMutation();
   });
 });
+
+describe('post-failure routing follows the policy persisted on the change set, not this invocation\'s flags', () => {
+  // A change set records its mode and rollback policy when it is created, and executing it cannot change either.
+  // An Express change set executed without --express is still an Express, rollback-disabled deployment, so the
+  // flags of the executing invocation are the wrong source of truth once CloudFormation rejects a replacement.
+  function givenPersistedExpressChangeSetThatWillBeRejected() {
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      TemplateBody: JSON.stringify(templateRejectingReplacement()),
+      // The change set does not declare the replacement (#1971), so nothing blocks it up front and the
+      // rejection only arrives from the service during execution.
+      Changes: [conditionalChange()],
+      DeploymentConfig: { Mode: 'EXPRESS' },
+    });
+  }
+
+  test('a persisted express change set executed without --express still gets the replacement guidance', async () => {
+    // GIVEN
+    givenPersistedExpressChangeSetThatWillBeRejected();
+
+    // WHEN - note: no `express` flag on this invocation
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK_REJECTING_REPLACEMENT),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'prepared' },
+      forceDeployment: true,
+    })).rejects.toThrow(CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON);
+
+    // THEN the persisted policy stranded the stack, so the guidance has to be emitted even though no flag
+    // on this command said "express" or "no rollback".
+    expect(fakeCfn.accessStack('withouterrors').status).toEqual(StackStatus.UPDATE_FAILED);
+    ioHost.expectMessage({ level: 'warn', code: W5903, containing: 'CloudFormation refused a replacement' });
+    expect(ioHost.messagesWithCode(W5903)[0].data).toEqual(expect.objectContaining({
+      detectedBy: 'service-error',
+    }));
+  });
+
+  test('the diagnoser is told rollback was disabled by the change set, not by the flags', async () => {
+    // GIVEN
+    givenPersistedExpressChangeSetThatWillBeRejected();
+    const args = standardDeployStackArguments(FAKE_STACK_REJECTING_REPLACEMENT);
+    const diagnoseSpy = jest.spyOn(args.diagnoser, 'diagnoseFromErrorCollection');
+
+    // WHEN
+    await expect(testDeployStack({
+      ...args,
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'prepared' },
+      forceDeployment: true,
+    })).rejects.toThrow(CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON);
+
+    // THEN no rollback happened, so the diagnoser must not advise retrying with --no-rollback to retain
+    // resources that were never torn down.
+    expect(diagnoseSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      true,
+      { rollbackEnabled: false },
+    );
+  });
+});

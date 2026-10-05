@@ -767,7 +767,10 @@ class FullCloudFormationDeployment {
 
     // +1 for the extra event emitted from updates.
     const changeSetLength: number = (changeSet.Changes ?? []).length + (this.update ? 1 : 0);
-    return this.monitorDeployment(changeSet.CreationTime!, changeSet.StackId!, changeSetLength);
+    return this.monitorDeployment(changeSet.CreationTime!, changeSet.StackId!, changeSetLength, {
+      isExpress,
+      rollbackDisabled: rollbackWillBeDisabled,
+    });
   }
 
   private async createChangeSet(changeSetName: string, importExistingResources: boolean, revertDrift: boolean): Promise<ChangeSetReport> {
@@ -889,7 +892,18 @@ class FullCloudFormationDeployment {
     }
   }
 
-  private async monitorDeployment(startTime: Date, stackArn: string, expectedChanges: number | undefined): Promise<SuccessfulDeployStackResult> {
+  private async monitorDeployment(
+    startTime: Date,
+    stackArn: string,
+    expectedChanges: number | undefined,
+    policy?: EffectiveDeploymentPolicy,
+  ): Promise<SuccessfulDeployStackResult> {
+    // A direct deployment has no change set to carry a policy, so the flags are the only source there.
+    const effective: EffectiveDeploymentPolicy = policy ?? {
+      isExpress: this.options.express ?? false,
+      rollbackDisabled: this.rollbackDisabled(),
+    };
+
     const monitor = new StackActivityMonitor({
       cfn: this.cfn,
       stack: this.stackArtifact,
@@ -927,12 +941,12 @@ class FullCloudFormationDeployment {
     } catch (e: any) {
       await stopMonitor();
 
-      await this.routeReplacementRejectedWithRollbackDisabled(e, monitor.errors);
+      await this.routeReplacementRejectedWithRollbackDisabled(e, monitor.errors, effective);
 
       // Deployment errors get replaced by a diagnosis of the underlying resource failures, which says more.
       // Any other error, and any failure to diagnose, leaves `e` to propagate as it is.
       if (ToolkitError.isDeploymentError(e)) {
-        await this.diagnoseDeploymentFailure(stackArn, monitor.errors);
+        await this.diagnoseDeploymentFailure(stackArn, monitor.errors, effective);
       }
 
       throw e;
@@ -950,8 +964,12 @@ class FullCloudFormationDeployment {
     };
   }
 
-  private async routeReplacementRejectedWithRollbackDisabled(error: any, errors: ResourceErrors): Promise<void> {
-    if (!this.options.express || !this.rollbackDisabled()) {
+  private async routeReplacementRejectedWithRollbackDisabled(
+    error: any,
+    errors: ResourceErrors,
+    effective: EffectiveDeploymentPolicy,
+  ): Promise<void> {
+    if (!effective.isExpress || !effective.rollbackDisabled) {
       return;
     }
 
@@ -992,7 +1010,11 @@ class FullCloudFormationDeployment {
    * Returns normally when no cause could be established, leaving the caller's original error as the better
    * one to report.
    */
-  private async diagnoseDeploymentFailure(stackArn: string, errors: ResourceErrors): Promise<void> {
+  private async diagnoseDeploymentFailure(
+    stackArn: string,
+    errors: ResourceErrors,
+    effective: EffectiveDeploymentPolicy,
+  ): Promise<void> {
     // Describe the stack as it is now. The pre-deploy description held by this class is either absent (the
     // stack is being created) or describes a state the deployment has since left.
     const deployedState = await this.cfn.describeStacks({ StackName: stackArn })
@@ -1006,7 +1028,7 @@ class FullCloudFormationDeployment {
     }
 
     const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(errors, deployedState, true, {
-      rollbackEnabled: !this.rollbackDisabled(),
+      rollbackEnabled: !effective.rollbackDisabled,
     });
     diagnosis.throwOnError();
   }
@@ -1307,6 +1329,18 @@ function changeSetPolicyMismatchMessage(changeSetName: string | undefined, persi
 }
 
 type ReplacementRecovery = 'none' | 'replay' | 'recreate' | 'resolve-state';
+
+/**
+ * The deployment mode and rollback policy actually in force while a deployment runs.
+ *
+ * For a change set this is the policy persisted on it when it was created, which the flags of the invocation that
+ * executes it cannot override. Reading the flags instead would misjudge a persisted Express change set that is
+ * executed without `--express`.
+ */
+interface EffectiveDeploymentPolicy {
+  readonly isExpress: boolean;
+  readonly rollbackDisabled: boolean;
+}
 
 /**
  * The outcome of scanning a change set hierarchy for replacements.
