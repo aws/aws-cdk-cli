@@ -1968,7 +1968,7 @@ describe('--fail-on=destructive', () => {
       NewTopic: { Type: 'AWS::SNS::Topic' },
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('Number of stacks with differences: 1');
     expect(output()).not.toContain('destructive change');
@@ -1981,7 +1981,7 @@ describe('--fail-on=destructive', () => {
       Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } },
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('❌  Found 3 destructive change(s) (--fail-on=destructive):');
@@ -2003,7 +2003,7 @@ describe('--fail-on=destructive', () => {
       nestedStacks: {},
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('[-] AWS::SNS::Topic MyConstruct/Topic Topic destroy');
     expect(output()).toContain('A: AWS::SNS::Topic MyConstruct/Topic Topic will be destroyed');
@@ -2018,7 +2018,7 @@ describe('--fail-on=destructive', () => {
       { '/A/MyConstruct/Bucket/Resource': [{ type: cxschema.ArtifactMetadataEntryType.LOGICAL_ID, data: 'Bucket' }] },
     );
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('[~] AWS::S3::Bucket MyConstruct/Bucket Bucket replace');
     expect(output()).toContain('A: AWS::S3::Bucket MyConstruct/Bucket Bucket will be replaced');
@@ -2048,7 +2048,7 @@ describe('--fail-on=destructive', () => {
       },
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('NestedStackPhysicalName: AWS::SNS::Topic NestedTopic will be destroyed');
     expect(exitCode).toBe(1);
@@ -2057,7 +2057,7 @@ describe('--fail-on=destructive', () => {
   test('detects destructive changes with --security-only', async () => {
     await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('A: AWS::SNS::Topic Topic will be destroyed');
     expect(exitCode).toBe(1);
@@ -2086,7 +2086,7 @@ describe('--fail-on=destructive', () => {
       diagnosis: Diagnosis.noProblem(),
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'change-set', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'change-set', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('BucketName');
     expect(output()).not.toContain('destructive change');
@@ -2105,7 +2105,7 @@ describe('--fail-on=destructive', () => {
       nestedStacks: {},
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).toContain('Omitted 1 changes');
     expect(output()).not.toContain('destructive change');
@@ -2121,7 +2121,7 @@ describe('--fail-on=destructive', () => {
       nestedStacks: {},
     });
 
-    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: 'destructive' });
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
     expect(output()).not.toContain('destructive change');
     expect(exitCode).toBe(0);
@@ -2133,7 +2133,7 @@ describe('--fail-on=destructive', () => {
     try {
       await setup({ ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } });
 
-      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOn: 'destructive' });
+      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOn: cxschema.RequireApproval.DESTRUCTIVE });
 
       expect(output()).toContain('A: AWS::S3::Bucket Bucket will be replaced');
       expect(exitCode).toBe(1);

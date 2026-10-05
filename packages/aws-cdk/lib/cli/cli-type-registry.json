@@ -468,7 +468,8 @@
           "choices": [
             "never",
             "any-change",
-            "broadening"
+            "broadening",
+            "destructive"
           ],
           "desc": "What changes require manual approval"
         },

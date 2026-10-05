@@ -154,7 +154,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'all': { type: 'boolean', desc: 'Deploy all available stacks', default: false },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
-          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING], desc: 'What changes require manual approval' },
+          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE], desc: 'What changes require manual approval' },
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
@@ -422,7 +422,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change' },
           'fail-on': {
             type: 'string',
-            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, 'destructive'],
+            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE],
             requiresArg: true,
             desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           },

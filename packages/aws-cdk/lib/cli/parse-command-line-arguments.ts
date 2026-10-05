@@ -491,7 +491,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('require-approval', {
           default: undefined,
           type: 'string',
-          choices: ['never', 'any-change', 'broadening'],
+          choices: ['never', 'any-change', 'broadening', 'destructive'],
           desc: 'What changes require manual approval',
         })
         .option('notification-arns', {

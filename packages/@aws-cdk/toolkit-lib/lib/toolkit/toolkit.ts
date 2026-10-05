@@ -83,7 +83,7 @@ import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { DiffFormatter } from '../api/diff';
+import { DiffFormatter, findDestructiveChanges } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, ToolkitAction } from '../api/io';
@@ -442,6 +442,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         numStacksWithChanges: stackDiff.numStacksWithChanges,
         numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
+        destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         formattedDiff: {
           diff: stackDiff.formattedDiff,
           security: formattedSecurityDiff,
@@ -878,8 +879,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      const currentTemplate = await deployments.readCurrentTemplate(stack);
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -934,11 +933,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)).changeSet
           : prepareResult?.changeSet;
 
+        // Nested stacks are included, so that changes to their resources are part of the diff and destructive changes
+        const { deployedRootTemplate, nestedStacks } = await deployments.readCurrentTemplateWithNestedStacks(stack);
         const formatter = new DiffFormatter({
           templateInfo: {
-            oldTemplate: currentTemplate,
+            oldTemplate: deployedRootTemplate,
             newTemplate: stack,
             changeSet: diffChangeSet,
+            nestedStacks,
           },
         });
 
@@ -959,6 +961,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           concurrency,
           permissionChangeType: securityDiff.permissionChangeType,
           templateDiffs: formatter.diffs,
+          destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         }));
         if (!deployConfirmed) {
           if (prepareResult?.changeSet?.ChangeSetName) {

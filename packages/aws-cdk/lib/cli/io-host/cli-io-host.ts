@@ -911,6 +911,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       // Require approval if changes include broadening permissions
       case RequireApproval.BROADENING:
         return ['none', 'non-broadening'].includes(msg.data?.permissionChangeType);
+      // Require approval if changes replace, delete or orphan an existing resource
+      case RequireApproval.DESTRUCTIVE:
+        return !(msg.data?.destructiveChanges?.length > 0);
     }
   }
 

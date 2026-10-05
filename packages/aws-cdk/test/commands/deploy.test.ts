@@ -201,6 +201,132 @@ describe('require-approval', () => {
   });
 });
 
+describe('require-approval with security changes', () => {
+  test('the approval shows the security diff and mentions security-sensitive updates', async () => {
+    // Removing an IAM role from the deployed stack is a (non-broadening) security change
+    cloudFormation.readCurrentTemplate.mockResolvedValue({
+      Resources: {
+        TemplateName: { Type: 'AWS::CDK::Test' },
+        Role: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+            },
+          },
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('IAM Statement Changes'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
+describe('require-approval destructive', () => {
+  beforeEach(() => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({ deployedRootTemplate: {}, nestedStacks: {} });
+  });
+
+  test('deploys without prompting when no resource is replaced or deleted', async () => {
+    // The deployed stack is empty, so the deployment only adds resources
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    expect(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')).toBeUndefined();
+  });
+
+  test('prompts and lists the destructive changes when a resource would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Test-Stack-A/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('Test-Stack-A-Display-Name: AWS::SNS::Topic OldTopic OldTopic will be destroyed'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes destructive updates and "--require-approval" is set to \'destructive\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('prompts when a resource in a nested stack would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('NestedStack: AWS::SNS::Topic NestedTopic will be destroyed'));
+  });
+
+  test('aborts and deploys nothing when the destructive change is declined', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic' },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
+
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    })).rejects.toThrow(/Deployment cancelled/);
+
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+});
+
 describe('deployment method', () => {
   test('--method=direct deploys without creating a change set upfront', async () => {
     await toolkit.deploy({
