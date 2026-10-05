@@ -675,7 +675,11 @@ class FullCloudFormationDeployment {
 
     if (persistedExpressRollbackDisabled !== undefined && persistedExpressRollbackDisabled !== invocationRollbackDisabled) {
       await this.ioHelper.defaults.warn(
-        changeSetPolicyMismatchMessage(changeSet.ChangeSetName, persistedExpressRollbackDisabled),
+        changeSetPolicyMismatchMessage({
+          changeSetName: changeSet.ChangeSetName,
+          persistedRollbackDisabled: persistedExpressRollbackDisabled,
+          rollbackExplicitlyRequested: this.options.rollback !== undefined,
+        }),
       );
     }
 
@@ -1212,20 +1216,27 @@ function mentionsReplacementRejection(message: string): boolean {
 }
 
 /**
- * Explain that an existing change set's rollback policy cannot be changed by executing it differently
+ * Report that execution is proceeding under the change set's recorded rollback policy, not the invocation's flags
  */
-function changeSetPolicyMismatchMessage(changeSetName: string | undefined, persistedRollbackDisabled: boolean): string {
-  const named = changeSetName ? ` ${chalk.blue(changeSetName)}` : '';
-  const persisted = persistedRollbackDisabled ? 'disabled' : 'enabled';
-  const requested = persistedRollbackDisabled ? 'enabled' : 'disabled';
-  const recreateWith = chalk.blue(`cdk deploy --express${persistedRollbackDisabled ? ' --rollback' : ''}`);
+function changeSetPolicyMismatchMessage(options: {
+  changeSetName: string | undefined;
+  persistedRollbackDisabled: boolean;
+  rollbackExplicitlyRequested: boolean;
+}): string {
+  const named = options.changeSetName ? ` ${chalk.blue(options.changeSetName)}` : '';
+  const persisted = options.persistedRollbackDisabled ? 'disabled' : 'enabled';
+  const other = options.persistedRollbackDisabled ? 'enabled' : 'disabled';
+  const recreateWith = chalk.blue(`cdk deploy --express${options.persistedRollbackDisabled ? ' --rollback' : ''}`);
 
   return [
-    `Change set${named} was created with rollback ${persisted}, but this deployment asks for rollback ${requested}.`,
-    'CloudFormation fixes that choice when the change set is created and executing it cannot change it, so this',
-    'deployment would silently do the opposite of what you asked for.',
-    '',
-    `Create a new change set with the flags you want rather than executing this one: ${recreateWith}`,
+    options.rollbackExplicitlyRequested
+      ? `Change set${named} records rollback ${persisted}; this deployment asked for rollback ${other}.`
+      : `Change set${named} records rollback ${persisted}; this deployment did not ask for a rollback policy and would otherwise default to rollback ${other}.`,
+    `The recorded policy governs, so execution is proceeding with rollback ${persisted}.`,
+    options.persistedRollbackDisabled
+      ? 'If this deployment fails, the stack will be left paused in UPDATE_FAILED instead of rolling back.'
+      : 'If this deployment fails, the stack will roll back instead of staying paused for inspection.',
+    `To deploy with rollback ${other}, create a new change set with those flags instead: ${recreateWith}`,
   ].join('\n');
 }
 

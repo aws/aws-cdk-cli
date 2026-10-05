@@ -650,6 +650,14 @@ describe('executing a change set created by an earlier invocation', () => {
     forceDeployment: true,
   };
 
+  function policyMismatchWarning(): string {
+    const warnings = ioHost.notifySpy.mock.calls
+      .map((c) => c[0])
+      .filter((m: any) => m.level === 'warn' && m.message.includes('The recorded policy governs'));
+    expect(warnings).toHaveLength(1);
+    return warnings[0].message;
+  }
+
   test('a rollback-disabled change set with no replacement is executed, with the ignored flag reported', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
@@ -666,7 +674,7 @@ describe('executing a change set created by an earlier invocation', () => {
     // THEN
     expect(result.type).toEqual('did-deploy-stack');
     expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
-    ioHost.expectMessage({ level: 'warn', containing: 'created with rollback disabled' });
+    ioHost.expectMessage({ level: 'warn', containing: 'records rollback disabled' });
   });
 
   test('a rollback-disabled change set containing a replacement is never executed', async () => {
@@ -721,7 +729,87 @@ describe('executing a change set created by an earlier invocation', () => {
 
     // THEN
     expect(result.type).toEqual('did-deploy-stack');
-    ioHost.expectMessage({ level: 'warn', containing: 'created with rollback enabled' });
+    expect(policyMismatchWarning()).toEqual(
+      [
+        'Change set prepared records rollback enabled; this deployment did not ask for a rollback policy and would otherwise default to rollback disabled.',
+        'The recorded policy governs, so execution is proceeding with rollback enabled.',
+        'If this deployment fails, the stack will roll back instead of staying paused for inspection.',
+        'To deploy with rollback disabled, create a new change set with those flags instead: cdk deploy --express',
+      ].join('\n'),
+    );
+  });
+
+  test('an explicit --rollback against a rollback-disabled change set is told the stack will strand', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [updateChange()] });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+      rollback: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(policyMismatchWarning()).toEqual(
+      [
+        'Change set prepared records rollback disabled; this deployment asked for rollback enabled.',
+        'The recorded policy governs, so execution is proceeding with rollback disabled.',
+        'If this deployment fails, the stack will be left paused in UPDATE_FAILED instead of rolling back.',
+        'To deploy with rollback enabled, create a new change set with those flags instead: cdk deploy --express --rollback',
+      ].join('\n'),
+    );
+  });
+
+  test('an explicit --no-rollback against a rollback-enabled change set is told only inspection is lost', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: false, changes: [updateChange()] });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+      express: true,
+      rollback: false,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(policyMismatchWarning()).toEqual(
+      [
+        'Change set prepared records rollback enabled; this deployment asked for rollback disabled.',
+        'The recorded policy governs, so execution is proceeding with rollback enabled.',
+        'If this deployment fails, the stack will roll back instead of staying paused for inspection.',
+        'To deploy with rollback disabled, create a new change set with those flags instead: cdk deploy --express',
+      ].join('\n'),
+    );
+  });
+
+  test('omitting --express is not reported as having asked for rollback enabled', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [updateChange()] });
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      ...executePrepared,
+    });
+
+    // THEN
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(policyMismatchWarning()).toEqual(
+      [
+        'Change set prepared records rollback disabled; this deployment did not ask for a rollback policy and would otherwise default to rollback enabled.',
+        'The recorded policy governs, so execution is proceeding with rollback disabled.',
+        'If this deployment fails, the stack will be left paused in UPDATE_FAILED instead of rolling back.',
+        'To deploy with rollback enabled, create a new change set with those flags instead: cdk deploy --express --rollback',
+      ].join('\n'),
+    );
   });
 
   test('a matching rollback-disabled change set with a replacement is terminal, not offered a retry', async () => {
@@ -1254,7 +1342,7 @@ describe('executing a change set created by an earlier invocation', () => {
 
         const warnings = ioHost.notifySpy.mock.calls
           .map((c) => c[0])
-          .filter((m: any) => m.level === 'warn' && /was created with rollback/.test(m.message));
+          .filter((m: any) => m.level === 'warn' && /The recorded policy governs/.test(m.message));
         expect(warnings).toHaveLength(expected === 'reported' ? 1 : 0);
       });
     },
