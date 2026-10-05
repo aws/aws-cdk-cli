@@ -652,9 +652,9 @@ class FullCloudFormationDeployment {
     return { replacements: await collect(changeSet, 0), uninspected };
   }
 
-  private rollbackWillBeDisabled(changeSet: DescribeChangeSetCommandOutput, persistedRollbackDisabled: boolean | undefined): boolean {
-    if (persistedRollbackDisabled !== undefined) {
-      return persistedRollbackDisabled;
+  private rollbackWillBeDisabled(changeSet: DescribeChangeSetCommandOutput, persistedExpressRollbackDisabled: boolean | undefined): boolean {
+    if (persistedExpressRollbackDisabled !== undefined) {
+      return persistedExpressRollbackDisabled;
     }
     if (changeSet.DeploymentConfig === undefined && this.options.express) {
       return this.rollbackDisabled();
@@ -670,8 +670,12 @@ class FullCloudFormationDeployment {
 
     const persistedMode = changeSet.DeploymentConfig?.Mode;
     const isExpress = persistedMode !== undefined ? persistedMode === 'EXPRESS' : (this.options.express ?? false);
-    const persistedRollbackDisabled = expressRollbackDisabled(changeSet.DeploymentConfig);
-    const requestedRollbackDisabled = this.rollbackDisabled();
+    // `persistedExpressRollbackDisabled` is the rollback policy baked into the change set at creation time. It is
+    // Express-only and tri-state: `undefined` means the change set records no policy, so this invocation's flags still
+    // decide. Once it is `true`/`false` the policy is fixed and execute-time flags cannot override it - they can only
+    // disagree with it, which is what the mismatch warning below reports.
+    const persistedExpressRollbackDisabled = expressRollbackDisabled(changeSet.DeploymentConfig);
+    const invocationRollbackDisabled = this.rollbackDisabled();
 
     const scan = await this.findAllReplacements(changeSet);
     const replacements = scan.replacements;
@@ -687,7 +691,7 @@ class FullCloudFormationDeployment {
       }
     }
 
-    const rollbackWillBeDisabled = this.rollbackWillBeDisabled(changeSet, persistedRollbackDisabled);
+    const rollbackWillBeDisabled = this.rollbackWillBeDisabled(changeSet, persistedExpressRollbackDisabled);
 
     if (replacements.length > 0 && rollbackWillBeDisabled) {
       if (isExpress) {
@@ -704,7 +708,7 @@ class FullCloudFormationDeployment {
           detectedBy: 'change-set',
         }));
 
-        if (opts.preExistingChangeSet && persistedRollbackDisabled === true) {
+        if (opts.preExistingChangeSet && persistedExpressRollbackDisabled === true) {
           throw new ToolkitError(
             'ReplacementRequiresRecreateChangeSet',
             changeSetRecreateForReplacementMessage(changeSet.ChangeSetName),
@@ -725,16 +729,16 @@ class FullCloudFormationDeployment {
       );
     }
 
-    if (persistedRollbackDisabled !== undefined && persistedRollbackDisabled !== requestedRollbackDisabled) {
+    if (persistedExpressRollbackDisabled !== undefined && persistedExpressRollbackDisabled !== invocationRollbackDisabled) {
       await this.ioHelper.defaults.warn(
-        changeSetPolicyMismatchMessage(changeSet.ChangeSetName, persistedRollbackDisabled),
+        changeSetPolicyMismatchMessage(changeSet.ChangeSetName, persistedExpressRollbackDisabled),
       );
     }
 
     await this.ioHelper.defaults.debug(format('Initiating execution of changeset %s on stack %s', changeSet.ChangeSetId, this.stackName));
 
     const { DisableRollback, ...sharedExecuteOptions } = this.commonExecuteOptions();
-    const rollbackFlagStillDecides = persistedRollbackDisabled === undefined;
+    const rollbackFlagStillDecides = persistedExpressRollbackDisabled === undefined;
 
     await this.cfn.executeChangeSet({
       StackName: changeSet.StackId ?? this.stackName,
@@ -1347,11 +1351,11 @@ function replacementRoutingMessage(opts: { rejected: boolean; recovery: Replacem
   const headline = opts.rejected
     ? [
       'CloudFormation refused a replacement because rollback is disabled for this stack.',
-      'Express Mode disables rollback by default; replacements themselves are supported.',
+      'Express Mode disables rollback by default. Replacements are supported when rollback is enabled.',
     ]
     : [
       'This deployment replaces a resource, which CloudFormation does not support while rollback is disabled.',
-      'Express Mode disables rollback unless you ask for it with --rollback; replacements themselves are supported.',
+      'Express Mode disables rollback unless you ask for it with --rollback. Replacements are supported when rollback is enabled.',
     ];
 
   switch (opts.recovery) {
@@ -1365,7 +1369,7 @@ function replacementRoutingMessage(opts: { rejected: boolean; recovery: Replacem
         `${opts.rejected ? 'The stack may now be' : 'This stack is'} in a failed state, which ${withRollback} cannot update. To recover:`,
         '  1. Revert your change so your app matches the last configuration that deployed successfully.',
         `  2. Run ${direct} - this should replay that configuration as a no-op`,
-        '     and return the stack to a terminal state.',
+        '     and return the stack to a stable, updateable state.',
         `  3. Re-apply your change and deploy it with ${withRollback}.`,
       ].join('\n');
 

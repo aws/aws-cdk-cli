@@ -1394,3 +1394,56 @@ describe('a single cdk deploy --express invocation that prepares then executes i
     expectNoStackMutation();
   });
 });
+
+describe('the replacement guidance states the rollback condition instead of retracting it', () => {
+  // The headline says CloudFormation does not support replacements while rollback is disabled. A follow-up
+  // clause claiming "replacements themselves are supported" reads as a retraction of the sentence before it,
+  // so every variant has to carry the condition with it.
+  const RETRACTION = 'themselves are supported';
+  const CONDITIONAL = 'Replacements are supported when rollback is enabled.';
+
+  test('the up-front guidance for a detected replacement carries the condition', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.overrideChangeSetChanges = [policyActionReplacementChange()];
+    failOnAnyStackMutation();
+
+    // WHEN
+    const result = await testDeployStack({
+      ...standardDeployStackArguments(),
+      express: true,
+      forceDeployment: true,
+    });
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+
+    const guidance = ioHost.messagesWithCode(W5903)[0].message;
+    expect(guidance).toContain('does not support while rollback is disabled');
+    expect(guidance).toContain(CONDITIONAL);
+    expect(guidance).not.toContain(RETRACTION);
+  });
+
+  test('the post-rejection guidance carries the condition and does not call UPDATE_FAILED the goal state', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+
+    // WHEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK_REJECTING_REPLACEMENT),
+      deploymentMethod: { method: 'direct' },
+      express: true,
+      forceDeployment: true,
+    })).rejects.toThrow(CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON);
+
+    // THEN
+    const guidance = ioHost.messagesWithCode(W5903)[0].message;
+    expect(guidance).toContain('CloudFormation refused a replacement');
+    expect(guidance).toContain(CONDITIONAL);
+    expect(guidance).not.toContain(RETRACTION);
+
+    // The replay in step 2 makes the stack updateable again; UPDATE_FAILED was already terminal.
+    expect(guidance).toContain('stable, updateable state');
+    expect(guidance).not.toContain('return the stack to a terminal state');
+  });
+});
