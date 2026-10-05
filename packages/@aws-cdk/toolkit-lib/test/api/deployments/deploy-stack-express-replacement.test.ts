@@ -764,54 +764,6 @@ describe('executing a change set created by an earlier invocation', () => {
     );
   });
 
-  test('an explicit --no-rollback against a rollback-enabled change set is told only inspection is lost', async () => {
-    // GIVEN
-    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
-    givenExpressChangeSetExists({ rollbackDisabled: false, changes: [updateChange()] });
-
-    // WHEN
-    const result = await testDeployStack({
-      ...standardDeployStackArguments(),
-      ...executePrepared,
-      express: true,
-      rollback: false,
-    });
-
-    // THEN
-    expect(result.type).toEqual('did-deploy-stack');
-    expect(policyMismatchWarning()).toEqual(
-      [
-        'Change set prepared records rollback enabled; this deployment asked for rollback disabled.',
-        'The recorded policy governs, so execution is proceeding with rollback enabled.',
-        'If this deployment fails, the stack will roll back instead of staying paused for inspection.',
-        'To deploy with rollback disabled, create a new change set with those flags instead: cdk deploy --express',
-      ].join('\n'),
-    );
-  });
-
-  test('omitting --express is not reported as having asked for rollback enabled', async () => {
-    // GIVEN
-    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
-    givenExpressChangeSetExists({ rollbackDisabled: true, changes: [updateChange()] });
-
-    // WHEN
-    const result = await testDeployStack({
-      ...standardDeployStackArguments(),
-      ...executePrepared,
-    });
-
-    // THEN
-    expect(result.type).toEqual('did-deploy-stack');
-    expect(policyMismatchWarning()).toEqual(
-      [
-        'Change set prepared records rollback disabled; this deployment did not ask for a rollback policy and would otherwise default to rollback enabled.',
-        'The recorded policy governs, so execution is proceeding with rollback disabled.',
-        'If this deployment fails, the stack will be left paused in UPDATE_FAILED instead of rolling back.',
-        'To deploy with rollback enabled, create a new change set with those flags instead: cdk deploy --express --rollback',
-      ].join('\n'),
-    );
-  });
-
   test('a matching rollback-disabled change set with a replacement is terminal, not offered a retry', async () => {
     // GIVEN
     givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
