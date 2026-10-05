@@ -7,6 +7,11 @@ import {
   StackStatus,
   UpdateStackCommand,
 } from '@aws-sdk/client-cloudformation';
+import type { ChangeSetDeployment } from '../../../lib/actions/deploy';
+import {
+  isExecutingChangeSetDeployment,
+  toExecuteChangeSetDeployment,
+} from '../../../lib/actions/deploy/private/deployment-method';
 import type { DeployStackOptions as DeployStackApiOptions } from '../../../lib/api/deployments/deploy-stack';
 import { CFN_REPLACEMENT_WITH_ROLLBACK_DISABLED_REASON, deployStack } from '../../../lib/api/deployments/deploy-stack';
 import { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
@@ -1311,5 +1316,81 @@ describe('executing a change set created by an earlier invocation', () => {
     expect(result.type).toEqual('did-deploy-stack');
     expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
     expect(ioHost.messagesWithCode(W5903)).toEqual([]);
+  });
+});
+
+/**
+ * A one-command `cdk deploy --express` is two `deployStack()` calls, not one: the
+ * toolkit prepares the change set up front (for the approval diff) and then
+ * re-enters with `execute-change-set` to run it. These tests drive that real
+ * sequence through the production helpers so the second call sees a change set
+ * this same invocation created.
+ */
+describe('a single cdk deploy --express invocation that prepares then executes its own change set', () => {
+  const defaultMethod: ChangeSetDeployment = { method: 'change-set', execute: true };
+
+  async function deployAsToolkitDoes(overrides: Partial<DeployStackApiOptions> = {}) {
+    // Phase 1: what Deployments.prepareStack() does — create the change set, don't execute it.
+    const prepare = await testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { ...defaultMethod, execute: false },
+      willExecuteChangeSet: isExecutingChangeSetDeployment(defaultMethod),
+      forceDeployment: true,
+      ...overrides,
+    });
+
+    // Phase 2: what the toolkit deploy loop does on iteration 1 — execute what it just prepared,
+    // flagging the change set as this invocation's own rather than an external artifact.
+    return {
+      prepare,
+      execute: await testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: toExecuteChangeSetDeployment(defaultMethod),
+        changeSetCreatedByCurrentDeploy: true,
+        forceDeployment: true,
+        ...overrides,
+      }),
+    };
+  }
+
+  test('a replacement prepared by this same command is recoverable, not terminal', async () => {
+    // GIVEN
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.overrideChangeSetChanges = [policyActionReplacementChange()];
+    failOnAnyStackMutation();
+
+    // WHEN
+    const { execute } = await deployAsToolkitDoes({ express: true });
+
+    // THEN the deploy loop can prompt and retry with rollback enabled.
+    expect(execute).toEqual({ type: 'replacement-requires-rollback' });
+    expectNoStackMutation();
+    expect(fakeCfn.accessStack('withouterrors').status).toEqual(StackStatus.UPDATE_COMPLETE);
+  });
+
+  test('the same replacement is terminal when the change set came from an earlier command', async () => {
+    // GIVEN the identical stack state, replacement and --express as the test above. The only
+    // difference is provenance: this change set was left behind by an earlier
+    // `cdk deploy --method=prepare-change-set`, so recreating it is not ours to decide.
+    givenStackExists({ StackStatus: StackStatus.UPDATE_COMPLETE });
+    fakeCfn.createChangeSetSync({
+      StackName: 'withouterrors',
+      ChangeSetName: 'prepared',
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      Changes: [policyActionReplacementChange()],
+      DeploymentConfig: { Mode: 'EXPRESS' },
+    });
+    failOnAnyStackMutation();
+
+    // WHEN / THEN
+    await expect(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'prepared' },
+      express: true,
+      forceDeployment: true,
+    })).rejects.toThrow(/created with rollback disabled and replaces a resource/);
+
+    expectNoStackMutation();
   });
 });

@@ -114,6 +114,17 @@ export interface DeployStackOptions {
   readonly willExecuteChangeSet?: boolean;
 
   /**
+   * Whether the change set being executed was created earlier in this same
+   * `deploy` invocation (the second phase of a two-phase deploy).
+   *
+   * Distinguishes a change set we own and may recreate from one prepared by a
+   * previous command, which is external and must not be silently replaced.
+   *
+   * @default false
+   */
+  readonly changeSetCreatedByCurrentDeploy?: boolean;
+
+  /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
    * @default false deployment will be skipped if the template is identical
    */
@@ -427,6 +438,7 @@ export class Deployments {
       tags: options.tags,
       deploymentMethod: options.deploymentMethod,
       willExecuteChangeSet: options.willExecuteChangeSet,
+      changeSetCreatedByCurrentDeploy: options.changeSetCreatedByCurrentDeploy,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,

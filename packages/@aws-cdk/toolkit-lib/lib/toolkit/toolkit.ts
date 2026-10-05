@@ -989,13 +989,17 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
           }
 
+          const requestedMethod = options.deploymentMethod;
+          // On the first iteration, execute the change set prepared above. On retries (after
+          // rollback), create a new change set since the old one is gone.
+          const executesOwnPreparedChangeSet = iteration === 1 && isExecutingChangeSetDeployment(requestedMethod);
+
           const r = await deployments.deployStack({
             ...sharedDeployOptions,
-            // On the first iteration, execute the prepared change set.
-            // On retries (after rollback), create a new change set since the old one is gone.
-            deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(options.deploymentMethod)
-              ? toExecuteChangeSetDeployment(options.deploymentMethod)
-              : options.deploymentMethod,
+            deploymentMethod: executesOwnPreparedChangeSet
+              ? toExecuteChangeSetDeployment(requestedMethod)
+              : requestedMethod,
+            changeSetCreatedByCurrentDeploy: executesOwnPreparedChangeSet,
             rollback,
           });
 

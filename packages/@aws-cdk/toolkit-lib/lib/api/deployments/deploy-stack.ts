@@ -150,6 +150,20 @@ export interface DeployStackOptions {
   readonly willExecuteChangeSet?: boolean;
 
   /**
+   * Whether the change set being executed was created earlier in this same
+   * `deploy` invocation (the second phase of a two-phase deploy).
+   *
+   * This is change set *provenance*, which is independent of the deployment
+   * *method*: the executing phase of an ordinary deploy uses the
+   * `execute-change-set` method against a change set we own and may freely
+   * recreate. Only a change set prepared by a *previous* command is external,
+   * and only then is recreating it the user's decision rather than ours.
+   *
+   * @default false
+   */
+  readonly changeSetCreatedByCurrentDeploy?: boolean;
+
+  /**
    * The collection of extra parameters
    * (in addition to those used for assets)
    * to pass to the deployed template.
@@ -531,9 +545,8 @@ class FullCloudFormationDeployment {
   private async executeExistingChangeSet(deploymentMethod: ExecuteChangeSetDeployment): Promise<DeployStackResult> {
     await this.updateTerminationProtection();
 
-    // The change set was created by an earlier command (possibly not even by us). Require it to
-    // have completed rather than waiting on it: blocking on someone else's change set
-    // indefinitely would be worse than reporting that it isn't ready.
+    // Require the change set to have completed rather than waiting on it: blocking on someone
+    // else's change set indefinitely would be worse than reporting that it isn't ready.
     const changeSetReport = await new ChangeSetDescriber({
       cfn: this.cfn,
       ioHelper: this.ioHelper,
@@ -541,7 +554,9 @@ class FullCloudFormationDeployment {
       changeSetNameOrArn: deploymentMethod.changeSetName,
     }).describeForExecution({ diagnoser: this.diagnoser });
 
-    return this.checkAndExecuteChangeSet(changeSetReport, { preExistingChangeSet: true });
+    return this.checkAndExecuteChangeSet(changeSetReport, {
+      preExistingChangeSet: !this.options.changeSetCreatedByCurrentDeploy,
+    });
   }
 
   private replacementRecovery(): ReplacementRecovery {
