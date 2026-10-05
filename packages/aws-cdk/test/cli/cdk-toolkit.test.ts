@@ -67,7 +67,7 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
@@ -2676,6 +2676,25 @@ describe('migrate', () => {
   const autoscalingTemplatePath = path.join(...templatePath, 'autoscaling-template.yml');
   const s3TemplatePath = path.join(...templatePath, 's3-template.json');
 
+  test.each([
+    ['--from-stack', { fromStack: true }],
+    ['--from-path', { fromPath: './here/template.yml' }],
+  ] as const)('migrate rejects --filter with %s before reading the template', async (sourceOption, sourceOptions) => {
+    const toolkit = defaultToolkitSetup();
+    const message = `--filter cannot be used with ${sourceOption}; remove --filter to migrate this source`;
+
+    const migration = toolkit.migrate({
+      stackName: 'filtered-source',
+      ...sourceOptions,
+      filter: ['resource-type-prefix=AWS::Lambda::'],
+    });
+    await expect(migration).rejects.toBeInstanceOf(ToolkitError);
+    await expect(migration).rejects.toMatchObject({ name: 'MigrateFilterRequiresScan', message });
+
+    expect(mockCloudFormationClient.calls()).toHaveLength(0);
+    expect(notifySpy.mock.calls[1][0].message).toContain(message);
+  });
+
   test('migrate fails when both --from-path and --from-stack are provided', async () => {
     const toolkit = defaultToolkitSetup();
     await expect(() =>
@@ -2690,12 +2709,13 @@ describe('migrate', () => {
     );
   });
 
-  test('migrate fails when --from-path is invalid', async () => {
+  test.each([undefined, []])('migrate validates --from-path with absent or empty filters (%p)', async (filter) => {
     const toolkit = defaultToolkitSetup();
     await expect(() =>
       toolkit.migrate({
         stackName: 'bad-local-source',
         fromPath: './here/template.yml',
+        filter,
       }),
     ).rejects.toThrow("'./here/template.yml' is not a valid path.");
     expect(notifySpy.mock.calls[1][0].message).toContain(
@@ -2703,7 +2723,7 @@ describe('migrate', () => {
     );
   });
 
-  test('migrate fails when --from-stack is used and stack does not exist in account', async () => {
+  test.each([undefined, []])('migrate reads --from-stack with absent or empty filters (%p)', async (filter) => {
     const mockSdkProvider = new MockSdkProvider();
     mockCloudFormationClient.on(DescribeStacksCommand).rejects(new Error('Stack does not exist in this environment'));
 
@@ -2726,6 +2746,7 @@ describe('migrate', () => {
       cdkToolkit.migrate({
         stackName: 'bad-cloudformation-source',
         fromStack: true,
+        filter,
       }),
     ).rejects.toThrow('Stack does not exist in this environment');
     expect(notifySpy.mock.calls[1][0].message).toContain(
