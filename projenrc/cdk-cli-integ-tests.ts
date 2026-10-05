@@ -59,7 +59,7 @@ const DEFAULT_TEST_NODE_VERSION = '24.19';
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
-    uses: 'actions/setup-node@v6',
+    uses: github.ActionRefs.ACTIONS_SETUP_NODE,
     with: {
       'node-version': nodeVersion,
       'package-manager-cache': false,
@@ -71,7 +71,7 @@ function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string):
   return {
     name: 'Authenticate Via OIDC Role',
     id: 'creds',
-    uses: 'aws-actions/configure-aws-credentials@v6',
+    uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
     with: {
       'aws-region': 'us-east-1',
       'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
@@ -454,7 +454,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       steps: [
         {
           name: 'Checkout',
-          uses: 'actions/checkout@v7',
+          uses: github.ActionRefs.ACTIONS_CHECKOUT,
           with: {
             // IMPORTANT! This must be `head.sha` not `head.ref`, otherwise we
             // are vulnerable to a TOCTOU attack.
@@ -738,7 +738,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
         {
           name: 'Set up JDK 18',
           if: 'matrix.suite == \'init-java\' || matrix.suite == \'cli-integ-tests\'',
-          uses: 'actions/setup-java@v5',
+          uses: github.ActionRefs.ACTIONS_SETUP_JAVA,
           with: {
             'java-version': '18',
             'distribution': 'corretto',
