@@ -289,7 +289,9 @@ export class CdkToolkit {
     const contextLines = options.contextLines || 3;
     const quiet = options.quiet || false;
 
+    const failOn = options.failOn ?? RequireApproval.NEVER;
     let diffs = 0;
+    let hasBroadeningChanges = false;
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -324,6 +326,7 @@ export class CdkToolkit {
         const securityDiff = formatter.formatSecurityDiff({ quiet });
         // Warn, count, and display the diff only if the reported changes are broadening permissions
         if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+          hasBroadeningChanges = true;
           await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
           diffs += securityDiff.numStacksWithChanges;
@@ -336,6 +339,9 @@ export class CdkToolkit {
         });
         diffs = diff.numStacksWithChanges;
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
+        if (failOn === RequireApproval.BROADENING) {
+          hasBroadeningChanges = formatter.formatSecurityDiff().permissionChangeType === PermissionChangeType.BROADENING;
+        }
       }
     } else {
       const allMappings = options.includeMoves
@@ -386,6 +392,7 @@ export class CdkToolkit {
           const securityDiff = formatter.formatSecurityDiff({ quiet });
           // Warn, count, and display the diff only if the reported changes are broadening permissions
           if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+            hasBroadeningChanges = true;
             await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
             await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
             diffs += securityDiff.numStacksWithChanges;
@@ -398,13 +405,17 @@ export class CdkToolkit {
           });
           await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
+          if (failOn === RequireApproval.BROADENING
+            && formatter.formatSecurityDiff().permissionChangeType === PermissionChangeType.BROADENING) {
+            hasBroadeningChanges = true;
+          }
         }
       }
     }
 
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
-    return diffs && options.fail ? 1 : 0;
+    return diffFails(failOn, diffs, hasBroadeningChanges) ? 1 : 0;
   }
 
   /**
@@ -1609,11 +1620,15 @@ export interface DiffOptions {
   readonly contextLines?: number;
 
   /**
-   * Whether to fail with exit code 1 in case of diff
+   * Which kind of change makes the diff fail with exit code 1
    *
-   * @default false
+   * - `any-change`: any difference
+   * - `broadening`: a change that broadens security permissions
+   * - `never`: the diff never fails
+   *
+   * @default RequireApproval.NEVER
    */
-  readonly fail?: boolean;
+  readonly failOn?: RequireApproval;
 
   /**
    * Only run diff on broadened security changes
@@ -2659,6 +2674,20 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       spaces: 2,
       encoding: 'utf8',
     });
+  }
+}
+
+/**
+ * Whether a diff with the given changes fails, according to `--fail-on`
+ */
+function diffFails(failOn: RequireApproval, numStacksWithChanges: number, hasBroadeningChanges: boolean): boolean {
+  switch (failOn) {
+    case RequireApproval.ANYCHANGE:
+      return numStacksWithChanges > 0;
+    case RequireApproval.BROADENING:
+      return hasBroadeningChanges;
+    case RequireApproval.NEVER:
+      return false;
   }
 }
 
