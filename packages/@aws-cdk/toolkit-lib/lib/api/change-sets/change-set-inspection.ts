@@ -6,12 +6,6 @@ import { formatErrorMessage } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { IoHelper } from '../io/private';
 
-/**
- * The outcome of scanning a change set hierarchy for replacements.
- *
- * `uninspected` is non-empty when part of the hierarchy could not be read, in which case an empty `replacements`
- * does NOT mean there are none.
- */
 export interface ReplacementScan {
   readonly replacements: ReplacedResource[];
   readonly uninspected: string[];
@@ -24,18 +18,6 @@ export interface FindAllReplacementsOptions {
 
 const MAX_NESTED_CHANGE_SET_DEPTH = 10;
 
-/**
- * Scan a change set and the change sets of all nested stacks below it for resources that CloudFormation would
- * replace.
- *
- * Nested stack changes carry their own change set, so a replacement can hide arbitrarily deep in the hierarchy;
- * each one is described in turn. The traversal is bounded by `MAX_NESTED_CHANGE_SET_DEPTH` and by a visited set
- * keyed on change set id, so a hierarchy that refers back to itself is cut short rather than walked to the cap.
- *
- * This is fail-closed: anything that could not be read is reported in `uninspected` rather than silently treated
- * as having no replacement. Callers must not read an empty `replacements` as proof that there are none without
- * also checking `uninspected`.
- */
 export async function findAllReplacements(
   changeSet: DescribeChangeSetCommandOutput,
   options: FindAllReplacementsOptions,
@@ -103,9 +85,6 @@ export async function findAllReplacements(
   return { replacements: await collect(changeSet, 0), uninspected };
 }
 
-/**
- * Find the resource changes in a change set that CloudFormation would perform by replacement
- */
 export function findReplacements(changeSet: DescribeChangeSetCommandOutput): ReplacedResource[] {
   return (changeSet.Changes ?? []).flatMap((c) => {
     const change = c.ResourceChange;
@@ -127,9 +106,6 @@ export function findReplacements(changeSet: DescribeChangeSetCommandOutput): Rep
   });
 }
 
-/**
- * Whether a persisted change set `DeploymentConfig` pins the rollback choice, and if so which way.
- */
 export function expressRollbackDisabled(config: DeploymentConfig | undefined): boolean | undefined {
   if (config?.Mode !== 'EXPRESS') {
     return undefined;
