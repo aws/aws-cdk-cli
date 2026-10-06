@@ -15,7 +15,6 @@ export interface CodeViewerProps {
   readonly highlightStart?: number;
   readonly highlightEnd?: number;
   readonly highlightColor?: string;
-  readonly navCounter?: number;
   readonly scrollToLine?: number;
   readonly onLineDoubleClick?: (line: number) => void;
   readonly diagnostics?: readonly Diagnostic[];
@@ -56,13 +55,10 @@ export function CodeViewer({
   highlightStart,
   highlightEnd,
   highlightColor,
-  navCounter,
   scrollToLine,
   onLineDoubleClick,
   diagnostics,
 }: CodeViewerProps): JSX.Element {
-  const scrollTargetRef = React.useRef<HTMLDivElement>(null);
-
   const tokenizedLines = React.useMemo(
     () => tokenizeLines(content, language),
     [content, language],
@@ -84,16 +80,6 @@ export function CodeViewer({
     return map;
   }, [diagnostics]);
 
-  const lastNavRef = React.useRef<number | undefined>();
-  const animateNav = navCounter !== lastNavRef.current;
-  React.useEffect(() => { lastNavRef.current = navCounter; }, [navCounter]);
-
-  React.useEffect(() => {
-    if (scrollToLine && scrollTargetRef.current) {
-      scrollTargetRef.current.scrollIntoView({ block: 'start', behavior: animateNav ? 'smooth' : 'instant' });
-    }
-  }, [scrollToLine, navCounter]);
-
   return (
     <div style={CONTAINER_STYLE}>
       {tokenizedLines.map((lineTokens, i) => {
@@ -107,9 +93,13 @@ export function CodeViewer({
 
         return (
           <div
-            key={`${lineNum}-${animateNav ? navCounter : 'stable'}`}
-            ref={isScrollTarget ? scrollTargetRef : undefined}
-            className={isHighlighted && animateNav ? 'nav-highlight' : undefined}
+            key={`${lineNum}`}
+            ref={(el) => {
+              if (isScrollTarget && el) {
+                el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+              }
+            }}
+            className={isHighlighted ? 'nav-highlight' : undefined}
             style={{
               ...LINE_STYLE,
               ...(isHighlighted ? { ['--nav-highlight-color' as string]: highlightColor ?? '#0972d3' } : undefined),
@@ -212,8 +202,8 @@ function renderWithDiagnostics(tokens: Token[], diagnostics: Diagnostic[]): Reac
 const CONTAINER_STYLE: React.CSSProperties = {
   margin: 0,
   maxHeight: '100%',
-  overflowX: 'auto',
-  overflowY: 'auto',
+//  overflowX: 'auto',
+//  overflowY: 'auto',
   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
   fontSize: '12px',
   lineHeight: '18px',

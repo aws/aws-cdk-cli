@@ -9,6 +9,7 @@
 
 .nav-highlight::before {
   content: '';
+  font-size: 20px;
   position: absolute;
   inset: 0;
   background-color: var(--nav-highlight-color, #0972d3);

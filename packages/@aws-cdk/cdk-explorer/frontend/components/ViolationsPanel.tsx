@@ -6,6 +6,8 @@ import * as React from 'react';
 import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';
 import type { WebViolation, WebViolationOccurrence } from '../api';
 import type { NavigateHandler } from '../nav-types';
+import { Link, List } from '@cloudscape-design/components';
+import { colorForSeverity, iconForSeverity } from './severities';
 
 interface ViolationsPanelProps {
   readonly violations: readonly WebViolation[];
@@ -17,24 +19,60 @@ interface ViolationsPanelProps {
 
 export function ViolationsPanel({ violations, onNavigate, filter, search }: ViolationsPanelProps): JSX.Element {
   if (violations.length === 0) {
-    return <StatusIndicator type="success">No policy violations.</StatusIndicator>;
+    return <StatusIndicator type="success">No diagnostics found.</StatusIndicator>;
   }
 
   const filtered = filterViolations(violations, filter, search);
   const sorted = [...filtered].sort((a, b) => severityRank(displaySeverity(a)) - severityRank(displaySeverity(b)));
 
   if (sorted.length === 0) {
-    return <Box color="text-status-inactive">{filter ? 'No violations for this resource.' : 'No matching violations.'}</Box>;
+    return <Box color="text-status-inactive">{filter ? 'No diagnostics for this resource.' : 'No matching diagnostics.'}</Box>;
   }
 
   return (
-    <div style={SCROLL_STYLE}>
-      <SpaceBetween size="xs">
-        {sorted.map((violation, i) => (
-          <ViolationItem key={`${violation.source}:${violation.ruleName}:${i}`} violation={violation} onNavigate={onNavigate} />
-        ))}
-      </SpaceBetween>
-    </div>
+    <List
+      ariaLabel='List of diagnostics'
+      items={violations}
+      renderItem={(viol) => {
+        const displaySev = displaySeverity(viol);
+        const title = viol.description?.trim() ?? viol.ruleName;
+        const showRuleName = title !== viol.ruleName;
+        const count = viol.occurrences.length;
+
+        return {
+          id: `${viol.source}:${viol.ruleName}`,
+          icon: iconForSeverity(viol.severity, viol.customSeverity),
+          content:
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px' }}>
+              <div style={{ flexGrow: 0, flexShrink: 0, color: colorForSeverity(viol.severity), fontWeight: 'bold', marginRight: '1em' }}>[{displaySev.toUpperCase()}]</div>
+              <div style={{ flexGrow: 1 }}>
+                <details>
+                  <summary style={{ cursor: 'pointer' }}>
+                    {title}
+                    <Box variant="small">
+                      {count} {count === 1 ? 'construct' : 'constructs'} {'·'} {viol.source}
+                    </Box>
+                  </summary>
+                  {viol.suggestedFix && <Box variant="small">Suggested fix: {viol.suggestedFix}</Box>}
+                  {viol.occurrences.map((occ, i) => (
+                      <Link variant="primary" onFollow={() => onNavigate({
+                        ...occ,
+                      })}>
+                        {occ.constructPath}
+                        {occ.logicalId ? ` → ${occ.logicalId}` : ''}
+                        {occ.templateFile ? ` (${occ.templateFile})` : ''}
+                      </Link>
+                  ))}
+                </details>
+              </div>
+              <div style={{ flexGrow: 0 }}>
+                {showRuleName && <code style={RULE_NAME_STYLE} title={viol.ruleName}>{viol.ruleName}</code>}
+              </div>
+            </div>
+        };
+      }}
+      >
+    </List>
   );
 }
 
@@ -67,77 +105,4 @@ function filterViolations(violations: readonly WebViolation[], filter: string | 
   return result;
 }
 
-
-function ViolationItem({ violation, onNavigate }: { readonly violation: WebViolation; readonly onNavigate: NavigateHandler }): JSX.Element {
-  const severity = displaySeverity(violation);
-  const count = violation.occurrences.length;
-  const title = violation.description?.trim() || violation.ruleName;
-  const showRuleName = title !== violation.ruleName;
-  return (
-    <ExpandableSection
-      variant="footer"
-      headerText={
-        <div style={HEADER_WRAPPER_STYLE}>
-          <div style={HEADER_ROW_STYLE}>
-            <span style={TITLE_GROUP_STYLE}>
-              <span style={severityStyle(severity)}>[{severity.toUpperCase()}]</span>
-              <span style={RULE_STYLE} title={violation.ruleName}>{title}</span>
-            </span>
-            {showRuleName && <code style={RULE_NAME_STYLE} title={violation.ruleName}>{violation.ruleName}</code>}
-          </div>
-          <div style={SUBTITLE_STYLE}>
-            {count} {count === 1 ? 'construct' : 'constructs'} {'·'} {violation.source}
-          </div>
-        </div>
-      }
-    >
-      <div style={BODY_STYLE}>
-        {violation.suggestedFix && <Box variant="small">Suggested fix: {violation.suggestedFix}</Box>}
-        {violation.occurrences.map((occ, i) => (
-          <OccurrenceRow key={`${occ.constructPath}:${i}`} occurrence={occ} severity={severity} onNavigate={onNavigate} />
-        ))}
-      </div>
-    </ExpandableSection>
-  );
-}
-
-function OccurrenceRow({ occurrence, severity, onNavigate }: {
-  readonly occurrence: WebViolationOccurrence;
-  readonly severity: string;
-  readonly onNavigate: NavigateHandler;
-}): JSX.Element {
-  const handleClick = React.useCallback(() => {
-    if (!occurrence.sourceLocation && !occurrence.templateFile) return;
-    onNavigate({
-      sourceLocation: occurrence.sourceLocation,
-      templateFile: occurrence.templateFile,
-      logicalId: occurrence.logicalId,
-      propertyPaths: occurrence.propertyPaths,
-      color: severityHexColor(severity),
-    });
-  }, [occurrence, severity, onNavigate]);
-
-  return (
-    <Box variant="small" color="text-status-inactive">
-      <span style={LINK_STYLE} onClick={handleClick} title="Navigate to source">
-        {occurrence.constructPath}
-        {occurrence.logicalId ? ` → ${occurrence.logicalId}` : ''}
-        {occurrence.templateFile ? ` (${occurrence.templateFile})` : ''}
-      </span>
-    </Box>
-  );
-}
-
-function severityStyle(severity: string): React.CSSProperties {
-  return { color: severityHexColor(severity), fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 };
-}
-
-const SCROLL_STYLE: React.CSSProperties = { flex: '1 1 0', overflowY: 'auto', overflowX: 'hidden', minHeight: 0 };
-const HEADER_WRAPPER_STYLE: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', overflow: 'hidden' };
-const HEADER_ROW_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'baseline', gap: '8px', width: '100%', justifyContent: 'space-between', overflow: 'hidden' };
-const TITLE_GROUP_STYLE: React.CSSProperties = { display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0, flex: '1 1 0', overflow: 'hidden' };
-const RULE_STYLE: React.CSSProperties = { fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const RULE_NAME_STYLE: React.CSSProperties = { fontFamily: 'monospace', fontSize: '12px', color: '#5f6b7a', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 };
-const SUBTITLE_STYLE: React.CSSProperties = { color: '#5f6b7a', fontWeight: 400, fontSize: '12px' };
-const BODY_STYLE: React.CSSProperties = { paddingLeft: '4px', display: 'flex', flexDirection: 'column', gap: '4px' };
-const LINK_STYLE: React.CSSProperties = { color: '#0972d3', textDecoration: 'underline', cursor: 'pointer' };

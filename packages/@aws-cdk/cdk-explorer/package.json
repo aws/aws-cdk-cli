@@ -32,6 +32,7 @@
   "devDependencies": {
     "@cdklabs/eslint-plugin": "^2.0.21",
     "@cloudscape-design/components": "^3",
+    "@cloudscape-design/design-tokens": "^3.0.114",
     "@cloudscape-design/global-styles": "^1",
     "@stylistic/eslint-plugin": "^3",
     "@types/convert-source-map": "^2",

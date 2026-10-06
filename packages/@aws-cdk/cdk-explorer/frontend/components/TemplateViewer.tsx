@@ -8,7 +8,6 @@ export interface TemplateViewerProps {
   readonly resources: Record<string, TemplateResource>;
   readonly highlightLogicalId?: string;
   readonly highlightColor?: string;
-  readonly navCounter?: number;
   readonly onResourceDoubleClick?: (logicalId: string) => void;
   readonly templateFile?: string;
   readonly violations?: readonly WebViolation[];
@@ -28,7 +27,6 @@ export function TemplateViewer({
   resources,
   highlightLogicalId,
   highlightColor,
-  navCounter,
   onResourceDoubleClick,
   templateFile,
   violations,
@@ -91,7 +89,6 @@ export function TemplateViewer({
       highlightStart={highlight?.start}
       highlightEnd={highlight?.end}
       highlightColor={highlightColor}
-      navCounter={navCounter}
       scrollToLine={highlight?.start}
       onLineDoubleClick={handleDoubleClick}
       diagnostics={diagnostics}

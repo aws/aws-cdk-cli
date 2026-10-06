@@ -170,6 +170,7 @@ __metadata:
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@cdklabs/eslint-plugin": "npm:^2.0.21"
     "@cloudscape-design/components": "npm:^3"
+    "@cloudscape-design/design-tokens": "npm:^3.0.114"
     "@cloudscape-design/global-styles": "npm:^1"
     "@jridgewell/trace-mapping": "npm:^0.3"
     "@stylistic/eslint-plugin": "npm:^3"
@@ -2006,6 +2007,13 @@ __metadata:
   peerDependencies:
     react: ">=16.8.0"
   checksum: 10c0/b5bebf97d4a8630ed23d60cfb23db0eaecd62247e0244e5b6da608c4a3b33b309d363f37cf8683879b9ac55b60b0eb4f2e4b56e216593856c1ec23da78bd0a5a
+  languageName: node
+  linkType: hard
+
+"@cloudscape-design/design-tokens@npm:^3.0.114":
+  version: 3.0.114
+  resolution: "@cloudscape-design/design-tokens@npm:3.0.114"
+  checksum: 10c0/937c8a7a3db68542792e6687b054ca1761bb326600e432cc261f25ed0efe187fe3c07d39a005e871392496cd5bb7404558ba28f0edafc51467686abc81d0185b
   languageName: node
   linkType: hard
 

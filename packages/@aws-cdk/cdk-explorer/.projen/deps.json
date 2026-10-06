@@ -10,6 +10,10 @@
       "type": "build"
     },
     {
+      "name": "@cloudscape-design/design-tokens",
+      "type": "build"
+    },
+    {
       "name": "@cloudscape-design/global-styles",
       "version": "^1",
       "type": "build"

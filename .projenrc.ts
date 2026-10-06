@@ -1231,6 +1231,7 @@ const cdkExplorer = configureProject(
       '@types/react-dom@^18',
       '@cloudscape-design/components@^3',
       '@cloudscape-design/global-styles@^1',
+      '@cloudscape-design/design-tokens',
       'esbuild',
       'tsx',
       'supertest@^6',

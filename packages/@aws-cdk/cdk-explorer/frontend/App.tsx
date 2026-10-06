@@ -1,13 +1,16 @@
-import { Box, Alert, Button, Container, Header, SpaceBetween, Spinner, AppLayoutToolbar, SideNavigation, HelpPanel, SplitPanel, Drawer, Tabs, PanelLayout } from '@cloudscape-design/components';
+import { Box, Alert, Button, Container, Header, SpaceBetween, Spinner, AppLayoutToolbar, SideNavigation, HelpPanel, SplitPanel, Drawer, Tabs, PanelLayout, Select } from '@cloudscape-design/components';
+import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
-import { buildSourceAnchorIndex, findConstructAtLine } from '../lib/web/source-nav';
-import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { buildSourceAnchorIndex, findConstructAtLine, SourceAnchor } from '../lib/web/source-nav';
+import { api, WebConstructNode, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
 import { TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
 import type { NavigateHandler } from './nav-types';
+import { colorForSeverity } from './components/severities';
+import { ScrollPane } from './components/ScrollPane';
 export type { NavigateHandler } from './nav-types';
 
 /** Navigation target describing what both panes should show. */
@@ -15,10 +18,19 @@ export interface NavTarget {
   readonly source?: { file: string; startLine: number; endLine: number };
   readonly template?: { file: string; logicalId: string };
   readonly color: string;
-  readonly navCounter: number;
 }
 
-const NEUTRAL_COLOR = '#5f6b7a';
+interface SourceFile {
+  fileName: string;
+  content: string;
+  stale: boolean;
+}
+
+interface TemplateFile {
+  fileName: string;
+  response: TemplateResponse;
+}
+
 
 /** Web explorer shell. */
 export function App(): JSX.Element {
@@ -28,28 +40,12 @@ export function App(): JSX.Element {
   const [appDir, setAppDir] = React.useState<string | undefined>();
 
   // Source pane state.
-  const [sourceFile, setSourceFile] = React.useState<string | undefined>();
-  const [sourceContent, setSourceContent] = React.useState('');
-  // True when the open source file was edited after the current assembly's synth
-  // started, so its squiggles/nav anchors may be stale. Set from /api/file.
-  const [sourceStale, setSourceStale] = React.useState(false);
-
-  // Template pane state.
-  const [templateFile, setTemplateFile] = React.useState<string | undefined>();
-  const [templateData, setTemplateData] = React.useState<TemplateResponse | undefined>();
+  const [sourceFile, setSourceFile] = React.useState<SourceFile | undefined>();
+  const [templateFile, setTemplateFile] = React.useState<TemplateFile | undefined>();
   const [templateFormat, setTemplateFormat] = React.useState<Format>('yaml');
-
-  // Refs for current values in async callbacks (avoids stale closures).
-  const sourceFileRef = React.useRef(sourceFile);
-  sourceFileRef.current = sourceFile;
-  const templateFileRef = React.useRef(templateFile);
-  templateFileRef.current = templateFile;
-  const templateDataRef = React.useRef(templateData);
-  templateDataRef.current = templateData;
 
   // Navigation state shared across panes.
   const [nav, setNav] = React.useState<NavTarget | undefined>();
-  const navCounterRef = React.useRef(0);
 
   // Violations filter: when set, only violations affecting this construct path are shown.
   const [violationFilter, setViolationFilter] = React.useState<string | undefined>();
@@ -76,12 +72,16 @@ export function App(): JSX.Element {
   // staleness flag. Used after a synth (assembly changed) to clear a banner, and
   // on a source edit to raise one, without the user re-opening the file.
   const refreshOpenSourceFile = React.useCallback(async (): Promise<void> => {
-    const file = sourceFileRef.current;
+    const file = sourceFile;
     if (!file) return;
+    await navigateToSourceFile(file.fileName, 'refresh');
     try {
-      const res = await api.readFile(file);
-      setSourceContent(res.content);
-      setSourceStale(res.stale);
+      const res = await api.readFile(file.fileName);
+      setSourceFile({
+        fileName: file.fileName,
+        content: res.content,
+        stale: res.stale,
+      });
     } catch {
       // Keep the last good content; a later event re-tries.
     }
@@ -102,8 +102,7 @@ export function App(): JSX.Element {
 
   /** Navigate to a construct (from tree double-click or violation double-click). */
   const navigate: NavigateHandler = React.useCallback(async (opts) => {
-    const counter = ++navCounterRef.current;
-    const color = opts.color ?? NEUTRAL_COLOR;
+    const color = colorForSeverity(opts.highestSeverity);
 
     if (opts.constructPath) {
       setViolationFilter(opts.constructPath);
@@ -112,73 +111,88 @@ export function App(): JSX.Element {
     let sourceTarget: NavTarget['source'];
     if (opts.sourceLocation) {
       sourceTarget = { file: opts.sourceLocation.file, startLine: opts.sourceLocation.line, endLine: opts.sourceLocation.line };
-      if (sourceFileRef.current !== opts.sourceLocation.file) {
-        try {
-          const res = await api.readFile(opts.sourceLocation.file);
-          setSourceFile(res.path);
-          setSourceContent(res.content);
-          setSourceStale(res.stale);
-        } catch {
-          setSourceFile(opts.sourceLocation.file);
-          setSourceContent(`// Could not load ${opts.sourceLocation.file}`);
-          setSourceStale(false);
-        }
-      }
+      await navigateToSourceFile(opts.sourceLocation.file, 'nav');
     }
 
     let templateTarget: NavTarget['template'];
     if (opts.templateFile && opts.logicalId) {
-      if (templateFileRef.current !== opts.templateFile) {
-        try {
-          const data = await api.getTemplate(opts.templateFile);
-          setTemplateFile(opts.templateFile);
-          setTemplateData(data);
-        } catch {
-          setTemplateFile(opts.templateFile);
-          setTemplateData(undefined);
-        }
-      }
+      navigateToTemplateFile(opts.templateFile, 'nav');
       // Carry identity only; TemplateViewer resolves the highlight line from the
       // rendered format (JSON or YAML), which is the sole coordinate authority.
       templateTarget = { file: opts.templateFile, logicalId: opts.logicalId };
     }
 
-    setNav({ source: sourceTarget, template: templateTarget, color, navCounter: counter });
+    setNav({ source: sourceTarget, template: templateTarget, color });
   }, []);
 
   /** Jump from template pane to source (the "Open in source" button). */
   const jumpToSource = React.useCallback(async (logicalId: string) => {
-    const data = templateDataRef.current;
+    const data = templateFile?.response;
     if (!data) return;
     const resource = data.resources[logicalId];
     if (!resource?.source) return;
-    const counter = ++navCounterRef.current;
-    if (sourceFileRef.current !== resource.source.file) {
-      try {
-        const res = await api.readFile(resource.source.file);
-        setSourceFile(res.path);
-        setSourceContent(res.content);
-        setSourceStale(res.stale);
-      } catch { return; }
-    }
+
+    await navigateToSourceFile(resource.source.file, 'nav');
     setNav({
       source: { file: resource.source.file, startLine: resource.source.line, endLine: resource.source.line },
       template: undefined,
-      color: NEUTRAL_COLOR,
-      navCounter: counter,
+      color: colorForSeverity(undefined),
     });
   }, []);
 
+  const navigateToSourceFile = React.useCallback(async (fileName: string, mode: 'nav' | 'refresh') => {
+    if (sourceFile?.fileName !== fileName || mode === 'refresh') {
+      try {
+        const res = await api.readFile(fileName);
+        setSourceFile({
+          fileName: res.path,
+          content: res.content,
+          stale: res.stale,
+        });
+      } catch {
+        // Show a failure if explicit, otherwise just show current contents
+        if (mode === 'nav') {
+          setSourceFile({
+            fileName,
+            content: `// Could not load ${fileName}`,
+            stale: false,
+          });
+        }
+      }
+    }
+  }, [sourceFile]);
+
+  const navigateToTemplateFile = React.useCallback(async (fileName: string, mode: 'nav' | 'refresh') => {
+    if (templateFile?.fileName !== fileName || mode === 'refresh') {
+      try {
+        const response = await api.getTemplate(fileName);
+        setTemplateFile({
+          fileName,
+          response,
+        });
+      } catch {
+        setTemplateFormat('yaml');
+        setTemplateFile({
+          fileName,
+          response: {
+            content: `# Could not load ${fileName}`,
+            resources: {},
+          },
+        });
+      }
+    }
+  }, [templateFile]);
+
   // Per-file index of constructs navigable from source to template, built from
   // the construct tree the app already loads. Rebuilt only when the tree changes.
-  const sourceAnchors = React.useMemo(
-    () => (tree?.status === 'ok' ? buildSourceAnchorIndex(tree.tree) : undefined),
+  const sourceAnchors: Map<string, SourceAnchor[]> = React.useMemo(
+    () => (tree?.status === 'ok' ? buildSourceAnchorIndex(tree.tree) : new Map()),
     [tree],
   );
 
   /** Double-click a line in the source pane to jump to its resource in the template. */
   const handleSourceDoubleClick = React.useCallback((line: number) => {
-    const file = sourceFileRef.current;
+    const file = sourceFile?.fileName;
     if (!file) return;
     const node = findConstructAtLine(sourceAnchors?.get(file), line);
     if (!node) return;
@@ -188,7 +202,7 @@ export function App(): JSX.Element {
       logicalId: node.logicalId,
       constructPath: node.path,
     });
-  }, [sourceAnchors, navigate]);
+  }, [sourceFile, sourceAnchors, navigate]);
 
   // File picker state.
   const [showFilePicker, setShowFilePicker] = React.useState<false | 'source' | 'template'>(false);
@@ -215,7 +229,7 @@ export function App(): JSX.Element {
   const knownTemplateFiles = React.useMemo(() => {
     if (!tree || tree.status !== 'ok') return [];
     const files = new Set<string>();
-    const walk = (nodes: readonly import('./api').WebConstructNode[]) => {
+    const walk = (nodes: readonly WebConstructNode[]) => {
       for (const n of nodes) {
         if (n.templateFile) files.add(n.templateFile);
         walk(n.children);
@@ -228,23 +242,13 @@ export function App(): JSX.Element {
   const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
     try {
       if (pane === 'source') {
-        const res = await api.readFile(filePath);
-        setSourceFile(res.path);
-        setSourceContent(res.content);
-        setSourceStale(res.stale);
+        await navigateToSourceFile(filePath, 'nav');
       } else {
-        const data = await api.getTemplate(filePath);
-        setTemplateFile(filePath);
-        setTemplateData(data);
+        await navigateToTemplateFile(filePath, 'nav');
       }
       setShowFilePicker(false);
     } catch { /* ignore */ }
   }, []);
-
-  // Vertical split: violations row's share of the page height (default 33%).
-  const vSplit = useSplit({ orientation: 'vertical', defaultFraction: 0.33, min: 0.15, max: 0.85 });
-  // Horizontal split inside the top row: file panes' share of that row's width (default 75%; tree gets the remaining 25%).
-  const hSplit = useSplit({ orientation: 'horizontal', defaultFraction: 0.75, min: 0.4, max: 0.85 });
 
   const [navigationOpen, setNavigationOpen] = React.useState(true);
   const [drawerOpen, setDrawerOpen] = React.useState(true);
@@ -260,23 +264,26 @@ export function App(): JSX.Element {
       }
       navigationOpen={navigationOpen}
       onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
+      navigationWidth={350}
 
       navigation={
-            <Tabs
-              fitHeight={true}
-              tabs={[{
-                label: 'Construct Tree',
-                id: 'tree',
-                content: (
-                  <ConstructTreeContent tree={tree} onNavigate={navigate} />
-                )
-              }]}
-            />
+        <Tabs
+          fitHeight={true}
+          tabs={[{
+            label: 'Construct Tree',
+            id: 'tree',
+            content: (
+              <div style={{ overflow: 'auto' }}>
+                <ConstructTreeContent tree={tree} onNavigate={navigate} />
+              </div>
+            )
+          }]}
+        />
       }
       contentType='table'
       disableContentPaddings={true}
       content={
-        <div>
+        <div style={{ backgroundColor: awsui.colorBackgroundContainerContent }}>
           {error && <Box color="text-status-error">{error}</Box>}
           <Tabs
             fitHeight={true}
@@ -284,46 +291,34 @@ export function App(): JSX.Element {
               label: 'Source View',
               id: 'source',
               content: (
-                <div>
-                  <Header variant="h2">
-                    <span style={PICKER_ANCHOR_STYLE}>
-                      <span style={HEADER_WITH_ACTION_STYLE}>
-                        {sourceFile ?? 'Source'}
-                        <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'source' ? 'Close picker' : 'Open file'} aria-label="Open file" onClick={() => showFilePicker === 'source' ? setShowFilePicker(false) : setShowFilePicker('source')}>
-                          <FolderIcon />
-                        </button>
-                      </span>
-                      {showFilePicker === 'source' && (
-                        <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                          <KnownFileList files={knownSourceFiles} onPick={(p) => void pickFile(p, 'source')} />
-                        </div>
-                      )}
-                    </span>
-                  </Header>
+                <div style={{ padding: '0px 16px' }}>
+                  <Select
+                    placeholder="Source file"
+                    selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
+                    onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
+                    options={knownSourceFiles.map(f => ({ label: f, value: f }))}
+                  />
                   <div style={CODE_PANE_INNER_STYLE}>
-                    {sourceContent ? (
-                      <div style={SOURCE_PANE_COLUMN_STYLE}>
-                        {sourceStale && (
+                    {sourceFile ? (
+                      <SpaceBetween size='xs'>
+                        {sourceFile.stale && (
                           <Alert type="warning">
-                            This file has been modified since the last synth, so its violations and diagnostics may be stale. Re-run <code>cdk synth</code> to refresh.
+                            This file has been modified since the last synth, so its diagnostics and source locations may be stale. Re-run <code>cdk synth</code> to refresh.
                           </Alert>
                         )}
-                        <div style={GROW_STYLE}>
-                          <CodeViewer
-                            content={sourceContent}
-                            language={detectLanguage(sourceFile)}
-                            highlightStart={nav?.source?.startLine}
-                            highlightEnd={nav?.source?.endLine}
-                            highlightColor={nav?.color}
-                            navCounter={nav?.navCounter}
-                            scrollToLine={nav?.source?.startLine}
-                            onLineDoubleClick={handleSourceDoubleClick}
-                            diagnostics={buildDiagnostics(sourceFile, violations)}
-                          />
-                        </div>
-                      </div>
+                        <CodeViewer
+                          content={sourceFile.content}
+                          language={detectLanguage(sourceFile.fileName)}
+                          highlightStart={nav?.source?.startLine}
+                          highlightEnd={nav?.source?.endLine}
+                          highlightColor={nav?.color}
+                          scrollToLine={nav?.source?.startLine}
+                          onLineDoubleClick={handleSourceDoubleClick}
+                          diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
+                        />
+                      </SpaceBetween>
                     ) : (
-                      <Box color="text-status-inactive">Double-click a construct to view its source.</Box>
+                      <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
                     )}
                   </div>
                 </div>)
@@ -343,11 +338,14 @@ export function App(): JSX.Element {
                 label: 'Template View',
                 id: 'template',
                 content: (
-                  <div>
-                    <Header variant="h2" actions={templateData && <FormatToggle format={templateFormat} onChange={setTemplateFormat} />}>
+                  <div style={{ padding: '0px 16px' }}>
+                    <Header
+                      variant="h3"
+                      actions={<FormatToggle format={templateFormat} onChange={setTemplateFormat} />}
+                    >
                       <span style={PICKER_ANCHOR_STYLE}>
                         <span style={HEADER_WITH_ACTION_STYLE}>
-                          {templateFile ?? 'Template'}
+                          {templateFile?.fileName ?? 'Template'}
                           <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
                             <FolderIcon />
                           </button>
@@ -360,15 +358,14 @@ export function App(): JSX.Element {
                       </span>
                     </Header>
                     <div style={CODE_PANE_INNER_STYLE}>
-                      {templateData ? (
+                      {templateFile ? (
                         <TemplateViewer
-                          jsonContent={templateData.content}
-                          resources={templateData.resources}
+                          jsonContent={templateFile.response.content}
+                          resources={templateFile.response.resources}
                           highlightLogicalId={nav?.template?.logicalId}
                           highlightColor={nav?.color}
-                          navCounter={nav?.navCounter}
                           onResourceDoubleClick={jumpToSource}
-                          templateFile={templateFile}
+                          templateFile={templateFile.fileName}
                           violations={violations?.status === 'ok' ? violations.violations : undefined}
                           format={templateFormat}
                         />
@@ -389,7 +386,7 @@ export function App(): JSX.Element {
             iconName: 'file-open',
           },
           ariaLabels: {
-            drawerName: 'Template Drawer',
+            drawerName: 'Template',
           },
         },
       ]}
@@ -402,6 +399,7 @@ export function App(): JSX.Element {
       splitPanel={
         <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
           ariaLabel='Diagnostics'
+          hidePreferencesButton={true}
           headerActions={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
               <ViolationsTitle filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
@@ -419,7 +417,6 @@ export function App(): JSX.Element {
     </AppLayoutToolbar>
   );
 }
-
 
 function KnownFileList({ files, onPick }: {
   readonly files: readonly string[];
@@ -442,7 +439,7 @@ function ConstructTreeContent({ tree, onNavigate }: { readonly tree?: TreeRespon
   if (tree.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found. Run cdk synth first.</Box>;
   }
-  return <ConstructTree nodes={tree.tree} onNavigate={onNavigate} />;
+  return <ConstructTree autoExpandDepth={1} nodes={tree.tree} onNavigate={onNavigate} />;
 }
 
 function ViolationsContent({ violations, onNavigate, filter, onClearFilter, search }: {
@@ -565,42 +562,6 @@ function Resizer({ split }: { readonly split: Split }): JSX.Element {
       </button>
     </div>
   );
-}
-
-function topRowStyle(vSplit: Split): React.CSSProperties {
-  return {
-    display: 'flex',
-    minHeight: 0,
-    alignItems: 'stretch',
-    flexDirection: 'row',
-    flex: vSplit.collapsed ? '1 1 auto' : `${1 - vSplit.fraction} 1 0`,
-  };
-}
-
-function bottomRowStyle(vSplit: Split): React.CSSProperties {
-  return {
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-    flex: vSplit.collapsed ? '0 0 auto' : `${vSplit.fraction} 1 0`,
-  };
-}
-
-function treePaneStyle(hSplit: Split): React.CSSProperties {
-  return {
-    flex: hSplit.collapsed ? '0 0 0' : `0 0 ${(1 - hSplit.fraction) * 100}%`,
-    minWidth: 0,
-    minHeight: 0,
-    display: 'flex',
-  };
-}
-
-function filesPaneStyle(hSplit: Split): React.CSSProperties {
-  return {
-    flex: hSplit.collapsed ? '1 1 auto' : `0 0 ${hSplit.fraction * 100}%`,
-    minWidth: 0,
-    minHeight: 0,
-  };
 }
 
 function resizerStyle(split: Split): React.CSSProperties {

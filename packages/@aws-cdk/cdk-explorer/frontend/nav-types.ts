@@ -5,6 +5,6 @@ export type NavigateHandler = (opts: {
   templateFile?: string;
   logicalId?: string;
   propertyPaths?: readonly string[];
-  color?: string;
+  highestSeverity?: string;
   constructPath?: string;
 }) => void;
