@@ -2031,7 +2031,6 @@ describe('watch', () => {
     expect(ignoredFn('nested/outputsd.json', FILE)).toBe(false);
   });
 
-
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
 
