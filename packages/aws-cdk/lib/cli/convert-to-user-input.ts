@@ -210,6 +210,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'watch':
       commandOptions = {
+        outputsFile: args.outputsFile,
         buildExclude: args.buildExclude,
         exclusively: args.exclusively,
         changeSetName: args.changeSetName,
@@ -529,6 +530,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     resourceMappingInline: config.import?.resourceMappingInline,
   };
   const watchOptions = {
+    outputsFile: config.watch?.outputsFile,
     buildExclude: config.watch?.buildExclude,
     exclusively: config.watch?.exclusively,
     changeSetName: config.watch?.changeSetName,

@@ -859,10 +859,13 @@ export class CdkToolkit {
       exclude: watchExcludes,
       rootDir,
     });
+    const outputsFile = options.outputsFile ? path.resolve(options.outputsFile) : undefined;
 
     chokidar
       .watch('.', {
-        ignored: shouldIgnore,
+        ignored: (filePath, stats) =>
+          path.resolve(rootDir, filePath) === outputsFile ||
+          shouldIgnore(filePath, stats),
         cwd: rootDir,
       })
       .on('ready', async () => {
@@ -1774,6 +1777,12 @@ export interface CliValidateOptions extends ValidateOptions {
 
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   /**
+   * Path to file where stack outputs will be written after a successful deploy as JSON
+   * @default - Outputs are not written to any file
+   */
+  outputsFile?: string;
+
+  /**
    * Reuse the assets with the given asset IDs
    */
   reuseAssets?: string[];
@@ -1840,12 +1849,6 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default true
    */
   usePreviousParameters?: boolean;
-
-  /**
-   * Path to file where stack outputs will be written after a successful deploy as JSON
-   * @default - Outputs are not written to any file
-   */
-  outputsFile?: string;
 
   /**
    * Whether we are on a CI system

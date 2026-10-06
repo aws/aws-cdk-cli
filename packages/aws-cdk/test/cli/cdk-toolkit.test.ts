@@ -2004,6 +2004,34 @@ describe('import', () => {
 });
 
 describe('watch', () => {
+  test.each(['outputs.json', 'nested/outputs[dev].json', path.resolve('absolute-outputs.json')])('passes %s to initial and subsequent deployments without watching it', async (outputsFile) => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    const deployMock = jest.fn();
+    toolkit.deploy = deployMock;
+
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      outputsFile,
+      deploymentMethod: { method: 'hotswap' },
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'src/app.ts');
+
+    expect(deployMock).toHaveBeenCalledTimes(2);
+    for (const [options] of deployMock.mock.calls) {
+      expect(options.outputsFile).toBe(outputsFile);
+    }
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn(outputsFile, FILE)).toBe(true);
+    expect(ignoredFn(path.resolve(outputsFile), FILE)).toBe(true);
+    expect(ignoredFn(outputsFile)).toBe(true);
+    expect(ignoredFn('src/app.ts', FILE)).toBe(false);
+    expect(ignoredFn('nested', DIR)).toBe(false);
+    expect(ignoredFn('nested/outputsd.json', FILE)).toBe(false);
+  });
+
+
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
 

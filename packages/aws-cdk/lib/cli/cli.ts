@@ -568,6 +568,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           deploymentMethod: determineDeploymentMethod(args, configuration, true),
           force: args.force,
           progress: configuration.settings.get(['progress']),
+          outputsFile: configuration.settings.get(['outputsFile']),
           rollback: configuration.settings.get(['rollback']),
           traceLogs: args.logs,
           concurrency: args.concurrency,

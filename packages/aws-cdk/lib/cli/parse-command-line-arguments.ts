@@ -791,6 +791,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
       yargs
+        .option('outputs-file', {
+          default: undefined,
+          type: 'string',
+          alias: 'O',
+          desc: 'Path to file where stack outputs will be written as JSON',
+          requiresArg: true,
+        })
         .option('build-exclude', {
           type: 'array',
           alias: 'E',
