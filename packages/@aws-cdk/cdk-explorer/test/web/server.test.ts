@@ -1,3 +1,4 @@
+import * as net from 'net';
 import { DEFAULT_PORT } from '../../lib/expressy/http-server';
 import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
@@ -60,6 +61,37 @@ describe('Web Server', () => {
         ...init.headers,
         Connection: 'close',
       },
+    });
+  }
+
+  /**
+   * Put a request target on the wire exactly as written and return the raw
+   * response text.
+   *
+   * `fetch` resolves dot segments client-side — it turns `/.//evil.com/x` into
+   * `//evil.com/x` before the request leaves — so a `fetch`-based test would
+   * exercise the neighbouring case the server already handles and pass whether
+   * or not the redirect target is validated. Only a raw socket reaches the
+   * un-normalised path the server itself has to normalise.
+   */
+  function rawRequest(target: string): Promise<string> {
+    const { hostname, port } = new URL(server.url);
+    return new Promise((resolve, reject) => {
+      const socket = net.createConnection({ host: hostname, port: Number(port) }, () => {
+        socket.write([
+          `GET ${target} HTTP/1.1`,
+          `Host: ${hostname}:${port}`,
+          'Connection: close',
+          '',
+          '',
+        ].join('\r\n'));
+      });
+      let data = '';
+      socket.on('data', (chunk: Buffer) => {
+        data += chunk.toString();
+      });
+      socket.on('end', () => resolve(data));
+      socket.on('error', reject);
     });
   }
 
@@ -271,6 +303,26 @@ describe('Web Server', () => {
 
       expect(res.status).toBe(302);
       expect(res.headers.get('location')).toBe('/?stack=Foo');
+    });
+
+    /**
+     * `Pathname` may not always be a path. Prevent URL parser from resolving
+     * `/.//evil.com/x` to `//evil.com/x` (leading slashes are an authority in
+     * this case) which ensures a browser following `Location` does not end up
+     * at `http://evil.com/x`.
+     */
+    test.each([
+      ['a dot segment', '/.//evil.com/x'],
+      ['a parent segment', '/..//evil.com/x'],
+    ])('keeps the handshake redirect on-origin when %s collapses into an authority', async (_name, target) => {
+      server = await start();
+
+      const res = await rawRequest(`${target}?token=${server.token}`);
+
+      expect(res).toContain('HTTP/1.1 302');
+      expect(res).toMatch(/^location: \/evil\.com\/x\r?$/im);
+      // The assertion that matters: no Location may begin with two slashes.
+      expect(res).not.toMatch(/^location: \/\//im);
     });
 
     test('refuses a repeated token parameter rather than picking one of them', async () => {
