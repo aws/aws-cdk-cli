@@ -1929,11 +1929,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       extraUserAgent: `cdk-watch/hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}`,
     };
 
-    try {
-      await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
-    } catch {
-      // just continue - deploy will show the error
-    }
+    await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
   }
 
   /**
