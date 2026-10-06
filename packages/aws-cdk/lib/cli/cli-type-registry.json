@@ -780,6 +780,12 @@
         "variadic": true
       },
       "options": {
+        "outputs-file": {
+          "type": "string",
+          "alias": "O",
+          "desc": "Path to file where stack outputs will be written as JSON",
+          "requiresArg": true
+        },
         "build-exclude": {
           "type": "array",
           "alias": "E",

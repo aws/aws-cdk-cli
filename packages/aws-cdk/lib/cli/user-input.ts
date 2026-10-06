@@ -1257,6 +1257,15 @@ export interface ImportOptions {
  */
 export interface WatchOptions {
   /**
+   * Path to file where stack outputs will be written as JSON
+   *
+   * aliases: O
+   *
+   * @default - undefined
+   */
+  readonly outputsFile?: string;
+
+  /**
    * Do not rebuild asset with the given ID. Can be specified multiple times
    *
    * aliases: E
