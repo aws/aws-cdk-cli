@@ -689,6 +689,105 @@ IAM Statement Changes
       // THEN
       successfulDeployment();
     });
+
+    test('replacement-requires-rollback under --express explains that rollback is disabled, and retries with it enabled', async () => {
+      // GIVEN
+      mockDeployStack.mockImplementation(async (params) => {
+        if (params.rollback === true) {
+          return {
+            type: 'did-deploy-stack',
+            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+            outputs: {},
+            noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
+          } satisfies DeployStackResult;
+        }
+        return { type: 'replacement-requires-rollback' } satisfies DeployStackResult;
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { express: true });
+
+      // THEN
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5050',
+        data: expect.objectContaining({
+          motivation: 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)',
+        }),
+      }));
+
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({ express: true, rollback: true }));
+      successfulDeployment();
+    });
+
+    test('executing the change set it just prepared marks it as this invocation\'s own', async () => {
+      // GIVEN a replacement that is recoverable by retrying with rollback enabled.
+      mockDeployStack.mockImplementation(async (params) => {
+        if (params.rollback === true) {
+          return {
+            type: 'did-deploy-stack',
+            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+            outputs: {},
+            noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
+          } satisfies DeployStackResult;
+        }
+        return { type: 'replacement-requires-rollback' } satisfies DeployStackResult;
+      });
+
+      // WHEN an ordinary one-command express deploy. The CLI always resolves a plain
+      // `cdk deploy` to an explicit change-set method, which is what makes this two-phase.
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { express: true, deploymentMethod: { method: 'change-set' } });
+
+      // THEN the execute phase names the change set as ours, so a replacement stays recoverable
+      // instead of being mistaken for an externally prepared change set.
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        changeSetCreatedByCurrentDeploy: true,
+      }));
+
+      // ...and the retry builds a fresh change set that is likewise not external.
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        changeSetCreatedByCurrentDeploy: false,
+        rollback: true,
+      }));
+      successfulDeployment();
+    });
+
+    test('replacement-requires-rollback without --express keeps the --no-rollback wording', async () => {
+      // GIVEN
+      mockDeployStack.mockImplementation(async (params) => {
+        if (params.rollback === true) {
+          return {
+            type: 'did-deploy-stack',
+            stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+            outputs: {},
+            noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
+          } satisfies DeployStackResult;
+        }
+        return { type: 'replacement-requires-rollback' } satisfies DeployStackResult;
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { rollback: false });
+
+      // THEN
+      expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5050',
+        data: expect.objectContaining({
+          motivation: 'Change includes a replacement which cannot be deployed with "--no-rollback"',
+        }),
+      }));
+      successfulDeployment();
+    });
   });
 
   test('deploy returns stack information', async () => {

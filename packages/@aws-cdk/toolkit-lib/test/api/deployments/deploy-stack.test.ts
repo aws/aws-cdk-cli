@@ -1635,13 +1635,8 @@ test.each([
 
 // CloudFormation's RollbackStack API is not supported for stacks last deployed
 // with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
-// must never route through the rollback path. It always fix-forwards via the
-// change set / UpdateStack and lets CloudFormation surface any error (including a
-// rejected replacement on a disable-rollback stack). `--express --rollback`
-// explicitly opts back into the rollback-enabled path.
 test.each([
-  // --express alone (rollback defaults off): always fix-forward, never divert to rollback
-  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
@@ -1663,16 +1658,20 @@ test.each([
 
     // THEN
     expect(result.type).toEqual(expectedType);
+
+    if (expectedType === 'replacement-requires-rollback') {
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateStackCommand);
+    } else {
+      expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+    }
   },
 );
 
 // A stack last deployed with express mode that is in a paused fail state
 // (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
-// --express` must therefore always fix-forward via createChangeSet/UpdateStack
-// instead of routing to the rollback path.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
-  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(

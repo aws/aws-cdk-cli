@@ -522,6 +522,7 @@ export class CdkToolkit {
         roleArn: options.roleArn,
         forceDeployment: options.force,
         rollback: options.rollback,
+        express: options.express,
         reuseAssets: options.reuseAssets,
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,
@@ -2579,13 +2580,17 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           throw new ToolkitError('DeployLoopUnstable', 'This loop should have stabilized in 2 iterations, but didn\'t. If you are seeing this error, please report it at https://github.com/aws/aws-cdk/issues/new/choose');
         }
 
+        const requestedMethod = this.options.deploymentMethod;
+        // On the first iteration, execute the change set prepared above. On retries (after
+        // rollback), create a new change set since the old one is gone.
+        const executesOwnPreparedChangeSet = iteration === 1 && isExecutingChangeSetDeployment(requestedMethod);
+
         const r = await this.deployments.deployStack({
           ...sharedDeployOptions,
-          // On the first iteration, execute the prepared change set.
-          // On retries (after rollback), create a new change set since the old one is gone.
-          deploymentMethod: iteration === 1 && isExecutingChangeSetDeployment(this.options.deploymentMethod)
-            ? toExecuteChangeSetDeployment(this.options.deploymentMethod)
-            : this.options.deploymentMethod,
+          deploymentMethod: executesOwnPreparedChangeSet
+            ? toExecuteChangeSetDeployment(requestedMethod)
+            : requestedMethod,
+          changeSetCreatedByCurrentDeploy: executesOwnPreparedChangeSet,
           rollback,
         });
 
@@ -2626,7 +2631,9 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            const motivation = this.options.express
+              ? 'Change includes a replacement, which CloudFormation does not support while rollback is disabled (the default for Express Mode)'
+              : 'Change includes a replacement which cannot be deployed with "--no-rollback"';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);

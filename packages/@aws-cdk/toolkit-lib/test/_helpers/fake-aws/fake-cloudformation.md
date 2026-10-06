@@ -68,9 +68,19 @@ Tests that use the fake should use fake timers to advance time.
 3. API returns `{ StackId }` immediately.
 4. Stack status: `UPDATE_IN_PROGRESS`.
 5. After delay:
-   - If any resource has `Fail: true` → `UPDATE_FAILED` (if
-     `DisableRollback`) or `UPDATE_ROLLBACK_IN_PROGRESS` →
+   - If any resource has `Fail: true` → `UPDATE_FAILED` (if rollback is
+     disabled) or `UPDATE_ROLLBACK_IN_PROGRESS` →
      `UPDATE_ROLLBACK_COMPLETE`.
+   - Rollback counts as disabled when `DisableRollback: true` is passed, **or**
+     when `DeploymentConfig.Mode === 'EXPRESS'` and the call did not explicitly
+     re-enable it with `DeploymentConfig.DisableRollback: false`. This mirrors
+     Express Mode having rollback disabled server-side by default, and is what
+     makes a failed express update strand the stack in `UPDATE_FAILED`.
+   - Every failing resource that also has `FailReason: '...'` emits
+     resource-level `UPDATE_IN_PROGRESS` and `UPDATE_FAILED` events, with that
+     string as the `ResourceStatusReason` (this is where real CloudFormation
+     reports why an operation failed). Without `FailReason`, only stack-level
+     events are emitted. `ExecuteChangeSet` failures do the same.
    - Otherwise → `UPDATE_COMPLETE`.
 
 ### DeleteStack
