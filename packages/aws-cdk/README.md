@@ -214,7 +214,7 @@ values as `cdk deploy --require-approval`:
 - `--fail-on=broadening`: fail only on changes that broaden security permissions, such as new IAM
   statements or security group rules. All differences are still shown.
 - `--fail-on=destructive`: fail only on changes that replace, delete or orphan an existing resource.
-  See below.
+  See below. `cdk deploy --require-approval=destructive` uses the same classification.
 - `--fail-on=never`: never fail. `--no-fail` is an alias for this value.
 
 ```console
@@ -305,6 +305,27 @@ Before creating a change set, `cdk deploy` will compare the template and tags of
 currently deployed stack to the template and tags that are about to be deployed and
 will skip deployment if they are identical. Use `--force` to override this behavior
 and always deploy the stack.
+
+#### Requiring approval
+
+`--require-approval` (or `requireApproval` in `cdk.json`) controls which changes need a manual
+confirmation before they are deployed:
+
+- `never`: approval is never required.
+- `any-change`: approval is required for any change to the stack.
+- `broadening` (default): approval is required if changes broaden permissions or security group rules.
+- `destructive`: approval is required if changes replace, delete or orphan an existing resource,
+  including resources in nested stacks. The affected resources are listed before the confirmation.
+  Changes that only broaden permissions do not require approval in this mode. With `--method=direct`,
+  no change set is created, so a change to a property that may require replacement also requires approval.
+
+When approval is required but no terminal is attached, for example in CI, the deployment fails.
+Use `--yes` to confirm automatically.
+
+```console
+# Stop before anything is replaced or deleted, deploy everything else unattended
+$ cdk deploy --require-approval=destructive
+```
 
 #### Disabling Rollback
 

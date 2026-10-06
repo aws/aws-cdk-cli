@@ -176,6 +176,7 @@
                     "enum": [
                         "any-change",
                         "broadening",
+                        "destructive",
                         "never"
                     ],
                     "type": "string"

@@ -7,7 +7,7 @@ if (!stackPrefix) {
 }
 
 /**
- * Used to test `cdk diff --fail-on=destructive`.
+ * Used to test `cdk diff --fail-on=destructive` and `cdk deploy --require-approval=destructive`.
  *
  * Environment variables switch each queue between a change that is applied in place,
  * a change that replaces the resource, and removing the resource.

@@ -1,45 +1,5 @@
-import { ResourceImpact, type Move, type TemplateDiff } from '@aws-cdk/cloudformation-diff';
-
-/**
- * A resource change that replaces, deletes or orphans an existing physical resource
- */
-export interface DestructiveChange {
-  /**
-   * The name of the stack (or nested stack) that contains the resource
-   */
-  readonly stackName: string;
-
-  /**
-   * The logical ID of the resource
-   */
-  readonly logicalId: string;
-
-  /**
-   * The CloudFormation resource type, if known
-   */
-  readonly resourceType?: string;
-
-  /**
-   * The construct path of the resource
-   *
-   * @default - no construct path is known for the resource
-   */
-  readonly constructPath?: string;
-
-  /**
-   * The impact of the change on the existing physical resource
-   */
-  readonly impact: ResourceImpact;
-
-  /**
-   * Where the resource was moved to, if the change was detected as a move (`--include-moves`)
-   *
-   * A deployment still destroys or orphans the resource unless it is moved with `cdk refactor` first.
-   *
-   * @default - the resource was not moved
-   */
-  readonly move?: Move;
-}
+import { ResourceImpact, type TemplateDiff } from '@aws-cdk/cloudformation-diff';
+import type { DestructiveChange } from '../../payloads/diff';
 
 /**
  * Resource types that are not physical resources, so removing or replacing them is never destructive

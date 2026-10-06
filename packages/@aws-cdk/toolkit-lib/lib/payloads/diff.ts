@@ -1,4 +1,4 @@
-import type { ITemplateDiff } from '@aws-cdk/cloudformation-diff';
+import type { ITemplateDiff, Move, ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import type { Duration, SingleStack } from './types';
 
 /**
@@ -19,6 +19,47 @@ export enum PermissionChangeType {
    * Permissions are changed but not broadening
    */
   NON_BROADENING = 'non-broadening',
+}
+
+/**
+ * A resource change that replaces, deletes or orphans an existing physical resource
+ */
+export interface DestructiveChange {
+  /**
+   * The name of the stack (or nested stack) that contains the resource
+   */
+  readonly stackName: string;
+
+  /**
+   * The logical ID of the resource
+   */
+  readonly logicalId: string;
+
+  /**
+   * The CloudFormation resource type, if known
+   */
+  readonly resourceType?: string;
+
+  /**
+   * The construct path of the resource
+   *
+   * @default - no construct path is known for the resource
+   */
+  readonly constructPath?: string;
+
+  /**
+   * The impact of the change on the existing physical resource
+   */
+  readonly impact: ResourceImpact;
+
+  /**
+   * Where the resource was moved to, if the change was detected as a move between stacks
+   *
+   * A deployment still destroys or orphans the resource unless it is moved with `cdk refactor` first.
+   *
+   * @default - the resource was not moved
+   */
+  readonly move?: Move;
 }
 
 /**
@@ -66,6 +107,11 @@ export interface StackDiff extends SingleStack {
    * Does the diff contain changes to permissions and what kind
    */
   readonly permissionChanges: PermissionChangeType;
+
+  /**
+   * The changes that replace, delete or orphan an existing resource, including in nested stacks
+   */
+  readonly destructiveChanges: DestructiveChange[];
 }
 
 /**

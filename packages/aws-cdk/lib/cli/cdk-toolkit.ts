@@ -4,7 +4,7 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, PublishAssetsOptions, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -15,7 +15,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, DestructiveChange, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -347,7 +347,7 @@ export class CdkToolkit {
         }
       }
 
-      if (failOn === DIFF_FAIL_ON_DESTRUCTIVE) {
+      if (failOn === RequireApproval.DESTRUCTIVE) {
         destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
       }
     } else {
@@ -418,7 +418,7 @@ export class CdkToolkit {
           }
         }
 
-        if (failOn === DIFF_FAIL_ON_DESTRUCTIVE) {
+        if (failOn === RequireApproval.DESTRUCTIVE) {
           destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
         }
       }
@@ -502,9 +502,11 @@ export class CdkToolkit {
     // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
     // each run must register a rewrite for its own `requireApproval` value.
     using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
-      const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
-        ? 'security-sensitive updates'
-        : 'updates';
+      const updateTypeText = requireApproval === RequireApproval.DESTRUCTIVE
+        ? 'destructive updates'
+        : msg.data.permissionChangeType !== PermissionChangeType.NONE
+          ? 'security-sensitive updates'
+          : 'updates';
       return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
@@ -1594,16 +1596,6 @@ export interface SynthOptions {
 }
 
 /**
- * `--fail-on` value that fails the diff on changes that replace, delete or orphan an existing resource
- */
-export const DIFF_FAIL_ON_DESTRUCTIVE = 'destructive';
-
-/**
- * Kinds of change that can make `cdk diff` fail: the `--require-approval` values, plus destructive changes
- */
-export type DiffFailOn = RequireApproval | typeof DIFF_FAIL_ON_DESTRUCTIVE;
-
-/**
  * Options for the diff command
  */
 export interface DiffOptions {
@@ -1657,7 +1649,7 @@ export interface DiffOptions {
    *
    * @default RequireApproval.NEVER
    */
-  readonly failOn?: DiffFailOn;
+  readonly failOn?: RequireApproval;
 
   /**
    * Only run diff on broadened security changes
@@ -2500,24 +2492,41 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
     // there is nothing for the user to approve. Outputs, stack ARN, and
     // timings are still emitted via the normal no-op deploy path below.
     if (this.options.requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
-      const currentTemplate = await this.deployments.readCurrentTemplate(stack);
+      const isDestructiveApproval = this.options.requireApproval === RequireApproval.DESTRUCTIVE;
+      // Destructive changes can be in nested stacks too, so read their templates when they decide the approval
+      const { deployedRootTemplate, nestedStacks } = isDestructiveApproval
+        ? await this.deployments.readCurrentTemplateWithNestedStacks(stack)
+        : { deployedRootTemplate: await this.deployments.readCurrentTemplate(stack), nestedStacks: undefined };
       const formatter = new DiffFormatter({
         templateInfo: {
-          oldTemplate: currentTemplate,
+          oldTemplate: deployedRootTemplate,
           newTemplate: stack,
           changeSet: prepareResult?.changeSet,
+          nestedStacks,
         },
       });
       const securityDiff = formatter.formatSecurityDiff();
-      if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType)) {
+      // Formatting the stack diff leaves out changes that are likely mangled non-ASCII characters,
+      // so do that before looking for destructive changes when they decide the approval
+      const stackDiff = isDestructiveApproval ? formatter.formatStackDiff() : undefined;
+      const destructiveChanges = findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths);
+      if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType, destructiveChanges.length > 0)) {
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         // Bare-fact motivation. The I5060 listener registered in `deploy()` adds
         // the `--require-approval` framing for terminal users.
-        const motivation = hasSecurityChanges
-          ? 'Stack includes security-sensitive updates'
-          : 'Stack includes updates';
-        const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+        const motivation = isDestructiveApproval
+          ? 'Stack includes destructive updates'
+          : hasSecurityChanges
+            ? 'Stack includes security-sensitive updates'
+            : 'Stack includes updates';
+        const diffOutput = hasSecurityChanges && !isDestructiveApproval
+          ? securityDiff.formattedDiff
+          : (stackDiff ?? formatter.formatStackDiff()).formattedDiff;
         await this.ioHost.asIoHelper().defaults.info(diffOutput);
+        if (isDestructiveApproval) {
+          const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
+          await this.ioHost.asIoHelper().defaults.warn(`Destructive changes:\n${lines.join('\n')}\n`);
+        }
 
         try {
           await askUserConfirmation(
@@ -2527,6 +2536,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
               concurrency: this.options.concurrency,
               permissionChangeType: securityDiff.permissionChangeType,
               templateDiffs: formatter.diffs,
+              destructiveChanges,
             }),
             'DeployAborted',
             'Deployment cancelled',
@@ -2709,13 +2719,13 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
 /**
  * Whether a diff with the given changes fails, according to `--fail-on`
  */
-function diffFails(failOn: DiffFailOn, numStacksWithChanges: number, hasBroadeningChanges: boolean, hasDestructiveChanges: boolean): boolean {
+function diffFails(failOn: RequireApproval, numStacksWithChanges: number, hasBroadeningChanges: boolean, hasDestructiveChanges: boolean): boolean {
   switch (failOn) {
     case RequireApproval.ANYCHANGE:
       return numStacksWithChanges > 0;
     case RequireApproval.BROADENING:
       return hasBroadeningChanges;
-    case DIFF_FAIL_ON_DESTRUCTIVE:
+    case RequireApproval.DESTRUCTIVE:
       return hasDestructiveChanges;
     case RequireApproval.NEVER:
       return false;
@@ -2726,9 +2736,11 @@ function diffFails(failOn: DiffFailOn, numStacksWithChanges: number, hasBroadeni
  * Determine if manual approval is required or not. Requires approval for
  * - RequireApproval.ANYCHANGE
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
+ * - RequireApproval.DESTRUCTIVE and the changes replace, delete or orphan an existing resource
  */
-function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
+function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType, hasDestructiveChanges: boolean) {
   return requireApproval === RequireApproval.ANYCHANGE ||
-    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
+    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING ||
+    requireApproval === RequireApproval.DESTRUCTIVE && hasDestructiveChanges;
 }
 

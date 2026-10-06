@@ -1,0 +1,15 @@
+{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"deploy","level":"debug","code":null,"message":"Checking for previously published assets"}
+{"seq":4,"type":"notify","action":"deploy","level":"debug","code":null,"message":"0 total assets, 0 still need to be published"}
+{"seq":5,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack Test-Stack-A-Display-Name\nIAM Statement Changes\n┌───┬─────────────┬────────┬────────────────┬──────────────────────────────┬───────────┐\n│   │ Resource    │ Effect │ Action         │ Principal                    │ Condition │\n├───┼─────────────┼────────┼────────────────┼──────────────────────────────┼───────────┤\n│ - │ ${Role.Arn} │ Allow  │ sts:AssumeRole │ Service:lambda.amazonaws.com │           │\n└───┴─────────────┴────────┴────────────────┴──────────────────────────────┴───────────┘\n(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)\n\n"}
+{"seq":6,"type":"request","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5060","message":"Stack includes security-sensitive updates and \"--require-approval\" is set to 'any-change'.\nDo you wish to deploy these changes?","response":true}
+{"seq":7,"type":"notify","action":"deploy","level":"info","code":null,"message":"Test-Stack-A-Display-Name: deploying... [1/1]"}
+{"seq":8,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3000","message":"Starting Deploy ..."}
+{"seq":9,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✅  Test-Stack-A-Display-Name"}
+{"seq":10,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Deployment time: <DURATION>\n"}
+{"seq":11,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack ARN:"}
+{"seq":12,"type":"notify","action":"deploy","level":"result","code":null,"message":"arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-A/abcd"}
+{"seq":13,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I3001","message":"\n✨  Deploy time: <DURATION>\n"}
+{"seq":14,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Total time: <DURATION>\n"}
