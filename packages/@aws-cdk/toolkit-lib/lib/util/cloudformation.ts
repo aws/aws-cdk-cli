@@ -2,9 +2,18 @@ import type { StackEvent } from '@aws-sdk/client-cloudformation';
 
 /**
  * Validate SNS topic arn
+ *
+ * Accepts topics in any AWS partition, e.g. `aws`, `aws-cn` or `aws-us-gov`.
  */
 export function validateSnsTopicArn(arn: string): boolean {
-  return /^arn:aws:sns:[a-z0-9\-]+:[0-9]+:[a-z0-9\-\_]+$/i.test(arn);
+  const [prefix, partition, service, region, account, ...resource] = arn.split(':');
+  return prefix === 'arn'
+    && /^aws(-[a-z]+)*$/.test(partition)
+    && service === 'sns'
+    && /^[a-z0-9-]+$/.test(region)
+    && /^[0-9]+$/.test(account)
+    && resource.length === 1
+    && /^[a-z0-9-_]+$/i.test(resource[0]);
 }
 
 /**

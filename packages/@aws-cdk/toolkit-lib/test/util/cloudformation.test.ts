@@ -26,6 +26,31 @@ describe('validateSnsTopicArn', () => {
     const arn = 'arn:aws:sns:eu-west-1:123456789876:foo-bar_baz';
     expect(validateSnsTopicArn(arn)).toEqual(true);
   });
+
+  test('uppercase in topic name', () => {
+    const arn = 'arn:aws:sns:eu-west-1:123456789876:MyTopic';
+    expect(validateSnsTopicArn(arn)).toEqual(true);
+  });
+
+  test.each([
+    'arn:aws-cn:sns:cn-northwest-1:123456789876:my-topic',
+    'arn:aws-us-gov:sns:us-gov-west-1:123456789876:my-topic',
+    'arn:aws-iso-b:sns:us-isob-east-1:123456789876:my-topic',
+  ])('accepts partition in %s', (arn) => {
+    expect(validateSnsTopicArn(arn)).toEqual(true);
+  });
+
+  test.each([
+    'arn:awscn:sns:cn-northwest-1:123456789876:my-topic',
+    'arn:aws-:sns:cn-northwest-1:123456789876:my-topic',
+    'arn:aws-cn:sqs:cn-northwest-1:123456789876:my-queue',
+    'arn:aws-cn:sns:cn-northwest-1:123456789876:my-topic:extra',
+    'arn:aws-cn:sns:cn-northwest-1:123456789876',
+    'arn:aws:SnS:eu-west-1:123456789876:my-topic',
+    'arn:AWS-CN:sns:cn-northwest-1:123456789876:my-topic',
+  ])('rejects %s', (arn) => {
+    expect(validateSnsTopicArn(arn)).toEqual(false);
+  });
 });
 
 describe('stackEventHasErrorMessage', () => {
