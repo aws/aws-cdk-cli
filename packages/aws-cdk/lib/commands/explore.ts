@@ -4,11 +4,13 @@ import { startWebServer } from '../private/explorer';
 export interface ExploreOptions {
   readonly ioHelper: IoHelper;
   readonly port?: number;
+  readonly output?: string;
 }
 
 export async function explore(options: ExploreOptions): Promise<number> {
   const server = await startWebServer({
     port: options.port,
+    assemblyDir: options.output,
     onWatcherError: (err) => void options.ioHelper.defaults.error(
       `CDK Explorer live refresh stopped: ${err instanceof Error ? err.message : String(err)}`,
     ),

@@ -46,11 +46,9 @@ async function main(): Promise<void> {
 
       watcher.close();
     }
-
   } finally {
     await context.dispose();
   }
-
 
   async function buildAndPostProcess() {
     try {

@@ -28,7 +28,7 @@ export interface ApiOptions {
    * Cloud assembly directory the construct tree and violations are read from.
    * Defaults to `<appDir>/cdk.out`.
    */
-  readonly assemblyDir?: string;
+  readonly assemblyDir: string;
   /**
    * Reader for the cloud assembly. Injectable for tests; defaults to the real
    * `readAssembly` against {@link assemblyDir}.
@@ -51,7 +51,7 @@ export interface ApiOptions {
 
 export function createApiRouter(options: ApiOptions): Router {
   const appDir = canonicalDir(options.appDir);
-  const assemblyDir = options.assemblyDir ?? path.join(options.appDir, 'cdk.out');
+  const assemblyDir = options.assemblyDir;
   const readAssembly = options.readAssembly ?? defaultReadAssembly;
   const acquireAssemblyLock = options.acquireAssemblyLock;
   const staleness = options.staleness ?? new StalenessTracker();

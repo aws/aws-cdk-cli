@@ -1,4 +1,7 @@
+import * as fs from 'fs';
 import * as net from 'net';
+import * as os from 'os';
+import * as path from 'path';
 import { DEFAULT_PORT } from '../../lib/expressy/http-server';
 import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
@@ -464,6 +467,101 @@ describe('Web Server', () => {
 
     await server.stop();
     expect(closed).toBe(true);
+  });
+
+  /**
+   * Location of the assembly is resolved in stateWebServer. Prioritizes output
+   * option that is explicitly pased in through CLI, then `output` key in
+   * cdk.json, falls back to `cdk.out` if neither are supplied. Resulting assemblydir
+   * is always absolute path.
+   */
+  describe('assembly directory resolution', () => {
+    let appDir: string;
+
+    beforeEach(() => {
+      appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-appdir-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(appDir, { recursive: true, force: true });
+    });
+
+    function writeCdkJson(contents: unknown): void {
+      fs.writeFileSync(path.join(appDir, 'cdk.json'), JSON.stringify(contents));
+    }
+
+    /**
+     * Starts a server and returns the assembly dir it handed to the watcher.
+     * Stops any server it started previously, so a test may call this more than
+     * once without leaking a listener past the end of the test.
+     */
+    async function resolvedAssemblyDir(options: WebServerOptions = {}): Promise<string> {
+      if (server) await server.stop();
+      let seenDir: string | undefined;
+      server = await start({
+        appDir,
+        ...options,
+        startAssemblyWatcher: (opts) => {
+          seenDir = opts.assemblyDir;
+          return { close: async () => undefined };
+        },
+      });
+      if (seenDir === undefined) throw new Error('assembly watcher was never started');
+      return seenDir;
+    }
+
+    test('uses the output directory configured in cdk.json', async () => {
+      writeCdkJson({ app: 'node bin/app.js', output: 'dist/assembly' });
+
+      expect(await resolvedAssemblyDir()).toBe(path.join(appDir, 'dist', 'assembly'));
+    });
+
+    test('falls back to cdk.out when cdk.json configures no output', async () => {
+      writeCdkJson({ app: 'node bin/app.js' });
+
+      expect(await resolvedAssemblyDir()).toBe(path.join(appDir, 'cdk.out'));
+    });
+
+    test('falls back to cdk.out when there is no cdk.json at all', async () => {
+      expect(await resolvedAssemblyDir()).toBe(path.join(appDir, 'cdk.out'));
+    });
+
+    test('falls back to cdk.out when cdk.json is malformed', async () => {
+      fs.writeFileSync(path.join(appDir, 'cdk.json'), '{not valid json');
+
+      expect(await resolvedAssemblyDir()).toBe(path.join(appDir, 'cdk.out'));
+    });
+
+    test('resolves a configured output path that escapes the app directory', async () => {
+      writeCdkJson({ output: '../shared-assembly' });
+
+      expect(await resolvedAssemblyDir()).toBe(path.resolve(appDir, '..', 'shared-assembly'));
+    });
+
+    test('keeps an absolute output path from cdk.json as-is', async () => {
+      const absolute = path.join(os.tmpdir(), 'cdk-explorer-absolute-assembly');
+      writeCdkJson({ output: absolute });
+
+      expect(await resolvedAssemblyDir()).toBe(absolute);
+    });
+
+    test('prefers the explicit assemblyDir option over cdk.json', async () => {
+      writeCdkJson({ app: 'node bin/app.js', output: 'dist/assembly' });
+
+      // This is the CLI's path: --output wins over whatever cdk.json says.
+      expect(await resolvedAssemblyDir({ assemblyDir: 'from-cli' })).toBe(path.join(appDir, 'from-cli'));
+    });
+
+    test('resolves a relative assemblyDir option against appDir, not the cwd', async () => {
+      expect(await resolvedAssemblyDir({ assemblyDir: 'cdk.out' })).toBe(path.join(appDir, 'cdk.out'));
+      expect(await resolvedAssemblyDir({ assemblyDir: 'cdk.out' })).not.toBe(path.join(process.cwd(), 'cdk.out'));
+    });
+
+    test('keeps an absolute assemblyDir option as-is', async () => {
+      const absolute = path.join(os.tmpdir(), 'cdk-explorer-explicit-assembly');
+
+      expect(await resolvedAssemblyDir({ assemblyDir: absolute })).toBe(absolute);
+    });
   });
 
   test('broadcasts an assembly-changed event to a connected client when the watcher fires', async () => {
