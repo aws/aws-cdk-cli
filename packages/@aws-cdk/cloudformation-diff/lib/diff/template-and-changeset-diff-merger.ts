@@ -247,13 +247,9 @@ export class TemplateAndChangeSetDiffMerger {
       }
 
       // CFN applies the SAM transform before creating the changeset, so changeset entries for
-      // SAM resources describe the transformed resource (e.g. an `AWS::Serverless::Application`
-      // is reported as an `AWS::CloudFormation::Stack` whose `TemplateURL` is regenerated on every
-      // changeset) and won't line up with the SAM resource in the template. SAM keeps the logical
-      // ID, so check the template's type as well. Skip them to avoid rendering a bogus diff.
-      const templateResourceType: unknown = this.newTemplate?.Resources?.[logicalId]?.Type;
-      if (rc.ResourceType?.includes('AWS::Serverless')
-        || (typeof templateResourceType === 'string' && templateResourceType.includes('AWS::Serverless'))) {
+      // SAM resources describe the transformed (e.g. Lambda) resource and won't line up with the
+      // SAM resource in the template. Skip them to avoid rendering a bogus diff.
+      if (rc.ResourceType?.includes('AWS::Serverless')) {
         continue;
       }
 
@@ -295,6 +291,15 @@ export class TemplateAndChangeSetDiffMerger {
 
     if (oldResource === undefined || newResource === undefined) {
       return undefined;
+    }
+
+    // The SAM transform resolves an `AWS::Serverless::Application` into an `AWS::CloudFormation::Stack`
+    // by asking the Serverless Application Repository for a template, which returns a new pre-signed
+    // `TemplateURL` every time. The URL differs on every changeset even when nothing has changed, so
+    // ignore it. SAM keeps the logical ID, so we can recognize the resource in the template.
+    if (this.newTemplate?.Resources?.[rc.LogicalResourceId!]?.Type === 'AWS::Serverless::Application') {
+      oldResource = withoutProperty(oldResource, 'TemplateURL');
+      newResource = withoutProperty(newResource, 'TemplateURL');
     }
 
     const resourceDiff = diffResource(oldResource, newResource, rc.LogicalResourceId);
@@ -467,6 +472,17 @@ function tryJsonParse(value: string): any {
   } catch {
     return value;
   }
+}
+
+/**
+ * Return a copy of the resource without the given property.
+ */
+function withoutProperty(resource: types.Resource, name: string): types.Resource {
+  if (resource.Properties === undefined || !(name in resource.Properties)) {
+    return resource;
+  }
+  const { [name]: _, ...properties } = resource.Properties;
+  return { ...resource, Properties: properties };
 }
 
 /**

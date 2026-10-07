@@ -886,7 +886,7 @@ describe('fullDiff tests that include changeset', () => {
       expect(differences.resources.differenceCount).toBe(0);
     });
 
-    test('skips SAM resources reported by the change set', () => {
+    test('reports deploy-time changes on transformed SAM resources', () => {
       // GIVEN identical templates with a SAM resource
       const template = {
         Resources: {
@@ -915,8 +915,9 @@ describe('fullDiff tests that include changeset', () => {
         ],
       });
 
-      // THEN - SAM resources are not synthesized from the change set
-      expect(differences.resources.differenceCount).toBe(0);
+      // THEN - the change to the transformed resource is shown
+      expect(differences.resources.differenceCount).toBe(1);
+      expect(differences.resources.get('ServerlessFunction').propertyUpdates.Code).toBeDefined();
     });
 
     test('skips change set entries that still carry a SAM resource type', () => {
@@ -1017,6 +1018,89 @@ describe('fullDiff tests that include changeset', () => {
 
       // THEN
       expect(differences.differenceCount).toBe(0);
+    });
+
+    test('ignores a regenerated TemplateURL on an AWS::Serverless::Application when the change set has no contexts', () => {
+      // GIVEN identical templates with a SAR application
+      const template = {
+        Resources: {
+          App: {
+            Type: 'AWS::Serverless::Application',
+            Properties: { Location: { ApplicationId: 'arn:aws:serverlessrepo:us-east-1:123456789012:applications/App', SemanticVersion: '1.0.0' } },
+          },
+        },
+      };
+
+      // WHEN the change set only carries per-property values
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [
+                {
+                  Target: {
+                    Attribute: 'Properties',
+                    Name: 'TemplateURL',
+                    RequiresRecreation: 'Never',
+                    BeforeValue: 'https://example.com/a.yaml',
+                    AfterValue: 'https://example.com/b.yaml',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.differenceCount).toBe(0);
+    });
+
+    test('reports deploy-time changes on an AWS::Serverless::Application other than its TemplateURL', () => {
+      // GIVEN identical templates with a SAR application whose parameter resolves at deploy time
+      const template = {
+        Parameters: {
+          Endpoint: { Type: 'AWS::SSM::Parameter::Value<String>', Default: '/my/endpoint' },
+        },
+        Resources: {
+          App: {
+            Type: 'AWS::Serverless::Application',
+            Properties: {
+              Location: { ApplicationId: 'arn:aws:serverlessrepo:us-east-1:123456789012:applications/App', SemanticVersion: '1.0.0' },
+              Parameters: { endpoint: { Ref: 'Endpoint' } },
+            },
+          },
+        },
+      };
+
+      // WHEN the change set reports a new parameter value alongside a regenerated TemplateURL
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://example.com/a.yaml', Parameters: { endpoint: 'old' } } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://example.com/b.yaml', Parameters: { endpoint: 'new' } } }),
+            },
+          },
+        ],
+      });
+
+      // THEN - the parameter change is shown, the TemplateURL is not
+      expect(differences.resources.differenceCount).toBe(1);
+      const diff = differences.resources.get('App');
+      expect(diff.propertyUpdates.Parameters).toBeDefined();
+      expect(diff.propertyUpdates.TemplateURL).toBeUndefined();
     });
 
     test('still reports template changes to SAM resources', () => {
