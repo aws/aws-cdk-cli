@@ -12,6 +12,7 @@ __metadata:
     "@aws-cdk/toolkit-lib": "npm:^0.0.0"
     "@aws-cdk/yarn-cling": "npm:^0.0.0"
     "@aws-sdk/client-cloudformation": "npm:^3"
+    "@aws-sdk/client-cloudwatch": "npm:^3"
     "@aws-sdk/client-codeartifact": "npm:^3"
     "@aws-sdk/client-dynamodb": "npm:^3"
     "@aws-sdk/client-ecr": "npm:^3"
@@ -823,6 +824,23 @@ __metadata:
     "@smithy/types": "npm:^4.15.1"
     tslib: "npm:^2.6.2"
   checksum: 10c0/a18faa50a702bb1267ae7df65db05f6a8bf8e10f9dde01cce369a0b9b51acfefd6f20dd838bf0f11e549afcd118f8fdc588e39bb56b93adb2db9e44415f63db1
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/client-cloudwatch@npm:^3":
+  version: 3.1146.0
+  resolution: "@aws-sdk/client-cloudwatch@npm:3.1146.0"
+  dependencies:
+    "@aws-sdk/core": "npm:^3.978.1"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.84"
+    "@aws-sdk/types": "npm:^3.974.6"
+    "@smithy/core": "npm:^3.35.0"
+    "@smithy/fetch-http-handler": "npm:^5.8.0"
+    "@smithy/middleware-compression": "npm:^4.6.2"
+    "@smithy/node-http-handler": "npm:^4.12.1"
+    "@smithy/types": "npm:^4.19.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/d8aa37b1547be243d107cc1e4d79d272dbe8a3ccc0dcd2ed2af70a83eeafcd71aef9d788a3534076fbff628a83f311839cf841546766faf91e7cda90fcc5c415
   languageName: node
   linkType: hard
 
@@ -3978,6 +3996,18 @@ __metadata:
   dependencies:
     tslib: "npm:^2.6.2"
   checksum: 10c0/2f2523cd8cc4538131e408eb31664983fecb0c8724956788b015aaf3ab85a0c976b50f4f09b176f1ed7bbe79f3edf80743be7a80a11f22cd9ce1285d77161aaf
+  languageName: node
+  linkType: hard
+
+"@smithy/middleware-compression@npm:^4.6.2":
+  version: 4.6.2
+  resolution: "@smithy/middleware-compression@npm:4.6.2"
+  dependencies:
+    "@smithy/core": "npm:^3.33.2"
+    "@smithy/types": "npm:^4.17.2"
+    fflate: "npm:0.8.3"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/047ad94949471b887ebc207cf243020fec9c6b87029c234c369d6bd3dd990e3f23b29247c499cf81c7431002aa6e62f36f427d1a16e9e8f9726be8a0ae2b50b9
   languageName: node
   linkType: hard
 
@@ -8505,6 +8535,13 @@ __metadata:
     picomatch:
       optional: true
   checksum: 10c0/e345083c4306b3aed6cb8ec551e26c36bab5c511e99ea4576a16750ddc8d3240e63826cc624f5ae17ad4dc82e68a253213b60d556c11bfad064b7607847ed07f
+  languageName: node
+  linkType: hard
+
+"fflate@npm:0.8.3":
+  version: 0.8.3
+  resolution: "fflate@npm:0.8.3"
+  checksum: 10c0/eab181ca37f5348ae76d4b6f840e0026e30220e33153289ac942222d8b9638237d486507dbcc09878d724095bd354993a2ee48bbee99c8f2c6440d4448719aa7
   languageName: node
   linkType: hard
 

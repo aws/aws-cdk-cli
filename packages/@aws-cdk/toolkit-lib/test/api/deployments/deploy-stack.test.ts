@@ -696,7 +696,6 @@ test('rollback configuration is passed through to CloudFormation', async () => {
 
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
-    ...expect.anything,
     RollbackConfiguration: {
       RollbackTriggers: [
         { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
