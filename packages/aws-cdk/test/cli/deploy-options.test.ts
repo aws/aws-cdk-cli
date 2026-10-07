@@ -128,6 +128,17 @@ describe('deploy rollback triggers', () => {
     }));
   });
 
+  test('--rollback-trigger-alarm-arns none clears the rollback configuration', async () => {
+    await exec(['deploy', '--app', 'echo', '--rollback-trigger-alarm-arns', 'none', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      rollbackConfiguration: {
+        triggers: [],
+        monitoringTimeInMinutes: undefined,
+      },
+    }));
+  });
+
   test('--monitoring-time-minutes without --rollback-trigger-alarm-arns is rejected', async () => {
     await expect(
       exec(['deploy', '--app', 'echo', '--monitoring-time-minutes', '30', 'MyStack']),

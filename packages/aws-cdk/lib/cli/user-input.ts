@@ -830,7 +830,7 @@ export interface DeployOptions {
   readonly notificationArns?: Array<string>;
 
   /**
-   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm).
+   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.
    *
    * @default - undefined
    */

@@ -502,7 +502,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         })
         .option('rollback-trigger-alarm-arns', {
           type: 'array',
-          desc: 'ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm).',
+          desc: "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.",
           nargs: 1,
           requiresArg: true,
         })

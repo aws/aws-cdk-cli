@@ -6,7 +6,7 @@ import {
   GetTemplateCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
-import { CloudWatchClient, DeleteAlarmsCommand, PutMetricAlarmCommand } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchClient, DeleteAlarmsCommand, DescribeAlarmsCommand, PutMetricAlarmCommand } from '@aws-sdk/client-cloudwatch';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
@@ -356,7 +356,16 @@ export class AwsClients {
     }));
     this.queueResourceCleanup({ type: 'cloudwatch-alarm', alarmName });
 
-    return `arn:aws:cloudwatch:${this.region}:${await this.account()}:alarm:${alarmName}`;
+    // Read the ARN back rather than constructing it, so the partition (aws, aws-us-gov, aws-cn) is correct.
+    const described = await this.cloudWatch.send(new DescribeAlarmsCommand({
+      AlarmNames: [alarmName],
+      AlarmTypes: ['MetricAlarm'],
+    }));
+    const alarmArn = described.MetricAlarms?.[0]?.AlarmArn;
+    if (!alarmArn) {
+      throw new Error(`DescribeAlarms did not return an ARN for alarm ${alarmName}`);
+    }
+    return alarmArn;
   }
 
   public async deleteAlarm(alarmName: string) {

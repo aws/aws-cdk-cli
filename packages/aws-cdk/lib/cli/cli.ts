@@ -461,9 +461,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         // Only manage rollback configuration when the user opts in via --rollback-trigger-alarm-arns.
         // Every alarm ARN is treated as a metric alarm; composite alarms are only reachable through the
         // programmatic API. Leaving the flag off means CDK does not manage a stack's rollback triggers.
-        const rollbackConfiguration = args.rollbackTriggerAlarmArns !== undefined
+        //
+        // The flag requires a value (it cannot be passed empty), so a single literal `none` is the opt-in
+        // way to clear any triggers previously configured on the stack.
+        const alarmArns = args.rollbackTriggerAlarmArns;
+        const clearRollbackTriggers = alarmArns?.length === 1 && alarmArns[0].toLowerCase() === 'none';
+        const rollbackConfiguration = alarmArns !== undefined
           ? {
-            triggers: args.rollbackTriggerAlarmArns.map((arn: string) => ({ arn })),
+            triggers: clearRollbackTriggers ? [] : alarmArns.map((arn: string) => ({ arn })),
             monitoringTimeInMinutes: args.monitoringTimeMinutes,
           }
           : undefined;
