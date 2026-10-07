@@ -23,6 +23,14 @@ export interface TemplateAndChangeSetDiffMergerProps extends TemplateAndChangeSe
    * The changeset that will be read and merged into the template diff.
   */
   readonly changeSet: DescribeChangeSetOutput;
+
+  /*
+   * The (untransformed) template the changeset was created from. Used to recognize resources whose
+   * type in the changeset differs from the template, such as SAM resources.
+   *
+   * @default - no template information is used
+  */
+  readonly newTemplate?: { [key: string]: any };
 }
 
 /**
@@ -54,9 +62,11 @@ export class TemplateAndChangeSetDiffMerger {
 
   public changeSet: DescribeChangeSetOutput | undefined;
   public changeSetResources: types.ChangeSetResources;
+  private readonly newTemplate: { [key: string]: any } | undefined;
 
   constructor(props: TemplateAndChangeSetDiffMergerProps) {
     this.changeSet = props.changeSet;
+    this.newTemplate = props.newTemplate;
     this.changeSetResources = props.changeSetResources ?? this.convertDescribeChangeSetOutputToChangeSetResources(this.changeSet);
   }
 
@@ -237,9 +247,13 @@ export class TemplateAndChangeSetDiffMerger {
       }
 
       // CFN applies the SAM transform before creating the changeset, so changeset entries for
-      // SAM resources describe the transformed (e.g. Lambda) resource and won't line up with the
-      // SAM resource in the template. Skip them to avoid rendering a bogus diff.
-      if (rc.ResourceType?.includes('AWS::Serverless')) {
+      // SAM resources describe the transformed resource (e.g. an `AWS::Serverless::Application`
+      // is reported as an `AWS::CloudFormation::Stack` whose `TemplateURL` is regenerated on every
+      // changeset) and won't line up with the SAM resource in the template. SAM keeps the logical
+      // ID, so check the template's type as well. Skip them to avoid rendering a bogus diff.
+      const templateResourceType: unknown = this.newTemplate?.Resources?.[logicalId]?.Type;
+      if (rc.ResourceType?.includes('AWS::Serverless')
+        || (typeof templateResourceType === 'string' && templateResourceType.includes('AWS::Serverless'))) {
         continue;
       }
 
