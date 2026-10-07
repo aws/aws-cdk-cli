@@ -1633,15 +1633,12 @@ test.each([
   },
 );
 
-// CloudFormation's RollbackStack API is not supported for stacks last deployed
-// with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
-// must never route through the rollback path. It always fix-forwards via the
-// change set / UpdateStack and lets CloudFormation surface any error (including a
-// rejected replacement on a disable-rollback stack). `--express --rollback`
-// explicitly opts back into the rollback-enabled path.
+// Express mode leaves rollback disabled unless the user asks for it, and CloudFormation will not carry out
+// a replacement it is not allowed to roll back, so the change set has to be refused up front. Passing
+// `--express --rollback` opts rollback back in and the replacement deploys like any other change.
 test.each([
-  // --express alone (rollback defaults off): always fix-forward, never divert to rollback
-  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
+  // --express alone: rollback defaults off, so the replacement is refused before anything is submitted
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
@@ -1666,13 +1663,33 @@ test.each([
   },
 );
 
-// A stack last deployed with express mode that is in a paused fail state
-// (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
-// --express` must therefore always fix-forward via createChangeSet/UpdateStack
-// instead of routing to the rollback path.
+test('express mode with a replacement submits nothing for execution', async () => {
+  // GIVEN
+  givenStackExists({
+    StackStatus: StackStatus.UPDATE_COMPLETE,
+  });
+  givenTemplateIs(FAKE_STACK.template);
+  givenChangeSetContainsReplacement(true);
+
+  // WHEN
+  const result = await advanceTime(testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    forceDeployment: true, // Bypass 'canSkipDeploy'
+    express: true,
+  }));
+
+  // THEN
+  expect(result.type).toEqual('replacement-requires-rollback');
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
+// A stack that an express deployment left in a paused fail state cannot be recovered through the
+// RollbackStack API, so no express deployment may answer `failpaused-need-rollback-first` and send the
+// caller there. The replacement rule applies on top of that: left at the express default rollback is
+// disabled and the change set is refused, while `--rollback` lets it through.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
-  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
+  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'replacement-requires-rollback'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(

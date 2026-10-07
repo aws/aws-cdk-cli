@@ -1036,7 +1036,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             }
 
             case 'replacement-requires-rollback': {
-              const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+              const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
               const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {

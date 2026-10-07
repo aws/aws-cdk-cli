@@ -2629,7 +2629,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);
