@@ -1138,6 +1138,38 @@ describe('fullDiff tests that include changeset', () => {
       expect(differences.resources.get('Nested').propertyUpdates.TemplateURL).toBeDefined();
     });
 
+    test('shows only the location of pre-signed nested stack TemplateURLs that point into different folders', () => {
+      // GIVEN identical templates with a SAR application
+      const template = {
+        Resources: {
+          App: { Type: 'AWS::Serverless::Application', Properties: { Location: { ApplicationId: 'app', SemanticVersion: '1.0.0' } } },
+        },
+      };
+
+      // WHEN the change set reports pre-signed URLs for different application versions
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a' } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b' } }),
+            },
+          },
+        ],
+      });
+
+      // THEN - the file name and signature are not shown
+      const change = differences.resources.get('App').propertyUpdates.TemplateURL;
+      expect(change.oldValue).toEqual('https://bucket.s3.amazonaws.com/app-versions-1.0.0/');
+      expect(change.newValue).toEqual('https://bucket.s3.amazonaws.com/app-versions-1.0.1/');
+    });
+
     test('still reports template changes to SAM resources', () => {
       // GIVEN a SAM resource whose template definition changes
       const currentTemplate = {

@@ -286,11 +286,10 @@ export class TemplateAndChangeSetDiffMerger {
     // The SAM transform resolves an `AWS::Serverless::Application` into an `AWS::CloudFormation::Stack`
     // by asking the Serverless Application Repository for a template. That returns a pre-signed
     // `TemplateURL` with a new file name and signature on every changeset, even when nothing has
-    // changed. The application and version are in the rest of the URL, so ignore the difference.
-    if (resourceType === 'AWS::CloudFormation::Stack'
-      && isRegeneratedPresignedUrl(oldResource.Properties?.TemplateURL, newResource.Properties?.TemplateURL)) {
-      oldResource = withoutProperty(oldResource, 'TemplateURL');
-      newResource = withoutProperty(newResource, 'TemplateURL');
+    // changed. The application and version are in the rest of the URL, so only compare that part.
+    if (resourceType === 'AWS::CloudFormation::Stack') {
+      oldResource = withPresignedTemplateUrlLocation(oldResource);
+      newResource = withPresignedTemplateUrlLocation(newResource);
     }
 
     const resourceDiff = diffResource(oldResource, newResource, rc.LogicalResourceId);
@@ -466,38 +465,27 @@ function tryJsonParse(value: string): any {
 }
 
 /**
- * Whether two URLs are pre-signed URLs for different objects in the same location.
+ * If the resource's `TemplateURL` is a pre-signed URL, replace it with the location it points into.
  *
- * Both URLs must have a query string (the signature), and be identical up to the last `/` of the path.
+ * A URL is considered pre-signed if it has a query string (the signature). Its location is the URL
+ * up to and including the last `/` of the path, without the file name and the query string.
  */
-function isRegeneratedPresignedUrl(oldUrl: unknown, newUrl: unknown): boolean {
-  if (typeof oldUrl !== 'string' || typeof newUrl !== 'string' || oldUrl === newUrl) {
-    return false;
-  }
-  let oldParsed: URL;
-  let newParsed: URL;
-  try {
-    oldParsed = new URL(oldUrl);
-    newParsed = new URL(newUrl);
-  } catch {
-    return false;
-  }
-  if (!oldParsed.search || !newParsed.search) {
-    return false;
-  }
-  const location = (url: URL) => `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
-  return location(oldParsed) === location(newParsed);
-}
-
-/**
- * Return a copy of the resource without the given property.
- */
-function withoutProperty(resource: types.Resource, name: string): types.Resource {
-  if (resource.Properties === undefined || !(name in resource.Properties)) {
+function withPresignedTemplateUrlLocation(resource: types.Resource): types.Resource {
+  const templateUrl = resource.Properties?.TemplateURL;
+  if (typeof templateUrl !== 'string') {
     return resource;
   }
-  const { [name]: _, ...properties } = resource.Properties;
-  return { ...resource, Properties: properties };
+  let url: URL;
+  try {
+    url = new URL(templateUrl);
+  } catch {
+    return resource;
+  }
+  if (!url.search) {
+    return resource;
+  }
+  const location = `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
+  return { ...resource, Properties: { ...resource.Properties, TemplateURL: location } };
 }
 
 /**
