@@ -981,8 +981,8 @@ describe('fullDiff tests that include changeset', () => {
           Parameters: { functionName: 'RotationFunction' },
         },
       });
-      const beforeUrl = 'https://awsserverlessrepo-changesets.s3.amazonaws.com/3ed23c6d.yaml?X-Amz-Date=20261007T103150Z';
-      const afterUrl = 'https://awsserverlessrepo-changesets.s3.amazonaws.com/47919d9d.yaml?X-Amz-Date=20261007T104147Z';
+      const beforeUrl = 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/arn%3Aaws%3Aserverlessrepo%3Aus-east-1%3A297356227824%3Aapplications-SecretsManagerRDSMySQLRotationSingleUser-versions-1.1.671/3ed23c6d.yaml?X-Amz-Date=20261007T103150Z';
+      const afterUrl = 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/arn%3Aaws%3Aserverlessrepo%3Aus-east-1%3A297356227824%3Aapplications-SecretsManagerRDSMySQLRotationSingleUser-versions-1.1.671/47919d9d.yaml?X-Amz-Date=20261007T104147Z';
 
       // WHEN the change set reports the transformed nested stack with a new pre-signed TemplateURL
       const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
@@ -1047,8 +1047,8 @@ describe('fullDiff tests that include changeset', () => {
                     Attribute: 'Properties',
                     Name: 'TemplateURL',
                     RequiresRecreation: 'Never',
-                    BeforeValue: 'https://bucket.s3.amazonaws.com/123456789012/app-versions-1.0.0/a.yaml?X-Amz-Signature=a',
-                    AfterValue: 'https://bucket.s3.amazonaws.com/123456789012/app-versions-1.0.0/b.yaml?X-Amz-Signature=b',
+                    BeforeValue: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/app-versions-1.0.0/a.yaml?X-Amz-Signature=a',
+                    AfterValue: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/app-versions-1.0.0/b.yaml?X-Amz-Signature=b',
                   },
                 },
               ],
@@ -1089,8 +1089,8 @@ describe('fullDiff tests that include changeset', () => {
               ResourceType: 'AWS::CloudFormation::Stack',
               Replacement: 'False',
               Details: [],
-              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', Parameters: { endpoint: 'old' } } }),
-              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/b.yaml?X-Amz-Signature=b', Parameters: { endpoint: 'new' } } }),
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', Parameters: { endpoint: 'old' } } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/b.yaml?X-Amz-Signature=b', Parameters: { endpoint: 'new' } } }),
             },
           },
         ],
@@ -1105,7 +1105,8 @@ describe('fullDiff tests that include changeset', () => {
 
     test.each([
       ['the URLs have no query string', 'https://bucket.s3.amazonaws.com/assets/a.json', 'https://bucket.s3.amazonaws.com/assets/b.json'],
-      ['the folder differs', 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', 'https://bucket.s3.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b'],
+      ['the URLs are pre-signed but not from SAR', 'https://bucket.s3.amazonaws.com/templates/a.yaml?X-Amz-Signature=a', 'https://bucket.s3.amazonaws.com/templates/b.yaml?X-Amz-Signature=b'],
+      ['the SAR folder differs', 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b'],
       ['the host differs', 'https://bucket-a.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=a', 'https://bucket-b.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=b'],
     ])('reports a nested stack TemplateURL change from the change set when %s', (_, beforeUrl, afterUrl) => {
       // GIVEN identical templates with a nested stack
@@ -1138,7 +1139,7 @@ describe('fullDiff tests that include changeset', () => {
       expect(differences.resources.get('Nested').propertyUpdates.TemplateURL).toBeDefined();
     });
 
-    test('shows only the location of pre-signed nested stack TemplateURLs that point into different folders', () => {
+    test('shows only the location of SAR TemplateURLs that point into different folders', () => {
       // GIVEN identical templates with a SAR application
       const template = {
         Resources: {
@@ -1157,8 +1158,8 @@ describe('fullDiff tests that include changeset', () => {
               ResourceType: 'AWS::CloudFormation::Stack',
               Replacement: 'False',
               Details: [],
-              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a' } }),
-              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b' } }),
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a' } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b' } }),
             },
           },
         ],
@@ -1166,8 +1167,8 @@ describe('fullDiff tests that include changeset', () => {
 
       // THEN - the file name and signature are not shown
       const change = differences.resources.get('App').propertyUpdates.TemplateURL;
-      expect(change.oldValue).toEqual('https://bucket.s3.amazonaws.com/app-versions-1.0.0/');
-      expect(change.newValue).toEqual('https://bucket.s3.amazonaws.com/app-versions-1.0.1/');
+      expect(change.oldValue).toEqual('https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/');
+      expect(change.newValue).toEqual('https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/');
     });
 
     test('still reports template changes to SAM resources', () => {

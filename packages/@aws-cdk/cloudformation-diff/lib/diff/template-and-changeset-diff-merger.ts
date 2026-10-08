@@ -288,8 +288,8 @@ export class TemplateAndChangeSetDiffMerger {
     // `TemplateURL` with a new file name and signature on every changeset, even when nothing has
     // changed. The application and version are in the rest of the URL, so only compare that part.
     if (resourceType === 'AWS::CloudFormation::Stack') {
-      oldResource = withPresignedTemplateUrlLocation(oldResource);
-      newResource = withPresignedTemplateUrlLocation(newResource);
+      oldResource = withSarTemplateUrlLocation(oldResource);
+      newResource = withSarTemplateUrlLocation(newResource);
     }
 
     const resourceDiff = diffResource(oldResource, newResource, rc.LogicalResourceId);
@@ -465,12 +465,13 @@ function tryJsonParse(value: string): any {
 }
 
 /**
- * If the resource's `TemplateURL` is a pre-signed URL, replace it with the location it points into.
+ * If the resource's `TemplateURL` points into a Serverless Application Repository changeset bucket,
+ * replace it with the location it points into.
  *
- * A URL is considered pre-signed if it has a query string (the signature). Its location is the URL
- * up to and including the last `/` of the path, without the file name and the query string.
+ * SAR's URLs look like `https://awsserverlessrepo-changesets-<id>.s3.<region>.<suffix>/<account>/<application>-versions-<version>/<uuid>.yaml?<signature>`.
+ * The location is the URL up to and including the last `/` of the path, without the file name and the query string.
  */
-function withPresignedTemplateUrlLocation(resource: types.Resource): types.Resource {
+function withSarTemplateUrlLocation(resource: types.Resource): types.Resource {
   const templateUrl = resource.Properties?.TemplateURL;
   if (typeof templateUrl !== 'string') {
     return resource;
@@ -481,7 +482,7 @@ function withPresignedTemplateUrlLocation(resource: types.Resource): types.Resou
   } catch {
     return resource;
   }
-  if (!url.search) {
+  if (!url.hostname.startsWith('awsserverlessrepo-changesets')) {
     return resource;
   }
   const location = `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
