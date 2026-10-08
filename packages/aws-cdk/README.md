@@ -207,6 +207,20 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+Use `--parameters` to supply CloudFormation parameter values for the diff change set, using the same
+`STACK:KEY=VALUE` syntax as `cdk deploy`. Unqualified `KEY=VALUE` applies to all selected stacks;
+stack-qualified values override unqualified values for that stack. For example:
+
+```console
+$ cdk diff MyStackName --method=change-set --parameters MyStackName:LogLevel=DEBUG
+```
+
+This option requires change-set diffing and cannot be used with `--method=template`,
+`--no-change-set`, or a local `--template` comparison. With `--method=auto`, a failed change set
+can still fall back to a template-only diff, which cannot evaluate parameter values. Use
+`--method=change-set` when a parameter-aware result is required. Omitted parameter values retain
+the existing change-set behavior; this option does not automatically reuse deployed values.
+
 Use `--fail-on` to control which kind of change makes the command exit with code 1. It takes the same
 values as `cdk deploy --require-approval`:
 

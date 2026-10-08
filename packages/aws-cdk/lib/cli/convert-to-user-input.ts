@@ -242,6 +242,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'diff':
       commandOptions = {
+        parameters: args.parameters,
         exclusively: args.exclusively,
         contextLines: args.contextLines,
         template: args.template,
@@ -554,6 +555,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     express: config.destroy?.express,
   };
   const diffOptions = {
+    parameters: config.diff?.parameters,
     exclusively: config.diff?.exclusively,
     contextLines: config.diff?.contextLines,
     template: config.diff?.template,

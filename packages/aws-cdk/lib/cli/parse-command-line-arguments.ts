@@ -915,6 +915,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found',
       (yargs: Argv) =>
         yargs
+          .option('parameters', {
+            type: 'array',
+            desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)',
+            default: {},
+            nargs: 1,
+            requiresArg: true,
+          })
           .option('exclusively', {
             default: undefined,
             type: 'boolean',

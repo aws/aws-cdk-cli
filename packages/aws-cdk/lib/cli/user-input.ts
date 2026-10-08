@@ -1433,6 +1433,13 @@ export interface DestroyOptions {
  */
 export interface DiffOptions {
   /**
+   * Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)
+   *
+   * @default - {}
+   */
+  readonly parameters?: Array<string>;
+
+  /**
    * Only diff requested stacks, don't include dependencies
    *
    * aliases: e
