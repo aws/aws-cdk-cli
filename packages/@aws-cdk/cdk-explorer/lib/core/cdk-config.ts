@@ -11,6 +11,7 @@ import * as path from 'path';
 export interface CdkConfig {
   /** The `app` command, or `undefined` if missing/malformed. */
   readonly app: string | undefined;
+  readonly output: string;
 }
 
 /**
@@ -20,16 +21,20 @@ export interface CdkConfig {
  */
 export function readCdkConfig(projectDir: string): CdkConfig {
   const configPath = path.join(projectDir, 'cdk.json');
-  if (!fs.existsSync(configPath)) return { app: undefined };
+  if (!fs.existsSync(configPath)) return { app: undefined, output: 'cdk.out' };
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   } catch {
-    return { app: undefined };
+    return { app: undefined, output: 'cdk.out' };
   }
 
-  if (parsed === null || typeof parsed !== 'object') return { app: undefined };
+  if (parsed === null || typeof parsed !== 'object') return { app: undefined, output: 'cdk.out' };
   const app = (parsed as { app?: unknown }).app;
-  return { app: typeof app === 'string' ? app : undefined };
+  const output = (parsed as { output?: unknown }).output;
+  return {
+    app: typeof app === 'string' ? app : undefined,
+    output: typeof output === 'string' ? output : 'cdk.out',
+  };
 }

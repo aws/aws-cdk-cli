@@ -16,6 +16,7 @@ import {
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import { readCdkConfig } from '../core/cdk-config';
 import {
   startSourceWatcher as defaultStartSourceWatcher,
   type SourceWatcher,
@@ -84,7 +85,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const appDir = options.appDir ?? process.cwd();
   // Single owner of where the cloud assembly lives: the same resolved path feeds
   // both the read endpoints and the change watcher, so the two never disagree.
-  const assemblyDir = options.assemblyDir ?? path.join(appDir, 'cdk.out');
+  const assemblyDir = path.resolve(appDir, options.assemblyDir ?? readCdkConfig(appDir).output);
 
   // mtime of the assembly manifest (undefined when none exists yet). Used as the
   // staleness fallback reference (synth-finish time) when no synth-start lock was

@@ -30,7 +30,7 @@ beforeEach(() => {
   fs.writeFileSync(path.join(appDir, 'lib', 'stack.ts'), 'class Stack {}\n');
 
   app = createApp();
-  app.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock }));
+  app.use('/api', createApiRouter({ appDir, assemblyDir: path.join(appDir, 'cdk.out'), acquireAssemblyLock: noopAssemblyLock }));
 });
 
 afterEach(() => {
@@ -57,7 +57,7 @@ describe('GET /api/file', () => {
     // Reference well before the fixture file was written, so it reads as stale.
     staleness.onAssemblyRefreshed(0);
     const a = createApp();
-    a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
+    a.use('/api', createApiRouter({ appDir, assemblyDir: path.join(appDir, 'cdk.out'), acquireAssemblyLock: noopAssemblyLock, staleness }));
 
     const res = await request(a).get('/api/file').query({ path: 'app.ts' });
     expect(res.status).toBe(200);
@@ -69,7 +69,7 @@ describe('GET /api/file', () => {
     // Reference far in the future, so no file can be newer than it.
     staleness.onAssemblyRefreshed(Date.now() + 60_000);
     const a = createApp();
-    a.use('/api', createApiRouter({ appDir, acquireAssemblyLock: noopAssemblyLock, staleness }));
+    a.use('/api', createApiRouter({ appDir, assemblyDir: path.join(appDir, 'cdk.out'), acquireAssemblyLock: noopAssemblyLock, staleness }));
 
     const res = await request(a).get('/api/file').query({ path: 'app.ts' });
     expect(res.status).toBe(200);

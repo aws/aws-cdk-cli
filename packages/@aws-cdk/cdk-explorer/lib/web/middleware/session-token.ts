@@ -70,7 +70,8 @@ function urlWithoutToken(req: Request): string {
   // originalUrl is path-relative, so the base is only there to satisfy the parser.
   const url = new URL(req.originalUrl, 'http://localhost');
   url.searchParams.delete(TOKEN_QUERY_PARAM);
-  return `${url.pathname}${url.search}`;
+  const pathname = url.pathname.replace(/^\/+/, '/');
+  return `${pathname}${url.search}`;
 }
 
 /**

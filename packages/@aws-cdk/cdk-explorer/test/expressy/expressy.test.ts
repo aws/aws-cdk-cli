@@ -52,6 +52,48 @@ test('a throwing handler returns 500', async () => {
   });
 });
 
+/**
+ * `redirect` is the only path to a `Location` header in the package, so it is
+ * where the "stays on this origin" invariant is enforced.
+ */
+describe('redirect', () => {
+  /** Serve a single route that redirects to `location`. */
+  function appRedirectingTo(location: string): Express {
+    const app = createApp();
+    app.get('/', (_req, res) => {
+      res.redirect(302, location);
+    });
+    return app;
+  }
+
+  test('sends a rooted relative target', async () => {
+    await withServer(appRedirectingTo('/x?stack=Foo'), async (server) => {
+      const response = await fetch(server.urlString, { redirect: 'manual' });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('/x?stack=Foo');
+    });
+  });
+
+  test.each([
+    // Protocol-relative: the browser keeps the scheme and swaps the host.
+    ['a protocol-relative target', '//evil.com/x'],
+    // A backslash after the root slash: for a special scheme the URL parser
+    // treats `\` as `/`, so this resolves to http://evil.com/x as well.
+    ['a backslash-escaped authority', '/\\evil.com/x'],
+    ['an absolute target', 'http://evil.com/x'],
+  ])('refuses %s', async (_name, location) => {
+    await withServer(appRedirectingTo(location), async (server) => {
+      const response = await fetch(server.urlString, { redirect: 'manual' });
+
+      // A throw in the handler surfaces as a 500. Failing loudly is the point:
+      // silently rewriting the target would hide the caller's bug.
+      expect(response.status).toBe(500);
+      expect(response.headers.get('location')).toBeNull();
+    });
+  });
+});
+
 async function withServer(app: Express, block: (server: HttpServer) => Promise<void>) {
   const server = new HttpServer(app, { host: 'localhost' });
   await server.start();

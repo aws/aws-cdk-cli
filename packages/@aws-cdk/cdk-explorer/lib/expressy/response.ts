@@ -74,6 +74,9 @@ export function makeResponse(raw: ServerResponse): Response {
       return res;
     },
     redirect(code: number, location: string) {
+      if (!/^\/(?![/\\])/.test(location)) {
+        throw new Error(`${location} is invalid and should not be traversed to`);
+      }
       raw.setHeader('Location', location);
       raw.statusCode = code;
       raw.end();

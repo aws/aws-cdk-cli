@@ -343,6 +343,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return explore({
           ioHelper,
           port: args.port,
+          output: configuration.settings.get(['output']),
         });
 
       case 'lsp':
