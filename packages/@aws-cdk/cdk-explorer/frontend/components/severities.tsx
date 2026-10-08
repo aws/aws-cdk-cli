@@ -1,19 +1,15 @@
-import { Icon, type IconProps } from '@cloudscape-design/components';
-
-export const NEUTRAL_COLOR = '#5f6b7a';
+import Icon, { type IconProps } from '@cloudscape-design/components/icon';
+import * as awsui from '@cloudscape-design/design-tokens';
 
 export const SEVERITY: Record<string, { color: string; icon: IconProps.Name; label: string }> = {
-  fatal: { color: '#d91515', icon: 'status-negative', label: 'Fatal' },
-  error: { color: '#e07700', icon: 'status-stopped', label: 'Error' },
-  warning: { color: '#8d6605', icon: 'status-warning', label: 'Warning' },
-  info: { color: '#0972d3', icon: 'status-info', label: 'Info' },
+  fatal: { color: awsui.colorChartsStatusCritical, icon: 'status-negative', label: 'Fatal' },
+  error: { color: awsui.colorChartsStatusHigh, icon: 'status-stopped', label: 'Error' },
+  warning: { color: awsui.colorChartsStatusMedium, icon: 'status-warning', label: 'Warning' },
+  info: { color: awsui.colorChartsStatusInfo, icon: 'status-info', label: 'Info' },
 };
 
 export function colorForSeverity(severity: string | undefined): string {
-  if (!severity) {
-    return NEUTRAL_COLOR;
-  }
-  return SEVERITY[severity]?.color ?? NEUTRAL_COLOR;
+  return SEVERITY[severity ?? '']?.color ?? awsui.colorTextActionCardDisabled;
 }
 
 export function iconForSeverity(severity: string | undefined, customSeverity: string | undefined): JSX.Element {

@@ -6,7 +6,6 @@
     },
     {
       "name": "@cloudscape-design/components",
-      "version": "^3",
       "type": "build"
     },
     {
@@ -15,7 +14,6 @@
     },
     {
       "name": "@cloudscape-design/global-styles",
-      "version": "^1",
       "type": "build"
     },
     {

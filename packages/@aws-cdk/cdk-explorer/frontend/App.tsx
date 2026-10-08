@@ -1,4 +1,11 @@
-import { Box, Alert, Button, Container, Header, SpaceBetween, Spinner, AppLayoutToolbar, SideNavigation, HelpPanel, SplitPanel, Drawer, Tabs, PanelLayout, Select } from '@cloudscape-design/components';
+import Box from '@cloudscape-design/components/box';
+import Alert from '@cloudscape-design/components/alert';
+import SpaceBetween from '@cloudscape-design/components/space-between';
+import Spinner from '@cloudscape-design/components/spinner';
+import AppLayoutToolbar from '@cloudscape-design/components/app-layout-toolbar';
+import SplitPanel from '@cloudscape-design/components/split-panel';
+import Tabs from '@cloudscape-design/components/tabs';
+import Select from '@cloudscape-design/components/select';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
 import { buildSourceAnchorIndex, findConstructAtLine, SourceAnchor } from '../lib/web/source-nav';
@@ -6,11 +13,14 @@ import { api, WebConstructNode, type TemplateResponse, type TreeResponse, type V
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree } from './components/ConstructTree';
 import type { Language } from './syntax';
-import { TemplateViewer, type Format } from './components/TemplateViewer';
+import { FormatToggle, TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
 import type { NavigateHandler } from './nav-types';
 import { colorForSeverity } from './components/severities';
-import { ScrollPane } from './components/ScrollPane';
+import { LightDarkToggle } from './components/LightDarkToggle';
+import Token from '@cloudscape-design/components/token';
+import TextFilter from '@cloudscape-design/components/text-filter';
+import { Flex, FlexFix, FlexGrow } from './components/Flex';
 export type { NavigateHandler } from './nav-types';
 
 /** Navigation target describing what both panes should show. */
@@ -255,182 +265,168 @@ export function App(): JSX.Element {
   const [diagnosticsOpen, setDiagnosticsOpen] = React.useState(violations ? violations.status === 'ok' && violations.violations.length > 0 : false);
 
   return (
-    <AppLayoutToolbar
-      breadcrumbs={
-        <SpaceBetween direction='horizontal' size='s'>
-          <div style={{ fontWeight: 'bold' }}>CDK Explorer</div>
-          <div style={{ fontWeight: 'light' }}>{appDir ?? '-'}</div>
-        </SpaceBetween>
-      }
-      navigationOpen={navigationOpen}
-      onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
-      navigationWidth={350}
+    <div>
+      <AppLayoutToolbar breadcrumbs={
+          <Flex style={{ width: '100%' }}>
+            <FlexFix style={{ fontWeight: 'bold' }}>CDK Explorer</FlexFix>
+            <FlexFix style={{ fontWeight: 'light' }}>{appDir ?? '-'}</FlexFix>
+          </Flex>
+        }
+        navigationOpen={navigationOpen}
+        onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
+        navigationWidth={350}
 
-      navigation={
-        <Tabs
-          fitHeight={true}
-          tabs={[{
-            label: 'Construct Tree',
-            id: 'tree',
-            content: (
-              <div style={{ overflow: 'auto' }}>
-                <ConstructTreeContent tree={tree} onNavigate={navigate} />
-              </div>
-            )
-          }]}
-        />
-      }
-      contentType='table'
-      disableContentPaddings={true}
-      content={
-        <div style={{ backgroundColor: awsui.colorBackgroundContainerContent }}>
-          {error && <Box color="text-status-error">{error}</Box>}
+        navigation={
           <Tabs
             fitHeight={true}
             tabs={[{
-              label: 'Source View',
-              id: 'source',
+              label: 'Construct Tree',
+              id: 'tree',
               content: (
-                <div style={{ padding: '0px 16px' }}>
-                  <Select
-                    placeholder="Source file"
-                    selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
-                    onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
-                    options={knownSourceFiles.map(f => ({ label: f, value: f }))}
-                  />
-                  <div style={CODE_PANE_INNER_STYLE}>
-                    {sourceFile ? (
-                      <SpaceBetween size='xs'>
-                        {sourceFile.stale && (
-                          <Alert type="warning">
-                            This file has been modified since the last synth, so its diagnostics and source locations may be stale. Re-run <code>cdk synth</code> to refresh.
-                          </Alert>
-                        )}
-                        <CodeViewer
-                          content={sourceFile.content}
-                          language={detectLanguage(sourceFile.fileName)}
-                          highlightStart={nav?.source?.startLine}
-                          highlightEnd={nav?.source?.endLine}
-                          highlightColor={nav?.color}
-                          scrollToLine={nav?.source?.startLine}
-                          onLineDoubleClick={handleSourceDoubleClick}
-                          diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
-                        />
-                      </SpaceBetween>
-                    ) : (
-                      <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
-                    )}
-                  </div>
-                </div>)
+                <div style={{ overflow: 'auto' }}>
+                  <ConstructTreeContent tree={tree} onNavigate={navigate} />
+                </div>
+              )
             }]}
           />
-        </div>
-      }
-
-      activeDrawerId={drawerOpen ? 'template' : null}
-      drawers={[
-        {
-          id: 'template',
-          content: (
+        }
+        contentType='table'
+        disableContentPaddings={true}
+        content={
+          <div style={{ backgroundColor: awsui.colorBackgroundContainerContent }}>
+            {error && <Box color="text-status-error">{error}</Box>}
             <Tabs
               fitHeight={true}
               tabs={[{
-                label: 'Template View',
-                id: 'template',
+                label: 'Source View',
+                id: 'source',
                 content: (
-                  <div style={{ padding: '0px 16px' }}>
-                    <Header
-                      variant="h3"
-                      actions={<FormatToggle format={templateFormat} onChange={setTemplateFormat} />}
-                    >
-                      <span style={PICKER_ANCHOR_STYLE}>
-                        <span style={HEADER_WITH_ACTION_STYLE}>
-                          {templateFile?.fileName ?? 'Template'}
-                          <button type="button" style={FOLDER_BUTTON_STYLE} title={showFilePicker === 'template' ? 'Close picker' : 'Open file'} aria-label="Open template file" onClick={() => showFilePicker === 'template' ? setShowFilePicker(false) : setShowFilePicker('template')}>
-                            <FolderIcon />
-                          </button>
-                        </span>
-                        {showFilePicker === 'template' && (
-                          <div ref={pickerRef} style={PICKER_DROPDOWN_STYLE}>
-                            <KnownFileList files={knownTemplateFiles} onPick={(p) => void pickFile(p, 'template')} />
-                          </div>
-                        )}
-                      </span>
-                    </Header>
+                  <div style={{ padding: '0px 16px', minHeight: '800px' }}>
+                    <div style={{ marginBottom: '8px' }}>
+                      <Select
+                        placeholder="Source file"
+                        selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
+                        onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
+                        options={knownSourceFiles.map(f => ({ label: f, value: f }))}
+                      />
+                    </div>
                     <div style={CODE_PANE_INNER_STYLE}>
-                      {templateFile ? (
-                        <TemplateViewer
-                          jsonContent={templateFile.response.content}
-                          resources={templateFile.response.resources}
-                          highlightLogicalId={nav?.template?.logicalId}
-                          highlightColor={nav?.color}
-                          onResourceDoubleClick={jumpToSource}
-                          templateFile={templateFile.fileName}
-                          violations={violations?.status === 'ok' ? violations.violations : undefined}
-                          format={templateFormat}
-                        />
-                      ) : templateFile ? (
-                        <Box color="text-status-error">Could not load {templateFile}</Box>
+                      {sourceFile ? (
+                        <SpaceBetween size='xs'>
+                          {sourceFile.stale && (
+                            <Alert type="warning">
+                              This file has been modified since the last synth, so its diagnostics and source locations may be stale. Re-run <code>cdk synth</code> to refresh.
+                            </Alert>
+                          )}
+                          <CodeViewer
+                            content={sourceFile.content}
+                            language={detectLanguage(sourceFile.fileName)}
+                            highlightStart={nav?.source?.startLine}
+                            highlightEnd={nav?.source?.endLine}
+                            highlightColor={nav?.color}
+                            scrollToLine={nav?.source?.startLine}
+                            onLineDoubleClick={handleSourceDoubleClick}
+                            diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
+                          />
+                        </SpaceBetween>
                       ) : (
-                        <Box color="text-status-inactive">Double-click a construct to view its template.</Box>
+                        <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
                       )}
                     </div>
-                  </div>
-                ),
+                  </div>)
               }]}
             />
-          ),
-          resizable: true,
-          defaultSize: 500,
-          trigger: {
-            iconName: 'file-open',
+          </div>
+        }
+
+        activeDrawerId={drawerOpen ? 'template' : null}
+        drawers={[
+          {
+            id: 'template',
+            content: (
+              <Tabs
+                fitHeight={true}
+                tabs={[{
+                  label: 'Template View',
+                  id: 'template',
+                  content: (
+                    <div style={{ padding: '0px 16px' }}>
+                      <Flex style={{ marginBottom: '8px' }}>
+                        <FlexGrow>
+                          <Select
+                            placeholder="Template file"
+                            selectedOption={templateFile?.fileName ? { label: templateFile.fileName, value: templateFile.fileName } : null}
+                            onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'template') : undefined}
+                            options={knownTemplateFiles.map(f => ({ label: f, value: f }))}
+                          />
+                        </FlexGrow>
+                        {templateFile && (
+                          <FlexFix>
+                            <FormatToggle format={templateFormat} onChange={setTemplateFormat} />
+                          </FlexFix>
+                        )}
+                      </Flex>
+                      <div style={CODE_PANE_INNER_STYLE}>
+                        {templateFile ? (
+                          <TemplateViewer
+                            jsonContent={templateFile.response.content}
+                            resources={templateFile.response.resources}
+                            highlightLogicalId={nav?.template?.logicalId}
+                            highlightColor={nav?.color}
+                            onResourceDoubleClick={jumpToSource}
+                            templateFile={templateFile.fileName}
+                            violations={violations?.status === 'ok' ? violations.violations : undefined}
+                            format={templateFormat}
+                          />
+                        ) : (
+                          <Box color="text-status-inactive">Select a construct to view its template.</Box>
+                        )}
+                      </div>
+                    </div>
+                  ),
+                }]}
+              />
+            ),
+            resizable: true,
+            defaultSize: 600,
+            trigger: {
+              iconName: 'file-open',
+            },
+            ariaLabels: {
+              drawerName: 'Template',
+            },
           },
-          ariaLabels: {
-            drawerName: 'Template',
-          },
-        },
-      ]}
-      onDrawerChange={(detail) => {
-        setDrawerOpen(!drawerOpen);
-      }}
+        ]}
+        onDrawerChange={(detail) => {
+          setDrawerOpen(!drawerOpen);
+        }}
 
-      splitPanelOpen={diagnosticsOpen}
-      onSplitPanelToggle={(detail) => setDiagnosticsOpen(!diagnosticsOpen)}
-      splitPanel={
-        <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
-          ariaLabel='Diagnostics'
-          hidePreferencesButton={true}
-          headerActions={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-              <ViolationsTitle filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
-              <ViolationsActions search={violationSearch} onSearchChange={setViolationSearch} />
-            </div>
-          }
-        >
+        splitPanelOpen={diagnosticsOpen}
+        onSplitPanelToggle={(detail) => setDiagnosticsOpen(!diagnosticsOpen)}
+        splitPanel={
+          <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
+            ariaLabel='Diagnostics'
+            hidePreferencesButton={true}
+            headerActions={
+              <Flex style={{ justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <ViolationsConstructFilter filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
+                <ViolationsSearch search={violationSearch} onSearchChange={setViolationSearch} />
+              </Flex>
+            }
+          >
 
-          <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
-        </SplitPanel>}
-      ariaLabels={{
-      }}
-    >
+            <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
+          </SplitPanel>}
+        ariaLabels={{
+        }}
+      >
 
-    </AppLayoutToolbar>
-  );
-}
-
-function KnownFileList({ files, onPick }: {
-  readonly files: readonly string[];
-  readonly onPick: (path: string) => void;
-}): JSX.Element {
-  if (files.length === 0) return <Box color="text-status-inactive">No files found.</Box>;
-  return (
-    <SpaceBetween size="xxs">
-      {files.map((file) => (
-        <Button key={file} variant="inline-link" iconName="file" onClick={() => onPick(file)}>
-          {file}
-        </Button>
-      ))}
-    </SpaceBetween>
+      </AppLayoutToolbar>
+      { /* Faux toolbar */ }
+      <div style={{ position: 'absolute', top: 5, right: 92, zIndex: 1000 }}>
+          <LightDarkToggle/>
+      </div>
+    </div>
   );
 }
 
@@ -456,265 +452,39 @@ function ViolationsContent({ violations, onNavigate, filter, onClearFilter, sear
   return <ViolationsPanel violations={violations.violations} onNavigate={onNavigate} filter={filter} onClearFilter={onClearFilter} search={search} />;
 }
 
-function ViolationsTitle({ filter, onClearFilter }: { readonly filter?: string; readonly onClearFilter: () => void }): JSX.Element {
+function ViolationsConstructFilter({ filter, onClearFilter }: { readonly filter?: string; readonly onClearFilter: () => void }): JSX.Element {
   if (!filter) return <></>;
   const name = filter.split('/').pop() || filter;
   return (
-    <span style={VIOLATIONS_TITLE_STYLE}>
-      Only in scope of
-      <span style={FILTER_PILL_STYLE}>
-        {name}
-        <button type="button" style={FILTER_CLEAR_STYLE} onClick={onClearFilter} title="Show all violations">&times;</button>
-      </span>
-    </span>
+    <Flex>
+      <>Limited to</>
+      <Token
+        onDismiss={onClearFilter}
+        dismissLabel="Show all diagnostics"
+        label={name}
+        style={{ root: { paddingInline: '8px' }}}
+      />
+    </Flex>
   );
 }
 
-function ViolationsActions({ search, onSearchChange }: {
+function ViolationsSearch({ search, onSearchChange }: {
   readonly search: string;
   readonly onSearchChange: (value: string) => void;
 }): JSX.Element {
   return (
-    <input
-      type="text"
-      placeholder="Search"
-      value={search}
-      onChange={(e) => onSearchChange(e.target.value)}
-      style={VIOLATIONS_SEARCH_STYLE}
+    <TextFilter
+      filteringText={search}
+      filteringPlaceholder="Filter diagnostics"
+      filteringAriaLabel="Filter diagnostics"
+      onChange={({ detail }) =>
+        onSearchChange(detail.filteringText)
+      }
     />
   );
 }
 
-interface SplitOptions {
-  readonly orientation: 'horizontal' | 'vertical';
-  readonly defaultFraction: number;
-  readonly min: number;
-  readonly max: number;
-}
-
-interface Split extends SplitOptions {
-  readonly fraction: number;
-  readonly collapsed: boolean;
-  readonly toggleCollapsed: () => void;
-  readonly startDrag: (e: React.MouseEvent) => void;
-  readonly containerRef: React.RefObject<HTMLDivElement>;
-}
-
-function useSplit(opts: SplitOptions): Split {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const [fraction, setFraction] = React.useState(opts.defaultFraction);
-  const [collapsed, setCollapsed] = React.useState(false);
-
-  const startDrag = React.useCallback((e: React.MouseEvent) => {
-    if (collapsed) return;
-    e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = opts.orientation === 'vertical' ? 'row-resize' : 'col-resize';
-    const onMove = (ev: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const frac = opts.orientation === 'vertical'
-        ? (rect.bottom - ev.clientY) / rect.height
-        : (rect.right - ev.clientX) / rect.width;
-      setFraction(Math.min(opts.max, Math.max(opts.min, frac)));
-    };
-    const onUp = () => {
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }, [collapsed, opts.orientation, opts.min, opts.max]);
-
-  const toggleCollapsed = React.useCallback(() => setCollapsed((c) => !c), []);
-
-  return { ...opts, fraction, collapsed, toggleCollapsed, startDrag, containerRef };
-}
-
-function Resizer({ split }: { readonly split: Split }): JSX.Element {
-  const isVertical = split.orientation === 'vertical';
-  const arrow = isVertical
-    ? (split.collapsed ? '▲' : '▼')
-    : (split.collapsed ? '▶' : '◀');
-  const verb = isVertical
-    ? (split.collapsed ? 'Expand violations' : 'Collapse violations')
-    : (split.collapsed ? 'Expand construct tree' : 'Collapse construct tree');
-  return (
-    <div
-      style={resizerStyle(split)}
-      role="separator"
-      aria-orientation={isVertical ? 'horizontal' : 'vertical'}
-      onMouseDown={split.startDrag}
-    >
-      <button
-        type="button"
-        style={isVertical ? RESIZER_BUTTON_HORIZONTAL : RESIZER_BUTTON_VERTICAL}
-        title={verb}
-        aria-label={verb}
-        aria-expanded={!split.collapsed}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={split.toggleCollapsed}
-      >
-        {arrow}
-      </button>
-    </div>
-  );
-}
-
-function resizerStyle(split: Split): React.CSSProperties {
-  if (split.orientation === 'vertical') {
-    return {
-      flexShrink: 0,
-      height: split.collapsed ? '20px' : '10px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: split.collapsed ? 'pointer' : 'row-resize',
-      position: 'relative',
-      marginBottom: split.collapsed ? 0 : '-4px',
-    };
-  }
-  return {
-    flexShrink: 0,
-    width: split.collapsed ? '20px' : '10px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: split.collapsed ? 'pointer' : 'col-resize',
-    position: 'relative',
-    marginLeft: split.collapsed ? 0 : '-4px',
-  };
-}
-
-const PAGE_STYLE: React.CSSProperties = {
-  height: '100vh',
-  display: 'flex',
-  flexDirection: 'column',
-  padding: '16px',
-  boxSizing: 'border-box',
-  overflow: 'hidden',
-};
-const TITLE_BLOCK_STYLE: React.CSSProperties = { flexShrink: 0, marginBottom: '12px' };
-const GROW_STYLE: React.CSSProperties = { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' };
-
-const HEADER_WITH_ACTION_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
-const FOLDER_BUTTON_STYLE: React.CSSProperties = {
-  border: 'none',
-  background: 'none',
-  cursor: 'pointer',
-  padding: '2px',
-  color: '#5f6b7a',
-  display: 'inline-flex',
-  alignItems: 'center',
-};
 const CODE_PANE_INNER_STYLE: React.CSSProperties = { height: '100%' };
-// Source pane stacks an optional staleness banner above the scrolling viewer.
-const SOURCE_PANE_COLUMN_STYLE: React.CSSProperties = {
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 0,
-  gap: '8px',
-};
-const PICKER_ANCHOR_STYLE: React.CSSProperties = { position: 'relative', display: 'inline-flex', alignItems: 'center' };
-const PICKER_DROPDOWN_STYLE: React.CSSProperties = {
-  position: 'absolute',
-  top: '100%',
-  left: 0,
-  marginTop: '4px',
-  maxHeight: '50vh',
-  minWidth: '320px',
-  overflowY: 'auto',
-  background: '#ffffff',
-  border: '1px solid #d1d5db',
-  borderRadius: '4px',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-  padding: '8px',
-  zIndex: 100,
-};
-
-const CODE_PANES_STYLE: React.CSSProperties = {
-  display: 'flex',
-  gap: '8px',
-  height: '100%',
-};
-
-const CODE_PANE_STYLE: React.CSSProperties = {
-  flex: '1 1 50%',
-  minWidth: 0,
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const RESIZER_BUTTON_BASE: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: '1px solid #d1d5db',
-  background: '#ffffff',
-  color: '#5f6b7a',
-  fontSize: '10px',
-  lineHeight: 1,
-  cursor: 'pointer',
-  zIndex: 1,
-  padding: 0,
-};
-const RESIZER_BUTTON_HORIZONTAL: React.CSSProperties = {
-  ...RESIZER_BUTTON_BASE,
-  width: '40px',
-  height: '14px',
-  borderRadius: '7px',
-};
-const RESIZER_BUTTON_VERTICAL: React.CSSProperties = {
-  ...RESIZER_BUTTON_BASE,
-  width: '14px',
-  height: '40px',
-  borderRadius: '7px',
-};
-
-function FormatToggle({ format, onChange }: { readonly format: Format; readonly onChange: (f: Format) => void }): JSX.Element {
-  return (
-    <span style={FORMAT_TOGGLE_GROUP_STYLE}>
-      <button type="button" style={format === 'yaml' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('yaml')}>YAML</button>
-      <button type="button" style={format === 'json' ? FORMAT_TOGGLE_ACTIVE_STYLE : FORMAT_TOGGLE_STYLE} onClick={() => onChange('json')}>JSON</button>
-    </span>
-  );
-}
-
-function FolderIcon(): JSX.Element {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M1 3.5A1.5 1.5 0 012.5 2h3.172a1.5 1.5 0 011.06.44l.658.658A.5.5 0 007.744 3.25H13.5A1.5 1.5 0 0115 4.75v7.75a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 12.5v-9z" />
-    </svg>
-  );
-}
-
-const FORMAT_TOGGLE_GROUP_STYLE: React.CSSProperties = { display: 'inline-flex', gap: '2px' };
-const FORMAT_TOGGLE_STYLE: React.CSSProperties = {
-  border: '1px solid #d1d5db', borderRadius: '4px', background: '#fafafa',
-  cursor: 'pointer', fontSize: '11px', padding: '2px 8px', color: '#5f6b7a', lineHeight: '16px',
-};
-const FORMAT_TOGGLE_ACTIVE_STYLE: React.CSSProperties = {
-  ...FORMAT_TOGGLE_STYLE, background: '#0972d3', color: '#ffffff', borderColor: '#0972d3',
-};
-const VIOLATIONS_TITLE_STYLE: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px' };
-const FILTER_PILL_STYLE: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: '4px',
-  background: '#f2f8fd', border: '1px solid #89bdee', borderRadius: '12px',
-  padding: '1px 8px 1px 10px', fontSize: '14px', color: '#0972d3', fontWeight: 600,
-};
-const FILTER_CLEAR_STYLE: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: '14px', lineHeight: 1, color: '#0972d3', padding: '0 2px',
-};
-const VIOLATIONS_SEARCH_STYLE: React.CSSProperties = {
-  width: '160px', padding: '3px 8px', border: '1px solid #d1d5db',
-  borderRadius: '4px', fontSize: '13px', outline: 'none',
-};
 
 function detectLanguage(file: string | undefined): Language {
   if (!file) return 'typescript';

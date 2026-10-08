@@ -2,6 +2,7 @@ import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from '
 import * as React from 'react';
 import type { TemplateResource, WebViolation } from '../api';
 import { CodeViewer, type Diagnostic } from './CodeViewer';
+import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;
@@ -154,5 +155,22 @@ function violationSeverity(severity: string | undefined): 'error' | 'warning' | 
       return 'warning';
     default:
       return 'info';
+  }
+}
+
+export function FormatToggle({ format, onChange }: { readonly format: Format; readonly onChange: (f: Format) => void }): JSX.Element {
+  return <ButtonDropdown
+      items={(['yaml', 'json'] as const).map((f) => ({ text: labelFromFormat(f), id: f, iconName: format === f ? 'check' : undefined }))}
+      onItemClick={(detail) => onChange(detail.detail.id as Format)}
+
+    >
+      {labelFromFormat(format)}
+    </ButtonDropdown>;
+}
+
+function labelFromFormat(f: Format): string {
+  switch (f) {
+    case 'json': return 'JSON';
+    case 'yaml': return 'YAML';
   }
 }

@@ -1,4 +1,6 @@
-import { TreeView, Icon, StatusIndicator, SpaceBetween, IconProps } from '@cloudscape-design/components';
+import TreeView from '@cloudscape-design/components/tree-view';
+import Icon from '@cloudscape-design/components/icon';
+import SpaceBetween from '@cloudscape-design/components/space-between';
 import * as React from 'react';
 import type { WebConstructNode } from '../api';
 import type { NavigateHandler } from '../nav-types';

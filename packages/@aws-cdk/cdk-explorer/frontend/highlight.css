@@ -33,3 +33,8 @@
   padding-top: 2px !important;
   padding-left: 20px !important;
 }
+
+/* Make sure these buttens remain clickable and they don't accidentally get overlaid by tabs */
+[class*="awsui_hide-navigation_"] {
+  z-index: 10;
+}

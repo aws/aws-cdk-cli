@@ -1,6 +1,4 @@
 import Box from '@cloudscape-design/components/box';
-import ExpandableSection from '@cloudscape-design/components/expandable-section';
-import SpaceBetween from '@cloudscape-design/components/space-between';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import * as React from 'react';
 import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';

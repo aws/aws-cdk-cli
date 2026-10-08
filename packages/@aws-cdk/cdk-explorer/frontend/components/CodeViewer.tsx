@@ -1,5 +1,7 @@
 import * as React from 'react';
 import { tokenizeLines, type Language, type Token } from '../syntax';
+import { colorForSeverity } from './severities';
+import { TOKEN_COLORS } from './colors';
 
 export interface Diagnostic {
   readonly startLine: number;
@@ -19,35 +21,6 @@ export interface CodeViewerProps {
   readonly onLineDoubleClick?: (line: number) => void;
   readonly diagnostics?: readonly Diagnostic[];
 }
-
-const SQUIGGLE_COLORS: Record<string, string> = {
-  error: '#d91515',
-  warning: '#ff9900',
-  info: '#0972d3',
-};
-
-const TOKEN_COLORS: Record<string, string> = {
-  keyword: '#0000ff',
-  string: '#a31515',
-  number: '#098658',
-  boolean: '#0000ff',
-  'attr-name': '#0451a5',
-  property: '#0451a5',
-  operator: '#393a34',
-  punctuation: '#393a34',
-  comment: '#008000',
-  'class-name': '#267f99',
-  builtin: '#267f99',
-  function: '#795e26',
-  tag: '#0451a5',
-  selector: '#0451a5',
-  key: '#0451a5',
-  'atrule': '#0000ff',
-  // YAML-specific
-  important: '#098658',
-  // null/undefined
-  'null': '#0000ff',
-};
 
 export function CodeViewer({
   content,
@@ -175,7 +148,7 @@ function renderWithDiagnostics(tokens: Token[], diagnostics: Diagnostic[]): Reac
             const text = chars.slice(segStart, c);
             if (currentSeverity) {
               elements.push(
-                <span key={key++} style={{ color, textDecoration: `underline wavy ${SQUIGGLE_COLORS[currentSeverity]}`, textUnderlineOffset: '3px' }}>
+                <span key={key++} style={{ color, textDecoration: `underline wavy ${colorForSeverity(currentSeverity)}`, textUnderlineOffset: '3px' }}>
                   {text}
                 </span>,
               );
