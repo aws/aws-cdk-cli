@@ -1047,8 +1047,8 @@ describe('fullDiff tests that include changeset', () => {
                     Attribute: 'Properties',
                     Name: 'TemplateURL',
                     RequiresRecreation: 'Never',
-                    BeforeValue: 'https://example.com/a.yaml',
-                    AfterValue: 'https://example.com/b.yaml',
+                    BeforeValue: 'https://bucket.s3.amazonaws.com/123456789012/app-versions-1.0.0/a.yaml?X-Amz-Signature=a',
+                    AfterValue: 'https://bucket.s3.amazonaws.com/123456789012/app-versions-1.0.0/b.yaml?X-Amz-Signature=b',
                   },
                 },
               ],
@@ -1089,8 +1089,8 @@ describe('fullDiff tests that include changeset', () => {
               ResourceType: 'AWS::CloudFormation::Stack',
               Replacement: 'False',
               Details: [],
-              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://example.com/a.yaml', Parameters: { endpoint: 'old' } } }),
-              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://example.com/b.yaml', Parameters: { endpoint: 'new' } } }),
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', Parameters: { endpoint: 'old' } } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/b.yaml?X-Amz-Signature=b', Parameters: { endpoint: 'new' } } }),
             },
           },
         ],
@@ -1101,6 +1101,41 @@ describe('fullDiff tests that include changeset', () => {
       const diff = differences.resources.get('App');
       expect(diff.propertyUpdates.Parameters).toBeDefined();
       expect(diff.propertyUpdates.TemplateURL).toBeUndefined();
+    });
+
+    test.each([
+      ['the URLs have no query string', 'https://bucket.s3.amazonaws.com/assets/a.json', 'https://bucket.s3.amazonaws.com/assets/b.json'],
+      ['the folder differs', 'https://bucket.s3.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', 'https://bucket.s3.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b'],
+      ['the host differs', 'https://bucket-a.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=a', 'https://bucket-b.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=b'],
+    ])('reports a nested stack TemplateURL change from the change set when %s', (_, beforeUrl, afterUrl) => {
+      // GIVEN identical templates with a nested stack
+      const template = {
+        Resources: {
+          Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: { Ref: 'NestedTemplateUrl' } } },
+        },
+      };
+
+      // WHEN
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'Nested',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: beforeUrl } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: afterUrl } }),
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      expect(differences.resources.get('Nested').propertyUpdates.TemplateURL).toBeDefined();
     });
 
     test('still reports template changes to SAM resources', () => {

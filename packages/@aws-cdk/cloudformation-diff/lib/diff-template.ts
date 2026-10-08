@@ -64,7 +64,7 @@ export function fullDiff(
   const theDiff = diffTemplate(currentTemplateCopy, newTemplateCopy);
   if (changeSet) {
     // These methods mutate the state of theDiff, using the changeSet.
-    const changeSetDiff = new TemplateAndChangeSetDiffMerger({ changeSet, newTemplate: newTemplateCopy });
+    const changeSetDiff = new TemplateAndChangeSetDiffMerger({ changeSet });
 
     // Capture the resources the template diff knows about *before* we start
     // mutating their change impacts. Resources that are already part of the

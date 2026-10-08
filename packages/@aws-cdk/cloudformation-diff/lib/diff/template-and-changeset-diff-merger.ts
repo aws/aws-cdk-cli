@@ -23,14 +23,6 @@ export interface TemplateAndChangeSetDiffMergerProps extends TemplateAndChangeSe
    * The changeset that will be read and merged into the template diff.
   */
   readonly changeSet: DescribeChangeSetOutput;
-
-  /*
-   * The (untransformed) template the changeset was created from. Used to recognize resources whose
-   * type in the changeset differs from the template, such as SAM resources.
-   *
-   * @default - no template information is used
-  */
-  readonly newTemplate?: { [key: string]: any };
 }
 
 /**
@@ -62,11 +54,9 @@ export class TemplateAndChangeSetDiffMerger {
 
   public changeSet: DescribeChangeSetOutput | undefined;
   public changeSetResources: types.ChangeSetResources;
-  private readonly newTemplate: { [key: string]: any } | undefined;
 
   constructor(props: TemplateAndChangeSetDiffMergerProps) {
     this.changeSet = props.changeSet;
-    this.newTemplate = props.newTemplate;
     this.changeSetResources = props.changeSetResources ?? this.convertDescribeChangeSetOutputToChangeSetResources(this.changeSet);
   }
 
@@ -294,10 +284,11 @@ export class TemplateAndChangeSetDiffMerger {
     }
 
     // The SAM transform resolves an `AWS::Serverless::Application` into an `AWS::CloudFormation::Stack`
-    // by asking the Serverless Application Repository for a template, which returns a new pre-signed
-    // `TemplateURL` every time. The URL differs on every changeset even when nothing has changed, so
-    // ignore it. SAM keeps the logical ID, so we can recognize the resource in the template.
-    if (this.newTemplate?.Resources?.[rc.LogicalResourceId!]?.Type === 'AWS::Serverless::Application') {
+    // by asking the Serverless Application Repository for a template. That returns a pre-signed
+    // `TemplateURL` with a new file name and signature on every changeset, even when nothing has
+    // changed. The application and version are in the rest of the URL, so ignore the difference.
+    if (resourceType === 'AWS::CloudFormation::Stack'
+      && isRegeneratedPresignedUrl(oldResource.Properties?.TemplateURL, newResource.Properties?.TemplateURL)) {
       oldResource = withoutProperty(oldResource, 'TemplateURL');
       newResource = withoutProperty(newResource, 'TemplateURL');
     }
@@ -472,6 +463,30 @@ function tryJsonParse(value: string): any {
   } catch {
     return value;
   }
+}
+
+/**
+ * Whether two URLs are pre-signed URLs for different objects in the same location.
+ *
+ * Both URLs must have a query string (the signature), and be identical up to the last `/` of the path.
+ */
+function isRegeneratedPresignedUrl(oldUrl: unknown, newUrl: unknown): boolean {
+  if (typeof oldUrl !== 'string' || typeof newUrl !== 'string' || oldUrl === newUrl) {
+    return false;
+  }
+  let oldParsed: URL;
+  let newParsed: URL;
+  try {
+    oldParsed = new URL(oldUrl);
+    newParsed = new URL(newUrl);
+  } catch {
+    return false;
+  }
+  if (!oldParsed.search || !newParsed.search) {
+    return false;
+  }
+  const location = (url: URL) => `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
+  return location(oldParsed) === location(newParsed);
 }
 
 /**
