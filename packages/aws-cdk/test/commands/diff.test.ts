@@ -884,6 +884,24 @@ describe('stack exists checks', () => {
     expect(createDiffChangeSet).not.toHaveBeenCalled();
   });
 
+  test('method=auto warns and falls back to template diff when stack lookup fails', async () => {
+    jest.spyOn(cloudFormation, 'stackExists').mockRejectedValue(new Error('Stack lookup throttled'));
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      quiet: false,
+      concurrency: 2,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(createDiffChangeSet).not.toHaveBeenCalled();
+    expect(output()).toContain("Could not access stack 'A', falling back to template diff");
+    expect(output()).toContain('Stack A');
+    expect(output()).toContain('Number of stacks with differences: 1');
+  });
+
   test('method=change-set throws when stackExists call fails', async () => {
     // GIVEN
     jest.spyOn(cloudFormation, 'stackExists').mockImplementation(() => {
