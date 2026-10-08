@@ -901,6 +901,12 @@
         "variadic": true
       },
       "options": {
+        "concurrency": {
+          "type": "number",
+          "desc": "Maximum number of stacks to prepare concurrently (positive integer)",
+          "default": 1,
+          "requiresArg": true
+        },
         "exclusively": {
           "type": "boolean",
           "alias": "e",

@@ -14,7 +14,7 @@ import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, prepareStacksConcurrently, tagsForStack, validateDiffConcurrency } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -283,6 +283,7 @@ export class CdkToolkit {
   }
 
   public async diff(options: DiffOptions): Promise<number> {
+    const concurrency = validateDiffConcurrency(options.concurrency);
     const assembly = await this.assembly();
     const stacks = await this.selectTopLevelOrMatchingStacks(assembly, options.stackNames, options.exclusively);
     await this.validateStacks(stacks);
@@ -355,8 +356,7 @@ export class CdkToolkit {
         ? await mappingsByEnvironment(stacks.stackArtifacts, this.props.sdkProvider, true)
         : [];
 
-      // Compare N stacks against deployed templates
-      for (const stack of stacks.stackArtifacts) {
+      const preparations = prepareStacksConcurrently(stacks.stackArtifacts, concurrency, asIoHelper(this.ioHost, 'diff'), async (stack, stackIo) => {
         const templateWithNestedStacks = await this.props.deployments.readCurrentTemplateWithNestedStacks(
           stack,
           options.compareAgainstProcessedTemplate,
@@ -368,7 +368,7 @@ export class CdkToolkit {
 
         const migrator = new ResourceMigrator({
           deployments: this.props.deployments,
-          ioHelper: asIoHelper(this.ioHost, 'diff'),
+          ioHelper: stackIo,
         });
         const resourcesToImport = await migrator.tryGetResources(environment);
         if (resourcesToImport) {
@@ -376,24 +376,26 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet, stackIo))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
           m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
         )?.mappings ?? {};
 
-        const formatter = new DiffFormatter({
-          templateInfo: {
-            oldTemplate: currentTemplate,
-            newTemplate: stack,
-            changeSet,
-            isImport: !!resourcesToImport,
-            nestedStacks,
-            mappings,
-            environment,
-          },
-        });
+        return {
+          oldTemplate: currentTemplate,
+          newTemplate: stack,
+          changeSet,
+          isImport: !!resourcesToImport,
+          nestedStacks,
+          mappings,
+          environment,
+        };
+      });
+
+      for await (const templateInfo of preparations) {
+        const formatter = new DiffFormatter({ templateInfo });
 
         if (options.securityOnly) {
           const securityDiff = formatter.formatSecurityDiff({ quiet });
@@ -446,6 +448,7 @@ export class CdkToolkit {
     parameterMap: { [name: string]: { [name: string]: string | undefined } },
     resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
     quiet: boolean,
+    ioHelper: IoHelper,
   ) {
     try {
       // we don't actually need to know if the stack exists here
@@ -459,16 +462,16 @@ export class CdkToolkit {
       if (options.method === 'change-set') {
         throw ToolkitError.withCause('DescribeStacksFailed', `Could not access stack '${stack.stackName}'. Please check your permissions or use '--method=auto' to allow falling back to a template diff.`, e);
       }
-      await this.ioHost.asIoHelper().defaults.debug(formatErrorMessage(e));
+      await ioHelper.defaults.debug(formatErrorMessage(e));
       if (!quiet) {
-        await this.ioHost.asIoHelper().defaults.info(
+        await ioHelper.defaults.info(
           `Could not access stack '${stack.stackName}', falling back to template diff. Use '--method=change-set' to fail instead. Run with -v to see the reason.\n`,
         );
       }
       return undefined;
     }
 
-    return cfnApi.createDiffChangeSet(asIoHelper(this.ioHost, 'diff'), {
+    return cfnApi.createDiffChangeSet(ioHelper, {
       stack,
       uuid: randomUUID(),
       deployments: this.props.deployments,
@@ -1602,6 +1605,13 @@ export interface SynthOptions {
  * Options for the diff command
  */
 export interface DiffOptions {
+  /**
+   * Maximum number of stacks to prepare concurrently.
+   *
+   * @default 1
+   */
+  readonly concurrency?: number;
+
   /**
    * Stack names to diff
    */
@@ -2746,4 +2756,3 @@ function requiresApproval(requireApproval: RequireApproval, permissionChangeType
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING ||
     requireApproval === RequireApproval.DESTRUCTIVE && hasDestructiveChanges;
 }
-

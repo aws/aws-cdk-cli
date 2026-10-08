@@ -42,6 +42,18 @@ describe('diff --change-set-name', () => {
   });
 });
 
+describe('diff --concurrency', () => {
+  test('defaults to one', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 1 }));
+  });
+
+  test('passes an explicit concurrency to the toolkit', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack', '--concurrency', '3']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 3 }));
+  });
+});
+
 describe('diff --fail-on', () => {
   test.each(['never', 'any-change', 'broadening', 'destructive'])('passes --fail-on=%s through to CdkToolkit.diff', async (failOn) => {
     await exec(['diff', '--app', 'echo', `--fail-on=${failOn}`, 'MyStack']);

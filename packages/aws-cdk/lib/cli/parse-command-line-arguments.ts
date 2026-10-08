@@ -915,6 +915,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found',
       (yargs: Argv) =>
         yargs
+          .option('concurrency', {
+            default: 1,
+            type: 'number',
+            desc: 'Maximum number of stacks to prepare concurrently (positive integer)',
+            requiresArg: true,
+          })
           .option('exclusively', {
             default: undefined,
             type: 'boolean',

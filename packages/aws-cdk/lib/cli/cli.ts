@@ -381,6 +381,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
+          concurrency: args.concurrency,
         });
 
       case 'drift':
