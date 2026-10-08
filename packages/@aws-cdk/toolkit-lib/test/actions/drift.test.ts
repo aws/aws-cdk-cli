@@ -20,6 +20,33 @@ beforeEach(() => {
 });
 
 describe('drift', () => {
+  test('reports drift from later pages instead of marking the resource unchecked', async () => {
+    mockCloudFormationClient.on(DetectStackDriftCommand).resolves({ StackDriftDetectionId: '12345' });
+    mockCloudFormationClient.on(DescribeStackDriftDetectionStatusCommand).resolves({ DetectionStatus: 'DETECTION_COMPLETE' });
+    mockCloudFormationClient.on(DescribeStackResourceDriftsCommand)
+      .resolvesOnce({ StackResourceDrifts: [], NextToken: 'page-2' })
+      .resolvesOnce({
+        StackResourceDrifts: [{
+          StackId: 'some:stack:arn',
+          StackResourceDriftStatus: 'DELETED',
+          LogicalResourceId: 'MyBucketF68F3FF0',
+          PhysicalResourceId: 'physical-id-1',
+          ResourceType: 'AWS::S3::Bucket',
+          Timestamp: new Date(),
+        }],
+      });
+
+    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.drift(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
+
+    expect(result.Stack1.numResourcesWithDrift).toBe(1);
+    expect(result.Stack1.numResourcesUnchecked).toBe(0);
+    ioHost.expectMessage({ containing: 'Deleted Resources', level: 'info' });
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(DescribeStackResourceDriftsCommand, {
+      StackName: 'Stack1', NextToken: 'page-2',
+    });
+  });
+
   test('if no drift is returned, warn user', async () => {
     // GIVEN
     mockCloudFormationClient.on(DetectStackDriftCommand).resolves({ StackDriftDetectionId: '12345' });
