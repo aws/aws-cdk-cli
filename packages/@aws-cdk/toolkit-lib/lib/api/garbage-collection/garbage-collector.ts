@@ -279,7 +279,8 @@ export class GarbageCollector {
       for await (const batch of this.readRepoInBatches(ecr, repo, batchSize, currentTime)) {
         await backgroundStackRefresh.noOlderThan(600_000); // 10 mins
 
-        const { included: isolated, excluded: notIsolated } = partition(batch, asset => !asset.tags.some(t => activeAssets.contains(t)));
+        const foundTags = activeAssets.containsAny(batch.flatMap(asset => asset.tags));
+        const { included: isolated, excluded: notIsolated } = partition(batch, asset => !asset.tags.some(t => foundTags.has(t)));
 
         await this.ioHelper.defaults.debug(`${isolated.length} isolated images`);
         await this.ioHelper.defaults.debug(`${notIsolated.length} not isolated images`);
@@ -362,7 +363,8 @@ export class GarbageCollector {
       for await (const batch of this.readBucketInBatches(s3, bucket, batchSize, currentTime)) {
         await backgroundStackRefresh.noOlderThan(600_000); // 10 mins
 
-        const { included: isolated, excluded: notIsolated } = partition(batch, asset => !activeAssets.contains(asset.fileName()));
+        const foundFileNames = activeAssets.containsAny(batch.map(asset => asset.fileName()));
+        const { included: isolated, excluded: notIsolated } = partition(batch, asset => !foundFileNames.has(asset.fileName()));
 
         await this.ioHelper.defaults.debug(`${isolated.length} isolated assets`);
         await this.ioHelper.defaults.debug(`${notIsolated.length} not isolated assets`);
