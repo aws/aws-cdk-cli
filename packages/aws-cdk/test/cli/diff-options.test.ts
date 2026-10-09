@@ -42,6 +42,38 @@ describe('diff --change-set-name', () => {
   });
 });
 
+describe('diff --parameters', () => {
+  test('passes global and stack-qualified values, preserving equals signs and empty values', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack',
+      '--parameters', 'LogLevel=INFO', '--parameters', 'MyStack:LogLevel=DEBUG',
+      '--parameters', 'Token=a=b', '--parameters', 'Empty=']);
+
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({
+      parameters: { 'LogLevel': 'INFO', 'MyStack:LogLevel': 'DEBUG', 'Token': 'a=b', 'Empty': '' },
+    }));
+  });
+
+  test('defaults to an empty map', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ parameters: {} }));
+  });
+
+  test('uses the last value for a repeated key', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack', '--parameters', 'LogLevel=INFO', '--parameters', 'LogLevel=DEBUG']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ parameters: { LogLevel: 'DEBUG' } }));
+  });
+
+  test.each([
+    ['--method=template'],
+    ['--no-change-set'],
+    ['--template=old-template.json'],
+  ])('rejects parameters for template comparison (%s)', async (flags) => {
+    await expect(exec(['diff', '--app', 'echo', 'MyStack', flags, '--parameters', 'LogLevel=DEBUG']))
+      .rejects.toThrow('--parameters cannot be used with --method=template');
+    expect(diffSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('diff --fail-on', () => {
   test.each(['never', 'any-change', 'broadening', 'destructive'])('passes --fail-on=%s through to CdkToolkit.diff', async (failOn) => {
     await exec(['diff', '--app', 'echo', `--fail-on=${failOn}`, 'MyStack']);

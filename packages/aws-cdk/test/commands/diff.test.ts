@@ -325,6 +325,20 @@ Resources
     expect(exitCode).toBe(0);
   });
 
+  test('passes global parameters to the change set with stack-qualified overrides', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
+
+    await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      parameters: { 'LogLevel': 'INFO', 'Token': 'a=b', 'A:LogLevel': 'DEBUG', 'Other:LogLevel': 'WARN' },
+    });
+
+    expect(createDiffChangeSet).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      parameters: { LogLevel: 'DEBUG', Token: 'a=b' },
+    }));
+  });
+
   test('when invoked with local template path', async () => {
     const templatePath = 'oldTemplate.json';
     const oldTemplate = {
