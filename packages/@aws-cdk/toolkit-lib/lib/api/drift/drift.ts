@@ -42,6 +42,20 @@ export async function detectStackDrift(
   const driftResults = await cfn.describeStackResourceDrifts({
     StackName: stackName,
   });
+  let nextToken = driftResults.NextToken;
+  if (nextToken) {
+    driftResults.StackResourceDrifts = [...(driftResults.StackResourceDrifts ?? [])];
+  }
+  while (nextToken) {
+    const page = await cfn.describeStackResourceDrifts({
+      StackName: stackName,
+      NextToken: nextToken,
+    });
+    driftResults.StackResourceDrifts!.push(...(page.StackResourceDrifts ?? []));
+    nextToken = page.NextToken;
+  }
+  // All pages have been consumed; do not expose an obsolete continuation token.
+  delete driftResults.NextToken;
 
   // Log warning for any resources with UNKNOWN status
   const unknownResources = driftResults.StackResourceDrifts?.filter(
