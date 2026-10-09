@@ -74,4 +74,38 @@ describe('bootstrap template', () => {
   test('has the same values for BootstrapVersion Parameter and Output', async () => {
     expect(template.Outputs.BootstrapVersion.Value).toEqual(template.Resources.CdkBootstrapVersion.Properties.Value);
   });
+
+  test('uses FileAssetsBucketKmsKeyId directly when it is already an ARN', async () => {
+    // The parameter description allows FileAssetsBucketKmsKeyId to be either a key ID or a key ARN.
+    // Verify the condition that distinguishes the two forms exists.
+    expect(template.Conditions.HasCustomKmsKeyArn).toEqual({
+      'Fn::Equals': [
+        'arn',
+        { 'Fn::Select': [0, { 'Fn::Split': [':', { Ref: 'FileAssetsBucketKmsKeyId' }] }] },
+      ],
+    });
+
+    // Locate the KMS statement in the FilePublishingRoleDefaultPolicy.
+    const statements = template.Resources.FilePublishingRoleDefaultPolicy.Properties.PolicyDocument.Statement;
+    const kmsStatement = statements.find(
+      (stmt: any) => Array.isArray(stmt.Action) && stmt.Action.includes('kms:Decrypt'),
+    );
+    expect(kmsStatement).toBeDefined();
+
+    // When a custom key is supplied, an ARN value must be used verbatim (no 'key/${...}' wrapping),
+    // while a bare key ID keeps the constructed 'arn:...:key/${...}' form.
+    expect(kmsStatement.Resource).toEqual({
+      'Fn::If': [
+        'CreateNewKey',
+        { 'Fn::Sub': '${FileAssetsBucketEncryptionKey.Arn}' },
+        {
+          'Fn::If': [
+            'HasCustomKmsKeyArn',
+            { 'Fn::Sub': '${FileAssetsBucketKmsKeyId}' },
+            { 'Fn::Sub': 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${FileAssetsBucketKmsKeyId}' },
+          ],
+        },
+      ],
+    });
+  });
 });
