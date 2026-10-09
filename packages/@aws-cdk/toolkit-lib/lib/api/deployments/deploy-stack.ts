@@ -491,7 +491,13 @@ class FullCloudFormationDeployment {
         });
       }
 
-      if (this.options.forceDeployment) {
+      if (!this.cloudFormationStack.stackStatus.isDeploySuccess) {
+        await this.ioHelper.defaults.warn(
+          `CloudFormation reported no changes for ${this.stackName}, but the stack is in ${this.cloudFormationStack.stackStatus.name}. ` +
+          'No update was performed and this does not indicate a successful deployment. ' +
+          'Inspect the stack events and resolve the stack status before deploying again.',
+        );
+      } else if (this.options.forceDeployment) {
         await this.ioHelper.defaults.warn(
           [
             'You used the --force flag, but CloudFormation reported that the deployment would not make any changes.',
