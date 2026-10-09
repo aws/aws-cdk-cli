@@ -1,10 +1,10 @@
+import { Link, List } from '@cloudscape-design/components';
 import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import * as React from 'react';
 import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';
 import type { WebViolation, WebViolationOccurrence } from '../api';
 import type { NavigateHandler } from '../nav-types';
-import { Link, List } from '@cloudscape-design/components';
 import { colorForSeverity, iconForSeverity } from './severities';
 
 interface ViolationsPanelProps {
@@ -53,23 +53,24 @@ export function ViolationsPanel({ violations, onNavigate, filter, search }: Viol
                   </summary>
                   {viol.suggestedFix && <Box variant="small">Suggested fix: {viol.suggestedFix}</Box>}
                   {viol.occurrences.map((occ, i) => (
-                      <Link variant="primary" onFollow={() => onNavigate({
-                        ...occ,
-                      })}>
-                        {occ.constructPath}
-                        {occ.logicalId ? ` → ${occ.logicalId}` : ''}
-                        {occ.templateFile ? ` (${occ.templateFile})` : ''}
-                      </Link>
+                    <Link variant="primary" onFollow={() => onNavigate({
+                      trigger: 'diagnostic',
+                      ...occ,
+                    })}>
+                      {occ.constructPath}
+                      {occ.logicalId ? ` → ${occ.logicalId}` : ''}
+                      {occ.templateFile ? ` (${occ.templateFile})` : ''}
+                    </Link>
                   ))}
                 </details>
               </div>
               <div style={{ flexGrow: 0 }}>
                 {showRuleName && <code style={RULE_NAME_STYLE} title={viol.ruleName}>{viol.ruleName}</code>}
               </div>
-            </div>
+            </div>,
         };
       }}
-      >
+    >
     </List>
   );
 }

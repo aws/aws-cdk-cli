@@ -1,7 +1,8 @@
-import ButtonDropdown, { ButtonDropdownProps } from "@cloudscape-design/components/button-dropdown";
-import Icon from "@cloudscape-design/components/icon";
-import { applyMode, Mode } from "@cloudscape-design/global-styles";
-import React from "react";
+import type { ButtonDropdownProps } from '@cloudscape-design/components/button-dropdown';
+import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
+import Icon from '@cloudscape-design/components/icon';
+import { applyMode, Mode } from '@cloudscape-design/global-styles';
+import React from 'react';
 
 export type LightDarkPreference = 'system' | 'dark' | 'light';
 
@@ -36,13 +37,13 @@ export function LightDarkToggle(): JSX.Element {
   return (
     <ButtonDropdown
       items={[
-        { text: "Light mode", id: "light", iconName: preference === "light" ? 'check' : undefined },
-        { text: "Dark mode", id: "dark", iconName: preference === "dark" ? 'check' : undefined },
-        { text: "Follow system", id: "system", iconName: preference === "system" ? 'check': undefined },
+        { text: 'Light mode', id: 'light', iconName: preference === 'light' ? 'check' : undefined },
+        { text: 'Dark mode', id: 'dark', iconName: preference === 'dark' ? 'check' : undefined },
+        { text: 'Follow system', id: 'system', iconName: preference === 'system' ? 'check': undefined },
       ]}
       onItemClick={onItemFollow}
     >
       <Icon name="light-dark"></Icon>
     </ButtonDropdown>
-    );
+  );
 }

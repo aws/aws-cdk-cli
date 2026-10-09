@@ -1816,7 +1816,7 @@ export interface ExploreOptions {
   /**
    * Port to bind the web server on
    *
-   * @default - 4200
+   * @default - 3411
    */
   readonly port?: number;
 }

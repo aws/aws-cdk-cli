@@ -1,5 +1,4 @@
 import type { WebConstructNode } from '../../lib/web/protocol';
-import { buildSourceAnchorIndex, findConstructAtLine } from '../../lib/web/source-nav';
 
 function node(props: {
   path: string;

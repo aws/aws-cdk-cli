@@ -1,5 +1,6 @@
 #!/bin/bash
-# A bash script to rebuild the static assets and restart the server
+# A bash script to watch the frontend source files and run the CDK explorer in a live mode where
+# it refreshes frontend assets from the filesystem.
 set -eu
 scriptdir=$(cd $(dirname "$0") && pwd)
 root=$(cd $scriptdir/../../../.. && pwd)

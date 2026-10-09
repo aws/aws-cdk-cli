@@ -1,33 +1,39 @@
-import Box from '@cloudscape-design/components/box';
+/* eslint-disable @cdklabs/promiseall-no-unbounded-parallelism */
 import Alert from '@cloudscape-design/components/alert';
+import AppLayoutToolbar from '@cloudscape-design/components/app-layout-toolbar';
+import Box from '@cloudscape-design/components/box';
+import Select from '@cloudscape-design/components/select';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import Spinner from '@cloudscape-design/components/spinner';
-import AppLayoutToolbar from '@cloudscape-design/components/app-layout-toolbar';
 import SplitPanel from '@cloudscape-design/components/split-panel';
 import Tabs from '@cloudscape-design/components/tabs';
-import Select from '@cloudscape-design/components/select';
+import TextFilter from '@cloudscape-design/components/text-filter';
+import Token from '@cloudscape-design/components/token';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
-import { buildSourceAnchorIndex, findConstructAtLine, SourceAnchor } from '../lib/web/source-nav';
-import { api, WebConstructNode, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
-import { ConstructTree } from './components/ConstructTree';
-import type { Language } from './syntax';
+import { ConstructTree, ExpandState } from './components/ConstructTree';
+import { Flex, FlexFix, FlexGrow } from './components/Flex';
+import { LightDarkToggle } from './components/LightDarkToggle';
+import { RelativeTime } from './components/RelativeTime';
+import { colorForSeverity } from './components/severities';
 import { FormatToggle, TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
+import { ConstructIndex } from './construct-index';
 import type { NavigateHandler } from './nav-types';
-import { colorForSeverity } from './components/severities';
-import { LightDarkToggle } from './components/LightDarkToggle';
-import Token from '@cloudscape-design/components/token';
-import TextFilter from '@cloudscape-design/components/text-filter';
-import { Flex, FlexFix, FlexGrow } from './components/Flex';
+import type { Language } from './syntax';
 export type { NavigateHandler } from './nav-types';
 
-/** Navigation target describing what both panes should show. */
-export interface NavTarget {
-  readonly source?: { file: string; startLine: number; endLine: number };
-  readonly template?: { file: string; logicalId: string };
-  readonly color: string;
+interface SourceHighlight {
+  startLine: number;
+  endLine: number;
+  color: string;
+}
+
+interface TemplateHighlight {
+  logicalId: string;
+  color: string;
 }
 
 interface SourceFile {
@@ -41,9 +47,11 @@ interface TemplateFile {
   response: TemplateResponse;
 }
 
-
 /** Web explorer shell. */
 export function App(): JSX.Element {
+  const expandState = React.useRef(new ExpandState());
+  const [, expandStateChanged] = React.useState({});
+
   const [tree, setTree] = React.useState<TreeResponse | undefined>();
   const [violations, setViolations] = React.useState<ViolationsResponse | undefined>();
   const [error, setError] = React.useState<string | undefined>();
@@ -51,20 +59,39 @@ export function App(): JSX.Element {
 
   // Source pane state.
   const [sourceFile, setSourceFile] = React.useState<SourceFile | undefined>();
+  const [sourceHighlight, setSourceHighlight] = React.useState<SourceHighlight | undefined>();
   const [templateFile, setTemplateFile] = React.useState<TemplateFile | undefined>();
+  const [templateHighlight, setTemplateHighlight] = React.useState<TemplateHighlight | undefined>();
   const [templateFormat, setTemplateFormat] = React.useState<Format>('yaml');
-
-  // Navigation state shared across panes.
-  const [nav, setNav] = React.useState<NavTarget | undefined>();
 
   // Violations filter: when set, only violations affecting this construct path are shown.
   const [violationFilter, setViolationFilter] = React.useState<string | undefined>();
   const [violationSearch, setViolationSearch] = React.useState('');
 
-  const reload = React.useCallback((): void => {
-    Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()])
-      .then(([t, v, info]) => {
+  const constructIndex = React.useRef(new ConstructIndex());
+
+  const [reloadSequence, triggerReload] = React.useState(0);
+  React.useEffect(() => {
+    const seqStart = reloadSequence;
+    void (async() => {
+      try {
+        const firstLoad = tree === undefined || tree.status !== 'ok';
+
+        const [t, v, info] = await Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()]);
+        if (seqStart !== reloadSequence) {
+          return;
+        }
+
         setTree(t);
+        if (t.status === 'ok') {
+          constructIndex.current = new ConstructIndex();
+          constructIndex.current.addTree(t.tree);
+          if (firstLoad) {
+            expandState.current.autoExpand(2, t.tree);
+            expandStateChanged({});
+          }
+        }
+
         setViolations(v);
         setAppDir(info.appDir);
         setError(undefined);
@@ -72,11 +99,13 @@ export function App(): JSX.Element {
         if (v.status === 'ok' && v.violations.length > 0) {
           setDiagnosticsOpen(true);
         }
-      })
-      // Keep the last good render on a transient read (e.g. a mid-synth write);
-      // the next assembly-changed event re-fetches once the write has settled.
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, []);
+      } catch (err) {
+        // Keep the last good render on a transient read (e.g. a mid-synth write);
+        // the next assembly-changed event re-fetches once the write has settled.
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  }, [reloadSequence]);
 
   // Re-read the currently open source file, refreshing both its content and its
   // staleness flag. Used after a synth (assembly changed) to clear a banner, and
@@ -98,42 +127,54 @@ export function App(): JSX.Element {
   }, []);
 
   React.useEffect(() => {
-    reload();
+    console.log('startup effect');
+    triggerReload(i => i + 1);
     return api.subscribe({
       onAssemblyChanged: () => {
-        reload();
+        triggerReload(i => i + 1);
         void refreshOpenSourceFile();
       },
       onSourceChanged: () => {
         void refreshOpenSourceFile();
       },
     });
-  }, [reload, refreshOpenSourceFile]);
+  }, []);
 
   /** Navigate to a construct (from tree double-click or violation double-click). */
-  const navigate: NavigateHandler = React.useCallback(async (opts) => {
-    const color = colorForSeverity(opts.highestSeverity);
+  const onNavigate: NavigateHandler = React.useCallback(async (opts) => {
+    const construct = constructIndex.current.construct(opts.constructPath);
+    if (!construct) {
+      return;
+    }
 
-    if (opts.constructPath) {
+    if (opts.trigger === 'tree') {
+      // Filter diagnostics, only if the user clicked the tree
       setViolationFilter(opts.constructPath);
     }
 
-    let sourceTarget: NavTarget['source'];
-    if (opts.sourceLocation) {
-      sourceTarget = { file: opts.sourceLocation.file, startLine: opts.sourceLocation.line, endLine: opts.sourceLocation.line };
-      await navigateToSourceFile(opts.sourceLocation.file, 'nav');
+    const color = colorForSeverity(construct.highestSeverity);
+    if (opts.trigger !== 'source') {
+      if (construct.sourceLocation) {
+        setSourceHighlight({
+          startLine: construct.sourceLocation.line,
+          endLine: construct.sourceLocation.line,
+          color,
+        });
+        await navigateToSourceFile(construct.sourceLocation.file, 'nav');
+      }
     }
 
-    let templateTarget: NavTarget['template'];
-    if (opts.templateFile && opts.logicalId) {
-      navigateToTemplateFile(opts.templateFile, 'nav');
-      // Carry identity only; TemplateViewer resolves the highlight line from the
-      // rendered format (JSON or YAML), which is the sole coordinate authority.
-      templateTarget = { file: opts.templateFile, logicalId: opts.logicalId };
+    if (opts.trigger !== 'template') {
+      if (construct.templateLocation) {
+        setTemplateHighlight({
+          logicalId: construct.templateLocation.logicalId,
+          color,
+        });
+        await navigateToTemplateFile(construct.templateLocation.file, 'nav');
+      }
     }
-
-    setNav({ source: sourceTarget, template: templateTarget, color });
-  }, []);
+    // This must have the same dependencies as constructIndex!
+  }, [tree]);
 
   /** Jump from template pane to source (the "Open in source" button). */
   const jumpToSource = React.useCallback(async (logicalId: string) => {
@@ -143,11 +184,13 @@ export function App(): JSX.Element {
     if (!resource?.source) return;
 
     await navigateToSourceFile(resource.source.file, 'nav');
+    /*
     setNav({
       source: { file: resource.source.file, startLine: resource.source.line, endLine: resource.source.line },
       template: undefined,
       color: colorForSeverity(undefined),
     });
+    */
   }, []);
 
   const navigateToSourceFile = React.useCallback(async (fileName: string, mode: 'nav' | 'refresh') => {
@@ -193,61 +236,17 @@ export function App(): JSX.Element {
     }
   }, [templateFile]);
 
-  // Per-file index of constructs navigable from source to template, built from
-  // the construct tree the app already loads. Rebuilt only when the tree changes.
-  const sourceAnchors: Map<string, SourceAnchor[]> = React.useMemo(
-    () => (tree?.status === 'ok' ? buildSourceAnchorIndex(tree.tree) : new Map()),
-    [tree],
-  );
-
   /** Double-click a line in the source pane to jump to its resource in the template. */
   const handleSourceDoubleClick = React.useCallback((line: number) => {
     const file = sourceFile?.fileName;
     if (!file) return;
-    const node = findConstructAtLine(sourceAnchors?.get(file), line);
+    const node = constructIndex.current.findBySourceLocation(file, line);
     if (!node) return;
-    void navigate({
-      sourceLocation: node.sourceLocation,
-      templateFile: node.templateFile,
-      logicalId: node.logicalId,
+    void onNavigate({
+      trigger: 'source',
       constructPath: node.path,
     });
-  }, [sourceFile, sourceAnchors, navigate]);
-
-  // File picker state.
-  const [showFilePicker, setShowFilePicker] = React.useState<false | 'source' | 'template'>(false);
-  const pickerRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!showFilePicker) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (pickerRef.current && !pickerRef.current.contains(target)) {
-        if ((target as HTMLElement).closest?.('[aria-label="Open file"], [aria-label="Open template file"]')) return;
-        setShowFilePicker(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showFilePicker]);
-
-  const knownSourceFiles = React.useMemo(
-    () => sourceAnchors ? [...sourceAnchors.keys()].sort() : [],
-    [sourceAnchors],
-  );
-
-  const knownTemplateFiles = React.useMemo(() => {
-    if (!tree || tree.status !== 'ok') return [];
-    const files = new Set<string>();
-    const walk = (nodes: readonly WebConstructNode[]) => {
-      for (const n of nodes) {
-        if (n.templateFile) files.add(n.templateFile);
-        walk(n.children);
-      }
-    };
-    walk(tree.tree);
-    return [...files].sort();
-  }, [tree]);
+  }, [sourceFile, constructIndex.current, onNavigate]);
 
   const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
     try {
@@ -256,8 +255,9 @@ export function App(): JSX.Element {
       } else {
         await navigateToTemplateFile(filePath, 'nav');
       }
-      setShowFilePicker(false);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const [navigationOpen, setNavigationOpen] = React.useState(true);
@@ -267,175 +267,186 @@ export function App(): JSX.Element {
   return (
     <div>
       <AppLayoutToolbar breadcrumbs={
-          <Flex style={{ width: '100%' }}>
-            <FlexFix style={{ fontWeight: 'bold' }}>CDK Explorer</FlexFix>
-            <FlexFix style={{ fontWeight: 'light' }}>{appDir ?? '-'}</FlexFix>
-          </Flex>
-        }
-        navigationOpen={navigationOpen}
-        onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
-        navigationWidth={350}
+        <Flex style={{ width: '100%' }}>
+          <FlexFix style={{ fontWeight: 'bold' }}>CDK Explorer</FlexFix>
+          <FlexFix style={{ fontWeight: 'light' }}>{appDir ?? ''}</FlexFix>
+          <FlexFix style={{ fontSize: 'small', color: awsui.colorTextInputDisabled }}>
+            {tree?.status === 'ok' ? <>(synthesized <RelativeTime timestamp={tree.timestamp} />)</> : '' }
+          </FlexFix>
+        </Flex>
+      }
+      navigationOpen={navigationOpen}
+      onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
+      navigationWidth={350}
 
-        navigation={
+      navigation={
+        <Tabs
+          fitHeight={true}
+          tabs={[{
+            label: 'Construct Tree',
+            id: 'tree',
+            content: (
+              <ConstructTreeContent tree={tree} onNavigate={onNavigate} expandState={expandState.current} />
+            ),
+          }]}
+        />
+      }
+      contentType='table'
+      disableContentPaddings={true}
+      content={
+        <div style={{ backgroundColor: awsui.colorBackgroundContainerContent }}>
+          {error && <Box color="text-status-error">{error}</Box>}
           <Tabs
             fitHeight={true}
             tabs={[{
-              label: 'Construct Tree',
-              id: 'tree',
+              label: 'Source View',
+              id: 'source',
               content: (
-                <div style={{ overflow: 'auto' }}>
-                  <ConstructTreeContent tree={tree} onNavigate={navigate} />
-                </div>
-              )
+                <div style={{ padding: '0px 16px', minHeight: '800px' }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <Select
+                      placeholder="Source file"
+                      selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
+                      onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
+                      options={constructIndex.current.sourceFiles.map(f => ({ label: f, value: f }))}
+                    />
+                  </div>
+                  <div style={CODE_PANE_INNER_STYLE}>
+                    {sourceFile ? (
+                      <SpaceBetween size='xs'>
+                        {sourceFile.stale && (
+                          <Alert type="warning">
+                            This file has been modified since the last synth, so
+                            its diagnostics and source locations may be stale.
+                            Re-run <code>cdk synth</code> to refresh.
+                          </Alert>
+                        )}
+                        <CodeViewer
+                          content={sourceFile.content}
+                          language={detectLanguage(sourceFile.fileName)}
+                          highlightStart={sourceHighlight?.startLine}
+                          highlightEnd={sourceHighlight?.endLine}
+                          highlightColor={sourceHighlight?.color}
+                          scrollToLine={sourceHighlight?.startLine}
+                          onLineDoubleClick={handleSourceDoubleClick}
+                          diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
+                        />
+                      </SpaceBetween>
+                    ) : (
+                      <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
+                    )}
+                  </div>
+                </div>),
             }]}
           />
-        }
-        contentType='table'
-        disableContentPaddings={true}
-        content={
-          <div style={{ backgroundColor: awsui.colorBackgroundContainerContent }}>
-            {error && <Box color="text-status-error">{error}</Box>}
+        </div>
+      }
+
+      activeDrawerId={drawerOpen ? 'template' : null}
+      drawers={[
+        {
+          id: 'template',
+          content: (
             <Tabs
               fitHeight={true}
               tabs={[{
-                label: 'Source View',
-                id: 'source',
+                label: 'Template View',
+                id: 'template',
                 content: (
-                  <div style={{ padding: '0px 16px', minHeight: '800px' }}>
-                    <div style={{ marginBottom: '8px' }}>
-                      <Select
-                        placeholder="Source file"
-                        selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
-                        onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
-                        options={knownSourceFiles.map(f => ({ label: f, value: f }))}
-                      />
-                    </div>
+                  <div style={{ padding: '0px 16px' }}>
+                    <Flex style={{ marginBottom: '8px' }}>
+                      <FlexGrow>
+                        <Select
+                          placeholder="Template file"
+                          selectedOption={templateFile?.fileName ? { label: templateFile.fileName, value: templateFile.fileName } : null}
+                          onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'template') : undefined}
+                          options={constructIndex.current.templateFiles.map(f => ({ label: f, value: f }))}
+                        />
+                      </FlexGrow>
+                      {templateFile && (
+                        <FlexFix>
+                          <FormatToggle format={templateFormat} onChange={setTemplateFormat} />
+                        </FlexFix>
+                      )}
+                    </Flex>
                     <div style={CODE_PANE_INNER_STYLE}>
-                      {sourceFile ? (
-                        <SpaceBetween size='xs'>
-                          {sourceFile.stale && (
-                            <Alert type="warning">
-                              This file has been modified since the last synth, so its diagnostics and source locations may be stale. Re-run <code>cdk synth</code> to refresh.
-                            </Alert>
-                          )}
-                          <CodeViewer
-                            content={sourceFile.content}
-                            language={detectLanguage(sourceFile.fileName)}
-                            highlightStart={nav?.source?.startLine}
-                            highlightEnd={nav?.source?.endLine}
-                            highlightColor={nav?.color}
-                            scrollToLine={nav?.source?.startLine}
-                            onLineDoubleClick={handleSourceDoubleClick}
-                            diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
-                          />
-                        </SpaceBetween>
+                      {templateFile ? (
+                        <TemplateViewer
+                          jsonContent={templateFile.response.content}
+                          resources={templateFile.response.resources}
+                          highlightLogicalId={templateHighlight?.logicalId}
+                          highlightColor={templateHighlight?.color}
+                          onResourceDoubleClick={jumpToSource}
+                          templateFile={templateFile.fileName}
+                          violations={violations?.status === 'ok' ? violations.violations : undefined}
+                          format={templateFormat}
+                        />
                       ) : (
-                        <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
+                        <Box color="text-status-inactive">Select a construct to view its template.</Box>
                       )}
                     </div>
-                  </div>)
+                  </div>
+                ),
               }]}
             />
-          </div>
-        }
-
-        activeDrawerId={drawerOpen ? 'template' : null}
-        drawers={[
-          {
-            id: 'template',
-            content: (
-              <Tabs
-                fitHeight={true}
-                tabs={[{
-                  label: 'Template View',
-                  id: 'template',
-                  content: (
-                    <div style={{ padding: '0px 16px' }}>
-                      <Flex style={{ marginBottom: '8px' }}>
-                        <FlexGrow>
-                          <Select
-                            placeholder="Template file"
-                            selectedOption={templateFile?.fileName ? { label: templateFile.fileName, value: templateFile.fileName } : null}
-                            onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'template') : undefined}
-                            options={knownTemplateFiles.map(f => ({ label: f, value: f }))}
-                          />
-                        </FlexGrow>
-                        {templateFile && (
-                          <FlexFix>
-                            <FormatToggle format={templateFormat} onChange={setTemplateFormat} />
-                          </FlexFix>
-                        )}
-                      </Flex>
-                      <div style={CODE_PANE_INNER_STYLE}>
-                        {templateFile ? (
-                          <TemplateViewer
-                            jsonContent={templateFile.response.content}
-                            resources={templateFile.response.resources}
-                            highlightLogicalId={nav?.template?.logicalId}
-                            highlightColor={nav?.color}
-                            onResourceDoubleClick={jumpToSource}
-                            templateFile={templateFile.fileName}
-                            violations={violations?.status === 'ok' ? violations.violations : undefined}
-                            format={templateFormat}
-                          />
-                        ) : (
-                          <Box color="text-status-inactive">Select a construct to view its template.</Box>
-                        )}
-                      </div>
-                    </div>
-                  ),
-                }]}
-              />
-            ),
-            resizable: true,
-            defaultSize: 600,
-            trigger: {
-              iconName: 'file-open',
-            },
-            ariaLabels: {
-              drawerName: 'Template',
-            },
+          ),
+          resizable: true,
+          defaultSize: 600,
+          trigger: {
+            iconName: 'file-open',
           },
-        ]}
-        onDrawerChange={(detail) => {
-          setDrawerOpen(!drawerOpen);
-        }}
+          ariaLabels: {
+            drawerName: 'Template',
+          },
+        },
+      ]}
+      onDrawerChange={(detail) => {
+        setDrawerOpen(!drawerOpen);
+      }}
 
-        splitPanelOpen={diagnosticsOpen}
-        onSplitPanelToggle={(detail) => setDiagnosticsOpen(!diagnosticsOpen)}
-        splitPanel={
-          <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
-            ariaLabel='Diagnostics'
-            hidePreferencesButton={true}
-            headerActions={
-              <Flex style={{ justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <ViolationsConstructFilter filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
-                <ViolationsSearch search={violationSearch} onSearchChange={setViolationSearch} />
-              </Flex>
-            }
-          >
+      splitPanelOpen={diagnosticsOpen}
+      onSplitPanelToggle={(detail) => setDiagnosticsOpen(!diagnosticsOpen)}
+      splitPanel={
+        <SplitPanel header={`Diagnostics (${violations?.status === 'ok' ? violations.violations.length : 0})`}
+          ariaLabel='Diagnostics'
+          hidePreferencesButton={true}
+          headerActions={
+            <Flex style={{ justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+              <ViolationsConstructFilter filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} />
+              <ViolationsSearch search={violationSearch} onSearchChange={setViolationSearch} />
+            </Flex>
+          }
+        >
 
-            <ViolationsContent violations={violations} onNavigate={navigate} filter={violationFilter} onClearFilter={() => setViolationFilter(undefined)} search={violationSearch} />
-          </SplitPanel>}
-        ariaLabels={{
-        }}
+          <ViolationsContent
+            violations={violations}
+            onNavigate={onNavigate}
+            filter={violationFilter}
+            onClearFilter={() => setViolationFilter(undefined)} search={violationSearch}
+          />
+        </SplitPanel>}
+      ariaLabels={{
+      }}
       >
 
       </AppLayoutToolbar>
       { /* Faux toolbar */ }
       <div style={{ position: 'absolute', top: 5, right: 92, zIndex: 1000 }}>
-          <LightDarkToggle/>
+        <LightDarkToggle/>
       </div>
     </div>
   );
 }
 
-function ConstructTreeContent({ tree, onNavigate }: { readonly tree?: TreeResponse; readonly onNavigate: NavigateHandler }): JSX.Element {
+function ConstructTreeContent(
+  { tree, onNavigate, expandState }:
+  { readonly tree?: TreeResponse; readonly onNavigate: NavigateHandler; readonly expandState: ExpandState },
+): JSX.Element {
   if (!tree) return <Spinner />;
   if (tree.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found. Run cdk synth first.</Box>;
   }
-  return <ConstructTree autoExpandDepth={1} nodes={tree.tree} onNavigate={onNavigate} />;
+  return <ConstructTree expandState={expandState} nodes={tree.tree} onNavigate={onNavigate} />;
 }
 
 function ViolationsContent({ violations, onNavigate, filter, onClearFilter, search }: {
@@ -462,7 +473,7 @@ function ViolationsConstructFilter({ filter, onClearFilter }: { readonly filter?
         onDismiss={onClearFilter}
         dismissLabel="Show all diagnostics"
         label={name}
-        style={{ root: { paddingInline: '8px' }}}
+        style={{ root: { paddingInline: '8px' } }}
       />
     </Flex>
   );

@@ -46,7 +46,12 @@ export function sessionAuth(token: string): (req: Request, res: Response, next: 
       // After setting the cookie: if this is a request for an HTML page, redirect it.
       // If it is a request for an API endpoint, most clients do not handle redirects so
       // just serve it.
-      return req.path.startsWith('/api/') ? next() : res.redirect(302, urlWithoutToken(req));
+      const isHtml = req.path === '/' || req.path.endsWith('.html');
+      const isApi = req.path.startsWith('/api/');
+      if (isHtml && !isApi) {
+        return res.redirect(302, urlWithoutToken(req));
+      }
+      return next();
     }
 
     return refuse(req, res);

@@ -1265,8 +1265,17 @@ fixupTestTask(cdkExplorer);
 cdkExplorer.postCompileTask.exec('tsc --noEmit -p tsconfig.frontend.json');
 cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
 cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
-cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.json');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.ts');
 cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'frontend/**',
+  ],
+  rules: {
+    // Allow importing devdependencies (everything is bundled)
+    'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+  },
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

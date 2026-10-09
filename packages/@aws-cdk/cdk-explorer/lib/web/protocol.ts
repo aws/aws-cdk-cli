@@ -41,6 +41,21 @@ export interface WebSourceLocation {
   readonly column: number;
 }
 
+export interface WebTemplateLocation {
+  /**
+   * Path to the synthesized template that declares this construct's CFN
+   * resource, relative to the cloud assembly (`cdk.out`) directory, with POSIX
+   * separators. Usually a bare name like "MyStack.template.json", but includes
+   * the sub-assembly directory for staged stacks, e.g.
+   * "assembly-Prod/Prod-MyStack.template.json". Only set for CFN resources. The
+   * core's absolute path is relativized before it crosses the wire.
+   */
+  readonly file: string;
+
+  /** CFN logical ID, if this construct maps to a resource. */
+  readonly logicalId: string;
+}
+
 /**
  * A construct tree node as served to the SPA. A trimmed, wire-stable view of
  * the core `ConstructNode`: absolute source paths are relativized to the app
@@ -52,17 +67,8 @@ export interface WebConstructNode {
   readonly id: string;
   /** CFN resource type (e.g. "AWS::S3::Bucket"), if this construct is a resource. */
   readonly type?: string;
-  /** CFN logical ID, if this construct maps to a resource. */
-  readonly logicalId?: string;
-  /**
-   * Path to the synthesized template that declares this construct's CFN
-   * resource, relative to the cloud assembly (`cdk.out`) directory, with POSIX
-   * separators. Usually a bare name like "MyStack.template.json", but includes
-   * the sub-assembly directory for staged stacks, e.g.
-   * "assembly-Prod/Prod-MyStack.template.json". Only set for CFN resources. The
-   * core's absolute path is relativized before it crosses the wire.
-   */
-  readonly templateFile?: string;
+
+  readonly templateLocation?: WebTemplateLocation;
   readonly sourceLocation?: WebSourceLocation;
   /**
    * Highest-severity policy-violation label affecting this construct. A folded
@@ -104,7 +110,7 @@ export interface TemplateResponse {
  * found (the user has not run `cdk synth`)
  */
 export type TreeResponse =
-  | { readonly status: 'ok'; readonly tree: readonly WebConstructNode[]; readonly warnings: readonly string[] }
+  | { readonly status: 'ok'; readonly tree: readonly WebConstructNode[]; readonly warnings: readonly string[]; readonly timestamp: number }
   | { readonly status: 'not-synthesized' };
 
 /**

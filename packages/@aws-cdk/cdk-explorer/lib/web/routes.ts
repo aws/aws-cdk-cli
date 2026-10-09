@@ -155,7 +155,7 @@ export function createApiRouter(options: ApiOptions): Router {
     withAssembly(await getCachedAssembly(), res, (data) => {
       const severityByPath = highestSeverityByPath(data.violations);
       const tree = data.tree.map((node) => toWebNode(node, severityByPath, assemblyDir, appDir));
-      const body: TreeResponse = { status: 'ok', tree, warnings: data.warnings };
+      const body: TreeResponse = { status: 'ok', tree, warnings: data.warnings, timestamp: data.timestamp };
       res.json(body);
     });
   });
@@ -279,8 +279,10 @@ export function toWebNode(
       path: node.path,
       id: node.id,
       type: node.type,
-      logicalId: node.logicalId,
-      templateFile: node.templateFile ? toPosix(path.relative(assemblyDir, node.templateFile)) : undefined,
+      templateLocation: node.templateFile && node.logicalId ? {
+        file: toPosix(path.relative(assemblyDir, node.templateFile)),
+        logicalId: node.logicalId,
+      } : undefined,
       sourceLocation: toWebSourceLocation(node.sourceLocation, appDir),
       highestSeverity,
       ...(inheritedSeverity && { inheritedSeverity }),
@@ -294,8 +296,7 @@ export function toWebNode(
     path: node.path,
     id: node.id,
     type: defaultChild.type,
-    logicalId: defaultChild.logicalId,
-    templateFile: defaultChild.templateFile,
+    templateLocation: defaultChild.templateLocation,
     sourceLocation: toWebSourceLocation(node.sourceLocation, appDir) ?? defaultChild.sourceLocation,
     highestSeverity,
     ...(inheritedSeverity && { inheritedSeverity }),

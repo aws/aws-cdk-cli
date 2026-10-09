@@ -21,6 +21,7 @@ export interface AssemblyData {
   readonly violations?: PolicyValidationReportJson;
   /** Non-fatal warnings collected while reading the assembly (e.g. unparseable source maps). */
   readonly warnings: readonly string[];
+  readonly timestamp: number;
 }
 
 export type AssemblyReadResult =
@@ -35,8 +36,14 @@ export type AssemblyReadResult =
  */
 export async function readAssembly(assemblyDir: string): Promise<AssemblyReadResult> {
   const manifestPath = path.join(assemblyDir, MANIFEST_FILE);
-  if (!fs.existsSync(manifestPath)) {
-    return { status: 'not-found' };
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(manifestPath);
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      return { status: 'not-found' };
+    }
+    throw e;
   }
 
   try {
@@ -60,7 +67,8 @@ export async function readAssembly(assemblyDir: string): Promise<AssemblyReadRes
         ? fields.templateFile
         : undefined,
       sourceLocation: stack
-        ? await sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
+        // ? await sourceResolver.resolveFrames(findCreationStackTrace(stack, constructPath))
+        ? findCreationStackTrace(stack, constructPath)
         : undefined,
     }));
 
@@ -77,7 +85,7 @@ export async function readAssembly(assemblyDir: string): Promise<AssemblyReadRes
 
     return {
       status: 'success',
-      data: { tree, violations, warnings },
+      data: { tree, violations, warnings, timestamp: stat.mtimeMs },
     };
   } catch (err) {
     return { status: 'error', message: (err as Error).message };

@@ -114,21 +114,29 @@ export function resolveAllResourceRanges(templateText: string): Record<string, R
   const resourceProperties = new Map<string, Record<string, OffsetRange>>();
 
   for (const [pointer, mapping] of Object.entries(pointers)) {
-    const resourceMatch = /^\/Resources\/([^/]+)$/.exec(pointer);
-    if (resourceMatch) {
-      const id = unescapePointerSegment(resourceMatch[1]);
+    // 'pointer' looks like '/<Section>/<logicalId>/Properties/...' etc.
+    const justAResource = /^\/([^/])\/([^/]+)$/.exec(pointer);
+
+    // We ignore the 'Section' part; 'logicalId' might be an index into any of the
+    // Sections but we don't have enough information to pinpoint the right section.
+    // That means if both a Parameter and Resource have the same identifier, we might
+    // get this wrong. Unlikely enough to happen that this will suffice until we run
+    // into that practice.
+    if (justAResource) {
+      const id = unescapePointerSegment(justAResource[2]);
       result[id] = { block: { start: mapping.value.pos, end: mapping.valueEnd.pos }, properties: {} };
       continue;
     }
+
     const propMatch = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
     if (propMatch && mapping.key !== undefined) {
-      const id = unescapePointerSegment(propMatch[1]);
+      const id = unescapePointerSegment(propMatch[2]);
       let props = resourceProperties.get(id);
       if (!props) {
         props = {};
         resourceProperties.set(id, props);
       }
-      props[unescapePointerSegment(propMatch[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
+      props[unescapePointerSegment(propMatch[3])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
     }
   }
 

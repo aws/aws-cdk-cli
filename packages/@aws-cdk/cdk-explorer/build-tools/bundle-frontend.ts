@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Builds the web explorer SPA into lib/web/static, then writes the same assets
  * to lib/web/web-assets.generated.json so they ride the require() graph into
@@ -10,10 +11,12 @@ import * as esbuild from 'esbuild';
 const packageRoot = path.resolve(__dirname, '..');
 const frontendDir = path.join(packageRoot, 'frontend');
 const outDir = path.join(packageRoot, 'lib', 'web', 'static');
-const embeddedAssetsFile = path.join(packageRoot, 'lib', 'web', 'web-assets.generated.json');
+const embeddedAssetsFile = path.join(packageRoot, 'lib', 'web', 'web-assets.generated.ts');
 
 async function main(): Promise<void> {
   fs.mkdirSync(outDir, { recursive: true });
+
+  const isWatch = process.argv[2] === '--watch';
 
   const context = await esbuild.context({
     entryPoints: [path.join(frontendDir, 'index.tsx')],
@@ -26,14 +29,14 @@ async function main(): Promise<void> {
     loader: { '.css': 'css', '.svg': 'dataurl', '.png': 'dataurl' },
     sourcemap: 'external', // does not load map automatically, have to attach manually
     logLevel: 'warning',
-    minify: true,
+    minify: !isWatch,
     logStyle: 'default',
   });
 
   try {
     await buildAndPostProcess();
 
-    if (process.argv[2] === '--watch') {
+    if (isWatch) {
       const watcher = fs.watch(path.resolve(__dirname, '..', 'frontend'), { recursive: true }, async (eventType, filename) => {
         console.log(`File changed: ${filename} (${eventType})`);
         await buildAndPostProcess();
@@ -53,7 +56,6 @@ async function main(): Promise<void> {
   async function buildAndPostProcess() {
     try {
       await context.rebuild();
-      fs.copyFileSync(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));
       writeEmbeddedAssets();
       console.log('Built');
     } catch (e) {
@@ -62,13 +64,24 @@ async function main(): Promise<void> {
   }
 }
 
+const BUNDLE_FILES = ['bundle.js', 'bundle.css'];
+const ASSET_FILES = ['index.html', 'icon.png'];
+
 function writeEmbeddedAssets(): void {
-  const assets: Record<string, string> = {
-    'index.html': fs.readFileSync(path.join(frontendDir, 'index.html'), 'utf-8'),
-    'bundle.js': fs.readFileSync(path.join(outDir, 'bundle.js'), 'utf-8'),
-    'bundle.css': fs.readFileSync(path.join(outDir, 'bundle.css'), 'utf-8'),
-  };
-  fs.writeFileSync(embeddedAssetsFile, JSON.stringify(assets));
+  const assets = [
+    ...ASSET_FILES.map(f => [f, fs.readFileSync(path.join(frontendDir, f))] as const),
+    ...BUNDLE_FILES.map(f => [f, fs.readFileSync(path.join(outDir, f))] as const),
+  ];
+  fs.writeFileSync(embeddedAssetsFile, [
+    'export const EMBEDDED_ASSETS = {',
+    ...assets.map(([fname, buf]) => {
+      const containsBinary = buf.indexOf('\x00') !== -1;
+      const encoding = containsBinary ? 'base64' : 'utf-8';
+
+      return `  "${fname}": Buffer.from(${JSON.stringify(buf.toString(encoding))}, "${encoding}"),`;
+    }),
+    '};',
+  ].join('\n'), 'utf-8');
 }
 
 main().catch((err) => {

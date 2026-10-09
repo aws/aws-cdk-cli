@@ -140,12 +140,14 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // by path; any other GET falls back to index.html for client-side routing.
   // (securityHeaders already sets Cache-Control: no-store, which is what makes a
   // rebuilt bundle show up on reload despite its unversioned filename.)
-  app.get('/:asset', (req, res, next) => {
+  app.get('/:asset', (req, res) => {
     const asset = webAsset(req.params.asset);
-    if (!asset) return next();
-    return res.type(asset.contentType).send(asset.body);
+    if (asset) {
+      return res.type(asset.contentType).send(asset.body);
+    }
+    return res.status(404).send('Not Found');
   });
-  app.get('*', (_req, res) => {
+  app.get('/', (_req, res) => {
     const index = webAsset('index.html')!;
     res.type(index.contentType).send(index.body);
   });

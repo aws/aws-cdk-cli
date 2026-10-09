@@ -545,7 +545,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'explore': {
         description: 'Opens an interactive web explorer for your CDK app',
         options: {
-          port: { type: 'number', desc: 'Port to bind the web server on', default: 4200 },
+          port: { type: 'number', desc: 'Port to bind the web server on', default: 3411 },
         },
       },
       'lsp': {

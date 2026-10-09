@@ -1,14 +1,29 @@
+import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
 import { tokenizeLines, type Language, type Token } from '../syntax';
-import { colorForSeverity } from './severities';
 import { TOKEN_COLORS } from './colors';
+import { colorForSeverity } from './severities';
+import { addToColl } from '../util';
 
+/**
+ * Diagnostics which are shown with an underline
+ */
 export interface Diagnostic {
   readonly startLine: number;
   readonly startCol: number;
   readonly endCol?: number;
   readonly severity: 'error' | 'warning' | 'info';
   readonly message?: string;
+}
+
+/**
+ * Annotations which are shown in the margin
+ */
+export interface Annotation {
+  readonly line: number;
+  readonly message?: string;
+  readonly color?: string;
+  readonly onClick?: () => void;
 }
 
 export interface CodeViewerProps {
@@ -20,6 +35,7 @@ export interface CodeViewerProps {
   readonly scrollToLine?: number;
   readonly onLineDoubleClick?: (line: number) => void;
   readonly diagnostics?: readonly Diagnostic[];
+  readonly annotations?: readonly Annotation[];
 }
 
 export function CodeViewer({
@@ -31,6 +47,7 @@ export function CodeViewer({
   scrollToLine,
   onLineDoubleClick,
   diagnostics,
+  annotations,
 }: CodeViewerProps): JSX.Element {
   const tokenizedLines = React.useMemo(
     () => tokenizeLines(content, language),
@@ -43,15 +60,20 @@ export function CodeViewer({
   }, [tokenizedLines.length]);
 
   const diagnosticsByLine = React.useMemo(() => {
-    if (!diagnostics?.length) return undefined;
     const map = new Map<number, Diagnostic[]>();
-    for (const d of diagnostics) {
-      const arr = map.get(d.startLine) ?? [];
-      arr.push(d);
-      map.set(d.startLine, arr);
+    for (const d of diagnostics ?? []) {
+      addToColl(map, d.startLine, d);
     }
     return map;
   }, [diagnostics]);
+
+  const annotationsByLine = React.useMemo(() => {
+    const map = new Map<number, Annotation[]>();
+    for (const a of annotations ?? []) {
+      addToColl(map, a.line, a);
+    }
+    return map;
+  }, [annotations]);
 
   return (
     <div style={CONTAINER_STYLE}>
@@ -62,7 +84,8 @@ export function CodeViewer({
           && lineNum >= highlightStart
           && lineNum <= highlightEnd;
         const isScrollTarget = lineNum === scrollToLine;
-        const lineDiagnostics = diagnosticsByLine?.get(lineNum);
+        const lineDiagnostics = diagnosticsByLine.get(lineNum) ?? [];
+        const lineAnnotations = annotationsByLine.get(lineNum) ?? [];
 
         return (
           <div
@@ -75,11 +98,12 @@ export function CodeViewer({
             className={isHighlighted ? 'nav-highlight' : undefined}
             style={{
               ...LINE_STYLE,
-              ...(isHighlighted ? { ['--nav-highlight-color' as string]: highlightColor ?? '#0972d3' } : undefined),
+              ...(isHighlighted ? { ['--nav-highlight-color' as string]: highlightColor ?? awsui.colorChartsBlue1500 } : undefined),
             }}
             onDoubleClick={onLineDoubleClick ? () => onLineDoubleClick(lineNum) : undefined}
           >
             <span style={{ ...LINE_NUM_STYLE, width: gutterWidth }}>{lineNum}</span>
+            {lineAnnotations.length > 0 && <span style={{ position: 'absolute' }}>ANN</span>}
             <span style={LINE_CONTENT_STYLE}>
               {lineDiagnostics
                 ? renderWithDiagnostics(lineTokens, lineDiagnostics)
@@ -175,8 +199,8 @@ function renderWithDiagnostics(tokens: Token[], diagnostics: Diagnostic[]): Reac
 const CONTAINER_STYLE: React.CSSProperties = {
   margin: 0,
   maxHeight: '100%',
-//  overflowX: 'auto',
-//  overflowY: 'auto',
+  //  overflowX: 'auto',
+  //  overflowY: 'auto',
   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
   fontSize: '12px',
   lineHeight: '18px',

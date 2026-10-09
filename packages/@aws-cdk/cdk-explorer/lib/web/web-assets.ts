@@ -7,22 +7,23 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { EMBEDDED_ASSETS } from './web-assets.generated';
 export interface WebAsset {
   readonly contentType: string;
-  readonly body: string;
+  readonly body: Buffer;
 }
 
 const CONTENT_TYPES: Record<string, string> = {
   'index.html': 'text/html; charset=utf-8',
   'bundle.js': 'text/javascript; charset=utf-8',
   'bundle.css': 'text/css; charset=utf-8',
+  'icon.png': 'image/png',
 };
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const raw = require('./web-assets.generated.json') as Record<string, string>;
+const BUNDLED_FILES = ['bundle.js', 'bundle.css'];
 
 const WEB_ASSETS: Record<string, WebAsset> = Object.fromEntries(
-  Object.entries(raw).map(([name, body]) => [name, { contentType: CONTENT_TYPES[name], body }]),
+  Object.entries(EMBEDDED_ASSETS).map(([name, body]) => [name, { contentType: CONTENT_TYPES[name], body }]),
 );
 
 /** A named SPA asset (e.g. "bundle.js"), or undefined if not part of the build. */
@@ -32,9 +33,14 @@ export function webAsset(name: string): WebAsset | undefined {
   }
 
   try {
+    const diskLocation = BUNDLED_FILES.includes(name)
+      ? path.resolve(__dirname, 'static', `${name}`)
+      : path.resolve(__dirname, '..', '..', 'frontend', `${name}`)
+      ;
+
     return {
       contentType: CONTENT_TYPES[name],
-      body: fs.readFileSync(path.resolve(__dirname, 'static', `${name}`), 'utf-8'),
+      body: fs.readFileSync(diskLocation),
     };
   } catch (e: any) {
     if (e.code === 'ENOENT') {

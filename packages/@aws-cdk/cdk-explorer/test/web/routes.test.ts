@@ -168,7 +168,7 @@ describe('GET /api/tree', () => {
         sourceLocation: { file: path.join(realAppDir, 'lib', 'stack.ts'), line: 12, column: 5 },
         children: [],
       };
-      return { status: 'success', data: { tree: [node], warnings: ['heads up'] } };
+      return { status: 'success', data: { tree: [node], warnings: ['heads up'], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/tree');
@@ -255,7 +255,7 @@ describe('GET /api/template', () => {
         sourceLocation: { file: path.join(realAppDir, 'lib', 'stack.ts'), line: 10, column: 5 },
         children: [],
       };
-      return { status: 'success', data: { tree: [node], warnings: [] } };
+      return { status: 'success', data: { tree: [node], warnings: [], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/template').query({ file: 'MyStack.template.json' });
@@ -354,7 +354,7 @@ describe('GET /api/policy-validation', () => {
           },
         ],
       };
-      return { status: 'success', data: { tree: [node], violations, warnings: [] } };
+      return { status: 'success', data: { tree: [node], violations, warnings: [], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/policy-validation');
@@ -442,7 +442,7 @@ describe('assembly read lock', () => {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
     const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
-    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [] } }));
+    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [], timestamp: Date.now() } }));
     const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
     await request(a).get('/api/tree');
@@ -455,7 +455,7 @@ describe('assembly read lock', () => {
     const assemblyDir = path.join(appDir, 'cdk.out');
     writeManifest(assemblyDir);
     const acquireAssemblyLock = jest.fn(async () => ({ release: () => Promise.resolve() }));
-    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [] } }));
+    const readAssembly = jest.fn((): Promise<AssemblyReadResult> => Promise.resolve({ status: 'success', data: { tree: [], warnings: [], timestamp: Date.now() } }));
     const a = createApp();
     a.use('/api', createApiRouter({ appDir, assemblyDir, readAssembly, acquireAssemblyLock }));
     await request(a).get('/api/tree');

@@ -52,4 +52,4 @@ jspm_packages/
 !/.eslintrc.json
 !/.eslintrc.js
 lib/web/static/
-lib/web/web-assets.generated.json
+lib/web/web-assets.generated.ts

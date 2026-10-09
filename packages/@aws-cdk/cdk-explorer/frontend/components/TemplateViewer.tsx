@@ -1,8 +1,8 @@
-import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
+import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
 import * as React from 'react';
+import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
 import type { TemplateResource, WebViolation } from '../api';
 import { CodeViewer, type Diagnostic } from './CodeViewer';
-import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;
@@ -33,7 +33,6 @@ export function TemplateViewer({
   violations,
   format,
 }: TemplateViewerProps): JSX.Element {
-
   const { displayContent, displayResources, sections } = React.useMemo(() => {
     if (format === 'json') {
       return {
@@ -54,7 +53,7 @@ export function TemplateViewer({
   }, [highlightLogicalId, displayResources]);
 
   const diagnostics = React.useMemo(() => {
-    if (!templateFile || !violations?.length) return undefined;
+    if (!templateFile || !violations?.length) return [];
     const lines = displayContent.split('\n');
     const diags: Diagnostic[] = [];
     for (const violation of violations) {
@@ -70,7 +69,7 @@ export function TemplateViewer({
         }
       }
     }
-    return diags.length > 0 ? diags : undefined;
+    return diags.length > 0 ? diags : [];
   }, [templateFile, violations, displayResources, displayContent]);
 
   const handleDoubleClick = React.useCallback((line: number) => {
@@ -145,7 +144,6 @@ function jsonToYaml(jsonContent: string): YamlResult {
   return { displayContent, displayResources, sections: buildSections(displayResources) };
 }
 
-
 function violationSeverity(severity: string | undefined): 'error' | 'warning' | 'info' {
   switch (severity) {
     case 'fatal':
@@ -160,12 +158,12 @@ function violationSeverity(severity: string | undefined): 'error' | 'warning' | 
 
 export function FormatToggle({ format, onChange }: { readonly format: Format; readonly onChange: (f: Format) => void }): JSX.Element {
   return <ButtonDropdown
-      items={(['yaml', 'json'] as const).map((f) => ({ text: labelFromFormat(f), id: f, iconName: format === f ? 'check' : undefined }))}
-      onItemClick={(detail) => onChange(detail.detail.id as Format)}
+    items={(['yaml', 'json'] as const).map((f) => ({ text: labelFromFormat(f), id: f, iconName: format === f ? 'check' : undefined }))}
+    onItemClick={(detail) => onChange(detail.detail.id as Format)}
 
-    >
-      {labelFromFormat(format)}
-    </ButtonDropdown>;
+  >
+    {labelFromFormat(format)}
+  </ButtonDropdown>;
 }
 
 function labelFromFormat(f: Format): string {
