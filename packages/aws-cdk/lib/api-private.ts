@@ -8,6 +8,7 @@ export type { ChangeSetReport } from '../../@aws-cdk/toolkit-lib/lib/api/change-
 export { createIgnoreMatcher } from '../../@aws-cdk/toolkit-lib/lib/util/glob-matcher';
 export { formatExpressStabilizationWarning } from '../../@aws-cdk/toolkit-lib/lib/util/cfn-express';
 export { prepareStacksConcurrently, validateDiffConcurrency } from '../../@aws-cdk/toolkit-lib/lib/actions/diff/private/concurrency';
+export { toCloudFormationRollbackConfiguration } from '../../@aws-cdk/toolkit-lib/lib/util/cloudformation';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/io/private';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/tags/private';
 export * from '../../@aws-cdk/toolkit-lib/lib/private/activity-printer';

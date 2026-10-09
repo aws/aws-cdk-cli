@@ -4,7 +4,7 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, PublishAssetsOptions, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, PublishAssetsOptions, RollbackConfiguration, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -14,7 +14,7 @@ import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, prepareStacksConcurrently, tagsForStack, validateDiffConcurrency } from '../../lib/api-private';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, prepareStacksConcurrently, tagsForStack, toCloudFormationRollbackConfiguration, validateDiffConcurrency } from '../../lib/api-private';
 import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
@@ -529,6 +529,7 @@ export class CdkToolkit {
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,
         notificationArns: options.notificationArns,
+        rollbackConfiguration: options.rollbackConfiguration,
         tags: options.tags,
         outputsFile: options.outputsFile,
         assetParallelism: options.assetParallelism,
@@ -610,6 +611,7 @@ export class CdkToolkit {
       force: options.force,
       stackCount: stackCollection.stackCount,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       deploymentMethod: options.deploymentMethod,
       toolkitStackName: this.toolkitStackName,
       reuseAssets: options.reuseAssets,
@@ -1826,6 +1828,13 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
   notificationArns?: string[];
 
   /**
+   * CloudFormation rollback triggers to monitor during the deployment
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  rollbackConfiguration?: RollbackConfiguration;
+
+  /**
    * What kind of security changes require approval
    *
    * @default RequireApproval.Broadening
@@ -2319,6 +2328,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly force?: boolean;
   readonly stackCount?: number;
   readonly notificationArns?: string[];
+  readonly rollbackConfiguration?: RollbackConfiguration;
   readonly deploymentMethod?: DeploymentMethod;
   readonly toolkitStackName?: string;
   readonly reuseAssets?: string[];
@@ -2470,6 +2480,10 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       }
     }
 
+    // Validate and convert the rollback configuration to the shape CloudFormation expects.
+    // Undefined leaves any existing rollback triggers on the stack untouched.
+    const rollbackConfiguration = toCloudFormationRollbackConfiguration(this.options.rollbackConfiguration);
+
     const parameterMap = buildParameterMap(this.options.parameters);
 
     // Deploy options that are shared between change set creation and execution
@@ -2485,6 +2499,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       usePreviousParameters: this.options.usePreviousParameters,
       rollback: this.options.rollback,
       notificationArns,
+      rollbackConfiguration,
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,

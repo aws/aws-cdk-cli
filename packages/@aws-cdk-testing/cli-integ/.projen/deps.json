@@ -135,6 +135,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-cloudwatch",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-codeartifact",
       "version": "^3",
       "type": "runtime"
