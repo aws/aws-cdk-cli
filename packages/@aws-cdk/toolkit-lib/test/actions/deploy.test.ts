@@ -46,7 +46,7 @@ beforeEach(() => {
     name: 'aws://11111111/aq-south-1',
   });
   jest.spyOn(deployments.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} });
   jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
@@ -139,6 +139,75 @@ IAM Statement Changes
         motivation: 'Stack includes updates',
         permissionChangeType: 'none',
       }),
+    }));
+  });
+
+  test('request response contains destructive changes', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Stack1/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [{
+          stackName: 'Stack1',
+          logicalId: 'OldTopic',
+          resourceType: 'AWS::SNS::Topic',
+          constructPath: 'Stack1/OldTopic/Resource',
+          impact: 'WILL_DESTROY',
+        }],
+      }),
+    }));
+  });
+
+  test('request response contains destructive changes in nested stacks', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: { Resources: {} },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [expect.objectContaining({ stackName: 'NestedStack', logicalId: 'NestedTopic', impact: 'WILL_DESTROY' })],
+      }),
+    }));
+  });
+
+  test('request response has no destructive changes for a new stack', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({ destructiveChanges: [] }),
     }));
   });
 

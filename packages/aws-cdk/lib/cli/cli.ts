@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
 import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
@@ -362,6 +363,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
+        if (args.failOn !== undefined && args.fail !== undefined) {
+          throw new ToolkitError('IncompatibleOptions', args.fail
+            ? '--fail cannot be used with --fail-on, use --fail-on=any-change instead of --fail'
+            : '--no-fail cannot be used with --fail-on, use --fail-on=never instead of --no-fail');
+        }
         const diffMethod = determineDiffMethod(args);
         if (diffMethod === 'template') {
           rejectIncompatibleOptions(args, '--method=template', {
@@ -375,7 +381,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           strict: args.strict,
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
-          fail: args.fail != null ? args.fail : !enableDiffNoFail,
+          // --fail is an alias for --fail-on=any-change, and the feature flag decides the default
+          failOn: args.failOn ?? ((args.fail ?? !enableDiffNoFail) ? RequireApproval.ANYCHANGE : RequireApproval.NEVER),
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           method: diffMethod,
@@ -456,6 +463,25 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
 
+        if (args.monitoringTimeMinutes !== undefined && args.rollbackTriggerAlarmArns === undefined) {
+          throw new ToolkitError('MonitoringTimeRequiresRollbackTriggers', '--monitoring-time-minutes requires --rollback-trigger-alarm-arns');
+        }
+
+        // Only manage rollback configuration when the user opts in via --rollback-trigger-alarm-arns.
+        // Every alarm ARN is treated as a metric alarm; composite alarms are only reachable through the
+        // programmatic API. Leaving the flag off means CDK does not manage a stack's rollback triggers.
+        //
+        // The flag requires a value (it cannot be passed empty), so a single literal `none` is the opt-in
+        // way to clear any triggers previously configured on the stack.
+        const alarmArns = args.rollbackTriggerAlarmArns;
+        const clearRollbackTriggers = alarmArns?.length === 1 && alarmArns[0].toLowerCase() === 'none';
+        const rollbackConfiguration = alarmArns !== undefined
+          ? {
+            triggers: clearRollbackTriggers ? [] : alarmArns.map((arn: string) => ({ arn })),
+            monitoringTimeInMinutes: args.monitoringTimeMinutes,
+          }
+          : undefined;
+
         return cli.deploy({
           selector: {
             ...expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
@@ -464,6 +490,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
+          rollbackConfiguration,
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
@@ -570,6 +597,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           deploymentMethod: determineDeploymentMethod(args, configuration, true),
           force: args.force,
           progress: configuration.settings.get(['progress']),
+          outputsFile: configuration.settings.get(['outputsFile']),
           rollback: configuration.settings.get(['rollback']),
           traceLogs: args.logs,
           concurrency: args.concurrency,

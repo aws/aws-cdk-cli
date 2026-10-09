@@ -38,6 +38,7 @@ import {
   type StackSummary,
   type Change,
   type Parameter,
+  type RollbackConfiguration,
   type Tag,
   type ServiceInputTypes,
   type ServiceOutputTypes,
@@ -136,6 +137,7 @@ interface InMemoryStack {
   tags: Tag[];
   capabilities: string[];
   notificationArns: string[];
+  rollbackConfiguration?: RollbackConfiguration;
   outputs: { OutputKey: string; OutputValue: string }[];
   enableTerminationProtection: boolean;
   roleArn?: string;
@@ -307,6 +309,7 @@ export class FakeCloudFormation {
       capabilities: (input.Capabilities as string[]) ?? [],
       outputs: [],
       notificationArns: input.NotificationARNs ?? [],
+      rollbackConfiguration: input.RollbackConfiguration,
       enableTerminationProtection: input.EnableTerminationProtection ?? false,
       roleArn: input.RoleARN,
       creationTime: input.CreationTime ?? new Date(),
@@ -1181,6 +1184,7 @@ export class FakeCloudFormation {
       Capabilities: stack.capabilities as any,
       Outputs: stack.outputs.map((o) => ({ OutputKey: o.OutputKey, OutputValue: o.OutputValue })),
       NotificationARNs: stack.notificationArns,
+      RollbackConfiguration: stack.rollbackConfiguration,
       EnableTerminationProtection: stack.enableTerminationProtection,
       RoleARN: stack.roleArn,
     };

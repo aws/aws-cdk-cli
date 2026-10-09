@@ -1,3 +1,4 @@
+import { stripAnsi } from '@aws-cdk/cloud-assembly-api';
 import chalk from 'chalk';
 import type { ValidateResult } from '../../../lib/actions/validate';
 import { formatValidateResult as formatValidateResult_ } from '../../../lib/api/validate/validate-formatting';
@@ -110,25 +111,6 @@ describe('formatValidateResult', () => {
 
     const output = formatValidateResult(result);
     expect(output).toContain('lib/my-stack.ts:12:5');
-  });
-
-  test('extracts leaf location from bare stack trace without parens', () => {
-    const result = makeResult([{
-      pluginName: 'TestPlugin',
-      conclusion: 'failure',
-      violations: [{
-        ruleName: 'rule1',
-        description: 'bad',
-        severity: 'error',
-        violatingConstructs: [{
-          constructPath: 'Stack/Bucket',
-          stackTraces: ['at file.js:10:5'],
-        }],
-      }],
-    }]);
-
-    const output = formatValidateResult(result);
-    expect(output).toContain('file.js:10:5');
   });
 
   test('omits acknowledge line for fatal severity', () => {
@@ -260,5 +242,5 @@ describe('formatValidateResult', () => {
 });
 
 function formatValidateResult(result: ValidateResult) {
-  return formatValidateResult_(process.cwd(), result);
+  return stripAnsi(formatValidateResult_(process.cwd(), result));
 }

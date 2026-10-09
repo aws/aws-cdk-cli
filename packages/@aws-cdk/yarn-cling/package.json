@@ -31,7 +31,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.21",
+    "@cdklabs/eslint-plugin": "^2.0.22",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -52,7 +52,7 @@
     "nx": "^22.7.12",
     "prettier": "^2.8",
     "projen": "^0.103.27",
-    "ts-jest": "^29.4.13",
+    "ts-jest": "^29.4.14",
     "typescript": "5.9"
   },
   "dependencies": {

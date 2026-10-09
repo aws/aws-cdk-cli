@@ -6,6 +6,7 @@ import {
   GetTemplateCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
+import { CloudWatchClient, DeleteAlarmsCommand, DescribeAlarmsCommand, PutMetricAlarmCommand } from '@aws-sdk/client-cloudwatch';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
@@ -65,6 +66,7 @@ export class AwsClients {
   private readonly resourcesToCleanup: Record<string, CleanupResource> = {};
 
   public readonly cloudFormation: CloudFormationClient;
+  public readonly cloudWatch: CloudWatchClient;
   public readonly s3: S3Client;
   public readonly ecr: ECRClient;
   public readonly ecrPublic: ECRPUBLICClient;
@@ -92,6 +94,7 @@ export class AwsClients {
     };
 
     this.cloudFormation = new CloudFormationClient(this.config);
+    this.cloudWatch = new CloudWatchClient(this.config);
     this.s3 = new S3Client(this.config);
     this.ecr = new ECRClient(this.config);
     this.ecrPublic = new ECRPUBLICClient({ ...this.config, region: 'us-east-1' /* public gallery is only available in us-east-1 */ });
@@ -331,6 +334,46 @@ export class AwsClients {
     }
   }
 
+  /**
+   * Create a CloudWatch metric alarm that will be cleaned up when the AwsClients object is cleaned up.
+   *
+   * The alarm references a custom metric that is never published, so it stays in INSUFFICIENT_DATA
+   * and never enters ALARM state. It exists only so a deploy can reference it as a rollback trigger.
+   *
+   * Returns the ARN of the created alarm.
+   */
+  public async temporaryAlarm(alarmName: string) {
+    await this.cloudWatch.send(new PutMetricAlarmCommand({
+      AlarmName: alarmName,
+      ComparisonOperator: 'GreaterThanThreshold',
+      EvaluationPeriods: 1,
+      MetricName: 'Errors',
+      Namespace: 'CDK/IntegTest',
+      Period: 60,
+      Statistic: 'Sum',
+      Threshold: 1,
+      Tags: this.apiTags(),
+    }));
+    this.queueResourceCleanup({ type: 'cloudwatch-alarm', alarmName });
+
+    // Read the ARN back rather than constructing it, so the partition (aws, aws-us-gov, aws-cn) is correct.
+    const described = await this.cloudWatch.send(new DescribeAlarmsCommand({
+      AlarmNames: [alarmName],
+      AlarmTypes: ['MetricAlarm'],
+    }));
+    const alarmArn = described.MetricAlarms?.[0]?.AlarmArn;
+    if (!alarmArn) {
+      throw new Error(`DescribeAlarms did not return an ARN for alarm ${alarmName}`);
+    }
+    return alarmArn;
+  }
+
+  public async deleteAlarm(alarmName: string) {
+    await this.cloudWatch.send(new DeleteAlarmsCommand({
+      AlarmNames: [alarmName],
+    }));
+  }
+
   public async temporarySsmParameter(parameterName: string, parameterValue: string, op: 'create' | 'update') {
     await this.ssm.send(new PutParameterCommand({
       Name: parameterName,
@@ -442,6 +485,10 @@ export class AwsClients {
 
         case 'topic':
           await this.deleteTopic(resource.topicArn);
+          break;
+
+        case 'cloudwatch-alarm':
+          await this.deleteAlarm(resource.alarmName);
           break;
 
         case 'ssm-parameter':
@@ -574,6 +621,7 @@ export type CleanupResource =
   | { type: 'ecr-repository'; repositoryName: string }
   | { type: 'role'; roleName: string }
   | { type: 'topic'; topicArn: string }
+  | { type: 'cloudwatch-alarm'; alarmName: string }
   | { type: 'ssm-parameter'; parameterName: string }
   ;
 

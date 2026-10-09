@@ -785,7 +785,7 @@ describe('CliIoHost', () => {
     });
 
     afterEach(() => {
-      fs.rmdirSync(telemetryDir, { recursive: true });
+      fs.rmSync(telemetryDir, { recursive: true });
       jest.restoreAllMocks();
     });
 
@@ -1492,6 +1492,44 @@ describe('CliIoHost', () => {
         // the host prints the message as-is; the `--require-approval` framing is
         // covered below.
         expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
+      });
+
+      test('destructive - require approval on destructive changes', async () => {
+        ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
+        const response = await requestResponse('y', {
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'none',
+            destructiveChanges: [{ stackName: 'Stack', logicalId: 'Topic', impact: 'WILL_DESTROY' }],
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(response).toEqual(true);
+      });
+
+      test('destructive - do not require approval without destructive changes, even if broadening', async () => {
+        ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'synth',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'broadening',
+            destructiveChanges: [],
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
         expect(response).toEqual(true);
       });
 

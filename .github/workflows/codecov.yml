@@ -38,7 +38,7 @@ jobs:
         run: yarn nx run aws-cdk:build
       - name: Upload results to Codecov
         id: upload_results_to_codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7.0.0
         with:
           disable_search: true
           files: packages/aws-cdk/coverage/cobertura-coverage.xml

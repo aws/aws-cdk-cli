@@ -1,4 +1,4 @@
-import { Component } from 'projen';
+import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
 
@@ -27,7 +27,7 @@ export class IssueRegressionLabeler extends Component {
         {
           name: 'Fetch template body',
           id: 'check_regression',
-          uses: 'actions/github-script@v8',
+          uses: github.ActionRefs.ACTIONS_GITHUB_SCRIPT,
           env: {
             GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
             TEMPLATE_BODY: '${{ github.event.issue.body }}',

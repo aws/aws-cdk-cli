@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { RollbackConfiguration } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -65,6 +66,13 @@ export interface DeployStackOptions {
   readonly notificationArns?: string[];
 
   /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass through to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
+
+  /**
    * Override name under which stack will be deployed
    *
    * @default - Use artifact default
@@ -106,7 +114,8 @@ export interface DeployStackOptions {
    * - `false`: the change set is the user's final artifact (`--no-execute`);
    *   it is announced as waiting for manual execution, and `prepareStack()`
    *   keeps it even if it contains no changes.
-   * - `true`: the change set is about to be executed by the caller; it is not
+   * - `true`: the change set is about to be executed by the caller; the
+   *   deployment is skipped if nothing changed, the change set is not
    *   announced, and `prepareStack()` cleans it up if it contains no changes.
    *
    * @default false
@@ -419,6 +428,7 @@ export class Deployments {
       resolvedEnvironment: env.resolvedEnvironment,
       deployName: options.deployName,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       sdk: env.sdk,
       sdkProvider: this.deployStackSdkProvider,
       roleArn: executionRoleArn,

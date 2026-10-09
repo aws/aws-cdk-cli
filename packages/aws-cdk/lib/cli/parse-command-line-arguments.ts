@@ -491,7 +491,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('require-approval', {
           default: undefined,
           type: 'string',
-          choices: ['never', 'any-change', 'broadening'],
+          choices: ['never', 'any-change', 'broadening', 'destructive'],
           desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
@@ -499,6 +499,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
           nargs: 1,
           requiresArg: true,
+        })
+        .option('rollback-trigger-alarm-arns', {
+          type: 'array',
+          desc: "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.",
+          nargs: 1,
+          requiresArg: true,
+        })
+        .option('monitoring-time-minutes', {
+          default: undefined,
+          type: 'number',
+          desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.',
         })
         .option('tags', {
           type: 'array',
@@ -791,6 +802,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
       yargs
+        .option('outputs-file', {
+          default: undefined,
+          type: 'string',
+          alias: 'O',
+          desc: 'Path to file where stack outputs will be written as JSON',
+          requiresArg: true,
+        })
         .option('build-exclude', {
           type: 'array',
           alias: 'E',
@@ -939,7 +957,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('fail', {
             default: undefined,
             type: 'boolean',
-            desc: 'Fail with exit code 1 in case of diff',
+            desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change',
+          })
+          .option('fail-on', {
+            default: undefined,
+            type: 'string',
+            choices: ['never', 'any-change', 'broadening', 'destructive'],
+            requiresArg: true,
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           })
           .option('processed', {
             default: false,

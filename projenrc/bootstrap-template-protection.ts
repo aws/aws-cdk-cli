@@ -1,6 +1,5 @@
 import type { IConstruct } from 'constructs';
 import { Component, github as gh } from 'projen';
-import { GitHub } from 'projen/lib/github';
 
 export interface BootstrapTemplateProtectionOptions {
   readonly bootstrapTemplatePath?: string;
@@ -14,7 +13,7 @@ export class BootstrapTemplateProtection extends Component {
     const VERSION_EXEMPT_LABEL = 'pr/exempt-bootstrap-version';
     const BOOTSTRAP_TEMPLATE_PATH = options.bootstrapTemplatePath ?? 'packages/aws-cdk/lib/api/bootstrap/bootstrap-template.yaml';
 
-    const github = GitHub.of(this.project);
+    const github = gh.GitHub.of(this.project);
     if (!github) {
       throw new Error('BootstrapTemplateProtection requires a GitHub project');
     }
@@ -67,7 +66,7 @@ export class BootstrapTemplateProtection extends Component {
       steps: [
         {
           name: 'Checkout merge commit',
-          uses: 'actions/checkout@v4',
+          uses: gh.ActionRefs.ACTIONS_CHECKOUT,
           with: {
             'fetch-depth': 0,
             'ref': 'refs/pull/${{ github.event.pull_request.number }}/merge',
@@ -152,7 +151,7 @@ export class BootstrapTemplateProtection extends Component {
         {
           name: 'Post comment',
           if: 'steps.template-changed.outputs.changed == \'true\' && github.event.pull_request.head.repo.fork != true',
-          uses: 'thollander/actions-comment-pull-request@v3',
+          uses: 'thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b', // 3.0.1
           with: {
             'comment-tag': 'bootstrap-template-protection',
             'mode': 'recreate',

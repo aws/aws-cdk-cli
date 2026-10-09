@@ -1,13 +1,15 @@
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { Deployments, selectAllTopLevel, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
-import { IO } from '../../lib/api-private';
+import { asIoHelper, IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { StackActivityProgress } from '../../lib/commands/deploy';
 import type { TestStackArtifact } from '../_helpers';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { IoHostRecorder } from '../_helpers/io-recorder';
+import { mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 // ANSI escape codes get injected whenever chalk's (global, process-wide) color
 // level is enabled. Strip them so the assertion compares the visible text.
@@ -201,6 +203,132 @@ describe('require-approval', () => {
   });
 });
 
+describe('require-approval with security changes', () => {
+  test('the approval shows the security diff and mentions security-sensitive updates', async () => {
+    // Removing an IAM role from the deployed stack is a (non-broadening) security change
+    cloudFormation.readCurrentTemplate.mockResolvedValue({
+      Resources: {
+        TemplateName: { Type: 'AWS::CDK::Test' },
+        Role: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+            },
+          },
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('IAM Statement Changes'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
+describe('require-approval destructive', () => {
+  beforeEach(() => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({ deployedRootTemplate: {}, nestedStacks: {} });
+  });
+
+  test('deploys without prompting when no resource is replaced or deleted', async () => {
+    // The deployed stack is empty, so the deployment only adds resources
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    expect(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')).toBeUndefined();
+  });
+
+  test('prompts and lists the destructive changes when a resource would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Test-Stack-A/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('Test-Stack-A-Display-Name: AWS::SNS::Topic OldTopic OldTopic will be destroyed'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes destructive updates and "--require-approval" is set to \'destructive\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('prompts when a resource in a nested stack would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('NestedStack: AWS::SNS::Topic NestedTopic will be destroyed'));
+  });
+
+  test('aborts and deploys nothing when the destructive change is declined', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic' },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
+
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    })).rejects.toThrow(/Deployment cancelled/);
+
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+});
+
 describe('deployment method', () => {
   test('--method=direct deploys without creating a change set upfront', async () => {
     await toolkit.deploy({
@@ -317,6 +445,59 @@ describe('no-op deploy', () => {
 
     // noOp prepare result is final; the execute call is skipped.
     expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+});
+
+describe('unchanged stack', () => {
+  // Run the real Deployments against a mocked CloudFormation that already has
+  // this exact template deployed, so the skip check in deployStack is exercised.
+  const STACK_UNCHANGED: TestStackArtifact = {
+    stackName: 'Test-Stack-Unchanged',
+    template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+    env: 'aws://123456789012/bermuda-triangle-1',
+  };
+
+  beforeEach(async () => {
+    restoreSdkMocksToDefault();
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolves({
+        Stacks: [{
+          StackName: 'Test-Stack-Unchanged',
+          StackId: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-Unchanged/abcd',
+          StackStatus: StackStatus.CREATE_COMPLETE,
+          CreationTime: new Date(),
+        }],
+      })
+      .on(GetTemplateCommand)
+      .resolves({ TemplateBody: JSON.stringify(STACK_UNCHANGED.template) })
+      // Fail fast instead of polling for a change set if the skip regresses.
+      .on(DescribeChangeSetCommand)
+      .rejects(new Error('an unchanged stack must not create a change set'))
+      .on(CreateChangeSetCommand)
+      .rejects(new Error('an unchanged stack must not create a change set'));
+
+    cloudExecutable = await MockCloudExecutable.create({ stacks: [STACK_UNCHANGED] }, undefined, ioHost, 'deploy');
+    toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: new Deployments({
+        sdkProvider: cloudExecutable.sdkProvider,
+        ioHelper: asIoHelper(ioHost, 'deploy'),
+      }),
+    });
+  });
+
+  test('the change-set method skips the deployment without creating a change set', async () => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-Unchanged'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    });
+
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
   });
 });
 
@@ -482,6 +663,40 @@ describe('deploy parameters forwarded to CloudFormation', () => {
     expect(cloudFormation.deployStack).toHaveBeenCalledWith(
       expect.objectContaining({ notificationArns: ['arn:aws:sns:bermuda-triangle-1:123456789012:MyTopic'] }),
     );
+  });
+
+  test('rollback triggers are converted and forwarded to deployStack', async () => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm' }],
+        monitoringTimeInMinutes: 10,
+      },
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rollbackConfiguration: {
+          RollbackTriggers: [
+            { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+          ],
+          MonitoringTimeInMinutes: 10,
+        },
+      }),
+    );
+  });
+
+  test('an invalid rollback trigger arn is rejected', async () => {
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:sns:bermuda-triangle-1:123456789012:not-an-alarm' }],
+      },
+    })).rejects.toThrow(/not a valid CloudWatch alarm arn/);
   });
 
   test('--no-rollback is forwarded to deployStack', async () => {

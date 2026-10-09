@@ -78,12 +78,12 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
-import type { StackCollection } from '../api/cloud-assembly/stack-collection';
+import { combineConclusions, type StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { DiffFormatter } from '../api/diff';
+import { DiffFormatter, findDestructiveChanges } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, ToolkitAction } from '../api/io';
@@ -112,11 +112,10 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -366,7 +365,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await throwIfValidationFailures(assembly, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
+
+    const allStacksToValidate = stacks.concat(...autoValidateStacks);
+    await allStacksToValidate.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -441,6 +442,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         numStacksWithChanges: stackDiff.numStacksWithChanges,
         numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
+        destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         formattedDiff: {
           diff: stackDiff.formattedDiff,
           security: formattedSecurityDiff,
@@ -545,7 +547,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
 
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
@@ -700,7 +702,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(selectStacks);
 
-    const reports = await obtainUnifiedValidationReport(assembly, stacks);
+    const reports = await stacks.unifiedValidationReport();
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
@@ -799,7 +801,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: DeployResult = {
       stacks: [],
@@ -877,8 +879,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      const currentTemplate = await deployments.readCurrentTemplate(stack);
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -894,6 +894,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      // Rollback triggers follow the same semantics as Notification ARNs:
+      //
+      //  - undefined  =>  cdk ignores it, leaving any existing triggers in place.
+      //  - { triggers: [] }  =>  cdk manages it, clearing any existing triggers.
+      //  - { triggers: [...] }  =>  cdk sets the triggers to the provided list.
+      const rollbackConfiguration = toCloudFormationRollbackConfiguration(options.rollbackConfiguration);
+
       // Deploy options that are shared between change set creation and execution
       const sharedDeployOptions = {
         stack,
@@ -907,6 +914,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         usePreviousParameters: options.parameters?.keepExistingParameters,
         rollback: options.rollback,
         notificationArns,
+        rollbackConfiguration,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
         express: options.express,
@@ -933,11 +941,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)).changeSet
           : prepareResult?.changeSet;
 
+        // Nested stacks are included, so that changes to their resources are part of the diff and destructive changes
+        const { deployedRootTemplate, nestedStacks } = await deployments.readCurrentTemplateWithNestedStacks(stack);
         const formatter = new DiffFormatter({
           templateInfo: {
-            oldTemplate: currentTemplate,
+            oldTemplate: deployedRootTemplate,
             newTemplate: stack,
             changeSet: diffChangeSet,
+            nestedStacks,
           },
         });
 
@@ -958,6 +969,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           concurrency,
           permissionChangeType: securityDiff.permissionChangeType,
           templateDiffs: formatter.diffs,
+          destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         }));
         if (!deployConfirmed) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -1493,7 +1505,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
 
     const stacks = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stacks, this.assemblyFailureAt, ioHelper);
+    await stacks.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: RollbackResult = {
       stacks: [],

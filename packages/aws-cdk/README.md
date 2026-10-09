@@ -207,6 +207,44 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+Use `--fail-on` to control which kind of change makes the command exit with code 1. It takes the same
+values as `cdk deploy --require-approval`:
+
+- `--fail-on=any-change`: fail on any difference. `--fail` is an alias for this value.
+- `--fail-on=broadening`: fail only on changes that broaden security permissions, such as new IAM
+  statements or security group rules. All differences are still shown.
+- `--fail-on=destructive`: fail only on changes that replace, delete or orphan an existing resource.
+  See below. `cdk deploy --require-approval=destructive` uses the same classification.
+- `--fail-on=never`: never fail. `--no-fail` is an alias for this value.
+
+```console
+# Fail in CI only when a change broadens security permissions
+$ cdk diff --fail-on=broadening
+```
+
+`--fail-on` cannot be combined with `--fail` or `--no-fail`. When none of them is given, the command does
+not fail, unless the `aws-cdk:enableDiffNoFail` feature flag is set to `false`, in which case it fails on
+any difference.
+
+`--fail-on=destructive` lists the resources that would be replaced, deleted or orphaned, and exits with
+code 1. Changes that update resources in place or add new resources do not cause a failure. This is
+useful in CI to stop changes that would lose data, such as a stateful resource whose logical ID
+changed after it was moved to another construct.
+
+```console
+$ cdk diff --fail-on=destructive MyStackName
+...
+❌  Found 1 destructive change(s) (--fail-on=destructive):
+  MyStackName: AWS::DynamoDB::Table MyTable MyTable794EDED1 will be orphaned
+```
+
+Whether a property change replaces the resource is determined by the change set, so use the default
+`--method=auto` or `--method=change-set` for accurate results. With `--method=template`, a change to
+a property that requires replacement is always reported as a replacement, and a change to a property
+that may require replacement is reported as "may be replaced", which also causes a failure.
+With `--security-only`, changes that are likely mangled non-ASCII characters are not filtered out,
+so they can also be reported as destructive.
+
 The stack header shows the environment the stack will be deployed to. For environment-agnostic
 stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is
 omitted when diffing against a local template with `--template`, which does not contact AWS.
@@ -267,6 +305,27 @@ Before creating a change set, `cdk deploy` will compare the template and tags of
 currently deployed stack to the template and tags that are about to be deployed and
 will skip deployment if they are identical. Use `--force` to override this behavior
 and always deploy the stack.
+
+#### Requiring approval
+
+`--require-approval` (or `requireApproval` in `cdk.json`) controls which changes need a manual
+confirmation before they are deployed:
+
+- `never`: approval is never required.
+- `any-change`: approval is required for any change to the stack.
+- `broadening` (default): approval is required if changes broaden permissions or security group rules.
+- `destructive`: approval is required if changes replace, delete or orphan an existing resource,
+  including resources in nested stacks. The affected resources are listed before the confirmation.
+  Changes that only broaden permissions do not require approval in this mode. With `--method=direct`,
+  no change set is created, so a change to a property that may require replacement also requires approval.
+
+When approval is required but no terminal is attached, for example in CI, the deployment fails.
+Use `--yes` to confirm automatically.
+
+```console
+# Stop before anything is replaced or deleted, deploy everything else unattended
+$ cdk deploy --require-approval=destructive
+```
 
 #### Disabling Rollback
 

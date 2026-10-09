@@ -51,7 +51,7 @@ jobs:
         run: echo "::add-mask::$ROLE_TO_ASSUME"
       - name: Authenticate Via OIDC Role
         id: creds
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-region: us-east-1
           role-to-assume: ${{ vars.CANARY_ARTIFACT_ROLE_ARN }}

@@ -283,6 +283,15 @@ export class TemplateAndChangeSetDiffMerger {
       return undefined;
     }
 
+    // The SAM transform resolves an `AWS::Serverless::Application` into an `AWS::CloudFormation::Stack`
+    // by asking the Serverless Application Repository for a template. That returns a pre-signed
+    // `TemplateURL` with a new file name and signature on every changeset, even when nothing has
+    // changed. The application and version are in the rest of the URL, so only compare that part.
+    if (resourceType === 'AWS::CloudFormation::Stack') {
+      oldResource = withSarTemplateUrlLocation(oldResource);
+      newResource = withSarTemplateUrlLocation(newResource);
+    }
+
     const resourceDiff = diffResource(oldResource, newResource, rc.LogicalResourceId);
 
     // Refine the change impact (replacement vs. update) using the change set, exactly like we do
@@ -453,6 +462,31 @@ function tryJsonParse(value: string): any {
   } catch {
     return value;
   }
+}
+
+/**
+ * If the resource's `TemplateURL` points into a Serverless Application Repository changeset bucket,
+ * replace it with the location it points into.
+ *
+ * SAR's URLs look like `https://awsserverlessrepo-changesets-<id>.s3.<region>.<suffix>/<account>/<application>-versions-<version>/<uuid>.yaml?<signature>`.
+ * The location is the URL up to and including the last `/` of the path, without the file name and the query string.
+ */
+function withSarTemplateUrlLocation(resource: types.Resource): types.Resource {
+  const templateUrl = resource.Properties?.TemplateURL;
+  if (typeof templateUrl !== 'string') {
+    return resource;
+  }
+  let url: URL;
+  try {
+    url = new URL(templateUrl);
+  } catch {
+    return resource;
+  }
+  if (!url.hostname.startsWith('awsserverlessrepo-changesets')) {
+    return resource;
+  }
+  const location = `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
+  return { ...resource, Properties: { ...resource.Properties, TemplateURL: location } };
 }
 
 /**

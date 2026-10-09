@@ -1,7 +1,7 @@
 import type { EventType, IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { PermissionChangeType } from './diff';
+import type { DestructiveChange, PermissionChangeType } from './diff';
 import type { ConfirmationRequest } from './types';
 
 // re-export so they are part of the public API
@@ -38,6 +38,11 @@ export interface DeployConfirmationRequest extends ConfirmationRequest {
    * The template diffs of the stack
    */
   readonly templateDiffs: { [name: string]: TemplateDiff };
+
+  /**
+   * The changes that replace, delete or orphan an existing resource, including in nested stacks
+   */
+  readonly destructiveChanges: DestructiveChange[];
 }
 
 export interface BuildAsset {

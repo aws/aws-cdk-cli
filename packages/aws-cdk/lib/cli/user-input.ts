@@ -835,6 +835,20 @@ export interface DeployOptions {
   readonly notificationArns?: Array<string>;
 
   /**
+   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.
+   *
+   * @default - undefined
+   */
+  readonly rollbackTriggerAlarmArns?: Array<string>;
+
+  /**
+   * The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.
+   *
+   * @default - undefined
+   */
+  readonly monitoringTimeMinutes?: number;
+
+  /**
    * Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)
    *
    * aliases: t
@@ -1262,6 +1276,15 @@ export interface ImportOptions {
  */
 export interface WatchOptions {
   /**
+   * Path to file where stack outputs will be written as JSON
+   *
+   * aliases: O
+   *
+   * @default - undefined
+   */
+  readonly outputsFile?: string;
+
+  /**
    * Do not rebuild asset with the given ID. Can be specified multiple times
    *
    * aliases: E
@@ -1466,11 +1489,18 @@ export interface DiffOptions {
   readonly securityOnly?: boolean;
 
   /**
-   * Fail with exit code 1 in case of diff
+   * Fail with exit code 1 in case of diff. Same as --fail-on=any-change
    *
    * @default - undefined
    */
   readonly fail?: boolean;
+
+  /**
+   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail
+   *
+   * @default - undefined
+   */
+  readonly failOn?: string;
 
   /**
    * Whether to compare against the template with Transforms already processed

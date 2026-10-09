@@ -1,7 +1,12 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
+import { loadUnifiedValidationReport } from '@aws-cdk/cloud-assembly-api/lib/validation/loading';
+import type { PluginReportJson, PolicyValidationReportConclusion, ValidateResult } from '../../actions/validate';
 import { type StackDetails } from '../../payloads/stack-details';
 import { AssemblyError, ToolkitError } from '../../toolkit/toolkit-error';
+import type { MinimumSeverity } from '../../toolkit/types';
+import type { IoHelper } from '../io/private/io-helper';
+import { hostMessageFromValidation } from '../validate/validate-formatting';
 
 /**
  * A Cloud Assembly wrapper that stacks can be selected from
@@ -149,4 +154,64 @@ export class StackCollection {
       throw error;
     }
   }
+
+  /**
+   * A validation report that includes the new validation report, as well as the metadata-based annotations results.
+   */
+  public async unifiedValidationReport() {
+    return loadUnifiedValidationReport(this.assembly, this.stackArtifacts);
+  }
+
+  /**
+   * For operations that are NOT `cdk validate`, read the validation report and produce a failure if validation failed.
+   *
+   * Validation failed if there are any plugin reports with a failure conclusion, or if there are any warnings and the assembly is in strict mode.
+   */
+  public async reportValidationFailuresAndThrow(
+    failAt: MinimumSeverity,
+    ioHelper: IoHelper,
+  ): Promise<void> {
+    const pluginReports = await this.unifiedValidationReport();
+    if (pluginReports.length === 0) {
+      return;
+    }
+
+    const conclusion = combineConclusions(pluginReports);
+    const result: ValidateResult = { conclusion, pluginReports };
+    await ioHelper.notify(hostMessageFromValidation(process.cwd(), result));
+
+    switch (failAt) {
+      case 'error':
+        if (conclusion === 'failure') {
+          const error = AssemblyError.withStacks('Synthesis finished with errors', this.stackArtifacts);
+          error.attachSynthesisErrorCode('AnnotationErrors');
+          throw error;
+        }
+        break;
+      case 'warn':
+        // if we're failing at 'warn', then both warnings and errors cause failure, so the initial conclusion is correct
+        if (conclusion === 'failure' || hasWarnings(pluginReports)) {
+          const error = AssemblyError.withStacks('Synthesis finished with warnings (--strict mode)', this.stackArtifacts);
+          error.attachSynthesisErrorCode('StrictAnnotationWarnings');
+          throw error;
+        }
+
+        break;
+      case 'none':
+        // if we're not failing at all, then the conclusion is always success
+        break;
+    }
+  }
+}
+
+function hasWarnings(reports: PluginReportJson[]): boolean {
+  return reports.some((r) => r.violations.some((v) => v.severity === 'warning'));
+}
+
+/**
+ * Return a success/failure conclusion from the given report
+ */
+export function combineConclusions(reports: PluginReportJson[]): PolicyValidationReportConclusion {
+  const reportHasFailures = reports.some((r) => r.conclusion === 'failure');
+  return reportHasFailures ? 'failure' : 'success';
 }

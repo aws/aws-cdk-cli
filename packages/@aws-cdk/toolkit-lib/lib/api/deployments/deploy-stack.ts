@@ -7,6 +7,7 @@ import type {
   CreateStackCommandInput,
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
+  RollbackConfiguration,
   Tag,
   DeploymentConfig,
 } from '@aws-sdk/client-cloudformation';
@@ -106,6 +107,13 @@ export interface DeployStackOptions {
   readonly notificationArns?: string[];
 
   /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
+
+  /**
    * Name to deploy the stack under
    *
    * @default - Name from assembly
@@ -139,8 +147,10 @@ export interface DeployStackOptions {
    *
    * When a change set is created without being executed (change-set method
    * with `execute: false`) and this is false, the change set is the user's
-   * final artifact (`--no-execute`) and is announced as waiting for manual
-   * execution.
+   * final artifact (`--no-execute`): it is always created, even if nothing
+   * changed, and is announced as waiting for manual execution. When this is
+   * true, the deployment is skipped if nothing changed, as for an executing
+   * change-set deployment.
    *
    * @default false
    */
@@ -788,6 +798,7 @@ class FullCloudFormationDeployment {
     return {
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
       NotificationARNs: this.options.notificationArns,
+      RollbackConfiguration: this.options.rollbackConfiguration,
       Parameters: this.stackParams.apiParameters,
       RoleARN: this.options.roleArn,
       TemplateBody: this.bodyParameter.TemplateBody,
@@ -901,10 +912,12 @@ async function canSkipDeploy(
     return false;
   }
 
-  // Creating changeset only (default true), never skip
+  // Creating changeset only for the user (--no-execute), never skip. The
+  // internal first phase of an executing deployment can still skip.
   if (
     deployStackOptions.deploymentMethod?.method === 'change-set' &&
-    deployStackOptions.deploymentMethod.execute === false
+    deployStackOptions.deploymentMethod.execute === false &&
+    !deployStackOptions.willExecuteChangeSet
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
     return false;
@@ -946,6 +959,15 @@ async function canSkipDeploy(
   // Notification arns have changed
   if (!arrayEquals(cloudFormationStack.notificationArns, deployStackOptions.notificationArns ?? [])) {
     await ioHelper.defaults.debug(`${deployName}: notification arns have changed`);
+    return false;
+  }
+
+  // Rollback configuration has changed. `undefined` means CDK does not manage it, so leave it alone.
+  if (
+    deployStackOptions.rollbackConfiguration !== undefined &&
+    !rollbackConfigurationEquals(cloudFormationStack.rollbackConfiguration, deployStackOptions.rollbackConfiguration)
+  ) {
+    await ioHelper.defaults.debug(`${deployName}: rollback configuration has changed`);
     return false;
   }
 
@@ -1013,6 +1035,28 @@ function suffixWithErrors(msg: string, errors?: string[]) {
 
 function arrayEquals(a: any[], b: any[]): boolean {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
+}
+
+/**
+ * Compare the rollback configuration currently deployed on the stack with the desired one.
+ *
+ * Triggers are compared order-independently by (Arn, Type). A missing monitoring time is
+ * treated as the CloudFormation default of 0 minutes.
+ */
+function rollbackConfigurationEquals(deployed: RollbackConfiguration, desired: RollbackConfiguration): boolean {
+  if ((deployed.MonitoringTimeInMinutes ?? 0) !== (desired.MonitoringTimeInMinutes ?? 0)) {
+    return false;
+  }
+
+  const deployedTriggers = deployed.RollbackTriggers ?? [];
+  const desiredTriggers = desired.RollbackTriggers ?? [];
+  if (deployedTriggers.length !== desiredTriggers.length) {
+    return false;
+  }
+
+  const key = (t: { Arn?: string; Type?: string }) => `${t.Arn}|${t.Type}`;
+  const deployedKeys = new Set(deployedTriggers.map(key));
+  return desiredTriggers.every((trigger) => deployedKeys.has(key(trigger)));
 }
 
 function hasReplacement(report: ChangeSetReport) {

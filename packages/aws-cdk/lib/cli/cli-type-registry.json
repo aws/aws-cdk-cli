@@ -468,13 +468,22 @@
           "choices": [
             "never",
             "any-change",
-            "broadening"
+            "broadening",
+            "destructive"
           ],
           "desc": "What changes require manual approval"
         },
         "notification-arns": {
           "type": "array",
           "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
+        "rollback-trigger-alarm-arns": {
+          "type": "array",
+          "desc": "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack."
+        },
+        "monitoring-time-minutes": {
+          "type": "number",
+          "desc": "The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns."
         },
         "tags": {
           "type": "array",
@@ -779,6 +788,12 @@
         "variadic": true
       },
       "options": {
+        "outputs-file": {
+          "type": "string",
+          "alias": "O",
+          "desc": "Path to file where stack outputs will be written as JSON",
+          "requiresArg": true
+        },
         "build-exclude": {
           "type": "array",
           "alias": "E",
@@ -922,7 +937,18 @@
         },
         "fail": {
           "type": "boolean",
-          "desc": "Fail with exit code 1 in case of diff"
+          "desc": "Fail with exit code 1 in case of diff. Same as --fail-on=any-change"
+        },
+        "fail-on": {
+          "type": "string",
+          "choices": [
+            "never",
+            "any-change",
+            "broadening",
+            "destructive"
+          ],
+          "requiresArg": true,
+          "desc": "Fail with exit code 1 when the diff contains the given kind of change. \"any-change\" fails on any difference, \"broadening\" only on changes that broaden security permissions, \"destructive\" only on changes that replace, delete or orphan a resource, \"never\" does not fail. Cannot be used with --fail"
         },
         "processed": {
           "type": "boolean",

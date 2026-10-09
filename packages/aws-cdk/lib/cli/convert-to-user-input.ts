@@ -126,6 +126,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         requireApproval: args.requireApproval,
         notificationArns: args.notificationArns,
+        rollbackTriggerAlarmArns: args.rollbackTriggerAlarmArns,
+        monitoringTimeMinutes: args.monitoringTimeMinutes,
         tags: args.tags,
         execute: args.execute,
         changeSetName: args.changeSetName,
@@ -210,6 +212,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'watch':
       commandOptions = {
+        outputsFile: args.outputsFile,
         buildExclude: args.buildExclude,
         exclusively: args.exclusively,
         changeSetName: args.changeSetName,
@@ -247,6 +250,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         strict: args.strict,
         securityOnly: args.securityOnly,
         fail: args.fail,
+        failOn: args.failOn,
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
@@ -474,6 +478,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.deploy?.exclusively,
     requireApproval: config.deploy?.requireApproval,
     notificationArns: config.deploy?.notificationArns,
+    rollbackTriggerAlarmArns: config.deploy?.rollbackTriggerAlarmArns,
+    monitoringTimeMinutes: config.deploy?.monitoringTimeMinutes,
     tags: config.deploy?.tags,
     execute: config.deploy?.execute,
     changeSetName: config.deploy?.changeSetName,
@@ -534,6 +540,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     resourceMappingInline: config.import?.resourceMappingInline,
   };
   const watchOptions = {
+    outputsFile: config.watch?.outputsFile,
     buildExclude: config.watch?.buildExclude,
     exclusively: config.watch?.exclusively,
     changeSetName: config.watch?.changeSetName,
@@ -563,6 +570,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     strict: config.diff?.strict,
     securityOnly: config.diff?.securityOnly,
     fail: config.diff?.fail,
+    failOn: config.diff?.failOn,
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,

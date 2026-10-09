@@ -23,7 +23,7 @@ describe('FileTelemetrySink', () => {
   afterEach(() => {
     // Clean up temp directory after each test
     if (fs.existsSync(tempDir)) {
-      fs.rmdirSync(tempDir, { recursive: true });
+      fs.rmSync(tempDir, { recursive: true });
     }
 
     // Restore all mocks

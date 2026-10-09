@@ -886,7 +886,7 @@ describe('fullDiff tests that include changeset', () => {
       expect(differences.resources.differenceCount).toBe(0);
     });
 
-    test('skips SAM resources reported by the change set', () => {
+    test('reports deploy-time changes on transformed SAM resources', () => {
       // GIVEN identical templates with a SAM resource
       const template = {
         Resources: {
@@ -897,7 +897,41 @@ describe('fullDiff tests that include changeset', () => {
         },
       };
 
-      // WHEN the change set reports the (transformed) resource as Serverless
+      // WHEN the change set reports the transformed resource (the SAM transform runs before the change set is created)
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'ServerlessFunction',
+              ResourceType: 'AWS::Lambda::Function',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: '{"Properties":{"Code":{"S3Bucket":"bucket","S3Key":"old.zip"}}}',
+              AfterContext: '{"Properties":{"Code":{"S3Bucket":"bucket","S3Key":"new.zip"}}}',
+            },
+          },
+        ],
+      });
+
+      // THEN - the change to the transformed resource is shown
+      expect(differences.resources.differenceCount).toBe(1);
+      expect(differences.resources.get('ServerlessFunction').propertyUpdates.Code).toBeDefined();
+    });
+
+    test('skips change set entries that still carry a SAM resource type', () => {
+      // GIVEN identical templates with a SAM resource
+      const template = {
+        Resources: {
+          ServerlessFunction: {
+            Type: 'AWS::Serverless::Function',
+            Properties: { CodeUri: 's3://bucket/handler.zip' },
+          },
+        },
+      };
+
+      // WHEN the change set reports the resource as Serverless
       const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
         Changes: [
           {
@@ -915,8 +949,270 @@ describe('fullDiff tests that include changeset', () => {
         ],
       });
 
-      // THEN - SAM resources are not synthesized from the change set
+      // THEN
       expect(differences.resources.differenceCount).toBe(0);
+    });
+
+    test('skips an AWS::Serverless::Application reported as an AWS::CloudFormation::Stack with a regenerated TemplateURL', () => {
+      // GIVEN identical templates with a SAR application, as created by SecretRotation
+      const template = {
+        Mappings: {
+          SARMapping: {
+            aws: { semanticVersion: '1.1.671' },
+          },
+        },
+        Resources: {
+          DatabaseRotationSingleUser65F55654: {
+            Type: 'AWS::Serverless::Application',
+            Properties: {
+              Location: {
+                ApplicationId: 'arn:aws:serverlessrepo:us-east-1:297356227824:applications/SecretsManagerRDSMySQLRotationSingleUser',
+                SemanticVersion: { 'Fn::FindInMap': ['SARMapping', 'aws', 'semanticVersion'] },
+              },
+              Parameters: { functionName: 'RotationFunction' },
+            },
+          },
+        },
+      };
+      const context = (templateUrl: string) => JSON.stringify({
+        Properties: {
+          TemplateURL: templateUrl,
+          Tags: [{ Key: 'serverlessrepo:semanticVersion', Value: '1.1.671' }],
+          Parameters: { functionName: 'RotationFunction' },
+        },
+      });
+      const beforeUrl = 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/arn%3Aaws%3Aserverlessrepo%3Aus-east-1%3A297356227824%3Aapplications-SecretsManagerRDSMySQLRotationSingleUser-versions-1.1.671/3ed23c6d.yaml?X-Amz-Date=20261007T103150Z';
+      const afterUrl = 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/arn%3Aaws%3Aserverlessrepo%3Aus-east-1%3A297356227824%3Aapplications-SecretsManagerRDSMySQLRotationSingleUser-versions-1.1.671/47919d9d.yaml?X-Amz-Date=20261007T104147Z';
+
+      // WHEN the change set reports the transformed nested stack with a new pre-signed TemplateURL
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'DatabaseRotationSingleUser65F55654',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [
+                {
+                  Target: {
+                    Attribute: 'Properties',
+                    Name: 'TemplateURL',
+                    RequiresRecreation: 'Never',
+                    Path: '/Properties/TemplateURL',
+                    BeforeValue: beforeUrl,
+                    AfterValue: afterUrl,
+                    AttributeChangeType: 'Modify',
+                  },
+                  Evaluation: 'Static',
+                  ChangeSource: 'DirectModification',
+                },
+              ],
+              BeforeContext: context(beforeUrl),
+              AfterContext: context(afterUrl),
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.differenceCount).toBe(0);
+    });
+
+    test('ignores a regenerated TemplateURL on an AWS::Serverless::Application when the change set has no contexts', () => {
+      // GIVEN identical templates with a SAR application
+      const template = {
+        Resources: {
+          App: {
+            Type: 'AWS::Serverless::Application',
+            Properties: { Location: { ApplicationId: 'arn:aws:serverlessrepo:us-east-1:123456789012:applications/App', SemanticVersion: '1.0.0' } },
+          },
+        },
+      };
+
+      // WHEN the change set only carries per-property values
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [
+                {
+                  Target: {
+                    Attribute: 'Properties',
+                    Name: 'TemplateURL',
+                    RequiresRecreation: 'Never',
+                    BeforeValue: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/app-versions-1.0.0/a.yaml?X-Amz-Signature=a',
+                    AfterValue: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/123456789012/app-versions-1.0.0/b.yaml?X-Amz-Signature=b',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.differenceCount).toBe(0);
+    });
+
+    test('reports deploy-time changes on an AWS::Serverless::Application other than its TemplateURL', () => {
+      // GIVEN identical templates with a SAR application whose parameter resolves at deploy time
+      const template = {
+        Parameters: {
+          Endpoint: { Type: 'AWS::SSM::Parameter::Value<String>', Default: '/my/endpoint' },
+        },
+        Resources: {
+          App: {
+            Type: 'AWS::Serverless::Application',
+            Properties: {
+              Location: { ApplicationId: 'arn:aws:serverlessrepo:us-east-1:123456789012:applications/App', SemanticVersion: '1.0.0' },
+              Parameters: { endpoint: { Ref: 'Endpoint' } },
+            },
+          },
+        },
+      };
+
+      // WHEN the change set reports a new parameter value alongside a regenerated TemplateURL
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', Parameters: { endpoint: 'old' } } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/b.yaml?X-Amz-Signature=b', Parameters: { endpoint: 'new' } } }),
+            },
+          },
+        ],
+      });
+
+      // THEN - the parameter change is shown, the TemplateURL is not
+      expect(differences.resources.differenceCount).toBe(1);
+      const diff = differences.resources.get('App');
+      expect(diff.propertyUpdates.Parameters).toBeDefined();
+      expect(diff.propertyUpdates.TemplateURL).toBeUndefined();
+    });
+
+    test.each([
+      ['the URLs have no query string', 'https://bucket.s3.amazonaws.com/assets/a.json', 'https://bucket.s3.amazonaws.com/assets/b.json'],
+      ['the URLs are pre-signed but not from SAR', 'https://bucket.s3.amazonaws.com/templates/a.yaml?X-Amz-Signature=a', 'https://bucket.s3.amazonaws.com/templates/b.yaml?X-Amz-Signature=b'],
+      ['the SAR folder differs', 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a', 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b'],
+      ['the host differs', 'https://bucket-a.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=a', 'https://bucket-b.s3.amazonaws.com/app/a.yaml?X-Amz-Signature=b'],
+    ])('reports a nested stack TemplateURL change from the change set when %s', (_, beforeUrl, afterUrl) => {
+      // GIVEN identical templates with a nested stack
+      const template = {
+        Resources: {
+          Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: { Ref: 'NestedTemplateUrl' } } },
+        },
+      };
+
+      // WHEN
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'Nested',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: beforeUrl } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: afterUrl } }),
+            },
+          },
+        ],
+      });
+
+      // THEN
+      expect(differences.resources.differenceCount).toBe(1);
+      expect(differences.resources.get('Nested').propertyUpdates.TemplateURL).toBeDefined();
+    });
+
+    test('shows only the location of SAR TemplateURLs that point into different folders', () => {
+      // GIVEN identical templates with a SAR application
+      const template = {
+        Resources: {
+          App: { Type: 'AWS::Serverless::Application', Properties: { Location: { ApplicationId: 'app', SemanticVersion: '1.0.0' } } },
+        },
+      };
+
+      // WHEN the change set reports pre-signed URLs for different application versions
+      const differences = fullDiff(JSON.parse(JSON.stringify(template)), JSON.parse(JSON.stringify(template)), {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'App',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/a.yaml?X-Amz-Signature=a' } }),
+              AfterContext: JSON.stringify({ Properties: { TemplateURL: 'https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/b.yaml?X-Amz-Signature=b' } }),
+            },
+          },
+        ],
+      });
+
+      // THEN - the file name and signature are not shown
+      const change = differences.resources.get('App').propertyUpdates.TemplateURL;
+      expect(change.oldValue).toEqual('https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.0/');
+      expect(change.newValue).toEqual('https://awsserverlessrepo-changesets-abc123.s3.us-east-1.amazonaws.com/app-versions-1.0.1/');
+    });
+
+    test('still reports template changes to SAM resources', () => {
+      // GIVEN a SAM resource whose template definition changes
+      const currentTemplate = {
+        Resources: {
+          ServerlessApp: {
+            Type: 'AWS::Serverless::Application',
+            Properties: { Location: 'https://bucket.s3.amazonaws.com/old.yaml' },
+          },
+        },
+      };
+      const newTemplate = {
+        Resources: {
+          ServerlessApp: {
+            Type: 'AWS::Serverless::Application',
+            Properties: { Location: 'https://bucket.s3.amazonaws.com/new.yaml' },
+          },
+        },
+      };
+
+      // WHEN
+      const differences = fullDiff(currentTemplate, newTemplate, {
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'ServerlessApp',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              Replacement: 'False',
+              Details: [],
+              BeforeContext: '{"Properties":{"TemplateURL":"https://example.com/a.yaml"}}',
+              AfterContext: '{"Properties":{"TemplateURL":"https://example.com/b.yaml"}}',
+            },
+          },
+        ],
+      });
+
+      // THEN - the template-derived difference is kept
+      expect(differences.resources.differenceCount).toBe(1);
+      const diff = differences.resources.get('ServerlessApp');
+      expect(diff.propertyUpdates.Location).toBeDefined();
+      expect(diff.propertyUpdates.TemplateURL).toBeUndefined();
     });
 
     test('does not add a change set resource when there is no before/after data to diff', () => {

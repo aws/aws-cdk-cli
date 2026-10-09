@@ -585,6 +585,7 @@ test('deploy is skipped if template did not change', async () => {
 
   // THEN
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy is skipped if parameters are the same', async () => {
@@ -671,6 +672,87 @@ test('deploy is not skipped if notificationArns are different', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(FAKE_STACK),
     notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MagicTopic'],
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('rollback configuration is passed through to CloudFormation', async () => {
+  // GIVEN
+  givenStackExists();
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  } as CreateChangeSetCommandInput);
+});
+
+test('deploy is skipped if rollback configuration is the same', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if rollback configuration is different', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 30,
+    },
   });
 
   // THEN
@@ -781,6 +863,37 @@ test('if existing stack failed to create, it is deleted and recreated even if th
     ...expect.anything,
     ChangeSetType: ChangeSetType.CREATE,
   } as CreateChangeSetCommandInput);
+});
+
+test('deploy is skipped if template did not change and the caller will execute the change set afterwards', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the internal first phase of an executing change-set deployment
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN
+  assertIsSuccessfulDeployStackResult(result);
+  expect(result.noOp).toBe(true);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if template did not change and --no-execute is given', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the change set is the user's final artifact
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy not skipped if template did not change and --force is applied', async () => {
