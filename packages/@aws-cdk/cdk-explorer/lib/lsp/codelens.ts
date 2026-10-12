@@ -1,10 +1,7 @@
-import { pathToFileURL } from 'url';
-import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
 import { COMMAND_DISABLE_AUTO_SYNTH, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_SYNTH_NOW } from './commands';
 import { resourceTarget, type ResourceTarget } from './template-locator';
-import type { ConstructNode } from '../core/assembly-reader';
-import type { SourceLocation } from '../core/source-resolver';
+import { type AssemblyResourceNode, isResourceNode, type AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 
 /** Command the client registers to open a resource in its template. */
 export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
@@ -23,13 +20,14 @@ export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
  * @param autoSynthEnabled - current toggle state; controls which header lenses appear
  */
 export async function codeLensesForFile(
-  index: ConstructIndex<ConstructNode>,
-  fileUri: string,
+  index: AssemblyIndexWithSourceLocations,
+  assemblyDir: string,
+  filePath: string,
   autoSynthEnabled: boolean,
 ): Promise<CodeLens[]> {
-  const matches = [...index]
-    .filter((node) => isResourceOnFile(node, fileUri))
-    .map((node) => ({ line: node.sourceLocation.line, node }));
+  const matches = index.constructsInSourceFile(filePath)
+    .filter(([_, x]) => isResourceNode(x))
+    .map(([line, node]) => ({ line, node: node as AssemblyResourceNode }));
 
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources). Resolve
@@ -38,7 +36,7 @@ export async function codeLensesForFile(
   for (const [line, group] of groupBy(matches, (m) => m.line)) {
     l1Lenses.push({
       range: lineRange(line),
-      command: await commandFor(group.map((m) => m.node)),
+      command: await commandFor(assemblyDir, group.map((m) => m.node)),
     });
   }
 
@@ -72,40 +70,19 @@ interface ResourceChoice {
  * client opens directly (one) or via a picker (several). Unresolvable resources
  * are dropped; a line where none resolve stays title-only.
  */
-async function commandFor(nodes: readonly ResourceConstruct[]): Promise<Command> {
+async function commandFor(assemblyDir: string, nodes: readonly AssemblyResourceNode[]): Promise<Command> {
   const title = titleFor(nodes);
   const choices: ResourceChoice[] = [];
   for (const node of nodes) {
-    const target = await resourceTarget(node);
+    const target = await resourceTarget(assemblyDir, node);
     if (target !== undefined) {
-      choices.push({ label: node.type, description: friendlyName(node.path), target });
+      choices.push({ label: node.cfnResource.type, description: friendlyName(node.constructPath), target });
     }
   }
   if (choices.length === 0) {
     return { title, command: '' };
   }
   return { title, command: OPEN_RESOURCE_COMMAND, arguments: [choices] };
-}
-
-/** A construct that produces a CFN resource and carries a source location. */
-export interface ResourceConstruct extends ConstructNode {
-  readonly sourceLocation: SourceLocation;
-  readonly logicalId: string;
-  readonly type: string;
-}
-
-/**
- * A node gets a lens only if it maps to a CFN resource (has logicalId + type)
- * and has a source location in the requested file. Wrapper nodes and non-TS
- * constructs are excluded.
- */
-export function isResourceOnFile(node: ConstructNode, fileUri: string): node is ResourceConstruct {
-  return (
-    node.sourceLocation !== undefined &&
-    node.logicalId !== undefined &&
-    node.type !== undefined &&
-    pathToFileURL(node.sourceLocation.file).toString() === fileUri
-  );
 }
 
 /** Group items by a derived key, preserving first-seen order. */
@@ -126,11 +103,11 @@ function lineRange(line1Based: number): Range {
   return { start: { line, character: 0 }, end: { line, character: 0 } };
 }
 
-function titleFor(resources: readonly ResourceConstruct[]): string {
+function titleFor(resources: readonly AssemblyResourceNode[]): string {
   if (resources.length === 1) {
-    return `Creates ${resources[0].type}`;
+    return `Creates ${resources[0].cfnResource.type}`;
   }
-  const types = resources.map((r) => r.type).join(', ');
+  const types = resources.map((r) => r.cfnResource.type).join(', ');
   return `Creates ${resources.length} resources: ${types}`;
 }
 

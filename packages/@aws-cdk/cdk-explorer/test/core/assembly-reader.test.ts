@@ -52,8 +52,8 @@ describe('readAssembly', () => {
 
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(data.tree).toHaveLength(2);
-    expect(data.tree.map((n) => n.id).sort()).toEqual(['Stack1', 'Stack2']);
+    expect(data.index).toHaveLength(2);
+    expect(data.index.map((n) => n.id).sort()).toEqual(['Stack1', 'Stack2']);
   });
 
   test('enriches resource nodes with logicalId and cfnType', async () => {
@@ -67,7 +67,7 @@ describe('readAssembly', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    const resource = findNode(data.tree, 'Stack1/MyBucket/Resource')!;
+    const resource = findNode(data.index, 'Stack1/MyBucket/Resource')!;
     expect(resource.logicalId).toBe('MyBucketF68F3FF0');
     expect(resource.type).toBe('AWS::S3::Bucket');
   });
@@ -85,7 +85,7 @@ describe('readAssembly', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    const wrapper = findNode(data.tree, 'Stack1/MyBucket')!;
+    const wrapper = findNode(data.index, 'Stack1/MyBucket')!;
     expect(wrapper.logicalId).toBeUndefined();
     expect(wrapper.type).toBeUndefined();
   });
@@ -96,8 +96,8 @@ describe('readAssembly', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(Array.isArray(data.tree)).toBe(true);
-    expect(Array.isArray(data.tree[0].children)).toBe(true);
+    expect(Array.isArray(data.index)).toBe(true);
+    expect(Array.isArray(data.index[0].children)).toBe(true);
   });
 
   test('returns error for malformed manifest', async () => {
@@ -159,7 +159,7 @@ describe('readAssembly with violations', () => {
 
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(data.tree).toHaveLength(1);
+    expect(data.index).toHaveLength(1);
     expect(data.violations).toBeUndefined();
     expect(data.warnings.some((w) => w.includes('validation-report.json'))).toBe(true);
   });
@@ -170,7 +170,7 @@ describe('readAssembly with violations', () => {
 
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(data.tree).toHaveLength(1);
+    expect(data.index).toHaveLength(1);
     expect(data.violations).toBeDefined();
   });
 });
@@ -189,8 +189,8 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    const stage = data.tree.find((n) => n.id === 'Prod')!;
-    expect(stage.path).toBe('Prod');
+    const stage = data.index.find((n) => n.id === 'Prod')!;
+    expect(stage.constructPath).toBe('Prod');
   });
 
   test('resources inside a Stage stack get logicalId and cfnType', async () => {
@@ -205,7 +205,7 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    const resource = findNode(data.tree, 'Prod/Service/MyBucket/Resource')!;
+    const resource = findNode(data.index, 'Prod/Service/MyBucket/Resource')!;
     expect(resource.logicalId).toBe('MyBucketABC');
     expect(resource.type).toBe('AWS::S3::Bucket');
   });
@@ -221,8 +221,8 @@ describe('readAssembly with Stage-based (nested-assembly) apps', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Prod/Service/X/Resource')!.logicalId).toBe('ProdX');
-    expect(findNode(data.tree, 'Staging/Service/X/Resource')!.logicalId).toBe('StagingX');
+    expect(findNode(data.index, 'Prod/Service/X/Resource')!.logicalId).toBe('ProdX');
+    expect(findNode(data.index, 'Staging/Service/X/Resource')!.logicalId).toBe('StagingX');
   });
 });
 
@@ -239,8 +239,8 @@ describe('readAssembly graceful degradation', () => {
 
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(data.tree).toHaveLength(1);
-    const stack = data.tree[0];
+    expect(data.index).toHaveLength(1);
+    const stack = data.index[0];
     expect(stack.id).toBe('Stack1');
     expect(stack.sourceLocation).toBeUndefined();
   });
@@ -260,10 +260,10 @@ describe('readAssembly resource templateFile', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+    expect(findNode(data.index, 'Stack1/MyBucket/Resource')!.templateFile)
       .toBe(path.join(dir!, 'Stack1.template.json'));
     // L2 wrapper is not a CFN resource -> no template.
-    expect(findNode(data.tree, 'Stack1/MyBucket')!.templateFile).toBeUndefined();
+    expect(findNode(data.index, 'Stack1/MyBucket')!.templateFile).toBeUndefined();
   });
 
   test('resolves nested-stack resources to the nested template, not the parent', async () => {
@@ -280,10 +280,10 @@ describe('readAssembly resource templateFile', () => {
     const data = expectSuccess(await readAssembly(dir));
 
     // Top-level resource lives in the parent template.
-    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/TopBucket/Resource')!.templateFile)
       .toBe(path.join(dir!, 'Parent.template.json'));
     // The resource inside the NestedStack lives in the nested template.
-    expect(findNode(data.tree, 'Parent/MyNested/NestedQueue/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/MyNested/NestedQueue/Resource')!.templateFile)
       .toBe(path.join(dir!, 'ParentMyNested.nested.template.json'));
   });
 
@@ -298,8 +298,8 @@ describe('readAssembly resource templateFile', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Prod/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Prod.template.json'));
-    expect(findNode(data.tree, 'Dev/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Dev.template.json'));
+    expect(findNode(data.index, 'Prod/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Prod.template.json'));
+    expect(findNode(data.index, 'Dev/Data/Resource')!.templateFile).toBe(path.join(dir!, 'Dev.template.json'));
   });
 
   test('resolves a parent resource and its nested-stack twin that share a logical id', async () => {
@@ -318,9 +318,9 @@ describe('readAssembly resource templateFile', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Parent/Data/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/Data/Resource')!.templateFile)
       .toBe(path.join(dir!, 'Parent.template.json'));
-    expect(findNode(data.tree, 'Parent/Nested/Data/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/Nested/Data/Resource')!.templateFile)
       .toBe(path.join(dir!, 'ParentNested.nested.template.json'));
   });
 
@@ -341,9 +341,9 @@ describe('readAssembly resource templateFile', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Parent/Outer/OuterFn/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/Outer/OuterFn/Resource')!.templateFile)
       .toBe(path.join(dir!, 'ParentOuter.nested.template.json'));
-    expect(findNode(data.tree, 'Parent/Outer/Inner/InnerQueue/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/Outer/Inner/InnerQueue/Resource')!.templateFile)
       .toBe(path.join(dir!, 'ParentOuterInner.nested.template.json'));
   });
 
@@ -361,9 +361,9 @@ describe('readAssembly resource templateFile', () => {
     fs.rmSync(path.join(dir, 'ParentNested.nested.template.json'));
     // Still a success: the missing nested template degrades only its subtree.
     const data = expectSuccess(await readAssembly(dir));
-    expect(findNode(data.tree, 'Parent/TopBucket/Resource')!.templateFile)
+    expect(findNode(data.index, 'Parent/TopBucket/Resource')!.templateFile)
       .toBe(path.join(dir!, 'Parent.template.json'));
-    expect(findNode(data.tree, 'Parent/Nested/NestedQueue/Resource')!.templateFile).toBeUndefined();
+    expect(findNode(data.index, 'Parent/Nested/NestedQueue/Resource')!.templateFile).toBeUndefined();
   });
 
   test('resolves templateFile without path metadata (positional, not id-based)', async () => {
@@ -375,7 +375,7 @@ describe('readAssembly resource templateFile', () => {
     });
     const data = expectSuccess(await readAssembly(dir));
 
-    expect(findNode(data.tree, 'Stack1/MyBucket/Resource')!.templateFile)
+    expect(findNode(data.index, 'Stack1/MyBucket/Resource')!.templateFile)
       .toBe(path.join(dir!, 'Stack1.template.json'));
   });
 });

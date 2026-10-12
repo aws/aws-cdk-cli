@@ -136,7 +136,7 @@ export interface WebViolationOccurrence {
    */
   readonly templateFile?: string;
   /** Resolved user source location; absent for non-TypeScript apps. */
-  readonly sourceLocation?: WebSourceLocation;
+  readonly sourceLocations?: readonly WebSourceLocation[];
   /** JSON property paths within the resource that violate the rule. */
   readonly propertyPaths?: readonly string[];
 }

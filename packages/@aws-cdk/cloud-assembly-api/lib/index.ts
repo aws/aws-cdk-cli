@@ -25,3 +25,4 @@ export * from './stack-trace';
 export * from './validation/formatting';
 export * from './validation/parsing';
 export * from './validation/loading';
+export * from './assembly-index';

@@ -1,5 +1,5 @@
-import type { WebConstructNode } from './api';
 import { addToColl } from './util';
+import type { WebConstructNode } from '../lib/web/protocol';
 
 /**
  * A construct anchored to a line in a source file, paired with the template
@@ -16,7 +16,13 @@ export interface FileContents {
  *
  * Indexes both source files and template files.
  */
-export class ConstructIndex {
+export class SourceAndTemplateIndex {
+  public static fromTree(tree: readonly WebConstructNode[]) {
+    const ret = new SourceAndTemplateIndex();
+    ret.addTree(tree);
+    return ret;
+  }
+
   // TODO: we are treating all files as being in the same namespace but that's actually wrong,
   // source files are w.r.t. the app root and template files are w.r.t. the assembly root.
   private files = new Map<string, FileContents>();
@@ -46,7 +52,7 @@ export class ConstructIndex {
   public addTree(tree: readonly WebConstructNode[]) {
     recurse.call(this, tree);
 
-    function recurse(this: ConstructIndex, nodes: readonly WebConstructNode[]) {
+    function recurse(this: SourceAndTemplateIndex, nodes: readonly WebConstructNode[]) {
       for (const node of nodes) {
         this.constructs.set(node.path, node);
 

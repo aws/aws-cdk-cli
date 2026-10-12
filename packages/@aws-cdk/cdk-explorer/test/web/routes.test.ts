@@ -168,7 +168,7 @@ describe('GET /api/tree', () => {
         sourceLocation: { file: path.join(realAppDir, 'lib', 'stack.ts'), line: 12, column: 5 },
         children: [],
       };
-      return { status: 'success', data: { tree: [node], warnings: ['heads up'], timestamp: Date.now() } };
+      return { status: 'success', data: { index: [node], warnings: ['heads up'], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/tree');
@@ -255,7 +255,7 @@ describe('GET /api/template', () => {
         sourceLocation: { file: path.join(realAppDir, 'lib', 'stack.ts'), line: 10, column: 5 },
         children: [],
       };
-      return { status: 'success', data: { tree: [node], warnings: [], timestamp: Date.now() } };
+      return { status: 'success', data: { index: [node], warnings: [], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/template').query({ file: 'MyStack.template.json' });
@@ -354,7 +354,7 @@ describe('GET /api/policy-validation', () => {
           },
         ],
       };
-      return { status: 'success', data: { tree: [node], violations, warnings: [], timestamp: Date.now() } };
+      return { status: 'success', data: { index: [node], violations, warnings: [], timestamp: Date.now() } };
     };
 
     const res = await request(appWith(reader)).get('/api/policy-validation');

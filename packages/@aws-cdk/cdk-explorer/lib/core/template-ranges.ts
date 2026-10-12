@@ -115,7 +115,7 @@ export function resolveAllResourceRanges(templateText: string): Record<string, R
 
   for (const [pointer, mapping] of Object.entries(pointers)) {
     // 'pointer' looks like '/<Section>/<logicalId>/Properties/...' etc.
-    const justAResource = /^\/([^/])\/([^/]+)$/.exec(pointer);
+    const justAResource = /^\/([^/]+)\/([^/]+)$/.exec(pointer);
 
     // We ignore the 'Section' part; 'logicalId' might be an index into any of the
     // Sections but we don't have enough information to pinpoint the right section.
@@ -136,7 +136,7 @@ export function resolveAllResourceRanges(templateText: string): Record<string, R
         props = {};
         resourceProperties.set(id, props);
       }
-      props[unescapePointerSegment(propMatch[3])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
+      props[unescapePointerSegment(propMatch[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
     }
   }
 

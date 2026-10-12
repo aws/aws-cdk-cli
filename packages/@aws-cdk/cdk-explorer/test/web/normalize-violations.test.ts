@@ -91,7 +91,7 @@ describe('normalizeViolations', () => {
     expect(occ.constructPath).toBe('Other/X');
     expect(occ.logicalId).toBe('X9');
     expect(occ.templateFile).toBe('Other.template.json');
-    expect(occ.sourceLocation).toBeUndefined();
+    expect(occ.sourceLocations).toBeUndefined();
     expect(occ.propertyPaths).toEqual(['P']);
   });
 
@@ -100,7 +100,7 @@ describe('normalizeViolations', () => {
     const occ = normalizeViolations(report([{ constructPath: 'Ghost' }]), index, ASSEMBLY_DIR, APP_DIR)[0].occurrences[0];
     expect(occ.logicalId).toBeUndefined();
     expect(occ.templateFile).toBeUndefined();
-    expect(occ.sourceLocation).toBeUndefined();
+    expect(occ.sourceLocations).toBeUndefined();
     expect(occ.propertyPaths).toBeUndefined();
   });
 

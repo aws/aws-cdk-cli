@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { ConstructIndex, indexTemplateRanges, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
-import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { type AssemblyIndexNode, AssemblyIndex, indexTemplateRanges, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
+import type { Toolkit } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
   StreamMessageWriter,
@@ -35,30 +35,20 @@ import { hoverForPosition } from './hover';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
-import type { AssemblyLock } from '../core/assembly-lock';
+import { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 import {
-  readAssembly as defaultReadAssembly,
+  webAssemblyDataFromAssembly,
   type AssemblyReadResult,
-  type ConstructNode,
 } from '../core/assembly-reader';
 import {
   startAssemblyWatcher as defaultStartAssemblyWatcher,
   type AssemblyWatcher,
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
+import { readCdkConfig } from '../core/cdk-config';
 import { isWithinRoot } from '../core/source-resolver';
 import { SOURCE_WATCH_EXCLUDES } from '../core/source-watcher';
 import type { SynthRunResult } from '../core/synth-runner';
-
-/**
- * The cdk.out watcher fires after a synth's file writes but possibly before the
- * synth releases its write lock. The toolkit's read lock is fail-fast (it does
- * not queue), so refreshFromAssembly polls up to REFRESH_LOCK_RETRIES times,
- * REFRESH_LOCK_RETRY_MS apart, for the write lock to clear before giving up on
- * a refresh pass.
- */
-const REFRESH_LOCK_RETRIES = 10;
-const REFRESH_LOCK_RETRY_MS = 50;
 
 /**
  * Synth concurrency latch, mirroring `cdk watch` (see toolkit.ts). 'open' = idle,
@@ -78,10 +68,7 @@ const SYNTH_LOCK_RETRY_BASE_MS = 100;
 const SYNTH_LOCK_RETRY_MAX_MS = 2_000;
 
 export interface LspHandlerOptions {
-  /** Override readAssembly for tests. Defaults to reading <applicationDir>/cdk.out. */
-  readonly readAssembly?: (assemblyDir: string) => Promise<AssemblyReadResult>;
-  /** Acquire a read lock on the assembly dir; throws a `LockError` on writer contention. */
-  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
+  readonly toolkit: Toolkit;
   /** Shipped CDK CLI version to advertise (serverInfo + manifest). Injected by the entrypoint; omitted in tests. */
   readonly version?: string;
   /**
@@ -121,7 +108,6 @@ export interface LspHandlerOptions {
  */
 export interface ToolkitBindings {
   readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
-  readonly acquireAssemblyLock: (assemblyDir: string) => Promise<AssemblyLock>;
 }
 
 export type ToolkitBindingsFactory = (console: RemoteConsole) => ToolkitBindings;
@@ -129,8 +115,7 @@ export type ToolkitBindingsFactory = (console: RemoteConsole) => ToolkitBindings
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
   readonly writable: NodeJS.WritableStream;
-  /** Builds the Toolkit-backed bindings once `connection.console` exists. Required; main.ts always wires it. */
-  readonly toolkitBindingsFactory: ToolkitBindingsFactory;
+  readonly toolkitFactory: (console: RemoteConsole) => Toolkit;
   /** Shipped CDK CLI version to advertise. Injected by main.ts from the CLI. */
   readonly version?: string;
 }
@@ -186,8 +171,6 @@ function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
  * No streams, no JSON-RPC, no framework — testable in isolation.
  */
 export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
-  const readAssembly = options.readAssembly ?? defaultReadAssembly;
-  const acquireAssemblyLock = options.acquireAssemblyLock;
   const log = options.logger ?? NOOP_LOGGER;
   const onPublishDiagnostics = options.onPublishDiagnostics ?? (() => {
   });
@@ -216,11 +199,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   let assemblyWatcher: AssemblyWatcher | undefined;
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
   // and whenever the cdk.out watcher detects a re-synth.
-  let cachedIndex: ConstructIndex<ConstructNode> = ConstructIndex.fromTree<ConstructNode>([]);
-  // The decorated tree, its warnings, and the source dir behind cachedIndex,
-  // retained so the getConstructTree request serves source locations without a
-  // re-read. undefined assemblyDir means no successful read has happened yet.
-  let cachedTree: readonly ConstructNode[] = [];
+  let cachedIndex = new AssemblyIndexWithSourceLocations(new AssemblyIndex());
   let cachedWarnings: readonly string[] = [];
   let cachedAssemblyDir: string | undefined;
   // URIs that currently have published diagnostics. On each refresh we publish
@@ -240,39 +219,28 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     return applicationDir ?? process.cwd();
   }
 
-  async function refreshFromAssembly(projectDir: string): Promise<void> {
-    const assemblyDir = path.join(projectDir, 'cdk.out');
-
-    // Hold a read lock so a concurrent synth can't overwrite cdk.out mid-read.
-    // The lock is fail-fast, so poll until the writer releases; the file events
-    // that triggered us are already over.
-    let lock: AssemblyLock | undefined;
-    for (let attempt = 0; attempt <= REFRESH_LOCK_RETRIES; attempt++) {
-      try {
-        lock = await acquireAssemblyLock(assemblyDir);
-        break;
-      } catch (err) {
-        if (ToolkitError.isLockError(err)) {
-          if (attempt < REFRESH_LOCK_RETRIES) {
-            await sleep(REFRESH_LOCK_RETRY_MS);
-          }
-          continue;
-        }
-        // ENOENT (no cdk.out yet) is expected and silent; anything else is real.
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          log.error(`Failed to open cloud assembly for reading: ${(err as Error).message}`);
-        }
-        return;
-      }
-    }
-    // Write lock still held after every retry: skip this pass.
-    if (lock === undefined) return;
+  async function refreshFromAssembly(projectDir: string, assemblyDir: string): Promise<void> {
+    const asmSource = await options.toolkit.fromAssemblyDirectory(assemblyDir);
+    await using asm = await asmSource.produce();
 
     let result: AssemblyReadResult;
     try {
-      result = await readAssembly(assemblyDir);
-    } finally {
-      await lock.release();
+      result = {
+        status: 'success',
+        data: await webAssemblyDataFromAssembly(projectDir, asm),
+        mtimeMs: asm.cloudAssembly.mtimeMs,
+      };
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        result = {
+          status: 'not-found',
+        };
+      } else {
+        result = {
+          status: 'error',
+          message: e.message ?? String(e),
+        };
+      }
     }
 
     if (result.status === 'error') {
@@ -281,13 +249,12 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     }
     if (result.status === 'not-found') return;
 
-    const { tree, violations, warnings } = result.data;
+    const { index, violations, warnings } = result.data;
     for (const warning of warnings) {
       log.warn(warning);
     }
 
-    cachedIndex = ConstructIndex.fromTree(tree);
-    cachedTree = tree;
+    cachedIndex = index;
     cachedWarnings = warnings;
     cachedAssemblyDir = assemblyDir;
 
@@ -424,13 +391,15 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onInitialized() {
       const projectDir = currentProjectDir();
+      const assemblyDir = readCdkConfig(projectDir).output;
+
       // Ignore non-source paths (deps, cdk.out, dotfiles) using the same policy
       // the web explorer's source watcher applies.
       shouldIgnore = createIgnoreMatcher({
         exclude: SOURCE_WATCH_EXCLUDES,
         rootDir: projectDir,
       });
-      await refreshFromAssembly(projectDir);
+      await refreshFromAssembly(projectDir, assemblyDir);
 
       // Watch cdk.out so any synth (an external `cdk synth`/`cdk watch`, or a
       // future in-process synth) refreshes the editor's diagnostics and lenses.
@@ -439,7 +408,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         onChange: () => {
           // refreshFromAssembly is async; surface a rejection rather than
           // floating the promise from this watcher callback.
-          refreshFromAssembly(projectDir).catch((err) =>
+          refreshFromAssembly(projectDir, assemblyDir).catch((err) =>
             log.error(`Assembly refresh failed: ${(err as Error).message}`));
         },
         onError: (err) => log.error(`Assembly watcher error: ${(err as Error).message}`),
@@ -455,7 +424,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         .catch((err: unknown) => log.error(`Auto-synth threw unexpectedly: ${(err as Error).message}`));
     },
     onCodeLens(params) {
-      return codeLensesForFile(cachedIndex, params.textDocument.uri, autoSynthEnabled);
+      return codeLensesForFile(cachedIndex, fileURLToPath(params.textDocument.uri), autoSynthEnabled);
     },
     async onDefinition(params) {
       // Only synthesized templates link back to source, and only file: URIs are
@@ -493,7 +462,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       });
     },
     onHover(params) {
-      return hoverForPosition(cachedIndex, params.textDocument.uri, params.position,
+      return hoverForPosition(cachedIndex, fileURLToPath(params.textDocument.uri), params.position,
         (file) => fs.promises.readFile(file, 'utf-8').catch(() => undefined));
     },
     onGetConstructTree() {
@@ -515,25 +484,25 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         return rangesByTemplate.get(templateFile);
       };
       const entries: ConstructSourceEntry[] = [];
-      const collect = (nodes: readonly ConstructNode[]): void => {
+      const collect = (nodes: readonly AssemblyIndexNode[]): void => {
         for (const node of nodes) {
           const templateOffset =
-            node.templateFile && node.logicalId
-              ? templateRangesFor(node.templateFile)?.block(node.logicalId)?.start
+            node.cfnResource.assemblyRelativeTemplateFile && node.cfnResource.logicalId
+              ? templateRangesFor(node.cfnResource.assemblyRelativeTemplateFile)?.block(node.cfnResource.logicalId)?.start
               : undefined;
           entries.push({
-            path: node.path,
+            path: node.constructPath,
             id: node.id,
-            type: node.type,
-            logicalId: node.logicalId,
-            sourceLocation: node.sourceLocation,
-            templateFile: node.templateFile,
+            type: node.cfnResource.type,
+            logicalId: node.cfnResource.logicalId,
+            sourceLocation: parsedSourceLocation(node),
+            templateFile: node.cfnResource.assemblyRelativeTemplateFile,
             templateOffset,
           });
-          collect(node.children);
+          collect(Object.values(node.children));
         }
       };
-      collect(cachedTree);
+      collect(cachedIndex.firstLevelChildren);
       return { status: 'ok', assemblyDir, entries, warnings: [...cachedWarnings] };
     },
     onShutdown() {
@@ -554,10 +523,6 @@ export function startServer(options: LspServerOptions): void {
   // Captured from onInitialize; used to gate CodeLens refresh requests.
   let codeLensRefreshSupported = false;
 
-  // Build the toolkit bindings once connection.console exists; main.ts owns how
-  // they are constructed (synth runner + assembly read lock).
-  const { synthRunner, acquireAssemblyLock } = options.toolkitBindingsFactory(connection.console);
-
   const handlers = createLspHandlers({
     logger: connection.console,
     onPublishDiagnostics: (uri, diagnostics) => {
@@ -571,8 +536,7 @@ export function startServer(options: LspServerOptions): void {
       }
     },
     version: options.version,
-    synthRunner,
-    acquireAssemblyLock,
+    toolkit: options.toolkitFactory(connection.console),
     notify: {
       // Route to the Output panel (connection.console) rather than popups.
       // showMessage creates a dismissable toast that interrupts the user's

@@ -6,7 +6,6 @@ import { LockError } from '@aws-cdk/toolkit-lib';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { AssemblyReadResult } from '../../lib';
-import type { AssemblyLock } from '../../lib/core/assembly-lock';
 import type { SynthRunResult } from '../../lib/core/synth-runner';
 import { COMMAND_SYNTH_NOW, type NotifySink } from '../../lib/lsp/commands';
 import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
@@ -22,12 +21,6 @@ function makeNotifySink(): NotifySink & { infoMessages: string[]; errorMessages:
     withProgress: async (_msg, fn) => fn(),
   };
 }
-
-/** Simple no-op assembly lock for tests that do not exercise lock contention. */
-const mockAssemblyLock = async (): Promise<AssemblyLock> => ({
-  release: async () => {
-  },
-});
 
 interface CapturedClient {
   handlers: LspHandlers;
@@ -132,7 +125,7 @@ function readAssemblyResolvingAfterFirst(): () => Promise<AssemblyReadResult> {
   let call = 0;
   return async (): Promise<AssemblyReadResult> => {
     call += 1;
-    return { status: 'success', data: call === 1 ? { warnings: [], tree, violations } : { warnings: [], tree } };
+    return { status: 'success', data: call === 1 ? { warnings: [], index: tree, violations } : { warnings: [], index: tree } };
   };
 }
 
@@ -407,11 +400,11 @@ describe('LSP Server', () => {
         status: 'success',
         data: {
           warnings: [],
-          tree: [{
-            path: 'Stack1',
+          index: [{
+            constructPath: 'Stack1',
             id: 'Stack1',
             children: [{
-              path: 'Stack1/MyBucket/Resource',
+              constructPath: 'Stack1/MyBucket/Resource',
               id: 'Resource',
               logicalId: 'MyBucketABC',
               type: 'AWS::S3::Bucket',
@@ -453,7 +446,7 @@ describe('LSP Server', () => {
     const client = createTestClient({
       readAssembly: async (): Promise<AssemblyReadResult> => ({
         status: 'success',
-        data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
+        data: { warnings: [], index: [{ constructPath: 'Stack1', id: 'Stack1', children: [] }] },
       }),
     });
     await initializeClient(client, { applicationDir: '/p' }, { workspace: { codeLens: { refreshSupport: true } } });
@@ -464,7 +457,7 @@ describe('LSP Server', () => {
     const client = createTestClient({
       readAssembly: async (): Promise<AssemblyReadResult> => ({
         status: 'success',
-        data: { warnings: [], tree: [{ path: 'Stack1', id: 'Stack1', children: [] }] },
+        data: { warnings: [], index: [{ constructPath: 'Stack1', id: 'Stack1', children: [] }] },
       }),
     });
     await initializeClient(client, { applicationDir: '/p' });

@@ -13,19 +13,6 @@ import {
   type WebViolationOccurrence,
 } from '../lib/web/protocol';
 
-export type {
-  FileResponse,
-  LineRange,
-  TemplateResource,
-  TemplateResponse,
-  TreeResponse,
-  ViolationsResponse,
-  WebConstructNode,
-  WebSourceLocation,
-  WebViolation,
-  WebViolationOccurrence,
-};
-
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) {

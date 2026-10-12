@@ -7,10 +7,9 @@ import { localOnly } from './middleware/local-only';
 import { securityHeaders } from './middleware/security-headers';
 import { newSessionToken, sessionAuth, TOKEN_QUERY_PARAM } from './middleware/session-token';
 import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from './protocol';
-import { registerApi } from './routes';
+import { createApiRouter } from './routes';
 import { StalenessTracker } from './staleness';
 import { webAsset } from './web-assets';
-import { toolkitAssemblyLock } from '../core/assembly-lock';
 import {
   startAssemblyWatcher as defaultStartAssemblyWatcher,
   type AssemblyWatcher,
@@ -121,12 +120,13 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // synth. No synth-start was observed, so this uses the manifest-mtime fallback.
   const initialManifestMtime = manifestMtimeMs();
   if (initialManifestMtime !== undefined) staleness.onAssemblyRefreshed(initialManifestMtime);
-  registerApi(app, {
+
+  app.use('/api', createApiRouter({
     appDir,
     assemblyDir,
-    acquireAssemblyLock: toolkitAssemblyLock(toolkit),
+    toolkit,
     staleness,
-  });
+  }));
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
   // changes. Registered before the /api catch-all so it is not treated as unknown.

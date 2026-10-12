@@ -43,6 +43,10 @@ export class StackTrace {
     }
     return undefined;
   }
+
+  public findFirstUserFrame(): StackFrame | undefined {
+    return this.findAndParse(DEFAULT_USER_CODE_FINDER);
+  }
 }
 
 export class StackFrame {
@@ -99,23 +103,23 @@ export class StackFrame {
     fileName = m ? frame.slice(0, -m[0].length) : frame;
     sourceLocation = m ? m[0].slice(1) : '';
 
-    return {
+    return new StackFrame(
       fileName,
       functionName,
       sourceLocation,
-    };
+    );
   }
 
   constructor(
     /**
-     * Name of the function this call frame is in
-     */
-    public readonly functionName: string,
-
-    /**
      * The file name this call frame is in
      */
     public readonly fileName: string,
+
+    /**
+     * Name of the function this call frame is in
+     */
+    public readonly functionName: string,
 
     /**
      * The line and optionally column number this call frame is in
@@ -125,6 +129,27 @@ export class StackFrame {
     public readonly sourceLocation: string,
   ) {
 
+  }
+
+  public get lineLocation() {
+    if (!this.sourceLocation) {
+      return undefined;
+    }
+    const parts = this.sourceLocation.split(':');
+    const line = parseInt(parts[0], 10);
+    const column = parseInt(parts[1], 10);
+    return {
+      line: isNaN(line) ? undefined : line,
+      column: isNaN(column) ? undefined : column,
+    };
+  }
+
+  public get lineNumber(): number | undefined {
+    return this.lineLocation?.line;
+  }
+
+  public get columnNumber(): number | undefined {
+    return this.lineLocation?.column;
   }
 }
 

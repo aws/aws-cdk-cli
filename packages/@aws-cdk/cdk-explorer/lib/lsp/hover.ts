@@ -1,9 +1,9 @@
 import { pathToFileURL } from 'url';
-import { type ConstructIndex, indexTemplateRanges, type OffsetRange, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
 import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver/node';
-import { isResourceOnFile, type ResourceConstruct } from './codelens';
 import { offsetsToRange } from './positions';
-import type { ConstructNode } from '../core/assembly-reader';
+import { type AssemblyIndexWithSourceLocations, isResourceNode, type AssemblyResourceNode } from '../core/assembly-index-with-source-locations';
+import type { OffsetRange, TemplateRanges } from '../core/template-ranges';
+import { indexTemplateRanges } from '../core/template-ranges';
 
 /** A clickable template target: a file URI and a 1-based line. */
 export interface LinkTarget {
@@ -27,8 +27,8 @@ export interface HoverLinks {
 
 /** A construct line's primary resource (the one the hover leads with) and its other resources. */
 export interface PrimarySelection {
-  readonly primary: ResourceConstruct;
-  readonly others: readonly ResourceConstruct[];
+  readonly primary: AssemblyResourceNode;
+  readonly others: readonly AssemblyResourceNode[];
 }
 
 /** Top-level properties shown before truncating with a "+N more" line. */
@@ -47,15 +47,15 @@ const MAX_HISTOGRAM_TYPES = 6;
  * the CodeLens resource predicate, narrowed to the single hovered line.
  */
 export function resourceNodesOnLine(
-  index: ConstructIndex<ConstructNode>,
-  uri: string,
+  index: AssemblyIndexWithSourceLocations,
+  filePath: string,
   position: Position,
-): ResourceConstruct[] {
+): AssemblyResourceNode[] {
   // sourceLocation is 1-based; LSP positions are 0-based.
   const line = position.line + 1;
-  return [...index].filter(
-    (node): node is ResourceConstruct => isResourceOnFile(node, uri) && node.sourceLocation.line === line,
-  );
+  return index.constructsOnLine(filePath, line)
+    .filter(x => isResourceNode(x))
+    .map(x => x as AssemblyResourceNode);
 }
 
 /**
@@ -64,12 +64,12 @@ export function resourceNodesOnLine(
  * property link targets. Returns undefined when no resource maps to the line.
  */
 export async function hoverForPosition(
-  index: ConstructIndex<ConstructNode>,
-  uri: string,
+  index: AssemblyIndexWithSourceLocations,
+  filePath: string,
   position: Position,
   readTemplate: (file: string) => Promise<string | undefined>,
 ): Promise<Hover | undefined> {
-  const nodes = resourceNodesOnLine(index, uri, position);
+  const nodes = resourceNodesOnLine(index, filePath, position);
   if (nodes.length === 0) {
     return undefined;
   }
@@ -99,8 +99,8 @@ interface ResolvedTemplate {
  * stack-relative logical ids can collide across templates.
  */
 async function resolveHoverLinks(
-  nodes: readonly ResourceConstruct[],
-  primary: ResourceConstruct | undefined,
+  nodes: readonly AssemblyResourceNode[],
+  primary: AssemblyResourceNode | undefined,
   readTemplate: (file: string) => Promise<string | undefined>,
 ): Promise<HoverLinks> {
   const templates = new Map<string, ResolvedTemplate | undefined>();
@@ -116,20 +116,20 @@ async function resolveHoverLinks(
   const resourceLocations: Record<string, LinkTarget> = {};
   const properties: Record<string, LinkTarget> = {};
   for (const node of nodes) {
-    if (node.templateFile === undefined) {
+    if (node.cfnResource.assemblyRelativeTemplateFile === undefined) {
       continue;
     }
-    const template = await resolveOnce(node.templateFile);
+    const template = await resolveOnce(node.cfnResource.assemblyRelativeTemplateFile);
     if (template === undefined) {
       continue;
     }
-    const uri = pathToFileURL(node.templateFile).toString();
+    const uri = pathToFileURL(node.cfnResource.assemblyRelativeTemplateFile).toString();
     if (node === primary) {
-      const resource = template.ranges.resource(node.logicalId);
+      const resource = template.ranges.resource(node.cfnResource.logicalId);
       if (resource === undefined) {
         continue;
       }
-      resourceLocations[node.path] = { uri, line: lineOf(template.text, resource.block) };
+      resourceLocations[node.constructPath] = { uri, line: lineOf(template.text, resource.block) };
       for (const [name, range] of Object.entries(resource.properties)) {
         // Lower-case the key so the tree's L1 camelCase prop name matches the
         // template's PascalCase name even on an acronym (sseSpecification vs
@@ -137,9 +137,9 @@ async function resolveHoverLinks(
         properties[name.toLowerCase()] = { uri, line: lineOf(template.text, range) };
       }
     } else {
-      const block = template.ranges.block(node.logicalId);
+      const block = template.ranges.block(node.cfnResource.logicalId);
       if (block !== undefined) {
-        resourceLocations[node.path] = { uri, line: lineOf(template.text, block) };
+        resourceLocations[node.constructPath] = { uri, line: lineOf(template.text, block) };
       }
     }
   }
@@ -160,7 +160,7 @@ function lineOf(text: string, range: OffsetRange): number {
  * Returns undefined when no resource maps to the line.
  */
 export function buildHover(
-  nodes: readonly ResourceConstruct[],
+  nodes: readonly AssemblyResourceNode[],
   primaryResource: PrimarySelection | undefined,
   links: HoverLinks | undefined,
   range: Range,
@@ -181,7 +181,7 @@ export function buildHover(
  * (`Resource`/`Default`) breaks the tie; if none or more than one qualifies,
  * there is no clear primary and this returns undefined. `others` holds the rest.
  */
-export function selectPrimary(nodes: readonly ResourceConstruct[]): PrimarySelection | undefined {
+export function selectPrimary(nodes: readonly AssemblyResourceNode[]): PrimarySelection | undefined {
   const byDepth = [...nodes].sort((a, b) => segments(a) - segments(b));
   if (byDepth.length === 1) {
     return { primary: byDepth[0], others: [] };
@@ -200,18 +200,18 @@ export function selectPrimary(nodes: readonly ResourceConstruct[]): PrimarySelec
   return undefined;
 }
 
-function segments(node: ConstructNode): number {
-  return node.path.split('/').length;
+function segments(node: AssemblyResourceNode): number {
+  return node.constructPath.split('/').length;
 }
 
 function renderResource(
-  primary: ResourceConstruct,
-  others: readonly ResourceConstruct[],
+  primary: AssemblyResourceNode,
+  others: readonly AssemblyResourceNode[],
   links: HoverLinks | undefined,
 ): string {
   const lines = [
-    `${linked(`**${primary.logicalId}**`, links?.resourceLocations[primary.path])} · \`${primary.type}\``,
-    `\`${primary.path}\``,
+    `${linked(`**${primary.cfnResource.logicalId}**`, links?.resourceLocations[primary.constructPath])} · \`${primary.cfnResource.type}\``,
+    `\`${primary.constructPath}\``,
     '',
     ...propertyLines(primary, links),
   ];
@@ -221,8 +221,8 @@ function renderResource(
   return lines.join('\n');
 }
 
-function propertyLines(primary: ResourceConstruct, links: HoverLinks | undefined): string[] {
-  const properties = primary.cfnProperties ?? {};
+function propertyLines(primary: AssemblyResourceNode, links: HoverLinks | undefined): string[] {
+  const properties = primary.cfnResource.cfnProperties ?? {};
   const keys = Object.keys(properties);
   const lines = keys.slice(0, MAX_PROPERTIES).map((key) => {
     const value = `\`${renderValue(properties[key])}\``;
@@ -234,16 +234,16 @@ function propertyLines(primary: ResourceConstruct, links: HoverLinks | undefined
   return lines;
 }
 
-function alsoCreates(others: readonly ResourceConstruct[], links: HoverLinks | undefined): string {
+function alsoCreates(others: readonly AssemblyResourceNode[], links: HoverLinks | undefined): string {
   if (others.length > MAX_LINKED_AUX) {
     return `Also creates ${others.length} resources: ${histogram(others)}`;
   }
-  const items = others.map((node) => linked(`\`${node.type}\``, links?.resourceLocations[node.path]));
+  const items = others.map((node) => linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath]));
   return `Also creates: ${items.join(' · ')}`;
 }
 
-function renderSummary(nodes: readonly ResourceConstruct[], links: HoverLinks | undefined): string {
-  const items = nodes.map((node) => `- ${linked(`\`${node.type}\``, links?.resourceLocations[node.path])} \`${node.path}\``);
+function renderSummary(nodes: readonly AssemblyResourceNode[], links: HoverLinks | undefined): string {
+  const items = nodes.map((node) => `- ${linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath])} \`${node.constructPath}\``);
   return [`**${nodes.length} resources on this line**`, '', ...items].join('\n');
 }
 
@@ -299,10 +299,10 @@ function renderIntrinsic(record: Record<string, unknown>): string | undefined {
 }
 
 /** Group auxiliary resources by short CFN type, most common first, e.g. "8× Subnet". */
-function histogram(nodes: readonly ResourceConstruct[]): string {
+function histogram(nodes: readonly AssemblyResourceNode[]): string {
   const counts = new Map<string, number>();
   for (const node of nodes) {
-    const short = node.type.split('::').pop() ?? node.type;
+    const short = node.cfnResource.type.split('::').pop() ?? node.cfnResource.type;
     counts.set(short, (counts.get(short) ?? 0) + 1);
   }
   const parts = [...counts].sort((a, b) => b[1] - a[1]).map(([type, count]) => `${count}× ${type}`);

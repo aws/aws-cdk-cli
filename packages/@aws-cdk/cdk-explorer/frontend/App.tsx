@@ -20,7 +20,7 @@ import { RelativeTime } from './components/RelativeTime';
 import { colorForSeverity } from './components/severities';
 import { FormatToggle, TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
-import { ConstructIndex } from './construct-index';
+import { SourceAndTemplateIndex } from './source-and-template-index';
 import type { NavigateHandler } from './nav-types';
 import type { Language } from './syntax';
 export type { NavigateHandler } from './nav-types';
@@ -47,6 +47,8 @@ interface TemplateFile {
   response: TemplateResponse;
 }
 
+let didInit = false;
+
 /** Web explorer shell. */
 export function App(): JSX.Element {
   const expandState = React.useRef(new ExpandState());
@@ -68,44 +70,37 @@ export function App(): JSX.Element {
   const [violationFilter, setViolationFilter] = React.useState<string | undefined>();
   const [violationSearch, setViolationSearch] = React.useState('');
 
-  const constructIndex = React.useRef(new ConstructIndex());
+  const constructIndex = React.useRef(new SourceAndTemplateIndex());
 
-  const [reloadSequence, triggerReload] = React.useState(0);
-  React.useEffect(() => {
-    const seqStart = reloadSequence;
-    void (async() => {
-      try {
-        const firstLoad = tree === undefined || tree.status !== 'ok';
+  const reload = React.useCallback(async () => {
+    try {
+      const firstLoad = tree === undefined || tree.status !== 'ok';
 
-        const [t, v, info] = await Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()]);
-        if (seqStart !== reloadSequence) {
-          return;
+      const [t, v, info] = await Promise.all([api.getTree(), api.getViolations(), api.getAppInfo()]);
+
+      setTree(t);
+      if (t.status === 'ok') {
+        constructIndex.current = new SourceAndTemplateIndex();
+        constructIndex.current.addTree(t.tree);
+        if (firstLoad) {
+          expandState.current.autoExpand(2, t.tree);
+          expandStateChanged({});
         }
-
-        setTree(t);
-        if (t.status === 'ok') {
-          constructIndex.current = new ConstructIndex();
-          constructIndex.current.addTree(t.tree);
-          if (firstLoad) {
-            expandState.current.autoExpand(2, t.tree);
-            expandStateChanged({});
-          }
-        }
-
-        setViolations(v);
-        setAppDir(info.appDir);
-        setError(undefined);
-
-        if (v.status === 'ok' && v.violations.length > 0) {
-          setDiagnosticsOpen(true);
-        }
-      } catch (err) {
-        // Keep the last good render on a transient read (e.g. a mid-synth write);
-        // the next assembly-changed event re-fetches once the write has settled.
-        setError(err instanceof Error ? err.message : String(err));
       }
-    })();
-  }, [reloadSequence]);
+
+      setViolations(v);
+      setAppDir(info.appDir);
+      setError(undefined);
+
+      if (v.status === 'ok' && v.violations.length > 0) {
+        setDiagnosticsOpen(true);
+      }
+    } catch (err) {
+      // Keep the last good render on a transient read (e.g. a mid-synth write);
+      // the next assembly-changed event re-fetches once the write has settled.
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
 
   // Re-read the currently open source file, refreshing both its content and its
   // staleness flag. Used after a synth (assembly changed) to clear a banner, and
@@ -127,11 +122,15 @@ export function App(): JSX.Element {
   }, []);
 
   React.useEffect(() => {
-    console.log('startup effect');
-    triggerReload(i => i + 1);
+    // useEffect runs twice, guard against double initialization
+    if (didInit) {
+      return;
+    }
+    void reload();
+
     return api.subscribe({
       onAssemblyChanged: () => {
-        triggerReload(i => i + 1);
+        void reload();
         void refreshOpenSourceFile();
       },
       onSourceChanged: () => {
