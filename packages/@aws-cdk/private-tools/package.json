@@ -30,7 +30,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.22",
+    "@cdklabs/eslint-plugin": "^2.0.23",
     "@stylistic/eslint-plugin": "^3",
     "@types/cross-spawn": "^6.0.6",
     "@types/jest": "^29.5.14",
@@ -51,7 +51,7 @@
     "jszip": "^3.10.2",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.103.27",
+    "projen": "^0.104.2",
     "timezone-mock": "^1.4.3",
     "ts-jest": "^29.4.14",
     "typescript": "5.9"
