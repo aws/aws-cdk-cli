@@ -565,17 +565,23 @@ class FullCloudFormationDeployment {
     const replacement = hasReplacement(changeSetReport);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
 
-    // Whether to roll back comes from two sources, the flag and the mode, combined as the `--rollback` help
-    // text documents. CloudFormation enforces the express half of that: a stack created with only
-    // `Mode=EXPRESS` comes back with `DisableRollback: true` set, so the default is the service's, not ours.
-    //
-    //  - undefined + standard mode  =>  enabled, the long-standing default.
-    //  - undefined + express mode   =>  disabled, express deployments fix forward by default.
-    //  - true or false              =>  what the user asked for, in either mode.
-    const rollbackEnabled = this.options.rollback !== undefined ? this.options.rollback : !this.options.express;
+    // Express: the change set's recorded value is authoritative. Standard: the change set always records `false`; the
+    // execute-time flag decides.
+    const config = changeSetReport.changeSet.DeploymentConfig;
+    const rollbackEnabled = config?.Mode === 'EXPRESS' ? config.DisableRollback === false : this.options.rollback !== false;
 
-    // Skip both of these for express deployments: they send the caller to the RollbackStack API, which
-    // CloudFormation rejects for an express stack even when the call carries a matching DeploymentConfig.
+    // No flag or retry gets this change set through, so throw rather than return a result.
+    const expressUpdateFailed = this.cloudFormationStack.stackStatus.name === 'UPDATE_FAILED' && this.cloudFormationStack.deploymentMode === 'EXPRESS';
+    if (expressUpdateFailed && (rollbackEnabled || replacement)) {
+      throw new ToolkitError('ExpressStackFailPaused', replacement
+        ? `Stack ${this.stackName} is in UPDATE_FAILED after an express deployment, and CloudFormation cannot replace a resource on it ` +
+          'or roll it back until it is recovered. To recover: (1) revert your app to the last configuration that deployed successfully; ' +
+          '(2) run `cdk deploy --express --method=direct --no-rollback`; (3) re-apply your changes and run `cdk deploy --express --rollback`.'
+        : `Stack ${this.stackName} is in UPDATE_FAILED after an express deployment, and CloudFormation will not execute a change set ` +
+          'with rollback enabled on it. Run `cdk deploy --express --no-rollback` to deploy this change without rollback.');
+    }
+
+    // For express mode deployments, don't check paused and failed, since express mode stacks cannot use rollback API
     if (!this.options.express) {
       if (isPausedFailState && replacement) {
         return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
@@ -585,16 +591,8 @@ class FullCloudFormationDeployment {
       }
     }
 
-    // CloudFormation refuses a replacement part-way through an update it is not allowed to roll back, which
-    // leaves the stack in UPDATE_FAILED. Refusing before we submit anything leaves the stack untouched
-    // instead, and enabling rollback is the way through, as the `--rollback` help text has always said. A
-    // stack with changed nested stacks currently needs `--method=direct` as well, because CloudFormation
-    // does not propagate the parent's DisableRollback to nested change sets.
-    //
-    // What CloudFormation objects to is rollback being disabled, not express mode; express only makes that
-    // the default. The restriction may yet be narrowed to exclude express stacks, but it stays correct for
-    // an explicit `--no-rollback`, so this cannot simply be deleted. Nothing in the API reports whether it
-    // still applies, so the check cannot retire itself either.
+    // An explicit `--no-rollback` hits this restriction too, and nothing reports when CloudFormation lifts it for
+    // express, so this check can neither be deleted nor retire itself.
     if (!rollbackEnabled && replacement) {
       return { type: 'replacement-requires-rollback' };
     }
@@ -693,13 +691,6 @@ class FullCloudFormationDeployment {
     }
   }
 
-  /**
-   * Deploy by calling CreateStack/UpdateStack directly, without going through a change set.
-   *
-   * Replacements are not refused on this path, deliberately. Replaying the previous configuration is how a
-   * stack that is already stranded in UPDATE_FAILED gets recovered, and a direct deployment is the only way
-   * to do that, so gating replacements here would take away the one route out.
-   */
   private async directDeployment(): Promise<SuccessfulDeployStackResult> {
     await this.ioHelper.defaults.info(format('%s: %s stack...', chalk.bold(this.stackName), this.update ? 'updating' : 'creating'));
 
@@ -813,8 +804,6 @@ class FullCloudFormationDeployment {
     }
 
     const diagnosis = await this.diagnoser.diagnoseFromErrorCollection(errors, deployedState, true, {
-      // Does not account for express mode, so it reads as enabled for an express deployment that left
-      // rollback at its default. Left as it is here because it shapes diagnosis wording, not control flow.
       rollbackEnabled: this.options.rollback !== false,
     });
     diagnosis.throwOnError();
@@ -1088,18 +1077,6 @@ function rollbackConfigurationEquals(deployed: RollbackConfiguration, desired: R
   return desiredTriggers.every((trigger) => deployedKeys.has(key(trigger)));
 }
 
-/**
- * Whether executing this change set would replace a resource.
- *
- * `PolicyAction` is the field to read. The API defines what it means, the action to be taken on the
- * physical resource, but not when it is populated. In practice CloudFormation fills in the type's default
- * policy, so an ordinary replacement surfaces as `ReplaceAndDelete` even when the template declares
- * neither `DeletionPolicy` nor `UpdateReplacePolicy`.
- *
- * `Replacement: 'Conditional'` is intentionally not consulted. CDKMetadata reports `Conditional` on
- * essentially every CDK deployment, so treating it as a replacement would gate nearly all of them, and it
- * has not been observed to carry a `PolicyAction` at all, so it stays invisible to this predicate anyway.
- */
 function hasReplacement(report: ChangeSetReport) {
   return (report.changeSet.Changes ?? []).some(c => {
     const a = c.ResourceChange?.PolicyAction;
