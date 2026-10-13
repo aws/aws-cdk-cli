@@ -127,6 +127,15 @@ export interface EvaluateCloudFormationTemplateProps {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+  /**
+   * Stack resource listings already created during this evaluation, by stack name.
+   *
+   * Nested evaluators receive their parent's map, so every stack is listed
+   * at most once no matter how many references point at it.
+   *
+   * @default - a new, empty map
+   */
+  readonly stackResourcesByStackName?: Map<string, ListStackResources>;
 }
 
 export class EvaluateCloudFormationTemplate {
@@ -142,6 +151,7 @@ export class EvaluateCloudFormationTemplate {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
   private readonly stackResources: ListStackResources;
+  private readonly stackResourcesByStackName: Map<string, ListStackResources>;
   private readonly lookupExport: LookupExport;
 
   private cachedUrlSuffix: string | undefined;
@@ -169,7 +179,14 @@ export class EvaluateCloudFormationTemplate {
     // The current resources of the Stack.
     // We need them to figure out the physical name of a resource in case it wasn't specified by the user.
     // We fetch it lazily, to save a service call, in case all hotswapped resources have their physical names set.
-    this.stackResources = new LazyListStackResources(this.sdk, this.stackName);
+    // The listing is shared with nested evaluators, so a stack that many references point at is only listed once.
+    this.stackResourcesByStackName = props.stackResourcesByStackName ?? new Map();
+    let stackResources = this.stackResourcesByStackName.get(this.stackName);
+    if (!stackResources) {
+      stackResources = new LazyListStackResources(this.sdk, this.stackName);
+      this.stackResourcesByStackName.set(this.stackName, stackResources);
+    }
+    this.stackResources = stackResources;
 
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
@@ -199,6 +216,7 @@ export class EvaluateCloudFormationTemplate {
       partition: this.partition,
       sdk: this.sdk,
       nestedStacks: this.nestedStacks,
+      stackResourcesByStackName: this.stackResourcesByStackName,
     });
   }
 
