@@ -1,7 +1,7 @@
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { type AssemblyIndexNode, AssemblyIndex, indexTemplateRanges, type TemplateRanges } from '@aws-cdk/cloud-assembly-api';
+import { type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import type { Toolkit } from '@aws-cdk/toolkit-lib';
 import {
   StreamMessageReader,
@@ -32,10 +32,11 @@ import { GetConstructTreeRequest, type ConstructSourceEntry, type GetConstructTr
 import { mapViolationsToDiagnostics } from './diagnostics';
 import { cdkLspManifest } from './features';
 import { hoverForPosition } from './hover';
+import { type LogSink, NOOP_LOGGER } from './log-sink';
 import { offsetAtPosition } from './positions';
 import { synthFailureDiagnostics } from './synth-diagnostics';
 import { sourceTargetAtTemplateOffset } from './template-locator';
-import { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
+import { AssemblyIndexWithSourceLocations, assertRelativePath, type RelativePath } from '../core/assembly-index-with-source-locations';
 import {
   webAssemblyDataFromAssembly,
   type AssemblyReadResult,
@@ -46,9 +47,13 @@ import {
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
 import { readCdkConfig } from '../core/cdk-config';
+import { fromCdkAppDirectory } from '../core/from-cdk-app-directory';
 import { isWithinRoot } from '../core/source-resolver';
 import { SOURCE_WATCH_EXCLUDES } from '../core/source-watcher';
 import type { SynthRunResult } from '../core/synth-runner';
+import type { TemplateRanges } from '../core/template-ranges';
+import { indexTemplateRanges } from '../core/template-ranges';
+import { umap } from '../core/undef';
 
 /**
  * Synth concurrency latch, mirroring `cdk watch` (see toolkit.ts). 'open' = idle,
@@ -57,15 +62,6 @@ import type { SynthRunResult } from '../core/synth-runner';
  * synths on demand).
  */
 type SynthLatch = 'open' | 'synthing' | 'queued';
-
-/**
- * When an external writer (a terminal `cdk synth`/`cdk watch`) holds the cdk.out
- * write lock, the synth retries with exponential backoff + full jitter rather
- * than giving up, so the LSP always eventually synths the latest save once the
- * writer releases. Delay is capped; attempts are not.
- */
-const SYNTH_LOCK_RETRY_BASE_MS = 100;
-const SYNTH_LOCK_RETRY_MAX_MS = 2_000;
 
 export interface LspHandlerOptions {
   readonly toolkit: Toolkit;
@@ -89,14 +85,6 @@ export interface LspHandlerOptions {
    * overridden in tests to drive refreshes deterministically.
    */
   readonly startAssemblyWatcher?: (options: AssemblyWatcherOptions) => AssemblyWatcher;
-  /**
-   * Runs a synth of the project at the given root and returns its typed outcome.
-   * Injected by startServer (built from the toolkit bindings); omitted in tests
-   * that don't exercise synth. The runner reads `cdk.json` under the passed root
-   * on each call and returns `unavailable` when there is no `app`, so
-   * availability is decided per synth, not cached here.
-   */
-  readonly synthRunner?: (projectDir: string) => Promise<SynthRunResult>;
   /** User-facing notification sink. Injected by startServer; omitted in tests. */
   readonly notify?: NotifySink;
 }
@@ -130,40 +118,8 @@ export interface LspHandlers {
   onExecuteCommand(params: ExecuteCommandParams): Promise<void>;
   onHover(params: HoverParams): Promise<Hover | undefined>;
   /** Serve the source-resolved construct tree (flattened) for a client overlay. */
-  onGetConstructTree(): GetConstructTreeResult;
+  onGetConstructTree(): Promise<GetConstructTreeResult>;
   onShutdown(): void;
-}
-
-interface LogSink {
-  warn(message: string): void;
-  error(message: string): void;
-}
-
-const NOOP_LOGGER: LogSink = {
-  warn: () => {
-  },
-  error: () => {
-  },
-};
-
-async function sleep(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-/** Log auto-synth-on-save outcomes. Errors go to the Output panel; success is silent. */
-function handleSynthOnSave(result: SynthRunResult, log: LogSink): void {
-  switch (result.status) {
-    case 'success':
-    case 'lock-conflict':
-    case 'unavailable':
-      return; // silent — watcher handles updates; lock = another synth running; unavailable = no app
-    case 'app-failure':
-      log.error(`Auto-synth failed: ${result.message}`);
-      return;
-    case 'error':
-      log.error(`Auto-synth failed unexpectedly: ${result.message}`);
-      return;
-  }
 }
 
 /**
@@ -177,7 +133,6 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   const onRefreshCodeLenses = options.onRefreshCodeLenses ?? (() => {
   });
   const startWatcher = options.startAssemblyWatcher ?? defaultStartAssemblyWatcher;
-  const synthRunner = options.synthRunner;
   const notify = options.notify ?? {
     info: () => {
     },
@@ -187,11 +142,6 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   };
 
   let applicationDir: string | undefined;
-  let shutdownRequested = false;
-  // Concurrency latch, mirroring `cdk watch` (toolkit.ts): a synth requested
-  // while one runs is batched into a single follow-up, so synths run one at a
-  // time and the assembly catches up to the latest save.
-  let synthLatch: SynthLatch = 'open';
   // URIs (source files, or cdk.json) currently showing synth-failure diagnostics.
   let synthFailureUris = new Set<string>();
   let autoSynthEnabled = false; // off by default; user enables via the CodeLens toggle
@@ -199,7 +149,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   let assemblyWatcher: AssemblyWatcher | undefined;
   // Latest index from readAssembly, served to CodeLens. Refreshed at startup
   // and whenever the cdk.out watcher detects a re-synth.
-  let cachedIndex = new AssemblyIndexWithSourceLocations(new AssemblyIndex());
+  let cachedIndex = AssemblyIndexWithSourceLocations.empty();
   let cachedWarnings: readonly string[] = [];
   let cachedAssemblyDir: string | undefined;
   // URIs that currently have published diagnostics. On each refresh we publish
@@ -211,6 +161,8 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   // the editor's next natural re-query.
   let codeLensRefreshSupported = false;
 
+  const shutdown = new AbortController();
+
   // Single source of truth for the project root: the directory the client opened
   // (applicationDir from initialize), falling back to cwd for non-IDE callers.
   // Every consumer (assembly read, watcher, synth, diagnostics) reads this so
@@ -221,10 +173,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
 
   async function refreshFromAssembly(projectDir: string, assemblyDir: string): Promise<void> {
     const asmSource = await options.toolkit.fromAssemblyDirectory(assemblyDir);
-    await using asm = await asmSource.produce();
 
     let result: AssemblyReadResult;
     try {
+      await using asm = await options.toolkit.synth(asmSource, { abort: shutdown.signal });
       result = {
         status: 'success',
         data: await webAssemblyDataFromAssembly(projectDir, asm),
@@ -283,50 +235,70 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     }
   }
 
-  // One synth, retrying the write lock with exponential backoff + full jitter.
-  // The latch guarantees we never contend with our own synth, so a lock-conflict
-  // here is an external writer (a terminal `cdk synth`/`cdk watch`) holding
-  // cdk.out; retry until it releases rather than dropping the synth.
-  async function runSynthWithRetry(): Promise<SynthRunResult> {
-    let delayMs = SYNTH_LOCK_RETRY_BASE_MS;
-    const deadline = Date.now() + 3_600_000; // 1 hour
-    while (Date.now() < deadline) {
-      const result = await (synthRunner ? synthRunner(currentProjectDir()) : Promise.resolve({ status: 'error', message: 'No synth runner configured' } as const));
-      if (result.status !== 'lock-conflict') {
-        publishSynthDiagnostics(result);
-        return result;
-      }
-      await sleep(Math.random() * delayMs);
-      delayMs = Math.min(delayMs * 2, SYNTH_LOCK_RETRY_MAX_MS);
+  /**
+   * Run a single synth, waiting for it to complete before returning.
+   *
+   * We don't return anything here, the only effect is the side-effect of running the synth
+   * and updating cdk.out. Elsewhere, we will re-read the assembly if we detect a change there.
+   */
+  async function runSynth(): Promise<void> {
+    try {
+      const source = await fromCdkAppDirectory(options.toolkit, currentProjectDir());
+
+      await using _asm = await options.toolkit.synth(source, { abort: shutdown.signal });
+
+      publishSynthDiagnostics({ status: 'success' });
+    } catch (e: any) {
+      log.warn(`Synth failed: ${e.message ?? String(e)}`);
+      publishSynthDiagnostics({ status: 'error', message: e.message });
     }
-    const timeoutResult: SynthRunResult = { status: 'error', message: 'Auto-synth timed out waiting for external writer to release cdk.out' };
-    return timeoutResult;
   }
 
-  // Shared by the manual CodeLens command and auto-synth-on-save. A call while a
-  // synth runs is batched (latch 'queued') and returns lock-conflict now, so the
-  // caller still sees "in progress" while the assembly catches up to the latest
-  // save. Any number of overlapping calls collapse into that one follow-up.
-  async function guardedSynth(): Promise<SynthRunResult> {
-    if (synthLatch !== 'open') {
+  // Concurrency latch, mirroring `cdk watch` (toolkit.ts): a synth requested
+  // while one runs is batched into a single follow-up, so synths run one at a
+  // time and the assembly catches up to the latest save.
+  let synthLatch: SynthLatch = 'open';
+  const synthListeners: Array<() => void> = [];
+
+  /**
+   * Queue a new synth
+   *
+   * Start it immediately if we are not currently synthing; otherwise, another instance
+   * of this async function is already running. Mark the latch as
+   * queued and the existing instance will check it in a loop.
+   *
+   * Returns a Promise that resolves once the queued synth has completed.
+   */
+  function queueSynth() {
+    const ret = new Promise<void>((resolve) => {
+      synthListeners.push(resolve);
+    });
+
+    if (synthLatch === 'open') {
+      void runSynthLoop();
+    } else {
       synthLatch = 'queued';
-      return { status: 'lock-conflict' };
     }
-    synthLatch = 'synthing';
-    try {
-      // Drain the queued slot with a loop (not recursion) so the stack stays
-      // flat. There is no await between reading the latch as not-'queued' and the
-      // finally resetting it to 'open', so under the single-threaded event loop
-      // any request that set 'queued' did so during an await and is observed
-      // here -- no wakeup is lost.
-      let result = await runSynthWithRetry();
-      while ((synthLatch as SynthLatch) === 'queued') {
-        synthLatch = 'synthing';
-        result = await runSynthWithRetry();
+
+    return ret;
+
+    async function runSynthLoop() {
+      try {
+        do {
+          synthLatch = 'synthing' as SynthLatch;
+          const currentListeners = synthListeners.splice(0, synthListeners.length);
+          await runSynth();
+          for (const listener of currentListeners) {
+            listener();
+          }
+
+          // If another synth was queued while we were running, the loop will go around again.
+        } while (synthLatch === 'queued' && !shutdown.signal.aborted);
+      } catch (e: any) {
+        log.error(`Synth failed during queued run: ${e.message ?? String(e)}`);
+      } finally {
+        synthLatch = 'open';
       }
-      return result;
-    } finally {
-      synthLatch = 'open';
     }
   }
 
@@ -391,7 +363,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onInitialized() {
       const projectDir = currentProjectDir();
-      const assemblyDir = readCdkConfig(projectDir).output;
+      const assemblyDir = path.resolve(projectDir, (await readCdkConfig(projectDir)).output ?? 'cdk.out');
 
       // Ignore non-source paths (deps, cdk.out, dotfiles) using the same policy
       // the web explorer's source watcher applies.
@@ -404,7 +376,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       // Watch cdk.out so any synth (an external `cdk synth`/`cdk watch`, or a
       // future in-process synth) refreshes the editor's diagnostics and lenses.
       assemblyWatcher = startWatcher({
-        assemblyDir: path.join(projectDir, 'cdk.out'),
+        assemblyDir,
         onChange: () => {
           // refreshFromAssembly is async; surface a rejection rather than
           // floating the promise from this watcher callback.
@@ -415,16 +387,15 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       });
     },
     onDidSaveTextDocument(params) {
-      if (shutdownRequested) return;
+      if (shutdown.signal.aborted) return;
       const filePath = fileURLToPath(params.textDocument.uri);
       if (shouldIgnore(filePath)) return;
       if (!autoSynthEnabled) return;
-      void guardedSynth()
-        .then((result) => handleSynthOnSave(result, log))
-        .catch((err: unknown) => log.error(`Auto-synth threw unexpectedly: ${(err as Error).message}`));
+      void queueSynth();
     },
     onCodeLens(params) {
-      return codeLensesForFile(cachedIndex, fileURLToPath(params.textDocument.uri), autoSynthEnabled);
+      const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');
+      return codeLensesForFile(cachedIndex, assemblyDir, fileURLToPath(params.textDocument.uri), autoSynthEnabled);
     },
     async onDefinition(params) {
       // Only synthesized templates link back to source, and only file: URIs are
@@ -436,12 +407,13 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       }
       const filePath = fileURLToPath(uri);
       // Bound the client-supplied path to this project's cdk.out before reading.
-      if (!(await isWithinRoot(path.join(currentProjectDir(), 'cdk.out'), filePath))) {
+      const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');
+      if (!(await isWithinRoot(assemblyDir, filePath))) {
         return undefined;
       }
       let templateText: string;
       try {
-        templateText = await fs.promises.readFile(filePath, 'utf-8');
+        templateText = await fs.readFile(filePath, 'utf-8');
       } catch {
         return undefined;
       }
@@ -453,7 +425,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onExecuteCommand(params) {
       await executeCommand(params.command, params.arguments ?? [], {
-        synth: guardedSynth,
+        synth: queueSynth,
         toggleAutoSynth: (enabled) => {
           autoSynthEnabled = enabled;
           onRefreshCodeLenses();
@@ -462,10 +434,10 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       });
     },
     onHover(params) {
-      return hoverForPosition(cachedIndex, fileURLToPath(params.textDocument.uri), params.position,
-        (file) => fs.promises.readFile(file, 'utf-8').catch(() => undefined));
+      return hoverForPosition(log, cachedIndex, fileURLToPath(params.textDocument.uri), params.position,
+        (file) => fs.readFile(cachedIndex.assemblyDir.absolute(file), 'utf-8'));
     },
-    onGetConstructTree() {
+    async onGetConstructTree() {
       const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');
       if (cachedAssemblyDir === undefined) {
         return { status: 'no-assembly', assemblyDir, entries: [], warnings: [] };
@@ -473,10 +445,11 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       // Flatten the already-decorated tree in pre-order; the client joins on `path`.
       // Parse each template's resource ranges at most once per request.
       const rangesByTemplate = new Map<string, TemplateRanges | undefined>();
-      const templateRangesFor = (templateFile: string): TemplateRanges | undefined => {
+      const templateRangesFor = async (templateFile: RelativePath): Promise<TemplateRanges | undefined> => {
         if (!rangesByTemplate.has(templateFile)) {
           try {
-            rangesByTemplate.set(templateFile, indexTemplateRanges(fs.readFileSync(templateFile, 'utf-8')));
+            const absPath = cachedIndex.assemblyDir.absolute(templateFile);
+            rangesByTemplate.set(templateFile, indexTemplateRanges(await fs.readFile(absPath, 'utf-8')));
           } catch {
             rangesByTemplate.set(templateFile, undefined);
           }
@@ -484,29 +457,34 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         return rangesByTemplate.get(templateFile);
       };
       const entries: ConstructSourceEntry[] = [];
-      const collect = (nodes: readonly AssemblyIndexNode[]): void => {
+      const collect = async (nodes: readonly AssemblyIndexNode[]): Promise<void> => {
         for (const node of nodes) {
           const templateOffset =
             node.cfnResource.assemblyRelativeTemplateFile && node.cfnResource.logicalId
-              ? templateRangesFor(node.cfnResource.assemblyRelativeTemplateFile)?.block(node.cfnResource.logicalId)?.start
+              ? (await templateRangesFor(assertRelativePath(node.cfnResource.assemblyRelativeTemplateFile)))?.block(node.cfnResource.logicalId)?.start
               : undefined;
+
           entries.push({
             path: node.constructPath,
             id: node.id,
             type: node.cfnResource.type,
             logicalId: node.cfnResource.logicalId,
-            sourceLocation: parsedSourceLocation(node),
-            templateFile: node.cfnResource.assemblyRelativeTemplateFile,
+            sourceLocation: umap(cachedIndex.sourceLocationFor(node), (sl) => ({
+              ...sl,
+              file: cachedIndex.appDir.absolute(sl.file),
+            })),
+            templateFile: umap(node.cfnResource.assemblyRelativeTemplateFile, (x) =>
+              cachedIndex.assemblyDir.absolute(assertRelativePath(x))),
             templateOffset,
           });
-          collect(Object.values(node.children));
+          await collect(Object.values(node.children));
         }
       };
-      collect(cachedIndex.firstLevelChildren);
+      await collect(cachedIndex.assemblyIndex.firstLevelChildren);
       return { status: 'ok', assemblyDir, entries, warnings: [...cachedWarnings] };
     },
     onShutdown() {
-      shutdownRequested = true;
+      shutdown.abort();
       void assemblyWatcher?.close();
       assemblyWatcher = undefined;
     },

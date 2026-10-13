@@ -1,4 +1,4 @@
-import { indexTemplateRanges, resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../lib';
+import { resolveAllResourceRanges, resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../../lib/core/template-ranges';
 
 // A template object is the single source of truth: the text under test is its
 // 1-space serialization (exactly how synth writes `*.template.json`), and the
@@ -160,5 +160,48 @@ describe('resolveResourceRanges', () => {
 
   test('returns undefined when the text cannot be parsed into a tree', () => {
     expect(resolveResourceRanges('not json at all', 'MyBucket')).toBeUndefined();
+  });
+});
+
+/**
+ * `resolveAllResourceRanges` is documented as the bulk equivalent of
+ * `resolveResourceRanges`: "Equivalent to calling `resolveResourceRanges` per
+ * logical ID, but O(1) parses instead of O(N)." These tests hold it to exactly
+ * that, using the single-resource resolver (covered above) as the oracle.
+ */
+describe('resolveAllResourceRanges', () => {
+  test('covers every resource in the template', () => {
+    expect(Object.keys(resolveAllResourceRanges(TEMPLATE_TEXT)!).sort()).toEqual([...LOGICAL_IDS].sort());
+  });
+
+  test.each(LOGICAL_IDS)('the block range for %s re-parses to that exact resource', (logicalId) => {
+    expect(sliceParse(resolveAllResourceRanges(TEMPLATE_TEXT)![logicalId].block)).toEqual(RESOURCES[logicalId]);
+  });
+
+  test.each(LOGICAL_IDS)('the property ranges for %s match the single-resource resolver', (logicalId) => {
+    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
+    const one = resolveResourceRanges(TEMPLATE_TEXT, logicalId)!;
+
+    expect(all[logicalId].properties).toEqual(one.properties);
+  });
+
+  test('keys properties under their owning resource, not under the property name', () => {
+    // The failure mode this guards: capturing the property name where the logical
+    // id belongs, which both loses every property range and risks attaching one
+    // resource's properties to another whose id matches a property name.
+    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
+
+    expect(Object.keys(all.MyBucket.properties)).toEqual(['BucketName']);
+    expect(Object.keys(all.Policy.properties).sort()).toEqual(['Description', 'InlineJson', 'PolicyDocument']);
+    // A property name must never become a top-level entry of its own.
+    expect(all).not.toHaveProperty('BucketName');
+  });
+
+  test('a resource with no Properties yields an empty property map', () => {
+    expect(resolveAllResourceRanges(TEMPLATE_TEXT)!.Topic.properties).toEqual({});
+  });
+
+  test('returns undefined when the text cannot be parsed into a tree', () => {
+    expect(resolveAllResourceRanges('not json at all')).toBeUndefined();
   });
 });

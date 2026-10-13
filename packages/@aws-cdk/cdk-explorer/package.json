@@ -37,6 +37,7 @@
     "@stylistic/eslint-plugin": "^3",
     "@types/convert-source-map": "^2",
     "@types/jest": "^29.5.14",
+    "@types/json-source-map": "^0.6.0",
     "@types/node": "^20",
     "@types/prismjs": "^1",
     "@types/react": "^18",
@@ -75,6 +76,7 @@
     "@jridgewell/trace-mapping": "^0.3",
     "chokidar": "^4",
     "convert-source-map": "^2",
+    "json-source-map": "^0.6.1",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
     "vscode-languageserver-textdocument": "^1"

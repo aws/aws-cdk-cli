@@ -309,23 +309,38 @@ describe('Web Server', () => {
     });
 
     /**
-     * `Pathname` may not always be a path. Prevent URL parser from resolving
-     * `/.//evil.com/x` to `//evil.com/x` (leading slashes are an authority in
-     * this case) which ensures a browser following `Location` does not end up
-     * at `http://evil.com/x`.
+     * `pathname` may not always be a path. Prevent the URL parser from resolving
+     * `/.//evil.com/x.html` to `//evil.com/x.html` (leading slashes are an
+     * authority in this case), which ensures a browser following `Location` does
+     * not end up at `http://evil.com/x.html`.
+     *
+     * Targets end in `.html` because only an HTML navigation gets redirected;
+     * that is the path on which the collapse defense has to hold.
      */
     test.each([
-      ['a dot segment', '/.//evil.com/x'],
-      ['a parent segment', '/..//evil.com/x'],
+      ['a dot segment', '/.//evil.com/x.html'],
+      ['a parent segment', '/..//evil.com/x.html'],
     ])('keeps the handshake redirect on-origin when %s collapses into an authority', async (_name, target) => {
       server = await start();
 
       const res = await rawRequest(`${target}?token=${server.token}`);
 
       expect(res).toContain('HTTP/1.1 302');
-      expect(res).toMatch(/^location: \/evil\.com\/x\r?$/im);
+      expect(res).toMatch(/^location: \/evil\.com\/x\.html\r?$/im);
       // The assertion that matters: no Location may begin with two slashes.
       expect(res).not.toMatch(/^location: \/\//im);
+    });
+
+    test('does not redirect a non-page request, so no Location can escape the origin', async () => {
+      // Only `/` and `*.html` are redirected; anything else is served directly so
+      // that API clients, which mostly do not follow redirects, still work. That
+      // also means a crafted non-page path never produces a Location at all.
+      server = await start();
+
+      const res = await rawRequest(`/.//evil.com/x?token=${server.token}`);
+
+      expect(res).not.toContain('HTTP/1.1 302');
+      expect(res).not.toMatch(/^location:/im);
     });
 
     test('refuses a repeated token parameter rather than picking one of them', async () => {

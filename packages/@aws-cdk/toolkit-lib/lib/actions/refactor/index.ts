@@ -34,6 +34,15 @@ export interface RefactorOptions {
    * Role to assume in the target environment before performing the refactor.
    */
   roleArn?: string;
+
+  /**
+   * Cancel the synth operation
+   *
+   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface MappingGroup {

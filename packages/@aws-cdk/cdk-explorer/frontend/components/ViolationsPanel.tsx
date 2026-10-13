@@ -2,10 +2,10 @@ import { Link, List } from '@cloudscape-design/components';
 import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import * as React from 'react';
-import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';
-import type { WebViolation, WebViolationOccurrence } from '../api';
-import type { NavigateHandler } from '../nav-types';
 import { colorForSeverity, iconForSeverity } from './severities';
+import type { WebViolation } from '../../lib/web/protocol';
+import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';
+import type { NavigateHandler } from '../nav-types';
 
 interface ViolationsPanelProps {
   readonly violations: readonly WebViolation[];

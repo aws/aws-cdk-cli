@@ -1,33 +1,52 @@
-import { DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndex, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
+import * as path from 'path';
+import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import type { ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
-import type { SourceLocation } from './source-resolver';
+import { type Branded } from './type-brands';
 
 export type AssemblyIndexNodeLike = AssemblyIndexNode | AssemblyResourceNode;
+
+export interface AssemblyIndexWithSourceLocationsOptions {
+  readonly appDir: string;
+  readonly assemblyDir: string;
+  readonly assemblyIndex: AssemblyIndex;
+}
 
 /**
  * Holds an AssemblyIndex, and translates stack traces into source locations
  */
 export class AssemblyIndexWithSourceLocations {
+  public static empty() {
+    return new AssemblyIndexWithSourceLocations({
+      appDir: '/tmp',
+      assemblyDir: '/tmp',
+      assemblyIndex: new AssemblyIndex(),
+    });
+  }
+  public readonly assemblyIndex: AssemblyIndex;
+  public readonly appDir: PathTranslator;
+  public readonly assemblyDir: PathTranslator;
+
   private readonly sourceLocationCache = new Map<AssemblyIndexNode, SourceLocation | undefined>();
   private readonly stackLocationFinder = DEFAULT_USER_CODE_FINDER;
-  private readonly nodesBySourceFile: Record<string, Map<number, AssemblyIndexNode[]>> = {};
+  private readonly nodesBySourceFile: Record<RelativePath, Map<number, AssemblyIndexNode[]>> = {};
 
-  constructor(
-    public readonly assemblyIndex: AssemblyIndex,
-  ) {
+  constructor(options: AssemblyIndexWithSourceLocationsOptions) {
+    this.assemblyIndex = options.assemblyIndex;
+    this.appDir = new PathTranslator(options.appDir);
+    this.assemblyDir = new PathTranslator(options.assemblyDir);
     this.indexAssembly();
   }
 
-  public constructsInSourceFile(file: string): Array<[number, AssemblyIndexNode]> {
+  public constructsInSourceFile(file: RelativePath): Array<[number, AssemblyIndexNode]> {
     return Array.from(this.nodesBySourceFile[file]?.entries() ?? [])
       .flatMap(([line, nodes]) => nodes.map(node => [line, node] as [number, AssemblyIndexNode]));
   }
 
-  public constructsOnLine(file: string, line: number): AssemblyIndexNode[] {
+  public constructsOnLine(file: RelativePath, line: number): AssemblyIndexNode[] {
     return this.nodesBySourceFile[file]?.get(line) ?? [];
   }
 
-  public byTemplateLocation(templateFile: string, logicalId: string) {
+  public byTemplateLocation(templateFile: RelativePath, logicalId: string) {
     return this.assemblyIndex.byTemplateLocation(templateFile, logicalId);
   }
 
@@ -47,7 +66,7 @@ export class AssemblyIndexWithSourceLocations {
     if (frame?.fileName) {
       const lineLoc = frame?.lineLocation;
       result = {
-        file: frame.fileName,
+        file: this.appDir.relative(frame.fileName),
         line: lineLoc?.line ?? 0,
         column: lineLoc?.column ?? 0,
       };
@@ -63,7 +82,7 @@ export class AssemblyIndexWithSourceLocations {
       if (!frame) return [];
 
       return {
-        file: frame.fileName,
+        file: this.appDir.relative(frame.fileName),
         line: frame.lineLocation?.line ?? 0,
         column: frame.lineLocation?.column ?? 0,
       } satisfies SourceLocation;
@@ -72,10 +91,12 @@ export class AssemblyIndexWithSourceLocations {
     const creationLocation = traced.node && this.sourceLocationFor(traced.node);
     return {
       violation: traced.violation,
-      cfnResource: traced.cfnResource,
+      cfnResource: traced.cfnResource ? {
+        ...traced.cfnResource,
+        templatePath: this.assemblyDir.relative(traced.cfnResource.templatePath),
+      } : undefined,
       node: traced.node,
       sourceLocations: sourceLocations.length > 0 ? sourceLocations : (creationLocation ? [creationLocation] : []),
-
     };
   }
 
@@ -94,7 +115,41 @@ export class AssemblyIndexWithSourceLocations {
         }
         this.nodesBySourceFile[sourceLocation.file].get(line)!.push(node);
       }
+
+      for (const child of Object.values(node.children ?? {})) {
+        recurse.call(this, child);
+      }
     }
+  }
+}
+
+export class PathTranslator {
+  constructor(private readonly root: string) {
+  }
+
+  /**
+   * Make sure the given path is relative to the root directories (either app or assembly).
+   *
+   * If it's relative, we assume it's already relative to that directory; if it's
+   * absolute we make it relative.
+   *
+   * In either case, if a path tries to escape the root directory we are going to mangle
+   * it to in invalid path that is guaranteed to not escape the given root.
+   *
+   * Also turn it into a POSIX path always.
+   */
+  public relative(file: string): RelativePath {
+    const absPath = path.isAbsolute(file) ? file : path.join(this.root, file);
+    const relPath = path.relative(this.root, absPath);
+    const parts = relPath.split(path.sep);
+    if (parts[0] === '..') {
+      return 'ESCAPING' as RelativePath;
+    }
+    return parts.join(path.posix.sep) as RelativePath;
+  }
+
+  public absolute(relPath: RelativePath): AbsolutePath {
+    return path.join(this.root, relPath) as AbsolutePath;
   }
 }
 
@@ -136,7 +191,7 @@ export interface DefinitelyCloudFormationResource {
    *
    * Comes from metadata.
    */
-  readonly assemblyRelativeTemplateFile: string;
+  readonly assemblyRelativeTemplateFile: RelativePath;
 
   readonly cfnProperties?: Record<string, unknown>;
 }
@@ -144,6 +199,56 @@ export interface DefinitelyCloudFormationResource {
 export interface AssemblyIndexViolationWithSource {
   readonly violation: ViolatingConstructJson;
   readonly node?: AssemblyIndexNode;
-  readonly cfnResource?: ViolatingConstructJson['cloudFormationResource'];
+  readonly cfnResource?: AssemblyIndexCloudFormationResource;
   readonly sourceLocations: SourceLocation[];
+}
+
+export interface AssemblyIndexCloudFormationResource {
+  /**
+   * The path to the CloudFormation template containing this resource.
+   *
+   * This path is relative to the Cloud Assembly root directory.
+   */
+  readonly templatePath: RelativePath;
+
+  /**
+   * The logical ID of the resource in the CloudFormation template.
+   */
+  readonly logicalId: string;
+
+  /**
+   * Properties within the construct where the violation was detected.
+   *
+   * Either a single component, in which case it regards a top-level property
+   * name, or a JSON path (starting with `$.`) to indicate a deeper property.
+   *
+   * @default - no locations
+   */
+  readonly propertyPaths?: string[];
+}
+
+export type RelativePath = Branded<string, 'RelativePath'>;
+export type AbsolutePath = Branded<string, 'AbsolutePath'>;
+
+export function assertRelativePath(x: string): RelativePath;
+export function assertRelativePath(x: string | undefined): RelativePath | undefined;
+export function assertRelativePath(x: string | undefined): RelativePath | undefined {
+  if (x === undefined) {
+    return undefined;
+  }
+  if (path.isAbsolute(x)) {
+    throw new Error(`Expecting a relative path, got ${x}`);
+  }
+  return x as RelativePath;
+}
+
+/**
+ * Resolved source location for a construct, in user-space coordinates.
+ * Always 1-based line and column. Resolves to .ts when a sibling source
+ * map exists; otherwise to the .js (or whatever the trace produced).
+ */
+export interface SourceLocation {
+  readonly file: RelativePath;
+  readonly line: number;
+  readonly column: number;
 }

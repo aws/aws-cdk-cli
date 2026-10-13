@@ -1,7 +1,8 @@
-import { pathToFileURL } from 'url';
 import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver/node';
+import { type LogSink } from './log-sink';
 import { offsetsToRange } from './positions';
-import { type AssemblyIndexWithSourceLocations, isResourceNode, type AssemblyResourceNode } from '../core/assembly-index-with-source-locations';
+import { type AssemblyIndexWithSourceLocations, isResourceNode, type AssemblyResourceNode, type RelativePath } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
 import type { OffsetRange, TemplateRanges } from '../core/template-ranges';
 import { indexTemplateRanges } from '../core/template-ranges';
 
@@ -53,7 +54,7 @@ export function resourceNodesOnLine(
 ): AssemblyResourceNode[] {
   // sourceLocation is 1-based; LSP positions are 0-based.
   const line = position.line + 1;
-  return index.constructsOnLine(filePath, line)
+  return index.constructsOnLine(index.appDir.relative(filePath), line)
     .filter(x => isResourceNode(x))
     .map(x => x as AssemblyResourceNode);
 }
@@ -64,10 +65,11 @@ export function resourceNodesOnLine(
  * property link targets. Returns undefined when no resource maps to the line.
  */
 export async function hoverForPosition(
+  console: LogSink,
   index: AssemblyIndexWithSourceLocations,
   filePath: string,
   position: Position,
-  readTemplate: (file: string) => Promise<string | undefined>,
+  readTemplate: (file: RelativePath) => Promise<string>,
 ): Promise<Hover | undefined> {
   const nodes = resourceNodesOnLine(index, filePath, position);
   if (nodes.length === 0) {
@@ -76,7 +78,7 @@ export async function hoverForPosition(
   // Select the primary once and thread it through both link resolution and
   // rendering, so a single place owns "which resource is canonical".
   const primaryResource = selectPrimary(nodes);
-  const links = await resolveHoverLinks(nodes, primaryResource?.primary, readTemplate);
+  const links = await resolveHoverLinks(console, index, nodes, primaryResource?.primary, readTemplate);
   const range: Range = {
     start: { line: position.line, character: 0 },
     end: { line: position.line, character: Number.MAX_VALUE },
@@ -99,18 +101,22 @@ interface ResolvedTemplate {
  * stack-relative logical ids can collide across templates.
  */
 async function resolveHoverLinks(
+  console: LogSink,
+  index: AssemblyIndexWithSourceLocations,
   nodes: readonly AssemblyResourceNode[],
   primary: AssemblyResourceNode | undefined,
-  readTemplate: (file: string) => Promise<string | undefined>,
+  readTemplate: (file: RelativePath) => Promise<string>,
 ): Promise<HoverLinks> {
-  const templates = new Map<string, ResolvedTemplate | undefined>();
-  const resolveOnce = async (file: string): Promise<ResolvedTemplate | undefined> => {
-    if (!templates.has(file)) {
-      const text = await readTemplate(file);
-      const ranges = text === undefined ? undefined : indexTemplateRanges(text);
-      templates.set(file, text !== undefined && ranges !== undefined ? { text, ranges } : undefined);
+  const templates = new Map<string, ResolvedTemplate>();
+  const resolveOnce = async (file: RelativePath): Promise<ResolvedTemplate> => {
+    const existing = templates.get(file);
+    if (existing) {
+      return existing;
     }
-    return templates.get(file);
+    const text = await readTemplate(file);
+    const ranges = indexTemplateRanges(text);
+    templates.set(file, { text, ranges });
+    return { text, ranges };
   };
 
   const resourceLocations: Record<string, LinkTarget> = {};
@@ -119,11 +125,15 @@ async function resolveHoverLinks(
     if (node.cfnResource.assemblyRelativeTemplateFile === undefined) {
       continue;
     }
-    const template = await resolveOnce(node.cfnResource.assemblyRelativeTemplateFile);
-    if (template === undefined) {
+
+    let template;
+    try {
+      template = await resolveOnce(node.cfnResource.assemblyRelativeTemplateFile);
+    } catch (e) {
+      console.error(`Failed to resolve template for ${node.cfnResource.assemblyRelativeTemplateFile}: ${(e as Error).message}`);
       continue;
     }
-    const uri = pathToFileURL(node.cfnResource.assemblyRelativeTemplateFile).toString();
+    const uri = pathToFileURL(index.assemblyDir.absolute(node.cfnResource.assemblyRelativeTemplateFile)).toString();
     if (node === primary) {
       const resource = template.ranges.resource(node.cfnResource.logicalId);
       if (resource === undefined) {

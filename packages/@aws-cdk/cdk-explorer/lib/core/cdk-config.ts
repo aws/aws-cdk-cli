@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 /**
@@ -9,9 +9,8 @@ import * as path from 'path';
  * via `fromCdkApp`.
  */
 export interface CdkConfig {
-  /** The `app` command, or `undefined` if missing/malformed. */
-  readonly app: string | undefined;
-  readonly output: string;
+  readonly app?: string;
+  readonly output?: string;
 }
 
 /**
@@ -19,13 +18,13 @@ export interface CdkConfig {
  * Never throws. Treats missing files, malformed JSON, or wrong-typed
  * fields as "not configured" so callers can fall back gracefully
  */
-export function readCdkConfig(projectDir: string): CdkConfig {
+export async function readCdkConfig(projectDir: string): Promise<CdkConfig> {
   const configPath = path.join(projectDir, 'cdk.json');
-  if (!fs.existsSync(configPath)) return { app: undefined, output: 'cdk.out' };
+  if (!(await fs.access(configPath).then(() => true).catch(() => false))) return { app: undefined, output: 'cdk.out' };
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    parsed = JSON.parse(await fs.readFile(configPath, 'utf-8'));
   } catch {
     return { app: undefined, output: 'cdk.out' };
   }

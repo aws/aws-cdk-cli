@@ -36,6 +36,15 @@ export interface ExecutionEnvironmentOptions {
    * This will make a call to STS, which is not always desirable e.g. if the env is explicitly specified.
    */
   readonly resolveDefaultAppEnv: boolean;
+
+  /**
+   * Abort signal to stop acquiring an environment
+   *
+   * Will throw an exception if triggered.
+   *
+   * @default - No aborts
+   */
+  readonly abort?: AbortSignal;
 }
 
 export class ExecutionEnvironment implements AsyncDisposable {
@@ -63,6 +72,7 @@ export class ExecutionEnvironment implements AsyncDisposable {
     const opts = {
       outdir: dir,
       resolveDefaultAppEnv: options.resolveDefaultAppEnv,
+      abort: options.abort ?? new AbortController().signal,
     };
 
     return new ExecutionEnvironment(services, opts, {

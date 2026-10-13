@@ -1,7 +1,8 @@
-import * as fs from 'fs';
+import type { Stats } from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
-import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, MANIFEST_FILE, StackTrace } from '@aws-cdk/cloud-assembly-api';
+import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import type { PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import type { Toolkit } from '@aws-cdk/toolkit-lib';
 import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
@@ -39,14 +40,13 @@ export interface ApiOptions {
 }
 
 export function createApiRouter(options: ApiOptions): Router {
-  const appDir = canonicalDir(options.appDir);
   const staleness = options.staleness ?? new StalenessTracker();
   let cachedAssembly: AssemblyReadResult | undefined;
 
   /** mtime of the assembly's manifest, or undefined when no assembly exists yet. */
-  function manifestMtimeMs(): number | undefined {
+  async function manifestMtimeMs(): Promise<number | undefined> {
     try {
-      return fs.statSync(path.join(options.assemblyDir, MANIFEST_FILE)).mtimeMs;
+      return (await fs.stat(path.join(options.assemblyDir, MANIFEST_FILE))).mtimeMs;
     } catch {
       return undefined;
     }
@@ -63,7 +63,7 @@ export function createApiRouter(options: ApiOptions): Router {
    */
   async function getCachedAssembly(): Promise<AssemblyReadResult | { status: 'locked' }> {
     try {
-      const mtimeMs = manifestMtimeMs();
+      const mtimeMs = await manifestMtimeMs();
       if (mtimeMs === undefined) return { status: 'not-found' };
       if (cachedAssembly?.status === 'success' && cachedAssembly.mtimeMs === mtimeMs) return cachedAssembly;
 
@@ -98,11 +98,13 @@ export function createApiRouter(options: ApiOptions): Router {
     res.json({ status: 'ok' });
   });
 
-  router.get('/info', (_req, res) => {
+  router.get('/info', async (_req, res) => {
+    const appDir = await canonicalDir(options.appDir);
     res.json({ appDir });
   });
 
-  router.get('/file', (req, res) => {
+  router.get('/file', async (req, res) => {
+    const appDir = await canonicalDir(options.appDir);
     const requested = typeof req.query.path === 'string' ? req.query.path : '';
     if (!requested) {
       return res.status(400).json({ error: 'path query parameter is required' });
@@ -116,9 +118,9 @@ export function createApiRouter(options: ApiOptions): Router {
     if (isSensitiveRead(resolved)) {
       return res.status(403).json({ error: 'path is not readable by the explorer' });
     }
-    let stat: fs.Stats;
+    let stat: Stats;
     try {
-      stat = fs.statSync(resolved.absolutePath);
+      stat = await fs.stat(resolved.absolutePath);
     } catch {
       return res.status(404).json({ error: 'file not found' });
     }
@@ -128,7 +130,7 @@ export function createApiRouter(options: ApiOptions): Router {
     if (stat.size > MAX_FILE_BYTES) {
       return res.status(413).json({ error: `file exceeds ${MAX_FILE_BYTES} byte limit` });
     }
-    const buffer = fs.readFileSync(resolved.absolutePath);
+    const buffer = await fs.readFile(resolved.absolutePath);
     if (isBinary(buffer)) {
       return res.status(415).json({ error: 'binary file cannot be displayed' });
     }
@@ -140,6 +142,7 @@ export function createApiRouter(options: ApiOptions): Router {
   });
 
   router.get('/tree', async (_req, res) => {
+    const appDir = await canonicalDir(options.appDir);
     withAssembly(await getCachedAssembly(), res, (data) => {
       const severityByPath = highestSeverityByPath(data.violations);
       const tree = data.index.assemblyIndex.firstLevelChildren.map(
@@ -152,7 +155,7 @@ export function createApiRouter(options: ApiOptions): Router {
 
   router.get('/policy-validation', async (_req, res) => {
     withAssembly(await getCachedAssembly(), res, (data) => {
-      const violations = normalizeViolations(data.violations, data.index.assemblyIndex, options.assemblyDir, appDir);
+      const violations = normalizeViolations(data.violations, data.index);
       const body: ViolationsResponse = { status: 'ok', violations };
       res.json(body);
     });
@@ -174,14 +177,14 @@ export function createApiRouter(options: ApiOptions): Router {
     }
     let content: string;
     try {
-      const stat = fs.statSync(resolved.absolutePath);
+      const stat = await fs.stat(resolved.absolutePath);
       if (!stat.isFile()) {
         return res.status(400).json({ error: 'not a file' });
       }
       if (stat.size > MAX_FILE_BYTES) {
         return res.status(413).json({ error: `file exceeds ${MAX_FILE_BYTES} byte limit` });
       }
-      content = fs.readFileSync(resolved.absolutePath, 'utf-8');
+      content = await fs.readFile(resolved.absolutePath, 'utf-8');
     } catch {
       return res.status(404).json({ error: 'template not found' });
     }
@@ -193,8 +196,8 @@ export function createApiRouter(options: ApiOptions): Router {
     // On a cache hit the manifest is unchanged, so the on-disk template read
     // above is the same generation as this index; on a miss the index was just
     // re-read past the synth that changed it.
-    const index = result.status === 'success' ? result.data.index : new AssemblyIndexWithSourceLocations(new AssemblyIndex());
-    const resources = buildTemplateResources(content, file, index, options.assemblyDir, appDir);
+    const index = result.status === 'success' ? result.data.index : AssemblyIndexWithSourceLocations.empty();
+    const resources = buildTemplateResources(content, file, index, options.assemblyDir);
     const body: TemplateResponse = { content, resources };
     return res.json(body);
   });
@@ -261,6 +264,8 @@ export function toWebNode(
   if (!defaultChild) {
     const highestSeverity = ownSeverity;
     const inheritedSeverity = highestSeverity ? undefined : worstChildSeverity(children);
+
+    const sourceLocation = index.sourceLocationFor(node);
     return {
       path: node.constructPath,
       id: node.id,
@@ -269,7 +274,7 @@ export function toWebNode(
         file: node.cfnResource.assemblyRelativeTemplateFile,
         logicalId: node.cfnResource.logicalId,
       } : undefined,
-      sourceLocation: toWebSourceLocation(node.creationStack, appDir),
+      sourceLocation,
       highestSeverity,
       ...(inheritedSeverity && { inheritedSeverity }),
       children,
@@ -283,7 +288,7 @@ export function toWebNode(
     id: node.id,
     type: defaultChild.type,
     templateLocation: defaultChild.templateLocation,
-    sourceLocation: toWebSourceLocation(node.creationStack, appDir) ?? defaultChild.sourceLocation,
+    sourceLocation: index.sourceLocationFor(node) ?? defaultChild.sourceLocation,
     highestSeverity,
     ...(inheritedSeverity && { inheritedSeverity }),
     children: remainingChildren,
@@ -323,24 +328,6 @@ function worstChildSeverity(children: readonly WebConstructNode[]): string | und
   return worst;
 }
 
-/** Relativize a source location to the app dir, dropping any that escape it. */
-function toWebSourceLocation(stack: string[], appDir: string): WebSourceLocation;
-function toWebSourceLocation(stack: undefined, appDir: string): undefined;
-function toWebSourceLocation(stack: string[] | undefined, appDir: string): WebSourceLocation | undefined;
-function toWebSourceLocation(stack: string[] | undefined, appDir: string): WebSourceLocation | undefined {
-  if (!stack) return undefined;
-
-  const loc = new StackTrace(stack).findAndParse(DEFAULT_USER_CODE_FINDER);
-  if (!loc) {
-    return undefined;
-  }
-
-  const file = path.isAbsolute(loc.fileName) ? path.relative(appDir, loc.fileName) : loc.fileName;
-
-  const lineLoc = loc.lineLocation;
-  return { file, line: lineLoc?.line ?? 1, column: lineLoc?.column ?? 1 };
-}
-
 /**
  * Normalize a policy-validation report into the SPA's flat violation model.
  * Each violating construct is joined to the construct tree (by path): the
@@ -350,9 +337,7 @@ function toWebSourceLocation(stack: string[] | undefined, appDir: string): WebSo
  */
 export function normalizeViolations(
   reports: PluginReportJson[] | undefined,
-  index: AssemblyIndex,
-  assemblyDir: string,
-  appDir: string,
+  index: AssemblyIndexWithSourceLocations,
 ): WebViolation[] {
   return (reports ?? []).flatMap((plugin) =>
     (plugin.violations ?? []).map((violation) => ({
@@ -361,16 +346,14 @@ export function normalizeViolations(
       ...classifyReportSeverity(violation.severity, violation.customSeverity),
       source: plugin.pluginName,
       suggestedFix: violation.suggestedFix,
-      occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index, assemblyDir, appDir)),
+      occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index)),
     })));
 }
 
 /** Join one violating construct to its tree node, preferring resolved tree data. */
 function toOccurrence(
   vc: ViolatingConstructJson,
-  index: AssemblyIndex,
-  _assemblyDir: string,
-  appDir: string,
+  index: AssemblyIndexWithSourceLocations,
 ): WebViolationOccurrence {
   const traced = index.traceViolation(vc);
 
@@ -378,7 +361,7 @@ function toOccurrence(
     constructPath: vc.constructPath,
     logicalId: traced?.cfnResource?.logicalId,
     templateFile: traced?.cfnResource?.templatePath,
-    sourceLocations: traced?.stackTraces?.map((x) => toWebSourceLocation(x, appDir)) ?? [],
+    sourceLocations: traced?.sourceLocations,
     propertyPaths: vc.cloudFormationResource?.propertyPaths,
   };
 }
@@ -392,7 +375,6 @@ function buildTemplateResources(
   templateFile: string,
   index: AssemblyIndexWithSourceLocations,
   _assemblyDir: string,
-  appDir: string,
 ): Record<string, TemplateResource> {
   const allRanges = resolveAllResourceRanges(content);
   if (!allRanges) return {};
@@ -406,7 +388,9 @@ function buildTemplateResources(
     let source: WebSourceLocation | undefined;
     if (index) {
       const owner = index.assemblyIndex.byTemplateLocation(templateFile, logicalId);
-      source = toWebSourceLocation(owner?.creationStack, appDir);
+      if (owner) {
+        source = index.sourceLocationFor(owner);
+      }
     }
 
     resources[logicalId] = { block, ...(source && { source }) };
@@ -457,8 +441,8 @@ function toPosix(p: string): string {
 }
 
 /** Canonical app root: realpath so relative paths match resolveWithinRoot's realpathed output. */
-function canonicalDir(dir: string): string {
-  return fs.realpathSync(path.resolve(dir));
+async function canonicalDir(dir: string): Promise<string> {
+  return fs.realpath(path.resolve(dir));
 }
 
 /** A NUL byte in the first chunk reliably indicates non-text content. */

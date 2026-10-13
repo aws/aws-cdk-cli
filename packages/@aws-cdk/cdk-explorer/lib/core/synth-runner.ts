@@ -50,7 +50,7 @@ export interface SynthRunnerOptions {
  * edited command or a newly added `app` takes effect on the next synth.
  */
 export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
-  const app = readCdkConfig(options.projectDir).app;
+  const app = (await readCdkConfig(options.projectDir)).app;
   if (app === undefined) return { status: 'unavailable' };
 
   let cached;

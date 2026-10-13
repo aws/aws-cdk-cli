@@ -62,10 +62,13 @@ export interface TemplateRanges {
  * when the text is not valid JSON. The single-resource {@link resolveResourceRange}
  * and {@link resolveResourceRanges} are thin wrappers over this.
  */
-export function indexTemplateRanges(templateText: string): TemplateRanges | undefined {
+export function indexTemplateRanges(templateText: string): TemplateRanges {
   const pointers = parsePointers(templateText);
   if (pointers === undefined) {
-    return undefined;
+    return {
+      block: () => undefined,
+      resource: () => undefined,
+    };
   }
   return {
     block: (logicalId) => blockRange(pointers, escapePointerSegment(logicalId)),

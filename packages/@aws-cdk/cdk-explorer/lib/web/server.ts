@@ -84,7 +84,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const appDir = options.appDir ?? process.cwd();
   // Single owner of where the cloud assembly lives: the same resolved path feeds
   // both the read endpoints and the change watcher, so the two never disagree.
-  const assemblyDir = path.resolve(appDir, options.assemblyDir ?? readCdkConfig(appDir).output);
+  const assemblyDir = path.resolve(appDir, options.assemblyDir ?? (await readCdkConfig(appDir)).output);
 
   // mtime of the assembly manifest (undefined when none exists yet). Used as the
   // staleness fallback reference (synth-finish time) when no synth-start lock was
@@ -140,15 +140,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   // by path; any other GET falls back to index.html for client-side routing.
   // (securityHeaders already sets Cache-Control: no-store, which is what makes a
   // rebuilt bundle show up on reload despite its unversioned filename.)
-  app.get('/:asset', (req, res) => {
-    const asset = webAsset(req.params.asset);
+  app.get('/:asset', async (req, res) => {
+    const asset = await webAsset(req.params.asset);
     if (asset) {
       return res.type(asset.contentType).send(asset.body);
     }
     return res.status(404).send('Not Found');
   });
-  app.get('/', (_req, res) => {
-    const index = webAsset('index.html')!;
+  app.get('/', async (_req, res) => {
+    const index = (await webAsset('index.html'))!;
     res.type(index.contentType).send(index.body);
   });
 

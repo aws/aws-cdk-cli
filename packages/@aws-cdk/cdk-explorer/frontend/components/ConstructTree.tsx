@@ -2,7 +2,7 @@ import Icon from '@cloudscape-design/components/icon';
 import SpaceBetween from '@cloudscape-design/components/space-between';
 import TreeView from '@cloudscape-design/components/tree-view';
 import * as React from 'react';
-import type { WebConstructNode } from '../api';
+import type { WebConstructNode } from '../../lib/web/protocol';
 import type { NavigateEvent, NavigateHandler } from '../nav-types';
 import { SEVERITY } from './severities';
 

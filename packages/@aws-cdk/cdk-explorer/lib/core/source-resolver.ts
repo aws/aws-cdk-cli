@@ -1,19 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import * as convertSourceMap from 'convert-source-map';
-
-/**
- * Resolved source location for a construct, in user-space coordinates.
- * Always 1-based line and column. Resolves to .ts when a sibling source
- * map exists; otherwise to the .js (or whatever the trace produced).
- */
-export interface SourceLocation {
-  readonly file: string;
-  readonly line: number;
-  readonly column: number;
-}
+import { assertRelativePath, type SourceLocation } from './assembly-index-with-source-locations';
+import { pathToFileURL } from './safe-url';
 
 /**
  * Resolves construct creation stack traces to user source locations, caching
@@ -88,7 +79,7 @@ export class SourceMapResolver {
     // `sources` comes from the .js.map, which is also assembly-derived. Keep the
     // mapped original within the project, else fall back to the (in-root) .js.
     if (!(await isWithinRoot(this.projectRoot, file))) return loc;
-    return { file, line: orig.line, column: orig.column + 1 };
+    return { file: assertRelativePath(file), line: orig.line, column: orig.column + 1 };
   }
 
   private async loadTraceMap(jsFile: string): Promise<TraceMap | null> {
@@ -166,7 +157,7 @@ function parseFrame(frame: string): SourceLocation | undefined {
   // Host frames may omit the column; treat absent as 0 (unavailable).
   const column = m[3] !== undefined ? Number(m[3]) : 0;
   if (!Number.isFinite(line) || !Number.isFinite(column)) return undefined;
-  return { file: m[1], line, column };
+  return { file: assertRelativePath(m[1]), line, column };
 }
 
 /**

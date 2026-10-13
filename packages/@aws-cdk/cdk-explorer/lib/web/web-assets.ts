@@ -5,7 +5,7 @@
  * always generates this file, so its absence is a build error, not a runtime
  * condition we handle (same convention as the CLI's build-info.json).
  */
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { EMBEDDED_ASSETS } from './web-assets.generated';
 export interface WebAsset {
@@ -27,7 +27,7 @@ const WEB_ASSETS: Record<string, WebAsset> = Object.fromEntries(
 );
 
 /** A named SPA asset (e.g. "bundle.js"), or undefined if not part of the build. */
-export function webAsset(name: string): WebAsset | undefined {
+export async function webAsset(name: string): Promise<WebAsset | undefined> {
   if (process.env.CDK_LIVE === undefined) {
     return WEB_ASSETS.hasOwnProperty(name) ? WEB_ASSETS[name] : undefined;
   }
@@ -40,7 +40,7 @@ export function webAsset(name: string): WebAsset | undefined {
 
     return {
       contentType: CONTENT_TYPES[name],
-      body: fs.readFileSync(diskLocation),
+      body: await fs.readFile(diskLocation),
     };
   } catch (e: any) {
     if (e.code === 'ENOENT') {

@@ -1,7 +1,6 @@
 export const VERSION = '0.0.0';
 
 export type { AssemblyData, AssemblyReadResult } from './core/assembly-reader';
-export type { SourceLocation } from './core/source-resolver';
 
 export { startLspServer } from './lsp/main';
 export { cdkLspManifest } from './lsp/features';

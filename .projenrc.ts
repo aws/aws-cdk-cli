@@ -1276,6 +1276,27 @@ cdkExplorer.eslint?.addOverride({
     'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
   },
 });
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'lib/**',
+  ],
+  rules: {
+    'no-restricted-imports': ['error', {
+      paths: [
+        {
+          name: 'url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+        {
+          name: 'node:url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+      ],
+    }],
+  },
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

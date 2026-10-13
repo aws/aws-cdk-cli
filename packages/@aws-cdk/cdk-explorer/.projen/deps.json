@@ -31,6 +31,11 @@
       "type": "build"
     },
     {
+      "name": "@types/json-source-map",
+      "version": "^0.6.0",
+      "type": "build"
+    },
+    {
       "name": "@types/node",
       "version": "^20",
       "type": "build"
@@ -193,6 +198,11 @@
     {
       "name": "convert-source-map",
       "version": "^2",
+      "type": "runtime"
+    },
+    {
+      "name": "json-source-map",
+      "version": "^0.6.1",
       "type": "runtime"
     },
     {

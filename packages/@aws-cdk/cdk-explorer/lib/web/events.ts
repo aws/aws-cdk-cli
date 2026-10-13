@@ -64,8 +64,6 @@ export class SseBroadcaster {
    * not throw); the `close`/`error` handlers in `handle` do the eviction.
    */
   public broadcast(event: SseEventName): void {
-    // eslint-disable-next-line no-console
-    console.error(`Broadcasting event: ${event}`);
     const frame = `event: ${event}\ndata: {}\n\n`;
     for (const client of this.clients) {
       client.write(frame);

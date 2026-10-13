@@ -1,8 +1,8 @@
 import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
 import * as React from 'react';
 import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
-import type { TemplateResource, WebViolation } from '../api';
 import { CodeViewer, type Diagnostic } from './CodeViewer';
+import type { TemplateResource, WebViolation } from '../../lib/web/protocol';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;

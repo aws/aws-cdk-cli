@@ -25,9 +25,9 @@ export async function codeLensesForFile(
   filePath: string,
   autoSynthEnabled: boolean,
 ): Promise<CodeLens[]> {
-  const matches = index.constructsInSourceFile(filePath)
+  const matches = index.constructsInSourceFile(index.appDir.relative(filePath))
     .filter(([_, x]) => isResourceNode(x))
-    .map(([line, node]) => ({ line, node: node as AssemblyResourceNode }));
+    .map(([line, node]) => ({ line, node: node as unknown as AssemblyResourceNode }));
 
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources). Resolve

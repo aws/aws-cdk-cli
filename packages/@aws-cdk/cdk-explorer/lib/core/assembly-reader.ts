@@ -20,7 +20,11 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
   const assembly = readableAssembly.cloudAssembly;
   const warnings: string[] = [];
 
-  const index = new AssemblyIndexWithSourceLocations(await AssemblyIndex.fromAssembly(assembly));
+  const index = new AssemblyIndexWithSourceLocations({
+    appDir: projectRoot,
+    assemblyDir: assembly.directory,
+    assemblyIndex: await AssemblyIndex.fromAssembly(assembly),
+  });
 
   // TODO: resolve sources
   const sourceResolver = new SourceMapResolver(projectRoot);

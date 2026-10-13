@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { type Location, type Range } from 'vscode-languageserver/node';
 import { offsetsToRange } from './positions';
 import type { AssemblyIndexWithSourceLocations, AssemblyResourceNode } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
 import { resolveLogicalIdAtOffset, resolveResourceRange } from '../core/template-ranges';
 
 /**
@@ -62,7 +62,7 @@ export function sourceTargetAtTemplateOffset(
   if (logicalId === undefined) {
     return undefined;
   }
-  const owner = index.byTemplateLocation(templateFile, logicalId);
+  const owner = index.byTemplateLocation(index.assemblyDir.relative(templateFile), logicalId);
   const sourceLocation = owner ? index.sourceLocationFor(owner) : undefined;
   if (sourceLocation === undefined) {
     return undefined;
@@ -70,7 +70,7 @@ export function sourceTargetAtTemplateOffset(
   // SourceLocation is 1-based; LSP positions are 0-based.
   const position = { line: sourceLocation.line - 1, character: sourceLocation.column - 1 };
   return {
-    uri: pathToFileURL(sourceLocation.file).toString(),
+    uri: pathToFileURL(index.appDir.absolute(sourceLocation.file)).toString(),
     range: { start: position, end: position },
   };
 }

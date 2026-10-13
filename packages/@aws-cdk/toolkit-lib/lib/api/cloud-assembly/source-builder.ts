@@ -9,6 +9,7 @@ import { CachedCloudAssembly } from './cached-source';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
 import { execInChildProcess } from './private/exec';
+import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 import { ExecutionEnvironment, assemblyFromDirectory, parametersFromSynthOptions, writeContextToEnv } from './private/prepare-source';
 import { ReadableCloudAssembly } from './private/readable-assembly';
 import type { ICloudAssemblySource } from './types';
@@ -16,7 +17,6 @@ import type { ToolkitServices } from '../../toolkit/private';
 import { ToolkitError, AssemblyError } from '../../toolkit/toolkit-error';
 import { noUndefined } from '../../util';
 import { IO } from '../io/private';
-import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 
 /**
  * Properties the builder function receives.
@@ -499,7 +499,7 @@ export abstract class CloudAssemblySourceBuilder {
 
     return new ContextAwareCloudAssemblySource(
       {
-        produce: async () => {
+        produce: async (produceOptions) => {
           try {
             fs.mkdirpSync(outdir);
           } catch (e: any) {
@@ -536,6 +536,7 @@ export abstract class CloudAssemblySourceBuilder {
           const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
             await execInChildProcess(commandLine, {
+              abort: produceOptions?.abort,
               eventPublisher: async (type, line) => {
                 switch (type) {
                   case 'data_stdout':

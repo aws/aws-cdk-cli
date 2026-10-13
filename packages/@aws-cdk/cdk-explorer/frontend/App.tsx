@@ -11,7 +11,7 @@ import TextFilter from '@cloudscape-design/components/text-filter';
 import Token from '@cloudscape-design/components/token';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
-import { api, type TemplateResponse, type TreeResponse, type ViolationsResponse } from './api';
+import { api } from './api';
 import { CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree, ExpandState } from './components/ConstructTree';
 import { Flex, FlexFix, FlexGrow } from './components/Flex';
@@ -20,9 +20,10 @@ import { RelativeTime } from './components/RelativeTime';
 import { colorForSeverity } from './components/severities';
 import { FormatToggle, TemplateViewer, type Format } from './components/TemplateViewer';
 import { ViolationsPanel } from './components/ViolationsPanel';
-import { SourceAndTemplateIndex } from './source-and-template-index';
 import type { NavigateHandler } from './nav-types';
+import { SourceAndTemplateIndex } from './source-and-template-index';
 import type { Language } from './syntax';
+import { type TemplateResponse, type TreeResponse, type ViolationsResponse } from '../lib/web/protocol';
 export type { NavigateHandler } from './nav-types';
 
 interface SourceHighlight {
@@ -519,13 +520,15 @@ function buildDiagnostics(
   for (const violation of violations.violations) {
     const severity = violationSeverityToDiagnostic(violation.severity);
     for (const occ of violation.occurrences) {
-      if (occ.sourceLocation?.file === sourceFile && occ.sourceLocation.line >= 1) {
-        diagnostics.push({
-          startLine: occ.sourceLocation.line,
-          startCol: occ.sourceLocation.column >= 1 ? occ.sourceLocation.column : 1,
-          severity,
-          message: violation.description,
-        });
+      for (const sourceLocation of occ.sourceLocations ?? []) {
+        if (sourceLocation.file === sourceFile && sourceLocation.line >= 1) {
+          diagnostics.push({
+            startLine: sourceLocation.line,
+            startCol: sourceLocation.column >= 1 ? sourceLocation.column : 1,
+            severity,
+            message: violation.description,
+          });
+        }
       }
     }
   }

@@ -103,10 +103,12 @@ export class AssemblyIndex {
   private stackIndex: StackMetadataIndex = new Map();
   private templateCache: Map<string, CfnTemplate> = new Map();
 
+  private templateFileFromProducer: Record<string, string> = {};
+
   /**
    * Maps assembly-relative template file paths to their root construct path.
    */
-  private templateRoots: Record<string, string> = {};
+  private templateProducerFromFile: Record<string, string> = {};
 
   /**
    * Construct tree obtained from tree.json
@@ -139,7 +141,7 @@ export class AssemblyIndex {
    * Currently uses a tree walk, could be using a Map lookup if necessary for performance.
    */
   public byPath(constructPath: string): AssemblyIndexNode | undefined {
-    const parts = constructPath.split('/');
+    const parts = this.pathParts(constructPath);
     let current: AssemblyIndexNode | undefined = this.constructTree;
     while (current && parts.length > 0) {
       const part = parts.shift()!;
@@ -154,14 +156,23 @@ export class AssemblyIndex {
    * Returns undefined if the node does not exist.
    */
   public byTemplateLocation(assemblyRelativeTemplateFile: string, logicalId: string): AssemblyIndexNode | undefined {
-    const rootConstruct = this.templateRoots[assemblyRelativeTemplateFile];
+    const rootConstruct = this.templateProducerFromFile[assemblyRelativeTemplateFile];
+    if (!rootConstruct) {
+      return undefined;
+    }
+
     let found: AssemblyIndexNode | undefined;
     recurse.call(this, rootConstruct);
     return found;
 
     function recurse(this: AssemblyIndex, constructPath: string) {
+      if (this.templateFileFromProducer[constructPath] && this.templateFileFromProducer[constructPath] !== assemblyRelativeTemplateFile) {
+        return;
+      }
       const node = this.byPath(constructPath);
-      if (!node || node.cfnResource.assemblyRelativeTemplateFile !== assemblyRelativeTemplateFile) return;
+      if (!node) {
+        return;
+      }
       if (node.cfnResource.logicalId === logicalId) {
         found = node;
         return;
@@ -242,20 +253,17 @@ export class AssemblyIndex {
    * template Metadata section to find this. This is all extremely non-amazing.
    */
   private async indexTemplateFiles(assemblyDir: string) {
-    // Map a hierarchical ID to its corresponding template file.
-    const templateScope: Record<string, string> = {};
-
     for (const [hierarchicalId, { assemblyRelativeTemplateFile }] of this.stackIndex.entries()) {
-      templateScope[hierarchicalId] = assemblyRelativeTemplateFile;
+      this.templateFileFromProducer[hierarchicalId] = assemblyRelativeTemplateFile;
       await scanTemplate.call(this, assemblyRelativeTemplateFile);
     }
 
     // For every resource, tell it what template it's defined in
-    assignTemplateToNode(this.constructTree, undefined);
+    assignTemplateToNode.call(this, this.constructTree, undefined);
 
     // Record all the template roots so we can do the reverse mapping as well
-    for (const [hierarchicalId, assemblyRelativeTemplateFile] of Object.entries(templateScope)) {
-      this.templateRoots[assemblyRelativeTemplateFile] = hierarchicalId;
+    for (const [hierarchicalId, assemblyRelativeTemplateFile] of Object.entries(this.templateFileFromProducer)) {
+      this.templateProducerFromFile[assemblyRelativeTemplateFile] = hierarchicalId;
     }
 
     async function scanTemplate(this: AssemblyIndex, templateFile: string) {
@@ -266,9 +274,12 @@ export class AssemblyIndex {
           const assetPath = resource.Metadata?.['aws:asset:path'] as string;
 
           if (stackResourceConstructPath && assetPath) {
-            const nestedStackConstructPath = stackResourceConstructPath.split('/').slice(0, -1).join('/');
+            // Nested Stack Resource has a construct path like `/ParentStack/NestedStack/X.NestedStack/Resource`.
+            const nestedStackResourceParts = stackResourceConstructPath.split('/').slice(0, -1);
+            nestedStackResourceParts[nestedStackResourceParts.length - 1] = nestedStackResourceParts[nestedStackResourceParts.length - 1].replace(/\.NestedStack$/, '');
+            const nestedStackConstructPath = nestedStackResourceParts.join('/');
             const templatePath = path.join(path.dirname(templateFile), assetPath);
-            templateScope[nestedStackConstructPath] = templatePath;
+            this.templateFileFromProducer[nestedStackConstructPath] = templatePath;
 
             await scanTemplate.call(this, templatePath);
           }
@@ -276,12 +287,12 @@ export class AssemblyIndex {
       }
     }
 
-    function assignTemplateToNode(node: AssemblyIndexNode, templateFile: string | undefined) {
+    function assignTemplateToNode(this: AssemblyIndex, node: AssemblyIndexNode, templateFile: string | undefined) {
       if (node.cfnResource.logicalId && templateFile) {
         mutable(node.cfnResource).assemblyRelativeTemplateFile = templateFile;
       }
       for (const child of Object.values(node.children)) {
-        assignTemplateToNode(child, templateScope[node.constructPath] ?? templateFile);
+        assignTemplateToNode.call(this, child, this.templateFileFromProducer[node.constructPath] ?? templateFile);
       }
     }
   }
@@ -396,10 +407,12 @@ async function loadTreeMetadata(treePath: string): Promise<TreeNode | undefined>
   // Walk this tree and expand all forests
   async function recurse(node: TreeFileNode): Promise<TreeNode> {
     if (isSubtreeReference(node)) {
-      let forest = forestCache[node.fileName];
+      const forestAbsPath = path.join(path.dirname(treePath), node.fileName);
+
+      let forest = forestCache[forestAbsPath];
       if (!forest) {
-        forest = JSON.parse(await fs.promises.readFile(node.fileName, 'utf-8'));
-        forestCache[node.fileName] = forest;
+        forest = JSON.parse(await fs.promises.readFile(forestAbsPath, 'utf-8'));
+        forestCache[forestAbsPath] = forest;
       }
       return recurse(forest.forest[node.treeId] ?? {});
     } else {

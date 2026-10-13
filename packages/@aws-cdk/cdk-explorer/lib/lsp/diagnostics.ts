@@ -1,4 +1,3 @@
-import { pathToFileURL } from 'url';
 import type {
   PluginReportJson,
   PolicyViolationJson,
@@ -12,6 +11,7 @@ import {
 } from 'vscode-languageserver/node';
 import { groupBy } from './codelens';
 import type { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
 
 // Range end character: max valid LSP uinteger (2^31-1); clients clamp it to the
 // line length. Not Number.MAX_VALUE, which VS Code tolerates but IntelliJ's
@@ -82,7 +82,7 @@ function anchorViolation(
 ): Result<{ readonly uri: string; readonly range: Range }[]> {
   const traced = index.traceViolation(violation);
   return traced.sourceLocations.map((loc) => {
-    return { uri: pathToFileURL(loc.file).toString(), range: toRange(loc) };
+    return { uri: pathToFileURL(index.appDir.absolute(loc.file)).toString(), range: toRange(loc) };
   });
 }
 

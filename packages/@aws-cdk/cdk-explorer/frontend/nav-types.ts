@@ -1,5 +1,3 @@
-import type { WebSourceLocation } from './api';
-
 export type NavigateTrigger = 'tree' | 'diagnostic' | 'source' | 'template';
 
 export interface NavigateEvent {
