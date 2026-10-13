@@ -100,6 +100,14 @@ export class DiffMethod {
  */
 export interface DiffOptions {
   /**
+   * Maximum number of stacks to prepare concurrently. Must be a positive integer.
+   * Notifications and results retain stack order. Local-file comparisons are unaffected.
+   *
+   * @default 1
+   */
+  readonly concurrency?: number;
+
+  /**
    * Select the stacks
    *
    * @default - All stacks

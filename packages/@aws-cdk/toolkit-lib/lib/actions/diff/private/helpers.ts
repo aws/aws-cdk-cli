@@ -4,6 +4,7 @@ import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformat
 import * as fs from 'fs-extra';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
+import { prepareStacksConcurrently, validateDiffConcurrency } from './concurrency';
 import type { SdkProvider } from '../../../api/aws-auth/private';
 import { ChangeSetDescriber } from '../../../api/change-sets';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
@@ -24,6 +25,7 @@ export function prepareDiff(
   sdkProvider: SdkProvider,
   options: DiffOptions,
 ): Promise<TemplateInfo[]> {
+  validateDiffConcurrency(options.concurrency);
   switch (options.method?.method ?? DiffMethod.ChangeSet().method) {
     case 'local-file':
       return localFileDiff(stacks, options);
@@ -75,8 +77,8 @@ async function cfnDiff(
     ? await mappingsByEnvironment(stacks.stackArtifacts, sdkProvider, true)
     : [];
 
-  // Compare N stacks against deployed templates
-  for (const stack of stacks.stackArtifacts) {
+  const concurrency = validateDiffConcurrency(options.concurrency);
+  const preparations = prepareStacksConcurrently(stacks.stackArtifacts, concurrency, ioHelper, async (stack, stackIo) => {
     const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
       stack,
       methodOptions.compareAgainstProcessedTemplate,
@@ -85,13 +87,13 @@ async function cfnDiff(
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
     const environment = await deployments.resolveEnvironment(stack);
-    const migrator = new ResourceMigrator({ deployments, ioHelper });
+    const migrator = new ResourceMigrator({ deployments, ioHelper: stackIo });
     const resourcesToImport = await migrator.tryGetResources(environment);
     if (resourcesToImport) {
       removeNonImportResources(stack);
     }
 
-    const changeSet = includeChangeSet ? (await cfnApi.createDiffChangeSet(ioHelper, {
+    const changeSet = includeChangeSet ? (await cfnApi.createDiffChangeSet(stackIo, {
       deployments,
       stack,
       sdkProvider,
@@ -106,14 +108,14 @@ async function cfnDiff(
     // If the changeset includes nested stacks, describe each nested changeset
     // and attach it to the corresponding entry in nestedStacks.
     if (changeSet) {
-      await attachNestedChangeSetData(ioHelper, deployments, stack, changeSet, nestedStacks);
+      await attachNestedChangeSetData(stackIo, deployments, stack, changeSet, nestedStacks);
     }
 
     const mappings = allMappings.find(m =>
       m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
     )?.mappings ?? {};
 
-    templateInfos.push({
+    return {
       oldTemplate: currentTemplate,
       newTemplate: stack,
       isImport: !!resourcesToImport,
@@ -121,7 +123,10 @@ async function cfnDiff(
       changeSet,
       mappings,
       environment,
-    });
+    };
+  });
+  for await (const templateInfo of preparations) {
+    templateInfos.push(templateInfo);
   }
 
   return templateInfos;

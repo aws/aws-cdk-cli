@@ -501,6 +501,54 @@ Resources
 });
 
 describe('non-nested stacks', () => {
+  test.each([0, -1, 1.5, NaN, Infinity])('rejects invalid diff concurrency %s', async (concurrency) => {
+    await expect(toolkit.diff({ stackNames: ['A'], concurrency })).rejects.toThrow('Diff concurrency must be a positive integer');
+    expect(cloudFormation.readCurrentTemplateWithNestedStacks).not.toHaveBeenCalled();
+  });
+
+  test('prepares two stacks concurrently but formats them in selection order', async () => {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template: {} }, { stackName: 'B', template: {} }],
+    }, undefined, ioHost);
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    let bothStarted!: () => void;
+    const started = new Promise<void>(resolve => {
+      bothStarted = resolve;
+    });
+    const gateA = new Promise<void>(resolve => {
+      releaseA = resolve;
+    });
+    const gateB = new Promise<void>(resolve => {
+      releaseB = resolve;
+    });
+    let active = 0;
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(async stack => {
+      active++;
+      if (active === 2) {
+        bothStarted();
+      }
+      await (stack.stackName === 'A' ? gateA : gateB);
+      return { deployedRootTemplate: {}, nestedStacks: {} };
+    });
+
+    const diff = toolkit.diff({ stackNames: ['A', 'B'], method: 'template', concurrency: 2 });
+    await started;
+    releaseB();
+    releaseA();
+    expect(await diff).toBe(0);
+    const text = output();
+    expect(text).toContain('Stack A');
+    expect(text).toContain('Stack B');
+    expect(text.indexOf('Stack A')).toBeLessThan(text.indexOf('Stack B'));
+  });
+
   beforeEach(async () => {
     cloudExecutable = await MockCloudExecutable.create({
       stacks: [
@@ -834,6 +882,24 @@ describe('stack exists checks', () => {
     expect(exitCode).toBe(0);
     expect(stackExists).toHaveBeenCalled();
     expect(createDiffChangeSet).not.toHaveBeenCalled();
+  });
+
+  test('method=auto warns and falls back to template diff when stack lookup fails', async () => {
+    jest.spyOn(cloudFormation, 'stackExists').mockRejectedValue(new Error('Stack lookup throttled'));
+    const createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet');
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      quiet: false,
+      concurrency: 2,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(createDiffChangeSet).not.toHaveBeenCalled();
+    expect(output()).toContain("Could not access stack 'A', falling back to template diff");
+    expect(output()).toContain('Stack A');
+    expect(output()).toContain('Number of stacks with differences: 1');
   });
 
   test('method=change-set throws when stackExists call fails', async () => {

@@ -207,6 +207,13 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+Use `--concurrency N` to prepare up to `N` stacks in parallel, including deployed-template reads
+and diff change sets. The default is `1`, preserving sequential behavior. `N` must be a positive
+integer. Notifications and stack diffs are printed in selection order even when preparation finishes
+out of order. Increase this conservatively to avoid CloudFormation throttling; existing change-set
+fallback/error behavior is unchanged, and in-flight preparation finishes cleanup before an error is
+returned. Local `--template` comparisons are unaffected.
+
 Use `--fail-on` to control which kind of change makes the command exit with code 1. It takes the same
 values as `cdk deploy --require-approval`:
 

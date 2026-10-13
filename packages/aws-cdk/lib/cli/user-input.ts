@@ -1447,6 +1447,13 @@ export interface DestroyOptions {
  */
 export interface DiffOptions {
   /**
+   * Maximum number of stacks to prepare concurrently (positive integer)
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
+
+  /**
    * Only diff requested stacks, don't include dependencies
    *
    * aliases: e
