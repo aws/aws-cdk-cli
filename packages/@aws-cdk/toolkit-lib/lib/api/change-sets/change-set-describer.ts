@@ -36,10 +36,13 @@ export interface WaitForChangeSetOptions {
  *
  * Change sets are described with `IncludePropertyValues`, which yields the before/after property
  * values and resource contexts that let `diff` surface changes invisible to a pure template diff.
- * CloudFormation may silently drop resource changes from such a response, in which case it says so
- * in `StatusReason`; we then describe the change set a second time without property values and put
- * back what was dropped. All pages of `Changes` are always fetched, so the change list is never
- * truncated. See https://github.com/aws/aws-cdk-cli/issues/1780
+ * Such a description does not reliably list every resource change: CloudFormation can leave changes
+ * out of it, sometimes saying so in `StatusReason` (https://github.com/aws/aws-cdk-cli/issues/1780)
+ * and sometimes without any signal at all (https://github.com/aws/aws-cdk-cli/issues/2036).
+ * Callers read a resource that is missing from `Changes` as "will not change", so a change set that
+ * was created is always described a second time without property values, and whatever the first
+ * description left out is put back. All pages of `Changes` are always fetched, so the change list
+ * is never truncated.
  */
 export class ChangeSetDescriber {
   /**
@@ -180,14 +183,27 @@ export class ChangeSetDescriber {
       return detailed;
     }
 
-    // CloudFormation warned us that it left data out, so describe again without property values
-    // and put back whatever it dropped.
-    if (hasIncompletePropertyValuesWarning(detailed)) {
+    const warned = hasIncompletePropertyValuesWarning(detailed);
+    if (warned) {
       await this.ioHelper.defaults.debug(format(
         'Changeset %s on stack %s was described with incomplete data (%s); describing it again without property values to recover what was dropped',
         this.changeSetDisplayName, this.stackDisplayName, detailed.StatusReason,
       ));
-      return this.mergeDescriptions(detailed, await this.describeOnce(false));
+    }
+
+    // A created change set must list every resource that will change, and only the description
+    // without property values reliably does (https://github.com/aws/aws-cdk-cli/issues/2036). In
+    // any other state (most commonly FAILED because there were no changes) the warning is the only
+    // reason to describe again, so that a no-op diff or deploy still costs a single call.
+    if (detailed.Status === ChangeSetStatus.CREATE_COMPLETE || warned) {
+      const { description, restored } = this.mergeDescriptions(detailed, await this.describeOnce(false));
+      if (!warned && restored.length > 0) {
+        await this.ioHelper.defaults.debug(format(
+          'Changeset %s on stack %s was described with property values but left out changes to %s; restored them from the description without property values',
+          this.changeSetDisplayName, this.stackDisplayName, restored.join(', '),
+        ));
+      }
+      return description;
     }
 
     return detailed;
@@ -226,16 +242,18 @@ export class ChangeSetDescriber {
    * Merge two descriptions of the same change set: one described with `IncludePropertyValues`
    * (detailed) and one described without (plain).
    *
-   * CloudFormation can silently drop a `ResourceChange` from the detailed response when it
-   * fails to render property values (e.g. JSON-typed properties). The detailed description is
-   * used as the base; resource changes and details only present in the plain one are restored.
+   * CloudFormation can drop a `ResourceChange`, or details of one, from the detailed response
+   * when it fails to render property values (JSON-typed properties, https://github.com/aws/aws-cdk-cli/issues/1780;
+   * strings that hold JSON, https://github.com/aws/aws-cdk-cli/issues/2036). The detailed
+   * description is used as the base; resource changes and details only present in the plain one
+   * are restored.
    *
-   * See https://github.com/aws/aws-cdk-cli/issues/1780
+   * @returns the merged description, and the logical IDs of the resources something was restored for
    */
   private mergeDescriptions(
     detailed: DescribeChangeSetCommandOutput,
     plain: DescribeChangeSetCommandOutput,
-  ): DescribeChangeSetCommandOutput {
+  ): { readonly description: DescribeChangeSetCommandOutput; readonly restored: string[] } {
     // Shallow-copy the changes so we can add details without mutating the input
     const changes: Change[] = (detailed.Changes ?? []).map((change) => ({
       ...change,
@@ -249,6 +267,7 @@ export class ChangeSetDescriber {
       }
     }
 
+    const restored: string[] = [];
     for (const change of plain.Changes ?? []) {
       const logicalId = change.ResourceChange?.LogicalResourceId;
       if (!logicalId) {
@@ -260,6 +279,7 @@ export class ChangeSetDescriber {
       if (!existing?.ResourceChange) {
         // Dropped from the detailed response; restore it.
         changes.push(change);
+        restored.push(logicalId);
         continue;
       }
 
@@ -270,26 +290,33 @@ export class ChangeSetDescriber {
       );
       if (droppedDetails.length > 0) {
         existing.ResourceChange.Details = [...existingDetails, ...droppedDetails];
+        restored.push(logicalId);
       }
     }
 
-    // Take the status reason from the plain response: the detailed one is the incomplete-data
-    // warning, which would otherwise displace the real reason (for example the
+    // Take the status reason from the plain response: if the detailed one is the incomplete-data
+    // warning, it would otherwise displace the real reason (for example the
     // `AWS::EarlyValidation` marker that tells us why a change set failed to create).
-    return { ...detailed, StatusReason: plain.StatusReason ?? detailed.StatusReason, Changes: changes };
+    return {
+      description: { ...detailed, StatusReason: plain.StatusReason ?? detailed.StatusReason, Changes: changes },
+      restored,
+    };
   }
 }
 
 /**
  * The marker CloudFormation puts in `StatusReason` when it left data out of a response that was
- * requested with `IncludePropertyValues`.
- *
- * It only says this when it actually dropped something, and names the resources it gave up on.
- * `Status` is `CREATE_COMPLETE` either way, so this is the only signal we get:
+ * requested with `IncludePropertyValues`, naming the resources it gave up on:
  *
  * ```
  * [WARN] --include-property-values option can return incomplete ChangeSet data because: Logical Id: MyResource, failed property validation
  * ```
+ *
+ * It is not the only way data goes missing: CloudFormation can also leave changes out without it
+ * (https://github.com/aws/aws-cdk-cli/issues/2036). A created change set is therefore checked
+ * against a description without property values whether or not the marker is there. For a change
+ * set in any other state the marker still decides whether to describe it again, because it
+ * displaces the real `StatusReason`.
  */
 const INCOMPLETE_PROPERTY_VALUES_WARNING = '[WARN] --include-property-values option can return incomplete ChangeSet data';
 

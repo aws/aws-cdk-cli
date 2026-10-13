@@ -103,6 +103,10 @@ export class TemplateAndChangeSetDiffMerger {
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
       if (type === 'Property') {
         if (!this.changeSetResources[logicalId]) {
+          // Absence means "no change" only because the change set lists every resource that will
+          // change. A description requested with `IncludePropertyValues` can leave some out without
+          // saying so (https://github.com/aws/aws-cdk-cli/issues/2036), so callers merge in the
+          // description without property values first.
           if (!propertyIsResolvedAtDeployTime(value)) {
             // A static difference is a real change even if the changeset failed to detect it
             // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).

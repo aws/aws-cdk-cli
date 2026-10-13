@@ -39,7 +39,11 @@ const DIFF_HANDLERS: HandlerRegistry = {
  *
  * @param currentTemplate - the current state of the stack.
  * @param newTemplate     - the target state of the stack.
- * @param changeSet       - the change set for this stack.
+ * @param changeSet       - the change set for this stack. A template difference that depends on
+ *      deploy-time values is dropped if the change set does not mention it, so the change set must
+ *      list every resource change. A description requested with `IncludePropertyValues` does not
+ *      always do that (https://github.com/aws/aws-cdk-cli/issues/2036); merge in the description
+ *      without property values before passing it here.
  *
  * @returns a +types.TemplateDiff+ object that represents the changes that will happen if
  *      a stack which current state is described by +currentTemplate+ is updated with

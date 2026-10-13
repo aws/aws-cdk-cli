@@ -1002,6 +1002,34 @@ test('deployStack reports no change if describeChangeSet returns an error that i
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
 });
 
+test('describes the change set it created both with and without property values', async () => {
+  // GIVEN
+  givenStackExists();
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+  });
+
+  // THEN - the description without property values recovers changes that CloudFormation can leave
+  // out of the one with them (https://github.com/aws/aws-cdk-cli/issues/2036)
+  expect(changeSetDescriptionsWithoutPropertyValues()).toHaveLength(1);
+});
+
+test('does not describe a change set without changes a second time', async () => {
+  // GIVEN
+  givenStackExists();
+  fakeCfn.overrideChangeSetChanges = [];
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+  });
+
+  // THEN
+  expect(changeSetDescriptionsWithoutPropertyValues()).toHaveLength(0);
+});
+
 test('deployStack throws error in case of early validation failures', async () => {
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     ChangeSetName: 'cdk-deploy-change-set',
@@ -1879,6 +1907,35 @@ describe('execute-change-set deployment method', () => {
     expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
   });
 
+  test('returns replacement-requires-rollback when CloudFormation silently drops the replacement from the description with property values', async () => {
+    // GIVEN - https://github.com/aws/aws-cdk-cli/issues/2036: the change set replaces a resource,
+    // but its description with property values leaves that change out, without a warning
+    givenStackExists();
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ExecutionStatus: 'AVAILABLE',
+      ChangeSetName: 'my-change-set',
+      Changes: [replacementChange()],
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+      ...await fakeCfn.describeChangeSet(input),
+      Changes: [],
+    }));
+
+    // WHEN
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        rollback: false,
+      }),
+    );
+
+    // THEN - the replacement is still seen, so the change set is not executed without rollback
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
   test('is never skipped by canSkipDeploy', async () => {
     // GIVEN - stack exists with identical template (would normally skip)
     givenStackExists();
@@ -1961,6 +2018,11 @@ test('does not pass IncludeNestedStacks for import changesets', async () => {
   expect(calls.length).toBeGreaterThan(0);
   expect(calls[0].args[0].input.IncludeNestedStacks).toBeUndefined();
 });
+
+function changeSetDescriptionsWithoutPropertyValues() {
+  return mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+    .filter((call) => call.args[0].input.IncludePropertyValues === false);
+}
 
 /**
  * Set up the mocks so that it looks like the stack exists to start with
