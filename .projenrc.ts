@@ -956,7 +956,7 @@ const toolkitLib = configureProject(
       'p-limit@^3',
       'semver',
       'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
+      'yaml@^2',
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
@@ -1335,7 +1335,7 @@ const cli = configureProject(
       'semver',
       'strip-ansi@^6',
       'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
+      'yaml@^2',
       'yargs@^15',
     ],
     excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
@@ -1674,7 +1674,7 @@ const cliInteg = configureProject(
       'semver@^7',
       'sinon@^9',
       'ts-mock-imports@^1',
-      'yaml@1',
+      'yaml@^2',
       'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
