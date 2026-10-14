@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import type { Request, Response, NextFunction } from '../../expressy';
+import { MalformedRequest } from '../../expressy/request';
 
 /** Cookie the browser carries the session token in once the handshake has run. */
 export const SESSION_COOKIE = 'cdk_explorer_session';
@@ -31,8 +32,15 @@ export function newSessionToken(): string {
  */
 export function sessionAuth(token: string): (req: Request, res: Response, next: NextFunction) => void {
   return (req, res, next) => {
-    if (tokenMatches(token, req.cookie(SESSION_COOKIE))) {
-      return next();
+    try {
+      const cookieToken = req.cookie(SESSION_COOKIE);
+      if (tokenMatches(token, cookieToken)) {
+        return next();
+      }
+    } catch (e) {
+      if (e instanceof MalformedRequest) {
+        return res.status(400).end();
+      }
     }
 
     const presented = req.query[TOKEN_QUERY_PARAM];

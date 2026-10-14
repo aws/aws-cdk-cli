@@ -1,5 +1,5 @@
-import type { SseEventName } from '../web-shared/protocol';
 import type { Request, Response } from '../expressy';
+import type { SseEventName } from '../web-shared/protocol';
 
 /**
  * Simultaneous streams one explorer will hold open. The model is one developer

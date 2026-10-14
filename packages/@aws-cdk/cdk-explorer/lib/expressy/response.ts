@@ -37,7 +37,7 @@ export interface Response {
 
 /** Wrap the raw Node response in the {@link Response} surface the handlers use. */
 export function makeResponse(raw: ServerResponse): Response {
-  let statusCode = 200;
+  raw.statusCode = 200;
 
   const res: Response = {
     get headersSent() {
@@ -52,17 +52,15 @@ export function makeResponse(raw: ServerResponse): Response {
       return res;
     },
     status(code: number) {
-      statusCode = code;
+      raw.statusCode = code;
       return res;
     },
     json(body: unknown) {
       if (!raw.hasHeader('Content-Type')) raw.setHeader('Content-Type', 'application/json; charset=utf-8');
-      raw.statusCode = statusCode;
       raw.end(JSON.stringify(body));
       return res;
     },
     send(body: string | Buffer) {
-      raw.statusCode = statusCode;
       if (!Buffer.isBuffer(body) && !raw.hasHeader('Content-Type')) {
         raw.setHeader('Content-Type', 'text/html; charset=utf-8');
       }
@@ -89,7 +87,6 @@ export function makeResponse(raw: ServerResponse): Response {
       return res;
     },
     flushHeaders() {
-      raw.statusCode = statusCode;
       raw.flushHeaders();
     },
     write(chunk: string | Buffer) {

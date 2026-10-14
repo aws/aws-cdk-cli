@@ -44,7 +44,7 @@ describe('ToolkitLibRunnerEngine', () => {
       const mockLock = { [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
       mockCx.produce.mockResolvedValue(mockLock);
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce({}) as any);
 
       await engine.synth({
         app: 'cdk synth',
@@ -73,7 +73,7 @@ describe('ToolkitLibRunnerEngine', () => {
       const mockCx = { produce: jest.fn() };
       mockCx.produce.mockRejectedValue(new Error('Missing context keys'));
       mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
-      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce({}) as any);
 
       await expect(engine.synth({
         app: 'cdk synth',

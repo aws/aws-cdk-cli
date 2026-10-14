@@ -465,7 +465,12 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
       });
     });
 
-    options.abort?.addEventListener('abort', killChild);
+    if (options?.abort?.aborted) {
+      // If the signal comes in aborted the event listener below won't fire anymore, so do it now.
+      killChild();
+    } else {
+      options.abort?.addEventListener('abort', killChild);
+    }
   });
 }
 

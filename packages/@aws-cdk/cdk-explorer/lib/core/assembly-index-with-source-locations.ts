@@ -163,12 +163,7 @@ export class PathTranslator {
   }
 
   public async contains(file: string): Promise<boolean> {
-    // Relative paths are considered to be relative to us by definition
-    if (!path.isAbsolute(file)) {
-      return true;
-    }
-
-    const absPath = await realOrSelf(file);
+    const absPath = await realOrSelf(path.resolve(this.directory, file));
     return absPath === this.directory || absPath.startsWith(this.directory + path.sep);
   }
 }

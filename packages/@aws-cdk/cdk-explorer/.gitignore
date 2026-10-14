@@ -53,3 +53,6 @@ jspm_packages/
 !/.eslintrc.js
 lib/web/static/
 lib/web/web-assets.generated.ts
+.DS_Store
+frontend/**/*.d.ts
+frontend/**/*.js

@@ -42,11 +42,18 @@ export function makeRequest(raw: IncomingMessage): Request {
       return req;
     },
     cookie(name: string) {
-      const cookies = parseCookieValue(raw.headers.cookie);
-      return cookies[name];
+      try {
+        const cookies = parseCookieValue(raw.headers.cookie);
+        return cookies[name];
+      } catch (e) {
+        throw new MalformedRequest(`Invalid cookie ${name}: ${e}`);
+      }
     },
   };
   return req;
+}
+
+export class MalformedRequest extends Error {
 }
 
 /** Parse a `URLSearchParams` into express's query shape (arrays for repeated keys). */

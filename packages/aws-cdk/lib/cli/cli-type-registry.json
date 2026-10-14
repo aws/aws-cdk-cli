@@ -1214,7 +1214,7 @@
         "port": {
           "type": "number",
           "desc": "Port to bind the web server on",
-          "default": 4200
+          "default": 3411
         }
       }
     },

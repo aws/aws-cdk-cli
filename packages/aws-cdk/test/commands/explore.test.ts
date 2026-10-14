@@ -16,7 +16,7 @@ const mockStartWebServer = startWebServer as jest.MockedFunction<typeof startWeb
 const realStartWebServer: typeof startWebServer =
   jest.requireActual('../../lib/private/explorer').startWebServer;
 
-type ServerOptions = Parameters<typeof startWebServer>[0];
+type ServerOptions = NonNullable<Parameters<typeof startWebServer>[0]>;
 
 describe('explore command', () => {
   beforeEach(() => {
