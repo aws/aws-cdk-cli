@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { pathToFileURL } from 'url';
 import { type Range } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { AssemblyResourceNode } from '../../lib/core/assembly-index-with-source-locations';
+import { assertRelativePath, type AssemblyResourceNode } from '../../lib/core/assembly-index-with-source-locations';
 import { resourceTarget, sourceTargetAtTemplateOffset } from '../../lib/lsp/template-locator';
 import { AssemblyFixture } from '../_helpers/assembly';
 
@@ -23,7 +23,7 @@ function resourceNode(logicalId: string, type: string, templateFile: string): As
   return {
     constructPath: `S/${logicalId}/Resource`,
     id: 'Resource',
-    cfnResource: { logicalId, type, assemblyRelativeTemplateFile: templateFile },
+    cfnResource: { logicalId, type, assemblyRelativeTemplateFile: assertRelativePath(templateFile) },
   };
 }
 

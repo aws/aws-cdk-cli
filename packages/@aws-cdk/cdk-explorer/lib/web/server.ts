@@ -6,8 +6,7 @@ import { SseBroadcaster } from './events';
 import { localOnly } from './middleware/local-only';
 import { securityHeaders } from './middleware/security-headers';
 import { newSessionToken, sessionAuth, TOKEN_QUERY_PARAM } from './middleware/session-token';
-import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from './protocol';
-import { createApiRouter } from './routes';
+import { createApiRouter, type RequestLogger } from './routes';
 import { StalenessTracker } from './staleness';
 import { webAsset } from './web-assets';
 import {
@@ -23,6 +22,7 @@ import {
 } from '../core/source-watcher';
 import { createApp } from '../expressy';
 import { HttpServer } from '../expressy/http-server';
+import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../web-shared/protocol';
 
 export interface WebServerOptions {
   readonly port?: number;
@@ -51,6 +51,8 @@ export interface WebServerOptions {
    * writing to stderr; the CLI command passes a sink that routes to its IoHost.
    */
   readonly onWatcherError?: (err: unknown) => void;
+
+  readonly requestLogger?: RequestLogger;
 }
 
 export interface WebServer {
@@ -81,10 +83,12 @@ export interface WebServer {
  * @returns A handle to the running server with its URL and a stop function.
  */
 export async function startWebServer(options: WebServerOptions = {}): Promise<WebServer> {
+  const shutdown = new AbortController();
+
   const appDir = options.appDir ?? process.cwd();
   // Single owner of where the cloud assembly lives: the same resolved path feeds
   // both the read endpoints and the change watcher, so the two never disagree.
-  const assemblyDir = path.resolve(appDir, options.assemblyDir ?? (await readCdkConfig(appDir)).output);
+  const assemblyDir = path.resolve(appDir, options.assemblyDir ?? (await readCdkConfig(appDir))?.output ?? 'cdk.out');
 
   // mtime of the assembly manifest (undefined when none exists yet). Used as the
   // staleness fallback reference (synth-finish time) when no synth-start lock was
@@ -106,9 +110,6 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const token = newSessionToken();
   app.use(sessionAuth(token));
 
-  // The Toolkit provides the assembly read lock (via fromAssemblyDirectory().
-  // produce()); a non-interactive IoHost is fine here since stdout/stderr are
-  // free in the web process, unlike the LSP's stdio channel.
   const toolkit = new Toolkit({ ioHost: new NonInteractiveIoHost() });
   // Owns source-file staleness: the assembly watcher advances its per-generation
   // reference (see onChange below) and feeds it synth-start activity, and
@@ -126,6 +127,8 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     assemblyDir,
     toolkit,
     staleness,
+    abort: shutdown.signal,
+    requestLogger: options.requestLogger,
   }));
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
@@ -188,15 +191,14 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       process.stderr.write(`source watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
   });
 
-  let stopped = false;
   const url = server.urlString;
   return {
     url,
     sessionUrl: `${url}/?${TOKEN_QUERY_PARAM}=${token}`,
     token,
     stop: async () => {
-      if (stopped) return;
-      stopped = true;
+      if (shutdown.signal.aborted) return;
+      shutdown.abort();
       await watcher.close();
       await sourceWatcher.close();
       events.close();

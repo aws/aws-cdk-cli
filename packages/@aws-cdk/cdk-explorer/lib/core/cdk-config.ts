@@ -18,22 +18,21 @@ export interface CdkConfig {
  * Never throws. Treats missing files, malformed JSON, or wrong-typed
  * fields as "not configured" so callers can fall back gracefully
  */
-export async function readCdkConfig(projectDir: string): Promise<CdkConfig> {
+export async function readCdkConfig(projectDir: string): Promise<CdkConfig | undefined> {
   const configPath = path.join(projectDir, 'cdk.json');
-  if (!(await fs.access(configPath).then(() => true).catch(() => false))) return { app: undefined, output: 'cdk.out' };
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(await fs.readFile(configPath, 'utf-8'));
   } catch {
-    return { app: undefined, output: 'cdk.out' };
+    return undefined;
   }
 
-  if (parsed === null || typeof parsed !== 'object') return { app: undefined, output: 'cdk.out' };
+  if (parsed === null || typeof parsed !== 'object') return undefined;
   const app = (parsed as { app?: unknown }).app;
   const output = (parsed as { output?: unknown }).output;
   return {
     app: typeof app === 'string' ? app : undefined,
-    output: typeof output === 'string' ? output : 'cdk.out',
+    output: typeof output === 'string' ? output : undefined,
   };
 }

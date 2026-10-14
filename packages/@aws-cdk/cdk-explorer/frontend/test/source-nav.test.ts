@@ -1,5 +1,5 @@
-import { SourceAndTemplateIndex } from '../../frontend/source-and-template-index';
-import type { WebConstructNode } from '../../lib/web/protocol';
+import type { WebConstructNode } from '../../lib/web-shared/protocol';
+import { SourceAndTemplateIndex } from '../src/source-and-template-index';
 
 /**
  * Exercises the SPA-side index that powers source and template navigation.

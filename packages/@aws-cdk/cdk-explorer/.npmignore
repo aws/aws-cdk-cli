@@ -22,5 +22,4 @@ tsconfig.tsbuildinfo
 !*.d.ts
 build-tools
 frontend
-tsconfig.frontend.json
 /.gitattributes

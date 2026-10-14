@@ -2,16 +2,10 @@ import {
   ASSEMBLY_CHANGED,
   SOURCE_CHANGED,
   type FileResponse,
-  type LineRange,
-  type TemplateResource,
   type TemplateResponse,
   type TreeResponse,
   type ViolationsResponse,
-  type WebConstructNode,
-  type WebSourceLocation,
-  type WebViolation,
-  type WebViolationOccurrence,
-} from '../lib/web/protocol';
+} from '../../lib/web-shared/protocol';
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);

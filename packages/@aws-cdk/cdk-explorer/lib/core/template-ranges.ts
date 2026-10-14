@@ -133,7 +133,7 @@ export function resolveAllResourceRanges(templateText: string): Record<string, R
 
     const propMatch = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
     if (propMatch && mapping.key !== undefined) {
-      const id = unescapePointerSegment(propMatch[2]);
+      const id = unescapePointerSegment(propMatch[1]);
       let props = resourceProperties.get(id);
       if (!props) {
         props = {};

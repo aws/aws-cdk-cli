@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import type { ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
@@ -22,6 +23,15 @@ export class AssemblyIndexWithSourceLocations {
       assemblyIndex: new AssemblyIndex(),
     });
   }
+
+  public static async create(options: AssemblyIndexWithSourceLocationsOptions) {
+    return new AssemblyIndexWithSourceLocations({
+      appDir: await realOrSelf(options.appDir),
+      assemblyDir: await realOrSelf(options.assemblyDir),
+      assemblyIndex: options.assemblyIndex,
+    });
+  }
+
   public readonly assemblyIndex: AssemblyIndex;
   public readonly appDir: PathTranslator;
   public readonly assemblyDir: PathTranslator;
@@ -30,7 +40,7 @@ export class AssemblyIndexWithSourceLocations {
   private readonly stackLocationFinder = DEFAULT_USER_CODE_FINDER;
   private readonly nodesBySourceFile: Record<RelativePath, Map<number, AssemblyIndexNode[]>> = {};
 
-  constructor(options: AssemblyIndexWithSourceLocationsOptions) {
+  private constructor(options: AssemblyIndexWithSourceLocationsOptions) {
     this.assemblyIndex = options.assemblyIndex;
     this.appDir = new PathTranslator(options.appDir);
     this.assemblyDir = new PathTranslator(options.assemblyDir);
@@ -124,7 +134,7 @@ export class AssemblyIndexWithSourceLocations {
 }
 
 export class PathTranslator {
-  constructor(private readonly root: string) {
+  constructor(public readonly directory: string) {
   }
 
   /**
@@ -139,8 +149,8 @@ export class PathTranslator {
    * Also turn it into a POSIX path always.
    */
   public relative(file: string): RelativePath {
-    const absPath = path.isAbsolute(file) ? file : path.join(this.root, file);
-    const relPath = path.relative(this.root, absPath);
+    const absPath = path.isAbsolute(file) ? file : path.join(this.directory, file);
+    const relPath = path.relative(this.directory, absPath);
     const parts = relPath.split(path.sep);
     if (parts[0] === '..') {
       return 'ESCAPING' as RelativePath;
@@ -149,7 +159,17 @@ export class PathTranslator {
   }
 
   public absolute(relPath: RelativePath): AbsolutePath {
-    return path.join(this.root, relPath) as AbsolutePath;
+    return path.join(this.directory, relPath) as AbsolutePath;
+  }
+
+  public async contains(file: string): Promise<boolean> {
+    // Relative paths are considered to be relative to us by definition
+    if (!path.isAbsolute(file)) {
+      return true;
+    }
+
+    const absPath = await realOrSelf(file);
+    return absPath === this.directory || absPath.startsWith(this.directory + path.sep);
   }
 }
 
@@ -251,4 +271,13 @@ export interface SourceLocation {
   readonly file: RelativePath;
   readonly line: number;
   readonly column: number;
+}
+
+/** Real path with symlinks resolved, or the resolved input if it does not exist. */
+async function realOrSelf(p: string): Promise<string> {
+  try {
+    return await fs.realpath(p);
+  } catch {
+    return p;
+  }
 }

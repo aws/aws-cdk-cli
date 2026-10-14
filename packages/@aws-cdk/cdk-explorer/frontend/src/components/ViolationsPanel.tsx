@@ -3,8 +3,8 @@ import Box from '@cloudscape-design/components/box';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
 import * as React from 'react';
 import { colorForSeverity, iconForSeverity } from './severities';
-import type { WebViolation } from '../../lib/web/protocol';
-import { displaySeverity, severityHexColor, severityRank } from '../../lib/web/severity';
+import type { WebViolation } from '../../../lib/web-shared/protocol';
+import { displaySeverity, severityRank } from '../../../lib/web-shared/severity';
 import type { NavigateHandler } from '../nav-types';
 
 interface ViolationsPanelProps {

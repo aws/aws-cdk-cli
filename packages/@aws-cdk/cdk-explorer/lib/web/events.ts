@@ -1,4 +1,4 @@
-import type { SseEventName } from './protocol';
+import type { SseEventName } from '../web-shared/protocol';
 import type { Request, Response } from '../expressy';
 
 /**

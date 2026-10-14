@@ -1,13 +1,13 @@
 import { AsyncDisposableBox } from './disposable-box';
+import { missingContextKeys } from './helpers';
 import * as contextproviders from '../../../context-providers';
 import type { ToolkitServices } from '../../../toolkit/private';
 import { ContextLookupsDisabledError } from '../../../toolkit/toolkit-error';
+import { equalSets } from '../../../util/sets';
 import type { IoHelper } from '../../io/private';
 import { IO } from '../../io/private';
 import type { IContextStore } from '../context-store';
-import type { ICloudAssemblySource, IReadableCloudAssembly } from '../types';
-import { missingContextKeys } from './helpers';
-import { equalSets } from '../../../util/sets';
+import type { CloudAssemblyProductionOptions, ICloudAssemblySource, IReadableCloudAssembly } from '../types';
 
 export interface ContextAwareCloudAssemblyProps {
   /**
@@ -62,14 +62,14 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   /**
    * Produce a Cloud Assembly, i.e. a set of stacks
    */
-  public async produce(): Promise<IReadableCloudAssembly> {
+  public async produce(produceOptions: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly> {
     // We may need to run the cloud assembly source multiple times in order to satisfy all missing context
     // (When the source producer runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     while (true) {
-      await using readableAsm = new AsyncDisposableBox(await this.source.produce());
+      await using readableAsm = new AsyncDisposableBox(await this.source.produce(produceOptions));
 
       const assembly = readableAsm.value.cloudAssembly;
       if (assembly.manifest.missing && assembly.manifest.missing.length > 0) {

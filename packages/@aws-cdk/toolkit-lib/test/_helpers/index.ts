@@ -88,7 +88,7 @@ export async function disposableCloudAssemblySource(
 ): Promise<[ICloudAssemblySource, ReturnType<typeof jest.fn>, () => Promise<void>]> {
   // We just need any kind of assembly
   const fixtureSource = await cdkOutFixture(toolkit, 'stack-with-bucket');
-  const cloudAssembly = await fixtureSource.produce();
+  const cloudAssembly = await fixtureSource.produce({});
 
   const mockDispose = jest.fn();
   const assemblySource: ICloudAssemblySource = {

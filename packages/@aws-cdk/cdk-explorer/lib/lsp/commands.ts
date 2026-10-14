@@ -28,7 +28,7 @@ export interface NotifySink {
 }
 
 export interface CommandHandlerOptions {
-  /** Invokes a single synth. Resolves with the typed outcome; never rejects. */
+  /** Invokes a single synth */
   readonly synth: () => Promise<void>;
   /** Called with the new desired state when the user toggles auto-synth. */
   readonly toggleAutoSynth: (enabled: boolean) => void;

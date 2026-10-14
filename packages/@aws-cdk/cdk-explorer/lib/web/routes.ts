@@ -5,15 +5,16 @@ import type { AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import type { PluginReportJson, ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import type { Toolkit } from '@aws-cdk/toolkit-lib';
-import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from './protocol';
 import { isSensitiveRead, isTemplatePath, resolveWithinRoot } from './safe-path';
-import { classifyReportSeverity, displaySeverity, severityRank } from './severity';
 import { StalenessTracker } from './staleness';
 import { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 import { webAssemblyDataFromAssembly, type AssemblyData, type AssemblyReadResult } from '../core/assembly-reader';
+import { readAssemblyDirectory } from '../core/from-cdk-app-directory';
 import { resolveAllResourceRanges } from '../core/template-ranges';
 import type { Handler, Response, Router } from '../expressy';
 import { createRouter } from '../expressy';
+import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from '../web-shared/protocol';
+import { classifyReportSeverity, displaySeverity, severityRank } from '../web-shared/severity';
 
 /** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -37,6 +38,10 @@ export interface ApiOptions {
    * router with no watcher driving it.
    */
   readonly staleness?: StalenessTracker;
+
+  readonly requestLogger?: RequestLogger;
+
+  readonly abort: AbortSignal;
 }
 
 export function createApiRouter(options: ApiOptions): Router {
@@ -67,8 +72,7 @@ export function createApiRouter(options: ApiOptions): Router {
       if (mtimeMs === undefined) return { status: 'not-found' };
       if (cachedAssembly?.status === 'success' && cachedAssembly.mtimeMs === mtimeMs) return cachedAssembly;
 
-      const asmSource = await options.toolkit.fromAssemblyDirectory(options.assemblyDir);
-      await using asm = await asmSource.produce();
+      await using asm = await readAssemblyDirectory(options.toolkit, options.abort, options.assemblyDir);
 
       cachedAssembly = {
         status: 'success',
@@ -92,7 +96,9 @@ export function createApiRouter(options: ApiOptions): Router {
 
   const router = createRouter();
 
-  router.get('*', requestLoggingMiddleware());
+  if (options.requestLogger) {
+    router.get('*', requestLoggingMiddleware(options.requestLogger));
+  }
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -450,10 +456,11 @@ function isBinary(buffer: Buffer): boolean {
   return buffer.subarray(0, 8000).includes(0);
 }
 
-function requestLoggingMiddleware(): Handler {
+export type RequestLogger = (message: string) => void;
+
+function requestLoggingMiddleware(handler: RequestLogger): Handler {
   return (req, res, next) => {
-    // eslint-disable-next-line no-console
-    console.error(`${req.method} ${req.path}... `);
+    handler(`${req.method} ${req.path}... `);
     const startTime = Date.now();
 
     let statusCode: number = 200;
@@ -465,8 +472,7 @@ function requestLoggingMiddleware(): Handler {
 
     res.on('finish', () => {
       const delta = Date.now() - startTime;
-      // eslint-disable-next-line no-console
-      console.error(`${req.method} ${req.path} - ${statusCode} (${delta}ms)`);
+      handler(`${req.method} ${req.path} - ${statusCode} (${delta}ms)`);
     });
     return next();
   };

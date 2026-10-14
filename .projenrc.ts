@@ -1249,6 +1249,9 @@ const cdkExplorer = configureProject(
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
+        testMatch: [
+          '<rootDir>/**/test/**/?(*.)+(test).ts?(x)',
+        ],
         coverageThreshold: {
           statements: 80,
           branches: 80,
@@ -1262,11 +1265,11 @@ const cdkExplorer = configureProject(
 fixupTestTask(cdkExplorer);
 // esbuild only transpiles, so the SPA gets its own `tsc --noEmit` pass before
 // being bundled (the package's main tsc build excludes `frontend/`).
-cdkExplorer.postCompileTask.exec('tsc --noEmit -p tsconfig.frontend.json');
+cdkExplorer.postCompileTask.exec('tsc --noEmit -p frontend/src/tsconfig.json');
 cdkExplorer.postCompileTask.exec('tsx build-tools/bundle-frontend.ts');
 cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
-cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.ts');
-cdkExplorer.npmignore?.addPatterns('frontend', 'tsconfig.frontend.json');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.ts', '.DS_Store', 'frontend/**/*.d.ts', 'frontend/**/*.js');
+cdkExplorer.npmignore?.addPatterns('frontend');
 cdkExplorer.eslint?.addOverride({
   files: [
     'frontend/**',

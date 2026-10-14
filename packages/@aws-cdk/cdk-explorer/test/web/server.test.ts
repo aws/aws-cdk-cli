@@ -4,8 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { DEFAULT_PORT } from '../../lib/expressy/http-server';
 import { SESSION_COOKIE } from '../../lib/web/middleware/session-token';
-import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web/protocol';
 import { startWebServer, type WebServer, type WebServerOptions } from '../../lib/web/server';
+import { ASSEMBLY_CHANGED, SOURCE_CHANGED } from '../../lib/web-shared/protocol';
 import { fetchHappens } from '../fetch-happens';
 
 /**

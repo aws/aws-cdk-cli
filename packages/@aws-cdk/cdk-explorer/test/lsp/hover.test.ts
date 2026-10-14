@@ -1,5 +1,8 @@
 import { type Range } from 'vscode-languageserver/node';
-import type { AssemblyResourceNode } from '../../lib/core/assembly-index-with-source-locations';
+import {
+  assertRelativePath,
+  type AssemblyResourceNode,
+} from '../../lib/core/assembly-index-with-source-locations';
 import { buildHover, hoverForPosition, type HoverLinks, renderValue, resourceNodesOnLine, selectPrimary } from '../../lib/lsp/hover';
 import { AssemblyFixture, type AssemblySpec } from '../_helpers/assembly';
 
@@ -29,7 +32,12 @@ function res(
   return {
     constructPath,
     id: constructPath.split('/').slice(-1)[0],
-    cfnResource: { logicalId, type, assemblyRelativeTemplateFile: 'S.template.json', cfnProperties },
+    cfnResource: {
+      logicalId,
+      type,
+      assemblyRelativeTemplateFile: assertRelativePath('S.template.json'),
+      cfnProperties,
+    },
   };
 }
 
@@ -320,7 +328,7 @@ describe('hoverForPosition', () => {
     const log = makeLog();
 
     const hover = await hoverForPosition(log, index, fixture.sourcePath('lib/app.ts'), { line: 9, character: 0 },
-      async (file) => {
+      async () => {
         call += 1;
         if (call === 1) throw new Error('ENOENT');
         return fixture!.templateText('S');

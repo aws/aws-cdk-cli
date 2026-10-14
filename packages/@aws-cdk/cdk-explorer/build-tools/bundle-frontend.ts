@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as esbuild from 'esbuild';
 
 const packageRoot = path.resolve(__dirname, '..');
-const frontendDir = path.join(packageRoot, 'frontend');
+const frontendDir = path.join(packageRoot, 'frontend', 'src');
 const outDir = path.join(packageRoot, 'lib', 'web', 'static');
 const embeddedAssetsFile = path.join(packageRoot, 'lib', 'web', 'web-assets.generated.ts');
 

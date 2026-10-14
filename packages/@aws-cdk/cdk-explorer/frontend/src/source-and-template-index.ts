@@ -1,5 +1,5 @@
 import { addToColl } from './util';
-import type { WebConstructNode } from '../lib/web/protocol';
+import type { WebConstructNode } from '../../lib/web-shared/protocol';
 
 /**
  * A construct anchored to a line in a source file, paired with the template

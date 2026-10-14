@@ -7,7 +7,7 @@ export interface ICloudAssemblySource {
    * Users of this library should not call this function. Instead, it will
    * be called by `toolkit.synth()`.
    */
-  produce(options?: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly>;
+  produce(options: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly>;
 }
 
 export interface CloudAssemblyProductionOptions {

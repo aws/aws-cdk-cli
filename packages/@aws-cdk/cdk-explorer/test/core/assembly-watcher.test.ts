@@ -2,13 +2,20 @@ import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 import { startAssemblyWatcher, TREE_FILE, type FileWatcher } from '../../lib/core/assembly-watcher';
 
-type AnyListener = (...args: unknown[]) => void;
+// `any[]` rather than `unknown[]`: the stored listeners are invoked with
+// whatever the emitting helper passes, and `unknown[]` params are not
+// contravariantly compatible with FileWatcher's typed overloads.
+type AnyListener = (...args: any[]) => void;
 
 /** A controllable in-memory stand-in for chokidar's FSWatcher. */
 class FakeWatcher implements FileWatcher {
   public closed = false;
   private readonly listeners: Record<string, AnyListener[]> = {};
 
+  // Mirror FileWatcher's overloads so the class satisfies the interface; the
+  // implementation signature stays permissive because the registry is untyped.
+  public on(event: 'all', listener: (eventName: string, filePath: string) => void): FileWatcher;
+  public on(event: 'error', listener: (error: unknown) => void): FileWatcher;
   public on(event: string, listener: AnyListener): FileWatcher {
     (this.listeners[event] ??= []).push(listener);
     return this;

@@ -47,10 +47,9 @@ import {
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
 import { readCdkConfig } from '../core/cdk-config';
-import { fromCdkAppDirectory } from '../core/from-cdk-app-directory';
-import { isWithinRoot } from '../core/source-resolver';
+import { readAssemblyDirectory } from '../core/from-cdk-app-directory';
 import { SOURCE_WATCH_EXCLUDES } from '../core/source-watcher';
-import type { SynthRunResult } from '../core/synth-runner';
+import { runSynth, type SynthRunResult } from '../core/synth-runner';
 import type { TemplateRanges } from '../core/template-ranges';
 import { indexTemplateRanges } from '../core/template-ranges';
 import { umap } from '../core/undef';
@@ -88,17 +87,6 @@ export interface LspHandlerOptions {
   /** User-facing notification sink. Injected by startServer; omitted in tests. */
   readonly notify?: NotifySink;
 }
-
-/**
- * The Toolkit-backed operations the handlers need, built from one Toolkit wired
- * to the editor Output panel. The read lock comes from the Toolkit's own
- * `fromAssemblyDirectory().produce()`, so the LSP never imports `RWLock`.
- */
-export interface ToolkitBindings {
-  readonly synthRunner: (projectDir: string) => Promise<SynthRunResult>;
-}
-
-export type ToolkitBindingsFactory = (console: RemoteConsole) => ToolkitBindings;
 
 export interface LspServerOptions {
   readonly readable: NodeJS.ReadableStream;
@@ -172,11 +160,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   }
 
   async function refreshFromAssembly(projectDir: string, assemblyDir: string): Promise<void> {
-    const asmSource = await options.toolkit.fromAssemblyDirectory(assemblyDir);
-
     let result: AssemblyReadResult;
     try {
-      await using asm = await options.toolkit.synth(asmSource, { abort: shutdown.signal });
+      await using asm = await readAssemblyDirectory(options.toolkit, shutdown.signal, assemblyDir);
       result = {
         status: 'success',
         data: await webAssemblyDataFromAssembly(projectDir, asm),
@@ -235,25 +221,6 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     }
   }
 
-  /**
-   * Run a single synth, waiting for it to complete before returning.
-   *
-   * We don't return anything here, the only effect is the side-effect of running the synth
-   * and updating cdk.out. Elsewhere, we will re-read the assembly if we detect a change there.
-   */
-  async function runSynth(): Promise<void> {
-    try {
-      const source = await fromCdkAppDirectory(options.toolkit, currentProjectDir());
-
-      await using _asm = await options.toolkit.synth(source, { abort: shutdown.signal });
-
-      publishSynthDiagnostics({ status: 'success' });
-    } catch (e: any) {
-      log.warn(`Synth failed: ${e.message ?? String(e)}`);
-      publishSynthDiagnostics({ status: 'error', message: e.message });
-    }
-  }
-
   // Concurrency latch, mirroring `cdk watch` (toolkit.ts): a synth requested
   // while one runs is batched into a single follow-up, so synths run one at a
   // time and the assembly catches up to the latest save.
@@ -287,7 +254,12 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         do {
           synthLatch = 'synthing' as SynthLatch;
           const currentListeners = synthListeners.splice(0, synthListeners.length);
-          await runSynth();
+          const result = await runSynth({
+            toolkit: options.toolkit,
+            projectDir: currentProjectDir(),
+            abort: shutdown.signal,
+          });
+          publishSynthDiagnostics(result);
           for (const listener of currentListeners) {
             listener();
           }
@@ -306,6 +278,19 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
   // cdk.json as a fallback) and clear them once a synth succeeds. The cdk.out
   // watcher owns violation diagnostics; this only manages synth-failure ones.
   function publishSynthDiagnostics(result: SynthRunResult): void {
+    switch (result.status) {
+      case 'success':
+        // Silent. The watcher refreshes the editor when `cdk.out` changes.
+        break;
+      case 'unavailable':
+        notify.info('No CDK app found in the current project directory');
+        break;
+      case 'app-failure':
+      case 'error':
+        notify.error(`CDK synth failed: ${result.message}`);
+        break;
+    }
+
     // A successful synth resolves all failures; 'unavailable' means there is no
     // app to fail, so any prior synth-failure diagnostics no longer apply.
     if (result.status === 'success' || result.status === 'unavailable') {
@@ -313,7 +298,8 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       return;
     }
     const failures = synthFailureDiagnostics(result, currentProjectDir());
-    if (failures.length === 0) return; // lock-conflict / error: leave any existing diagnostic
+    if (failures.length === 0) return;
+
     const nextUris = new Set(failures.map((f) => f.uri));
     for (const uri of synthFailureUris) {
       if (!nextUris.has(uri)) onPublishDiagnostics(uri, []);
@@ -363,7 +349,7 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
     },
     async onInitialized() {
       const projectDir = currentProjectDir();
-      const assemblyDir = path.resolve(projectDir, (await readCdkConfig(projectDir)).output ?? 'cdk.out');
+      const assemblyDir = path.resolve(projectDir, (await readCdkConfig(projectDir))?.output ?? 'cdk.out');
 
       // Ignore non-source paths (deps, cdk.out, dotfiles) using the same policy
       // the web explorer's source watcher applies.
@@ -406,9 +392,9 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         return undefined;
       }
       const filePath = fileURLToPath(uri);
+
       // Bound the client-supplied path to this project's cdk.out before reading.
-      const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');
-      if (!(await isWithinRoot(assemblyDir, filePath))) {
+      if (!await cachedIndex.assemblyDir.contains(filePath)) {
         return undefined;
       }
       let templateText: string;

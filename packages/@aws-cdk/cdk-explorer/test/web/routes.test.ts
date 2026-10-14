@@ -36,6 +36,9 @@ function appFor(spec: AssemblySpec = {}, opts: { staleness?: StalenessTracker; a
     assemblyDir: opts.assemblyDir ?? fixture.assemblyDir,
     toolkit: new Toolkit({ ioHost: new NonInteractiveIoHost() }),
     staleness: opts.staleness,
+    // Nothing here aborts mid-request; the signal exists so the assembly read's
+    // lock retry can be cancelled on server shutdown.
+    abort: new AbortController().signal,
   }));
   return app;
 }

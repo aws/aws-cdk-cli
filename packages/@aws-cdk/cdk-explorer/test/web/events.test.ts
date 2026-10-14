@@ -1,6 +1,6 @@
 import type { Request, Response } from '../../lib/expressy';
 import { MAX_SSE_CLIENTS, SseBroadcaster } from '../../lib/web/events';
-import { ASSEMBLY_CHANGED } from '../../lib/web/protocol';
+import { ASSEMBLY_CHANGED } from '../../lib/web-shared/protocol';
 
 /**
  * Minimal Request/Response doubles that capture writes and expose the close and

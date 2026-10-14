@@ -23,7 +23,7 @@ import { ViolationsPanel } from './components/ViolationsPanel';
 import type { NavigateHandler } from './nav-types';
 import { SourceAndTemplateIndex } from './source-and-template-index';
 import type { Language } from './syntax';
-import { type TemplateResponse, type TreeResponse, type ViolationsResponse } from '../lib/web/protocol';
+import { type TemplateResponse, type TreeResponse, type ViolationsResponse } from '../../lib/web-shared/protocol';
 export type { NavigateHandler } from './nav-types';
 
 interface SourceHighlight {

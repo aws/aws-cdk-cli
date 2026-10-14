@@ -1,10 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { NonInteractiveIoHost, Toolkit } from '@aws-cdk/toolkit-lib';
 import type { Diagnostic, InitializeParams } from 'vscode-languageserver/node';
 import type { AssemblyWatcherOptions } from '../../lib/core/assembly-watcher';
-import type { SynthRunResult } from '../../lib/core/synth-runner';
 import {
   COMMAND_DISABLE_AUTO_SYNTH,
   COMMAND_ENABLE_AUTO_SYNTH,
@@ -14,6 +12,7 @@ import {
 import { CDK_LSP_FEATURES, CDK_LSP_PROTOCOL } from '../../lib/lsp/features';
 import { createLspHandlers, type LspHandlerOptions, type LspHandlers } from '../../lib/lsp/server';
 import { AssemblyFixture, type AssemblySpec } from '../_helpers/assembly';
+import { FakeToolkit } from '../_helpers/fake-toolkit';
 
 /**
  * The handlers are driven against a real `Toolkit` over a fixture cloud assembly
@@ -28,6 +27,8 @@ import { AssemblyFixture, type AssemblySpec } from '../_helpers/assembly';
 interface TestClient {
   readonly handlers: LspHandlers;
   readonly fixture: AssemblyFixture;
+  /** Scripts synth outcomes; the assembly-read path stays real. */
+  readonly toolkit: FakeToolkit;
   readonly published: Array<{ uri: string; diagnostics: Diagnostic[] }>;
   readonly log: { warn: jest.Mock; error: jest.Mock };
   readonly notify: NotifySink & { infoMessages: string[]; errorMessages: string[] };
@@ -56,14 +57,25 @@ function makeNotifySink(): TestClient['notify'] {
 interface ClientOptions extends Partial<LspHandlerOptions> {
   /** Cloud assembly to build on disk; omit for a project with no assembly. */
   readonly assembly?: AssemblySpec;
+  /**
+   * Written as the project's `cdk.json`. A synthesizable project needs an `app`,
+   * which is what `runSynth` reads to decide there is anything to synth.
+   */
+  readonly cdkJson?: Record<string, unknown>;
 }
 
 function createTestClient(opts: ClientOptions = {}): TestClient {
-  const { assembly, ...handlerOptions } = opts;
+  const { assembly, cdkJson, ...handlerOptions } = opts;
   const fixture = AssemblyFixture.create({
-    sourceFiles: { 'lib/stack.ts': '\n'.repeat(30), 'bin/app.ts': '\n'.repeat(10) },
+    sourceFiles: {
+      'lib/stack.ts': '\n'.repeat(30),
+      'bin/app.ts': '\n'.repeat(10),
+      // Default to a synthesizable project; a test can override or omit the app.
+      'cdk.json': JSON.stringify(cdkJson ?? { app: 'node bin/app.js' }),
+    },
     ...assembly,
   });
+  const toolkit = new FakeToolkit();
 
   const published: Array<{ uri: string; diagnostics: Diagnostic[] }> = [];
   const log = { warn: jest.fn(), error: jest.fn() };
@@ -74,7 +86,7 @@ function createTestClient(opts: ClientOptions = {}): TestClient {
   let watcherOnChange: (() => void) | undefined;
 
   const handlers = createLspHandlers({
-    toolkit: new Toolkit({ ioHost: new NonInteractiveIoHost() }),
+    toolkit: toolkit.asToolkit(),
     logger: log,
     notify,
     onPublishDiagnostics: (uri, diagnostics) => published.push({ uri, diagnostics }),
@@ -90,6 +102,7 @@ function createTestClient(opts: ClientOptions = {}): TestClient {
   return {
     handlers,
     fixture,
+    toolkit,
     published,
     log,
     notify,
@@ -129,16 +142,6 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<voi
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-}
-
-function synthRunnerReturning(...results: SynthRunResult[]): jest.Mock {
-  const runner = jest.fn();
-  for (const result of results) {
-    runner.mockResolvedValueOnce(result);
-  }
-  // Repeat the last outcome for any further call.
-  runner.mockResolvedValue(results[results.length - 1]);
-  return runner;
 }
 
 /** An assembly with one bucket created at lib/stack.ts:12:5. */
@@ -490,151 +493,164 @@ describe('onHover', () => {
 });
 
 describe('executeCommand synthNow', () => {
-  test('reports an unavailable synth as an info message', async () => {
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'unavailable' }) });
+  test('is silent on a successful synth', async () => {
+    const c = client();
+    c.toolkit.willSynth({ kind: 'success' });
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    expect(c.notify.infoMessages.some((m) => m.includes('unavailable'))).toBe(true);
-  });
-
-  test('is silent on success', async () => {
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'success' }) });
-    await initialize(c);
-
-    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-
+    expect(c.toolkit.synthCount).toBe(1);
     expect(c.notify.infoMessages).toEqual([]);
     expect(c.notify.errorMessages).toEqual([]);
   });
 
-  test('notifies the user of an app failure', async () => {
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'app-failure', message: 'compile err' }) });
+  test('surfaces a failing app as both a notification and diagnostics', async () => {
+    const c = client();
+    c.toolkit.willSynth({ kind: 'app-failure', message: 'compile err' });
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
+    // The notification says a synth failed at all; the diagnostics say where
+    // (anchored in the synth-failure diagnostics tests below).
     expect(c.notify.errorMessages.some((m) => m.includes('compile err'))).toBe(true);
+    expect(c.published.some((pub) => pub.diagnostics.length > 0)).toBe(true);
+  });
+
+  test('reports an unexpected failure as an error, with no diagnostics to anchor it', async () => {
+    // A full disk, a lock we gave up waiting on, or a dispose failure is not an
+    // app problem, so there is no source location to point at. It still has to
+    // reach the user, or the synth silently never happened.
+    const c = client();
+    c.toolkit.willSynth({ kind: 'error', message: 'disk full' });
+    await initialize(c);
+
+    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    expect(c.notify.errorMessages.some((m) => m.includes('disk full'))).toBe(true);
+    expect(c.published.every((pub) => pub.diagnostics.length === 0)).toBe(true);
+  });
+
+  test('explains a project with no app instead of reporting a failure', async () => {
+    // Nothing is configured to synth. That is worth saying out loud, since the
+    // command would otherwise look like it did nothing, but it is not an error.
+    const c = client({ cdkJson: { context: {} } });
+    await initialize(c);
+
+    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    expect(c.toolkit.synthCount).toBe(0);
+    expect(c.notify.infoMessages.some((m) => m.includes('No CDK app'))).toBe(true);
+    expect(c.notify.errorMessages).toEqual([]);
+    expect(c.log.error).not.toHaveBeenCalled();
+    expect(c.published.every((pub) => pub.diagnostics.length === 0)).toBe(true);
   });
 
   test('coalesces calls arriving during a synth into one trailing synth', async () => {
-    let releaseFirst!: () => void;
-    const firstDone = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    });
-    const synthRunner = jest.fn()
-      .mockImplementationOnce(() => firstDone.then(() => ({ status: 'success' as const })))
-      .mockResolvedValue({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
+    c.toolkit.willSynth({ kind: 'success' }).blockSynth();
     await initialize(c);
 
     const first = c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-    // Three more arrive while the first is in flight.
-    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-    expect(synthRunner).toHaveBeenCalledTimes(1);
+    // The synth starts asynchronously (it reads cdk.json first), so wait until it
+    // is actually in flight and held open by the gate.
+    await waitFor(() => c.toolkit.synthCount === 1);
 
-    releaseFirst();
-    await first;
+    // Three more arrive while the first is still in flight.
+    const rest = [
+      c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW }),
+      c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW }),
+      c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW }),
+    ];
     await settle();
+    expect(c.toolkit.synthCount).toBe(1);
+
+    c.toolkit.releaseSynth();
+    for (const pending of [first, ...rest]) {
+      await pending;
+    }
 
     // The three collapse into a single follow-up, so the assembly catches up to
     // the latest request without running three synths.
-    expect(synthRunner).toHaveBeenCalledTimes(2);
-    expect(c.notify.infoMessages.some((m) => m.includes('in progress'))).toBe(true);
+    expect(c.toolkit.synthCount).toBe(2);
   });
 
   test('shares one latch with the save path', async () => {
-    let releaseFirst!: () => void;
-    const firstDone = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    });
-    const synthRunner = jest.fn()
-      .mockImplementationOnce(() => firstDone.then(() => ({ status: 'success' as const })))
-      .mockResolvedValue({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
+    c.toolkit.willSynth({ kind: 'success' }).blockSynth();
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
 
     // A save starts a synth, then a manual command arrives mid-flight.
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } });
-    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-    releaseFirst();
-    await settle();
+    await waitFor(() => c.toolkit.synthCount === 1);
+    const manual = c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    expect(c.notify.infoMessages.some((m) => m.includes('in progress'))).toBe(true);
-    expect(synthRunner).toHaveBeenCalledTimes(2);
+    c.toolkit.releaseSynth();
+    await manual;
+
+    // The manual command did not start its own synth alongside the save's.
+    expect(c.toolkit.synthCount).toBe(2);
   });
 
-  test('retries with backoff while an external writer holds the lock', async () => {
-    jest.useFakeTimers();
-    try {
-      // A terminal `cdk synth` holds cdk.out for the first three attempts.
-      const synthRunner = synthRunnerReturning(
-        { status: 'lock-conflict' },
-        { status: 'lock-conflict' },
-        { status: 'lock-conflict' },
-        { status: 'success' },
-      );
-      const c = client({ synthRunner });
-      await initialize(c);
+  test('retries while an external writer holds the cdk.out lock', async () => {
+    // A terminal `cdk synth` holds the lock for the first three attempts.
+    const c = client();
+    c.toolkit.willSynth(
+      { kind: 'locked' },
+      { kind: 'locked' },
+      { kind: 'locked' },
+      { kind: 'success' },
+    );
+    await initialize(c);
 
-      const done = c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
-      await jest.runAllTimersAsync();
-      await done;
+    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-      // Retried rather than dropping the user's synth.
-      expect(synthRunner).toHaveBeenCalledTimes(4);
-    } finally {
-      jest.useRealTimers();
-    }
+    // Retried rather than dropping the user's synth.
+    expect(c.toolkit.synthCount).toBe(4);
+    expect(c.notify.errorMessages).toEqual([]);
   });
 });
 
 describe('auto-synth on save', () => {
   test('synths a saved source file once auto-synth is enabled', async () => {
-    const synthRunner = synthRunnerReturning({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
 
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } });
-    await settle();
+    await waitFor(() => c.toolkit.synthCount === 1);
 
-    expect(synthRunner).toHaveBeenCalledTimes(1);
+    expect(c.toolkit.appSynthCalls[0]).toBe(c.fixture.appDir);
   });
 
   test('does not synth while auto-synth is disabled, which is the default', async () => {
-    const synthRunner = synthRunnerReturning({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
     await initialize(c);
 
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } });
     await settle();
 
-    expect(synthRunner).not.toHaveBeenCalled();
+    expect(c.toolkit.synthCount).toBe(0);
   });
 
   test.each([
     ['a dependency', 'node_modules/foo/index.ts'],
     ['the assembly itself', 'cdk.out/tree.json'],
   ])('does not synth when the saved file is %s', async (_what, relPath) => {
-    const synthRunner = synthRunnerReturning({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
 
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri(relPath) } });
     await settle();
 
-    expect(synthRunner).not.toHaveBeenCalled();
+    expect(c.toolkit.synthCount).toBe(0);
   });
 
   test('ignores a save after shutdown', async () => {
-    const synthRunner = synthRunnerReturning({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
 
@@ -642,26 +658,12 @@ describe('auto-synth on save', () => {
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } });
     await settle();
 
-    expect(synthRunner).not.toHaveBeenCalled();
-  });
-
-  test.each([
-    ['an app failure', { status: 'app-failure', message: 'compile err' } as SynthRunResult, 'compile err'],
-    ['an unexpected error', { status: 'error', message: 'boom' } as SynthRunResult, 'boom'],
-  ])('logs %s to the output panel without throwing', async (_what, result, expected) => {
-    const c = client({ synthRunner: synthRunnerReturning(result) });
-    await initialize(c);
-    await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
-
-    expect(() => c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } })).not.toThrow();
-    await settle();
-
-    expect(c.log.error).toHaveBeenCalledWith(expect.stringContaining(expected));
+    expect(c.toolkit.synthCount).toBe(0);
   });
 
   test('stays silent on the save path when there is no app to synth', async () => {
     // Not the user's problem: nothing is configured to synth.
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'unavailable' }) });
+    const c = client({ cdkJson: { context: {} } });
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
 
@@ -675,7 +677,7 @@ describe('auto-synth on save', () => {
 
 describe('auto-synth toggle', () => {
   test('swaps the header lenses when toggled', async () => {
-    const c = client({ assembly: ONE_BUCKET, synthRunner: synthRunnerReturning({ status: 'success' }) });
+    const c = client({ assembly: ONE_BUCKET });
     await initialize(c);
 
     const before = await c.handlers.onCodeLens({ textDocument: { uri: c.uri('lib/stack.ts') } });
@@ -690,7 +692,7 @@ describe('auto-synth toggle', () => {
   });
 
   test('asks the editor to re-query lenses on each toggle', async () => {
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'success' }) });
+    const c = client();
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
@@ -701,8 +703,7 @@ describe('auto-synth toggle', () => {
   });
 
   test('disabling stops saves from synthing', async () => {
-    const synthRunner = synthRunnerReturning({ status: 'success' });
-    const c = client({ synthRunner });
+    const c = client();
     await initialize(c);
     await c.handlers.onExecuteCommand({ command: COMMAND_ENABLE_AUTO_SYNTH });
     await c.handlers.onExecuteCommand({ command: COMMAND_DISABLE_AUTO_SYNTH });
@@ -710,70 +711,79 @@ describe('auto-synth toggle', () => {
     c.handlers.onDidSaveTextDocument({ textDocument: { uri: c.uri('lib/stack.ts') } });
     await settle();
 
-    expect(synthRunner).not.toHaveBeenCalled();
+    expect(c.toolkit.synthCount).toBe(0);
   });
 });
 
 describe('synth-failure diagnostics', () => {
   test('anchors a failure on the source file it names', async () => {
-    const c = client({
-      synthRunner: synthRunnerReturning({
-        status: 'app-failure',
-        message: 'Subprocess exited with error 1',
-        details: 'lib/stack.ts:12:5 - error TS2322: nope',
-      }),
+    const c = client();
+    c.toolkit.willSynth({
+      kind: 'app-failure',
+      message: 'Subprocess exited with error 1',
+      details: 'lib/stack.ts:12:5 - error TS2322: nope',
     });
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    const onFile = c.published.find((p) => p.uri === c.uri('lib/stack.ts'));
+    const onFile = c.published.find((pub) => pub.uri === c.uri('lib/stack.ts'));
     expect(onFile?.diagnostics).toHaveLength(1);
     expect(onFile?.diagnostics[0].message).toContain('TS2322');
   });
 
   test('publishes one diagnostic per failing file', async () => {
-    const c = client({
-      synthRunner: synthRunnerReturning({
-        status: 'app-failure',
-        message: 'm',
-        details: 'lib/stack.ts(1,1): error TS1000: a\nbin/app.ts(2,2): error TS1001: b',
-      }),
+    const c = client();
+    c.toolkit.willSynth({
+      kind: 'app-failure',
+      message: 'm',
+      details: 'lib/stack.ts(1,1): error TS1000: a\nbin/app.ts(2,2): error TS1001: b',
     });
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    expect(c.published.find((p) => p.uri === c.uri('lib/stack.ts'))?.diagnostics).toHaveLength(1);
-    expect(c.published.find((p) => p.uri === c.uri('bin/app.ts'))?.diagnostics).toHaveLength(1);
+    expect(c.published.find((pub) => pub.uri === c.uri('lib/stack.ts'))?.diagnostics).toHaveLength(1);
+    expect(c.published.find((pub) => pub.uri === c.uri('bin/app.ts'))?.diagnostics).toHaveLength(1);
   });
 
   test('falls back to cdk.json when the failure names no location', async () => {
-    const c = client({ synthRunner: synthRunnerReturning({ status: 'app-failure', message: 'context needed' }) });
+    const c = client();
+    c.toolkit.willSynth({ kind: 'app-failure', message: 'context needed' });
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    const onCdkJson = c.published.find((p) => p.uri === c.uri('cdk.json'));
+    const onCdkJson = c.published.find((pub) => pub.uri === c.uri('cdk.json'));
     expect(onCdkJson?.diagnostics[0].message).toBe('context needed');
   });
 
-  test.each([
-    ['a successful synth', { status: 'success' } as SynthRunResult],
-    ['an unavailable synth', { status: 'unavailable' } as SynthRunResult],
-  ])('clears a prior failure after %s', async (_what, second) => {
-    const c = client({
-      synthRunner: synthRunnerReturning(
-        { status: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' },
-        second,
-      ),
-    });
+  test('clears a prior failure once a synth succeeds', async () => {
+    const c = client();
+    c.toolkit.willSynth(
+      { kind: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' },
+      { kind: 'success' },
+    );
     await initialize(c);
 
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
     await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
 
-    const forFile = c.published.filter((p) => p.uri === c.uri('lib/stack.ts'));
+    const forFile = c.published.filter((pub) => pub.uri === c.uri('lib/stack.ts'));
+    expect(forFile[forFile.length - 1].diagnostics).toEqual([]);
+  });
+
+  test('clears a prior failure once there is no app left to synth', async () => {
+    const c = client();
+    c.toolkit.willSynth({ kind: 'app-failure', message: 'm', details: 'lib/stack.ts:1:1 - error TS1000: x' });
+    await initialize(c);
+    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    // The app command is removed, so the previous failure no longer applies.
+    fs.writeFileSync(path.join(c.fixture.appDir, 'cdk.json'), JSON.stringify({ context: {} }));
+    await c.handlers.onExecuteCommand({ command: COMMAND_SYNTH_NOW });
+
+    const forFile = c.published.filter((pub) => pub.uri === c.uri('lib/stack.ts'));
     expect(forFile[forFile.length - 1].diagnostics).toEqual([]);
   });
 });

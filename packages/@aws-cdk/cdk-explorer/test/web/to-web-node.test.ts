@@ -1,7 +1,6 @@
 import type { AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
-import type { AssemblyIndexWithSourceLocations } from '../../lib/core/assembly-index-with-source-locations';
-import type { WebConstructNode } from '../../lib/web/protocol';
 import { toWebNode } from '../../lib/web/routes';
+import type { WebConstructNode } from '../../lib/web-shared/protocol';
 import { AssemblyFixture } from '../_helpers/assembly';
 
 const NO_SEVERITY = new Map<string, string>();

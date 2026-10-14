@@ -4,6 +4,6 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["DOM"],
-    "jsx": "react-jsx",
+    "composite": true,
   }
 }
