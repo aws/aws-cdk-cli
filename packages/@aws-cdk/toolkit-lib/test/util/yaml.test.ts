@@ -66,3 +66,70 @@ test('validate emission of very long lines', () => {
 
   expect(template).toEqual(parsed);
 });
+
+describe('JSON templates', () => {
+  test('duplicate keys: the last value wins, as in JSON.parse', () => {
+    const parsed = deserializeStructure('{"A":{"P":"Delete","P":"Retain"}}');
+
+    expect(parsed).toEqual({ A: { P: 'Retain' } });
+  });
+
+  test('duplicate keys in a multi-line template with a UTF-8 BOM and leading whitespace', () => {
+    const parsed = deserializeStructure(`\uFEFF  \n{
+  "Resources": {
+    "Queue": {
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+      "UpdateReplacePolicy": "Retain"
+    }
+  }
+}\n`);
+
+    expect(parsed.Resources.Queue.UpdateReplacePolicy).toEqual('Retain');
+  });
+
+  test('regular JSON is unchanged', () => {
+    const template = { Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { Size: 12, On: true, Nothing: null } } } };
+
+    expect(deserializeStructure(JSON.stringify(template, undefined, 2))).toEqual(template);
+  });
+
+  test('YAML flow mapping that is not valid JSON still parses as YAML', () => {
+    expect(deserializeStructure('{a: 1, b: [x, y]}')).toEqual({ a: 1, b: ['x', 'y'] });
+  });
+});
+
+describe('YAML templates', () => {
+  test('block YAML is unchanged', () => {
+    expect(deserializeStructure('Resources:\n  Bucket:\n    Type: AWS::S3::Bucket\n')).toEqual({
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    });
+  });
+
+  test('short-form intrinsics are unchanged', () => {
+    const parsed = deserializeStructure([
+      'Resources:',
+      '  Bucket:',
+      '    Type: AWS::S3::Bucket',
+      '    Properties:',
+      '      BucketName: !Sub "${AWS::StackName}-bucket"',
+      '      Tags:',
+      '        - Key: ref',
+      '          Value: !Ref Other',
+      '        - Key: att',
+      '          Value: !GetAtt Other.Arn',
+    ].join('\n'));
+
+    expect(parsed.Resources.Bucket.Properties).toEqual({
+      BucketName: { 'Fn::Sub': '${AWS::StackName}-bucket' },
+      Tags: [
+        { Key: 'ref', Value: { Ref: 'Other' } },
+        { Key: 'att', Value: { 'Fn::GetAtt': 'Other.Arn' } },
+      ],
+    });
+  });
+
+  test('duplicate keys in YAML are still rejected', () => {
+    expect(() => deserializeStructure('A: 1\nA: 2\n')).toThrow();
+  });
+});

@@ -54,6 +54,18 @@ const shortForms: yaml_types.Schema.CustomTag[] = [
 );
 
 function parseYamlStrWithCfnTags(text: string): any {
+  // JSON templates are parsed with JSON.parse, which accepts duplicate keys
+  // (the last one wins), as CloudFormation does. The YAML parser rejects them.
+  // String.prototype.trim() also strips a leading BOM.
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // Not valid JSON (for example a YAML flow mapping): fall through to YAML
+    }
+  }
+
   return yaml.parse(text, {
     customTags: shortForms,
     schema: 'core',
