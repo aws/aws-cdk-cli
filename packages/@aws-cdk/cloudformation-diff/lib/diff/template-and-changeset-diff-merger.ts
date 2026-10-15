@@ -102,18 +102,14 @@ export class TemplateAndChangeSetDiffMerger {
     }
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
       if (type === 'Property') {
-        if (!this.changeSetResources[logicalId]) {
-          // Absence means "no change" only because the change set lists every resource that will
-          // change. A description requested with `IncludePropertyValues` can leave some out without
-          // saying so (https://github.com/aws/aws-cdk-cli/issues/2036), so callers merge in the
-          // description without property values first.
-          if (!propertyIsResolvedAtDeployTime(value)) {
-            // A static difference is a real change even if the changeset failed to detect it
-            // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).
-            return;
-          }
+        if (this.hidesPropertyDifference(logicalId, name, value)) {
           (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
           (value as types.PropertyDifference<any>).isDifferent = false;
+          return;
+        }
+        if (!this.changeSetResources[logicalId]) {
+          // A static difference is a real change even if the changeset failed to detect it
+          // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).
           return;
         }
 
@@ -129,12 +125,7 @@ export class TemplateAndChangeSetDiffMerger {
             (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.MAY_REPLACE;
             break;
           case undefined:
-            if (!propertyIsResolvedAtDeployTime(value)) {
-              // Same as above: keep static differences the changeset failed to detect.
-              break;
-            }
-            (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
-            (value as types.PropertyDifference<any>).isDifferent = false;
+            // Same as above: keep static differences the changeset failed to detect.
             break;
           // otherwise, defer to the changeImpact from the template diff
         }
@@ -147,6 +138,43 @@ export class TemplateAndChangeSetDiffMerger {
         }
       }
     });
+  }
+
+  /**
+   * Whether the change set would hide any of this resource's template differences.
+   *
+   * Only in-place updates count: an added or removed resource is shown whatever the change set says.
+   *
+   * @see hidesPropertyDifference
+   */
+  public hidesTemplateDifferences(logicalId: string, change: types.ResourceDifference): boolean {
+    // resourceType getter throws an error if resourceTypeChanged
+    if (!change.isUpdate || change.resourceTypeChanged === true || change.resourceType?.includes('AWS::Serverless')) {
+      return false;
+    }
+    let hides = false;
+    change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any>) => {
+      if (type === 'Property' && this.hidesPropertyDifference(logicalId, name, value)) {
+        hides = true;
+      }
+    });
+    return hides;
+  }
+
+  /**
+   * Whether the change set hides this property difference from the template diff.
+   *
+   * A difference the change set does not mention (the resource is missing from it, or listed without
+   * this property) is treated as unchanged when its value contains something only resolved at deploy
+   * time, because such a textual difference may resolve to what is already deployed. A static
+   * difference is kept: the change set cannot know better than the template.
+   *
+   * This relies on the change set listing every change. A description requested with
+   * `IncludePropertyValues` does not always do that (https://github.com/aws/aws-cdk-cli/issues/2036).
+   */
+  private hidesPropertyDifference(logicalId: string, propertyName: string, difference: types.Difference<any>): boolean {
+    const replacementMode = this.changeSetResources[logicalId]?.propertyReplacementModes?.[propertyName]?.replacementMode;
+    return replacementMode === undefined && propertyIsResolvedAtDeployTime(difference);
   }
 
   /**

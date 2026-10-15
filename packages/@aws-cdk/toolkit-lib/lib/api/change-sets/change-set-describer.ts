@@ -1,10 +1,12 @@
 import { format } from 'node:util';
 import type { Change, DescribeChangeSetCommandOutput, ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
+import { resourcesHiddenByChangeSet } from '@aws-cdk/cloudformation-diff';
 import { ChangeSetStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
 import { waitFor } from '../../util/promises';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import type { Template } from '../cloudformation';
 import type { Diagnosis } from '../diagnosing/diagnosis';
 import type { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { IoHelper } from '../io/private';
@@ -25,6 +27,30 @@ export interface ChangeSetDescriberProps {
    * The name or ARN of the change set, prefer ARN.
    */
   readonly changeSetNameOrArn: string;
+  /**
+   * The templates the change set goes from and to.
+   *
+   * When given, a created change set whose description would hide one of these template differences
+   * from the diff is described a second time without property values, and whatever the first
+   * description left out is put back.
+   *
+   * @default - only the incomplete-data warning causes a second description
+   */
+  readonly templates?: ChangeSetTemplates;
+}
+
+/**
+ * The templates a change set goes from and to.
+ */
+export interface ChangeSetTemplates {
+  /**
+   * Reads the deployed template. Only called for a change set that was created.
+   */
+  readonly deployed: () => Promise<Template>;
+  /**
+   * The template the change set was created from.
+   */
+  readonly generated: Template;
 }
 
 export interface WaitForChangeSetOptions {
@@ -36,13 +62,15 @@ export interface WaitForChangeSetOptions {
  *
  * Change sets are described with `IncludePropertyValues`, which yields the before/after property
  * values and resource contexts that let `diff` surface changes invisible to a pure template diff.
- * Such a description does not reliably list every resource change: CloudFormation can leave changes
- * out of it, sometimes saying so in `StatusReason` (https://github.com/aws/aws-cdk-cli/issues/1780)
- * and sometimes without any signal at all (https://github.com/aws/aws-cdk-cli/issues/2036).
- * Callers read a resource that is missing from `Changes` as "will not change", so a change set that
- * was created is always described a second time without property values, and whatever the first
- * description left out is put back. All pages of `Changes` are always fetched, so the change list
- * is never truncated.
+ * Such a description does not reliably list every resource change. CloudFormation can leave changes
+ * out of it and say so in `StatusReason` (https://github.com/aws/aws-cdk-cli/issues/1780), or leave
+ * out a JSON string that only gains a key without saying anything
+ * (https://github.com/aws/aws-cdk-cli/issues/2036). The diff treats a template difference in a
+ * value resolved at deploy time as unchanged when the change set does not mention it, so in either
+ * case the change set is described a second time without property values and whatever the first
+ * description left out is put back. The silent case can only be detected against the templates
+ * (`templates`), and only costs a second call when a template difference would otherwise be hidden.
+ * All pages of `Changes` are always fetched, so the change list is never truncated.
  */
 export class ChangeSetDescriber {
   /**
@@ -68,6 +96,7 @@ export class ChangeSetDescriber {
   private readonly changeSetNameOrArn: string;
   private readonly stackDisplayName: string;
   private readonly changeSetDisplayName: string;
+  private readonly templates?: ChangeSetTemplates;
 
   constructor(props: ChangeSetDescriberProps) {
     this.cfn = props.cfn;
@@ -76,6 +105,7 @@ export class ChangeSetDescriber {
     this.changeSetNameOrArn = props.changeSetNameOrArn;
     this.stackDisplayName = stackNameFromArn(props.stackNameOrArn);
     this.changeSetDisplayName = changeSetNameFromArn(props.changeSetNameOrArn);
+    this.templates = props.templates;
   }
 
   /**
@@ -183,30 +213,53 @@ export class ChangeSetDescriber {
       return detailed;
     }
 
-    const warned = hasIncompletePropertyValuesWarning(detailed);
-    if (warned) {
+    // CloudFormation warned us that it left data out, so describe again without property values
+    // and put back whatever it dropped.
+    if (hasIncompletePropertyValuesWarning(detailed)) {
       await this.ioHelper.defaults.debug(format(
         'Changeset %s on stack %s was described with incomplete data (%s); describing it again without property values to recover what was dropped',
         this.changeSetDisplayName, this.stackDisplayName, detailed.StatusReason,
       ));
+      return this.mergeDescriptions(detailed, await this.describeOnce(false)).description;
     }
 
-    // A created change set must list every resource that will change, and only the description
-    // without property values reliably does (https://github.com/aws/aws-cdk-cli/issues/2036). In
-    // any other state (most commonly FAILED because there were no changes) the warning is the only
-    // reason to describe again, so that a no-op diff or deploy still costs a single call.
-    if (detailed.Status === ChangeSetStatus.CREATE_COMPLETE || warned) {
+    // CloudFormation can also leave changes out without a warning. Only describe again when that
+    // would change the diff: when a template difference would otherwise be hidden.
+    const hidden = await this.resourcesHiddenFromDiff(detailed);
+    if (hidden === undefined || hidden.length > 0) {
       const { description, restored } = this.mergeDescriptions(detailed, await this.describeOnce(false));
-      if (!warned && restored.length > 0) {
-        await this.ioHelper.defaults.debug(format(
-          'Changeset %s on stack %s was described with property values but left out changes to %s; restored them from the description without property values',
-          this.changeSetDisplayName, this.stackDisplayName, restored.join(', '),
-        ));
-      }
+      await this.ioHelper.defaults.debug(format(
+        'Changeset %s on stack %s %s; described it again without property values and restored changes to %s',
+        this.changeSetDisplayName, this.stackDisplayName,
+        hidden ? `did not mention the template differences of ${hidden.join(', ')}` : 'could not be compared with its templates',
+        restored.length > 0 ? restored.join(', ') : 'nothing',
+      ));
       return description;
     }
 
     return detailed;
+  }
+
+  /**
+   * The resources whose template differences this description would hide from the diff.
+   *
+   * Only a created change set can hide anything.
+   *
+   * @returns the logical IDs, or `undefined` if the templates could not be compared, in which case
+   *   the change set should be described again rather than trusted
+   */
+  private async resourcesHiddenFromDiff(description: DescribeChangeSetCommandOutput): Promise<string[] | undefined> {
+    if (!this.templates || description.Status !== ChangeSetStatus.CREATE_COMPLETE) {
+      return [];
+    }
+    try {
+      return resourcesHiddenByChangeSet(await this.templates.deployed(), this.templates.generated, description);
+    } catch (e: any) {
+      await this.ioHelper.defaults.debug(format(
+        'Could not compare changeset %s on stack %s with its templates: %s', this.changeSetDisplayName, this.stackDisplayName, e,
+      ));
+      return undefined;
+    }
   }
 
   private async describeOnce(includePropertyValues: boolean): Promise<DescribeChangeSetCommandOutput> {
@@ -313,10 +366,8 @@ export class ChangeSetDescriber {
  * ```
  *
  * It is not the only way data goes missing: CloudFormation can also leave changes out without it
- * (https://github.com/aws/aws-cdk-cli/issues/2036). A created change set is therefore checked
- * against a description without property values whether or not the marker is there. For a change
- * set in any other state the marker still decides whether to describe it again, because it
- * displaces the real `StatusReason`.
+ * (https://github.com/aws/aws-cdk-cli/issues/2036), which `ChangeSetDescriber` detects against the
+ * templates instead.
  */
 const INCOMPLETE_PROPERTY_VALUES_WARNING = '[WARN] --include-property-values option can return incomplete ChangeSet data';
 

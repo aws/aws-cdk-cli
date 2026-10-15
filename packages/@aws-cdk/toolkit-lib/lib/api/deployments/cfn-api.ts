@@ -49,6 +49,15 @@ export type PrepareChangeSetOptions = {
    */
   changeSetName?: string;
   /**
+   * The deployed template the diff compares against.
+   *
+   * Lets the change set be described a second time when its description would hide a template
+   * difference (https://github.com/aws/aws-cdk-cli/issues/2036).
+   *
+   * @default - only the incomplete-data warning causes a second description
+   */
+  deployedTemplate?: Template;
+  /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
    *
@@ -78,6 +87,10 @@ export interface CreateChangeSetOptions {
   includeNestedStacks?: boolean;
   role?: string;
   diagnoser: CloudFormationStackDiagnoser;
+  /**
+   * @see PrepareChangeSetOptions.deployedTemplate
+   */
+  deployedTemplate?: Template;
 }
 
 /**
@@ -108,6 +121,7 @@ export async function createDiffChangeSet(
       includeNestedStacks: true,
       role: executionRoleArn,
       diagnoser,
+      deployedTemplate: options.deployedTemplate,
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
@@ -253,11 +267,13 @@ async function createChangeSetAndCleanup(
 
   try {
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
+    const deployedTemplate = options.deployedTemplate;
     return await new ChangeSetDescriber({
       cfn: options.cfn,
       ioHelper,
       stackNameOrArn: stackId,
       changeSetNameOrArn: changeSetId,
+      templates: deployedTemplate ? { deployed: async () => deployedTemplate, generated: options.stack.template } : undefined,
     }).waitAndThrowOnProblem({
       diagnoser: options.diagnoser,
     });

@@ -7,19 +7,30 @@ if (!stackPrefix) {
 }
 
 // A string parameter holding JSON that is built with an intrinsic, the way Stack.toJsonString renders
-// it (the EKS KubernetesManifest and HelmChart constructs use it too). EXTRA_KEY adds a key to the
-// JSON, a change CloudFormation leaves out of a change set described with IncludePropertyValues,
-// without a warning. See aws/aws-cdk-cli#2036.
+// it (the EKS KubernetesManifest and HelmChart constructs use it too). VARIANT changes the JSON in a
+// way that CloudFormation leaves out of a change set described with IncludePropertyValues, without a
+// warning, or rewrites it so that it resolves to the same value. See aws/aws-cdk-cli#2036.
 class JsonIntrinsicStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
-    new ssm.StringParameter(this, 'Param', {
-      stringValue: this.toJsonString({
-        stack: cdk.Aws.STACK_NAME,
-        a: '1',
-        ...(process.env.EXTRA_KEY ? { b: '2' } : {}),
-      }),
-    });
+    new ssm.StringParameter(this, 'Param', { stringValue: this.parameterValue(process.env.VARIANT) });
+  }
+
+  parameterValue(variant) {
+    switch (variant) {
+      case undefined:
+        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1' });
+      case 'add-key':
+        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', b: '2' });
+      case 'add-key-with-token':
+        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', region: cdk.Aws.REGION });
+      case 'reorder-keys':
+        return this.toJsonString({ a: '1', stack: cdk.Aws.STACK_NAME });
+      case 'same-value-with-fn-sub':
+        return cdk.Fn.sub('{"stack":"${AWS::StackName}","a":"1"}');
+      default:
+        throw new Error(`unknown VARIANT: ${variant}`);
+    }
   }
 }
 

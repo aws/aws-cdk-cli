@@ -21,7 +21,7 @@ integTest(
 
     // WHEN - a key is added to the JSON
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { EXTRA_KEY: '1' },
+      modEnv: { VARIANT: 'add-key' },
     });
 
     // THEN - the parameter value is shown as changed

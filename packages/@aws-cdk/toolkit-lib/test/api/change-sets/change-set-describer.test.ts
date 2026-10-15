@@ -1,6 +1,7 @@
 import type { Change, DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { DescribeChangeSetCommand } from '@aws-sdk/client-cloudformation';
 import type { ICloudFormationClient } from '../../../lib/api/aws-auth/private';
+import type { ChangeSetDescriberProps } from '../../../lib/api/change-sets';
 import { ChangeSetDescriber } from '../../../lib/api/change-sets';
 import type { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
@@ -23,20 +24,21 @@ beforeEach(() => {
   cfn = new MockSdk().cloudFormation();
 });
 
-function describer() {
+function describer(props: Partial<ChangeSetDescriberProps> = {}) {
   return new ChangeSetDescriber({
     cfn,
     ioHelper,
     stackNameOrArn: 'my-stack',
     changeSetNameOrArn: 'my-change-set',
+    ...props,
   });
 }
 
 /**
  * Make DescribeChangeSet return `detailed` when property values are requested, and `plain` otherwise.
  *
- * The detailed response carries the incomplete-data warning. A created change set is described a
- * second time anyway, so a test that needs the warning to be the reason passes another `Status`.
+ * The detailed response carries the incomplete-data warning, so that the describer goes looking for
+ * what CloudFormation dropped.
  */
 function mockFlaggedResponses(detailed: Partial<DescribeChangeSetCommandOutput>, plain: Partial<DescribeChangeSetCommandOutput>) {
   mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({
@@ -45,40 +47,6 @@ function mockFlaggedResponses(detailed: Partial<DescribeChangeSetCommandOutput>,
     ...detailed,
   });
   mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', ...plain });
-}
-
-/**
- * Make DescribeChangeSet return `detailed` when property values are requested, and `plain` otherwise.
- *
- * Unlike `mockFlaggedResponses`, the detailed response carries no warning: CloudFormation does not
- * always say that it left something out (https://github.com/aws/aws-cdk-cli/issues/2036).
- */
-function mockResponses(detailed: Partial<DescribeChangeSetCommandOutput>, plain: Partial<DescribeChangeSetCommandOutput>) {
-  mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({ Status: 'CREATE_COMPLETE', ...detailed });
-  mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', ...plain });
-}
-
-/**
- * The change CloudFormation reports, when described without property values, for a key added to
- * JSON that is built with an intrinsic (`Stack.toJsonString`) and stored in a string property.
- */
-function jsonStringParameterChange(): Change {
-  return {
-    Type: 'Resource',
-    ResourceChange: {
-      Action: 'Modify',
-      LogicalResourceId: 'Param165332EC',
-      PhysicalResourceId: 'CFN-Param165332EC-abcdefghijkl',
-      ResourceType: 'AWS::SSM::Parameter',
-      Replacement: 'False',
-      Scope: ['Properties'],
-      Details: [{
-        Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' },
-        Evaluation: 'Static',
-        ChangeSource: 'DirectModification',
-      }],
-    },
-  };
 }
 
 function plainDescribeCalls() {
@@ -305,31 +273,59 @@ describe('ChangeSetDescriber', () => {
   });
 
   test('describes the change set a second time when CloudFormation flags the response as incomplete', async () => {
-    // GIVEN - not CREATE_COMPLETE, so the warning is the only reason to describe it again
-    mockFlaggedResponses({ Status: 'FAILED', Changes: [] }, { Status: 'FAILED', Changes: [] });
+    // GIVEN
+    mockFlaggedResponses({ Changes: [] }, { Changes: [] });
 
     // WHEN
-    await describer().describeCurrentState();
+    await describer().waitForReport({ diagnoser });
 
     // THEN
     expect(plainDescribeCalls()).toHaveLength(1);
   });
 
-  test('restores a resource change that CloudFormation silently dropped from the detailed response (#2036)', async () => {
-    // GIVEN - https://github.com/aws/aws-cdk-cli/issues/2036: with IncludePropertyValues, CFN
-    // returns a created, executable change set without any changes and without any warning...
-    mockResponses(
-      { ExecutionStatus: 'AVAILABLE', Changes: [] },
-      // ...while the description without property values reports the change
-      { ExecutionStatus: 'AVAILABLE', Changes: [jsonStringParameterChange()] },
-    );
+  test('does not describe the change set a second time when the response is not flagged', async () => {
+    // GIVEN - a normal response, without the incomplete-data warning
+    mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({ Status: 'CREATE_COMPLETE', Changes: [] });
 
     // WHEN
-    const { changeSet } = await describer().waitForReport({ diagnoser });
+    await describer().waitForReport({ diagnoser });
 
-    // THEN
-    expect(changeSet.Changes).toEqual([jsonStringParameterChange()]);
-    expect(plainDescribeCalls()).toHaveLength(1);
+    // THEN - a single describe, with property values
+    const calls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args[0].input.IncludePropertyValues).toBe(true);
+  });
+
+  describe('with the templates (https://github.com/aws/aws-cdk-cli/issues/2036)', () => {
+    // A JSON string built with `Stack.toJsonString()` gains a key. Described with
+    // IncludePropertyValues, CloudFormation can leave such a change out without a warning.
+    const templates = {
+      deployed: async () => jsonParameterTemplate('","a":"1"}'),
+      generated: jsonParameterTemplate('","a":"1","b":"2"}'),
+    };
+
+    test('describes a created change set again without property values when it would hide a template difference', async () => {
+      // GIVEN - the change is missing with property values, and present without them
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({ Status: 'CREATE_COMPLETE', Changes: [] });
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange()] });
+
+      // WHEN
+      const { changeSet } = await describer({ templates }).waitForReport({ diagnoser });
+
+      // THEN - what the first description left out is put back
+      expect(changeSet.Changes).toEqual([parameterValueChange()]);
+    });
+
+    test('does not describe a created change set again when it mentions every template difference', async () => {
+      // GIVEN
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange()] });
+
+      // WHEN
+      await describer({ templates }).waitForReport({ diagnoser });
+
+      // THEN - a single describe, with property values
+      expect(mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)).toHaveLength(1);
+    });
   });
 
   test('does not describe a second time for an ordinary status reason', async () => {
@@ -387,3 +383,34 @@ describe('ChangeSetDescriber', () => {
     expect(description.Changes?.map((c) => c.ResourceChange?.LogicalResourceId).sort()).toEqual(['First', 'Second']);
   });
 });
+
+/**
+ * A template with one SSM parameter whose value is `Stack.toJsonString({ stack: Aws.STACK_NAME, ... })`,
+ * ending in `lastFragment`.
+ */
+function jsonParameterTemplate(lastFragment: string) {
+  return {
+    Resources: {
+      Param: {
+        Type: 'AWS::SSM::Parameter',
+        Properties: { Type: 'String', Value: { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] } },
+      },
+    },
+  };
+}
+
+/**
+ * The change CloudFormation reports for that parameter when described without property values.
+ */
+function parameterValueChange(): Change {
+  return {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'Param',
+      ResourceType: 'AWS::SSM::Parameter',
+      Replacement: 'False',
+      Details: [{ Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' }, Evaluation: 'Static', ChangeSource: 'DirectModification' }],
+    },
+  };
+}

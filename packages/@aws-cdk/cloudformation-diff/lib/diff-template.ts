@@ -35,15 +35,43 @@ const DIFF_HANDLERS: HandlerRegistry = {
 };
 
 /**
+ * The logical IDs of resources whose template differences `fullDiff` would hide because of `changeSet`.
+ *
+ * `fullDiff` treats a property difference that the change set does not mention as unchanged when the
+ * value contains something only resolved at deploy time. That relies on the change set listing every
+ * change, which a description requested with `IncludePropertyValues` does not always do: CloudFormation
+ * can leave out a JSON string that only gains a key, without a warning
+ * (https://github.com/aws/aws-cdk-cli/issues/2036). A caller that gets any IDs back can describe the
+ * change set again without property values, and merge in what it left out, before calling `fullDiff`.
+ */
+export function resourcesHiddenByChangeSet(
+  currentTemplate: { [key: string]: any },
+  newTemplate: { [key: string]: any },
+  changeSet: DescribeChangeSetOutput,
+): string[] {
+  // Same normalization as `fullDiff`, on copies for the same reason.
+  const currentTemplateCopy = deepCopy(currentTemplate);
+  const newTemplateCopy = deepCopy(newTemplate);
+  normalize(currentTemplateCopy);
+  normalize(newTemplateCopy);
+  const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
+  const hidden: string[] = [];
+  diffTemplate(currentTemplateCopy, newTemplateCopy).resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
+    if (merger.hidesTemplateDifferences(logicalId, change)) {
+      hidden.push(logicalId);
+    }
+  });
+  return hidden;
+}
+
+/**
  * Compare two CloudFormation templates and return semantic differences between them.
  *
  * @param currentTemplate - the current state of the stack.
  * @param newTemplate     - the target state of the stack.
  * @param changeSet       - the change set for this stack. A template difference that depends on
- *      deploy-time values is dropped if the change set does not mention it, so the change set must
- *      list every resource change. A description requested with `IncludePropertyValues` does not
- *      always do that (https://github.com/aws/aws-cdk-cli/issues/2036); merge in the description
- *      without property values before passing it here.
+ *      deploy-time values is dropped if the change set does not mention it (see
+ *      `resourcesHiddenByChangeSet`).
  *
  * @returns a +types.TemplateDiff+ object that represents the changes that will happen if
  *      a stack which current state is described by +currentTemplate+ is updated with

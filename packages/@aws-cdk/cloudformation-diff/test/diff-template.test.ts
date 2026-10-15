@@ -1,6 +1,6 @@
 import * as fc from 'fast-check';
 import { arbitraryTemplate } from './test-arbitraries';
-import { fullDiff, ResourceImpact } from '../lib/diff-template';
+import { fullDiff, resourcesHiddenByChangeSet, ResourceImpact } from '../lib/diff-template';
 
 const POLICY_DOCUMENT = { foo: 'Bar' }; // Obviously a fake one!
 const BUCKET_POLICY_RESOURCE = {
@@ -622,4 +622,40 @@ test('metadata changes are rendered in the diff', () => {
 
   differences = fullDiff(newTemplate, currentTemplate);
   expect(differences.resources.differenceCount).toBe(1);
+});
+
+describe('resourcesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues/2036)', () => {
+  // `Stack.toJsonString({ stack: Aws.STACK_NAME, a: '1' })` stored in a string property, ending in `lastFragment`.
+  const json = (lastFragment: string) => ({ 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] });
+  const template = (value: any, description?: string) => ({
+    Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value, Description: description } } },
+  });
+  const change = (...properties: string[]) => ({
+    Changes: [{
+      Type: 'Resource' as const,
+      ResourceChange: {
+        Action: 'Modify' as const,
+        LogicalResourceId: 'Param',
+        ResourceType: 'AWS::SSM::Parameter',
+        Details: properties.map((name) => ({ Target: { Attribute: 'Properties' as const, Name: name, RequiresRecreation: 'Never' as const } })),
+      },
+    }],
+  });
+
+  test('returns a resource whose value contains a token and that the change set leaves out', () => {
+    // A key added to the JSON: described with IncludePropertyValues, CloudFormation leaves this out
+    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}')), template(json('","a":"1","b":"2"}')), { Changes: [] }))
+      .toEqual(['Param']);
+  });
+
+  test('returns a resource the change set lists without the changed property', () => {
+    // Only the description change is mentioned, the value change is left out
+    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}'), 'd1'), template(json('","a":"1","b":"2"}'), 'd2'), change('Description')))
+      .toEqual(['Param']);
+  });
+
+  test('returns nothing when the change set mentions the change, or the value is static', () => {
+    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}')), template(json('","a":"1","b":"2"}')), change('Value'))).toEqual([]);
+    expect(resourcesHiddenByChangeSet(template('{"a":"1"}'), template('{"a":"1","b":"2"}'), { Changes: [] })).toEqual([]);
+  });
 });
