@@ -524,12 +524,15 @@ export class Deployments {
    * @param stack - The Stack artifact
    * @param changeSetName - The name of the change set
    * @param stackArn - Optional the exact arn of the stack. Prefer this if you have it available.
+   * @param deployedTemplate - Optional the deployed template the diff compares against, so that a
+   *   description that would hide a template difference is completed (see `ChangeSetDescriber`)
    * @returns the DescribeChangeSet response
    */
   public async describeChangeSet(
     stack: cxapi.CloudFormationStackArtifact,
     changeSetName: string,
     stackArn?: string,
+    deployedTemplate?: Template,
   ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
@@ -538,6 +541,7 @@ export class Deployments {
       ioHelper: this.ioHelper,
       stackNameOrArn: stackArn ?? stack.stackName,
       changeSetNameOrArn: changeSetName,
+      templates: deployedTemplate ? { deployed: async () => deployedTemplate, generated: stack.template } : undefined,
     }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
