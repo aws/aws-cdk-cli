@@ -1,6 +1,6 @@
 import { format } from 'node:util';
-import type { Change, DescribeChangeSetCommandOutput, ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
 import { resourcesHiddenByChangeSet } from '@aws-cdk/cloudformation-diff';
+import type { Change, DescribeChangeSetCommandOutput, ResourceChangeDetail } from '@aws-sdk/client-cloudformation';
 import { ChangeSetStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
