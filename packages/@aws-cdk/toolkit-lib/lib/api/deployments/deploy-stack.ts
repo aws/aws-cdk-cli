@@ -564,11 +564,11 @@ class FullCloudFormationDeployment {
   private async checkAndExecuteChangeSet(changeSetReport: ChangeSetReport): Promise<DeployStackResult> {
     const replacement = hasReplacement(changeSetReport);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
+    const executeOptions = this.commonExecuteOptions();
 
-    // Express: the change set's recorded value is authoritative. Standard: the change set always records `false`; the
-    // execute-time flag decides.
+    // Express change sets fix rollback when they are created; standard ones take it from the execute call we send.
     const config = changeSetReport.changeSet.DeploymentConfig;
-    const rollbackEnabled = config?.Mode === 'EXPRESS' ? config.DisableRollback === false : this.options.rollback !== false;
+    const rollbackEnabled = config?.Mode === 'EXPRESS' ? config.DisableRollback === false : executeOptions.DisableRollback !== true;
 
     // No flag or retry gets this change set through, so throw rather than return a result.
     const expressUpdateFailed = this.cloudFormationStack.stackStatus.name === 'UPDATE_FAILED' && this.cloudFormationStack.deploymentMode === 'EXPRESS';
@@ -604,7 +604,7 @@ class FullCloudFormationDeployment {
       StackName: changeSet.StackId ?? this.stackName,
       ChangeSetName: changeSet.ChangeSetId!,
       ClientRequestToken: `exec${this.uuid}`,
-      ...this.commonExecuteOptions(),
+      ...executeOptions,
     });
 
     await this.ioHelper.defaults.debug(
