@@ -1004,26 +1004,42 @@ test('deployStack reports no change if describeChangeSet returns an error that i
 });
 
 test('describes the change set again without property values when it would hide a template difference (#2036)', async () => {
-  // GIVEN - a JSON string built with `Stack.toJsonString()` gains a key. Described with
-  // IncludePropertyValues, CloudFormation can leave such a change out without a warning.
+  // GIVEN - a JSON string built with `Stack.toJsonString()` gains a key. CloudFormation reports the
+  // change when described without property values, and leaves it out, without a warning, when
+  // described with them.
   const json = (lastFragment: string) => ({ 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] });
   const parameterTemplate = (value: any) => ({ Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value } } } });
+  const parameterValueChange: Change = {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'Param',
+      ResourceType: 'AWS::SSM::Parameter',
+      Replacement: 'False',
+      Details: [{ Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' }, Evaluation: 'Static', ChangeSource: 'DirectModification' }],
+    },
+  };
   givenStackExists();
   givenTemplateIs(parameterTemplate(json('","a":"1"}')));
+  fakeCfn.overrideChangeSetChanges = [parameterValueChange];
   mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
     ...await fakeCfn.describeChangeSet(input),
     Changes: [],
   }));
 
-  // WHEN
-  await testDeployStack({
+  // WHEN - deploy prepares the change set before showing the approval diff
+  const result = await testDeployStack({
     ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: parameterTemplate(json('","a":"1","b":"2"}')) })),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
   });
 
-  // THEN - the change set is described again, so the approval diff and the execution see the change
+  // THEN - the change set is described again, and the returned description, which the approval
+  // diff uses, includes the change
   const withoutPropertyValues = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
     .filter((call) => call.args[0].input.IncludePropertyValues === false);
   expect(withoutPropertyValues).toHaveLength(1);
+  expect(result.type === 'did-deploy-stack' ? result.changeSet?.Changes : undefined).toEqual([parameterValueChange]);
 });
 
 test('deployStack throws error in case of early validation failures', async () => {
