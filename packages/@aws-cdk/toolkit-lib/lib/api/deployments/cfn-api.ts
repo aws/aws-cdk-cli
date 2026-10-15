@@ -265,9 +265,9 @@ async function createChangeSetAndCleanup(
   const changeSetId = changeSet.Id ?? options.changeSetName;
   const stackId = changeSet.StackId ?? options.stack.stackName;
 
+  const deployedTemplate = options.deployedTemplate;
   try {
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
-    const deployedTemplate = options.deployedTemplate;
     return await new ChangeSetDescriber({
       cfn: options.cfn,
       ioHelper,
@@ -322,7 +322,7 @@ async function createChangeSetAndCleanup(
  */
 export async function createValidationChangeSet(
   ioHelper: IoHelper,
-  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName'>,
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName' | 'deployedTemplate'>,
 ): Promise<ChangeSetReport> {
   const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = `cdk-validate-${options.uuid}`;

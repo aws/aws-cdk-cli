@@ -809,7 +809,7 @@ describe('diff', () => {
       }));
     });
 
-    test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Join to Fn::Sub', async () => {
+    test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Sub to Fn::Join', async () => {
       // GIVEN - the deployed parameter builds the same JSON with Fn::Sub instead of Fn::Join
       givenDeployedParameterValue({ 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });
       givenExistingStackForChangeSetDiff();

@@ -143,13 +143,11 @@ export class TemplateAndChangeSetDiffMerger {
   /**
    * Whether the change set would hide any of this resource's template differences.
    *
-   * Only in-place updates count: an added or removed resource is shown whatever the change set says.
-   *
    * @see hidesPropertyDifference
    */
   public hidesTemplateDifferences(logicalId: string, change: types.ResourceDifference): boolean {
     // resourceType getter throws an error if resourceTypeChanged
-    if (!change.isUpdate || change.resourceTypeChanged === true || change.resourceType?.includes('AWS::Serverless')) {
+    if (change.resourceTypeChanged === true || change.resourceType?.includes('AWS::Serverless')) {
       return false;
     }
     let hides = false;

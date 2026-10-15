@@ -347,8 +347,8 @@ export class ChangeSetDescriber {
       }
     }
 
-    // Take the status reason from the plain response: if the detailed one is the incomplete-data
-    // warning, it would otherwise displace the real reason (for example the
+    // Take the status reason from the plain response: the detailed one is the incomplete-data
+    // warning, which would otherwise displace the real reason (for example the
     // `AWS::EarlyValidation` marker that tells us why a change set failed to create).
     return {
       description: { ...detailed, StatusReason: plain.StatusReason ?? detailed.StatusReason, Changes: changes },
