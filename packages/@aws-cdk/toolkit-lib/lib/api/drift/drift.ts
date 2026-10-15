@@ -42,6 +42,16 @@ export async function detectStackDrift(
   const driftResults = await cfn.describeStackResourceDrifts({
     StackName: stackName,
   });
+  // Traverse all pages, so that `StackResourceDrifts` is always the complete list. A truncated
+  // list would silently report drifted resources as unchecked and let `cdk drift --fail` pass.
+  while (driftResults.NextToken) {
+    const page = await cfn.describeStackResourceDrifts({
+      StackName: stackName,
+      NextToken: driftResults.NextToken,
+    });
+    driftResults.StackResourceDrifts = [...(driftResults.StackResourceDrifts ?? []), ...(page.StackResourceDrifts ?? [])];
+    driftResults.NextToken = page.NextToken;
+  }
 
   // Log warning for any resources with UNKNOWN status
   const unknownResources = driftResults.StackResourceDrifts?.filter(
