@@ -773,7 +773,7 @@ describe('diff', () => {
 
     test('ChangeSet diff shows an added key in JSON built with an intrinsic that CloudFormation silently drops (issue #2036)', async () => {
       // GIVEN - the deployed parameter holds the same JSON without key "b"
-      givenDeployedParameterValue(jsonWithStackName('","a":"1"}'));
+      givenDeployedParameterValue(jsonWithStackName({ a: '1' }));
       givenExistingStackForChangeSetDiff();
 
       // CloudFormation leaves the change out of the IncludePropertyValues description, without a warning...
@@ -798,7 +798,7 @@ describe('diff', () => {
 
       // THEN - the added key is shown as an update
       const valueChange = result.Stack1.resources.get('Param165332EC').propertyUpdates.Value;
-      expect(valueChange.newValue).toEqual(jsonWithStackName('","a":"1","b":"2"}'));
+      expect(valueChange.newValue).toEqual(jsonWithStackName({ a: '1', b: '2' }));
       expect(valueChange.isDifferent).toBe(true);
       expect(valueChange.changeImpact).toEqual(ResourceImpact.WILL_UPDATE);
       expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -969,10 +969,10 @@ describe('diff', () => {
 });
 
 /**
- * The value `Stack.toJsonString({ stack: Aws.STACK_NAME, ... })` renders, given everything after the stack name
+ * The value `Stack.toJsonString({ stack: Aws.STACK_NAME, ...values })` renders
  */
-function jsonWithStackName(rest: string) {
-  return { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, rest]] };
+function jsonWithStackName(values: Record<string, string>) {
+  return { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]] };
 }
 
 /**
