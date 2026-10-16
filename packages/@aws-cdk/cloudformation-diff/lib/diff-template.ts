@@ -52,14 +52,9 @@ export function resourcesHiddenByChangeSet(
   newTemplate: { [key: string]: any },
   changeSet: DescribeChangeSetOutput,
 ): string[] {
+  const resources = diffNormalizedTemplates(currentTemplate, newTemplate).resources;
   const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
-  const hidden: string[] = [];
-  diffNormalizedTemplates(currentTemplate, newTemplate).resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
-    if (merger.hidesTemplateDifferences(logicalId, change)) {
-      hidden.push(logicalId);
-    }
-  });
-  return hidden;
+  return resources.logicalIds.filter((logicalId) => merger.hidesTemplateDifferences(logicalId, resources.get(logicalId)));
 }
 
 /**
