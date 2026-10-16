@@ -151,7 +151,7 @@ export class AwsCliCompatible {
    *    Lambda and CodeBuild set the $AWS_REGION variable.
    * 2. Regions listed in the Shared Ini Files - First checking for the profile provided
    *    and then checking for the default profile.
-   * 3. IMDS instance identity region from the Metadata Service.
+   * 3. IMDS instance identity region from the Metadata Service, unless `AWS_EC2_METADATA_DISABLED` is set.
    * 4. us-east-1
    */
   public async region(maybeProfile?: string): Promise<string> {
@@ -185,7 +185,10 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
-    if (!isEc2Instance()) {
+    // Same check as the SDK's IMDS credential provider. Without it, a host that can't reach IMDS (such as
+    // a sandboxed build on EC2) waits out the MetadataService retries on every region lookup.
+    const imdsDisabled = !!process.env.AWS_EC2_METADATA_DISABLED && process.env.AWS_EC2_METADATA_DISABLED !== 'false';
+    if (imdsDisabled || !isEc2Instance()) {
       return undefined;
     }
 
