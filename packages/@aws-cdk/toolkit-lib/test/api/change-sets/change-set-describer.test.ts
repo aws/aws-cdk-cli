@@ -1,8 +1,10 @@
 import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { DescribeChangeSetCommand } from '@aws-sdk/client-cloudformation';
 import type { ICloudFormationClient } from '../../../lib/api/aws-auth/private';
+import type { ChangeSetDescriberProps } from '../../../lib/api/change-sets';
 import { ChangeSetDescriber } from '../../../lib/api/change-sets';
 import type { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
+import { jsonWithStackName, parameterValueChange } from '../../_helpers/json-parameter';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -23,12 +25,13 @@ beforeEach(() => {
   cfn = new MockSdk().cloudFormation();
 });
 
-function describer() {
+function describer(props: Partial<ChangeSetDescriberProps> = {}) {
   return new ChangeSetDescriber({
     cfn,
     ioHelper,
     stackNameOrArn: 'my-stack',
     changeSetNameOrArn: 'my-change-set',
+    ...props,
   });
 }
 
@@ -294,6 +297,38 @@ describe('ChangeSetDescriber', () => {
     expect(calls[0].args[0].input.IncludePropertyValues).toBe(true);
   });
 
+  describe('with the templates (https://github.com/aws/aws-cdk-cli/issues/2036)', () => {
+    // A JSON string built with `Stack.toJsonString()` gains a key. Described with
+    // IncludePropertyValues, CloudFormation can leave such a change out without a warning.
+    const templates = {
+      deployed: jsonParameterTemplate({ a: '1' }),
+      generated: jsonParameterTemplate({ a: '1', b: '2' }),
+    };
+
+    test('describes a created change set again without property values when it would hide a template difference', async () => {
+      // GIVEN - the change is missing with property values, and present without them
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({ Status: 'CREATE_COMPLETE', Changes: [] });
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange('Param')] });
+
+      // WHEN
+      const { changeSet } = await describer({ templates }).waitForReport({ diagnoser });
+
+      // THEN - what the first description left out is put back
+      expect(changeSet.Changes).toEqual([parameterValueChange('Param')]);
+    });
+
+    test('does not describe a created change set again when it mentions every template difference', async () => {
+      // GIVEN
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange('Param')] });
+
+      // WHEN
+      await describer({ templates }).waitForReport({ diagnoser });
+
+      // THEN - a single describe, with property values
+      expect(mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)).toHaveLength(1);
+    });
+  });
+
   test('does not describe a second time for an ordinary status reason', async () => {
     // GIVEN - an empty change set: FAILED with a status reason, but no warning. This is the common
     // case for a no-op diff or deploy, so it must not cost a second call.
@@ -349,3 +384,20 @@ describe('ChangeSetDescriber', () => {
     expect(description.Changes?.map((c) => c.ResourceChange?.LogicalResourceId).sort()).toEqual(['First', 'Second']);
   });
 });
+
+/**
+ * A template with one SSM parameter whose value is `Stack.toJsonString({ stack: Aws.STACK_NAME, ...values })`.
+ */
+function jsonParameterTemplate(values: Record<string, string>) {
+  return {
+    Resources: {
+      Param: {
+        Type: 'AWS::SSM::Parameter',
+        Properties: {
+          Type: 'String',
+          Value: jsonWithStackName(values),
+        },
+      },
+    },
+  };
+}

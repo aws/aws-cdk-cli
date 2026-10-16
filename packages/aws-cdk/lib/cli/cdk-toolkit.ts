@@ -15,7 +15,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, toCloudFormationRollbackConfiguration } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, Template, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -376,7 +376,7 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet, currentTemplate))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
@@ -446,6 +446,7 @@ export class CdkToolkit {
     parameterMap: { [name: string]: { [name: string]: string | undefined } },
     resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
     quiet: boolean,
+    deployedTemplate: Template,
   ) {
     try {
       // we don't actually need to know if the stack exists here
@@ -478,6 +479,7 @@ export class CdkToolkit {
       importExistingResources: options.importExistingResources,
       changeSetName: options.changeSetName,
       failOnError: options.method === 'change-set',
+      deployedTemplate,
     });
   }
 
