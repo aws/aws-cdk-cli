@@ -91,11 +91,10 @@ function anchorViolation(
  * top of the file when line/column aren't known. LSP positions are 0-based;
  * sourceLocation is 1-based. The end spans the rest of the line.
  */
-function toRange(loc: { line: number; column: number }): Range {
-  const hasLineCol = loc.line >= 1 && loc.column >= 1;
+function toRange(loc: { line: number }): Range {
+  const hasLineCol = loc.line >= 1;
   const line = hasLineCol ? loc.line - 1 : 0;
-  const character = hasLineCol ? loc.column - 1 : 0;
-  return { start: { line, character }, end: { line, character: END_OF_LINE_CHARACTER } };
+  return { start: { line, character: 0 }, end: { line, character: END_OF_LINE_CHARACTER } };
 }
 
 function buildDiagnostic(violation: PolicyViolationJson, range: Range, pluginName: string): Diagnostic {

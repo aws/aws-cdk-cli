@@ -77,6 +77,7 @@
     "chokidar": "^4",
     "convert-source-map": "^2",
     "json-source-map": "^0.6.1",
+    "p-limit": "^7.3.3",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
     "vscode-languageserver-textdocument": "^1"

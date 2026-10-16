@@ -50,5 +50,4 @@ export const GetConstructTreeRequest = new RequestType0<GetConstructTreeResult, 
 export interface AbsoluteSourceLocation {
   readonly file: AbsolutePath;
   readonly line: number;
-  readonly column: number;
 }

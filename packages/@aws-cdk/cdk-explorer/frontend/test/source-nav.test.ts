@@ -35,8 +35,8 @@ describe('SourceAndTemplateIndex', () => {
     const index = SourceAndTemplateIndex.fromTree([]);
 
     expect(index.size).toBe(0);
-    expect(index.sourceFiles).toEqual([]);
-    expect(index.templateFiles).toEqual([]);
+    expect(index.sourceFileNames).toEqual([]);
+    expect(index.templateFileNames).toEqual([]);
   });
 
   test('collects the distinct source and template files, sorted', () => {
@@ -46,8 +46,8 @@ describe('SourceAndTemplateIndex', () => {
       navigable('App/Table', 'db.ts', 5),
     ]);
 
-    expect(index.sourceFiles).toEqual(['app.ts', 'db.ts']);
-    expect(index.templateFiles).toEqual(['App.template.json']);
+    expect(index.sourceFileNames).toEqual(['app.ts', 'db.ts']);
+    expect(index.templateFileNames).toEqual(['App.template.json']);
   });
 
   test('indexes every construct by path, including nested ones', () => {
@@ -65,8 +65,8 @@ describe('SourceAndTemplateIndex', () => {
     const index = SourceAndTemplateIndex.fromTree([node({ path: 'App/Opaque' })]);
 
     expect(index.construct('App/Opaque')).toBeDefined();
-    expect(index.sourceFiles).toEqual([]);
-    expect(index.templateFiles).toEqual([]);
+    expect(index.sourceFileNames).toEqual([]);
+    expect(index.templateFileNames).toEqual([]);
   });
 });
 

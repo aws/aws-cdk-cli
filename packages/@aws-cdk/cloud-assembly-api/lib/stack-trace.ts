@@ -47,6 +47,10 @@ export class StackTrace {
   public findFirstUserFrame(): StackFrame | undefined {
     return this.findAndParse(DEFAULT_USER_CODE_FINDER);
   }
+
+  public renderJustMyCode(indent = true): string[] {
+    return renderCallStackJustMyCode(this.frames.map(f => StackFrame.parse(f)), indent);
+  }
 }
 
 export class StackFrame {
@@ -151,5 +155,98 @@ export class StackFrame {
   public get columnNumber(): number | undefined {
     return this.lineLocation?.column;
   }
+}
+
+// Look for `/node_modules/` followed by either
+// - An @ sign, and 2 path segments
+// - No @ sign, and 1 path segment
+const MODULE_RE = /(\/|\\)node_modules(\/|\\)(@[^/\\]+[/\\][^/\\]+|[^@][^/\\]*)/;
+
+const DECORATOR_RE = /(\/|\\)(prop-injectable|no-box-stack-traces)\./;
+
+/**
+ * Renders an array of CallSites nicely, focusing on the user application code
+ *
+ * We detect "Not My Code" using the following heuristics:
+ *
+ * - If there is '/node_modules/' in the file path, we assume the call stack is a library and we skip it.
+ * - If there is 'node:' in the file path, we assume it is NodeJS internals and we skip it.
+ * - We skip (and hide) 'prop-injectable' or 'no-box-stack-traces' in the trace, because those are
+ *   constructor decorators that hide what's interesting (and look weird).
+ *
+ * If `indent` is enabled, we will prefix stack frames of actual files with "  at ", just like
+ * Node does for its stack frames.
+ */
+function renderCallStackJustMyCode(stack: StackFrame[], indent = true): string[] {
+  const lines = [];
+  let skipped = new Array<{ functionName?: string; fileName: string }>();
+
+  let sawMyCode = false;
+  let i = 0;
+  while (i < stack.length) {
+    const frame = stack[i++];
+
+    if (frame.fileName.match(DECORATOR_RE)) {
+      continue;
+    }
+
+    const pat = frame.fileName.match(MODULE_RE);
+    if (pat) {
+      while (i < stack.length && stack[i].fileName.includes(pat[0])) {
+        i++;
+      }
+      // The last stack frame has the function that user code call into.
+      skip({ functionName: stack[i - 1].functionName, fileName: pat[3] });
+    } else if (frame.fileName.includes('node:')) {
+      skip({ fileName: 'node internals' });
+      while (i < stack.length && stack[i].fileName.includes('node:')) {
+        i++;
+      }
+    } else if (isHostInternalFrame(frame)) {
+      skip({ fileName: 'jsii runtime' });
+      while (i < stack.length && isHostInternalFrame(stack[i])) {
+        i++;
+      }
+    } else {
+      reportSkipped(true);
+      const prefix = indent ? '    at ' : '';
+      lines.push(`${prefix}${frame.functionName} (${frame.fileName}:${frame.sourceLocation})`);
+      sawMyCode = true;
+    }
+  }
+  reportSkipped(false);
+
+  if (!sawMyCode) {
+    lines.push(`${indent ? '    ' : ''}(no user code in ${Error.stackTraceLimit} frames, use --stack-trace-limit to capture more)`);
+  }
+
+  return lines;
+
+  function skip(what: typeof skipped[number]) {
+    if (!skipped.find(x => x.fileName === what.fileName && x.functionName === what.functionName)) {
+      skipped.push(what);
+    }
+  }
+
+  function reportSkipped(includeFunction: boolean) {
+    if (skipped.length > 0) {
+      const rendered = skipped.map((s, j) =>
+        // Only render the function name of the last frame before user code
+        j === skipped.length - 1 && s.functionName && includeFunction ?
+          `${s.functionName} in ${s.fileName}` : s.fileName);
+
+      const prefix = indent ? '    ' : '';
+      lines.push(`${prefix}...${rendered.join(', ')}...`);
+    }
+    skipped = [];
+  }
+}
+
+/**
+ * Whether the call site comes from the internals of the host that sent us the stack trace
+ */
+function isHostInternalFrame(frame: StackFrame): boolean {
+  const hostDirName = (global as any)[Symbol.for('jsii.context.hostDirName')];
+  return frame.fileName.includes(hostDirName);
 }
 

@@ -1,3 +1,5 @@
+import Icon from '@cloudscape-design/components/icon';
+import Popover from '@cloudscape-design/components/popover';
 import Tooltip from '@cloudscape-design/components/tooltip';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
@@ -21,23 +23,22 @@ export interface Diagnostic {
 /**
  * Annotations which are shown in the margin
  */
-export interface Annotation {
-  readonly line: number;
-  readonly message?: string;
+export interface LineAnnotation {
+  readonly content: React.ReactNode;
   readonly color?: string;
-  readonly onClick?: () => void;
 }
 
 export interface CodeViewerProps {
   readonly content: string;
   readonly language: Language;
+  /** Inclusive */
   readonly highlightStart?: number;
+  /** Exclusive */
   readonly highlightEnd?: number;
   readonly highlightColor?: string;
   readonly scrollToLine?: number;
-  readonly onLineDoubleClick?: (line: number) => void;
   readonly diagnostics?: readonly Diagnostic[];
-  readonly annotations?: readonly Annotation[];
+  readonly annotations?: Record<number, LineAnnotation>;
 }
 
 export function CodeViewer({
@@ -47,7 +48,6 @@ export function CodeViewer({
   highlightEnd,
   highlightColor,
   scrollToLine,
-  onLineDoubleClick,
   diagnostics,
   annotations,
 }: CodeViewerProps): JSX.Element {
@@ -58,7 +58,7 @@ export function CodeViewer({
 
   const gutterWidth = React.useMemo(() => {
     const digits = String(tokenizedLines.length).length;
-    return `${digits * 8 + 8}px`;
+    return `${digits * 8 + 18}px`;
   }, [tokenizedLines.length]);
 
   const diagnosticsByLine = React.useMemo(() => {
@@ -69,14 +69,6 @@ export function CodeViewer({
     return map;
   }, [diagnostics]);
 
-  const annotationsByLine = React.useMemo(() => {
-    const map = new Map<number, Annotation[]>();
-    for (const a of annotations ?? []) {
-      addToColl(map, a.line, a);
-    }
-    return map;
-  }, [annotations]);
-
   return (
     <div style={CONTAINER_STYLE}>
       {tokenizedLines.map((lineTokens, i) => {
@@ -84,17 +76,17 @@ export function CodeViewer({
         const isHighlighted = highlightStart !== undefined
           && highlightEnd !== undefined
           && lineNum >= highlightStart
-          && lineNum <= highlightEnd;
+          && lineNum < highlightEnd;
         const isScrollTarget = lineNum === scrollToLine;
         const lineDiagnostics = diagnosticsByLine.get(lineNum) ?? [];
-        const lineAnnotations = annotationsByLine.get(lineNum) ?? [];
+        const lineAnnotation = annotations?.[lineNum];
 
         return (
           <div
             key={`${lineNum}`}
             ref={(el) => {
               if (isScrollTarget && el) {
-                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
               }
             }}
             className={isHighlighted ? 'nav-highlight' : undefined}
@@ -102,10 +94,19 @@ export function CodeViewer({
               ...LINE_STYLE,
               ...(isHighlighted ? { ['--nav-highlight-color']: highlightColor ?? awsui.colorChartsBlue1500 } : undefined),
             }}
-            onDoubleClick={onLineDoubleClick ? () => onLineDoubleClick(lineNum) : undefined}
           >
             <span style={{ ...LINE_NUM_STYLE, width: gutterWidth }}>{lineNum}</span>
-            {lineAnnotations.length > 0 && <span style={{ position: 'absolute' }}>ANN</span>}
+            {lineAnnotation && <div style={{ position: 'absolute', color: lineAnnotation.color ?? awsui.colorChartsBlue1500 }}>
+              <Popover
+                triggerAriaLabel='Constructs defined here'
+                size={'medium'/* medium together with .make-me-big makes it as big as necessary */}
+                content={<div className="make-me-big">{lineAnnotation.content}</div>}
+                renderWithPortal={true}
+                dismissButton={false}
+              >
+                <Icon name="status-in-progress" />
+              </Popover>
+            </div>}
             <span style={LINE_CONTENT_STYLE}>
               {lineDiagnostics.length > 0
                 ? renderWithDiagnostics(lineTokens, lineDiagnostics)

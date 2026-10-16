@@ -5,6 +5,7 @@ export interface FlexProps {
   style?: React.CSSProperties;
   title?: string;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   className?: string;
 }
 
@@ -15,6 +16,7 @@ export const Flex = React.forwardRef<HTMLDivElement, FlexProps>(function Flex(pr
     title={props.title}
     style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', ...props.style }}
     onClick={props.onClick}
+    onDoubleClick={props.onDoubleClick}
   >{props.children}</div>;
 });
 

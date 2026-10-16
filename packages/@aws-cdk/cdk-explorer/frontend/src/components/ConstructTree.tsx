@@ -53,9 +53,10 @@ interface ConstructTreeProps {
   readonly expandState: ExpandState;
   readonly highlightedConstructPath?: string;
   readonly onNavigate: NavigateHandler;
+  readonly onDoubleClick?: (WebConstructNode) => void;
 }
 
-export function ConstructTree({ nodes, expandState, onNavigate, highlightedConstructPath }: ConstructTreeProps): JSX.Element {
+export function ConstructTree({ nodes, expandState, onNavigate, onDoubleClick, highlightedConstructPath }: ConstructTreeProps): JSX.Element {
   // Necessary because a mutable object manages the expand state
   const [, expandStateChanged] = React.useState({});
 
@@ -78,7 +79,7 @@ export function ConstructTree({ nodes, expandState, onNavigate, highlightedConst
       expandedItems={expandState.getExpandedItems()}
       renderItem={item => ({
         icon: (item.children.length > 0 ? <Icon name='transcript' ariaLabel='Construct Group' /> : undefined),
-        content: renderItemWithSeverity(item, highlightedConstructPath === item.path, onClickNode),
+        content: renderItemWithSeverity(item, highlightedConstructPath === item.path, onClickNode, onDoubleClick),
       })}
       getItemId={item => item.path}
       getItemChildren={item => item.children}
@@ -92,7 +93,7 @@ const MAX_AUTOEXPAND_SIBLINGS = 10;
 
 function scrollToRef(ref: HTMLDivElement) {
   if (ref) {
-    ref.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
@@ -100,6 +101,7 @@ function renderItemWithSeverity(
   item: WebConstructNode,
   isHighlighted: boolean,
   onClick: (x: WebConstructNode) => void,
+  onDoubleClick?: (x: WebConstructNode) => void,
 ): JSX.Element {
   const highlightColor = colorForSeverity(item.highestSeverity ?? item.inheritedSeverity);
   const attributes = {
@@ -113,21 +115,31 @@ function renderItemWithSeverity(
       margin: '-2px',
       padding: '2px',
     } as any,
-    title: item.id,
+    // title: item.id,
+    title: JSON.stringify({
+      id: item.id,
+      sourceLocation: item.sourceLocation,
+      templateLocation: item.templateLocation,
+    }, undefined, 2),
     onClick: () => onClick(item),
+    onDoubleClick: onDoubleClick ? () => onDoubleClick(item) : undefined,
   };
 
-  const ptr = item.templateLocation || item.sourceLocation
-    ? [<Icon name='internal-link' ariaLabel='View' variant='subtle' />]
-    : [];
+  const ptrs = [];
+  if (item.sourceLocation) {
+    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '8px', backgroundColor: awsui.colorChartsTeal300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>S</span>);
+  }
+  if (item.templateLocation) {
+    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '8px', backgroundColor: awsui.colorChartsYellow300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>T</span>);
+  }
 
   const sev = item.highestSeverity && SEVERITY[item.highestSeverity.toLowerCase()];
   if (sev) {
     attributes.style.color = sev.color;
-    return <Flex {...attributes} ref={isHighlighted ? scrollToRef : undefined}>
+    return <Flex {...attributes} ref={isHighlighted ? scrollToRef : undefined} key={item.path}>
       <Icon name={sev.icon} ariaLabel={sev.label} />
       {item.id}
-      {...ptr}
+      {...ptrs}
     </Flex>;
   }
 
@@ -136,7 +148,7 @@ function renderItemWithSeverity(
     attributes.style.color = inh.color;
   }
 
-  return <span {...attributes} ref={isHighlighted ? scrollToRef : undefined}>{item.id} {...ptr}</span>;
+  return <span {...attributes} ref={isHighlighted ? scrollToRef : undefined} key={item.path}>{item.id} {...ptrs}</span>;
 }
 
 function navigateArgsFromConstructNode(item: WebConstructNode, trigger: NavigateEvent['trigger']): Parameters<NavigateHandler>[0] {

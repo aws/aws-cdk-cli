@@ -2,6 +2,7 @@
 import Alert from '@cloudscape-design/components/alert';
 import AppLayoutToolbar from '@cloudscape-design/components/app-layout-toolbar';
 import Box from '@cloudscape-design/components/box';
+import Link from '@cloudscape-design/components/link';
 import Select from '@cloudscape-design/components/select';
 import Spinner from '@cloudscape-design/components/spinner';
 import SplitPanel from '@cloudscape-design/components/split-panel';
@@ -9,7 +10,7 @@ import Tabs from '@cloudscape-design/components/tabs';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
 import { api } from './api';
-import { CodeViewer, type Diagnostic } from './components/CodeViewer';
+import { type LineAnnotation, CodeViewer, type Diagnostic } from './components/CodeViewer';
 import { ConstructTree, ExpandState } from './components/ConstructTree';
 import { Flex, FlexFix, FlexGrow } from './components/Flex';
 import { Help } from './components/Help';
@@ -21,11 +22,13 @@ import { diagnosticsPanelTitle, filterViolations, ViolationsConstructFilter, Vio
 import type { NavigateHandler } from './nav-types';
 import { SourceAndTemplateIndex } from './source-and-template-index';
 import type { Language } from './syntax';
-import { type TemplateResponse, type TreeResponse, type ViolationsResponse } from '../../lib/web-shared/protocol';
+import { type WebConstructNode, type TemplateResponse, type TreeResponse, type ViolationsResponse } from '../../lib/web-shared/protocol';
 export type { NavigateHandler } from './nav-types';
 
 interface SourceHighlight {
+  /** Inclusive */
   startLine: number;
+  /** Exclusive */
   endLine: number;
   color: string;
 }
@@ -112,20 +115,9 @@ export function App(): JSX.Element {
   // staleness flag. Used after a synth (assembly changed) to clear a banner, and
   // on a source edit to raise one, without the user re-opening the file.
   const refreshOpenSourceFile = React.useCallback(async (): Promise<void> => {
-    const file = sourceFile;
-    if (!file) return;
-    await navigateToSourceFile(file.fileName, 'refresh');
-    try {
-      const res = await api.readFile(file.fileName);
-      setSourceFile({
-        fileName: file.fileName,
-        content: res.content,
-        stale: res.stale,
-      });
-    } catch {
-      // Keep the last good content; a later event re-tries.
-    }
-  }, []);
+    if (!sourceFile) return;
+    await navigateToSourceFile(sourceFile.fileName, 'refresh');
+  }, [sourceFile]);
 
   React.useEffect(() => {
     // useEffect runs twice, guard against double initialization
@@ -146,45 +138,43 @@ export function App(): JSX.Element {
   }, []);
 
   /** Navigate to a construct (from tree double-click or violation double-click). */
-  const onNavigate: NavigateHandler = React.useCallback(async (opts) => {
-    const construct = constructIndex.current.construct(opts.constructPath);
+  const onNavigate: NavigateHandler = React.useCallback(async (ev) => {
+    const construct = constructIndex.current.construct(ev.constructPath);
     if (!construct) {
       return;
     }
 
-    if (opts.trigger === 'tree') {
-      // Filter diagnostics, only if the user clicked the tree
-      setViolationFilter(opts.constructPath);
-    }
-
-    if (opts.trigger !== 'tree') {
+    if (ev.trigger !== 'tree') {
       // Setting to 'undefined' first followed by a redraw will make sure the highlight flashes
       expandState.current.ensureParentsExpanded(construct.path);
+      expandStateChanged({});
       setTreeHighlight(undefined);
       setTimeout(() => setTreeHighlight(construct.path), 0);
     }
 
     const color = colorForSeverity(construct.highestSeverity);
-    if (opts.trigger !== 'source') {
-      if (construct.sourceLocation) {
+    if (ev.trigger !== 'source') {
+      const sourceLocation = ev.sourceLocation ?? construct.sourceLocation;
+      if (sourceLocation) {
         // Setting to 'undefined' first followed by a redraw (forced by the 'await') will make sure the highlight flashes
         setSourceHighlight(undefined);
-        await navigateToSourceFile(construct.sourceLocation.file, 'nav');
+        await navigateToSourceFile(sourceLocation.file, 'nav');
         setSourceHighlight({
-          startLine: construct.sourceLocation.line,
-          endLine: construct.sourceLocation.line,
+          startLine: sourceLocation.line,
+          endLine: sourceLocation.line + 1,
           color,
         });
       }
     }
 
-    if (opts.trigger !== 'template') {
-      if (construct.templateLocation) {
+    if (ev.trigger !== 'template') {
+      const templateLocation = ev.templateLocation ?? construct.templateLocation;
+      if (templateLocation) {
         // Setting to 'undefined' first followed by a redraw (forced by the 'await') will make sure the highlight flashes
         setTemplateHighlight(undefined);
-        await navigateToTemplateFile(construct.templateLocation.file, 'nav');
+        await navigateToTemplateFile(templateLocation.file, 'nav');
         setTemplateHighlight({
-          logicalId: construct.templateLocation.logicalId,
+          logicalId: templateLocation.logicalId,
           color,
         });
       }
@@ -192,22 +182,10 @@ export function App(): JSX.Element {
     // This must have the same dependencies as constructIndex!
   }, [tree]);
 
-  /** Jump from template pane to source (the "Open in source" button). */
-  const jumpToSource = React.useCallback(async (logicalId: string) => {
-    const data = templateFile?.response;
-    if (!data) return;
-    const resource = data.resources[logicalId];
-    if (!resource?.source) return;
-
-    await navigateToSourceFile(resource.source.file, 'nav');
-    /*
-    setNav({
-      source: { file: resource.source.file, startLine: resource.source.line, endLine: resource.source.line },
-      template: undefined,
-      color: colorForSeverity(undefined),
-    });
-    */
-  }, []);
+  const onDoubleClickNode = (item: WebConstructNode) => {
+    // Filter diagnostics, only if the user double-clicked the tree
+    setViolationFilter(item.path);
+  };
 
   const navigateToSourceFile = React.useCallback(async (fileName: string, mode: 'nav' | 'refresh') => {
     if (sourceFile?.fileName !== fileName || mode === 'refresh') {
@@ -252,18 +230,6 @@ export function App(): JSX.Element {
     }
   }, [templateFile]);
 
-  /** Double-click a line in the source pane to jump to its resource in the template. */
-  const handleSourceDoubleClick = React.useCallback((line: number) => {
-    const file = sourceFile?.fileName;
-    if (!file) return;
-    const node = constructIndex.current.findBySourceLocation(file, line);
-    if (!node) return;
-    void onNavigate({
-      trigger: 'source',
-      constructPath: node.path,
-    });
-  }, [sourceFile, constructIndex.current, onNavigate]);
-
   const pickFile = React.useCallback(async (filePath: string, pane: 'source' | 'template') => {
     try {
       if (pane === 'source') {
@@ -275,6 +241,11 @@ export function App(): JSX.Element {
       /* ignore */
     }
   }, []);
+
+  const sourceFileAnnotations = React.useMemo(() => {
+    if (!sourceFile) return [];
+    return calcSourceFileAnnotations(constructIndex.current, sourceFile.fileName, onNavigate);
+  }, [sourceFile, constructIndex.current, onNavigate]);
 
   const [navigationOpen, setNavigationOpen] = React.useState(true);
   const [activeDrawer, setActiveDrawer] = React.useState<'template' | 'help' | undefined>('template');
@@ -309,6 +280,7 @@ export function App(): JSX.Element {
                   tree={tree}
                   onNavigate={onNavigate}
                   expandState={expandState.current}
+                  onDoubleClick={onDoubleClickNode}
                   highlightedConstructPath={treeHighlight} />
               ),
             }]}
@@ -341,9 +313,10 @@ export function App(): JSX.Element {
                     <div style={{ marginBottom: '8px' }}>
                       <Select
                         placeholder="Source file"
+                        expandToViewport={true}
                         selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
                         onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
-                        options={constructIndex.current.sourceFiles.map(f => ({ label: f, value: f }))}
+                        options={constructIndex.current.sourceFileNames.map(f => ({ label: f, value: f }))}
                       />
                     </div>
                     <div>
@@ -356,8 +329,8 @@ export function App(): JSX.Element {
                             highlightEnd={sourceHighlight?.endLine}
                             highlightColor={sourceHighlight?.color}
                             scrollToLine={sourceHighlight?.startLine}
-                            onLineDoubleClick={handleSourceDoubleClick}
                             diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
+                            annotations={sourceFileAnnotations}
                           />
                         </>
                       ) : (
@@ -388,10 +361,11 @@ export function App(): JSX.Element {
                       <Flex style={{ marginBottom: '8px' }}>
                         <FlexGrow>
                           <Select
+                            expandToViewport={true}
                             placeholder="Template file"
                             selectedOption={templateFile?.fileName ? { label: templateFile.fileName, value: templateFile.fileName } : null}
                             onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'template') : undefined}
-                            options={constructIndex.current.templateFiles.map(f => ({ label: f, value: f }))}
+                            options={constructIndex.current.templateFileNames.map(f => ({ label: f, value: f }))}
                           />
                         </FlexGrow>
                         {templateFile && (
@@ -407,7 +381,8 @@ export function App(): JSX.Element {
                             resources={templateFile.response.resources}
                             highlightLogicalId={templateHighlight?.logicalId}
                             highlightColor={templateHighlight?.color}
-                            onResourceDoubleClick={jumpToSource}
+                            onNavigate={onNavigate}
+                            index={constructIndex.current}
                             templateFile={templateFile.fileName}
                             violations={violations?.status === 'ok' ? violations.violations : undefined}
                             format={templateFormat}
@@ -484,19 +459,26 @@ export function App(): JSX.Element {
 }
 
 function ConstructTreeContent(
-  { tree, onNavigate, expandState, highlightedConstructPath }:
+  { tree, onNavigate, expandState, highlightedConstructPath, onDoubleClick }:
   {
     readonly tree?: TreeResponse;
     readonly onNavigate: NavigateHandler;
     readonly expandState: ExpandState;
     readonly highlightedConstructPath?: string;
+    readonly onDoubleClick?: (item: WebConstructNode) => void;
   },
 ): JSX.Element {
   if (!tree) return <Spinner />;
   if (tree.status === 'not-synthesized') {
     return <Box color="text-status-inactive">No cloud assembly found. Run cdk synth first.</Box>;
   }
-  return <ConstructTree expandState={expandState} nodes={tree.tree} onNavigate={onNavigate} highlightedConstructPath={highlightedConstructPath} />;
+  return <ConstructTree
+    expandState={expandState}
+    nodes={tree.tree}
+    onNavigate={onNavigate}
+    onDoubleClick={onDoubleClick}
+    highlightedConstructPath={highlightedConstructPath}
+  />;
 }
 
 function detectLanguage(file: string | undefined): Language {
@@ -526,7 +508,7 @@ function buildDiagnostics(
         if (sourceLocation.file === sourceFile && sourceLocation.line >= 1) {
           diagnostics.push({
             startLine: sourceLocation.line,
-            startCol: sourceLocation.column >= 1 ? sourceLocation.column : 1,
+            startCol: 1,
             severity,
             message: violation.description,
           });
@@ -547,4 +529,69 @@ function violationSeverityToDiagnostic(severity: string | undefined): 'error' | 
     default:
       return 'info';
   }
+}
+
+function calcSourceFileAnnotations(index: SourceAndTemplateIndex, sourceFile: string, onNavigate: NavigateHandler): Record<number, LineAnnotation> {
+  const constructs = index.sourceFileConstructs(sourceFile);
+
+  return Object.fromEntries(Object.entries(constructs).map(([line, cs]) => {
+    const grouped = groupByComplexKey<WebConstructNode, React.ReactNode>(cs, c => {
+      // First: by resource type
+      if (c.type) {
+        const keyRepr = `00-res-${c.type}`;
+        return {
+          keyObj: <Box key={keyRepr} fontSize='heading-s'>{c.type}</Box>,
+          keyRepr,
+        };
+      }
+      // Then: by construct FQN
+      if (c.constructFqn) {
+        const keyRepr = `01-fqn-${c.constructFqn}`;
+        return {
+          keyObj: <Box key={keyRepr} fontSize='heading-s'>{c.constructFqn}</Box>,
+          keyRepr,
+        };
+      }
+      // Fallback: other
+      const keyRepr = '02-other';
+      return {
+        keyObj: <Box key={keyRepr} fontSize='heading-s'>Constructs</Box>,
+        keyRepr,
+      };
+    });
+
+    const content = <>{Array.from(grouped).flatMap(([header, ds]) => [
+      header,
+      ...ds.map(c => <div key={c.path} style={{ fontSize: 'small' }}>
+        <Link fontSize="body-s" variant="primary" onFollow={() => onNavigate({
+          constructPath: c.path,
+          trigger: 'source',
+        })}>{c.path}</Link>
+      </div>),
+    ])}</>;
+
+    return [line, { content }];
+  }));
+}
+
+interface GroupKey<B> {
+  readonly keyObj: B;
+  readonly keyRepr: string;
+}
+
+function groupByComplexKey<A, B>(xs: readonly A[], keyFn: (construct: A) => GroupKey<B>): Map<B, A[]> {
+  const grouped = new Map<string, { keyObj: B; els: A[] }>();
+  for (const construct of xs) {
+    const { keyObj, keyRepr } = keyFn(construct);
+    if (!grouped.has(keyRepr)) {
+      grouped.set(keyRepr, { keyObj, els: [] });
+    }
+    grouped.get(keyRepr)!.els.push(construct);
+  }
+  // Maps are order-preserving
+  return new Map(
+    Array.from(grouped.entries())
+      .sort(([keyReprA], [keyReprB]) => keyReprA.localeCompare(keyReprB))
+      .map(([_, { keyObj, els }]) => [keyObj, els]),
+  );
 }

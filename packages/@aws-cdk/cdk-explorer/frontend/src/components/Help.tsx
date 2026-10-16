@@ -21,10 +21,10 @@ export function Help() {
       explore the relationships between constructs.
     </p>
     <p>
-      Clicking on a node will restrict the diagnostics panel to diagnostics in
-      that subtree of the construct tree. It will also navigate to the source
-      line where it is defined and the template line in the synthesized
-      CloudFormation template, if available.
+      Clicking on a node will navigate to the source line where it is defined
+      and the template line in the synthesized CloudFormation template, if
+      available. Double-clicking on a node will restrict the diagnostics panel
+      to diagnostics in that subtree of the construct tree
     </p>
     <h2>Source View</h2>
     <p>

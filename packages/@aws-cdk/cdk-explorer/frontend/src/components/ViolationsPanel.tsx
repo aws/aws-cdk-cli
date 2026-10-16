@@ -39,7 +39,7 @@ export function ViolationsList({ violations, onNavigate }: ViolationsPanelProps)
         const count = viol.occurrences.length;
 
         return {
-          id: `${viol.source}:${viol.ruleName}`,
+          id: `${viol.source}:${viol.ruleName}:${viol.occurrences.map(occ => occ.constructPath).join(',')}`,
           icon: iconForSeverity(viol.severity, viol.customSeverity),
           content:
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px' }}>
@@ -57,7 +57,12 @@ export function ViolationsList({ violations, onNavigate }: ViolationsPanelProps)
                     <div key={i} style={{ fontSize: 'small' }}>
                       <Link fontSize="body-s" variant="primary" onFollow={() => onNavigate({
                         trigger: 'diagnostic',
-                        ...occ,
+                        constructPath: occ.constructPath,
+                        sourceLocation: occ.sourceLocations?.[0],
+                        templateLocation: occ.logicalId && occ.templateFile ? {
+                          logicalId: occ.logicalId,
+                          file: occ.templateFile,
+                        } : undefined,
                       })}>
                         {occ.constructPath}
                       </Link>

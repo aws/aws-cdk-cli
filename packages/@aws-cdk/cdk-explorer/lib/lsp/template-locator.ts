@@ -68,7 +68,7 @@ export function sourceTargetAtTemplateOffset(
     return undefined;
   }
   // SourceLocation is 1-based; LSP positions are 0-based.
-  const position = { line: sourceLocation.line - 1, character: sourceLocation.column - 1 };
+  const position = { line: sourceLocation.line - 1, character: 0 };
   return {
     uri: pathToFileURL(index.appDir.absolute(sourceLocation.file)).toString(),
     range: { start: position, end: position },

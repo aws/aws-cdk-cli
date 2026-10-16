@@ -1,7 +1,6 @@
 import { AssemblyIndex, loadUnifiedValidationReport } from '@aws-cdk/cloud-assembly-api';
 import type { IReadableCloudAssembly, PluginReportJson } from '@aws-cdk/toolkit-lib';
 import { AssemblyIndexWithSourceLocations } from './assembly-index-with-source-locations';
-import { SourceMapResolver } from './source-resolver';
 
 export interface AssemblyData {
   readonly index: AssemblyIndexWithSourceLocations;
@@ -26,13 +25,10 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
     assemblyIndex: await AssemblyIndex.fromAssembly(assembly),
   });
 
-  // TODO: resolve sources
-  const sourceResolver = new SourceMapResolver(index);
-  warnings.push(...sourceResolver.warnings);
-
   let violations: PluginReportJson[] = [];
   try {
     violations = await loadUnifiedValidationReport(assembly, assembly.stacksRecursively);
+    // TODO: Resolve sources of 'violations'
   } catch (err: any) {
     warnings.push(`Failed to load diagnostic report: ${err.message}`);
   }

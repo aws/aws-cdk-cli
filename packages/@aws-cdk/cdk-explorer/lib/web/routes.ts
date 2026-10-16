@@ -282,6 +282,7 @@ export function toWebNode(
       highestSeverity,
       ...(inheritedSeverity && { inheritedSeverity }),
       children,
+      constructFqn: node.constructInfo?.fqn,
     };
   }
   const highestSeverity = moreSevere(ownSeverity, defaultChild.highestSeverity);
@@ -296,6 +297,7 @@ export function toWebNode(
     highestSeverity,
     ...(inheritedSeverity && { inheritedSeverity }),
     children: remainingChildren,
+    constructFqn: node.constructInfo?.fqn,
   };
 }
 

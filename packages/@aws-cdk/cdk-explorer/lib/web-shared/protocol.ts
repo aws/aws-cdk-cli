@@ -38,7 +38,6 @@ export interface WebSourceLocation {
   /** Source file path relative to the app directory. POSIX separators. */
   readonly file: string;
   readonly line: number;
-  readonly column: number;
 }
 
 export interface WebTemplateLocation {
@@ -54,6 +53,11 @@ export interface WebTemplateLocation {
 
   /** CFN logical ID, if this construct maps to a resource. */
   readonly logicalId: string;
+
+  /**
+   * Location within the resource
+   */
+  readonly propertyPath?: string;
 }
 
 /**
@@ -83,6 +87,8 @@ export interface WebConstructNode {
    */
   readonly inheritedSeverity?: string;
   readonly children: readonly WebConstructNode[];
+
+  readonly constructFqn?: string;
 }
 
 /** Line range within a template (1-based, inclusive on both ends). */

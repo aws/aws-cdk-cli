@@ -1,17 +1,22 @@
+import Box from '@cloudscape-design/components/box';
 import ButtonDropdown from '@cloudscape-design/components/button-dropdown';
+import Link from '@cloudscape-design/components/link';
 import * as React from 'react';
 import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
-import { CodeViewer, type Diagnostic } from './CodeViewer';
+import { type LineAnnotation, CodeViewer, type Diagnostic } from './CodeViewer';
 import type { TemplateResource, WebViolation } from '../../../lib/web-shared/protocol';
+import { type NavigateHandler } from '../nav-types';
+import { type SourceAndTemplateIndex } from '../source-and-template-index';
 
 export interface TemplateViewerProps {
   readonly jsonContent: string;
   readonly resources: Record<string, TemplateResource>;
   readonly highlightLogicalId?: string;
   readonly highlightColor?: string;
-  readonly onResourceDoubleClick?: (logicalId: string) => void;
+  readonly onNavigate?: NavigateHandler;
   readonly templateFile?: string;
   readonly violations?: readonly WebViolation[];
+  readonly index: SourceAndTemplateIndex;
   readonly format: Format;
 }
 
@@ -28,10 +33,11 @@ export function TemplateViewer({
   resources,
   highlightLogicalId,
   highlightColor,
-  onResourceDoubleClick,
   templateFile,
   violations,
   format,
+  index,
+  onNavigate,
 }: TemplateViewerProps): JSX.Element {
   const { displayContent, displayResources, sections } = React.useMemo(() => {
     if (format === 'json') {
@@ -72,15 +78,22 @@ export function TemplateViewer({
     return diags.length > 0 ? diags : [];
   }, [templateFile, violations, displayResources, displayContent]);
 
-  const handleDoubleClick = React.useCallback((line: number) => {
-    if (!onResourceDoubleClick) return;
-    // Map the clicked line back to the resource that owns it, so the reverse
-    // jump is identity-based like the forward one.
-    const section = sections.find((s) => line >= s.startLine && line <= s.endLine);
-    if (section) {
-      onResourceDoubleClick(section.logicalId);
-    }
-  }, [sections, onResourceDoubleClick]);
+  const annotations = React.useMemo(() => {
+    const constructs = index.templateConstructs(templateFile);
+    const ret: Record<number, LineAnnotation> = Object.fromEntries(Object.entries(constructs).map(([logicalId, c]) => [
+      displayResources[logicalId]?.block.startLine ?? 0,
+      {
+        content: <>
+          <Box fontSize='heading-s'>Source</Box>
+          <Link fontSize="body-s" variant="primary" onFollow={() => onNavigate({
+            constructPath: c.path,
+            trigger: 'template',
+          })}>{c.path}</Link>
+        </>,
+      },
+    ]));
+    return ret;
+  }, [displayResources]);
 
   return (
     <CodeViewer
@@ -90,8 +103,8 @@ export function TemplateViewer({
       highlightEnd={highlight?.end}
       highlightColor={highlightColor}
       scrollToLine={highlight?.start}
-      onLineDoubleClick={handleDoubleClick}
       diagnostics={diagnostics}
+      annotations={annotations}
     />
   );
 }

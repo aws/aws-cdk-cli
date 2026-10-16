@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import type { ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
+import { SourceMapResolver } from './source-resolver';
 import { type Branded } from './type-brands';
 
 export type AssemblyIndexNodeLike = AssemblyIndexNode | AssemblyResourceNode;
@@ -25,17 +26,21 @@ export class AssemblyIndexWithSourceLocations {
   }
 
   public static async create(options: AssemblyIndexWithSourceLocationsOptions) {
-    return new AssemblyIndexWithSourceLocations({
+    const ret = new AssemblyIndexWithSourceLocations({
       appDir: await realOrSelf(options.appDir),
       assemblyDir: await realOrSelf(options.assemblyDir),
       assemblyIndex: options.assemblyIndex,
     });
+    await ret.loadSourceMapsForAllFiles();
+    ret.indexAssembly();
+    return ret;
   }
 
   public readonly assemblyIndex: AssemblyIndex;
   public readonly appDir: PathTranslator;
   public readonly assemblyDir: PathTranslator;
 
+  private readonly sourceResolver: SourceMapResolver;
   private readonly sourceLocationCache = new Map<AssemblyIndexNode, SourceLocation | undefined>();
   private readonly stackLocationFinder = DEFAULT_USER_CODE_FINDER;
   private readonly nodesBySourceFile: Record<RelativePath, Map<number, AssemblyIndexNode[]>> = {};
@@ -44,7 +49,7 @@ export class AssemblyIndexWithSourceLocations {
     this.assemblyIndex = options.assemblyIndex;
     this.appDir = new PathTranslator(options.appDir);
     this.assemblyDir = new PathTranslator(options.assemblyDir);
-    this.indexAssembly();
+    this.sourceResolver = new SourceMapResolver(this);
   }
 
   public constructsInSourceFile(file: RelativePath): Array<[number, AssemblyIndexNode]> {
@@ -69,18 +74,12 @@ export class AssemblyIndexWithSourceLocations {
       return this.sourceLocationCache.get(node);
     }
 
-    const stack = new StackTrace(node.creationStack);
-    const frame = stack.findAndParse(this.stackLocationFinder);
+    let result = this.unmappedSourceLocationFor(node);
 
-    let result: SourceLocation | undefined;
-    if (frame?.fileName) {
-      const lineLoc = frame?.lineLocation;
-      result = {
-        file: this.appDir.relative(frame.fileName),
-        line: lineLoc?.line ?? 0,
-        column: lineLoc?.column ?? 0,
-      };
+    if (result) {
+      result = this.sourceResolver.reverseMapJs(result);
     }
+
     this.sourceLocationCache.set(node, result);
     return result;
   }
@@ -94,7 +93,6 @@ export class AssemblyIndexWithSourceLocations {
       return {
         file: this.appDir.relative(frame.fileName),
         line: frame.lineLocation?.line ?? 0,
-        column: frame.lineLocation?.column ?? 0,
       } satisfies SourceLocation;
     });
 
@@ -110,10 +108,44 @@ export class AssemblyIndexWithSourceLocations {
     };
   }
 
-  private indexAssembly() {
-    recurse.call(this, this.assemblyIndex.root);
+  private unmappedSourceLocationFor(node: AssemblyIndexNode): SourceLocation | undefined {
+    if (!node.creationStack) return undefined;
+    const stack = new StackTrace(node.creationStack);
+    const frame = stack.findAndParse(this.stackLocationFinder);
 
-    function recurse(this: AssemblyIndexWithSourceLocations, node: AssemblyIndexNode) {
+    let result: SourceLocation | undefined;
+    if (frame?.fileName) {
+      const lineLoc = frame?.lineLocation;
+      result = {
+        file: this.appDir.relative(frame.fileName),
+        line: lineLoc?.line ?? 0,
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Find all referenced .js files in the assembly and load their source maps.
+   */
+  private async loadSourceMapsForAllFiles() {
+    const sourceFiles = new Set<RelativePath>();
+
+    this.forEveryNode((node) => {
+      const sourceLocation = this.unmappedSourceLocationFor(node);
+      if (sourceLocation?.file && sourceLocation.file.endsWith('.js')) {
+        sourceFiles.add(sourceLocation.file);
+      }
+    });
+
+    // Doing the above poisons the cache, so we need to clear it.
+    this.sourceLocationCache.clear();
+
+    await this.sourceResolver.loadSourceMapFor(...Array.from(sourceFiles));
+  }
+
+  private indexAssembly() {
+    this.forEveryNode((node) => {
       const sourceLocation = this.sourceLocationFor(node);
       if (sourceLocation?.file) {
         if (!this.nodesBySourceFile[sourceLocation.file]) {
@@ -125,7 +157,14 @@ export class AssemblyIndexWithSourceLocations {
         }
         this.nodesBySourceFile[sourceLocation.file].get(line)!.push(node);
       }
+    });
+  }
 
+  private forEveryNode(callback: (node: AssemblyIndexNode) => void) {
+    recurse.call(this, this.assemblyIndex.root);
+
+    function recurse(this: AssemblyIndexWithSourceLocations, node: AssemblyIndexNode) {
+      callback(node);
       for (const child of Object.values(node.children ?? {})) {
         recurse.call(this, child);
       }
@@ -265,7 +304,6 @@ export function assertRelativePath(x: string | undefined): RelativePath | undefi
 export interface SourceLocation {
   readonly file: RelativePath;
   readonly line: number;
-  readonly column: number;
 }
 
 /** Real path with symlinks resolved, or the resolved input if it does not exist. */

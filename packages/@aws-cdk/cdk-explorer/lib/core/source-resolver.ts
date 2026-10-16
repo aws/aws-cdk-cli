@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import * as convertSourceMap from 'convert-source-map';
 import { type RelativePath, type AssemblyIndexWithSourceLocations, type SourceLocation } from './assembly-index-with-source-locations';
 import { pathToFileURL } from './safe-url';
@@ -33,19 +33,30 @@ export class SourceMapResolver {
   }
 
   /**
+   * Load and cache source map for a given .js file.
+   */
+  public async loadSourceMapFor(...jsFiles: RelativePath[]): Promise<void> {
+    const pLimit = (await import('p-limit')).default;
+    const limit = pLimit(20); // Limit concurrent source map loads to 10
+
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    await Promise.all(
+      jsFiles.map((jsFile) => limit(() => this.loadTraceMap(jsFile))),
+    );
+  }
+
+  /**
    * Map a .js location to its original .ts via a sibling .js.map. Returns the
    * input location unchanged when it isn't a .js file or has no usable map.
    */
-  public async reverseMapJs(loc: SourceLocation): Promise<SourceLocation> {
-    // Input is allow-listed to .ts/.tsx/.js by resolveFrames; .ts/.tsx are
-    // already source-space, only .js needs mapping back to its original.
-    if (!loc.file.endsWith('.js')) return loc;
-
-    const tracer = await this.loadTraceMap(loc.file);
+  public reverseMapJs(loc: SourceLocation): SourceLocation {
+    const tracer = this.cache.get(loc.file);
     if (!tracer) return loc;
 
-    // trace-mapping uses 0-based columns, stack frames are 1-based.
-    const orig = originalPositionFor(tracer, { line: loc.line, column: loc.column - 1 });
+    // We only have a line, so ask for the first mapping at or after column 0 on
+    // that line; the default lower-bound search misses lines whose first mapping
+    // starts past column 0 (indented code).
+    const orig = originalPositionFor(tracer, { line: loc.line, column: 0, bias: LEAST_UPPER_BOUND });
     if (!orig.source || orig.line == null || orig.column == null) return loc;
 
     // orig.source is already resolved against the map's location (we pass the
@@ -56,7 +67,6 @@ export class SourceMapResolver {
     return {
       file: this.index.appDir.relative(origFile),
       line: orig.line,
-      column: orig.column + 1,
     };
   }
 
@@ -76,16 +86,11 @@ export class SourceMapResolver {
    * no map; warns when a referenced map exists but can't be read or parsed.
    */
   private async readSourceMap(jsFile: RelativePath): Promise<TraceMap | undefined> {
-    const fullSourceFilePath = this.index.appDir.absolute(jsFile);
-
-    let code: string;
     try {
-      code = await fs.readFile(fullSourceFilePath, 'utf-8');
-    } catch {
-      return undefined; // .js not present/readable -> treat as "no map"
-    }
+      const fullSourceFilePath = this.index.appDir.absolute(jsFile);
 
-    try {
+      let code = await fs.readFile(fullSourceFilePath, 'utf-8');
+
       // Inline maps live at the .js; external maps live at the referenced file.
       // The map URL tells trace-mapping where `sources` (and sourceRoot) resolve.
       let mapUrl = pathToFileURL(fullSourceFilePath).href;
