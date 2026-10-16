@@ -35,21 +35,25 @@ const DIFF_HANDLERS: HandlerRegistry = {
 };
 
 /**
- * The logical IDs of resources whose template differences `fullDiff` would hide because of `changeSet`.
+ * The logical IDs of resources with a template difference that `fullDiff` would hide.
  *
- * `fullDiff` treats a property difference that the change set does not mention as unchanged when the
- * value contains something only resolved at deploy time. That relies on the change set listing every
- * change, which a description requested with `IncludePropertyValues` does not always do: CloudFormation
- * can leave out a JSON string that only gains a key, without a warning
- * (https://github.com/aws/aws-cdk-cli/issues/2036). A caller that gets any IDs back can describe the
- * change set again without property values, and merge in what it left out, before calling `fullDiff`.
+ * `fullDiff` hides a property difference when the change set does not mention it and the value
+ * contains a `Ref`, an `Fn::*` or a `{{resolve:...}}`, because such a value can resolve to the same
+ * thing at deploy time. That relies on the change set listing every change. Described with
+ * `IncludePropertyValues`, it does not always: CloudFormation can leave out a change to a string
+ * that holds JSON, without a warning (https://github.com/aws/aws-cdk-cli/issues/2036).
+ *
+ * Call this before `fullDiff`, while the change set still exists. If it returns any IDs, describe
+ * the change set again without `IncludePropertyValues` and merge in what the first description left
+ * out.
  */
 export function resourcesHiddenByChangeSet(
   currentTemplate: { [key: string]: any },
   newTemplate: { [key: string]: any },
   changeSet: DescribeChangeSetOutput,
 ): string[] {
-  // Same normalization as `fullDiff`, on copies for the same reason.
+  // Diff the templates the way `fullDiff` does, so this finds the same differences. `normalize`
+  // mutates its input, so work on copies.
   const currentTemplateCopy = deepCopy(currentTemplate);
   const newTemplateCopy = deepCopy(newTemplate);
   normalize(currentTemplateCopy);
