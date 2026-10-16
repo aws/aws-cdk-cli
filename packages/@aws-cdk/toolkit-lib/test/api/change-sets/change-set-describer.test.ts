@@ -1,9 +1,10 @@
-import type { Change, DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { DescribeChangeSetCommand } from '@aws-sdk/client-cloudformation';
 import type { ICloudFormationClient } from '../../../lib/api/aws-auth/private';
 import type { ChangeSetDescriberProps } from '../../../lib/api/change-sets';
 import { ChangeSetDescriber } from '../../../lib/api/change-sets';
 import type { CloudFormationStackDiagnoser } from '../../../lib/api/diagnosing/stack-diagnoser';
+import { jsonWithStackName, parameterValueChange } from '../../_helpers/json-parameter';
 import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
 
@@ -307,18 +308,18 @@ describe('ChangeSetDescriber', () => {
     test('describes a created change set again without property values when it would hide a template difference', async () => {
       // GIVEN - the change is missing with property values, and present without them
       mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({ Status: 'CREATE_COMPLETE', Changes: [] });
-      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange()] });
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange('Param')] });
 
       // WHEN
       const { changeSet } = await describer({ templates }).waitForReport({ diagnoser });
 
       // THEN - what the first description left out is put back
-      expect(changeSet.Changes).toEqual([parameterValueChange()]);
+      expect(changeSet.Changes).toEqual([parameterValueChange('Param')]);
     });
 
     test('does not describe a created change set again when it mentions every template difference', async () => {
       // GIVEN
-      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange()] });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({ Status: 'CREATE_COMPLETE', Changes: [parameterValueChange('Param')] });
 
       // WHEN
       await describer({ templates }).waitForReport({ diagnoser });
@@ -394,25 +395,9 @@ function jsonParameterTemplate(values: Record<string, string>) {
         Type: 'AWS::SSM::Parameter',
         Properties: {
           Type: 'String',
-          Value: { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]] },
+          Value: jsonWithStackName(values),
         },
       },
-    },
-  };
-}
-
-/**
- * The change CloudFormation reports for that parameter when described without property values.
- */
-function parameterValueChange(): Change {
-  return {
-    Type: 'Resource',
-    ResourceChange: {
-      Action: 'Modify',
-      LogicalResourceId: 'Param',
-      ResourceType: 'AWS::SSM::Parameter',
-      Replacement: 'False',
-      Details: [{ Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' }, Evaluation: 'Static', ChangeSource: 'DirectModification' }],
     },
   };
 }

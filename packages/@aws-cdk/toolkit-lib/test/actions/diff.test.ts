@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
-import type { Change } from '@aws-sdk/client-cloudformation';
 import { CreateChangeSetCommand, DeleteChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import chalk from 'chalk';
@@ -11,6 +10,7 @@ import * as cfnApi from '../../lib/api/deployments/cfn-api';
 import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
 import { Toolkit } from '../../lib/toolkit';
 import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { jsonWithStackName, parameterValueChange } from '../_helpers/json-parameter';
 import { mockCloudFormationClient, mockSSMClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -969,13 +969,6 @@ describe('diff', () => {
 });
 
 /**
- * The value `Stack.toJsonString({ stack: Aws.STACK_NAME, ...values })` renders
- */
-function jsonWithStackName(values: Record<string, string>) {
-  return { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]] };
-}
-
-/**
  * Make the deployed template the template being diffed, except for one property of one resource
  */
 function givenDeployedProperty(logicalId: string, propertyName: string, value: unknown) {
@@ -999,27 +992,6 @@ function givenChangeSetCanBeCreated(stackName: string) {
     Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
     StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${stackName}/abc`,
   });
-}
-
-/**
- * The change CloudFormation reports, without property values, for a changed parameter value
- */
-function parameterValueChange(logicalId: string): Change {
-  return {
-    Type: 'Resource',
-    ResourceChange: {
-      Action: 'Modify',
-      LogicalResourceId: logicalId,
-      ResourceType: 'AWS::SSM::Parameter',
-      Replacement: 'False',
-      Scope: ['Properties'],
-      Details: [{
-        Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' },
-        Evaluation: 'Static',
-        ChangeSource: 'DirectModification',
-      }],
-    },
-  };
 }
 
 describe('environment annotation', () => {
