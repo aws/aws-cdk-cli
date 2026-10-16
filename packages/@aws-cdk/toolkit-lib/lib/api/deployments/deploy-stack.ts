@@ -566,7 +566,9 @@ class FullCloudFormationDeployment {
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
     const executeOptions = this.commonExecuteOptions();
 
-    // Express change sets fix rollback when they are created; standard ones take it from the execute call we send.
+    // For STANDARD change sets, DescribeChangeSet always reports DisableRollback: false; --no-rollback is passed to
+    // ExecuteChangeSet instead, so the setting comes from the execute options. For EXPRESS change sets, the setting is
+    // fixed when the change set is created (ExecuteChangeSet rejects a different value), so it comes from the change set.
     const config = changeSetReport.changeSet.DeploymentConfig;
     const rollbackEnabled = config?.Mode === 'EXPRESS' ? config.DisableRollback === false : executeOptions.DisableRollback !== true;
 
