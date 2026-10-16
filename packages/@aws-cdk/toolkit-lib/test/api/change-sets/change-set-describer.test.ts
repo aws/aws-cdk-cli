@@ -300,8 +300,8 @@ describe('ChangeSetDescriber', () => {
     // A JSON string built with `Stack.toJsonString()` gains a key. Described with
     // IncludePropertyValues, CloudFormation can leave such a change out without a warning.
     const templates = {
-      deployed: jsonParameterTemplate('","a":"1"}'),
-      generated: jsonParameterTemplate('","a":"1","b":"2"}'),
+      deployed: jsonParameterTemplate({ a: '1' }),
+      generated: jsonParameterTemplate({ a: '1', b: '2' }),
     };
 
     test('describes a created change set again without property values when it would hide a template difference', async () => {
@@ -385,15 +385,17 @@ describe('ChangeSetDescriber', () => {
 });
 
 /**
- * A template with one SSM parameter whose value is `Stack.toJsonString({ stack: Aws.STACK_NAME, ... })`,
- * ending in `lastFragment`.
+ * A template with one SSM parameter whose value is `Stack.toJsonString({ stack: Aws.STACK_NAME, ...values })`.
  */
-function jsonParameterTemplate(lastFragment: string) {
+function jsonParameterTemplate(values: Record<string, string>) {
   return {
     Resources: {
       Param: {
         Type: 'AWS::SSM::Parameter',
-        Properties: { Type: 'String', Value: { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] } },
+        Properties: {
+          Type: 'String',
+          Value: { 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]] },
+        },
       },
     },
   };

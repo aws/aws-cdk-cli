@@ -35,7 +35,15 @@ const DIFF_HANDLERS: HandlerRegistry = {
 };
 
 /**
- * The logical IDs of resources with a template difference that `fullDiff` would hide.
+ * A resource property whose template difference `fullDiff` would hide.
+ */
+export interface HiddenProperty {
+  readonly logicalId: string;
+  readonly propertyName: string;
+}
+
+/**
+ * The property differences between two templates that `fullDiff` would hide.
  *
  * `fullDiff` hides a property difference when the change set does not mention it and the value
  * contains a `Ref`, an `Fn::*` or a `{{resolve:...}}`, because such a value can resolve to the same
@@ -43,18 +51,19 @@ const DIFF_HANDLERS: HandlerRegistry = {
  * `IncludePropertyValues`, it does not always: CloudFormation can leave out a change to a string
  * that holds JSON, without a warning (https://github.com/aws/aws-cdk-cli/issues/2036).
  *
- * Call this before `fullDiff`, while the change set still exists. If it returns any IDs, describe
- * the change set again without `IncludePropertyValues` and merge in what the first description left
- * out.
+ * Call this before `fullDiff`, while the change set still exists. If it returns any, describe the
+ * change set again without `IncludePropertyValues` and merge in what the first description left out.
  */
-export function resourcesHiddenByChangeSet(
+export function propertiesHiddenByChangeSet(
   currentTemplate: { [key: string]: any },
   newTemplate: { [key: string]: any },
   changeSet: DescribeChangeSetOutput,
-): string[] {
+): HiddenProperty[] {
   const resources = diffNormalizedTemplates(currentTemplate, newTemplate).resources;
   const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
-  return resources.logicalIds.filter((logicalId) => merger.hidesTemplateDifferences(logicalId, resources.get(logicalId)));
+  return resources.logicalIds.flatMap((logicalId) =>
+    merger.hiddenPropertyNames(logicalId, resources.get(logicalId)).map((propertyName) => ({ logicalId, propertyName })),
+  );
 }
 
 /**
@@ -64,7 +73,7 @@ export function resourcesHiddenByChangeSet(
  * @param newTemplate     - the target state of the stack.
  * @param changeSet       - the change set for this stack. A template difference that depends on
  *      deploy-time values is dropped if the change set does not mention it (see
- *      `resourcesHiddenByChangeSet`).
+ *      `propertiesHiddenByChangeSet`).
  *
  * @returns a +types.TemplateDiff+ object that represents the changes that will happen if
  *      a stack which current state is described by +currentTemplate+ is updated with

@@ -9,7 +9,8 @@ if (!stackPrefix) {
 // A string parameter holding JSON that is built with an intrinsic, the way Stack.toJsonString renders
 // it (the EKS KubernetesManifest and HelmChart constructs use it too). VARIANT changes the JSON in a
 // way that CloudFormation leaves out of a change set described with IncludePropertyValues, without a
-// warning, or rewrites it so that it resolves to the same value. See aws/aws-cdk-cli#2036.
+// warning, changes a value (which CloudFormation does list), or rewrites it so that it resolves to the
+// same value. See aws/aws-cdk-cli#2036.
 class JsonIntrinsicStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
@@ -20,6 +21,8 @@ class JsonIntrinsicStack extends cdk.Stack {
     switch (variant) {
       case undefined:
         return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1' });
+      case 'change-value':
+        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '2' });
       case 'add-key':
         return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', b: '2' });
       case 'add-key-with-token':

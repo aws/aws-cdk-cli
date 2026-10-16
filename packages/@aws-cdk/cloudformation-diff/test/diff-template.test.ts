@@ -1,6 +1,6 @@
 import * as fc from 'fast-check';
 import { arbitraryTemplate } from './test-arbitraries';
-import { fullDiff, resourcesHiddenByChangeSet, ResourceImpact } from '../lib/diff-template';
+import { fullDiff, propertiesHiddenByChangeSet, ResourceImpact } from '../lib/diff-template';
 
 const POLICY_DOCUMENT = { foo: 'Bar' }; // Obviously a fake one!
 const BUCKET_POLICY_RESOURCE = {
@@ -624,9 +624,12 @@ test('metadata changes are rendered in the diff', () => {
   expect(differences.resources.differenceCount).toBe(1);
 });
 
-describe('resourcesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues/2036)', () => {
-  // `Stack.toJsonString({ stack: Aws.STACK_NAME, a: '1' })` stored in a string property, ending in `lastFragment`.
-  const json = (lastFragment: string) => ({ 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] });
+describe('propertiesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues/2036)', () => {
+  // `Stack.toJsonString({ stack: Aws.STACK_NAME, ...values })` stored in a string property
+  const json = (values: Record<string, string>) => ({
+    'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]],
+  });
+  const hiddenValue = [{ logicalId: 'Param', propertyName: 'Value' }];
   const template = (value: any, description?: string) => ({
     Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value, Description: description } } },
   });
@@ -642,20 +645,26 @@ describe('resourcesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues/
     }],
   });
 
-  test('returns a resource whose value contains a token and that the change set leaves out', () => {
+  test('returns a property whose value contains a token when the change set leaves out the resource', () => {
     // A key added to the JSON: described with IncludePropertyValues, CloudFormation leaves this out
-    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}')), template(json('","a":"1","b":"2"}')), { Changes: [] }))
-      .toEqual(['Param']);
+    expect(propertiesHiddenByChangeSet(template(json({ a: '1' })), template(json({ a: '1', b: '2' })), { Changes: [] }))
+      .toEqual(hiddenValue);
   });
 
-  test('returns a resource the change set lists without the changed property', () => {
+  test('returns a property whose value contains a token when the change set lists the resource without it', () => {
     // Only the description change is mentioned, the value change is left out
-    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}'), 'd1'), template(json('","a":"1","b":"2"}'), 'd2'), change('Description')))
-      .toEqual(['Param']);
+    expect(propertiesHiddenByChangeSet(template(json({ a: '1' }), 'd1'), template(json({ a: '1', b: '2' }), 'd2'), change('Description')))
+      .toEqual(hiddenValue);
   });
 
-  test('returns nothing when the change set mentions the change, or the value is static', () => {
-    expect(resourcesHiddenByChangeSet(template(json('","a":"1"}')), template(json('","a":"1","b":"2"}')), change('Value'))).toEqual([]);
-    expect(resourcesHiddenByChangeSet(template('{"a":"1"}'), template('{"a":"1","b":"2"}'), { Changes: [] })).toEqual([]);
+  test('returns nothing when the change set mentions the change', () => {
+    expect(propertiesHiddenByChangeSet(template(json({ a: '1' })), template(json({ a: '1', b: '2' })), change('Value'))).toEqual([]);
+  });
+
+  test('returns nothing for a static value, whether the change set leaves out the resource or only the property', () => {
+    const before = template(JSON.stringify({ a: '1' }), 'd1');
+    const after = template(JSON.stringify({ a: '1', b: '2' }), 'd2');
+    expect(propertiesHiddenByChangeSet(before, after, { Changes: [] })).toEqual([]);
+    expect(propertiesHiddenByChangeSet(before, after, change('Description'))).toEqual([]);
   });
 });

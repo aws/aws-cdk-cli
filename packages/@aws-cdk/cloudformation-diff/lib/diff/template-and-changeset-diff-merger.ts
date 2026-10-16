@@ -95,7 +95,7 @@ export class TemplateAndChangeSetDiffMerger {
    * replacement (e.g., changing the name of an IAM role requires deleting and replacing the role), then ChangeImpact is "Always".
    */
   public overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId: string, change: types.ResourceDifference) {
-    if (!this.changeSetDescribesResource(change)) {
+    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
       return;
     }
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
@@ -139,21 +139,17 @@ export class TemplateAndChangeSetDiffMerger {
   }
 
   /**
-   * Whether the change set would hide any of this resource's template differences.
+   * The names of this resource's changed properties that the change set would hide.
    *
    * @see hidesPropertyDifference
    */
-  public hidesTemplateDifferences(logicalId: string, change: types.ResourceDifference): boolean {
-    if (!this.changeSetDescribesResource(change)) {
-      return false;
+  public hiddenPropertyNames(logicalId: string, change: types.ResourceDifference): string[] {
+    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
+      return [];
     }
-    let hides = false;
-    change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any>) => {
-      if (type === 'Property' && this.hidesPropertyDifference(logicalId, name, value)) {
-        hides = true;
-      }
-    });
-    return hides;
+    return Object.entries(change.propertyUpdates)
+      .filter(([name, difference]) => this.hidesPropertyDifference(logicalId, name, difference))
+      .map(([name]) => name);
   }
 
   /**
@@ -173,14 +169,14 @@ export class TemplateAndChangeSetDiffMerger {
   }
 
   /**
-   * Whether the change set's property information lines up with this resource's template difference.
+   * Whether this is a SAM resource.
    *
-   * Not for SAM resources: CloudFormation applies the SAM transform before creating the change set,
-   * so the change set describes the resources the transform produced instead.
+   * CloudFormation applies the SAM transform before creating the change set, so the change set
+   * describes the resources the transform produced instead, and its property information does not
+   * line up with the template.
    */
-  private changeSetDescribesResource(change: types.ResourceDifference): boolean {
-    // resourceType getter throws an error if resourceTypeChanged
-    return change.resourceTypeChanged !== true && !change.resourceType?.includes('AWS::Serverless');
+  private isServerlessResourceType(change: types.ResourceDifference): boolean {
+    return [change.oldResourceType, change.newResourceType].some((type) => type?.includes('AWS::Serverless'));
   }
 
   /**
@@ -200,7 +196,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @param change - the resource difference to augment (mutated in place)
    */
   public addChangeSetPropertiesNotInTemplateDiff(logicalId: string, change: types.ResourceDifference) {
-    if (!this.changeSetDescribesResource(change)) {
+    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
       return;
     }
 
