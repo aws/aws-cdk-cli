@@ -665,6 +665,13 @@ describe('propertiesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues
     expect(propertiesHiddenByChangeSet(before, after, change('Value'))).toEqual([]);
   });
 
+  test('returns nothing for an unchanged value with a token, when another property of the resource changes', () => {
+    // Only the description changes, and the change set mentions it
+    const before = template({ Value: json({ a: '1' }), Description: 'd1' });
+    const after = template({ Value: json({ a: '1' }), Description: 'd2' });
+    expect(propertiesHiddenByChangeSet(before, after, change('Description'))).toEqual([]);
+  });
+
   test('returns nothing for a static value, whether the change set leaves out the resource or only the property', () => {
     const before = template({ Value: JSON.stringify({ a: '1' }), Description: 'd1' });
     const after = template({ Value: JSON.stringify({ a: '1', b: '2' }), Description: 'd2' });
