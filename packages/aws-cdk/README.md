@@ -2027,7 +2027,7 @@ The CDK CLI determines which AWS region to use with the following priority order
 3. `AWS_DEFAULT_REGION` / `AMAZON_DEFAULT_REGION` environment variable
 4. Region from the shared INI files (`~/.aws/credentials` then `~/.aws/config`) for the active profile
 5. Region from the `[default]` profile in the shared INI files
-6. EC2 instance metadata (IMDS)
+6. EC2 instance metadata (IMDS), unless `AWS_EC2_METADATA_DISABLED` is set to a value other than `false`
 7. `us-east-1`
 
 When `--profile` is specified, the region configured in that profile is used (step 4). When `--region` is also specified, it takes priority over everything else including environment variables and the profile's own region setting. This is consistent with how the AWS CLI handles `--region`, and is useful for non-commercial partitions where the default `us-east-1` fallback would fail because credentials are partition-specific.
