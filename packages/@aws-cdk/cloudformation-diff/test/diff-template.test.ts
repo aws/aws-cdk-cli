@@ -629,7 +629,7 @@ describe('propertiesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues
   const json = (values: Record<string, string>) => ({
     'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]],
   });
-  const hiddenValue = [{ logicalId: 'Param', propertyName: 'Value' }];
+  const hiddenValue = [{ resourceLogicalId: 'Param', propertyName: 'Value' }];
   const template = (value: any, description?: string) => ({
     Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value, Description: description } } },
   });

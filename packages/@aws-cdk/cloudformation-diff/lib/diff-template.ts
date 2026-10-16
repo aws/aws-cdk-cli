@@ -35,14 +35,6 @@ const DIFF_HANDLERS: HandlerRegistry = {
 };
 
 /**
- * A resource property whose template difference `fullDiff` would hide.
- */
-export interface HiddenProperty {
-  readonly logicalId: string;
-  readonly propertyName: string;
-}
-
-/**
  * The property differences between two templates that `fullDiff` would hide.
  *
  * `fullDiff` hides a property difference when the change set does not mention it and the value
@@ -58,11 +50,11 @@ export function propertiesHiddenByChangeSet(
   currentTemplate: { [key: string]: any },
   newTemplate: { [key: string]: any },
   changeSet: DescribeChangeSetOutput,
-): HiddenProperty[] {
+): Array<{ resourceLogicalId: string; propertyName: string }> {
   const resources = diffNormalizedTemplates(currentTemplate, newTemplate).resources;
   const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
   return resources.logicalIds.flatMap((logicalId) =>
-    merger.hiddenPropertyNames(logicalId, resources.get(logicalId)).map((propertyName) => ({ logicalId, propertyName })),
+    merger.hiddenPropertyNames(logicalId, resources.get(logicalId)).map((propertyName) => ({ resourceLogicalId: logicalId, propertyName })),
   );
 }
 

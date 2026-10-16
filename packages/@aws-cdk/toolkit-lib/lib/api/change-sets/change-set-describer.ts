@@ -250,7 +250,7 @@ export class ChangeSetDescriber {
     }
     await this.ioHelper.defaults.debug(format(
       'Changeset %s on stack %s did not mention the template differences of %s; describing it again without property values',
-      this.changeSetDisplayName, this.stackDisplayName, hidden.map((p) => `${p.logicalId}.${p.propertyName}`).join(', '),
+      this.changeSetDisplayName, this.stackDisplayName, hidden.map((p) => `${p.resourceLogicalId}.${p.propertyName}`).join(', '),
     ));
     return true;
   }
