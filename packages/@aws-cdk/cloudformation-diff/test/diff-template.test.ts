@@ -630,8 +630,8 @@ describe('propertiesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues
     'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, `",${JSON.stringify(values).slice(1)}`]],
   });
   const hiddenValue = [{ resourceLogicalId: 'Param', propertyName: 'Value' }];
-  const template = (value: any, description?: string) => ({
-    Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value, Description: description } } },
+  const template = (properties: Record<string, any>) => ({
+    Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', ...properties } } },
   });
   const change = (...properties: string[]) => ({
     Changes: [{
@@ -647,23 +647,27 @@ describe('propertiesHiddenByChangeSet (https://github.com/aws/aws-cdk-cli/issues
 
   test('returns a property whose value contains a token when the change set leaves out the resource', () => {
     // A key added to the JSON: described with IncludePropertyValues, CloudFormation leaves this out
-    expect(propertiesHiddenByChangeSet(template(json({ a: '1' })), template(json({ a: '1', b: '2' })), { Changes: [] }))
-      .toEqual(hiddenValue);
+    const before = template({ Value: json({ a: '1' }) });
+    const after = template({ Value: json({ a: '1', b: '2' }) });
+    expect(propertiesHiddenByChangeSet(before, after, { Changes: [] })).toEqual(hiddenValue);
   });
 
   test('returns a property whose value contains a token when the change set lists the resource without it', () => {
     // Only the description change is mentioned, the value change is left out
-    expect(propertiesHiddenByChangeSet(template(json({ a: '1' }), 'd1'), template(json({ a: '1', b: '2' }), 'd2'), change('Description')))
-      .toEqual(hiddenValue);
+    const before = template({ Value: json({ a: '1' }), Description: 'd1' });
+    const after = template({ Value: json({ a: '1', b: '2' }), Description: 'd2' });
+    expect(propertiesHiddenByChangeSet(before, after, change('Description'))).toEqual(hiddenValue);
   });
 
   test('returns nothing when the change set mentions the change', () => {
-    expect(propertiesHiddenByChangeSet(template(json({ a: '1' })), template(json({ a: '1', b: '2' })), change('Value'))).toEqual([]);
+    const before = template({ Value: json({ a: '1' }) });
+    const after = template({ Value: json({ a: '1', b: '2' }) });
+    expect(propertiesHiddenByChangeSet(before, after, change('Value'))).toEqual([]);
   });
 
   test('returns nothing for a static value, whether the change set leaves out the resource or only the property', () => {
-    const before = template(JSON.stringify({ a: '1' }), 'd1');
-    const after = template(JSON.stringify({ a: '1', b: '2' }), 'd2');
+    const before = template({ Value: JSON.stringify({ a: '1' }), Description: 'd1' });
+    const after = template({ Value: JSON.stringify({ a: '1', b: '2' }), Description: 'd2' });
     expect(propertiesHiddenByChangeSet(before, after, { Changes: [] })).toEqual([]);
     expect(propertiesHiddenByChangeSet(before, after, change('Description'))).toEqual([]);
   });

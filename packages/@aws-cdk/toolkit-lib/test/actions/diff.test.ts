@@ -774,7 +774,7 @@ describe('diff', () => {
     test('ChangeSet diff shows an added key in JSON built with an intrinsic that CloudFormation silently drops (issue #2036)', async () => {
       // GIVEN - the deployed parameter holds the same JSON without key "b"
       givenDeployedProperty('Param165332EC', 'Value', jsonWithStackName({ a: '1' }));
-      givenExistingStackForChangeSetDiff();
+      givenChangeSetCanBeCreated('Stack1');
 
       // CloudFormation leaves the change out of the IncludePropertyValues description, without a warning...
       mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({
@@ -812,7 +812,7 @@ describe('diff', () => {
     test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Sub to Fn::Join', async () => {
       // GIVEN - the deployed parameter builds the same JSON with Fn::Sub instead of Fn::Join
       givenDeployedProperty('Param165332EC', 'Value', { 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });
-      givenExistingStackForChangeSetDiff();
+      givenChangeSetCanBeCreated('Stack1');
 
       // CloudFormation reports no change, with or without property values
       mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
@@ -987,17 +987,17 @@ function givenDeployedProperty(logicalId: string, propertyName: string, value: u
 }
 
 /**
- * Make CloudFormation accept a change set for an existing `Stack1`
+ * Make CloudFormation create a change set for the deployed stack `stackName`
  */
-function givenExistingStackForChangeSetDiff(changeSetId = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff') {
+function givenChangeSetCanBeCreated(stackName: string) {
   jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
   mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ StackName: 'Stack1', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+    Stacks: [{ StackName: stackName, StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
   });
   mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
   mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
-    Id: changeSetId,
-    StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/abc',
+    Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+    StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${stackName}/abc`,
   });
 }
 
