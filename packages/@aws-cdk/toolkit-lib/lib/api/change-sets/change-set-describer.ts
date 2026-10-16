@@ -222,21 +222,19 @@ export class ChangeSetDescriber {
         'Changeset %s on stack %s was described with incomplete data (%s); describing it again without property values to recover what was dropped',
         this.changeSetDisplayName, this.stackDisplayName, detailed.StatusReason,
       ));
-      return this.mergeDescriptions(detailed, await this.describeOnce(false)).description;
+      return this.mergeDescriptions(detailed, await this.describeOnce(false));
     }
 
     // CloudFormation can also leave changes out without a warning. Only describe again when that
     // would change the diff: when a template difference would otherwise be hidden.
     const hidden = await this.resourcesHiddenFromDiff(detailed);
     if (hidden === undefined || hidden.length > 0) {
-      const { description, restored } = this.mergeDescriptions(detailed, await this.describeOnce(false));
       await this.ioHelper.defaults.debug(format(
-        'Changeset %s on stack %s %s; described it again without property values and restored changes to %s',
+        'Changeset %s on stack %s %s; describing it again without property values',
         this.changeSetDisplayName, this.stackDisplayName,
         hidden ? `did not mention the template differences of ${hidden.join(', ')}` : 'could not be compared with its templates',
-        restored.length > 0 ? restored.join(', ') : 'nothing',
       ));
-      return description;
+      return this.mergeDescriptions(detailed, await this.describeOnce(false));
     }
 
     return detailed;
@@ -302,13 +300,11 @@ export class ChangeSetDescriber {
    * strings that hold JSON, https://github.com/aws/aws-cdk-cli/issues/2036). The detailed
    * description is used as the base; resource changes and details only present in the plain one
    * are restored.
-   *
-   * @returns the merged description, and the logical IDs of the resources something was restored for
    */
   private mergeDescriptions(
     detailed: DescribeChangeSetCommandOutput,
     plain: DescribeChangeSetCommandOutput,
-  ): { readonly description: DescribeChangeSetCommandOutput; readonly restored: string[] } {
+  ): DescribeChangeSetCommandOutput {
     // Shallow-copy the changes so we can add details without mutating the input
     const changes: Change[] = (detailed.Changes ?? []).map((change) => ({
       ...change,
@@ -322,7 +318,6 @@ export class ChangeSetDescriber {
       }
     }
 
-    const restored: string[] = [];
     for (const change of plain.Changes ?? []) {
       const logicalId = change.ResourceChange?.LogicalResourceId;
       if (!logicalId) {
@@ -334,7 +329,6 @@ export class ChangeSetDescriber {
       if (!existing?.ResourceChange) {
         // Dropped from the detailed response; restore it.
         changes.push(change);
-        restored.push(logicalId);
         continue;
       }
 
@@ -345,17 +339,13 @@ export class ChangeSetDescriber {
       );
       if (droppedDetails.length > 0) {
         existing.ResourceChange.Details = [...existingDetails, ...droppedDetails];
-        restored.push(logicalId);
       }
     }
 
     // Take the status reason from the plain response: the detailed one is the incomplete-data
     // warning, which would otherwise displace the real reason (for example the
     // `AWS::EarlyValidation` marker that tells us why a change set failed to create).
-    return {
-      description: { ...detailed, StatusReason: plain.StatusReason ?? detailed.StatusReason, Changes: changes },
-      restored,
-    };
+    return { ...detailed, StatusReason: plain.StatusReason ?? detailed.StatusReason, Changes: changes };
   }
 }
 
