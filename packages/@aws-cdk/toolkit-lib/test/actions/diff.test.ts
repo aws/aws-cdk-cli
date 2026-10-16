@@ -773,7 +773,7 @@ describe('diff', () => {
 
     test('ChangeSet diff shows an added key in JSON built with an intrinsic that CloudFormation silently drops (issue #2036)', async () => {
       // GIVEN - the deployed parameter holds the same JSON without key "b"
-      givenDeployedParameterValue(jsonWithStackName({ a: '1' }));
+      givenDeployedProperty('Param165332EC', 'Value', jsonWithStackName({ a: '1' }));
       givenExistingStackForChangeSetDiff();
 
       // CloudFormation leaves the change out of the IncludePropertyValues description, without a warning...
@@ -811,7 +811,7 @@ describe('diff', () => {
 
     test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Sub to Fn::Join', async () => {
       // GIVEN - the deployed parameter builds the same JSON with Fn::Sub instead of Fn::Join
-      givenDeployedParameterValue({ 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });
+      givenDeployedProperty('Param165332EC', 'Value', { 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });
       givenExistingStackForChangeSetDiff();
 
       // CloudFormation reports no change, with or without property values
@@ -976,12 +976,12 @@ function jsonWithStackName(values: Record<string, string>) {
 }
 
 /**
- * Make the deployed template the template being diffed, except for the value of its parameter
+ * Make the deployed template the template being diffed, except for one property of one resource
  */
-function givenDeployedParameterValue(value: unknown) {
+function givenDeployedProperty(logicalId: string, propertyName: string, value: unknown) {
   jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockImplementation(async (stack) => {
     const deployedRootTemplate = JSON.parse(JSON.stringify(stack.template));
-    deployedRootTemplate.Resources.Param165332EC.Properties.Value = value;
+    deployedRootTemplate.Resources[logicalId].Properties[propertyName] = value;
     return { deployedRootTemplate, nestedStacks: {} };
   });
 }
