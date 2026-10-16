@@ -44,9 +44,9 @@ export interface ChangeSetDescriberProps {
  */
 export interface ChangeSetTemplates {
   /**
-   * Reads the deployed template. Only called for a change set that was created.
+   * The deployed template the change set goes from.
    */
-  readonly deployed: () => Promise<Template>;
+  readonly deployed: Template;
   /**
    * The template the change set was created from.
    */
@@ -253,7 +253,7 @@ export class ChangeSetDescriber {
       return [];
     }
     try {
-      return resourcesHiddenByChangeSet(await this.templates.deployed(), this.templates.generated, description);
+      return resourcesHiddenByChangeSet(this.templates.deployed, this.templates.generated, description);
     } catch (e: any) {
       await this.ioHelper.defaults.debug(format(
         'Could not compare changeset %s on stack %s with its templates: %s', this.changeSetDisplayName, this.stackDisplayName, e,

@@ -265,7 +265,6 @@ async function createChangeSetAndCleanup(
   const changeSetId = changeSet.Id ?? options.changeSetName;
   const stackId = changeSet.StackId ?? options.stack.stackName;
 
-  const deployedTemplate = options.deployedTemplate;
   try {
     // Fetching all pages if we'll execute, so we can have the correct change count when monitoring.
     return await new ChangeSetDescriber({
@@ -273,7 +272,7 @@ async function createChangeSetAndCleanup(
       ioHelper,
       stackNameOrArn: stackId,
       changeSetNameOrArn: changeSetId,
-      templates: deployedTemplate ? { deployed: async () => deployedTemplate, generated: options.stack.template } : undefined,
+      templates: options.deployedTemplate ? { deployed: options.deployedTemplate, generated: options.stack.template } : undefined,
     }).waitAndThrowOnProblem({
       diagnoser: options.diagnoser,
     });

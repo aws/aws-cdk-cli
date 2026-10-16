@@ -300,7 +300,7 @@ describe('ChangeSetDescriber', () => {
     // A JSON string built with `Stack.toJsonString()` gains a key. Described with
     // IncludePropertyValues, CloudFormation can leave such a change out without a warning.
     const templates = {
-      deployed: async () => jsonParameterTemplate('","a":"1"}'),
+      deployed: jsonParameterTemplate('","a":"1"}'),
       generated: jsonParameterTemplate('","a":"1","b":"2"}'),
     };
 
