@@ -51,12 +51,10 @@ export type PrepareChangeSetOptions = {
   /**
    * The deployed template the diff compares against.
    *
-   * Lets the change set be described a second time when its description would hide a template
-   * difference (https://github.com/aws/aws-cdk-cli/issues/2036).
-   *
-   * @default - only the incomplete-data warning causes a second description
+   * The change set is described a second time when its description would hide a difference from
+   * this template (https://github.com/aws/aws-cdk-cli/issues/2036).
    */
-  deployedTemplate?: Template;
+  deployedTemplate: Template;
   /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
@@ -87,10 +85,7 @@ export interface CreateChangeSetOptions {
   includeNestedStacks?: boolean;
   role?: string;
   diagnoser: CloudFormationStackDiagnoser;
-  /**
-   * @see PrepareChangeSetOptions.deployedTemplate
-   */
-  deployedTemplate?: Template;
+  deployedTemplate: Template;
 }
 
 /**
@@ -272,7 +267,7 @@ async function createChangeSetAndCleanup(
       ioHelper,
       stackNameOrArn: stackId,
       changeSetNameOrArn: changeSetId,
-      templates: options.deployedTemplate ? { deployed: options.deployedTemplate, generated: options.stack.template } : undefined,
+      templates: { deployed: options.deployedTemplate, generated: options.stack.template },
     }).waitAndThrowOnProblem({
       diagnoser: options.diagnoser,
     });
