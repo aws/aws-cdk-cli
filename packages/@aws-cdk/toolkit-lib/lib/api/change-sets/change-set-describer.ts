@@ -34,6 +34,8 @@ export interface ChangeSetDescriberProps {
    * from the diff is described a second time without property values, and whatever the first
    * description left out is put back.
    *
+   * Optional because only callers that show the change set as a diff need the check.
+   *
    * @default - only the incomplete-data warning causes a second description
    */
   readonly templates?: ChangeSetTemplates;
