@@ -95,7 +95,7 @@ export class TemplateAndChangeSetDiffMerger {
    * replacement (e.g., changing the name of an IAM role requires deleting and replacing the role), then ChangeImpact is "Always".
    */
   public overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId: string, change: types.ResourceDifference) {
-    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
+    if (!this.canUseChangeSetProperties(change)) {
       return;
     }
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
@@ -144,7 +144,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @see hidesPropertyDifference
    */
   public hiddenPropertyNames(logicalId: string, change: types.ResourceDifference): string[] {
-    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
+    if (!this.canUseChangeSetProperties(change)) {
       return [];
     }
     return Object.entries(change.propertyUpdates)
@@ -169,14 +169,14 @@ export class TemplateAndChangeSetDiffMerger {
   }
 
   /**
-   * Whether this is a SAM resource.
+   * Whether the change set's property information can be used for this resource.
    *
-   * CloudFormation applies the SAM transform before creating the change set, so the change set
-   * describes the resources the transform produced instead, and its property information does not
-   * line up with the template.
+   * Not when the resource type changed: the properties of two different types cannot be compared.
+   * Not for SAM resources: CloudFormation applies the SAM transform before creating the change set,
+   * so the change set describes the resources the transform produced instead.
    */
-  private isServerlessResourceType(change: types.ResourceDifference): boolean {
-    return [change.oldResourceType, change.newResourceType].some((type) => type?.includes('AWS::Serverless'));
+  private canUseChangeSetProperties(change: types.ResourceDifference): boolean {
+    return change.resourceTypeChanged !== true && !change.resourceType?.includes('AWS::Serverless');
   }
 
   /**
@@ -196,7 +196,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @param change - the resource difference to augment (mutated in place)
    */
   public addChangeSetPropertiesNotInTemplateDiff(logicalId: string, change: types.ResourceDifference) {
-    if (change.resourceTypeChanged === true || this.isServerlessResourceType(change)) {
+    if (!this.canUseChangeSetProperties(change)) {
       return;
     }
 
