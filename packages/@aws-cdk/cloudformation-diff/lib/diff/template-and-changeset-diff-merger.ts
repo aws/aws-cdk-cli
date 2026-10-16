@@ -95,9 +95,7 @@ export class TemplateAndChangeSetDiffMerger {
    * replacement (e.g., changing the name of an IAM role requires deleting and replacing the role), then ChangeImpact is "Always".
    */
   public overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId: string, change: types.ResourceDifference) {
-    // resourceType getter throws an error if resourceTypeChanged
-    if ((change.resourceTypeChanged === true) || change.resourceType?.includes('AWS::Serverless')) {
-      // CFN applies the SAM transform before creating the changeset, so the changeset contains no information about SAM resources
+    if (!this.changeSetDescribesResource(change)) {
       return;
     }
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
@@ -146,8 +144,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @see hidesPropertyDifference
    */
   public hidesTemplateDifferences(logicalId: string, change: types.ResourceDifference): boolean {
-    // resourceType getter throws an error if resourceTypeChanged
-    if (change.resourceTypeChanged === true || change.resourceType?.includes('AWS::Serverless')) {
+    if (!this.changeSetDescribesResource(change)) {
       return false;
     }
     let hides = false;
@@ -176,6 +173,17 @@ export class TemplateAndChangeSetDiffMerger {
   }
 
   /**
+   * Whether the change set's property information lines up with this resource's template difference.
+   *
+   * Not for SAM resources: CloudFormation applies the SAM transform before creating the change set,
+   * so the change set describes the resources the transform produced instead.
+   */
+  private changeSetDescribesResource(change: types.ResourceDifference): boolean {
+    // resourceType getter throws an error if resourceTypeChanged
+    return change.resourceTypeChanged !== true && !change.resourceType?.includes('AWS::Serverless');
+  }
+
+  /**
    * Adds property changes that the change set reports for a resource that the template diff already
    * surfaced, but that the template diff did not pick up on its own.
    *
@@ -192,10 +200,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @param change - the resource difference to augment (mutated in place)
    */
   public addChangeSetPropertiesNotInTemplateDiff(logicalId: string, change: types.ResourceDifference) {
-    // Same guard as the impact-refinement path: the change set describes the post-transform
-    // resource for SAM, so its property information does not line up with the template.
-    // `resourceType` getter throws if the type changed, so check that first.
-    if ((change.resourceTypeChanged === true) || change.resourceType?.includes('AWS::Serverless')) {
+    if (!this.changeSetDescribesResource(change)) {
       return;
     }
 
