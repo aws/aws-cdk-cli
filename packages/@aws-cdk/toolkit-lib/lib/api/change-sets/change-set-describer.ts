@@ -227,13 +227,7 @@ export class ChangeSetDescriber {
 
     // CloudFormation can also leave changes out without a warning. Only describe again when that
     // would change the diff: when a template difference would otherwise be hidden.
-    const hidden = await this.resourcesHiddenFromDiff(detailed);
-    if (hidden === undefined || hidden.length > 0) {
-      await this.ioHelper.defaults.debug(format(
-        'Changeset %s on stack %s %s; describing it again without property values',
-        this.changeSetDisplayName, this.stackDisplayName,
-        hidden ? `did not mention the template differences of ${hidden.join(', ')}` : 'could not be compared with its templates',
-      ));
+    if (await this.mayHideTemplateDifferences(detailed)) {
       return this.mergeDescriptions(detailed, await this.describeOnce(false));
     }
 
@@ -241,25 +235,33 @@ export class ChangeSetDescriber {
   }
 
   /**
-   * The resources whose template differences this description would hide from the diff.
+   * Whether this description may hide a template difference from the diff.
    *
-   * Only a created change set can hide anything.
-   *
-   * @returns the logical IDs, or `undefined` if the templates could not be compared, in which case
-   *   the change set should be described again rather than trusted
+   * Only a created change set can hide anything. If the templates could not be compared, it may.
    */
-  private async resourcesHiddenFromDiff(description: DescribeChangeSetCommandOutput): Promise<string[] | undefined> {
+  private async mayHideTemplateDifferences(description: DescribeChangeSetCommandOutput): Promise<boolean> {
     if (!this.templates || description.Status !== ChangeSetStatus.CREATE_COMPLETE) {
-      return [];
+      return false;
     }
+
+    let hidden: string[];
     try {
-      return resourcesHiddenByChangeSet(this.templates.deployed, this.templates.generated, description);
+      hidden = resourcesHiddenByChangeSet(this.templates.deployed, this.templates.generated, description);
     } catch (e: any) {
       await this.ioHelper.defaults.debug(format(
-        'Could not compare changeset %s on stack %s with its templates: %s', this.changeSetDisplayName, this.stackDisplayName, e,
+        'Could not compare changeset %s on stack %s with its templates (%s); describing it again without property values',
+        this.changeSetDisplayName, this.stackDisplayName, e,
       ));
-      return undefined;
+      return true;
     }
+
+    if (hidden.length > 0) {
+      await this.ioHelper.defaults.debug(format(
+        'Changeset %s on stack %s did not mention the template differences of %s; describing it again without property values',
+        this.changeSetDisplayName, this.stackDisplayName, hidden.join(', '),
+      ));
+    }
+    return hidden.length > 0;
   }
 
   private async describeOnce(includePropertyValues: boolean): Promise<DescribeChangeSetCommandOutput> {
