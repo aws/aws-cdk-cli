@@ -185,8 +185,8 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
-    // Same check as the SDK's IMDS credential provider. Without it, a host that can't reach IMDS (such as
-    // a sandboxed build on EC2) waits out the MetadataService retries on every region lookup.
+    // Same check the SDK's credential chain uses before calling IMDS. Without it, a host that can't reach IMDS
+    // (such as a sandboxed build on EC2) waits out the MetadataService retries on every region lookup.
     const imdsDisabled = !!process.env.AWS_EC2_METADATA_DISABLED && process.env.AWS_EC2_METADATA_DISABLED !== 'false';
     if (imdsDisabled || !isEc2Instance()) {
       return undefined;
