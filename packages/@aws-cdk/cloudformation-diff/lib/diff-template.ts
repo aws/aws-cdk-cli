@@ -52,15 +52,9 @@ export function resourcesHiddenByChangeSet(
   newTemplate: { [key: string]: any },
   changeSet: DescribeChangeSetOutput,
 ): string[] {
-  // Diff the templates the way `fullDiff` does, so this finds the same differences. `normalize`
-  // mutates its input, so work on copies.
-  const currentTemplateCopy = deepCopy(currentTemplate);
-  const newTemplateCopy = deepCopy(newTemplate);
-  normalize(currentTemplateCopy);
-  normalize(newTemplateCopy);
   const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
   const hidden: string[] = [];
-  diffTemplate(currentTemplateCopy, newTemplateCopy).resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
+  diffNormalizedTemplates(currentTemplate, newTemplate).resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
     if (merger.hidesTemplateDifferences(logicalId, change)) {
       hidden.push(logicalId);
     }
@@ -87,17 +81,7 @@ export function fullDiff(
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
 ): types.TemplateDiff {
-  // `normalize` mutates the templates it is given (it sorts `DependsOn` arrays and rewrites
-  // `Fn::GetAtt` short form, among other things). We must not mutate the caller's objects,
-  // because they may be reused for other purposes (e.g. `cdk import` reuses the deployed
-  // template as the base for the IMPORT change set, and a reordered `DependsOn` there is
-  // rejected by CloudFormation as a "modification" to a non-imported resource).
-  // So we normalize copies and diff those.
-  const currentTemplateCopy = deepCopy(currentTemplate);
-  const newTemplateCopy = deepCopy(newTemplate);
-  normalize(currentTemplateCopy);
-  normalize(newTemplateCopy);
-  const theDiff = diffTemplate(currentTemplateCopy, newTemplateCopy);
+  const theDiff = diffNormalizedTemplates(currentTemplate, newTemplate);
   if (changeSet) {
     // These methods mutate the state of theDiff, using the changeSet.
     const changeSetDiff = new TemplateAndChangeSetDiffMerger({ changeSet });
@@ -251,6 +235,23 @@ function propagateReplacedReferences(template: object, logicalId: string): boole
 
   recurse(template);
   return ret;
+}
+
+/**
+ * Diff normalized copies of two templates.
+ */
+function diffNormalizedTemplates(currentTemplate: { [key: string]: any }, newTemplate: { [key: string]: any }): types.TemplateDiff {
+  // `normalize` mutates the templates it is given (it sorts `DependsOn` arrays and rewrites
+  // `Fn::GetAtt` short form, among other things). We must not mutate the caller's objects,
+  // because they may be reused for other purposes (e.g. `cdk import` reuses the deployed
+  // template as the base for the IMPORT change set, and a reordered `DependsOn` there is
+  // rejected by CloudFormation as a "modification" to a non-imported resource).
+  // So we normalize copies and diff those.
+  const currentTemplateCopy = deepCopy(currentTemplate);
+  const newTemplateCopy = deepCopy(newTemplate);
+  normalize(currentTemplateCopy);
+  normalize(newTemplateCopy);
+  return diffTemplate(currentTemplateCopy, newTemplateCopy);
 }
 
 function deepCopy(x: any): any {
