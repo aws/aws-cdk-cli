@@ -40,7 +40,7 @@ export function displaySeverity(violation: Pick<WebViolation, 'severity' | 'cust
   return violation.customSeverity ?? violation.severity ?? 'warning';
 }
 
-const SEVERITY_RANK: Record<string, number> = { fatal: 0, error: 1, warning: 2, info: 3 };
+const SEVERITY_RANK: Record<string, number> = { fatal: 0, error: 1, warning: 2, info: 3, neutral: 4 };
 
 /**
  * Sort rank for a severity label; lower sorts first. Custom and unrecognized
@@ -51,17 +51,21 @@ export function severityRank(severity: string): number {
   return SEVERITY_RANK[normalize(severity)] ?? 4;
 }
 
-const SEVERITY_HEX: Record<string, string> = {
-  fatal: '#d91515',
-  error: '#e07700',
-  warning: '#8d6605',
-  info: '#0972d3',
-};
-
 /**
- * Text color for a severity label, mirroring cdk validate (fatal red, error
- * orange, warning amber, info blue); custom and unrecognized labels render gray.
+ * Return the worst (highest-priority) severity from a list of severities. Lower ranks indicate more severe issues.
  */
-export function severityHexColor(severity: string): string {
-  return SEVERITY_HEX[normalize(severity)] ?? '#5f6b7a';
+export function worstSeverity(severities: string[]): string {
+  return severities.reduce((worst, s) => {
+    if (!worst) return s;
+    return severityRank(s) < severityRank(worst) ? s : worst;
+  }, 'neutral');
+}
+
+export function violationComparator(a: WebViolation, b: WebViolation): number {
+  const aSev = severityRank(a.severity ?? 'neutral');
+  const bSev = severityRank(b.severity ?? 'neutral');
+  if (aSev !== bSev) {
+    return aSev - bSev;
+  }
+  return a.description.localeCompare(b.description);
 }

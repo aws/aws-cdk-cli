@@ -239,6 +239,8 @@ export class AssemblyIndex {
 
       // For every stack, delete any internal nodes that are not interesting to users
       this.deleteNodeByPath(`${stack.hierarchicalId}/CDKMetadata`);
+      this.deleteNodeByPath(`${stack.hierarchicalId}/BootstrapVersion`);
+      this.deleteNodeByPath(`${stack.hierarchicalId}/CheckBootstrapVersion`);
     }
   }
 

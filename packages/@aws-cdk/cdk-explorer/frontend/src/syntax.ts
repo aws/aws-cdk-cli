@@ -23,6 +23,10 @@ export interface Token {
   readonly content: string;
 }
 
+export function isWhitespace(t: Token): boolean {
+  return t.type === undefined;
+}
+
 const GRAMMAR_MAP: Record<Language, Prism.Grammar> = {
   json: Prism.languages.json,
   yaml: Prism.languages.yaml,

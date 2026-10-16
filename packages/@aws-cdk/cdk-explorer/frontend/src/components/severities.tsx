@@ -4,7 +4,7 @@ import * as awsui from '@cloudscape-design/design-tokens';
 export const SEVERITY: Record<string, { color: string; icon: IconProps.Name; label: string }> = {
   fatal: { color: awsui.colorChartsStatusCritical, icon: 'status-negative', label: 'Fatal' },
   error: { color: awsui.colorChartsStatusHigh, icon: 'status-stopped', label: 'Error' },
-  warning: { color: awsui.colorChartsStatusMedium, icon: 'status-warning', label: 'Warning' },
+  warning: { color: awsui.colorChartsStatusLow, icon: 'status-warning', label: 'Warning' },
   info: { color: awsui.colorChartsStatusInfo, icon: 'status-info', label: 'Info' },
 };
 

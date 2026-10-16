@@ -9,6 +9,19 @@
     <style>
       html, body, #root { height: 100%; margin: 0; }
       body { overflow: hidden; }
+
+      /* These are necessary to get the main content pane to scroll properly */
+      #toolbarHijack > div { height: 100%; }            /* AppLayoutToolbar's own unstyled wrapper */
+      .awsui-context-app-layout-toolbar,
+      .awsui-context-app-layout-toolbar > :first-child { height: 100%; }
+
+      /* 1fr rows are minmax(auto, 1fr): let the main grid item shrink below its content */
+      .awsui-context-app-layout-toolbar main > div { min-block-size: 0; }
+
+      /* Override of CodeView tooltip size to not be ungodly narrow (not configurable via props) */
+      [class*='awsui_container-body-size-medium']:has(.make-me-big) {
+        max-inline-size: fit-content !important;
+      }
     </style>
   </head>
   <body>

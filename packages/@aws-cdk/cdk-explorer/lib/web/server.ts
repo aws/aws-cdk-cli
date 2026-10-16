@@ -151,8 +151,12 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     return res.status(404).send('Not Found');
   });
   app.get('/', async (_req, res) => {
-    const index = (await webAsset('index.html'))!;
-    res.type(index.contentType).send(index.body);
+    const index = await webAsset('index.html')!;
+    if (index) {
+      res.type(index.contentType).send(index.body);
+    } else {
+      res.status(404).send('Not Found');
+    }
   });
 
   const server = new HttpServer(app, {

@@ -1,8 +1,10 @@
+import Tooltip from '@cloudscape-design/components/tooltip';
 import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
-import { tokenizeLines, type Language, type Token } from '../syntax';
+import { isWhitespace, tokenizeLines, type Language, type Token } from '../syntax';
 import { TOKEN_COLORS } from './colors';
 import { colorForSeverity } from './severities';
+import { worstSeverity } from '../../../lib/web-shared/severity';
 import { addToColl } from '../util';
 
 /**
@@ -92,20 +94,20 @@ export function CodeViewer({
             key={`${lineNum}`}
             ref={(el) => {
               if (isScrollTarget && el) {
-                el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
               }
             }}
             className={isHighlighted ? 'nav-highlight' : undefined}
             style={{
               ...LINE_STYLE,
-              ...(isHighlighted ? { ['--nav-highlight-color' as string]: highlightColor ?? awsui.colorChartsBlue1500 } : undefined),
+              ...(isHighlighted ? { ['--nav-highlight-color']: highlightColor ?? awsui.colorChartsBlue1500 } : undefined),
             }}
             onDoubleClick={onLineDoubleClick ? () => onLineDoubleClick(lineNum) : undefined}
           >
             <span style={{ ...LINE_NUM_STYLE, width: gutterWidth }}>{lineNum}</span>
             {lineAnnotations.length > 0 && <span style={{ position: 'absolute' }}>ANN</span>}
             <span style={LINE_CONTENT_STYLE}>
-              {lineDiagnostics
+              {lineDiagnostics.length > 0
                 ? renderWithDiagnostics(lineTokens, lineDiagnostics)
                 : renderTokens(lineTokens)
               }
@@ -127,80 +129,41 @@ function renderTokens(tokens: Token[]): React.ReactNode {
 }
 
 function renderWithDiagnostics(tokens: Token[], diagnostics: Diagnostic[]): React.ReactNode {
-  let col = 1;
-  const elements: React.ReactNode[] = [];
-  let key = 0;
+  const worst = worstSeverity(diagnostics.map(d => d.severity));
+  const color = colorForSeverity(worst);
 
-  for (const token of tokens) {
-    const tokenStart = col;
-    const tokenEnd = col + token.content.length;
-    const color = token.type ? TOKEN_COLORS[token.type] : undefined;
-
-    let hasOverlap = false;
-    for (const d of diagnostics) {
-      const dEnd = d.endCol ?? 999;
-      if (d.startCol < tokenEnd && dEnd > tokenStart) {
-        hasOverlap = true;
-        break;
-      }
-    }
-
-    if (!hasOverlap) {
-      elements.push(
-        color
-          ? <span key={key++} style={{ color }}>{token.content}</span>
-          : <span key={key++}>{token.content}</span>,
-      );
-    } else {
-      const chars = token.content;
-      let segStart = 0;
-      let currentSeverity = '';
-
-      for (let c = 0; c <= chars.length; c++) {
-        const charCol = tokenStart + c;
-        let severity = '';
-        for (const d of diagnostics) {
-          const dEnd = d.endCol ?? 999;
-          if (charCol >= d.startCol && charCol < dEnd) {
-            severity = d.severity;
-            break;
-          }
-        }
-
-        if (c === chars.length || severity !== currentSeverity) {
-          if (segStart < c) {
-            const text = chars.slice(segStart, c);
-            if (currentSeverity) {
-              elements.push(
-                <span key={key++} style={{ color, textDecoration: `underline wavy ${colorForSeverity(currentSeverity)}`, textUnderlineOffset: '3px' }}>
-                  {text}
-                </span>,
-              );
-            } else {
-              elements.push(
-                color
-                  ? <span key={key++} style={{ color }}>{text}</span>
-                  : <span key={key++}>{text}</span>,
-              );
-            }
-          }
-          segStart = c;
-          currentSeverity = severity;
-        }
-      }
-    }
-
-    col = tokenEnd;
+  // Skip leading whitespace, then inject the underline span for the rest of the line.
+  let textStart = 0;
+  while (textStart < tokens.length && isWhitespace(tokens[textStart])) {
+    textStart++;
+  }
+  if (textStart === tokens.length) {
+    textStart = 0;
   }
 
-  return elements;
+  // Group by description to avoid repeating the same message multiple times in the tooltip.
+  const grouped: Record<string, Diagnostic[]> = {};
+  for (const diagnostic of diagnostics) {
+    if (!grouped[diagnostic.message]) {
+      grouped[diagnostic.message] = [];
+    }
+    grouped[diagnostic.message].push(diagnostic);
+  }
+
+  return <>
+    {renderTokens(tokens.slice(0, textStart))}
+    <WavyUnderline color={color} content={
+      <div className="make-me-big">
+        {Object.keys(grouped).map((message, i) => <div key={i}>{message}</div>)}
+      </div>
+    }>
+      {renderTokens(tokens.slice(textStart))}
+    </WavyUnderline>
+  </>;
 }
 
 const CONTAINER_STYLE: React.CSSProperties = {
   margin: 0,
-  maxHeight: '100%',
-  //  overflowX: 'auto',
-  //  overflowY: 'auto',
   fontFamily: 'Monaco, Menlo, "Courier New", monospace',
   fontSize: '12px',
   lineHeight: '18px',
@@ -226,3 +189,34 @@ const LINE_CONTENT_STYLE: React.CSSProperties = {
   flex: '1 1 auto',
   minWidth: 0,
 };
+
+interface WavyUnderlineProps {
+  color: string;
+  children: React.ReactNode;
+  content: React.ReactNode;
+}
+
+function WavyUnderline(props: WavyUnderlineProps) {
+  const wrapperRef = React.useRef<HTMLSpanElement>(null);
+  const [showTooltip, setShowTooltip] = React.useState(false);
+
+  return <span
+    ref={wrapperRef}
+    style={{ textDecoration: `underline wavy ${props.color}`, textUnderlineOffset: '3px' }}
+    tabIndex={0}
+    role="group"
+    onPointerEnter={() => setShowTooltip(true)}
+    onPointerLeave={() => setShowTooltip(false)}
+    onFocus={() => setShowTooltip(true)}
+    onBlur={() => setShowTooltip(false)}
+  >
+    {props.children}
+    {showTooltip && (
+      <Tooltip
+        content={props.content}
+        getTrack={() => wrapperRef.current}
+        onEscape={() => setShowTooltip(false)}
+      />
+    )}
+  </span>;
+}

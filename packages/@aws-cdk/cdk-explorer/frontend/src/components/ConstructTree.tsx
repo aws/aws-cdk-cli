@@ -1,10 +1,11 @@
 import Icon from '@cloudscape-design/components/icon';
-import SpaceBetween from '@cloudscape-design/components/space-between';
 import TreeView from '@cloudscape-design/components/tree-view';
+import * as awsui from '@cloudscape-design/design-tokens';
 import * as React from 'react';
 import type { WebConstructNode } from '../../../lib/web-shared/protocol';
 import type { NavigateEvent, NavigateHandler } from '../nav-types';
-import { SEVERITY } from './severities';
+import { Flex } from './Flex';
+import { colorForSeverity, SEVERITY } from './severities';
 
 export class ExpandState {
   private expandedItems: Set<string> = new Set();
@@ -23,11 +24,18 @@ export class ExpandState {
     }
   }
 
-  isExpanded(constructPath: string): boolean {
+  public ensureParentsExpanded(constructPath: string): void {
+    const parts = constructPath ? constructPath.split('/') : [];
+    for (let i = 1; i < parts.length; i++) {
+      this.expandedItems.add(parts.slice(0, i).join('/'));
+    }
+  }
+
+  public isExpanded(constructPath: string): boolean {
     return this.expandedItems.has(constructPath);
   }
 
-  expand(constructPath: string, what: boolean): void {
+  public expand(constructPath: string, what: boolean): void {
     if (what) {
       this.expandedItems.add(constructPath);
     } else {
@@ -35,7 +43,7 @@ export class ExpandState {
     }
   }
 
-  getExpandedItems(): ReadonlyArray<string> {
+  public getExpandedItems(): ReadonlyArray<string> {
     return Array.from(this.expandedItems).sort();
   }
 }
@@ -43,10 +51,11 @@ export class ExpandState {
 interface ConstructTreeProps {
   readonly nodes: readonly WebConstructNode[];
   readonly expandState: ExpandState;
+  readonly highlightedConstructPath?: string;
   readonly onNavigate: NavigateHandler;
 }
 
-export function ConstructTree({ nodes, expandState, onNavigate }: ConstructTreeProps): JSX.Element {
+export function ConstructTree({ nodes, expandState, onNavigate, highlightedConstructPath }: ConstructTreeProps): JSX.Element {
   // Necessary because a mutable object manages the expand state
   const [, expandStateChanged] = React.useState({});
 
@@ -69,7 +78,7 @@ export function ConstructTree({ nodes, expandState, onNavigate }: ConstructTreeP
       expandedItems={expandState.getExpandedItems()}
       renderItem={item => ({
         icon: (item.children.length > 0 ? <Icon name='transcript' ariaLabel='Construct Group' /> : undefined),
-        content: renderItemWithSeverity(item, onClickNode),
+        content: renderItemWithSeverity(item, highlightedConstructPath === item.path, onClickNode),
       })}
       getItemId={item => item.path}
       getItemChildren={item => item.children}
@@ -81,28 +90,45 @@ export function ConstructTree({ nodes, expandState, onNavigate }: ConstructTreeP
 
 const MAX_AUTOEXPAND_SIBLINGS = 10;
 
-function renderItemWithSeverity(item: WebConstructNode, onClick: (x: WebConstructNode) => void): JSX.Element {
+function scrollToRef(ref: HTMLDivElement) {
+  if (ref) {
+    ref.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function renderItemWithSeverity(
+  item: WebConstructNode,
+  isHighlighted: boolean,
+  onClick: (x: WebConstructNode) => void,
+): JSX.Element {
+  const highlightColor = colorForSeverity(item.highestSeverity ?? item.inheritedSeverity);
   const attributes = {
+    className: isHighlighted ? 'nav-highlight' : undefined,
     style: {
       cursor: 'pointer',
       whiteSpace: 'nowrap',
+      ...(isHighlighted ? { ['--nav-highlight-color']: highlightColor ?? awsui.colorChartsBlue1500 } : undefined),
+
+      // Widen the margin a bit so the highlight looks better
+      margin: '-2px',
+      padding: '2px',
     } as any,
     title: item.id,
     onClick: () => onClick(item),
   };
 
   const ptr = item.templateLocation || item.sourceLocation
-    ? <Icon name='internal-link' ariaLabel='View' variant='subtle' />
-    : <></>;
+    ? [<Icon name='internal-link' ariaLabel='View' variant='subtle' />]
+    : [];
 
   const sev = item.highestSeverity && SEVERITY[item.highestSeverity.toLowerCase()];
   if (sev) {
     attributes.style.color = sev.color;
-    return <SpaceBetween direction="horizontal" size='xxs' nativeAttributes={attributes}>
+    return <Flex {...attributes} ref={isHighlighted ? scrollToRef : undefined}>
       <Icon name={sev.icon} ariaLabel={sev.label} />
       {item.id}
-      {ptr}
-    </SpaceBetween>;
+      {...ptr}
+    </Flex>;
   }
 
   const inh = item.inheritedSeverity && SEVERITY[item.inheritedSeverity.toLowerCase()];
@@ -110,7 +136,7 @@ function renderItemWithSeverity(item: WebConstructNode, onClick: (x: WebConstruc
     attributes.style.color = inh.color;
   }
 
-  return <span {...attributes}>{item.id} {ptr}</span>;
+  return <span {...attributes} ref={isHighlighted ? scrollToRef : undefined}>{item.id} {...ptr}</span>;
 }
 
 function navigateArgsFromConstructNode(item: WebConstructNode, trigger: NavigateEvent['trigger']): Parameters<NavigateHandler>[0] {

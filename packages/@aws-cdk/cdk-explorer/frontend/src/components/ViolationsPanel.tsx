@@ -1,30 +1,31 @@
-import { Link, List } from '@cloudscape-design/components';
 import Box from '@cloudscape-design/components/box';
+import Link from '@cloudscape-design/components/link';
+import List from '@cloudscape-design/components/list';
+import Spinner from '@cloudscape-design/components/spinner';
 import StatusIndicator from '@cloudscape-design/components/status-indicator';
+import TextFilter from '@cloudscape-design/components/text-filter';
+import Token from '@cloudscape-design/components/token';
 import * as React from 'react';
+import { Flex } from './Flex';
 import { colorForSeverity, iconForSeverity } from './severities';
-import type { WebViolation } from '../../../lib/web-shared/protocol';
+import type { ViolationsResponse, WebViolation } from '../../../lib/web-shared/protocol';
 import { displaySeverity, severityRank } from '../../../lib/web-shared/severity';
 import type { NavigateHandler } from '../nav-types';
 
 interface ViolationsPanelProps {
   readonly violations: readonly WebViolation[];
   readonly onNavigate: NavigateHandler;
-  readonly filter?: string;
-  readonly onClearFilter: () => void;
-  readonly search: string;
 }
 
-export function ViolationsPanel({ violations, onNavigate, filter, search }: ViolationsPanelProps): JSX.Element {
+export function ViolationsList({ violations, onNavigate }: ViolationsPanelProps): JSX.Element {
   if (violations.length === 0) {
     return <StatusIndicator type="success">No diagnostics found.</StatusIndicator>;
   }
 
-  const filtered = filterViolations(violations, filter, search);
-  const sorted = [...filtered].sort((a, b) => severityRank(displaySeverity(a)) - severityRank(displaySeverity(b)));
+  const sorted = [...violations].sort((a, b) => severityRank(displaySeverity(a)) - severityRank(displaySeverity(b)));
 
   if (sorted.length === 0) {
-    return <Box color="text-status-inactive">{filter ? 'No diagnostics for this resource.' : 'No matching diagnostics.'}</Box>;
+    return <Box color="text-status-inactive">No matching diagnostics.</Box>;
   }
 
   return (
@@ -42,25 +43,25 @@ export function ViolationsPanel({ violations, onNavigate, filter, search }: Viol
           icon: iconForSeverity(viol.severity, viol.customSeverity),
           content:
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px' }}>
-              <div style={{ flexGrow: 0, flexShrink: 0, color: colorForSeverity(viol.severity), fontWeight: 'bold', marginRight: '1em' }}>[{displaySev.toUpperCase()}]</div>
+              <div style={{ flexGrow: 0, flexShrink: 0, color: colorForSeverity(viol.severity), fontWeight: 'bold', marginRight: '1em', width: '6em' }}>[{displaySev.toUpperCase()}]</div>
               <div style={{ flexGrow: 1 }}>
                 <details>
                   <summary style={{ cursor: 'pointer' }}>
-                    {title}
+                    {title}<br/>
                     <Box variant="small">
                       {count} {count === 1 ? 'construct' : 'constructs'} {'·'} {viol.source}
                     </Box>
                   </summary>
                   {viol.suggestedFix && <Box variant="small">Suggested fix: {viol.suggestedFix}</Box>}
                   {viol.occurrences.map((occ, i) => (
-                    <Link variant="primary" onFollow={() => onNavigate({
-                      trigger: 'diagnostic',
-                      ...occ,
-                    })}>
-                      {occ.constructPath}
-                      {occ.logicalId ? ` → ${occ.logicalId}` : ''}
-                      {occ.templateFile ? ` (${occ.templateFile})` : ''}
-                    </Link>
+                    <div key={i} style={{ fontSize: 'small' }}>
+                      <Link fontSize="body-s" variant="primary" onFollow={() => onNavigate({
+                        trigger: 'diagnostic',
+                        ...occ,
+                      })}>
+                        {occ.constructPath}
+                      </Link>
+                    </div>
                   ))}
                 </details>
               </div>
@@ -75,24 +76,74 @@ export function ViolationsPanel({ violations, onNavigate, filter, search }: Viol
   );
 }
 
-function filterViolations(violations: readonly WebViolation[], filter: string | undefined, search: string): readonly WebViolation[] {
+const RULE_NAME_STYLE: React.CSSProperties = { fontFamily: 'monospace', fontSize: '12px', color: '#5f6b7a', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 };
+
+export function ViolationsPanelContent({ violations, onNavigate, status }: {
+  readonly status?: ViolationsResponse['status'];
+  readonly violations: readonly WebViolation[];
+  readonly onNavigate: NavigateHandler;
+}): JSX.Element {
+  if (!status) return <Spinner />;
+  if (status === 'not-synthesized') {
+    return <Box color="text-status-inactive">No cloud assembly found.</Box>;
+  }
+  return <ViolationsList
+    violations={violations}
+    onNavigate={onNavigate}
+  />;
+}
+
+export function ViolationsConstructFilter(
+  { constructPathFilter, onClearFilter }:
+  { readonly constructPathFilter?: string; readonly onClearFilter: () => void },
+): JSX.Element {
+  if (!constructPathFilter) return <></>;
+  const name = constructPathFilter.split('/').pop() || constructPathFilter;
+  return (
+    <Flex>
+      <>Limited to</>
+      <Token
+        onDismiss={onClearFilter}
+        dismissLabel="Show all diagnostics"
+        label={name}
+        style={{ root: { paddingInline: '8px' } }}
+      />
+    </Flex>
+  );
+}
+
+export function ViolationsSearch({ search, onSearchChange }: {
+  readonly search: string;
+  readonly onSearchChange: (value: string) => void;
+}): JSX.Element {
+  return (
+    <TextFilter
+      filteringText={search}
+      filteringPlaceholder="Filter diagnostics"
+      filteringAriaLabel="Filter diagnostics"
+      onChange={({ detail }) =>
+        onSearchChange(detail.filteringText)
+      }
+    />
+  );
+}
+
+export function filterViolations(violations: readonly WebViolation[], constructPathFilter?: string, search?: string): readonly WebViolation[] {
   let result = violations;
 
-  if (filter) {
-    const filtered: WebViolation[] = [];
-    for (const v of result) {
-      const matchingOccs = v.occurrences.filter(
-        (occ) => occ.constructPath === filter || occ.constructPath.startsWith(filter + '/'),
-      );
-      if (matchingOccs.length > 0) {
-        filtered.push({ ...v, occurrences: matchingOccs });
-      }
-    }
-    result = filtered;
+  if (constructPathFilter) {
+    result = violations
+      .map((v) => ({
+        ...v,
+        occurrences: v.occurrences.filter(
+          (occ) => occ.constructPath === constructPathFilter || occ.constructPath.startsWith(constructPathFilter + '/'),
+        ),
+      }))
+      .filter((v) => v.occurrences.length > 0);
   }
 
-  if (search.trim()) {
-    const q = search.trim().toLowerCase();
+  const q = search.trim().toLowerCase();
+  if (q) {
     result = result.filter((v) =>
       v.ruleName.toLowerCase().includes(q) ||
       (v.description ?? '').toLowerCase().includes(q) ||
@@ -104,4 +155,14 @@ function filterViolations(violations: readonly WebViolation[], filter: string | 
   return result;
 }
 
-const RULE_NAME_STYLE: React.CSSProperties = { fontFamily: 'monospace', fontSize: '12px', color: '#5f6b7a', fontWeight: 400, whiteSpace: 'nowrap', flexShrink: 0 };
+export function diagnosticsPanelTitle(response: ViolationsResponse | undefined, violations: readonly WebViolation[]) {
+  if (response?.status !== 'ok') {
+    return 'Diagnostics';
+  }
+
+  if (violations.length !== response.violations.length) {
+    return `Diagnostics (${violations.length} out of ${response.violations.length})`;
+  } else {
+    return `Diagnostics (${response.violations.length})`;
+  }
+}

@@ -35,7 +35,7 @@ export async function webAsset(name: string): Promise<WebAsset | undefined> {
   try {
     const diskLocation = BUNDLED_FILES.includes(name)
       ? path.resolve(__dirname, 'static', `${name}`)
-      : path.resolve(__dirname, '..', '..', 'frontend', `${name}`)
+      : path.resolve(__dirname, '..', '..', 'frontend', 'src', `${name}`)
       ;
 
     return {

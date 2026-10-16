@@ -14,7 +14,7 @@ import { resolveAllResourceRanges } from '../core/template-ranges';
 import type { Handler, Response, Router } from '../expressy';
 import { createRouter } from '../expressy';
 import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from '../web-shared/protocol';
-import { classifyReportSeverity, displaySeverity, severityRank } from '../web-shared/severity';
+import { classifyReportSeverity, displaySeverity, violationComparator, severityRank } from '../web-shared/severity';
 
 /** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -60,13 +60,14 @@ export function createApiRouter(options: ApiOptions): Router {
   /**
    * Read the cloud assembly, memoized on the manifest's mtime. A request whose
    * manifest is unchanged since the last successful read is served from cache
-   * without touching the lock (and, mid-synth, keeps serving the last complete
-   * generation rather than contending). A changed or first-seen manifest
-   * triggers a re-read under the assembly read lock, so a concurrent synth is
-   * never observed mid-write. The lock is fail-fast, so retry on writer
-   * contention; if it never clears, report `locked` (served as a 503).
+   * without touching the lock.
+   *
+   * This function can be called multiple times while the assembly is still
+   * loading (which may take multiple seconds). When that happens, it will
+   * return the same promise, ensuring that no unnecessary reads are started.
    */
-  async function getCachedAssembly(): Promise<AssemblyReadResult | { status: 'locked' }> {
+  // eslint-disable-next-line @typescript-eslint/no-shadow
+  const getCachedAssembly = reuseRunningPromise(async function getCachedAssembly(): Promise<AssemblyReadResult> {
     try {
       const mtimeMs = await manifestMtimeMs();
       if (mtimeMs === undefined) return { status: 'not-found' };
@@ -92,7 +93,7 @@ export function createApiRouter(options: ApiOptions): Router {
         };
       }
     }
-  }
+  });
 
   const router = createRouter();
 
@@ -196,9 +197,6 @@ export function createApiRouter(options: ApiOptions): Router {
     }
 
     const result = await getCachedAssembly();
-    if (result.status === 'locked') {
-      return res.status(503).json({ error: 'synth in progress, please retry' });
-    }
     // On a cache hit the manifest is unchanged, so the on-disk template read
     // above is the same generation as this index; on a miss the index was just
     // re-read past the synth that changed it.
@@ -353,7 +351,7 @@ export function normalizeViolations(
       source: plugin.pluginName,
       suggestedFix: violation.suggestedFix,
       occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index)),
-    })));
+    }))).sort(violationComparator);
 }
 
 /** Join one violating construct to its tree node, preferring resolved tree data. */
@@ -476,4 +474,16 @@ function requestLoggingMiddleware(handler: RequestLogger): Handler {
     });
     return next();
   };
+}
+
+function reuseRunningPromise<A extends (...args: any[]) => Promise<any>>(fn: A): A {
+  let runningPromise: Promise<ReturnType<A>> | undefined;
+  return ((...args: any[]) => {
+    if (!runningPromise) {
+      runningPromise = fn(...args).finally(() => {
+        runningPromise = undefined;
+      });
+    }
+    return runningPromise;
+  }) as any;
 }
