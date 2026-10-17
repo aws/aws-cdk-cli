@@ -49,6 +49,50 @@ describe('constructs version', () => {
     expect(await fs.pathExists(path.join(workDir, 'lib'))).toBeTruthy();
   });
 
+  for (const type of ['app', 'sample-app', 'lib']) {
+    cliTest(`TypeScript ${type} gitignore only ignores JavaScript in CDK output directories`, async (workDir) => {
+      await cliInit({
+        ioHelper,
+        type,
+        language: 'typescript',
+        generateOnly: true,
+        workDir,
+      });
+
+      const ignored = [
+        'bin/app.js',
+        'bin/nested/app.js',
+        'lib/stack.js',
+        'lib/nested/stack.js',
+        'test/app.test.js',
+        'test/nested/app.test.js',
+        'node_modules/dependency/index.js',
+        'cdk.out/manifest.json',
+        '.cdk.staging/asset.txt',
+      ];
+      const tracked = [
+        'frontend/src/main.js',
+        'frontend/bin/app.js',
+        'frontend/lib/nested/module.js',
+        'frontend/test/app.test.js',
+        'index.js',
+        'jest.config.js',
+        'test/jest.config.js',
+      ];
+      for (const file of [...ignored, ...tracked]) {
+        await fs.outputFile(path.join(workDir, file), '');
+      }
+
+      const execFile = promisify(child_process.execFile);
+      await execFile('git', ['init'], { cwd: workDir });
+      const { stdout } = await execFile('git', [
+        '-c', `core.excludesFile=${os.devNull}`,
+        'check-ignore', '--no-index', '--', ...ignored, ...tracked,
+      ], { cwd: workDir });
+      expect(stdout.trim().split(/\r?\n/)).toEqual(ignored);
+    });
+  }
+
   cliTest("when type is 'lib' and language is not specified, it default language to TypeScript", async (workDir) => {
     await cliInit({
       ioHelper,
