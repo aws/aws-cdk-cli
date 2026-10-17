@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import chalk from 'chalk';
 import type { IoMessageLevel } from '../../lib/api';
 import { isMessageRelevantForLevel } from '../../lib/api-private';
 import type { IoMessageObservation, ObservableIoHost } from '../../lib/cli/io-host';
@@ -222,6 +223,10 @@ export class IoHostRecorder {
    * observation buffer, so each test starts fresh.
    */
   public static create(host: ObservableIoHost, options: IoHostRecorderOptions = {}): IoHostRecorder {
+    // toolkit-lib trims whitespace around messages, but not when the message is
+    // wrapped in color codes. Always emit color so the snapshots don't depend on
+    // whether the environment supports it (nx forces color, plain jest does not).
+    chalk.level = 1;
     const existing = IoHostRecorder.cache.get(host);
     if (existing) {
       // Same recorder across the (singleton) host; clear the per-test
