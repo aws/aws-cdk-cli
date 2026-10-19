@@ -397,7 +397,7 @@ describe('onDefinition', () => {
 
     expect(location).toEqual({
       uri: c.uri('lib/stack.ts'),
-      range: { start: { line: 11, character: 4 }, end: { line: 11, character: 4 } },
+      range: { start: { line: 11, character: 0 }, end: { line: 11, character: 0 } },
     });
   });
 
@@ -806,7 +806,7 @@ describe('getConstructTree', () => {
       // This is the LSP's wire format for an external client (the AWS Toolkit
       // tree), so paths are absolute and directly openable — unlike the web
       // protocol, which relativizes to the app dir.
-      sourceLocation: { file: c.fixture.sourcePath('lib/stack.ts'), line: 12, column: 5 },
+      sourceLocation: { file: c.fixture.sourcePath('lib/stack.ts'), line: 12 },
       templateFile: c.fixture.templatePath('Stack1'),
     });
   });

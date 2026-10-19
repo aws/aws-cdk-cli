@@ -190,7 +190,7 @@ describe('GET /api/tree', () => {
       path: 'MyStack/Bucket',
       type: 'AWS::S3::Bucket',
       templateLocation: { file: 'MyStack.template.json', logicalId: 'Bucket123' },
-      sourceLocation: { file: 'lib/stack.ts', line: 12, column: 5 },
+      sourceLocation: { file: 'lib/stack.ts', line: 12 },
     });
   });
 
@@ -258,7 +258,7 @@ describe('GET /api/policy-validation', () => {
       constructPath: 'MyStack/Bucket/Resource',
       logicalId: 'Bucket123',
       templateFile: 'MyStack.template.json',
-      sourceLocations: [{ file: 'lib/stack.ts', line: 12, column: 5 }],
+      sourceLocations: [{ file: 'lib/stack.ts', line: 12 }],
       propertyPaths: ['Properties.Public'],
     });
   });
@@ -288,7 +288,7 @@ describe('GET /api/template', () => {
     const resource = res.body.resources.Bucket123;
     expect(resource.block.startLine).toBeGreaterThan(0);
     expect(resource.block.endLine).toBeGreaterThanOrEqual(resource.block.startLine);
-    expect(resource.source).toEqual({ file: 'lib/stack.ts', line: 12, column: 5 });
+    expect(resource.source).toEqual({ file: 'lib/stack.ts', line: 12 });
   });
 
   test('omits the source for a resource no construct claims', async () => {

@@ -127,7 +127,7 @@ export class AssemblyFixture {
 
   /** Index the assembly exactly as production does. */
   public async index(): Promise<AssemblyIndexWithSourceLocations> {
-    return AssemblyIndexWithSourceLocations.create({
+    return AssemblyIndexWithSourceLocations.createAndIndex({
       appDir: this.appDir,
       assemblyDir: this.assemblyDir,
       assemblyIndex: await AssemblyIndex.fromAssembly(new CloudAssembly(this.assemblyDir)),

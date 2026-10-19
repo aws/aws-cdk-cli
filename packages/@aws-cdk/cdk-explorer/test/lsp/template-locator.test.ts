@@ -124,9 +124,10 @@ describe('sourceTargetAtTemplateOffset', () => {
 
     const target = sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::S3::Bucket'))!;
 
-    // 1-based source location to 0-based LSP, as a zero-width range.
+    // 1-based source location to 0-based LSP. Only the line is known, so the
+    // range collapses to the start of that line.
     expect(target.uri).toBe(pathToFileURL(fixture!.sourcePath('lib/stack.ts')).toString());
-    expect(target.range).toEqual({ start: { line: 11, character: 4 }, end: { line: 11, character: 4 } });
+    expect(target.range).toEqual({ start: { line: 11, character: 0 }, end: { line: 11, character: 0 } });
   });
 
   test('accepts the absolute template path the LSP has on hand', async () => {
@@ -136,7 +137,7 @@ describe('sourceTargetAtTemplateOffset', () => {
     const text = fixture!.templateText('S');
 
     expect(sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::SQS::Queue'))!.range.start)
-      .toEqual({ line: 17, character: 2 });
+      .toEqual({ line: 17, character: 0 });
   });
 
   test('distinguishes the resource the offset falls in', async () => {

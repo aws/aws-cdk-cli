@@ -70,7 +70,7 @@ describe('normalizeViolations', () => {
 
     const [occurrence] = normalizeViolations(report([{ constructPath: 'MyStack/Bucket/Resource' }]), index)[0].occurrences;
 
-    expect(occurrence.sourceLocations).toEqual([{ file: 'lib/stack.ts', line: 12, column: 5 }]);
+    expect(occurrence.sourceLocations).toEqual([{ file: 'lib/stack.ts', line: 12 }]);
   });
 
   test('uses the report own stack traces when it supplies them', async () => {
@@ -82,7 +82,7 @@ describe('normalizeViolations', () => {
     }]), index)[0].occurrences;
 
     // The plugin pinpointed the violation, which beats the construct's creation site.
-    expect(occurrence.sourceLocations).toEqual([{ file: 'lib/stack.ts', line: 3, column: 1 }]);
+    expect(occurrence.sourceLocations).toEqual([{ file: 'lib/stack.ts', line: 3 }]);
   });
 
   test('falls back to the report resource fields for a construct absent from the index', async () => {
@@ -113,7 +113,10 @@ describe('normalizeViolations', () => {
     expect(occurrence.sourceLocations).toEqual([]);
   });
 
-  test('flattens violations across plugins, preserving order', async () => {
+  test('flattens violations across plugins, most severe first', async () => {
+    // Report order is not display order: the list is sorted by severity (then
+    // description) so the worst problems are at the top regardless of which
+    // plugin found them.
     const index = await indexWithBucket();
 
     const out = normalizeViolations([
@@ -121,8 +124,44 @@ describe('normalizeViolations', () => {
       { pluginName: 'b', conclusion: 'failure', violations: [{ ruleName: 'r2', description: 'd2', severity: 'fatal', customSeverity: 'BLOCKER', violatingConstructs: [] }] },
     ], index);
 
+    expect(out.map((v) => v.source)).toEqual(['b', 'a']);
+    expect(out[0]).toMatchObject({ severity: 'fatal', customSeverity: 'BLOCKER' });
+  });
+
+  test('sorts equally severe violations by description', async () => {
+    const index = await indexWithBucket();
+
+    const out = normalizeViolations([
+      { pluginName: 'a', conclusion: 'failure', violations: [{ ruleName: 'r1', description: 'zzz', severity: 'error', violatingConstructs: [] }] },
+      { pluginName: 'a', conclusion: 'failure', violations: [{ ruleName: 'r2', description: 'aaa', severity: 'error', violatingConstructs: [] }] },
+    ], index);
+
+    expect(out.map((v) => v.description)).toEqual(['aaa', 'zzz']);
+  });
+
+  test('merges the same violation reported twice into one with both occurrences', async () => {
+    // Several plugin runs can report the same rule, and the user should see one
+    // entry listing every place it fired rather than the same text twice.
+    const index = await indexWithBucket();
+
+    const out = normalizeViolations([
+      ...report([{ constructPath: 'MyStack/Bucket/Resource' }]),
+      ...report([{ constructPath: 'Other/X' }]),
+    ], index);
+
+    expect(out).toHaveLength(1);
+    expect(out[0].occurrences.map((o) => o.constructPath)).toEqual(['MyStack/Bucket/Resource', 'Other/X']);
+  });
+
+  test('keeps violations that differ in anything but their occurrences apart', async () => {
+    const index = await indexWithBucket();
+
+    const out = normalizeViolations([
+      { pluginName: 'a', conclusion: 'failure', violations: [{ ruleName: 'r1', description: 'same', severity: 'error', violatingConstructs: [] }] },
+      { pluginName: 'b', conclusion: 'failure', violations: [{ ruleName: 'r1', description: 'same', severity: 'error', violatingConstructs: [] }] },
+    ], index);
+
     expect(out.map((v) => v.source)).toEqual(['a', 'b']);
-    expect(out[1]).toMatchObject({ severity: 'fatal', customSeverity: 'BLOCKER' });
   });
 
   test('emits one occurrence per violating construct', async () => {

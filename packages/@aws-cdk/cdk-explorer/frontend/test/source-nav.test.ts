@@ -20,7 +20,7 @@ function node(props: {
     templateLocation: props.templateFile && props.logicalId
       ? { file: props.templateFile, logicalId: props.logicalId }
       : undefined,
-    sourceLocation: props.file !== undefined ? { file: props.file, line: props.line ?? 0, column: 0 } : undefined,
+    sourceLocation: props.file !== undefined ? { file: props.file, line: props.line ?? 0 } : undefined,
     children: props.children ?? [],
   };
 }
@@ -70,39 +70,33 @@ describe('SourceAndTemplateIndex', () => {
   });
 });
 
-describe('SourceAndTemplateIndex.findBySourceLocation', () => {
+describe('SourceAndTemplateIndex.sourceFileConstructs', () => {
   const index = SourceAndTemplateIndex.fromTree([
     navigable('App/Bucket', 'app.ts', 10),
     navigable('App/Queue', 'app.ts', 20),
+    navigable('App/Table', 'db.ts', 5),
   ]);
 
-  test('matches a construct on its exact definition line', () => {
-    expect(index.findBySourceLocation('app.ts', 10)!.path).toBe('App/Bucket');
-    expect(index.findBySourceLocation('app.ts', 20)!.path).toBe('App/Queue');
+  test('groups a file constructs by their definition line', () => {
+    // Source anchors are exact lines; the SPA decorates those lines and does
+    // not claim the lines in between.
+    const byLine = index.sourceFileConstructs('app.ts');
+
+    expect(paths(byLine)).toEqual({ 10: ['App/Bucket'], 20: ['App/Queue'] });
   });
 
-  test('matches the nearest preceding construct for a line inside its block', () => {
-    // Source anchors are single lines, so a construct owns every line from its
-    // definition down to the next one's.
-    expect(index.findBySourceLocation('app.ts', 15)!.path).toBe('App/Bucket');
+  test('keeps the files apart', () => {
+    expect(paths(index.sourceFileConstructs('db.ts'))).toEqual({ 5: ['App/Table'] });
   });
 
-  test('matches the last construct for a line below every definition', () => {
-    expect(index.findBySourceLocation('app.ts', 999)!.path).toBe('App/Queue');
+  test('returns nothing for a file with no constructs', () => {
+    expect(index.sourceFileConstructs('unknown.ts')).toEqual({});
   });
 
-  test('returns undefined above the first construct in the file', () => {
-    expect(index.findBySourceLocation('app.ts', 3)).toBeUndefined();
-  });
-
-  test('returns undefined for a file with no constructs', () => {
-    expect(index.findBySourceLocation('unknown.ts', 10)).toBeUndefined();
-  });
-
-  test('prefers the authored parent when a line holds a whole construct subtree', () => {
+  test('lists every construct anchored to a shared line, authored parent first', () => {
     // The real VPC case: the parent and all its synthesized children are
-    // anchored to the single `new Vpc(...)` line. Clicking it should land on
-    // the construct the user wrote, not a deep synthetic child.
+    // anchored to the single `new Vpc(...)` line. The tree is walked in
+    // pre-order, so the construct the user wrote leads the list.
     const shared = SourceAndTemplateIndex.fromTree([
       navigable('Net/Vpc', 'net.ts', 11, [
         navigable('Net/Vpc/PublicSubnet1', 'net.ts', 11, [
@@ -111,7 +105,31 @@ describe('SourceAndTemplateIndex.findBySourceLocation', () => {
       ]),
     ]);
 
-    expect(shared.findBySourceLocation('net.ts', 11)!.path).toBe('Net/Vpc');
-    expect(shared.findBySourceLocation('net.ts', 40)!.path).toBe('Net/Vpc');
+    expect(paths(shared.sourceFileConstructs('net.ts'))).toEqual({
+      11: ['Net/Vpc', 'Net/Vpc/PublicSubnet1', 'Net/Vpc/PublicSubnet1/NatGateway'],
+    });
   });
 });
+
+describe('SourceAndTemplateIndex.templateConstructs', () => {
+  test('maps each logical id in a template to its construct', () => {
+    const index = SourceAndTemplateIndex.fromTree([
+      navigable('App/Bucket', 'app.ts', 10),
+      navigable('App/Queue', 'app.ts', 20),
+    ]);
+
+    const byLogicalId = index.templateConstructs('App.template.json');
+
+    expect(Object.keys(byLogicalId).sort()).toEqual(['AppBucket', 'AppQueue']);
+    expect(byLogicalId.AppBucket.path).toBe('App/Bucket');
+  });
+
+  test('returns nothing for a template with no constructs', () => {
+    expect(SourceAndTemplateIndex.fromTree([]).templateConstructs('Nope.template.json')).toEqual({});
+  });
+});
+
+/** Collapse a line-to-constructs map to a line-to-paths map, for readable assertions. */
+function paths(byLine: Record<string, WebConstructNode[]>): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(byLine).map(([line, nodes]) => [line, nodes.map((n) => n.path)]));
+}

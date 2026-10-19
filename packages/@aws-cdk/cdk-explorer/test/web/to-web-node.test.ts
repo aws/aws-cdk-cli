@@ -47,7 +47,7 @@ describe('toWebNode', () => {
     const bucket = find(stack, 'S/Bucket')!;
     expect(bucket.type).toBe('AWS::S3::Bucket');
     expect(bucket.templateLocation).toEqual({ file: 'S.template.json', logicalId: 'B123' });
-    expect(bucket.sourceLocation).toEqual({ file: 'lib/stack.ts', line: 12, column: 5 });
+    expect(bucket.sourceLocation).toEqual({ file: 'lib/stack.ts', line: 12 });
   });
 
   test('uses POSIX separators in a nested source path', async () => {
@@ -218,13 +218,13 @@ describe('toWebNode default-child collapse', () => {
         ],
       }],
     });
-    expect(find(withParentLocation, 'S/T')!.sourceLocation).toEqual({ file: 'lib/s.ts', line: 5, column: 2 });
+    expect(find(withParentLocation, 'S/T')!.sourceLocation).toEqual({ file: 'lib/s.ts', line: 5 });
 
     const withoutParentLocation = await webTree({
       sourceFiles: { 'lib/s.ts': '\n'.repeat(120) },
       stacks: [{ id: 'S', resources: [{ path: 'T/Resource', logicalId: 'T1', type: 'AWS::X::Y', at: 'lib/s.ts:99:9' }] }],
     });
-    expect(find(withoutParentLocation, 'S/T')!.sourceLocation).toEqual({ file: 'lib/s.ts', line: 99, column: 9 });
+    expect(find(withoutParentLocation, 'S/T')!.sourceLocation).toEqual({ file: 'lib/s.ts', line: 99 });
   });
 
   test('folds an absorbed default child severity into the parent', async () => {

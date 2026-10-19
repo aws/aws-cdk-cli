@@ -67,10 +67,10 @@ describe('mapViolationsToDiagnostics', () => {
       code: 'no-public-buckets',
       source: 'test-plugin',
     });
-    // 1-based source location to 0-based LSP, then out to the end-of-line
-    // sentinel so the squiggle is visible.
+    // 1-based source location to 0-based LSP: the whole line, from its start
+    // out to the end-of-line sentinel so the squiggle is visible.
     expect(diagnostics[0].range).toEqual({
-      start: { line: 11, character: 4 },
+      start: { line: 11, character: 0 },
       end: { line: 11, character: 2147483647 },
     });
   });

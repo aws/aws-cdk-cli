@@ -205,7 +205,7 @@ describe('construct annotations', () => {
   test('strips the leading slash off the construct path', async () => {
     dir = assemblyWith({ stacks: [{ id: 'S', annotations: [{ level: 'warning', path: '/S/Bucket', message: 'meh' }] }] });
 
-    expect((await loadAll(dir))[0].violations[0].violatingConstructs).toEqual([{ constructPath: 'S/Bucket' }]);
+    expect((await loadAll(dir))[0].violations[0].violatingConstructs).toEqual([expect.objectContaining({ constructPath: 'S/Bucket' })]);
   });
 
   test('groups the same annotation on several constructs into one violation', async () => {
