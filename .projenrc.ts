@@ -1221,7 +1221,7 @@ const cdkExplorer = configureProject(
       '@jridgewell/trace-mapping@^0.3',
       'convert-source-map@^2',
       'json-source-map@^0.6.1',
-      'p-limit',
+      'p-limit@^3',
     ],
     devDeps: [
       '@types/json-source-map@^0.6.0',

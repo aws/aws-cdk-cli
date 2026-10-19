@@ -207,6 +207,7 @@
     },
     {
       "name": "p-limit",
+      "version": "^3",
       "type": "runtime"
     },
     {

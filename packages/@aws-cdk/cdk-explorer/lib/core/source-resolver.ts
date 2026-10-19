@@ -3,6 +3,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import * as convertSourceMap from 'convert-source-map';
+import pLimit from 'p-limit';
 import { type RelativePath, type AssemblyIndexWithSourceLocations, type SourceLocation } from './assembly-index-with-source-locations';
 import { pathToFileURL } from './safe-url';
 
@@ -36,7 +37,6 @@ export class SourceMapResolver {
    * Load and cache source map for a given .js file.
    */
   public async loadSourceMapFor(...jsFiles: RelativePath[]): Promise<void> {
-    const pLimit = (await import('p-limit')).default;
     const limit = pLimit(20); // Limit concurrent source map loads to 10
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
