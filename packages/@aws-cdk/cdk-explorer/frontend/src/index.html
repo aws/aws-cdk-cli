@@ -13,7 +13,7 @@
       /* These are necessary to get the main content pane to scroll properly */
       #toolbarHijack > div { height: 100%; }            /* AppLayoutToolbar's own unstyled wrapper */
       .awsui-context-app-layout-toolbar,
-      .awsui-context-app-layout-toolbar > :first-child { height: 100%; }
+      .awsui-context-app-layout-toolbar > [class*="awsui_root"] { height: 100%; }
 
       /* 1fr rows are minmax(auto, 1fr): let the main grid item shrink below its content */
       .awsui-context-app-layout-toolbar main > div { min-block-size: 0; }
@@ -23,6 +23,9 @@
         max-inline-size: 100em !important;
         overflow: auto;
       }
+
+      .visible-on-hover { visibility: hidden; }
+      .visible-on-hover-trigger:hover .visible-on-hover, .visible-on-hover:hover { visibility: visible; }
     </style>
   </head>
   <body>

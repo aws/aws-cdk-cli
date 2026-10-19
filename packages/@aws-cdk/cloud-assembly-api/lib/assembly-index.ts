@@ -260,12 +260,20 @@ export class AssemblyIndex {
       await scanTemplate.call(this, assemblyRelativeTemplateFile);
     }
 
-    // For every resource, tell it what template it's defined in
+    // For every resource, tell it what template it's defined in by inheriting from its parent scope
     assignTemplateToNode.call(this, this.constructTree, undefined);
 
-    // Record all the template roots so we can do the reverse mapping as well
+    // Record all the template roots so we can do the reverse mapping as well (template -> producer)
+    // Also assign each producer the template file it produces with the special marker logical ID so
+    // we can jump to it in a navigator.
     for (const [hierarchicalId, assemblyRelativeTemplateFile] of Object.entries(this.templateFileFromProducer)) {
       this.templateProducerFromFile[assemblyRelativeTemplateFile] = hierarchicalId;
+
+      const producerResource = this.byPath(hierarchicalId)?.cfnResource;
+      if (producerResource && !producerResource.assemblyRelativeTemplateFile && !producerResource.logicalId) {
+        mutable(producerResource).logicalId = ENTIRE_TEMPLATE_LOGICALID_MARKER;
+        mutable(producerResource).assemblyRelativeTemplateFile = assemblyRelativeTemplateFile;
+      }
     }
 
     async function scanTemplate(this: AssemblyIndex, templateFile: string) {
@@ -433,3 +441,13 @@ function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
 function splitStackTrace(stackTrace: string): string[] {
   return stackTrace.split('\n');
 }
+
+/**
+ * A logical ID marker used to represent the entire template in the construct tree.
+ *
+ * With this we can treat a template producer in the same flow as a "resource", where
+ * the presence of a `logicalId` field indicates that it maps to a CloudFormation template.
+ *
+ * This marker contains characters that are not valid in a regular logical ID so it cannot conflict.
+ */
+export const ENTIRE_TEMPLATE_LOGICALID_MARKER = '<<Template>>';

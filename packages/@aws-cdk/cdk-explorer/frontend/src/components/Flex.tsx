@@ -7,11 +7,13 @@ export interface FlexProps {
   onClick?: () => void;
   onDoubleClick?: () => void;
   className?: string;
+  id?: string;
 }
 
 export const Flex = React.forwardRef<HTMLDivElement, FlexProps>(function Flex(props, ref): JSX.Element {
   return <div
     ref={ref}
+    id={props.id}
     className={props.className}
     title={props.title}
     style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', ...props.style }}

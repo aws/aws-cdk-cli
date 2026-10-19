@@ -127,28 +127,23 @@ function renderItemWithSeverity(
 
   const ptrs = [];
   if (item.sourceLocation) {
-    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '8px', backgroundColor: awsui.colorChartsTeal300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>S</span>);
+    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '9px', backgroundColor: awsui.colorChartsTeal300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>src</span>);
   }
   if (item.templateLocation) {
-    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '8px', backgroundColor: awsui.colorChartsYellow300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>T</span>);
+    ptrs.push(<span style={{ marginLeft: '4px', fontSize: '9px', backgroundColor: awsui.colorChartsYellow300, padding: '1px 4px', color: awsui.colorTextButtonPrimaryHover, borderRadius: '4px' }}>tpl</span>);
   }
 
   const sev = item.highestSeverity && SEVERITY[item.highestSeverity.toLowerCase()];
-  if (sev) {
-    attributes.style.color = sev.color;
-    return <Flex {...attributes} ref={isHighlighted ? scrollToRef : undefined} key={item.path}>
-      <Icon name={sev.icon} ariaLabel={sev.label} />
-      {item.id}
-      {...ptrs}
-    </Flex>;
-  }
+  const icon = sev ? <><Icon name={sev.icon} ariaLabel={sev.label} /><span style={{ marginLeft: '4px' }}></span></> : undefined;
 
   const inh = item.inheritedSeverity && SEVERITY[item.inheritedSeverity.toLowerCase()];
-  if (inh) {
-    attributes.style.color = inh.color;
-  }
+  attributes.style.color = sev?.color ?? inh?.color;
 
-  return <span {...attributes} ref={isHighlighted ? scrollToRef : undefined} key={item.path}>{item.id} {...ptrs}</span>;
+  return <span {...attributes} ref={isHighlighted ? scrollToRef : undefined} key={item.path} className="visible-on-hover-trigger">
+    {icon}
+    {item.id}
+    {ptrs.length > 0 ? <span style={{ marginLeft: '8px' }} className="visible-on-hover" >{...ptrs}</span> : undefined}
+  </span>;
 }
 
 function navigateArgsFromConstructNode(item: WebConstructNode, trigger: NavigateEvent['trigger']): Parameters<NavigateHandler>[0] {

@@ -305,39 +305,40 @@ export function App(): JSX.Element {
           /* ================= Source View =========================== */
           <div style={{ backgroundColor: awsui.colorBackgroundContainerContent, height: '100%', overflow: 'auto' }} id="contentRoot">
             <Tabs
+              fitHeight={true}
+              disableContentPaddings={true}
               tabs={[{
                 label: 'Source View',
                 id: 'source',
-                content: (
-                  <div style={{ padding: '0px 16px' }} id="tabRoot">
-                    <div style={{ marginBottom: '8px' }}>
-                      <Select
-                        placeholder="Source file"
-                        expandToViewport={true}
-                        selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
-                        onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
-                        options={constructIndex.current.sourceFileNames.map(f => ({ label: f, value: f }))}
-                      />
-                    </div>
-                    <div>
-                      {sourceFile ? (
-                        <>
-                          <CodeViewer
-                            content={sourceFile.content}
-                            language={detectLanguage(sourceFile.fileName)}
-                            highlightStart={sourceHighlight?.startLine}
-                            highlightEnd={sourceHighlight?.endLine}
-                            highlightColor={sourceHighlight?.color}
-                            scrollToLine={sourceHighlight?.startLine}
-                            diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
-                            annotations={sourceFileAnnotations}
-                          />
-                        </>
-                      ) : (
-                        <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
-                      )}
-                    </div>
-                  </div>),
+                content: <>
+                  <div style={{ padding: '16px 16px', position: 'sticky', top: '0', backgroundColor: awsui.colorBackgroundContainerContent, zIndex: 1000 }}>
+                    <Select
+                      placeholder="Source file"
+                      expandToViewport={true}
+                      selectedOption={sourceFile?.fileName ? { label: sourceFile.fileName, value: sourceFile.fileName } : null}
+                      onChange={({ detail }) => detail.selectedOption.value ? pickFile(detail.selectedOption.value, 'source') : undefined}
+                      options={constructIndex.current.sourceFileNames.map(f => ({ label: f, value: f }))}
+                    />
+                  </div>
+                  <div style={{ padding: '0px 16px' }}>
+                    {sourceFile ? (
+                      <>
+                        <CodeViewer
+                          content={sourceFile.content}
+                          language={detectLanguage(sourceFile.fileName)}
+                          highlightStart={sourceHighlight?.startLine}
+                          highlightEnd={sourceHighlight?.endLine}
+                          highlightColor={sourceHighlight?.color}
+                          scrollToLine={sourceHighlight?.startLine}
+                          diagnostics={buildDiagnostics(sourceFile.fileName, violations)}
+                          annotations={sourceFileAnnotations}
+                        />
+                      </>
+                    ) : (
+                      <Box color="text-status-inactive">Select a construct from the tree to view source here.</Box>
+                    )}
+                  </div>
+                </>,
               }]}
             />
           </div>
@@ -353,12 +354,13 @@ export function App(): JSX.Element {
               /* ================= Template View =========================== */
               <Tabs
                 fitHeight={true}
+                disableContentPaddings={true}
                 tabs={[{
                   label: 'Template View',
                   id: 'template',
-                  content: (
-                    <div style={{ padding: '0px 16px' }}>
-                      <Flex style={{ marginBottom: '8px' }}>
+                  content: <>
+                    <div style={{ padding: '16px 16px', position: 'sticky', top: '0', backgroundColor: awsui.colorBackgroundContainerContent, zIndex: 1000 }}>
+                      <Flex>
                         <FlexGrow>
                           <Select
                             expandToViewport={true}
@@ -374,25 +376,25 @@ export function App(): JSX.Element {
                           </FlexFix>
                         )}
                       </Flex>
-                      <div>
-                        {templateFile ? (
-                          <TemplateViewer
-                            jsonContent={templateFile.response.content}
-                            resources={templateFile.response.resources}
-                            highlightLogicalId={templateHighlight?.logicalId}
-                            highlightColor={templateHighlight?.color}
-                            onNavigate={onNavigate}
-                            index={constructIndex.current}
-                            templateFile={templateFile.fileName}
-                            violations={violations?.status === 'ok' ? violations.violations : undefined}
-                            format={templateFormat}
-                          />
-                        ) : (
-                          <Box color="text-status-inactive">Select a construct to view its template.</Box>
-                        )}
-                      </div>
                     </div>
-                  ),
+                    <div style={{ padding: '0px 16px' }}>
+                      {templateFile ? (
+                        <TemplateViewer
+                          jsonContent={templateFile.response.content}
+                          resources={templateFile.response.resources}
+                          highlightLogicalId={templateHighlight?.logicalId}
+                          highlightColor={templateHighlight?.color}
+                          onNavigate={onNavigate}
+                          index={constructIndex.current}
+                          templateFile={templateFile.fileName}
+                          violations={violations?.status === 'ok' ? violations.violations : undefined}
+                          format={templateFormat}
+                        />
+                      ) : (
+                        <Box color="text-status-inactive">Select a construct to view its template.</Box>
+                      )}
+                    </div>
+                  </>,
                 }]}
               />
             ),

@@ -45,6 +45,9 @@ export function ViolationsList({ violations, onNavigate }: ViolationsPanelProps)
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px' }}>
               <div style={{ flexGrow: 0, flexShrink: 0, color: colorForSeverity(viol.severity), fontWeight: 'bold', marginRight: '1em', width: '6em' }}>[{displaySev.toUpperCase()}]</div>
               <div style={{ flexGrow: 1 }}>
+                <div style={{ float: 'right', marginLeft: '1em' }}>
+                  {showRuleName && <code style={RULE_NAME_STYLE} title={viol.ruleName}>{viol.ruleName}</code>}
+                </div>
                 <details>
                   <summary style={{ cursor: 'pointer' }}>
                     {title}<br/>
@@ -69,9 +72,6 @@ export function ViolationsList({ violations, onNavigate }: ViolationsPanelProps)
                     </div>
                   ))}
                 </details>
-              </div>
-              <div style={{ flexGrow: 0 }}>
-                {showRuleName && <code style={RULE_NAME_STYLE} title={viol.ruleName}>{viol.ruleName}</code>}
               </div>
             </div>,
         };

@@ -13,7 +13,7 @@ import { readAssemblyDirectory } from '../core/from-cdk-app-directory';
 import { resolveAllResourceRanges } from '../core/template-ranges';
 import type { Handler, Response, Router } from '../expressy';
 import { createRouter } from '../expressy';
-import type { LineRange, TemplateResource, TemplateResponse, TreeResponse, ViolationsResponse, WebConstructNode, WebSourceLocation, WebViolation, WebViolationOccurrence } from '../web-shared/protocol';
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER, type LineRange, type TemplateResource, type TemplateResponse, type TreeResponse, type ViolationsResponse, type WebConstructNode, type WebSourceLocation, type WebViolation, type WebViolationOccurrence } from '../web-shared/protocol';
 import { classifyReportSeverity, displaySeverity, violationComparator, severityRank } from '../web-shared/severity';
 
 /** Largest file the viewer returns inline, to avoid buffering huge artifacts into memory and the response. */
@@ -387,6 +387,8 @@ function buildTemplateResources(
 
   const lineOffsets = computeLineOffsets(content);
   const resources: Record<string, TemplateResource> = {};
+
+  resources[ENTIRE_TEMPLATE_LOGICALID_MARKER] = { block: { startLine: 1, endLine: content.split('\n').length } };
 
   for (const [logicalId, ranges] of Object.entries(allRanges)) {
     const block = offsetRangeToLineRange(ranges.block, lineOffsets);

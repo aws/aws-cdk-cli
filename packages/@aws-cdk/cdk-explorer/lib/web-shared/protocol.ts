@@ -170,3 +170,13 @@ export interface WebViolation {
 export type ViolationsResponse =
   | { readonly status: 'ok'; readonly violations: readonly WebViolation[] }
   | { readonly status: 'not-synthesized' };
+
+/**
+ * A logical ID marker used to represent the entire template in the construct tree.
+ *
+ * With this we can treat a template producer in the same flow as a "resource", where
+ * the presence of a `logicalId` field indicates that it maps to a CloudFormation template.
+ *
+ * This marker contains characters that are not valid in a regular logical ID so it cannot conflict.
+ */
+export const ENTIRE_TEMPLATE_LOGICALID_MARKER = '<<Template>>';

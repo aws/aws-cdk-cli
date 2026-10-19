@@ -4,7 +4,7 @@ import Link from '@cloudscape-design/components/link';
 import * as React from 'react';
 import { isNode, isScalar, isMap, LineCounter, parseDocument, stringify } from 'yaml';
 import { type LineAnnotation, CodeViewer, type Diagnostic } from './CodeViewer';
-import type { TemplateResource, WebViolation } from '../../../lib/web-shared/protocol';
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER, type TemplateResource, type WebViolation } from '../../../lib/web-shared/protocol';
 import { type NavigateHandler } from '../nav-types';
 import { type SourceAndTemplateIndex } from '../source-and-template-index';
 
@@ -121,6 +121,11 @@ interface YamlResult {
   sections: ResourceSection[];
 }
 
+/**
+ * Convert JSON CloudFormation template content to YAML and recalculate the location of resource blocks in the template.
+ *
+ * FIXME: This should be done on the server.
+ */
 function jsonToYaml(jsonContent: string): YamlResult {
   let parsed: unknown;
   try {
@@ -138,19 +143,23 @@ function jsonToYaml(jsonContent: string): YamlResult {
   const doc = parseDocument(displayContent, { lineCounter });
 
   const displayResources: Record<string, TemplateResource> = {};
-  const resources = doc.get('Resources');
-  if (isMap(resources)) {
-    for (const pair of resources.items) {
-      const key = pair.key;
-      const value = pair.value;
-      if (!isScalar(key) || !isNode(value) || key.range == null || value.range == null) {
-        continue;
+  displayResources[ENTIRE_TEMPLATE_LOGICALID_MARKER] = { block: { startLine: 1, endLine: displayContent.split('\n').length } };
+
+  for (const section of ['Parameters', 'Conditions', 'Mappings', 'Outputs', 'Resources']) {
+    const elements = doc.get(section);
+    if (isMap(elements)) {
+      for (const pair of elements.items) {
+        const key = pair.key;
+        const value = pair.value;
+        if (!isScalar(key) || !isNode(value) || key.range == null || value.range == null) {
+          continue;
+        }
+        // range is [valueStart, valueEnd, nodeEnd]; a resource block spans from its
+        // logical-id key line through the end of its value.
+        const startLine = lineCounter.linePos(key.range[0]).line;
+        const endLine = lineCounter.linePos(value.range[1]).line;
+        displayResources[String(key.value)] = { block: { startLine, endLine } };
       }
-      // range is [valueStart, valueEnd, nodeEnd]; a resource block spans from its
-      // logical-id key line through the end of its value.
-      const startLine = lineCounter.linePos(key.range[0]).line;
-      const endLine = lineCounter.linePos(value.range[1]).line;
-      displayResources[String(key.value)] = { block: { startLine, endLine } };
     }
   }
 
