@@ -3,11 +3,13 @@ import * as fs from 'node:fs/promises';
 import * as os from 'os';
 import * as pathlib from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { USER_INTERRUPTED_CODE } from './error';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink/sink-interface';
+import { withTelemetryState } from './telemetry-state';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
 import { detectCiSystem } from '../ci-systems';
@@ -16,8 +18,6 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
-import { USER_INTERRUPTED_CODE } from './error';
-import { withTelemetryState } from './telemetry-state';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
