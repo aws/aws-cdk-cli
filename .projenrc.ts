@@ -599,10 +599,8 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
-      '@types/json-source-map@^0.6.0',
     ],
     deps: [
-      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
