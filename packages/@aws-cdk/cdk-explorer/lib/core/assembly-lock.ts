@@ -19,7 +19,7 @@ export type AcquireAssemblyLock = (assemblyDir: string) => Promise<AssemblyLock>
 export function toolkitAssemblyLock(toolkit: Toolkit): AcquireAssemblyLock {
   return async (assemblyDir) => {
     const cx = await toolkit.fromAssemblyDirectory(assemblyDir, { failOnMissingContext: false });
-    const readable = await cx.produce();
+    const readable = await cx.produce({});
     return { release: () => readable.dispose() };
   };
 }

@@ -9,6 +9,7 @@ import { CachedCloudAssembly } from './cached-source';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
 import { execInChildProcess } from './private/exec';
+import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 import { ExecutionEnvironment, assemblyFromDirectory, parametersFromSynthOptions, writeContextToEnv } from './private/prepare-source';
 import { ReadableCloudAssembly } from './private/readable-assembly';
 import type { ICloudAssemblySource } from './types';
@@ -16,7 +17,6 @@ import type { ToolkitServices } from '../../toolkit/private';
 import { ToolkitError, AssemblyError } from '../../toolkit/toolkit-error';
 import { noUndefined } from '../../util';
 import { IO } from '../io/private';
-import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
 
 /**
  * Properties the builder function receives.
@@ -44,6 +44,23 @@ export interface AssemblyBuilderProps {
    * recommended, as their meaning may change without notice.
    */
   readonly env: Record<string, string>;
+
+  /**
+   * Signal to indicate that the app building should be stopped.
+   *
+   * If the App Builder implementation contains a loop or long-running operation, it should
+   * add code to check the abort signal and terminate the operation if it has been triggered.
+   *
+   * The recommended way of handling this signal is to periodically check `abort?.aborted`
+   * within long-running loops or operations and throw an exception if you find it to be `true`.
+   * You may also just return early; if the abort signal has been triggered but no exception
+   * has been thrown yet `fromAssemblyBuilder()` will throw the exception instead.
+   *
+   * It is the AssemblyBuilder implementor's responsibility to respect this signal;
+   * the toolkit will not enforce it and won't magically return the control flow
+   * while the builder is still running.
+   */
+  readonly abort?: AbortSignal;
 }
 
 /**
@@ -347,7 +364,7 @@ export abstract class CloudAssemblySourceBuilder {
 
     return new ContextAwareCloudAssemblySource(
       {
-        produce: async () => {
+        produce: async (produceOptions) => {
           await using execution = await ExecutionEnvironment.create(services, {
             outdir,
             resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
@@ -377,7 +394,12 @@ export abstract class CloudAssemblySourceBuilder {
               outdir: execution.outdir,
               context: fullContext,
               env,
+              abort: produceOptions.abort,
             });
+
+            if (produceOptions.abort?.aborted) {
+              throw new ToolkitError('Aborted', 'Assembly builder aborted');
+            }
           } catch (error: unknown) {
             // re-throw toolkit errors unchanged
             if (ToolkitError.isToolkitError(error)) {
@@ -499,7 +521,7 @@ export abstract class CloudAssemblySourceBuilder {
 
     return new ContextAwareCloudAssemblySource(
       {
-        produce: async () => {
+        produce: async (produceOptions) => {
           try {
             fs.mkdirpSync(outdir);
           } catch (e: any) {
@@ -536,6 +558,7 @@ export abstract class CloudAssemblySourceBuilder {
           const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
             await execInChildProcess(commandLine, {
+              abort: produceOptions?.abort,
               eventPublisher: async (type, line) => {
                 switch (type) {
                   case 'data_stdout':

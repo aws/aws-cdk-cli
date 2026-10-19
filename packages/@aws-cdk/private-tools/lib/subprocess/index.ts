@@ -119,6 +119,13 @@ export interface RunOptions {
    * @default true
    */
   readonly collect?: boolean;
+
+  /**
+   * Kill the child process if this signal is triggered.
+   *
+   * @default - No aborting
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface RunResult {
@@ -363,6 +370,10 @@ function spawnOptions(options: RunOptions): child_process.SpawnOptions {
 }
 
 function monitor(child: child_process.ChildProcess, displayCommand: string, options: RunOptions): Promise<RunResult> {
+  function killChild() {
+    child.kill();
+  }
+
   return new Promise<RunResult>((resolve, reject) => {
     const collect = options.collect ?? true;
     const stdout = new Array<string>();
@@ -425,6 +436,7 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
     attach(child.stderr, 'stderr', stderr);
 
     child.once('error', (cause) => {
+      options.abort?.removeEventListener('abort', killChild);
       settle(() => reject(new SubprocessError({
         command: displayCommand,
         exitCode: null,
@@ -436,6 +448,7 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
     });
 
     child.once('close', (exitCode, signal) => {
+      options.abort?.removeEventListener('abort', killChild);
       lines?.flush();
       settle(() => {
         if (exitCode === 0) {
@@ -451,6 +464,13 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
         }
       });
     });
+
+    if (options?.abort?.aborted) {
+      // If the signal comes in aborted the event listener below won't fire anymore, so do it now.
+      killChild();
+    } else {
+      options.abort?.addEventListener('abort', killChild);
+    }
   });
 }
 

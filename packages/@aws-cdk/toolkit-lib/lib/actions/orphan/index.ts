@@ -16,4 +16,13 @@ export interface OrphanOptions {
    * Toolkit stack name for bootstrap resources.
    */
   readonly toolkitStackName?: string;
+
+  /**
+   * Cancel the synth operation
+   *
+   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }

@@ -17,6 +17,13 @@ export interface ValidateOptions {
    * @default true
    */
   readonly online?: boolean;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 /**
