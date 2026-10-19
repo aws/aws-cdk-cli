@@ -21,7 +21,7 @@ describe('fromAssemblyBuilder', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    await using result = await cx.produce();
+    await using result = await cx.produce({});
     const assembly = result.cloudAssembly;
 
     // THEN
@@ -33,7 +33,7 @@ describe('fromAssemblyBuilder', () => {
     const cx = await builderFixture(toolkit, 'external-context', {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
@@ -91,7 +91,7 @@ describe('fromAssemblyBuilder', () => {
 
     // WHEN
     try {
-      await cx.produce();
+      await cx.produce({});
     } catch (err: any) {
       // THEN
       expect(ToolkitError.isAssemblyError(err)).toBe(true);
@@ -132,7 +132,7 @@ describe('fromAssemblyBuilder', () => {
     const cx = await appFixture(toolkit, 'uses-context-provider');
 
     // WHEN
-    await using _ = await cx.produce();
+    await using _ = await cx.produce({});
 
     // THEN - no exception
 
@@ -152,7 +152,7 @@ describe('fromAssemblyBuilder', () => {
     });
 
     // WHEN
-    await expect(cx.produce()).rejects.toThrow();
+    await expect(cx.produce({})).rejects.toThrow();
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
@@ -185,10 +185,80 @@ describe('fromAssemblyBuilder', () => {
         resolveDefaultEnvironment,
       });
 
-      await using _ = await cx.produce();
+      await using _ = await cx.produce({});
 
       // THEN
       expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
+    });
+  });
+
+  describe('abort', () => {
+    /**
+     * Unlike a CDK app in a subprocess, a builder runs in-process and cannot be
+     * killed from outside. So respecting the signal is the builder's job, and
+     * `fromAssemblyBuilder` only guarantees the outcome: once the signal has
+     * fired, `produce()` fails even if the builder itself reported success.
+     */
+    test('a builder that ignores the abort and returns normally still fails', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const cx = await toolkit.fromAssemblyBuilder(async () => new App().synth());
+
+      // WHEN / THEN - the builder succeeded, the production did not
+      await expect(cx.produce({ abort: controller.signal })).rejects.toThrow(/Assembly builder aborted/);
+    });
+
+    test('the abort is reported as a toolkit error, not as a builder failure', async () => {
+      // The builder did not fail, so classifying this as an AssemblyError would
+      // point a caller at the user's code for something the caller itself caused.
+      const controller = new AbortController();
+      controller.abort();
+      const cx = await toolkit.fromAssemblyBuilder(async () => new App().synth());
+
+      const error = await cx.produce({ abort: controller.signal }).catch((e) => e);
+
+      expect(ToolkitError.isToolkitError(error)).toBe(true);
+      expect(ToolkitError.isAssemblyError(error)).toBe(false);
+      expect(error.name).toBe('Aborted');
+    });
+
+    test('the builder is handed the signal so it can bail out itself', async () => {
+      // The recommended pattern is checking `abort?.aborted` inside long loops;
+      // that is only possible if the signal actually reaches the builder.
+      const controller = new AbortController();
+      controller.abort();
+      let seen: boolean | undefined;
+      const cx = await toolkit.fromAssemblyBuilder(async (props) => {
+        seen = props.abort?.aborted;
+        return new App().synth();
+      });
+
+      await expect(cx.produce({ abort: controller.signal })).rejects.toThrow();
+
+      expect(seen).toBe(true);
+    });
+
+    test("a builder's own failure is still reported as a builder failure when aborted", async () => {
+      // An abort must not mask a real error in the user's code: the cause is
+      // what tells them what to fix.
+      const controller = new AbortController();
+      const cx = await toolkit.fromAssemblyBuilder(async () => {
+        controller.abort();
+        throw new Error('a wild error appeared');
+      });
+
+      const error = await cx.produce({ abort: controller.signal }).catch((e) => e);
+
+      expect(ToolkitError.isAssemblyError(error)).toBe(true);
+      expect(error.cause?.message).toContain('a wild error appeared');
+    });
+
+    test('an un-aborted signal leaves a normal build alone', async () => {
+      const cx = await builderFixture(toolkit, 'two-empty-stacks');
+
+      await using result = await cx.produce({ abort: new AbortController().signal });
+
+      expect(result.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
     });
   });
 });
@@ -197,7 +267,7 @@ describe('fromCdkApp', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'two-empty-stacks');
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -217,7 +287,7 @@ describe('fromCdkApp', () => {
         disposeOutdir: true,
       });
 
-      await using assembly = await cx.produce();
+      await using assembly = await cx.produce({});
 
       // THEN - synth succeeds
       expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -257,7 +327,7 @@ describe('fromCdkApp', () => {
         'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
       }),
     });
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
@@ -271,7 +341,7 @@ describe('fromCdkApp', () => {
         STACK_NAME: 'SomeStackName',
       },
     });
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
     const stack = assembly.cloudAssembly.getStackByName('SomeStackName').template;
 
     // THEN
@@ -282,7 +352,7 @@ describe('fromCdkApp', () => {
     // WHEN
     const cx = await appFixture(toolkit, 'validation-error');
     try {
-      await cx.produce();
+      await cx.produce({});
     } catch {
       // we are just interested in the output for this test
     }
@@ -298,7 +368,7 @@ describe('fromCdkApp', () => {
   test('will capture all output', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'console-output');
-    await using _ = await cx.produce();
+    await using _ = await cx.produce({});
 
     // THEN
     ['one', 'two', 'three', 'four'].forEach((line) => {
@@ -318,11 +388,101 @@ describe('fromCdkApp', () => {
     const cx = await toolkit.fromCdkApp('false', { outdir: out.dir });
 
     // WHEN
-    await expect(cx.produce()).rejects.toThrow(/error 1/);
+    await expect(cx.produce({})).rejects.toThrow(/error 1/);
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
     expect(await (lock! as any)._currentReaders()).toEqual([]);
+  });
+
+  describe('abort', () => {
+    /**
+     * A CDK app that never finishes on its own, so the only way `produce()`
+     * settles is if the abort signal kills the subprocess. A real app exits too
+     * quickly to abort reliably.
+     */
+    const HANGING_APP = 'node -e "setInterval(() => {}, 1000)"';
+
+    /**
+     * Reject with a legible message if `promise` has not settled in time, rather
+     * than letting the test sit until jest's own timeout. A hang is the failure
+     * mode these tests guard against, so it has to fail fast and say why.
+     */
+    function withinMs<A>(promise: Promise<A>, ms: number): Promise<A> {
+      return Promise.race([
+        promise,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error(`promise did not settle within ${ms}ms`)), ms).unref()),
+      ]);
+    }
+
+    test('aborting the signal kills a running app', async () => {
+      using out = autoCleanOutDir();
+      const cx = await toolkit.fromCdkApp(HANGING_APP, { outdir: out.dir });
+      const controller = new AbortController();
+
+      // WHEN - the app is already running when the abort arrives
+      const produced = cx.produce({ abort: controller.signal });
+      setTimeout(() => controller.abort(), 200).unref();
+
+      // THEN - the subprocess is signalled, surfacing as an assembly error
+      await expect(withinMs(produced, 10_000)).rejects.toThrow(/killed with signal/);
+    });
+
+    test('aborting leaves the directory unlocked', async () => {
+      using out = autoCleanOutDir();
+      const lock = new RWLock(out.dir);
+      const cx = await toolkit.fromCdkApp(HANGING_APP, { outdir: out.dir });
+      const controller = new AbortController();
+
+      // WHEN
+      const produced = cx.produce({ abort: controller.signal });
+      setTimeout(() => controller.abort(), 200).unref();
+      await expect(withinMs(produced, 10_000)).rejects.toThrow(/killed with signal/);
+
+      // THEN - an abort must clean up after itself as thoroughly as a failure
+      // does, or the next synth self-conflicts on a stale lock.
+      expect(await (lock! as any)._currentWriter()).toBeUndefined();
+      expect(await (lock! as any)._currentReaders()).toEqual([]);
+    });
+
+    test('aborting during synth kills the app', async () => {
+      // The abort has to survive the trip through `synth()`, which is how
+      // callers actually reach `produce()`.
+      using out = autoCleanOutDir();
+      const cx = await toolkit.fromCdkApp(HANGING_APP, { outdir: out.dir });
+      const controller = new AbortController();
+
+      // WHEN
+      const synthed = toolkit.synth(cx, { abort: controller.signal });
+      setTimeout(() => controller.abort(), 200).unref();
+
+      // THEN
+      await expect(withinMs(synthed, 10_000)).rejects.toThrow(/killed with signal/);
+    });
+
+    test('a signal aborted before produce starts kills the app', async () => {
+      // A caller that shuts down between building the source and producing it
+      // hands over a signal that has already fired. Attaching an 'abort'
+      // listener to such a signal never fires, so the already-aborted state has
+      // to be checked up front or the app runs unsupervised forever.
+      using out = autoCleanOutDir();
+      const cx = await toolkit.fromCdkApp(HANGING_APP, { outdir: out.dir });
+
+      // WHEN / THEN - must reject with the abort, not merely fail to settle
+      await expect(withinMs(cx.produce({ abort: AbortSignal.abort() }), 5_000))
+        .rejects.toThrow(/killed with signal/);
+    });
+
+    test('an un-aborted signal does not disturb a normal synth', async () => {
+      // Guards the common case: passing a signal that never fires must behave
+      // exactly like passing none.
+      const cx = await appFixture(toolkit, 'two-empty-stacks');
+
+      await using assembly = await cx.produce({ abort: new AbortController().signal });
+
+      expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
+    });
   });
 
   describe('resolveDefaultEnvironment', () => {
@@ -354,7 +514,7 @@ describe('fromCdkApp', () => {
       });
 
       try {
-        await using _ = await cx.produce();
+        await using _ = await cx.produce({});
       } catch {
         // we expect this app to throw
       }
@@ -369,7 +529,7 @@ describe('fromAssemblyDirectory', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -380,7 +540,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future');
 
     // THEN
-    await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+    await expect(() => cx.produce({})).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
   });
 
   test('fails on missing context', async () => {
@@ -388,7 +548,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'assembly-missing-context');
 
     // THEN
-    await expect(() => cx.produce()).rejects.toThrow(/Assembly contains missing context./);
+    await expect(() => cx.produce({})).rejects.toThrow(/Assembly contains missing context./);
   });
 
   test('no fail on missing context', async () => {
@@ -396,7 +556,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'assembly-missing-context', { failOnMissingContext: false });
 
     // THEN
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
     expect(assembly.cloudAssembly.manifest.missing?.length).toEqual(1);
   });
 
@@ -407,7 +567,7 @@ describe('fromAssemblyDirectory', () => {
         checkVersion: false,
       },
     });
-    await using assembly = await cx.produce();
+    await using assembly = await cx.produce({});
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);

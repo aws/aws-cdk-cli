@@ -3,8 +3,15 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 export interface ICloudAssemblySource {
   /**
    * Produce a CloudAssembly from the current source
+   *
+   * Users of this library should not call this function. Instead, it will
+   * be called by `toolkit.synth()`.
    */
-  produce(): Promise<IReadableCloudAssembly>;
+  produce(options: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly>;
+}
+
+export interface CloudAssemblyProductionOptions {
+  readonly abort?: AbortSignal;
 }
 
 /**
