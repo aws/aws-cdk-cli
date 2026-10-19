@@ -101,6 +101,11 @@ function templateResources(tpl: Record<string, any>): Record<string, any> {
   return tpl.Resources ?? {};
 }
 
+function changeSetDeploymentConfig(config: Stack['DeploymentConfig']): Stack['DeploymentConfig'] {
+  const mode = config?.Mode ?? 'STANDARD';
+  return { Mode: mode, DisableRollback: config?.DisableRollback ?? mode === 'EXPRESS' };
+}
+
 // ---------------------------------------------------------------------------
 // Internal types
 // ---------------------------------------------------------------------------
@@ -119,6 +124,7 @@ interface InMemoryChangeSet {
   tags: Tag[];
   capabilities: string[];
   description?: string;
+  deploymentConfig?: Stack['DeploymentConfig'];
   changes: Change[];
   creationTime: Date;
   changeSetFailureEvents: OperationEvent[];
@@ -141,6 +147,7 @@ interface InMemoryStack {
   outputs: { OutputKey: string; OutputValue: string }[];
   enableTerminationProtection: boolean;
   roleArn?: string;
+  deploymentConfig?: Stack['DeploymentConfig'];
   creationTime: Date;
   lastUpdatedTime?: Date;
   deletionTime?: Date;
@@ -312,6 +319,7 @@ export class FakeCloudFormation {
       rollbackConfiguration: input.RollbackConfiguration,
       enableTerminationProtection: input.EnableTerminationProtection ?? false,
       roleArn: input.RoleARN,
+      deploymentConfig: input.DeploymentConfig,
       creationTime: input.CreationTime ?? new Date(),
       lastUpdatedTime: input.LastUpdatedTime,
       deletionTime: input.DeletionTime,
@@ -438,6 +446,7 @@ export class FakeCloudFormation {
     Tags?: Tag[];
     Capabilities?: string[];
     Description?: string;
+    DeploymentConfig?: Stack['DeploymentConfig'];
   }): CreateChangeSetCommandOutput {
     const stackName = input.StackName;
     const stack = this.requireStack(stackName);
@@ -472,6 +481,7 @@ export class FakeCloudFormation {
       tags: input.Tags ?? [],
       capabilities: input.Capabilities ?? [],
       description: input.Description,
+      deploymentConfig: input.DeploymentConfig,
       changes: changes ?? [],
       creationTime: new Date(),
       changeSetFailureEvents: [],
@@ -514,6 +524,7 @@ export class FakeCloudFormation {
       Capabilities: cs.capabilities as any,
       Description: cs.description,
       CreationTime: cs.creationTime,
+      DeploymentConfig: changeSetDeploymentConfig(cs.deploymentConfig),
       NextToken: nextToken,
       $metadata: {},
     };
@@ -867,6 +878,7 @@ export class FakeCloudFormation {
       tags: input.Tags ?? [],
       capabilities: (input.Capabilities as string[]) ?? [],
       description: input.Description,
+      deploymentConfig: input.DeploymentConfig,
       changes: [],
       creationTime: new Date(),
       changeSetFailureEvents: [],
@@ -1187,6 +1199,7 @@ export class FakeCloudFormation {
       RollbackConfiguration: stack.rollbackConfiguration,
       EnableTerminationProtection: stack.enableTerminationProtection,
       RoleARN: stack.roleArn,
+      DeploymentConfig: stack.deploymentConfig,
     };
   }
 

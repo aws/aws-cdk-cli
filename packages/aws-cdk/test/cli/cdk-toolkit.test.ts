@@ -69,7 +69,7 @@ import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
-import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, ExecuteChangeSetCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
@@ -2954,6 +2954,63 @@ describe('rollback', () => {
     expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ deploymentMethod: expect.objectContaining({ execute: false }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: false, deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(3, expect.objectContaining({ rollback: true }));
+  });
+
+  test('a stack stuck after an express deployment is refused with --force, without a prompt, rollback or execution', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        MockStack.MOCK_STACK_C,
+      ],
+    });
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolves({
+        Stacks: [{
+          StackName: 'Test-Stack-C',
+          StackId: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-C/some-id',
+          StackStatus: StackStatus.UPDATE_FAILED,
+          CreationTime: new Date(),
+          DeploymentConfig: { Mode: 'EXPRESS', DisableRollback: true },
+        }],
+      })
+      .on(GetTemplateCommand)
+      .resolves({ TemplateBody: JSON.stringify({}) });
+
+    const deployments = new Deployments({
+      sdkProvider: cloudExecutable.sdkProvider,
+      ioHelper,
+    });
+    const rollbackStack = jest.spyOn(deployments, 'rollbackStack');
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments,
+    });
+
+    // WHEN
+    const deployment = toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      express: true,
+      rollback: true,
+      requireApproval: RequireApproval.NEVER,
+      force: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toMatchObject({
+      name: 'ExpressStackFailPaused',
+      cause: expect.objectContaining({
+        message: expect.stringContaining('cdk deploy --express --no-rollback'),
+      }),
+    });
+    expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_I5050' }));
+    expect(rollbackStack).not.toHaveBeenCalled();
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
   });
 });
 

@@ -34,6 +34,7 @@ Calibrate honestly: confidence is not severity (rate the harm when the path is r
 - **Pre-existing / not introduced by this PR.**
 - **Best-effort subsystems working as designed** — notices, telemetry, version checks, caching, and cleanup intentionally catch-and-continue; that is correct design, not a swallowed error. Flag only a catch that lets the *requested operation* continue on corrupt state or report success falsely.
 - **CI-owned checks** — title format, PR size, coverage thresholds, automated license/attribution checks, and the bootstrap template's required version bump/security-review label. Deterministic gates enforce these; repeating them is noise.
+- **Integ tests the author has not run live** — PR CI runs integration tests automatically via Atmosphere ([`AGENTS.md § Integration Tests`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#integration-tests)). A PR description saying a test was not run locally or against a live account is not a finding; hold the test to `[CLI-TEST-INTEG]`'s invariants instead.
 - **Test scaffolding** — casts in tests/mocks, `expect.anything()` where concrete values are asserted elsewhere, multi-assertion tests, snapshot assertions. These are not defects.
 - **Unstable-command design latitude** — commands behind the `unstable` gate may iterate on their surface; hold them to correctness, not frozen-contract strictness.
 - **Projen-regenerated diffs accompanying their source change** (`.projenrc.ts` / `cli-config.ts`) — expected, not a finding.

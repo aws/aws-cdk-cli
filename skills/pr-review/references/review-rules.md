@@ -5,6 +5,7 @@ Rows are grouped by defect family — the family names are the `category` enum i
 ## compatibility
 
 **[CLI-COMPAT-BREAKING] (BLOCKING)** — No backwards-incompatible change to an exported function, class, or type, to observable default CLI behavior, or to an existing coded IoHost message's `code`/`data` payload. toolkit-lib, cloud-assembly-schema, and coded messages have programmatic consumers; a slice of customers breaks on every "harmless" change. See [`AGENTS.md § Your Role`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#your-role) ("backwards compatibility is sacred"), [`message-registry.md § Backwards compatibility`](https://github.com/aws/aws-cdk-cli/blob/main/packages/@aws-cdk/toolkit-lib/docs/message-registry.md) (coded messages: additive, type-compatible changes only; uncoded messages and text/level/order are free to change).
+
 - **Detection signals (doc-absent detail):** changed signatures or removed exports; modified defaults; a behavioral diff that must *edit existing tests* to pass — a signal to investigate, not proof (test-only refactors legitimately edit tests).
 - **False-positive guard:** a type-compatible wording change inside a string-valued `data` field is not automatically a contract break. Name the documented semantic guarantee or a concrete machine consumer before flagging it.
 - **Concrete fix:** additive change beside the old; observable behavior changes gated behind a feature flag defaulting to old behavior ([`AGENTS.md § Feature Flags`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#feature-flags)).
@@ -18,6 +19,7 @@ Rows are grouped by defect family — the family names are the `category` enum i
 ## architecture
 
 **[CLI-ARCH-GENERATED] (BLOCKING)** — Generated files are never hand-edited: `parse-command-line-arguments.ts` / `user-input.ts` (regenerate from `cli-config.ts`), `cloud-assembly-schema/schema/*.json`, and all projen outputs (edit `.projenrc.ts` / `projenrc/*`). A hand edit is silently overwritten by the next regeneration, so the "fix" evaporates. See [`AGENTS.md § Projen`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#projen--project-configuration) and [`§ Anti-Patterns`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#anti-patterns--things-not-to-do).
+
 - **False-positive guard:** regenerated diffs accompanying their source change are expected; the finding is a generated diff with no source change beside it.
 
 **[CLI-ARCH-LAYERING] (RECOMMENDED)** *(conditional — BLOCKING when the misplacement creates an accidental public export or duplicates a core execution path such as deploy)* — Business logic belongs in toolkit-lib; `packages/aws-cdk` is a thin frontend (arg parsing, rendering); toolkit-lib never mentions command-line arguments or makes rendering decisions. Wrong-layer logic is invisible to programmatic consumers and couples the backend to one frontend. Also: no accidental exports — internal types get `@internal` or `private/` modules; toolkit-lib's public surface is `lib/index.ts`, tracked by API Extractor. See [`AGENTS.md § Architecture`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#architecture), [`§ API Extractor`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#api-extractor-toolkit-lib).
@@ -27,6 +29,7 @@ Rows are grouped by defect family — the family names are the `category` enum i
 ## errors-and-ux
 
 **[CLI-ERR-SWALLOW] (BLOCKING)** — No error handling that lets the *requested operation* continue on corrupt state or report success falsely: swallowed catches on the deploy/synth/diff path, failures whispered at debug level while execution continues, `?? fallback` that guesses a broken invariant. CDK errors on the primary path are unrecoverable; proceeding is lying. See [`AGENTS.md § Error Handling`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#error-handling).
+
 - **Carve-out:** best-effort subsystems (notices, telemetry, version checks, caching, cleanup) intentionally catch-and-continue — that is correct design, not a finding.
 - **Default (doc-absent detail):** on the primary path, throw; not-throwing deserves a comment.
 
@@ -40,11 +43,17 @@ Rows are grouped by defect family — the family names are the `category` enum i
 
 **[CLI-TEST-INTEG] (RECOMMENDED)** *(conditional — BLOCKING when a test leaks cloud resources with no cleanup path)* — Integ-test invariants from [`AGENTS.md § Integration Tests`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#integration-tests): one `integTest` per `*.integtest.ts` file (the runner parallelizes by file); prefer a dedicated fixture app over extending the shared default app; resources created directly via SDK carry `{ Tags: fixture.aws.apiTags }` and are cleaned up in `try/finally`; verify preconditions so the test cannot silently pass. Unit tests that mutate global state restore it (`finally` / `withEnv`-style helpers) — this repo runs tests randomized.
 
+- **False-positive guard:** PR CI runs integ tests automatically via Atmosphere ([`AGENTS.md § Integration Tests`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#integration-tests)). Never ask the author to run a test in their own AWS account, and do not treat "not run live" in the PR description as a `[CLI-VERIFY-CLAIMS]` gap.
+
 ## code-quality
 
 **[CLI-CODE-QUALITY] (RECOMMENDED)** *(conditional — BLOCKING when fire-and-forget work can hang the user's hot path with no timeout)* — CDK-CLI-specific quality bars, flagged only when they conceal a concrete defect: an `as any` in *production* code that hides a real type error (casts in tests/mocks are fine — cast to the concrete known type where possible); fire-and-forget work (telemetry, notices) never awaited on the hot path — `void` with a comment and a bounded timeout; retries use standard exponential backoff with jitter, never hand-rolled; SDK clients via `SdkProvider`, never instantiated in business logic ([`AGENTS.md § AWS SDK Usage`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#aws-sdk-usage)); reuse an existing monorepo helper over a parallel implementation — cite the existing one.
 
-**[CLI-CODE-ARTIFACTS] (RECOMMENDED)** — Objective leftovers are removed before merge: commented-out code, debug files, unused constants/params, stale hunks from earlier PR iterations, comments that restate the code or narrate the PR's history instead of the current contract. Judge the artifact, not the authorship — "reads AI-generated" is not a finding. See [`AGENTS.md § Anti-Patterns`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#anti-patterns--things-not-to-do).
+- **Duplicated logic (doc-absent detail):** flag new code that re-implements something the repo already does elsewhere — paging through an SDK response, merging responses, retrying — even when the new code works. Two copies drift apart: the next fix goes into one and not the other. Point to the existing code by file and function (e.g. `describeOnce()` in `toolkit-lib/lib/api/change-sets/change-set-describer.ts` already pages through `NextToken`), and read it first to confirm it fits.
+
+**[CLI-CODE-ARTIFACTS] (RECOMMENDED)** *(conditional — OPTIONAL when the artifact is a comment the diff made inaccurate)* — Objective leftovers are removed before merge: commented-out code, debug files, unused constants/params, stale hunks from earlier PR iterations, comments that restate the code or narrate the PR's history instead of the current contract. Judge the artifact, not the authorship — "reads AI-generated" is not a finding. See [`AGENTS.md § Anti-Patterns`](https://github.com/aws/aws-cdk-cli/blob/main/AGENTS.md#anti-patterns--things-not-to-do).
+
+- **Inaccurate comments (doc-absent detail):** an artifact, not a cosmetic — a comment the diff made wrong misleads the next reader: a doc comment separated from the declaration it describes; a version comment that does not match the pinned action SHA (check the upstream tag before flagging).
 
 ## verification
 
