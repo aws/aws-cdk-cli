@@ -1,257 +1,303 @@
-import fs from 'fs';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { SourceMapResolver, isWithinRoot } from '../../lib/core/source-resolver';
+import { AssemblyIndex } from '@aws-cdk/cloud-assembly-api';
+import {
+  AssemblyIndexWithSourceLocations,
+  type RelativePath,
+  type SourceLocation,
+} from '../../lib/core/assembly-index-with-source-locations';
+import { SourceMapResolver } from '../../lib/core/source-resolver';
 
-const SOURCE_MAPS_DIR = path.join(__dirname, '..', '_fixtures', 'source-maps');
-const SAMPLE_JS = path.join(SOURCE_MAPS_DIR, 'sample.js');
-const SAMPLE_MAP = path.join(SOURCE_MAPS_DIR, 'sample.js.map');
+/**
+ * `reverseMapJs` maps a `.js` location back to the `.ts` it was compiled from,
+ * which is what lets the explorer point at authored source rather than at
+ * compiler output.
+ *
+ * Reading is split from mapping: `loadSourceMapFor` does all the I/O up front
+ * (and collects any warnings), after which `reverseMapJs` is a synchronous
+ * lookup that returns the location unchanged for anything it has no map for.
+ *
+ * Everything crossing this boundary is app-relative (`RelativePath`), both in
+ * and out, and every file read is bounded to the app dir — the paths driving
+ * those reads come from the cloud assembly, so a tampered `cdk.out` must not be
+ * able to make the resolver read outside the project.
+ *
+ * `_fixtures/source-maps/sample.{ts,js,js.map}` is real `tsc` output: `greet()`
+ * sits on line 5 of the `.js` and line 2 of the `.ts`, so a correct mapping is
+ * recognisable rather than merely self-consistent.
+ */
+const FIXTURES = path.join(__dirname, '..', '_fixtures', 'source-maps');
+const SAMPLE_MAP = fs.readFileSync(path.join(FIXTURES, 'sample.js.map'), 'utf-8');
 
-const tmpDirs: string[] = [];
+/** The compiled body with its `sourceMappingURL` stripped, so each test attaches its own. */
+const SAMPLE_JS_BODY = fs
+  .readFileSync(path.join(FIXTURES, 'sample.js'), 'utf-8')
+  .replace(/\/\/# sourceMappingURL=.*$/m, '')
+  .trimEnd();
+
+/** `greet()` in the compiled output. */
+const GREET_IN_JS = 5;
+/** The same statement in the original TypeScript. */
+const GREET_IN_TS = 2;
+
+let appDir: string;
+
+beforeEach(() => {
+  // realpath: on macOS os.tmpdir() is a symlink, and the resolver relativizes
+  // against appDir, so the two have to agree.
+  appDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-srcmap-')));
+});
+
 afterEach(() => {
-  tmpDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true }));
-  tmpDirs.length = 0;
+  fs.rmSync(appDir, { recursive: true, force: true });
   jest.restoreAllMocks();
 });
 
-const tmpDir = (): string => {
-  // realpath so the macOS /var -> /private/var symlink doesn't make an existing
-  // root and a not-yet-created child disagree under isWithinRoot.
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'srcmap-')));
-  tmpDirs.push(dir);
-  return dir;
-};
+/**
+ * A resolver bound to the fixture app dir, with the maps for `jsFiles` loaded.
+ *
+ * Production loads the maps of every `.js` an assembly's stack traces mention
+ * before mapping anything, so a test that omits a file here is testing the
+ * "no map loaded" path.
+ */
+async function resolver(...jsFiles: string[]): Promise<SourceMapResolver> {
+  const index = await AssemblyIndexWithSourceLocations.createAndIndex({
+    appDir,
+    assemblyDir: path.join(appDir, 'cdk.out'),
+    assemblyIndex: new AssemblyIndex(),
+  });
+  const subject = new SourceMapResolver(index);
+  await subject.loadSourceMapFor(...(jsFiles as RelativePath[]));
+  return subject;
+}
 
-// sample.js body without its trailing sourceMappingURL comment, so each test
-// can attach its own (inline or external) form. greet() stays on line 5.
-const sampleBody = (): string =>
-  fs.readFileSync(SAMPLE_JS, 'utf-8').replace(/\/\/# sourceMappingURL=.*$/m, '').trimEnd();
+function write(relPath: string, contents: string): void {
+  const full = path.join(appDir, relPath);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, contents);
+}
 
-// NOTE: choosing WHICH metadata entry's frames to use (LOGICAL_ID.trace vs
-// aws:cdk:creationStack) is toolkit-lib's findCreationStackTrace; this resolver
-// only turns the chosen frames into a user source location.
-describe('SourceMapResolver.resolveFrames', () => {
-  // All frames in this block live under /project; the resolver is rooted there.
-  let resolver: SourceMapResolver;
-  beforeEach(() => {
-    resolver = new SourceMapResolver('/project');
+/** Write a compiled `.js` carrying the given `sourceMappingURL`. */
+function writeJs(relPath: string, sourceMappingUrl?: string): void {
+  write(relPath, sourceMappingUrl === undefined
+    ? SAMPLE_JS_BODY
+    : `${SAMPLE_JS_BODY}\n//# sourceMappingURL=${sourceMappingUrl}\n`);
+}
+
+/** Copy the original TypeScript to where a map's `sources` will point. */
+function writeOriginalTs(relPath: string): void {
+  write(relPath, fs.readFileSync(path.join(FIXTURES, 'sample.ts'), 'utf-8'));
+}
+
+const at = (file: string, line: number): SourceLocation => ({ file: file as RelativePath, line });
+
+describe('reverseMapJs', () => {
+  test('maps a .js location back to the .ts it was compiled from', async () => {
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+
+    const resolved = (await resolver('sample.js')).reverseMapJs(at('sample.js', GREET_IN_JS));
+
+    // Both the file and the line move, so this proves a real mapping rather
+    // than a filename swap. Lines are 1-based on the way in and out.
+    expect(resolved).toEqual(at('sample.ts', GREET_IN_TS));
   });
 
-  test('returns undefined for no frames', async () => {
-    expect(await resolver.resolveFrames(undefined)).toBeUndefined();
+  test('maps a line whose first mapping starts past column 0', async () => {
+    // The resolver only has a line to go on, and the first mapping on an
+    // indented line sits at its indent, not at column 0 — searching strictly
+    // leftwards from column 0 would find nothing and silently pass the .js
+    // location through.
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+
+    // Line 6 of the .js is the indented `return` inside greet().
+    const resolved = (await resolver('sample.js')).reverseMapJs(at('sample.js', 6));
+
+    expect(resolved).toEqual(at('sample.ts', 3));
   });
 
-  test('returns undefined when all frames are skip-placeholders', async () => {
-    // aws-cdk-lib's renderCallStackJustMyCode emits these for filtered frames
-    // (e.g. node_modules and node: internals). They have no parens and no
-    // :line:col, so they don't match FRAME_RE.
-    const frames = [
-      '    ...node_modules-aws-cdk-lib...',
-      '    ...node internals...',
-      '    (no user code in 10 frames, use --stack-trace-limit to capture more)',
-    ];
-    expect(await resolver.resolveFrames(frames)).toBeUndefined();
+  test('resolves a map inlined as a data: URI', async () => {
+    const inline = Buffer.from(SAMPLE_MAP).toString('base64');
+    writeJs('bundled.js', `data:application/json;base64,${inline}`);
+    writeOriginalTs('sample.ts');
+
+    const resolved = (await resolver('bundled.js')).reverseMapJs(at('bundled.js', GREET_IN_JS));
+
+    expect(resolved).toEqual(at('sample.ts', GREET_IN_TS));
   });
 
-  test('skips skip-placeholder frames and picks the first parseable user frame', async () => {
-    const frames = [
-      '    ...node_modules-aws-cdk-lib...',
-      '    at new MyStack (/project/lib/my-stack.ts:42:7)',
-      '    at Object.<anonymous> (/project/bin/app.ts:8:1)',
-    ];
-    expect(await resolver.resolveFrames(frames)).toEqual({
-      file: '/project/lib/my-stack.ts',
-      line: 42,
-      column: 7,
-    });
+  test('resolves an external map under a non-default filename', async () => {
+    // The directive is authoritative; the `<js>.map` convention is not assumed.
+    writeJs('sample.js', 'weird.name.map');
+    write('weird.name.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+
+    const resolved = (await resolver('sample.js')).reverseMapJs(at('sample.js', GREET_IN_JS));
+
+    expect(resolved).toEqual(at('sample.ts', GREET_IN_TS));
   });
 
-  test('resolves a Python host frame in the real released format (placeholders + no-column .py)', async () => {
-    // Verbatim shape from aws-cdk-lib 2.260.0 / jsii 1.137.0: kernel frames are
-    // collapsed to non-parsing placeholders, and host frames carry no column
-    // (jsii's Python runtime sends column 0, which formatExternalFrame omits).
-    const frames = [
-      '...jsii runtime, node internals...',
-      '(no user code in 10 frames, use --stack-trace-limit to capture more)',
-      '__init__ (/project/stacks/network_stack.py:42)',
-      '<module> (/project/app.py:10)',
-    ];
-    // No column -> 1-based start of line.
-    expect(await resolver.resolveFrames(frames)).toEqual({
-      file: '/project/stacks/network_stack.py',
-      line: 42,
-      column: 1,
-    });
+  test('resolves the map relative to the .js, not the process working directory', async () => {
+    // The language server's cwd is wherever the editor spawned it, which is
+    // essentially never the project dir, so a cwd-relative resolution would
+    // find nothing here.
+    writeJs('dist/sample.js', 'sample.js.map');
+    write('dist/sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('dist/sample.ts');
+
+    const resolved = (await resolver('dist/sample.js')).reverseMapJs(at('dist/sample.js', GREET_IN_JS));
+
+    expect(resolved).toEqual(at('dist/sample.ts', GREET_IN_TS));
   });
 
-  test('skips out-of-root .js frames to reach the first in-root .py frame', async () => {
-    // Robustness: if raw jsii/aws-cdk-lib .js frames appear (outside the root)
-    // ahead of the user frame, skip them rather than give up.
-    const frames = [
-      'Kernel._Kernel_create (/private/var/folders/qw/T/tmpiqvf63c1/lib/program.js:1:61273)',
-      '__init__ (/project/stacks/network_stack.py:42)',
-    ];
-    expect(await resolver.resolveFrames(frames)).toEqual({
-      file: '/project/stacks/network_stack.py', line: 42, column: 1,
-    });
+  test('applies sourceRoot when resolving the original', async () => {
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', JSON.stringify({ ...JSON.parse(SAMPLE_MAP), sourceRoot: 'src/' }));
+    writeOriginalTs('src/sample.ts');
+
+    const resolved = (await resolver('sample.js')).reverseMapJs(at('sample.js', GREET_IN_JS));
+
+    expect(resolved).toEqual(at('src/sample.ts', GREET_IN_TS));
   });
 
-  test('preserves an explicit (non-zero) host column', async () => {
-    // A real host column is already 1-based, so it is kept as-is. Only the 0
-    // "unavailable" sentinel is clamped to the start of the line.
-    expect(await resolver.resolveFrames(['f (/project/stacks/data_stack.py:31:8)'])).toEqual({
-      file: '/project/stacks/data_stack.py', line: 31, column: 8,
-    });
+  test('parses each map once across repeated loads', async () => {
+    // One assembly asks for the same map many times, which is the whole reason
+    // the resolver is long-lived.
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+    const subject = await resolver('sample.js');
+
+    const readFile = jest.spyOn(fs.promises, 'readFile');
+    await subject.loadSourceMapFor('sample.js' as RelativePath);
+
+    expect(readFile).not.toHaveBeenCalled();
+    expect(subject.reverseMapJs(at('sample.js', GREET_IN_JS))).toEqual(at('sample.ts', GREET_IN_TS));
   });
 
-  test('drops a host frame whose file escapes the project root', async () => {
-    expect(await resolver.resolveFrames(['<module> (/etc/evil.py:1)'])).toBeUndefined();
-  });
-});
+  test('mapping does no I/O of its own', async () => {
+    // Every read happens during loading, so mapping stays synchronous and
+    // cheap even though an assembly maps thousands of locations.
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+    const subject = await resolver('sample.js');
 
-describe('source-map resolution', () => {
-  test('resolves .js to .ts using sibling .js.map', async () => {
-    // sample.js line 5: `function greet(name) {`
-    const resolver = new SourceMapResolver(SOURCE_MAPS_DIR);
-    const result = await resolver.resolveFrames([`    at greet (${SAMPLE_JS}:5:10)`]);
-    expect(result).toBeDefined();
-    expect(result!.file).toContain('sample.ts');
-    expect(result!.line).toBe(2); // ts line 2 = `export function greet`
-  });
+    const readFile = jest.spyOn(fs.promises, 'readFile');
+    subject.reverseMapJs(at('sample.js', GREET_IN_JS));
 
-  test('falls back to .js location when no .js.map exists', async () => {
-    const dir = tmpDir();
-    const jsPath = path.join(dir, 'no-map-here.js');
-    const resolver = new SourceMapResolver(dir);
-    expect(await resolver.resolveFrames([`    at someFn (${jsPath}:1:1)`])).toEqual({
-      file: jsPath, line: 1, column: 1,
-    });
-  });
-
-  test('returns .ts location unchanged (no source-map needed)', async () => {
-    const resolver = new SourceMapResolver('/project');
-    expect(await resolver.resolveFrames(['    at someFn (/project/lib/foo.ts:3:2)'])).toEqual({
-      file: '/project/lib/foo.ts', line: 3, column: 2,
-    });
-  });
-
-  test('resolves an inline (data: URI) source map', async () => {
-    const b64 = Buffer.from(fs.readFileSync(SAMPLE_MAP, 'utf-8'), 'utf-8').toString('base64');
-    const dir = tmpDir();
-    const jsPath = path.join(dir, 'sample.js');
-    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=data:application/json;base64,${b64}\n`);
-
-    const resolver = new SourceMapResolver(dir);
-    const result = await resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
-    expect(result!.file).toContain('sample.ts');
-    expect(result!.line).toBe(2);
-  });
-
-  test('resolves an external map referenced under a non-default filename', async () => {
-    const dir = tmpDir();
-    fs.copyFileSync(SAMPLE_MAP, path.join(dir, 'renamed.map'));
-    const jsPath = path.join(dir, 'sample.js');
-    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=renamed.map\n`);
-
-    const resolver = new SourceMapResolver(dir);
-    const result = await resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
-    expect(result!.file).toContain('sample.ts');
-    expect(result!.line).toBe(2);
-  });
-
-  test('applies sourceRoot, resolving sources relative to the map', async () => {
-    const dir = tmpDir();
-    const map = JSON.parse(fs.readFileSync(SAMPLE_MAP, 'utf-8'));
-    map.sourceRoot = 'nested/';
-    fs.writeFileSync(path.join(dir, 'renamed.map'), JSON.stringify(map));
-    const jsPath = path.join(dir, 'sample.js');
-    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=renamed.map\n`);
-
-    const resolver = new SourceMapResolver(dir);
-    const result = await resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
-    expect(result!.file).toBe(path.join(dir, 'nested', 'sample.ts'));
-    expect(result!.line).toBe(2);
+    expect(readFile).not.toHaveBeenCalled();
   });
 });
 
-// Paths from the (attacker-influenceable) cloud assembly must never drive a
-// read or a navigation target outside the project.
-describe('path containment', () => {
-  test('drops a frame whose file escapes the project root, without reading it', async () => {
-    const root = tmpDir();
-    const readSpy = jest.spyOn(fs, 'readFileSync');
-    const resolver = new SourceMapResolver(root);
+describe('reverseMapJs passthrough', () => {
+  test.each(['app.ts', 'component.tsx'])('returns a %s location unchanged', async (file) => {
+    // Already source-space; there is nothing to map, and production never even
+    // offers a non-.js file to the loader.
+    writeOriginalTs(file);
+    const subject = await resolver();
 
-    expect(await resolver.resolveFrames(['    at evil (/etc/passwd.js:1:1)'])).toBeUndefined();
-    // The escaping path must be rejected before any read of it.
-    expect(readSpy.mock.calls.some(([p]) => String(p).includes('/etc/passwd'))).toBe(false);
+    const location = at(file, GREET_IN_TS);
+    expect(subject.reverseMapJs(location)).toEqual(location);
+    expect(subject.warnings).toEqual([]);
   });
 
-  test('drops a .ts frame that escapes the project root', async () => {
-    const root = tmpDir();
-    const resolver = new SourceMapResolver(root);
-    expect(await resolver.resolveFrames([`    at f (${path.join(root, '..', 'outside.ts')}:1:1)`])).toBeUndefined();
+  test('returns the .js location unchanged when it has no map', async () => {
+    writeJs('plain.js');
+
+    const subject = await resolver('plain.js');
+    const location = at('plain.js', GREET_IN_JS);
+
+    expect(subject.reverseMapJs(location)).toEqual(location);
+    // No map is the normal case for plain JS, not something to warn about.
+    expect(subject.warnings).toEqual([]);
   });
 
-  test('ignores an external source map that escapes the root, falling back to the .js', async () => {
-    const dir = tmpDir();
-    const jsPath = path.join(dir, 'sample.js');
-    // In-root .js, but its sourceMappingURL points outside the project.
-    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=../../../../etc/evil.map\n`);
-    const readSpy = jest.spyOn(fs, 'readFileSync');
+  test('returns the location unchanged when the .js itself is unreadable', async () => {
+    const subject = await resolver('absent.js');
+    const location = at('absent.js', GREET_IN_JS);
 
-    const resolver = new SourceMapResolver(dir);
-    const result = await resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
-
-    // Falls back to the (in-root) .js location; the escaping map is never read.
-    expect(result).toEqual({ file: jsPath, line: 5, column: 10 });
-    expect(readSpy.mock.calls.some(([p]) => String(p).includes('etc/evil.map'))).toBe(false);
-    expect(resolver.warnings.join('\n')).toMatch(/escapes the project root/);
+    expect(subject.reverseMapJs(location)).toEqual(location);
+    expect(subject.warnings).toHaveLength(1);
   });
 
-  test('falls back to the .js when the mapped original resolves outside the root', async () => {
-    const dir = tmpDir();
-    const map = JSON.parse(fs.readFileSync(SAMPLE_MAP, 'utf-8'));
-    map.sourceRoot = '../../../../../../etc/'; // pushes sample.ts outside the root
-    fs.writeFileSync(path.join(dir, 'renamed.map'), JSON.stringify(map));
-    const jsPath = path.join(dir, 'sample.js');
-    fs.writeFileSync(jsPath, `${sampleBody()}\n//# sourceMappingURL=renamed.map\n`);
+  test('returns the location unchanged when the line is not in the map', async () => {
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
 
-    const resolver = new SourceMapResolver(dir);
-    const result = await resolver.resolveFrames([`    at greet (${jsPath}:5:10)`]);
-    expect(result).toEqual({ file: jsPath, line: 5, column: 10 });
+    const location = at('sample.js', 999);
+
+    expect((await resolver('sample.js')).reverseMapJs(location)).toEqual(location);
+  });
+
+  test('returns the location unchanged when the map was never loaded', async () => {
+    // Nothing is loaded lazily: a .js the assembly never mentioned stays as-is.
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
+
+    const location = at('sample.js', GREET_IN_JS);
+
+    expect((await resolver()).reverseMapJs(location)).toEqual(location);
   });
 });
 
-describe('isWithinRoot', () => {
-  const root = path.resolve('/srv/app');
+describe('source map loading failures', () => {
+  test('warns once when a referenced map cannot be parsed', async () => {
+    // A broken map must not masquerade as "no source map": silently falling
+    // back to .js locations is the confusing outcome.
+    writeJs('sample.js', 'sample.js.map');
+    write('sample.js.map', '{ not json');
 
-  test('accepts a path inside the root', async () => {
-    expect(await isWithinRoot(root, path.join(root, 'lib/stack.ts'))).toBe(true);
+    const subject = await resolver('sample.js');
+
+    const location = at('sample.js', GREET_IN_JS);
+    expect(subject.reverseMapJs(location)).toEqual(location);
+    expect(subject.warnings).toHaveLength(1);
+    expect(subject.warnings[0]).toContain('sample.js');
   });
 
-  test('accepts the root itself', async () => {
-    expect(await isWithinRoot(root, root)).toBe(true);
+  test('warns when a referenced map is missing', async () => {
+    writeJs('sample.js', 'sample.js.map');
+
+    const subject = await resolver('sample.js');
+
+    expect(subject.warnings).toHaveLength(1);
   });
 
-  test('rejects traversal above the root', async () => {
-    expect(await isWithinRoot(root, path.join(root, '../../etc/passwd'))).toBe(false);
+  test('refuses a map outside the app dir rather than reading it', async () => {
+    // sourceMappingURL comes from the assembly, so it is attacker-influenceable
+    // if cdk.out is tampered with.
+    const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-explorer-outside-')));
+    try {
+      fs.writeFileSync(path.join(outside, 'stolen.js.map'), SAMPLE_MAP);
+      writeJs('sample.js', path.join('..', path.basename(outside), 'stolen.js.map'));
+
+      const subject = await resolver('sample.js');
+
+      const location = at('sample.js', GREET_IN_JS);
+      expect(subject.reverseMapJs(location)).toEqual(location);
+      expect(subject.warnings).toHaveLength(1);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
   });
 
-  test('accepts traversal that stays within the root', async () => {
-    expect(await isWithinRoot(root, path.join(root, 'lib/../bin/cdk.ts'))).toBe(true);
-  });
+  test('keeps resolving other files after one map fails', async () => {
+    writeJs('broken.js', 'broken.js.map');
+    write('broken.js.map', '{ not json');
+    writeJs('good.js', 'good.js.map');
+    write('good.js.map', SAMPLE_MAP);
+    writeOriginalTs('sample.ts');
 
-  test('does not treat a sibling dir with a shared prefix as inside', async () => {
-    expect(await isWithinRoot(root, path.resolve('/srv/app-secrets/file'))).toBe(false);
-  });
+    const subject = await resolver('broken.js', 'good.js');
 
-  test('rejects a target reached through a symlink that points outside the root', async () => {
-    const root2 = tmpDir();
-    const outside = tmpDir();
-    fs.writeFileSync(path.join(outside, 'secret.ts'), 'secret');
-    fs.symlinkSync(outside, path.join(root2, 'link'));
-    // Lexically inside root2, but realpath lands in `outside`.
-    expect(await isWithinRoot(root2, path.join(root2, 'link', 'secret.ts'))).toBe(false);
+    expect(subject.reverseMapJs(at('broken.js', GREET_IN_JS))).toEqual(at('broken.js', GREET_IN_JS));
+    expect(subject.reverseMapJs(at('good.js', GREET_IN_JS))).toEqual(at('sample.ts', GREET_IN_TS));
+    expect(subject.warnings).toHaveLength(1);
   });
 });

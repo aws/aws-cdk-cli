@@ -6,6 +6,9 @@
     "url": "https://github.com/aws/aws-cdk-cli",
     "directory": "packages/@aws-cdk/cdk-explorer"
   },
+  "bin": {
+    "lsp": "bin/lsp"
+  },
   "scripts": {
     "build": "projen build",
     "bump": "projen bump",
@@ -34,6 +37,7 @@
     "@stylistic/eslint-plugin": "^3",
     "@types/convert-source-map": "^2",
     "@types/jest": "^29.5.14",
+    "@types/json-source-map": "^0.6.0",
     "@types/node": "^20",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
@@ -61,6 +65,8 @@
     "@jridgewell/trace-mapping": "^0.3",
     "chokidar": "^4",
     "convert-source-map": "^2",
+    "json-source-map": "^0.6.1",
+    "p-limit": "^3",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
     "vscode-languageserver-textdocument": "^1"
