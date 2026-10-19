@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "noEmit": true,
+    "moduleResolution": "nodenext",
+    "lib": ["DOM", "es2022"],
+    "types": ["jest"],
+  },
+  "references": [
+    { "path": "../src" },
+    { "path": "../../lib/web-shared" }
+  ]
+}

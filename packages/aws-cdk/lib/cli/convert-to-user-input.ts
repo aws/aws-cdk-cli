@@ -337,6 +337,12 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {};
       break;
 
+    case 'explore':
+      commandOptions = {
+        port: args.port,
+      };
+      break;
+
     case 'lsp':
       commandOptions = {
         features: args.features,
@@ -614,6 +620,9 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const exploreOptions = {
+    port: config.explore?.port,
+  };
   const lspOptions = {
     features: config.lsp?.features,
   };
@@ -656,6 +665,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    explore: exploreOptions,
     lsp: lspOptions,
     orphan: orphanOptions,
     refactor: refactorOptions,
