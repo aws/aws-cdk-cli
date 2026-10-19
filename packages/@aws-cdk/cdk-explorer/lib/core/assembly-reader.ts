@@ -1,6 +1,8 @@
 import { AssemblyIndex, loadUnifiedValidationReport } from '@aws-cdk/cloud-assembly-api';
 import type { IReadableCloudAssembly, PluginReportJson } from '@aws-cdk/toolkit-lib';
+import type { RelativePath } from './assembly-index-with-source-locations';
 import { AssemblyIndexWithSourceLocations } from './assembly-index-with-source-locations';
+import { SourceMapResolver } from './source-resolver';
 
 export interface AssemblyData {
   readonly index: AssemblyIndexWithSourceLocations;
@@ -19,7 +21,7 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
   const assembly = readableAssembly.cloudAssembly;
   const warnings: string[] = [];
 
-  const index = await AssemblyIndexWithSourceLocations.create({
+  const index = await AssemblyIndexWithSourceLocations.createUnindexed({
     appDir: projectRoot,
     assemblyDir: assembly.directory,
     assemblyIndex: await AssemblyIndex.fromAssembly(assembly),
@@ -28,10 +30,22 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
   let violations: PluginReportJson[] = [];
   try {
     violations = await loadUnifiedValidationReport(assembly, assembly.stacksRecursively);
-    // TODO: Resolve sources of 'violations'
   } catch (err: any) {
     warnings.push(`Failed to load diagnostic report: ${err.message}`);
   }
+
+  // Collect all source files
+  const sourceFiles = index.allSourceFiles();
+  for (const f of sourceFilesInViolations(violations, index)) {
+    sourceFiles.add(f);
+  }
+
+  // Read source maps for .js files and index based on the mapped locations
+  const map = new SourceMapResolver(index);
+  await map.loadSourceMapFor(...Array.from(sourceFiles).filter(file => file.endsWith('.js')));
+  index.setSourceResolver({ resolve: (loc) => map.reverseMapJs(loc) });
+  index.indexAssembly();
+  // updateSourceLocationsInViolations(violations, index, map);
 
   return {
     index,
@@ -40,3 +54,34 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
     timestamp: assembly.mtimeMs,
   };
 }
+
+function* sourceFilesInViolations(
+  violations: PluginReportJson[],
+  index: AssemblyIndexWithSourceLocations,
+): Iterable<RelativePath> {
+  for (const plugin of violations ?? []) {
+    for (const violation of plugin.violations ?? []) {
+      for (const vc of violation.violatingConstructs ?? []) {
+        const traced = index.traceViolation(vc);
+        for (const loc of traced.sourceLocations) {
+          yield loc.file;
+        }
+      }
+    }
+  }
+}
+
+/*
+function updateSourceLocationsInViolations(violations: PluginReportJson[], index: AssemblyIndexWithSourceLocations, map: SourceMapResolver) {
+  for (const plugin of violations ?? []) {
+    for (const violation of plugin.violations ?? []) {
+      for (const vc of violation.violatingConstructs ?? []) {
+        const traced = index.traceViolation(vc);
+        for (const loc of traced.sourceLocations) {
+          yield loc.file;
+        }
+      }
+    }
+  }
+}
+*/

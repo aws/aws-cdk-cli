@@ -39,7 +39,7 @@ function appFor(spec: AssemblySpec = {}, opts: { staleness?: StalenessTracker; a
     // Nothing here aborts mid-request; the signal exists so the assembly read's
     // lock retry can be cancelled on server shutdown.
     abort: new AbortController().signal,
-  }));
+  }).router);
   return app;
 }
 

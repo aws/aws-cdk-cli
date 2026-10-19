@@ -132,11 +132,6 @@ function pluginReportFromAnnotations(stacks: CloudFormationStackArtifact[]): cxs
       violation.violatingConstructs.push({
         constructPath: entry.id.replace(/^\//, ''), // remove leading slash
 
-        // TODO: see if this information can be obtained from tree.json
-        // cloudFormationResource
-        // constructFqn:
-        // libraryVersion
-
         // If we get this stack trace here, it was recorded by the `constructs` library,
         // which means it hasn't been JustMyCode-stripped yet.
         stackTraces: entry.entry.trace ? [

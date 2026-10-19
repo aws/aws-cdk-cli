@@ -44,7 +44,20 @@ export interface ApiOptions {
   readonly abort: AbortSignal;
 }
 
-export function createApiRouter(options: ApiOptions): Router {
+export interface CreateApiRouterResult {
+  router: Router;
+
+  /**
+   * Start loading the assembly immediately.
+   *
+   * We know the user is going to want to load this regardless, and if we start early
+   * chances are the assembly will be ready by the time the first request comes in and
+   * there is no wait.
+   */
+  preloadAssembly: () => Promise<void>;
+}
+
+export function createApiRouter(options: ApiOptions): CreateApiRouterResult {
   const staleness = options.staleness ?? new StalenessTracker();
   let cachedAssembly: AssemblyReadResult | undefined;
 
@@ -206,7 +219,16 @@ export function createApiRouter(options: ApiOptions): Router {
     return res.json(body);
   });
 
-  return router;
+  return {
+    router,
+    preloadAssembly: async () => {
+      try {
+        await getCachedAssembly();
+      } catch (e) {
+        options.requestLogger?.(`Failed to preload assembly: ${e}`);
+      }
+    },
+  };
 }
 
 /**
@@ -345,15 +367,18 @@ export function normalizeViolations(
   reports: PluginReportJson[] | undefined,
   index: AssemblyIndexWithSourceLocations,
 ): WebViolation[] {
-  return (reports ?? []).flatMap((plugin) =>
-    (plugin.violations ?? []).map((violation) => ({
-      ruleName: violation.ruleName,
-      description: violation.description,
-      ...classifyReportSeverity(violation.severity, violation.customSeverity),
-      source: plugin.pluginName,
-      suggestedFix: violation.suggestedFix,
-      occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index)),
-    }))).sort(violationComparator);
+  return (reports ?? [])
+    .flatMap((plugin) => (plugin.violations ?? [])
+      .map((violation) => ({
+        ruleName: violation.ruleName,
+        description: violation.description,
+        ...classifyReportSeverity(violation.severity, violation.customSeverity),
+        source: plugin.pluginName,
+        suggestedFix: violation.suggestedFix,
+        occurrences: (violation.violatingConstructs ?? []).map((vc) => toOccurrence(vc, index)),
+      })))
+    .sort(violationComparator)
+    .reduce(pushOrMerge, []);
 }
 
 /** Join one violating construct to its tree node, preferring resolved tree data. */
@@ -370,6 +395,30 @@ function toOccurrence(
     sourceLocations: traced?.sourceLocations,
     propertyPaths: vc.cloudFormationResource?.propertyPaths,
   };
+}
+
+/**
+ * Combine violations from different reports that are otherwise the same
+ */
+function pushOrMerge(
+  violations: WebViolation[],
+  next: WebViolation,
+): WebViolation[] {
+  if (violations.length > 0) {
+    const last = violations[violations.length - 1];
+    if (last.ruleName === next.ruleName
+      && last.description === next.description
+      && last.severity === next.severity
+      && last.suggestedFix === next.suggestedFix
+      && last.source === next.source
+    ) {
+      mutable(last.occurrences).push(...next.occurrences);
+      return violations;
+    }
+  }
+
+  violations.push(next);
+  return violations;
 }
 
 /**
@@ -490,4 +539,8 @@ function reuseRunningPromise<A extends (...args: any[]) => Promise<any>>(fn: A):
     }
     return runningPromise;
   }) as any;
+}
+
+function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
+  return x;
 }

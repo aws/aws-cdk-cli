@@ -2,7 +2,6 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
 import type { ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
-import { SourceMapResolver } from './source-resolver';
 import { type Branded } from './type-brands';
 
 export type AssemblyIndexNodeLike = AssemblyIndexNode | AssemblyResourceNode;
@@ -11,6 +10,10 @@ export interface AssemblyIndexWithSourceLocationsOptions {
   readonly appDir: string;
   readonly assemblyDir: string;
   readonly assemblyIndex: AssemblyIndex;
+}
+
+export interface ISourceFileResolver {
+  resolve(file: SourceLocation): SourceLocation;
 }
 
 /**
@@ -25,22 +28,29 @@ export class AssemblyIndexWithSourceLocations {
     });
   }
 
-  public static async create(options: AssemblyIndexWithSourceLocationsOptions) {
+  public static async createAndIndex(options: AssemblyIndexWithSourceLocationsOptions) {
     const ret = new AssemblyIndexWithSourceLocations({
       appDir: await realOrSelf(options.appDir),
       assemblyDir: await realOrSelf(options.assemblyDir),
       assemblyIndex: options.assemblyIndex,
     });
-    await ret.loadSourceMapsForAllFiles();
     ret.indexAssembly();
     return ret;
+  }
+
+  public static async createUnindexed(options: AssemblyIndexWithSourceLocationsOptions) {
+    return new AssemblyIndexWithSourceLocations({
+      appDir: await realOrSelf(options.appDir),
+      assemblyDir: await realOrSelf(options.assemblyDir),
+      assemblyIndex: options.assemblyIndex,
+    });
   }
 
   public readonly assemblyIndex: AssemblyIndex;
   public readonly appDir: PathTranslator;
   public readonly assemblyDir: PathTranslator;
 
-  private readonly sourceResolver: SourceMapResolver;
+  private sourceResolver?: ISourceFileResolver;
   private readonly sourceLocationCache = new Map<AssemblyIndexNode, SourceLocation | undefined>();
   private readonly stackLocationFinder = DEFAULT_USER_CODE_FINDER;
   private readonly nodesBySourceFile: Record<RelativePath, Map<number, AssemblyIndexNode[]>> = {};
@@ -49,7 +59,6 @@ export class AssemblyIndexWithSourceLocations {
     this.assemblyIndex = options.assemblyIndex;
     this.appDir = new PathTranslator(options.appDir);
     this.assemblyDir = new PathTranslator(options.assemblyDir);
-    this.sourceResolver = new SourceMapResolver(this);
   }
 
   public constructsInSourceFile(file: RelativePath): Array<[number, AssemblyIndexNode]> {
@@ -65,6 +74,10 @@ export class AssemblyIndexWithSourceLocations {
     return this.assemblyIndex.byTemplateLocation(templateFile, logicalId);
   }
 
+  public setSourceResolver(sourceResolver: ISourceFileResolver | undefined) {
+    this.sourceResolver = sourceResolver;
+  }
+
   /**
    * Parse the creation stack to a source location, cached on the object.
    */
@@ -76,8 +89,8 @@ export class AssemblyIndexWithSourceLocations {
 
     let result = this.unmappedSourceLocationFor(node);
 
-    if (result) {
-      result = this.sourceResolver.reverseMapJs(result);
+    if (result && this.sourceResolver) {
+      result = this.sourceResolver.resolve(result);
     }
 
     this.sourceLocationCache.set(node, result);
@@ -94,7 +107,7 @@ export class AssemblyIndexWithSourceLocations {
         file: this.appDir.relative(frame.fileName),
         line: frame.lineLocation?.line ?? 0,
       } satisfies SourceLocation;
-    });
+    }).map(loc => this.sourceResolver?.resolve(loc) ?? loc);
 
     const creationLocation = traced.node && this.sourceLocationFor(traced.node);
     return {
@@ -126,25 +139,25 @@ export class AssemblyIndexWithSourceLocations {
   }
 
   /**
-   * Find all referenced .js files in the assembly and load their source maps.
+   * Find all referenced files in the assembly.
    */
-  private async loadSourceMapsForAllFiles() {
+  public allSourceFiles() {
     const sourceFiles = new Set<RelativePath>();
 
     this.forEveryNode((node) => {
       const sourceLocation = this.unmappedSourceLocationFor(node);
-      if (sourceLocation?.file && sourceLocation.file.endsWith('.js')) {
+      if (sourceLocation?.file) {
         sourceFiles.add(sourceLocation.file);
       }
     });
 
-    // Doing the above poisons the cache, so we need to clear it.
-    this.sourceLocationCache.clear();
-
-    await this.sourceResolver.loadSourceMapFor(...Array.from(sourceFiles));
+    return sourceFiles;
   }
 
-  private indexAssembly() {
+  public indexAssembly() {
+    // In case the source locations have changed, clear the cache before re-indexing.
+    this.sourceLocationCache.clear();
+
     this.forEveryNode((node) => {
       const sourceLocation = this.sourceLocationFor(node);
       if (sourceLocation?.file) {

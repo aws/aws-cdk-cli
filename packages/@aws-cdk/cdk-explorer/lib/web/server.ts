@@ -122,14 +122,15 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
   const initialManifestMtime = manifestMtimeMs();
   if (initialManifestMtime !== undefined) staleness.onAssemblyRefreshed(initialManifestMtime);
 
-  app.use('/api', createApiRouter({
+  const api = createApiRouter({
     appDir,
     assemblyDir,
     toolkit,
     staleness,
     abort: shutdown.signal,
     requestLogger: options.requestLogger,
-  }));
+  });
+  app.use('/api', api.router);
 
   // Live-refresh stream: browsers subscribe here and re-fetch when the assembly
   // changes. Registered before the /api catch-all so it is not treated as unknown.
@@ -164,6 +165,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
     port: options.port,
   });
   await server.start();
+
+  // Start loading the assembly early
+  void api.preloadAssembly();
 
   // Start watching only after the server is listening, so a failed bind does not
   // leave a watcher running. Any synth that rewrites cdk.out (an external
