@@ -93,6 +93,11 @@ export class CloudAssembly implements ICloudAssembly {
   public readonly artifacts: CloudArtifact[];
 
   /**
+   * Modified time
+   */
+  public readonly mtimeMs: number;
+
+  /**
    * Runtime information such as module versions used to synthesize this assembly.
    */
   public readonly runtime: cxschema.RuntimeInfo;
@@ -115,10 +120,17 @@ export class CloudAssembly implements ICloudAssembly {
     this.directory = directory;
     this.loadOptions = loadOptions;
 
-    this.manifest = cxschema.Manifest.loadAssemblyManifest(path.join(directory, MANIFEST_FILE), this.loadOptions);
+    const manifestFile = path.join(directory, MANIFEST_FILE);
+    this.manifest = cxschema.Manifest.loadAssemblyManifest(manifestFile, this.loadOptions);
     this.version = this.manifest.version;
     this.artifacts = this.renderArtifacts(this.loadOptions?.topoSort ?? true);
     this.runtime = this.manifest.runtime || { libraries: { } };
+
+    try {
+      this.mtimeMs = fs.statSync(manifestFile).mtimeMs;
+    } catch (e) {
+      this.mtimeMs = Date.now();
+    }
 
     Object.defineProperty(this, CLOUD_ASSEMBLY_SYMBOL, { value: true });
 
