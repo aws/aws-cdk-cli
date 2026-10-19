@@ -29,6 +29,7 @@ type CliAction =
   | ToolkitAction
   | 'context'
   | 'docs'
+  | 'explore'
   | 'lsp'
   | 'flags'
   | 'notices'

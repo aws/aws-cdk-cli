@@ -10671,7 +10671,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** ajv@8.18.0 - https://www.npmjs.com/package/ajv/v/8.18.0 | MIT
+** ajv@8.20.0 - https://www.npmjs.com/package/ajv/v/8.20.0 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2015-2021 Evgeny Poberezkin
@@ -11389,7 +11389,7 @@ SOFTWARE.
 
 ----------------
 
-** fastq@1.20.1 - https://www.npmjs.com/package/fastq/v/1.20.1 | ISC
+** fastq@1.20.3 - https://www.npmjs.com/package/fastq/v/1.20.3 | ISC
 Copyright (c) 2015-2020, Matteo Collina <matteo.collina@gmail.com>
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -11447,7 +11447,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** fs-extra@11.3.5 - https://www.npmjs.com/package/fs-extra/v/11.3.5 | MIT
+** fs-extra@11.4.1 - https://www.npmjs.com/package/fs-extra/v/11.4.1 | MIT
 (The MIT License)
 
 Copyright (c) 2011-2024 JP Richardson
@@ -11766,7 +11766,7 @@ SOFTWARE.
 
 ----------------
 
-** jsonfile@6.2.0 - https://www.npmjs.com/package/jsonfile/v/6.2.0 | MIT
+** jsonfile@6.2.1 - https://www.npmjs.com/package/jsonfile/v/6.2.1 | MIT
 (The MIT License)
 
 Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com>
@@ -12221,32 +12221,6 @@ THE SOFTWARE.
 
 ----------------
 
-** picomatch@4.0.4 - https://www.npmjs.com/package/picomatch/v/4.0.4 | MIT
-The MIT License (MIT)
-
-Copyright (c) 2017-present, Jon Schlinkert.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-----------------
-
 ** picomatch@4.0.7 - https://www.npmjs.com/package/picomatch/v/4.0.7 | MIT
 The MIT License (MIT)
 
@@ -12626,7 +12600,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** socks@2.8.7 - https://www.npmjs.com/package/socks/v/2.8.7 | MIT
+** socks@2.8.10 - https://www.npmjs.com/package/socks/v/2.8.10 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2013 Josh Glazebrook

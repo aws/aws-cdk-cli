@@ -20,8 +20,11 @@ let readCounter = 0;
 /**
  * The marker file a writer (i.e. a synth) creates in the locked directory for
  * the duration of the write.
+ *
+ * Exported because the explorer watches for it: its appearance is the only
+ * cross-process signal that a synth has started.
  */
-const SYNTH_LOCK_FILE = 'synth.lock';
+export const SYNTH_LOCK_FILE = 'synth.lock';
 
 /**
  * A single-writer/multi-reader lock on a directory
