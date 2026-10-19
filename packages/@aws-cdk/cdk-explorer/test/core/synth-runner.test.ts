@@ -53,8 +53,12 @@ afterAll(() => {
   }
 });
 
-function run(toolkit: FakeToolkit, projectDir: string) {
-  return runSynth({ toolkit: toolkit as unknown as Toolkit, projectDir });
+/**
+ * `abort` cancels the lock-retry wait on shutdown. These tests never abort, but
+ * a signal is required, and `retryOnLock` reads it after a failed attempt.
+ */
+function run(toolkit: FakeToolkit, projectDir: string, abort = new AbortController().signal) {
+  return runSynth({ toolkit: toolkit as unknown as Toolkit, projectDir, abort });
 }
 
 describe('runSynth', () => {
@@ -65,7 +69,11 @@ describe('runSynth', () => {
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, { workingDirectory: projectDir, lookups: false, env: { JSII_HOST_STACK_TRACES: '1' } });
+    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, expect.objectContaining({
+      workingDirectory: projectDir,
+      lookups: false,
+      env: expect.objectContaining({ JSII_HOST_STACK_TRACES: '1' }),
+    }));
     expect(cached.dispose).toHaveBeenCalledTimes(1);
   });
 
@@ -99,24 +107,29 @@ describe('runSynth', () => {
     expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('Assembly builder failed'), details: 'TypeError: foo' });
   });
 
-  test('classifies ConcurrentWriteLock as lock-conflict', async () => {
-    const { toolkit } = makeToolkit({
-      synthThrow: new LockError('ConcurrentWriteLock', 'another CLI synthing'),
-    });
+  test.each(['ConcurrentWriteLock', 'ConcurrentReadLock'] as const)('gives up on %s once the caller aborts', async (lockType) => {
+    // A lock is transient, so runSynth keeps retrying rather than giving up.
+    // An already-aborted signal makes it stop after the first attempt.
+    const { toolkit } = makeToolkit({ synthThrow: new LockError(lockType, 'another CLI holding the lock') });
+    const aborted = AbortSignal.abort();
 
-    const result = await run(toolkit, makeProjectDir({ app: APP }));
+    const result = await run(toolkit, makeProjectDir({ app: APP }), aborted);
 
-    expect(result).toEqual({ status: 'lock-conflict' });
+    expect(result).toEqual({ status: 'error', message: 'Gave up waiting for lock' });
+    expect(toolkit.synth).toHaveBeenCalledTimes(1);
   });
 
-  test('classifies ConcurrentReadLock as lock-conflict', async () => {
-    const { toolkit } = makeToolkit({
-      synthThrow: new LockError('ConcurrentReadLock', 'another CLI reading'),
-    });
+  test('retries a lock until it clears, then succeeds', async () => {
+    const { toolkit, cached } = makeToolkit({});
+    toolkit.synth
+      .mockRejectedValueOnce(new LockError('ConcurrentWriteLock', 'another CLI synthing'))
+      .mockRejectedValueOnce(new LockError('ConcurrentWriteLock', 'still synthing'))
+      .mockResolvedValue(cached);
 
     const result = await run(toolkit, makeProjectDir({ app: APP }));
 
-    expect(result).toEqual({ status: 'lock-conflict' });
+    expect(result).toEqual({ status: 'success' });
+    expect(toolkit.synth).toHaveBeenCalledTimes(3);
   });
 
   test('classifies ContextLookupsDisabledError as app-failure with the error message', async () => {

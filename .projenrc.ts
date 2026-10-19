@@ -1222,8 +1222,11 @@ const cdkExplorer = configureProject(
       'chokidar@^4',
       '@jridgewell/trace-mapping@^0.3',
       'convert-source-map@^2',
+      'json-source-map@^0.6.1',
+      'p-limit@^3',
     ],
     devDeps: [
+      '@types/json-source-map@^0.6.0',
       'vscode-languageserver-protocol@^3',
       '@types/convert-source-map@^2',
     ],
@@ -1245,6 +1248,27 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'lib/**',
+  ],
+  rules: {
+    'no-restricted-imports': ['error', {
+      paths: [
+        {
+          name: 'url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+        {
+          name: 'node:url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+      ],
+    }],
+  },
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

@@ -181,6 +181,7 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/convert-source-map": "npm:^2"
     "@types/jest": "npm:^29.5.14"
+    "@types/json-source-map": "npm:^0.6.0"
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
@@ -196,7 +197,9 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
+    json-source-map: "npm:^0.6.1"
     nx: "npm:^22.7.12"
+    p-limit: "npm:^3"
     prettier: "npm:^2.8"
     projen: "npm:^0.104.8"
     ts-jest: "npm:^29.4.15"
@@ -205,6 +208,8 @@ __metadata:
     vscode-languageserver: "npm:^9"
     vscode-languageserver-protocol: "npm:^3"
     vscode-languageserver-textdocument: "npm:^1"
+  bin:
+    lsp: bin/lsp
   languageName: unknown
   linkType: soft
 

@@ -2,13 +2,20 @@ import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 import { startAssemblyWatcher, TREE_FILE, type FileWatcher } from '../../lib/core/assembly-watcher';
 
-type AnyListener = (...args: unknown[]) => void;
+// `any[]` rather than `unknown[]`: the stored listeners are invoked with
+// whatever the emitting helper passes, and `unknown[]` params are not
+// contravariantly compatible with FileWatcher's typed overloads.
+type AnyListener = (...args: any[]) => void;
 
 /** A controllable in-memory stand-in for chokidar's FSWatcher. */
 class FakeWatcher implements FileWatcher {
   public closed = false;
   private readonly listeners: Record<string, AnyListener[]> = {};
 
+  // Mirror FileWatcher's overloads so the class satisfies the interface; the
+  // implementation signature stays permissive because the registry is untyped.
+  public on(event: 'all', listener: (eventName: string, filePath: string) => void): FileWatcher;
+  public on(event: 'error', listener: (error: unknown) => void): FileWatcher;
   public on(event: string, listener: AnyListener): FileWatcher {
     (this.listeners[event] ??= []).push(listener);
     return this;
@@ -36,12 +43,16 @@ class FakeWatcher implements FileWatcher {
 function setup() {
   const fake = new FakeWatcher();
   const onChange = jest.fn();
+  const onError = jest.fn();
+  const onSynthActivity = jest.fn();
   const watcher = startAssemblyWatcher({
     assemblyDir: '/p/cdk.out',
     onChange,
+    onError,
+    onSynthActivity,
     createWatcher: () => fake,
   });
-  return { fake, onChange, watcher };
+  return { fake, onChange, onError, onSynthActivity, watcher };
 }
 
 describe('Assembly Watcher', () => {
@@ -69,6 +80,27 @@ describe('Assembly Watcher', () => {
 
     jest.advanceTimersByTime(500);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('reports the write lock (synth.lock) appearing as synth activity', () => {
+    const { fake, onChange, onSynthActivity } = setup();
+
+    fake.emitFile('add', '/p/cdk.out/synth.lock');
+
+    expect(onSynthActivity).toHaveBeenCalledTimes(1);
+    expect(onSynthActivity).toHaveBeenCalledWith(expect.any(Number));
+    // The write lock is never an assembly refresh.
+    jest.advanceTimersByTime(500);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test('does not report synth activity for a read lock or a lock removal', () => {
+    const { fake, onSynthActivity } = setup();
+
+    fake.emitFile('add', '/p/cdk.out/read.12345.1.lock');
+    fake.emitFile('unlink', '/p/cdk.out/synth.lock');
+
+    expect(onSynthActivity).not.toHaveBeenCalled();
   });
 
   test('ignores non-signal files such as templates', () => {
