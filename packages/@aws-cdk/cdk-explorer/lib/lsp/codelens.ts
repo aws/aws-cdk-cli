@@ -1,5 +1,7 @@
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
 import { COMMAND_DISABLE_AUTO_SYNTH, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_SYNTH_NOW } from './commands';
+import { histogram } from './summarize';
 import { resourceTarget, type ResourceTarget } from './template-locator';
 import { type AssemblyResourceNode, isResourceNode, type AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 
@@ -26,7 +28,7 @@ export async function codeLensesForFile(
   autoSynthEnabled: boolean,
 ): Promise<CodeLens[]> {
   const matches = index.constructsInSourceFile(index.appDir.relative(filePath))
-    .filter(([_, x]) => isResourceNode(x))
+    .filter(([_, x]) => isResourceNode(x) && x.cfnResource.type && x.cfnResource.logicalId !== ENTIRE_TEMPLATE_LOGICALID_MARKER)
     .map(([line, node]) => ({ line, node: node as unknown as AssemblyResourceNode }));
 
   // Multiple resources can map to one line when an L2 construct fans out
@@ -34,9 +36,11 @@ export async function codeLensesForFile(
   // sequentially so the number of concurrent reads never grows with app size.
   const l1Lenses: CodeLens[] = [];
   for (const [line, group] of groupBy(matches, (m) => m.line)) {
+    const typeGrouped = groupByType(group.map((m) => m.node));
+
     l1Lenses.push({
       range: lineRange(line),
-      command: await commandFor(assemblyDir, group.map((m) => m.node)),
+      command: await commandFor(assemblyDir, typeGrouped),
     });
   }
 
@@ -52,6 +56,33 @@ export async function codeLensesForFile(
       { range: header0, command: { title: '▶ Enable auto-synth', command: COMMAND_ENABLE_AUTO_SYNTH } },
     ];
   return [...headerLenses, ...l1Lenses];
+}
+
+function groupByType(nodes: readonly AssemblyResourceNode[]): Map<string, AssemblyResourceNode[]> {
+  const grouped = groupBy(nodes, resourceTypeDescription);
+  for (const group of grouped.values()) {
+    group.sort(sortByDescription);
+  }
+  return grouped;
+}
+
+export function resourceTypeDescription(n: AssemblyResourceNode): string {
+  return n.cfnResource.type ?? n.constructInfo?.fqn ?? 'Construct';
+}
+
+function sortByDescription(a: AssemblyResourceNode, b: AssemblyResourceNode): number {
+  return descriptionOrder(resourceTypeDescription(a)) - descriptionOrder(resourceTypeDescription(b)) ||
+    resourceTypeDescription(a).localeCompare(resourceTypeDescription(b));
+}
+
+function descriptionOrder(x: string) {
+  if (x.includes('::')) {
+    return 0;
+  }
+  if (x.includes('.')) {
+    return 1;
+  }
+  return 2;
 }
 
 /**
@@ -70,13 +101,15 @@ interface ResourceChoice {
  * client opens directly (one) or via a picker (several). Unresolvable resources
  * are dropped; a line where none resolve stays title-only.
  */
-async function commandFor(assemblyDir: string, nodes: readonly AssemblyResourceNode[]): Promise<Command> {
+async function commandFor(assemblyDir: string, nodes: Map<string, AssemblyResourceNode[]>): Promise<Command> {
   const title = titleFor(nodes);
   const choices: ResourceChoice[] = [];
-  for (const node of nodes) {
-    const target = await resourceTarget(assemblyDir, node);
-    if (target !== undefined) {
-      choices.push({ label: node.cfnResource.type, description: friendlyName(node.constructPath), target });
+  for (const [type, ns] of nodes.entries()) {
+    for (const node of ns) {
+      const target = await resourceTarget(assemblyDir, node);
+      if (target !== undefined) {
+        choices.push({ label: type, description: friendlyName(node.constructPath), target });
+      }
     }
   }
   if (choices.length === 0) {
@@ -103,12 +136,14 @@ function lineRange(line1Based: number): Range {
   return { start: { line, character: 0 }, end: { line, character: 0 } };
 }
 
-function titleFor(resources: readonly AssemblyResourceNode[]): string {
-  if (resources.length === 1) {
-    return `Creates ${resources[0].cfnResource.type}`;
+function titleFor(resources: Map<string, AssemblyResourceNode[]>): string {
+  if (resources.size === 1 && Array.from(resources.values())[0].length === 1) {
+    return `Creates ${Array.from(resources.keys())[0]}`;
   }
-  const types = resources.map((r) => r.cfnResource.type).join(', ');
-  return `Creates ${resources.length} resources: ${types}`;
+
+  const allResources = Array.from(resources.values()).flat();
+  const counts = Array.from(resources.values()).map((ns) => ns.length);
+  return `Creates ${sum(counts)} resources: ${histogram(allResources)}`;
 }
 
 /** Developer-facing construct name: the construct path without the synthetic CfnResource leaf. */
@@ -119,4 +154,8 @@ function friendlyName(constructPath: string): string {
     segments.pop();
   }
   return segments.join('/');
+}
+
+function sum(numbers: readonly number[]): number {
+  return numbers.reduce((acc, n) => acc + n, 0);
 }

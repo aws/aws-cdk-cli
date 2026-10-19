@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode } from '@aws-cdk/cloud-assembly-api';
+import { AssemblyIndex, DEFAULT_USER_CODE_FINDER, StackTrace, type AssemblyIndexNode, type ConstructInfo } from '@aws-cdk/cloud-assembly-api';
 import type { ViolatingConstructJson } from '@aws-cdk/cloud-assembly-schema';
 import { type Branded } from './type-brands';
 
@@ -234,6 +234,7 @@ export interface AssemblyResourceNode {
   readonly constructPath: string;
   readonly id: string;
   readonly cfnResource: DefinitelyCloudFormationResource;
+  readonly constructInfo?: ConstructInfo;
 }
 
 export interface DefinitelyCloudFormationResource {

@@ -215,6 +215,8 @@ __metadata:
     vscode-languageserver-protocol: "npm:^3"
     vscode-languageserver-textdocument: "npm:^1"
     yaml: "npm:^2"
+  bin:
+    lsp: bin/lsp
   languageName: unknown
   linkType: soft
 

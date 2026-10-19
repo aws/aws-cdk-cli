@@ -1,6 +1,8 @@
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER } from '@aws-cdk/cloud-assembly-api';
 import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver/node';
 import { type LogSink } from './log-sink';
 import { offsetsToRange } from './positions';
+import { histogram } from './summarize';
 import { type AssemblyIndexWithSourceLocations, isResourceNode, type AssemblyResourceNode, type RelativePath } from '../core/assembly-index-with-source-locations';
 import { pathToFileURL } from '../core/safe-url';
 import type { OffsetRange, TemplateRanges } from '../core/template-ranges';
@@ -40,8 +42,6 @@ const MAX_LINKED_AUX = 5;
 const MAX_STRING_LENGTH = 60;
 /** Object keys previewed inline before collapsing with an ellipsis. */
 const MAX_OBJECT_KEYS = 4;
-/** Distinct CFN types shown in an auxiliary histogram before "+N more". */
-const MAX_HISTOGRAM_TYPES = 6;
 
 /**
  * Resource nodes whose creation line is the hovered position in `uri`. Reuses
@@ -55,8 +55,8 @@ export function resourceNodesOnLine(
   // sourceLocation is 1-based; LSP positions are 0-based.
   const line = position.line + 1;
   return index.constructsOnLine(index.appDir.relative(filePath), line)
-    .filter(x => isResourceNode(x))
-    .map(x => x as AssemblyResourceNode);
+    .filter(x => isResourceNode(x) && x.cfnResource.type && x.cfnResource.logicalId !== ENTIRE_TEMPLATE_LOGICALID_MARKER)
+    .map(x => x as unknown as AssemblyResourceNode);
 }
 
 /**
@@ -253,8 +253,10 @@ function alsoCreates(others: readonly AssemblyResourceNode[], links: HoverLinks 
 }
 
 function renderSummary(nodes: readonly AssemblyResourceNode[], links: HoverLinks | undefined): string {
-  const items = nodes.map((node) => `- ${linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath])} \`${node.constructPath}\``);
-  return [`**${nodes.length} resources on this line**`, '', ...items].join('\n');
+  const items = [...nodes]
+    .sort((a, b) => a.constructPath.localeCompare(b.constructPath))
+    .map((node) => `- ${linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath])} \`${node.constructPath}\``);
+  return [`**${nodes.length} resources defined here**`, '', ...items].join('\n');
 }
 
 /** Wrap `text` in a markdown link to `target`, or return it unchanged when absent. */
@@ -306,18 +308,6 @@ function renderIntrinsic(record: Record<string, unknown>): string | undefined {
     return `{${key} …}`;
   }
   return undefined;
-}
-
-/** Group auxiliary resources by short CFN type, most common first, e.g. "8× Subnet". */
-function histogram(nodes: readonly AssemblyResourceNode[]): string {
-  const counts = new Map<string, number>();
-  for (const node of nodes) {
-    const short = node.cfnResource.type.split('::').pop() ?? node.cfnResource.type;
-    counts.set(short, (counts.get(short) ?? 0) + 1);
-  }
-  const parts = [...counts].sort((a, b) => b[1] - a[1]).map(([type, count]) => `${count}× ${type}`);
-  const shown = parts.slice(0, MAX_HISTOGRAM_TYPES);
-  return shown.join(', ') + (parts.length > shown.length ? `, … +${parts.length - shown.length} more` : '');
 }
 
 function truncate(text: string, max: number): string {

@@ -51,7 +51,7 @@ export function mapViolationsToDiagnostics(
   }
 
   const byUri = new Map<string, Diagnostic[]>(
-    [...groupBy(located, (l) => l.uri)].map(([uri, items]) => [uri, items.map((i) => i.diagnostic)]),
+    [...groupBy(located, (l) => l.uri)].map(([uri, items]) => [uri, dedupeDiagnostics(items.map((i) => i.diagnostic))]),
   );
   return { byUri, dropped };
 }
@@ -84,6 +84,19 @@ function anchorViolation(
   return traced.sourceLocations.map((loc) => {
     return { uri: pathToFileURL(index.appDir.absolute(loc.file)).toString(), range: toRange(loc) };
   });
+}
+
+function dedupeDiagnostics(xs: Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  const result: Diagnostic[] = [];
+  for (const diag of xs) {
+    const key = `${diag.range.start.line}:${diag.range.start.character}:${diag.code}:${diag.source}:${diag.message}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(diag);
+    }
+  }
+  return result;
 }
 
 /**

@@ -419,9 +419,14 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
         notify,
       });
     },
-    onHover(params) {
-      return hoverForPosition(log, cachedIndex, fileURLToPath(params.textDocument.uri), params.position,
-        (file) => fs.readFile(cachedIndex.assemblyDir.absolute(file), 'utf-8'));
+    async onHover(params) {
+      try {
+        return await hoverForPosition(log, cachedIndex, fileURLToPath(params.textDocument.uri), params.position,
+          (file) => fs.readFile(cachedIndex.assemblyDir.absolute(file), 'utf-8'));
+      } catch (e) {
+        log.error(`Failed to get hover information: ${e}`);
+        throw e;
+      }
     },
     async onGetConstructTree() {
       const assemblyDir = cachedAssemblyDir ?? path.join(currentProjectDir(), 'cdk.out');

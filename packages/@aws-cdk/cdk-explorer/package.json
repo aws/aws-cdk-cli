@@ -6,6 +6,9 @@
     "url": "https://github.com/aws/aws-cdk-cli",
     "directory": "packages/@aws-cdk/cdk-explorer"
   },
+  "bin": {
+    "lsp": "bin/lsp"
+  },
   "scripts": {
     "build": "projen build",
     "bump": "projen bump",

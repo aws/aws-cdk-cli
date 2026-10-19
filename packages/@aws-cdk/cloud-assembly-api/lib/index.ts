@@ -24,3 +24,4 @@ export * from './validation/formatting';
 export * from './validation/parsing';
 export * from './validation/loading';
 export * from './assembly-index';
+export { type ConstructInfo } from './tree-json-types';
