@@ -40,14 +40,12 @@ export async function retryOnLock(abort: AbortSignal, fn: () => Promise<IReadabl
   let delayMs = 500;
   const deadline = AbortSignal.any([abort, AbortSignal.timeout(60 * 60 * 1000)]);
   while (true) {
+    deadline.throwIfAborted();
     try {
       return await fn();
     } catch (error: any) {
       if (!ToolkitError.isLockError(error)) {
         throw error;
-      }
-      if (deadline.aborted) {
-        throw new Error('Gave up waiting for lock');
       }
       await sleep(Math.floor(Math.random() * delayMs));
       delayMs = Math.min(delayMs * 2, 10_000);

@@ -115,8 +115,8 @@ describe('runSynth', () => {
 
     const result = await run(toolkit, makeProjectDir({ app: APP }), aborted);
 
-    expect(result).toEqual({ status: 'error', message: 'Gave up waiting for lock' });
-    expect(toolkit.synth).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ status: 'error', message: 'This operation was aborted' });
+    expect(toolkit.synth).toHaveBeenCalledTimes(0);
   });
 
   test('retries a lock until it clears, then succeeds', async () => {
