@@ -1,5 +1,7 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { CloudAssembly } from '../lib';
+import { rimraf, writeFiles } from './util';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
@@ -183,4 +185,37 @@ test('isCloudAssembly correctly detects Cloud Assemblies', () => {
   expect(CloudAssembly.isCloudAssembly(assembly)).toBe(true);
   expect(CloudAssembly.isCloudAssembly(inheritedAssembly)).toBe(true);
   expect(CloudAssembly.isCloudAssembly({})).toBe(false);
+});
+
+describe('mtimeMs', () => {
+  let dir: string | undefined;
+
+  afterEach(() => {
+    if (dir) rimraf(dir);
+    dir = undefined;
+  });
+
+  /** Give the manifest an exact mtime, so assertions don't depend on filesystem timestamp granularity. */
+  function setManifestMtime(assemblyDir: string, epochSeconds: number) {
+    fs.utimesSync(path.join(assemblyDir, 'manifest.json'), epochSeconds, epochSeconds);
+  }
+
+  test('is the modification time of the manifest file', () => {
+    dir = writeFiles({ 'manifest.json': { version: '0.0.0', artifacts: {} } });
+    setManifestMtime(dir, 1_700_000_000);
+
+    expect(new CloudAssembly(dir).mtimeMs).toEqual(1_700_000_000_000);
+  });
+
+  test('reports the newer time after a re-synth, which is what consumers detect', () => {
+    dir = writeFiles({ 'manifest.json': { version: '0.0.0', artifacts: {} } });
+    setManifestMtime(dir, 1_700_000_000);
+    const before = new CloudAssembly(dir).mtimeMs;
+
+    // WHEN - the app is synthesized again over the same directory
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: '0.0.0', artifacts: {} }));
+    setManifestMtime(dir, 1_700_000_060);
+
+    expect(new CloudAssembly(dir).mtimeMs).toBeGreaterThan(before);
+  });
 });

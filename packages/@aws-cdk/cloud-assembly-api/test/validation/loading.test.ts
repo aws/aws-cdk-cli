@@ -12,13 +12,13 @@ afterEach(() => {
 });
 
 /** Metadata entries that surface as stack `messages` (i.e. construct annotations). */
-type Annotation = { level: 'warning' | 'error' | 'info'; path: string; message: string };
+type Annotation = { level: 'warning' | 'error' | 'info'; path: string; message: string; trace?: string[] };
 
 function annotationMetadata(annotations: Annotation[]): Record<string, unknown[]> {
   const metadata: Record<string, unknown[]> = {};
-  for (const { level, path: constructPath, message } of annotations) {
+  for (const { level, path: constructPath, message, trace } of annotations) {
     metadata[constructPath] ??= [];
-    metadata[constructPath].push({ type: `aws:cdk:${level}`, data: message });
+    metadata[constructPath].push({ type: `aws:cdk:${level}`, data: message, ...(trace ? { trace } : {}) });
   }
   return metadata;
 }
@@ -277,5 +277,61 @@ describe('construct annotations', () => {
     });
 
     expect((await loadAll(dir)).map((r) => r.pluginName)).toEqual(['my-plugin', ANNOTATIONS]);
+  });
+
+  describe('stack traces', () => {
+    // A trace as the `constructs` library records it: the user's own frame below
+    // the library frames that led to it. Nothing has filtered it yet.
+    const RAW_TRACE = [
+      'new Bucket (/home/dev/app/node_modules/aws-cdk-lib/aws-s3/lib/bucket.js:1:2)',
+      'new Bucket2 (/home/dev/app/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:726)',
+      'new MyStack (/home/dev/app/lib/my-stack.ts:12:5)',
+    ];
+
+    test('renders the recorded trace as JustMyCode', async () => {
+      dir = assemblyWith({
+        stacks: [{ id: 'S', annotations: [{ level: 'warning', path: '/S/Bucket', message: 'meh', trace: RAW_TRACE }] }],
+      });
+
+      const construct = (await loadAll(dir))[0].violations[0].violatingConstructs[0];
+
+      // The library frames collapse into one summary line and the user frame survives:
+      // the trace points at the user's code, not at aws-cdk-lib internals.
+      expect(construct.stackTraces).toEqual([
+        [
+          '    ...new Bucket2 in aws-cdk-lib...',
+          '    at new MyStack (/home/dev/app/lib/my-stack.ts:12:5)',
+        ].join('\n'),
+      ]);
+    });
+
+    test('is empty when the annotation carries no trace', async () => {
+      // Stack traces are off by default in the framework, so this is the common case.
+      dir = assemblyWith({
+        stacks: [{ id: 'S', annotations: [{ level: 'warning', path: '/S/Bucket', message: 'meh' }] }],
+      });
+
+      expect((await loadAll(dir))[0].violations[0].violatingConstructs[0].stackTraces).toEqual([]);
+    });
+
+    test('each grouped construct keeps its own trace', async () => {
+      dir = assemblyWith({
+        stacks: [{
+          id: 'S',
+          annotations: [
+            { level: 'warning', path: '/S/A', message: 'same message', trace: ['new MyStack (/home/dev/app/lib/a.ts:1:1)'] },
+            { level: 'warning', path: '/S/B', message: 'same message', trace: ['new MyStack (/home/dev/app/lib/b.ts:2:2)'] },
+          ],
+        }],
+      });
+
+      const violations = (await loadAll(dir))[0].violations;
+
+      expect(violations).toHaveLength(1);
+      expect(violations[0].violatingConstructs.map((c) => c.stackTraces)).toEqual([
+        ['    at new MyStack (/home/dev/app/lib/a.ts:1:1)'],
+        ['    at new MyStack (/home/dev/app/lib/b.ts:2:2)'],
+      ]);
+    });
   });
 });

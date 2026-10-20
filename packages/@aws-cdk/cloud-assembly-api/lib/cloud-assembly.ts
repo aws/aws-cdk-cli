@@ -129,6 +129,7 @@ export class CloudAssembly implements ICloudAssembly {
     try {
       this.mtimeMs = fs.statSync(manifestFile).mtimeMs;
     } catch (e) {
+      // Unlikely to happen but the file could have disappeared due to a race condition since reading it above.
       this.mtimeMs = Date.now();
     }
 

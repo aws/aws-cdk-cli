@@ -1,4 +1,4 @@
-import { AssemblyIndex, CloudAssembly } from '../lib';
+import { AssemblyIndex, CloudAssembly, ENTIRE_TEMPLATE_LOGICALID_MARKER } from '../lib';
 import { rimraf, writeFiles } from './util';
 
 /**
@@ -301,6 +301,51 @@ describe('nested stacks', () => {
     dir = nestedStackAssembly({ assetPath: false });
     expect((await indexOf(dir)).byPath('S/N/Queue/Resource')!.cfnResource.assemblyRelativeTemplateFile).toBe('S.template.json');
   });
+
+  describe('whole-template marker', () => {
+    // A construct that *produces* a template (a stack, or a NestedStack) is handed
+    // the marker as its logical ID, so callers can treat "jump to this template"
+    // with the same code path as "jump to this resource".
+
+    test('a stack produces its own template', async () => {
+      dir = nestedStackAssembly();
+
+      expect((await indexOf(dir)).byPath('S')!.cfnResource).toMatchObject({
+        logicalId: ENTIRE_TEMPLATE_LOGICALID_MARKER,
+        assemblyRelativeTemplateFile: 'S.template.json',
+      });
+    });
+
+    test('a nested stack produces the nested template', async () => {
+      dir = nestedStackAssembly();
+
+      expect((await indexOf(dir)).byPath('S/N')!.cfnResource).toMatchObject({
+        logicalId: ENTIRE_TEMPLATE_LOGICALID_MARKER,
+        assemblyRelativeTemplateFile: 'SNInner.nested.template.json',
+      });
+    });
+
+    test('the marker round-trips through byTemplateLocation', async () => {
+      // This is the lookup a navigator performs: template file in, producing
+      // construct out.
+      dir = nestedStackAssembly();
+      const index = await indexOf(dir);
+
+      expect(index.byTemplateLocation('S.template.json', ENTIRE_TEMPLATE_LOGICALID_MARKER)!.constructPath).toBe('S');
+      expect(index.byTemplateLocation('SNInner.nested.template.json', ENTIRE_TEMPLATE_LOGICALID_MARKER)!.constructPath).toBe('S/N');
+    });
+
+    test('does not overwrite the nested stack resource, which has a real logical id', async () => {
+      // `S/N` is the producer; the `AWS::CloudFormation::Stack` resource next to it
+      // is an ordinary resource in the PARENT template and must stay that way.
+      dir = nestedStackAssembly();
+
+      expect((await indexOf(dir)).byPath('S/N.NestedStack/N.NestedStackResource')!.cfnResource).toMatchObject({
+        logicalId: 'NNestedStackRes',
+        assemblyRelativeTemplateFile: 'S.template.json',
+      });
+    });
+  });
 });
 
 describe('nested assemblies (Stages)', () => {
@@ -429,6 +474,12 @@ describe('nested assemblies (Stages)', () => {
 });
 
 describe('byTemplateLocation', () => {
+  test('cannot be confused with a real logical id', () => {
+    // The marker is only safe to mix into the logicalId field because CloudFormation
+    // would never accept it as one (logical IDs are alphanumeric).
+    expect(ENTIRE_TEMPLATE_LOGICALID_MARKER).not.toMatch(/^[A-Za-z0-9]+$/);
+  });
+
   test('finds a resource by template file and logical id', async () => {
     dir = singleStackAssembly();
     expect((await indexOf(dir)).byTemplateLocation('S.template.json', 'BucketABC')!.constructPath)
