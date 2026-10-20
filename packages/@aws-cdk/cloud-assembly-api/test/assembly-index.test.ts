@@ -1,4 +1,4 @@
-import { AssemblyIndex, CloudAssembly, ENTIRE_TEMPLATE_LOGICALID_MARKER } from '../lib';
+import { AssemblyIndex, CloudAssembly, ENTIRE_TEMPLATE_LOGICALID_MARKER, loadUnifiedValidationReport } from '../lib';
 import { rimraf, writeFiles } from './util';
 
 /**
@@ -612,5 +612,51 @@ describe('traceViolation', () => {
     expect(traced.node).toBeUndefined();
     expect(traced.cfnResource).toBeUndefined();
     expect(traced.violation.constructPath).toBe('Ghost/Thing');
+  });
+
+  test('a trace that came from an annotation arrives parsed and JustMyCode-rendered', async () => {
+    // End to end over both halves of the path a construct annotation takes: the
+    // report synthesized from stack metadata renders the raw `constructs` trace
+    // as JustMyCode, and the index hands the result to its caller as frames.
+    dir = writeFiles({
+      'manifest.json': {
+        version: '0.0.0',
+        artifacts: {
+          S: {
+            type: 'aws:cloudformation:stack',
+            environment: 'aws://111/us-east-1',
+            properties: { templateFile: 'S.template.json' },
+            metadata: {
+              '/S/Bucket/Resource': [
+                { type: 'aws:cdk:logicalId', data: 'BucketABC' },
+                {
+                  type: 'aws:cdk:warning',
+                  data: 'be careful',
+                  trace: [
+                    'new Bucket (/home/dev/app/node_modules/aws-cdk-lib/aws-s3/lib/bucket.js:1:2)',
+                    'new Bucket2 (/home/dev/app/node_modules/aws-cdk-lib/core/lib/prop-injectable.js:1:726)',
+                    'new MyStack (/home/dev/app/lib/my-stack.ts:12:5)',
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+      'S.template.json': { Resources: { BucketABC: { Type: 'AWS::S3::Bucket' } } },
+    });
+    const assembly = new CloudAssembly(dir);
+    const [report] = await loadUnifiedValidationReport(assembly, assembly.stacksRecursively);
+    const violatingConstruct = report.violations[0].violatingConstructs[0];
+
+    // WHEN
+    const traced = (await AssemblyIndex.fromAssembly(assembly)).traceViolation(violatingConstruct);
+
+    // THEN - the aws-cdk-lib frames are collapsed into one summary line and the
+    // user's own frame survives, so the trace points at code the user can fix.
+    expect(traced.stackTraces).toEqual([[
+      '    ...new Bucket2 in aws-cdk-lib...',
+      '    at new MyStack (/home/dev/app/lib/my-stack.ts:12:5)',
+    ]]);
   });
 });

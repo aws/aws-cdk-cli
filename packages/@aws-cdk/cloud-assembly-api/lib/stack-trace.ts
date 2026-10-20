@@ -248,11 +248,13 @@ function renderCallStackJustMyCode(stack: StackFrame[], indent = true): string[]
   }
 }
 
+const JSII_HOST_DIR_NAME_SYM = Symbol.for('jsii.context.hostDirName');
+
 /**
  * Whether the call site comes from the internals of the host that sent us the stack trace
  */
 function isHostInternalFrame(frame: StackFrame): boolean {
-  const hostDirName = (global as any)[Symbol.for('jsii.context.hostDirName')];
-  return frame.fileName.includes(hostDirName);
+  const hostDirName = (global as any)[JSII_HOST_DIR_NAME_SYM];
+  return hostDirName && frame.fileName.includes(hostDirName);
 }
 
