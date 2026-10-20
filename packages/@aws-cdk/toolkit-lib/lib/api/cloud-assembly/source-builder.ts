@@ -395,10 +395,10 @@ export abstract class CloudAssemblySourceBuilder {
               outdir: execution.outdir,
               context: fullContext,
               env,
-              abort: produceOptions.abort,
+              abort: produceOptions?.abort,
             });
 
-            produceOptions.abort?.throwIfAborted();
+            produceOptions?.abort?.throwIfAborted();
           } catch (error: unknown) {
             // re-throw toolkit errors unchanged
             if (ToolkitError.isToolkitError(error)) {

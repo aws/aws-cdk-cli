@@ -30,7 +30,7 @@ async function generateFixture(name: string) {
   });
 
   // Produce the assembly to trigger synthesis
-  const asm = await source.produce({});
+  const asm = await source.produce();
   await asm.dispose();
 
   // Clean up lock files

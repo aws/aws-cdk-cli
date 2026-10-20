@@ -21,7 +21,7 @@ describe('fromAssemblyBuilder', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
-    await using result = await cx.produce({});
+    await using result = await cx.produce();
     const assembly = result.cloudAssembly;
 
     // THEN
@@ -33,7 +33,7 @@ describe('fromAssemblyBuilder', () => {
     const cx = await builderFixture(toolkit, 'external-context', {
       'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
     });
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
@@ -91,7 +91,7 @@ describe('fromAssemblyBuilder', () => {
 
     // WHEN
     try {
-      await cx.produce({});
+      await cx.produce();
     } catch (err: any) {
       // THEN
       expect(ToolkitError.isAssemblyError(err)).toBe(true);
@@ -99,7 +99,7 @@ describe('fromAssemblyBuilder', () => {
     }
   });
 
-  test('disposeOutdir can be used to disappear explicit synth dir', async() => {
+  test('disposeOutdir can be used to disappear explicit synth dir', async () => {
     // GIVEN
     await using synthDir = autoCleanOutDir();
     const builder = builderFunctionFromFixture('two-empty-stacks');
@@ -132,7 +132,7 @@ describe('fromAssemblyBuilder', () => {
     const cx = await appFixture(toolkit, 'uses-context-provider');
 
     // WHEN
-    await using _ = await cx.produce({});
+    await using _ = await cx.produce();
 
     // THEN - no exception
 
@@ -152,7 +152,7 @@ describe('fromAssemblyBuilder', () => {
     });
 
     // WHEN
-    await expect(cx.produce({})).rejects.toThrow();
+    await expect(cx.produce()).rejects.toThrow();
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
@@ -185,7 +185,7 @@ describe('fromAssemblyBuilder', () => {
         resolveDefaultEnvironment,
       });
 
-      await using _ = await cx.produce({});
+      await using _ = await cx.produce();
 
       // THEN
       expect(prepareDefaultEnvironmentSpy).toHaveBeenCalledTimes(callCount);
@@ -267,7 +267,7 @@ describe('fromCdkApp', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'two-empty-stacks');
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -287,7 +287,7 @@ describe('fromCdkApp', () => {
         disposeOutdir: true,
       });
 
-      await using assembly = await cx.produce({});
+      await using assembly = await cx.produce();
 
       // THEN - synth succeeds
       expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -299,7 +299,7 @@ describe('fromCdkApp', () => {
     }
   });
 
-  test('disposeOutdir can be used to disappear explicit synth dir', async() => {
+  test('disposeOutdir can be used to disappear explicit synth dir', async () => {
     // GIVEN
     await using synthDir = autoCleanOutDir();
     const app = await appFixtureConfig('two-empty-stacks');
@@ -327,7 +327,7 @@ describe('fromCdkApp', () => {
         'externally-provided-bucket-name': 'amzn-s3-demo-bucket',
       }),
     });
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('Stack1').template;
 
     // THEN
@@ -341,7 +341,7 @@ describe('fromCdkApp', () => {
         STACK_NAME: 'SomeStackName',
       },
     });
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
     const stack = assembly.cloudAssembly.getStackByName('SomeStackName').template;
 
     // THEN
@@ -352,7 +352,7 @@ describe('fromCdkApp', () => {
     // WHEN
     const cx = await appFixture(toolkit, 'validation-error');
     try {
-      await cx.produce({});
+      await cx.produce();
     } catch {
       // we are just interested in the output for this test
     }
@@ -368,7 +368,7 @@ describe('fromCdkApp', () => {
   test('will capture all output', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'console-output');
-    await using _ = await cx.produce({});
+    await using _ = await cx.produce();
 
     // THEN
     ['one', 'two', 'three', 'four'].forEach((line) => {
@@ -388,7 +388,7 @@ describe('fromCdkApp', () => {
     const cx = await toolkit.fromCdkApp('false', { outdir: out.dir });
 
     // WHEN
-    await expect(cx.produce({})).rejects.toThrow(/error 1/);
+    await expect(cx.produce()).rejects.toThrow(/error 1/);
 
     // THEN: Don't expect either a read or write lock on the directory afterwards
     expect(await (lock! as any)._currentWriter()).toBeUndefined();
@@ -514,7 +514,7 @@ describe('fromCdkApp', () => {
       });
 
       try {
-        await using _ = await cx.produce({});
+        await using _ = await cx.produce();
       } catch {
         // we expect this app to throw
       }
@@ -529,7 +529,7 @@ describe('fromAssemblyDirectory', () => {
   test('defaults', async () => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1', 'Stack2']);
@@ -540,7 +540,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'manifest-from-the-future');
 
     // THEN
-    await expect(() => cx.produce({})).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
+    await expect(() => cx.produce()).rejects.toThrow('This AWS CDK Toolkit is not compatible with the AWS CDK library used by your application');
   });
 
   test('fails on missing context', async () => {
@@ -548,7 +548,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'assembly-missing-context');
 
     // THEN
-    await expect(() => cx.produce({})).rejects.toThrow(/Assembly contains missing context./);
+    await expect(() => cx.produce()).rejects.toThrow(/Assembly contains missing context./);
   });
 
   test('no fail on missing context', async () => {
@@ -556,7 +556,7 @@ describe('fromAssemblyDirectory', () => {
     const cx = await cdkOutFixture(toolkit, 'assembly-missing-context', { failOnMissingContext: false });
 
     // THEN
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
     expect(assembly.cloudAssembly.manifest.missing?.length).toEqual(1);
   });
 
@@ -567,7 +567,7 @@ describe('fromAssemblyDirectory', () => {
         checkVersion: false,
       },
     });
-    await using assembly = await cx.produce({});
+    await using assembly = await cx.produce();
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
