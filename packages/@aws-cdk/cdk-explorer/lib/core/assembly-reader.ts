@@ -45,7 +45,6 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
   await map.loadSourceMapFor(...Array.from(sourceFiles).filter(file => file.endsWith('.js')));
   index.setSourceResolver({ resolve: (loc) => map.reverseMapJs(loc) });
   index.indexAssembly();
-  // updateSourceLocationsInViolations(violations, index, map);
 
   return {
     index,
@@ -70,18 +69,3 @@ function* sourceFilesInViolations(
     }
   }
 }
-
-/*
-function updateSourceLocationsInViolations(violations: PluginReportJson[], index: AssemblyIndexWithSourceLocations, map: SourceMapResolver) {
-  for (const plugin of violations ?? []) {
-    for (const violation of plugin.violations ?? []) {
-      for (const vc of violation.violatingConstructs ?? []) {
-        const traced = index.traceViolation(vc);
-        for (const loc of traced.sourceLocations) {
-          yield loc.file;
-        }
-      }
-    }
-  }
-}
-*/
