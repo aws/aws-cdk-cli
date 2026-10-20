@@ -69,6 +69,9 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
     // again, until it doesn't complain anymore or we've stopped making progress).
     let previouslyMissingKeys: Set<string> | undefined;
     while (true) {
+      // Early check for abort
+      produceOptions.abort?.throwIfAborted();
+
       await using readableAsm = new AsyncDisposableBox(await this.source.produce(produceOptions));
 
       const assembly = readableAsm.value.cloudAssembly;

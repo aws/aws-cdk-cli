@@ -54,7 +54,8 @@ export interface AssemblyBuilderProps {
    * The recommended way of handling this signal is to periodically check `abort?.aborted`
    * within long-running loops or operations and throw an exception if you find it to be `true`.
    * You may also just return early; if the abort signal has been triggered but no exception
-   * has been thrown yet `fromAssemblyBuilder()` will throw the exception instead.
+   * has been thrown yet `fromAssemblyBuilder()` will throw the exception instead; in that
+   * case the exception thrown will be a `DOMException` with `e.name == "AbortError"`.
    *
    * It is the AssemblyBuilder implementor's responsibility to respect this signal;
    * the toolkit will not enforce it and won't magically return the control flow
@@ -397,9 +398,7 @@ export abstract class CloudAssemblySourceBuilder {
               abort: produceOptions.abort,
             });
 
-            if (produceOptions.abort?.aborted) {
-              throw new ToolkitError('Aborted', 'Assembly builder aborted');
-            }
+            produceOptions.abort?.throwIfAborted();
           } catch (error: unknown) {
             // re-throw toolkit errors unchanged
             if (ToolkitError.isToolkitError(error)) {
