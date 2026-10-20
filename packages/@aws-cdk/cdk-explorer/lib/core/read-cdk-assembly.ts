@@ -1,37 +1,4 @@
-import { ToolkitError, type FromCdkAppOptions, type ICloudAssemblySource, type IReadableCloudAssembly, type Toolkit } from '@aws-cdk/toolkit-lib';
-import { readCdkConfig } from './cdk-config';
-
-/**
- * Returns an assembly source from a CDK app directory
- *
- * This could/should have been built into the toolkit library itself, but isn't
- * currently.
- *
- * Returns `undefined` if we can't determine a valid CDK app in the directory.
- */
-export async function fromCdkAppDirectory(
-  toolkit: Toolkit,
-  appDirectory: string,
-  props: FromCdkAppOptions = {},
-): Promise<ICloudAssemblySource | undefined> {
-  const config = await readCdkConfig(appDirectory);
-
-  if (!config?.app) {
-    return undefined;
-  }
-
-  return toolkit.fromCdkApp(config.app, {
-    ...props,
-    outdir: config.output,
-    workingDirectory: appDirectory,
-    lookups: false,
-    // Make jsii forward host-language (Python/Java) source frames; TS resolves via source maps.
-    env: {
-      ...props.env,
-      JSII_HOST_STACK_TRACES: '1',
-    },
-  });
-}
+import { ToolkitError, type IReadableCloudAssembly, type Toolkit } from '@aws-cdk/toolkit-lib';
 
 /**
  * Retry the given producer as long as the error is a lock

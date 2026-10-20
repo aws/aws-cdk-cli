@@ -47,7 +47,7 @@ import {
   type AssemblyWatcherOptions,
 } from '../core/assembly-watcher';
 import { readCdkConfig } from '../core/cdk-config';
-import { readAssemblyDirectory } from '../core/from-cdk-app-directory';
+import { readAssemblyDirectory } from '../core/read-cdk-assembly';
 import { SOURCE_WATCH_EXCLUDES } from '../core/source-watcher';
 import { runSynth, type SynthRunResult } from '../core/synth-runner';
 import type { TemplateRanges } from '../core/template-ranges';

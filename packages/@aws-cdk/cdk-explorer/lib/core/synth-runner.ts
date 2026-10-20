@@ -1,5 +1,5 @@
 import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
-import { fromCdkAppDirectory, retryOnLock } from './from-cdk-app-directory';
+import { retryOnLock } from './read-cdk-assembly';
 
 /**
  * Hold synth()'s read lock this long before releasing it. While we hold a
@@ -50,7 +50,7 @@ export interface SynthRunnerOptions {
 export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
   let asm;
   try {
-    const cx = await fromCdkAppDirectory(options.toolkit, options.projectDir);
+    const cx = await options.toolkit.fromCdkAppDirectory(options.projectDir, { lookups: false });
     if (!cx) {
       return { status: 'unavailable' };
     }
