@@ -4,6 +4,7 @@ import * as jest from 'jest';
 import * as yargs from 'yargs';
 import { emitVersionsEmf } from '../emf';
 import { RunnerCliNpmSource } from '../package-sources/cli-npm-source';
+import { RunnerCliPreinstalledSource } from '../package-sources/cli-preinstalled-source';
 import { RunnerCliRepoSource } from '../package-sources/cli-repo-source';
 import { autoFindRepoRoot } from '../package-sources/find-root';
 import { RunnerLibraryGlobalInstallSource } from '../package-sources/library-globalinstall-source';
@@ -30,6 +31,10 @@ async function main() {
         alias: 'c',
         type: 'string',
       })
+      .options('cli-preinstalled', {
+        describe: 'Use a preinstalled CLI (from node_modules or $PATH), without a network install.',
+        type: 'boolean',
+      })
       .options('cli-source', {
         describe: 'Root of aws-cdk-cli repository, or "auto".',
         alias: 's',
@@ -40,15 +45,27 @@ async function main() {
         alias: 'f',
         type: 'string',
       })
+      .options('framework-preinstalled', {
+        describe: 'Use a preinstalled framework (from node_modules or $PATH), without a network install.',
+        type: 'boolean',
+      })
       .options('toolkit-lib-version', {
         describe: 'Toolkit lib version to use',
         alias: 'l',
         type: 'string',
       })
+      .options('toolkit-lib-preinstalled', {
+        describe: 'Use a preinstalled toolkit lib (from node_modules or $PATH), without a network install.',
+        type: 'boolean',
+      })
       .options('cdk-assets-version', {
         describe: 'cdk-assets version to use.',
         alias: 'a',
         type: 'string',
+      })
+      .options('cdk-assets-preinstalled', {
+        describe: 'Use a preinstalled cdk-assets (from node_modules or $PATH), without a network install.',
+        type: 'boolean',
       })
       .option('use-source', {
         descripton: 'Use TypeScript packages from the given source repository (or "auto")',
@@ -137,6 +154,8 @@ async function main() {
   // Also, some of them depend on each other for convenience.
   const cliSource = new UniqueOption<IRunnerSource<ITestCliSource>>('CLI version');
   const cdkAssetsSource = new UniqueOption<IRunnerSource<ITestCliSource>>('cdk-assets version');
+  const librarySource = new UniqueOption<IRunnerSource<ITestLibrarySource>>('Framework version');
+  const toolkitSource = new UniqueOption<IRunnerSource<ITestLibrarySource>>('Toolkit lib version');
 
   // Specific CLI version
   for (const flagAlias of ['cli-version', 'use-cli-release'] as const) {
@@ -145,9 +164,19 @@ async function main() {
     }
   }
 
+  // Preinstalled CLI: already available in node_modules/.bin or on $PATH, no network install.
+  if (args['cli-preinstalled']) {
+    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME), '--cli-preinstalled');
+  }
+
   // Specific cdk-assets version
   if (args['cdk-assets-version']) {
     cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-version']), '--cdk-assets-version');
+  }
+
+  // Preinstalled cdk-assets: already available in node_modules/.bin or on $PATH, no network install.
+  if (args['cdk-assets-preinstalled']) {
+    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME), '--cdk-assets-preinstalled');
   }
 
   // Specifically use a source location
@@ -178,20 +207,40 @@ async function main() {
     cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set');
   }
 
-  // Library source is either the given one, or 'latest' (nice and simple)
-  const librarySource: IRunnerSource<ITestLibrarySource>
-    = new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version'] ? args['framework-version'] : 'latest');
-
-  // Toolkit lib source is either the given one, or the one that's being brought by 'package.json' already, or 'latest'
-  const toolkitLibPackage = '@aws-cdk/toolkit-lib';
-  let toolkitSource: IRunnerSource<ITestLibrarySource> | undefined;
-  if (args['toolkit-lib-version']) {
-    toolkitSource = new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']);
+  // Specific framework version
+  if (args['framework-version']) {
+    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version']), '--framework-version');
   }
-  if (!toolkitSource) {
-    toolkitSource = await RunnerLibraryPreinstalledSource.isPreinstalled(toolkitLibPackage)
-      ? new RunnerLibraryPreinstalledSource(toolkitLibPackage)
-      : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest');
+
+  // Preinstalled framework: already available in node_modules, no network install.
+  if (args['framework-preinstalled']) {
+    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib'), '--framework-preinstalled');
+  }
+
+  // Library source is either the given one, or 'latest' (nice and simple)
+  if (!librarySource.isSet()) {
+    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', 'latest'), '--framework-version not set');
+  }
+
+  // Toolkit lib source is either the given one, the preinstalled one, or the one that's being brought by
+  // 'package.json' already, or 'latest'
+  const toolkitLibPackage = '@aws-cdk/toolkit-lib';
+  if (args['toolkit-lib-version']) {
+    toolkitSource.set(new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']), '--toolkit-lib-version');
+  }
+
+  // Preinstalled toolkit lib: already available in node_modules, no network install.
+  if (args['toolkit-lib-preinstalled']) {
+    toolkitSource.set(new RunnerLibraryPreinstalledSource(toolkitLibPackage), '--toolkit-lib-preinstalled');
+  }
+
+  if (!toolkitSource.isSet()) {
+    toolkitSource.set(
+      await RunnerLibraryPreinstalledSource.isPreinstalled(toolkitLibPackage)
+        ? new RunnerLibraryPreinstalledSource(toolkitLibPackage)
+        : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest'),
+      'implicit fallback',
+    );
   }
 
   process.env.JEST_RETRY_TIMES = String(args.retry);
@@ -200,8 +249,8 @@ async function main() {
   console.log(`        Test suite:         ${suiteName}`);
   console.log(`        Test version:       ${thisPackageVersion()}`);
   console.log(`        CLI source:         ${cliSource.assert().sourceDescription}`);
-  console.log(`        Library source:     ${librarySource.sourceDescription}`);
-  console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
+  console.log(`        Library source:     ${librarySource.assert().sourceDescription}`);
+  console.log(`        Toolkit lib source: ${toolkitSource.assert().sourceDescription}`);
   console.log(`        cdk-assets source:  ${cdkAssetsSource.assert().sourceDescription}`);
   console.log(`        Retry:              ${args.retry}`);
 
@@ -226,11 +275,11 @@ async function main() {
     disposables.push(cli);
     console.log(`        CLI:             ${cli.version}`);
 
-    const library = await librarySource.runnerPrepare();
+    const library = await librarySource.assert().runnerPrepare();
     disposables.push(library);
     console.log(`        Library:         ${library.version}`);
 
-    const toolkitLib = await toolkitSource.runnerPrepare();
+    const toolkitLib = await toolkitSource.assert().runnerPrepare();
     disposables.push(toolkitLib);
     console.log(`        Toolkit library: ${toolkitLib.version}`);
 
