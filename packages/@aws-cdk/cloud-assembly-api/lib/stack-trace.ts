@@ -107,32 +107,38 @@ export class StackFrame {
     fileName = m ? frame.slice(0, -m[0].length) : frame;
     sourceLocation = m ? m[0].slice(1) : '';
 
-    return new StackFrame(
+    return new StackFrame({
       fileName,
       functionName,
       sourceLocation,
-    );
+    });
   }
 
-  constructor(
-    /**
-     * The file name this call frame is in
-     */
-    public readonly fileName: string,
+  /**
+   * The file name this call frame is in
+   */
+  public readonly fileName: string;
 
-    /**
-     * Name of the function this call frame is in
-     */
-    public readonly functionName: string,
+  /**
+   * Name of the function this call frame is in
+   */
+  public readonly functionName: string;
 
-    /**
-     * The line and optionally column number this call frame is in
-     *
-     * Formatted as `<line> [':' <column>]`.
-     */
-    public readonly sourceLocation: string,
-  ) {
+  /**
+   * The line and optionally column number this call frame is in
+   *
+   * Formatted as `<line> [':' <column>]`.
+   */
+  public readonly sourceLocation: string;
 
+  constructor(props: {
+    fileName: string;
+    functionName: string;
+    sourceLocation: string;
+  }) {
+    this.fileName = props.fileName;
+    this.functionName = props.functionName;
+    this.sourceLocation = props.sourceLocation;
   }
 
   public get lineLocation() {
