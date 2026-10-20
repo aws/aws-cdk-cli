@@ -235,12 +235,16 @@ export interface FromCdkAppDirectoryOptions {
   /**
    * Options that are passed through the context to a CDK app on synth
    *
-   * These default to whatever is configured in `cdk.json`.
+   * These default to whatever is configured in `cdk.json`, and can be overridden here.
+   *
+   * @default - settinsgs read from `cdk.json`
    */
   readonly synthOptions?: AppSynthOptions;
 
   /**
    * Options to configure loading of the assembly after it has been synthesized
+   *
+   * @default - default assembly loading options
    */
   readonly loadAssemblyOptions?: LoadAssemblyOptions;
 
@@ -261,6 +265,9 @@ export interface FromCdkAppDirectoryOptions {
    * These environment variables will be set in addition to the environment
    * variables currently set in the process. A value of `undefined` will
    * unset a particular environment variable.
+   *
+   * @default - no additional environment variables are set (beyond those
+   * already set in the process).
    */
   readonly env?: Record<string, string | undefined>;
 }
