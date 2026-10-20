@@ -62,7 +62,7 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
   /**
    * Produce a Cloud Assembly, i.e. a set of stacks
    */
-  public async produce(produceOptions: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly> {
+  public async produce(produceOptions?: CloudAssemblyProductionOptions): Promise<IReadableCloudAssembly> {
     // We may need to run the cloud assembly source multiple times in order to satisfy all missing context
     // (When the source producer runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
@@ -70,7 +70,7 @@ export class ContextAwareCloudAssemblySource implements ICloudAssemblySource {
     let previouslyMissingKeys: Set<string> | undefined;
     while (true) {
       // Early check for abort
-      produceOptions.abort?.throwIfAborted();
+      produceOptions?.abort?.throwIfAborted();
 
       await using readableAsm = new AsyncDisposableBox(await this.source.produce(produceOptions));
 
