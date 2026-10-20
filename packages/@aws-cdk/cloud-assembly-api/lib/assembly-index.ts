@@ -8,8 +8,7 @@ import { type ForestFile, type TreeNode, type TreeFile, type TreeFileNode, isSub
 /**
  * A construct from tree.json joined with the CloudFormation metadata of the
  * stack it belongs to: the construct path/id plus, for CFN resources, the
- * logical ID and resource type. Readers that need more (for example a source
- * location) extend this and build the richer tree via {@link buildConstructTree}.
+ * logical ID and resource type.
  */
 export interface AssemblyIndexNode {
   readonly constructPath: string;
