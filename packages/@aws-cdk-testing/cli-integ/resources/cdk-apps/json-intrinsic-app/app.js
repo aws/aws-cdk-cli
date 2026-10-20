@@ -1,4 +1,5 @@
 const cdk = require('aws-cdk-lib/core');
+const ecs = require('aws-cdk-lib/aws-ecs');
 const ssm = require('aws-cdk-lib/aws-ssm');
 
 const stackPrefix = process.env.STACK_NAME_PREFIX;
@@ -15,33 +16,62 @@ class JsonIntrinsicStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
     new ssm.StringParameter(this, 'Param', {
-      stringValue: this.parameterValue(process.env.VARIANT),
+      stringValue: jsonValue(this, process.env.VARIANT),
       description: process.env.VARIANT === 'add-key-and-description' ? 'd2' : 'd1',
     });
   }
+}
 
-  parameterValue(variant) {
-    switch (variant) {
-      case undefined:
-        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1' });
-      case 'change-value':
-        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '2' });
-      case 'add-key':
-      case 'add-key-and-description':
-        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', b: '2' });
-      case 'add-key-with-token':
-        return this.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', region: cdk.Aws.REGION });
-      case 'reorder-keys':
-        return this.toJsonString({ a: '1', stack: cdk.Aws.STACK_NAME });
-      case 'same-value-with-fn-sub':
-        return cdk.Fn.sub('{"stack":"${AWS::StackName}","a":"1"}');
-      default:
-        throw new Error(`unknown VARIANT: ${variant}`);
-    }
+// The same value in a container environment variable of an ECS task definition. Any change to the
+// container definitions replaces the task definition. CloudFormation leaves that replacement out of a
+// change set described with IncludePropertyValues too, but says so in a warning.
+class JsonIntrinsicReplaceStack extends cdk.Stack {
+  constructor(scope, id, props) {
+    super(scope, id, props);
+    const taskDefinition = new ecs.TaskDefinition(this, 'Task', {
+      compatibility: ecs.Compatibility.FARGATE,
+      cpu: '256',
+      memoryMiB: '512',
+    });
+    taskDefinition.addContainer('Container', {
+      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/busybox:latest'),
+      environment: { CONFIG: jsonValue(this, process.env.VARIANT) },
+    });
+  }
+}
+
+// The same parameter in a nested stack.
+class JsonIntrinsicNestedStack extends cdk.Stack {
+  constructor(scope, id, props) {
+    super(scope, id, props);
+    const nested = new cdk.NestedStack(this, 'Nested');
+    new ssm.StringParameter(nested, 'Param', { stringValue: jsonValue(nested, process.env.VARIANT) });
+  }
+}
+
+function jsonValue(stack, variant) {
+  switch (variant) {
+    case undefined:
+      return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1' });
+    case 'change-value':
+      return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '2' });
+    case 'add-key':
+    case 'add-key-and-description':
+      return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', b: '2' });
+    case 'add-key-with-token':
+      return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', region: cdk.Aws.REGION });
+    case 'reorder-keys':
+      return stack.toJsonString({ a: '1', stack: cdk.Aws.STACK_NAME });
+    case 'same-value-with-fn-sub':
+      return cdk.Fn.sub('{"stack":"${AWS::StackName}","a":"1"}');
+    default:
+      throw new Error(`unknown VARIANT: ${variant}`);
   }
 }
 
 const app = new cdk.App();
 new JsonIntrinsicStack(app, `${stackPrefix}-json-intrinsic`);
+new JsonIntrinsicReplaceStack(app, `${stackPrefix}-json-intrinsic-replace`);
+new JsonIntrinsicNestedStack(app, `${stackPrefix}-json-intrinsic-nested`);
 
 app.synth();
