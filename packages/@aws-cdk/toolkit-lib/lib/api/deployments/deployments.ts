@@ -541,7 +541,7 @@ export class Deployments {
       ioHelper: this.ioHelper,
       stackNameOrArn: stackArn ?? stack.stackName,
       changeSetNameOrArn: changeSetName,
-      templates: deployedTemplate ? { deployed: async () => deployedTemplate, generated: stack.template } : undefined,
+      templates: deployedTemplate ? { deployed: deployedTemplate, generated: stack.template } : undefined,
     }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,

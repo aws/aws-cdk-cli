@@ -648,7 +648,7 @@ class FullCloudFormationDeployment {
       stackNameOrArn: changeSet.StackId ?? this.stackName,
       changeSetNameOrArn: changeSet.Id ?? changeSetName,
       // The deployed template is cached, and an ordinary deploy has already read it to decide whether it can skip.
-      templates: this.update ? { deployed: () => this.cloudFormationStack.template(), generated: this.stackArtifact.template } : undefined,
+      templates: this.update ? { deployed: await this.cloudFormationStack.template(), generated: this.stackArtifact.template } : undefined,
     }).waitAndThrowOnProblem({
       diagnoser: this.diagnoser,
     });
