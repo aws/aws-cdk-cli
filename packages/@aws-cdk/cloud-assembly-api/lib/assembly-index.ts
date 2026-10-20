@@ -231,7 +231,7 @@ export class AssemblyIndex {
               }
               break;
 
-              // TODO: property mutations
+              // TODO: property mutations <https://github.com/aws/aws-cdk-cli/issues/2064>
           }
         }
       }
