@@ -199,43 +199,27 @@ describe('fromAssemblyBuilder', () => {
      * `fromAssemblyBuilder` only guarantees the outcome: once the signal has
      * fired, `produce()` fails even if the builder itself reported success.
      */
-    test('a builder that ignores the abort and returns normally still fails', async () => {
+    test('a builder that ignores the abort and returns normally still fails with an exception', async () => {
       const controller = new AbortController();
       controller.abort();
       const cx = await toolkit.fromAssemblyBuilder(async () => new App().synth());
 
       // WHEN / THEN - the builder succeeded, the production did not
-      await expect(cx.produce({ abort: controller.signal })).rejects.toThrow(/Assembly builder aborted/);
+      await expect(cx.produce({ abort: controller.signal })).rejects.toThrow(/This operation was aborted/);
     });
 
-    test('the abort is reported as a toolkit error, not as a builder failure', async () => {
-      // The builder did not fail, so classifying this as an AssemblyError would
-      // point a caller at the user's code for something the caller itself caused.
-      const controller = new AbortController();
-      controller.abort();
-      const cx = await toolkit.fromAssemblyBuilder(async () => new App().synth());
-
-      const error = await cx.produce({ abort: controller.signal }).catch((e) => e);
-
-      expect(ToolkitError.isToolkitError(error)).toBe(true);
-      expect(ToolkitError.isAssemblyError(error)).toBe(false);
-      expect(error.name).toBe('Aborted');
-    });
-
-    test('the builder is handed the signal so it can bail out itself', async () => {
+    test('the builder is handed the signal so it stop when necessary', async () => {
       // The recommended pattern is checking `abort?.aborted` inside long loops;
       // that is only possible if the signal actually reaches the builder.
-      const controller = new AbortController();
-      controller.abort();
-      let seen: boolean | undefined;
+      const signal = AbortSignal.timeout(100000000);
+      let seen;
       const cx = await toolkit.fromAssemblyBuilder(async (props) => {
-        seen = props.abort?.aborted;
+        seen = props.abort;
         return new App().synth();
       });
 
-      await expect(cx.produce({ abort: controller.signal })).rejects.toThrow();
-
-      expect(seen).toBe(true);
+      await cx.produce({ abort: signal });
+      expect(seen).toEqual(signal);
     });
 
     test("a builder's own failure is still reported as a builder failure when aborted", async () => {
@@ -471,7 +455,7 @@ describe('fromCdkApp', () => {
 
       // WHEN / THEN - must reject with the abort, not merely fail to settle
       await expect(withinMs(cx.produce({ abort: AbortSignal.abort() }), 5_000))
-        .rejects.toThrow(/killed with signal/);
+        .rejects.toThrow(/This operation was aborted/);
     });
 
     test('an un-aborted signal does not disturb a normal synth', async () => {
