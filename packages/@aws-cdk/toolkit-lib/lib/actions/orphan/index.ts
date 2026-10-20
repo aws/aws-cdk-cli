@@ -20,7 +20,7 @@ export interface OrphanOptions {
   /**
    * Cancel the synth operation
    *
-   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   * Currently only supported for the synth suboperation; it has no effect on the orphan operation.
    *
    * @default - No ability to abort
    */

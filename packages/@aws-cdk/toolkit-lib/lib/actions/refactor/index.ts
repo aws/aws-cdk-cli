@@ -38,7 +38,7 @@ export interface RefactorOptions {
   /**
    * Cancel the synth operation
    *
-   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   * Currently only supported for the synth suboperation; it has no effect on the refactor operation.
    *
    * @default - No ability to abort
    */

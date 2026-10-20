@@ -40,7 +40,7 @@ export interface DestroyOptions {
   /**
    * Cancel the synth operation
    *
-   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   * Currently only supported for the synth suboperation; it has no effect on the destroy operation.
    *
    * @default - No ability to abort
    */
