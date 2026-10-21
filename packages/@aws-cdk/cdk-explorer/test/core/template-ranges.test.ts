@@ -1,4 +1,4 @@
-import { indexTemplateRanges, resolveLogicalIdAtOffset, resolveResourceRange } from '../../lib/core/template-ranges';
+import { indexTemplateRanges, resolveAllResourceRanges, resolveLogicalIdAtOffset, resolveResourceRange } from '../../lib/core/template-ranges';
 
 // A template object is the single source of truth: the text under test is its
 // 1-space serialization (exactly how synth writes `*.template.json`), and the
@@ -173,12 +173,18 @@ describe('indexTemplateRanges', () => {
   };
   const WITH_PARAMETER_TEXT = JSON.stringify(TEMPLATE_WITH_PARAMETER, undefined, 1);
 
-  test.each(['BootstrapVersion', 'Topic'])('forward and reverse lookup agree on %s', (logicalId) => {
+  test.each(['BootstrapVersion', 'Topic'])('every view agrees on %s', (logicalId) => {
     const ranges = indexTemplateRanges(WITH_PARAMETER_TEXT);
     const block = ranges.block(logicalId)!;
 
     expect(ranges.resource(logicalId)!.block).toEqual(block);
+    expect(ranges.all()![logicalId].block).toEqual(block);
     expect(ranges.logicalIdAt(Math.floor((block.start + block.end) / 2))).toBe(logicalId);
+  });
+
+  test('all() covers every logical id across sections', () => {
+    expect(Object.keys(indexTemplateRanges(WITH_PARAMETER_TEXT).all()!).sort())
+      .toEqual(['BootstrapVersion', 'Topic']);
   });
 
   test('a logical id used by both a Resource and a Parameter resolves to the Resource', () => {
@@ -197,6 +203,30 @@ describe('indexTemplateRanges', () => {
 
     expect(ranges.block('Topic')).toBeUndefined();
     expect(ranges.resource('Topic')).toBeUndefined();
+    expect(ranges.all()).toBeUndefined();
     expect(ranges.logicalIdAt(0)).toBeUndefined();
+  });
+});
+
+// The web explorer annotates a whole template at once, so it takes the index's
+// `all()` view through this wrapper.
+describe('resolveAllResourceRanges', () => {
+  test('block ranges for every resource re-parse to that exact resource', () => {
+    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
+
+    expect(Object.keys(all).sort()).toEqual([...LOGICAL_IDS].sort());
+    for (const logicalId of LOGICAL_IDS) {
+      expect(sliceParse(all[logicalId].block)).toEqual(RESOURCES[logicalId]);
+    }
+  });
+
+  test('matches the single-id lookup, properties included', () => {
+    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
+
+    expect(all.Policy).toEqual(indexTemplateRanges(TEMPLATE_TEXT).resource('Policy'));
+  });
+
+  test('returns undefined when the text cannot be parsed into a tree', () => {
+    expect(resolveAllResourceRanges('not json at all')).toBeUndefined();
   });
 });

@@ -34,6 +34,8 @@ export interface TemplateRanges {
   block(logicalId: string): OffsetRange | undefined;
   /** The logical id's block plus its top-level property ranges, or `undefined` if absent. */
   resource(logicalId: string): ResourceRanges | undefined;
+  /** Every logical id in the template, or `undefined` if the text is not valid JSON. */
+  all(): Record<string, ResourceRanges> | undefined;
   /** The logical id whose block contains `offset`, or `undefined` if none does. */
   logicalIdAt(offset: number): string | undefined;
 }
@@ -58,6 +60,7 @@ export function indexTemplateRanges(templateText: string): TemplateRanges {
   return {
     block: (logicalId) => index?.[logicalId]?.block,
     resource: (logicalId) => index?.[logicalId],
+    all: () => index,
     logicalIdAt: (offset) => {
       for (const [logicalId, ranges] of Object.entries(index ?? {})) {
         if (offset >= ranges.block.start && offset < ranges.block.end) {
@@ -79,6 +82,17 @@ export function indexTemplateRanges(templateText: string): TemplateRanges {
  */
 export function resolveResourceRange(templateText: string, logicalId: string): OffsetRange | undefined {
   return indexTemplateRanges(templateText).block(logicalId);
+}
+
+/**
+ * Resolves block and property ranges for every logical id in the template, in a
+ * single parse. For a consumer that annotates a whole template at once (the web
+ * explorer's template view) rather than looking up one construct.
+ *
+ * Returns `undefined` when the text is not valid JSON.
+ */
+export function resolveAllResourceRanges(templateText: string): Record<string, ResourceRanges> | undefined {
+  return indexTemplateRanges(templateText).all();
 }
 
 /**
