@@ -8,7 +8,7 @@ if (!stackPrefix) {
 }
 
 /**
- * Holds JSON built with an intrinsic, the way Stack.toJsonString renders it, in three places:
+ * Holds JSON built with an intrinsic (an Fn::Join, from Stack.toJsonString) in three places:
  *
  * - `<prefix>-json-intrinsic`: an SSM string parameter
  * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition. Any
