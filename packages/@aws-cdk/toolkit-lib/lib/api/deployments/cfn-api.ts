@@ -346,7 +346,7 @@ export async function createValidationChangeSet(
       ioHelper,
       stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
       changeSetNameOrArn: changeSet.Id ?? changeSetName,
-      templates: { deployed: await deployedStack.template(), generated: options.stack.template },
+      templates: { deployed: exists ? await deployedStack.template() : {}, generated: options.stack.template },
     }).waitForReport({ diagnoser });
 
     return report;
