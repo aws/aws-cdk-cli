@@ -184,7 +184,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       if (mtime !== undefined) staleness.onAssemblyRefreshed(mtime);
       events.broadcast(ASSEMBLY_CHANGED);
     },
-    onSynthActivity: (atMs) => staleness.noteSynthActivity(atMs),
+    onSynthStart: (atMs) => staleness.noteSynthJustStarted(atMs),
     onError: options.onWatcherError ?? ((err) =>
       process.stderr.write(`assembly watcher error: ${err instanceof Error ? err.message : String(err)}\n`)),
   });

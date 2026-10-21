@@ -2,6 +2,7 @@ import * as path from 'path';
 import { MANIFEST_FILE } from '@aws-cdk/cloud-assembly-api';
 import { VALIDATION_REPORT_FILE } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
+import { SYNTH_LOCK_FILE } from '../api-private';
 
 /**
  * The name of the construct tree metadata file emitted alongside the manifest.
@@ -51,6 +52,15 @@ export interface AssemblyWatcherOptions {
   readonly assemblyDir: string;
   /** Invoked (debounced) when the assembly's signal files change. */
   readonly onChange: () => void;
+  /**
+   * Invoked when synth write-lock activity (`synth.lock`) first appears, i.e. a
+   * synth started. `atMs` is the observation time. Lets a consumer date-stamp
+   * source-file staleness against synth start rather than synth finish, which
+   * catches edits made *during* a synth that it may not have picked up.
+   *
+   * Not debounced, and never also an assembly refresh.
+   */
+  readonly onSynthStart?: (atMs: number) => void;
   /** Receives non-fatal watcher errors. */
   readonly onError?: (error: unknown) => void;
   /**
@@ -78,9 +88,11 @@ function defaultCreateWatcher(assemblyDir: string): FileWatcher {
  * assembly is rewritten, regardless of which process produced it (an external
  * `cdk synth`/`cdk watch`, or a future in-process synth).
  *
- * Only the assembly signal files trigger a refresh. Template files and, crucially,
- * the RWLock marker files (`synth.lock` / `read.<pid>.lock`) are ignored: their
+ * Only the assembly signal files trigger a refresh. Template files are ignored,
+ * and so are the RWLock marker files (`synth.lock` / `read.<pid>.lock`): their
  * rapid create/delete during a synth would otherwise cause spurious refreshes.
+ * `synth.lock` appearing is instead reported as `onSynthActivity`, the only
+ * signal we get that a synth has started (the explorer never starts one itself).
  */
 export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyWatcher {
   const createWatcher = options.createWatcher ?? defaultCreateWatcher;
@@ -90,9 +102,21 @@ export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyW
 
   const watcher = createWatcher(options.assemblyDir);
 
-  watcher.on('all', (_eventName, filePath) => {
+  watcher.on('all', (eventName, filePath) => {
     if (closed) return;
     const base = path.basename(filePath);
+    if (base === SYNTH_LOCK_FILE) {
+      // Only the lock appearing marks a start; its removal is the synth
+      // finishing, which the signal-file refresh below already covers.
+      if (eventName === 'add') {
+        try {
+          options.onSynthStart?.(Date.now());
+        } catch (error) {
+          options.onError?.(error);
+        }
+      }
+      return;
+    }
     if (!ASSEMBLY_SIGNAL_FILES.has(base)) return;
     if (timer) {
       clearTimeout(timer);

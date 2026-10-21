@@ -23,7 +23,7 @@ export class StalenessTracker {
   private synthActivitySince: number | undefined;
 
   /** Record synth write-lock activity (a synth started). Earliest since last refresh wins. */
-  public noteSynthActivity(atMs: number): void {
+  public noteSynthJustStarted(atMs: number): void {
     if (this.synthActivitySince === undefined) {
       this.synthActivitySince = atMs;
     }

@@ -16,7 +16,7 @@ describe('StalenessTracker', () => {
 
   test('prefers observed synth-start over the manifest mtime (option 2)', () => {
     const t = new StalenessTracker();
-    t.noteSynthActivity(500); // synth started at 500
+    t.noteSynthJustStarted(500); // synth started at 500
     t.onAssemblyRefreshed(2_000); // ...and finished (manifest) at 2000
     // A file edited at 800 (during the synth) is newer than synth-start -> stale,
     // even though it predates synth-finish.
@@ -25,8 +25,8 @@ describe('StalenessTracker', () => {
 
   test('keeps the earliest synth-activity timestamp within a generation', () => {
     const t = new StalenessTracker();
-    t.noteSynthActivity(500);
-    t.noteSynthActivity(1_500); // later activity does not move the reference
+    t.noteSynthJustStarted(500);
+    t.noteSynthJustStarted(1_500); // later activity does not move the reference
     t.onAssemblyRefreshed(3_000);
     expect(t.isStale(600)).toBe(true); // newer than 500
   });
@@ -40,7 +40,7 @@ describe('StalenessTracker', () => {
 
   test('clears synth activity after a refresh so the next generation re-measures', () => {
     const t = new StalenessTracker();
-    t.noteSynthActivity(500);
+    t.noteSynthJustStarted(500);
     t.onAssemblyRefreshed(2_000); // reference = 500
     // Next generation: no new activity observed -> falls back to its manifest mtime.
     t.onAssemblyRefreshed(4_000); // reference = 4000
