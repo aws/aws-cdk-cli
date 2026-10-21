@@ -9,7 +9,7 @@ import { isSensitiveRead, isTemplatePath, resolveWithinRoot } from './safe-path'
 import { StalenessTracker } from './staleness';
 import { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 import { webAssemblyDataFromAssembly, type AssemblyData, type AssemblyReadResult } from '../core/assembly-reader';
-import { readAssemblyDirectory } from '../core/from-cdk-app-directory';
+import { readAssemblyDirectory } from '../core/read-cdk-assembly';
 import { resolveAllResourceRanges } from '../core/template-ranges';
 import type { Handler, Response, Router } from '../expressy';
 import { createRouter } from '../expressy';

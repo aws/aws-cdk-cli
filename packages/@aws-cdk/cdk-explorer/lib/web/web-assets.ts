@@ -7,6 +7,7 @@
  */
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { resolveWithinRoot } from './safe-path';
 import { EMBEDDED_ASSETS } from './web-assets.generated';
 export interface WebAsset {
   readonly contentType: string;
@@ -38,9 +39,14 @@ export async function webAsset(name: string): Promise<WebAsset | undefined> {
       : path.resolve(__dirname, '..', '..', 'frontend', 'src', `${name}`)
       ;
 
+    const safePath = resolveWithinRoot(path.resolve(__dirname, '..', '..'), diskLocation);
+    if (!safePath) {
+      return undefined;
+    }
+
     return {
       contentType: CONTENT_TYPES[name],
-      body: await fs.readFile(diskLocation),
+      body: await fs.readFile(safePath.absolutePath),
     };
   } catch (e: any) {
     if (e.code === 'ENOENT') {
