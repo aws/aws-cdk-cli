@@ -142,6 +142,19 @@ IAM Statement Changes
     }));
   });
 
+  test('request message puts the diff in front of the motivation', async () => {
+    // The CLI rewords the question after the motivation and keeps the diff in front of it,
+    // so it relies on this layout
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    const request = ioHost.requestSpy.mock.calls[0][0];
+    const message = request.message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const motivationIndex = message.lastIndexOf(request.data.motivation);
+    expect(message.slice(0, motivationIndex)).toContain('AWS::S3::Bucket');
+    expect(message.slice(motivationIndex)).toBe(`${request.data.motivation}. Do you wish to deploy these changes?`);
+  });
+
   test('request response contains destructive changes', async () => {
     // GIVEN
     jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
