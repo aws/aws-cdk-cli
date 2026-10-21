@@ -1154,7 +1154,54 @@ test('rollback stack fails in UPDATE_COMPLETE state', async () => {
   expect(response.notInRollbackableState).toBe(true);
 });
 
-test('continue rollback stack with orphanFailedResources ignores any failed resources', async () => {
+test('continue rollback stack with orphanFailedResources forces the rollback', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanFailedResources: true,
+  });
+
+  // THEN - CloudFormation picks the resources to skip, we don't list them ourselves
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ForceRollback: true,
+    ResourcesToSkip: [],
+    StackName: 'stack/boop',
+    ClientRequestToken: expect.anything(),
+  });
+});
+
+test('continue rollback stack with orphanLogicalIds skips exactly those resources', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanLogicalIds: ['Xyz'],
+  });
+
+  // THEN - the rollback is not forced, and we announce the resources up front
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ResourcesToSkip: ['Xyz'],
+    StackName: 'stack/boop',
+    ClientRequestToken: expect.anything(),
+  });
+  expect(mockCloudFormationClient).not.toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ForceRollback: expect.anything(),
+  });
+  ioHost.expectMessage({ level: 'warn', containing: 'Continuing rollback of stack boop (orphaning: Xyz)' });
+});
+
+test('rollback reports the resources CloudFormation skipped', async () => {
   // GIVEN
   givenStacks({
     '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
@@ -1163,11 +1210,14 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
     StackEvents: [
       {
         EventId: 'asdf',
-        StackId: 'stack/MyStack',
-        StackName: 'MyStack',
-        Timestamp: new Date(),
+        StackId: 'stack/boop',
+        StackName: 'boop',
+        // Must be after the activity monitor starts polling, which happens after the rollback call
+        Timestamp: new Date(Date.now() + 60_000),
         LogicalResourceId: 'Xyz',
-        ResourceStatus: 'UPDATE_FAILED',
+        ResourceType: 'AWS::S3::Bucket',
+        ResourceStatus: 'UPDATE_COMPLETE',
+        ResourceStatusReason: 'Resource skipped during UpdateRollback',
       },
     ],
   });
@@ -1180,11 +1230,7 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
   });
 
   // THEN
-  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
-    ResourcesToSkip: ['Xyz'],
-    StackName: 'stack/boop',
-    ClientRequestToken: expect.anything(),
-  });
+  ioHost.expectMessage({ level: 'warn', containing: 'Rolled back stack boop (orphaning: Xyz)' });
 });
 
 test('readCurrentTemplateWithNestedStacks() successfully ignores stacks without metadata', async () => {

@@ -213,6 +213,80 @@ describe('poll', () => {
 
     expect(poller.deleteFailures).toEqual([]);
   });
+
+  test('collects resources skipped during an update rollback', async () => {
+    const deployTime = Date.now();
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolves({
+      StackEvents: [
+        {
+          Timestamp: new Date(deployTime + 2000),
+          EventId: 'event-2',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'UPDATE_COMPLETE',
+          ResourceStatusReason: 'Resource skipped during UpdateRollback',
+        },
+        {
+          Timestamp: new Date(deployTime + 1000),
+          EventId: 'event-1',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyTable',
+          ResourceType: 'AWS::DynamoDB::Table',
+          ResourceStatus: 'UPDATE_COMPLETE',
+        },
+      ],
+    });
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn: 'stack-id',
+      initialPollRange: PollRange.sinceTimestamp(deployTime),
+    });
+
+    await poller.poll();
+
+    // Only the resource that carries the skip reason, not every UPDATE_COMPLETE
+    expect(poller.skippedResources).toEqual([
+      {
+        logicalResourceId: 'MyBucket',
+        resourceType: 'AWS::S3::Bucket',
+        parentStackLogicalIds: [],
+      },
+    ]);
+  });
+
+  test('does not collect skipped resources for unrelated status reasons', async () => {
+    const deployTime = Date.now();
+
+    const sdk = new MockSdk();
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolves({
+      StackEvents: [
+        {
+          Timestamp: new Date(deployTime + 1000),
+          EventId: 'event-1',
+          StackId: 'stack-id',
+          StackName: 'stack',
+          LogicalResourceId: 'MyBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'UPDATE_FAILED',
+          ResourceStatusReason: 'Resource skipped during UpdateRollback',
+        },
+      ],
+    });
+
+    const poller = new StackEventPoller(sdk.cloudFormation(), {
+      stackArn: 'stack-id',
+      initialPollRange: PollRange.sinceTimestamp(deployTime),
+    });
+
+    await poller.poll();
+
+    expect(poller.skippedResources).toEqual([]);
+  });
 });
 
 describe('PollRange.mostRecentDeploymentAttempt', () => {

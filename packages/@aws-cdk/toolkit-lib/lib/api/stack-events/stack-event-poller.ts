@@ -156,6 +156,34 @@ export interface ResourceEvent {
 }
 
 /**
+ * A resource CloudFormation skipped while continuing an update rollback
+ */
+export interface SkippedResource {
+  /**
+   * The logical ID of the skipped resource
+   */
+  readonly logicalResourceId: string;
+
+  /**
+   * The type of the skipped resource
+   */
+  readonly resourceType: string;
+
+  /**
+   * IDs of parent stacks of the resource, in case of resources in nested stacks
+   */
+  readonly parentStackLogicalIds: string[];
+}
+
+/**
+ * The status reason CloudFormation puts on resources it skipped during an update rollback
+ *
+ * `ContinueUpdateRollback` reports nothing in its response, so the event log is
+ * the only place that tells us which resources were actually skipped.
+ */
+const SKIPPED_DURING_UPDATE_ROLLBACK_REASON = 'Resource skipped during UpdateRollback';
+
+/**
  * Poll for stack events, potentially multiple times as new events come in over time
  *
  * Includes events from nested stacks.
@@ -208,6 +236,15 @@ export class StackEventPoller {
    */
   public readonly stabilizingResources: StabilizingResource[] = [];
 
+  /**
+   * Resources that CloudFormation skipped while continuing an update rollback.
+   *
+   * These are reported by CloudFormation itself, so this covers both resources
+   * we asked to skip by logical ID and resources CloudFormation picked itself
+   * when the rollback was forced. Includes resources in nested stacks.
+   */
+  public readonly skippedResources: SkippedResource[] = [];
+
   private readonly eventIds = new Set<string>();
   private readonly nestedStackPollers: Record<string, StackEventPoller> = {};
 
@@ -252,6 +289,7 @@ export class StackEventPoller {
     this.errors.update(...events);
     this.updateDeleteFailures(events);
     this.updateStabilizingResources(events);
+    this.updateSkippedResources(events);
 
     return events;
   }
@@ -264,6 +302,21 @@ export class StackEventPoller {
           physicalResourceId: event.PhysicalResourceId,
           resourceType: event.ResourceType ?? '',
           reason: event.ResourceStatusReason ?? '',
+        });
+      }
+    }
+  }
+
+  private updateSkippedResources(events: ResourceEvent[]) {
+    for (const { event, parentStackLogicalIds } of events) {
+      if (
+        event.ResourceStatus === ResourceStatus.UPDATE_COMPLETE &&
+        event.ResourceStatusReason === SKIPPED_DURING_UPDATE_ROLLBACK_REASON
+      ) {
+        this.skippedResources.push({
+          logicalResourceId: event.LogicalResourceId ?? '',
+          resourceType: event.ResourceType ?? '',
+          parentStackLogicalIds,
         });
       }
     }
