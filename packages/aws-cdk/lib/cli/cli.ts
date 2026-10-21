@@ -363,6 +363,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (diffMethod === 'template') {
           rejectIncompatibleOptions(args, '--method=template', {
             changeSetName: '--change-set-name',
+            parameters: '--parameters',
           });
         }
         return cli.diff({
@@ -382,6 +383,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
           concurrency: args.concurrency,
+          parameters: parseParameters(args.parameters),
         });
 
       case 'drift':
@@ -443,13 +445,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'deploy':
         ioHost.currentAction = 'deploy';
-        const parameterMap: { [name: string]: string | undefined } = {};
-        for (const parameter of args.parameters) {
-          if (typeof parameter === 'string') {
-            const keyValue = (parameter as string).split('=');
-            parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
-          }
-        }
+        const parameterMap = parseParameters(args.parameters);
 
         if (args.execute !== undefined && args.method !== undefined) {
           throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
@@ -869,6 +865,17 @@ function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
   }
 
   return 'auto';
+}
+
+function parseParameters(parameters: unknown[]): { [name: string]: string | undefined } {
+  const parameterMap: { [name: string]: string | undefined } = {};
+  for (const parameter of parameters) {
+    if (typeof parameter === 'string') {
+      const keyValue = parameter.split('=');
+      parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
+    }
+  }
+  return parameterMap;
 }
 
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {

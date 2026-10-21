@@ -915,6 +915,11 @@
           "default": 1,
           "requiresArg": true
         },
+        "parameters": {
+          "type": "array",
+          "desc": "Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)",
+          "default": {}
+        },
         "exclusively": {
           "type": "boolean",
           "alias": "e",

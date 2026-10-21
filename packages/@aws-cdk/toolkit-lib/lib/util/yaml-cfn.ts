@@ -1,6 +1,4 @@
 import * as yaml from 'yaml';
-import type * as yaml_cst from 'yaml/parse-cst';
-import * as yaml_types from 'yaml/types';
 
 /**
  * Serializes the given data structure into valid YAML.
@@ -9,13 +7,10 @@ import * as yaml_types from 'yaml/types';
  * @returns a string containing the YAML representation of {@param obj}
  */
 export function serialize(obj: any): string {
-  const oldFold = yaml_types.strOptions.fold.lineWidth;
-  try {
-    yaml_types.strOptions.fold.lineWidth = 0;
-    return yaml.stringify(obj, { schema: 'yaml-1.1' });
-  } finally {
-    yaml_types.strOptions.fold.lineWidth = oldFold;
-  }
+  return yaml.stringify(obj, {
+    schema: 'yaml-1.1',
+    lineWidth: 0,
+  });
 }
 
 /**
@@ -29,33 +24,64 @@ export function deserialize(str: string): any {
   return parseYamlStrWithCfnTags(str);
 }
 
-function makeTagForCfnIntrinsic(intrinsicName: string, addFnPrefix: boolean): yaml_types.Schema.CustomTag {
-  return {
-    identify(value: any) {
-      return typeof value === 'string';
-    },
-    tag: `!${intrinsicName}`,
-    resolve: (_doc: yaml.Document, cstNode: yaml_cst.CST.Node) => {
-      const ret: any = {};
-      ret[addFnPrefix ? `Fn::${intrinsicName}` : intrinsicName] =
-        // the +1 is to account for the ! the short form begins with
-        parseYamlStrWithCfnTags(cstNode.toString().substring(intrinsicName.length + 1));
-      return ret;
-    },
+/**
+ * Creates the tags for a CloudFormation short-form intrinsic (e.g. `!Sub`).
+ *
+ * In yaml v2 a tag only applies to one node type, so we need three tags per
+ * intrinsic: one each for scalars (`!Ref X`), sequences (`!Join [...]`)
+ * and maps (`!Transform {...}`).
+ *
+ * The tag value has already been parsed by the time `resolve` is called
+ * (including any nested short-form tags), so we only need to wrap it in
+ * the long-form `{ "Fn::Xyz": value }` object.
+ */
+function makeTagsForCfnIntrinsic(intrinsicName: string, addFnPrefix: boolean): yaml.Tags {
+  const tag = `!${intrinsicName}`;
+  const key = addFnPrefix ? `Fn::${intrinsicName}` : intrinsicName;
+
+  // For collections, keep the parsed node as the map value so it is converted
+  // to JS (incl. nested tags and aliases) together with the rest of the document
+  const wrap = (value: yaml.Node) => {
+    const map = new yaml.YAMLMap();
+    map.items.push(new yaml.Pair(new yaml.Scalar(key), value));
+    return map;
   };
+
+  return [
+    {
+      tag,
+      // Scalar tags must return a plain value; yaml wraps it in a Scalar node itself
+      resolve: (value: string) => ({ [key]: value }),
+    } satisfies yaml.ScalarTag,
+    {
+      tag,
+      collection: 'seq',
+      resolve: (value) => wrap(value as yaml.YAMLSeq),
+    } satisfies yaml.CollectionTag,
+    {
+      tag,
+      collection: 'map',
+      resolve: (value) => wrap(value as yaml.YAMLMap),
+    } satisfies yaml.CollectionTag,
+  ];
 }
 
-const shortForms: yaml_types.Schema.CustomTag[] = [
+const shortForms: yaml.Tags = [
   'Base64', 'Cidr', 'FindInMap', 'GetAZs', 'ImportValue', 'Join', 'Sub',
   'Select', 'Split', 'Transform', 'And', 'Equals', 'If', 'Not', 'Or', 'GetAtt',
-].map(name => makeTagForCfnIntrinsic(name, true)).concat(
-  makeTagForCfnIntrinsic('Ref', false),
-  makeTagForCfnIntrinsic('Condition', false),
+].flatMap(name => makeTagsForCfnIntrinsic(name, true)).concat(
+  makeTagsForCfnIntrinsic('Ref', false),
+  makeTagsForCfnIntrinsic('Condition', false),
 );
 
 function parseYamlStrWithCfnTags(text: string): any {
   return yaml.parse(text, {
     customTags: shortForms,
     schema: 'core',
+    // revert a new v2 default
+    maxAliasCount: -1,
+    // CloudFormation accepts duplicate keys in both JSON and YAML templates and uses the last value.
+    // Verified by deploying templates with duplicate keys to CFN. So we do the same.
+    uniqueKeys: false,
   });
 }

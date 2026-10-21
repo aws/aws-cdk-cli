@@ -103,6 +103,7 @@ async function cfnDiff(
       importExistingResources: methodOptions.importExistingResources,
       changeSetName: methodOptions.changeSetName,
       uuid: randomUUID(),
+      deployedTemplate: currentTemplate,
     }))?.changeSet : undefined;
 
     // If the changeset includes nested stacks, describe each nested changeset

@@ -932,6 +932,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
             desc: 'Maximum number of stacks to prepare concurrently (positive integer)',
             requiresArg: true,
           })
+          .option('parameters', {
+            type: 'array',
+            desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)',
+            default: {},
+            nargs: 1,
+            requiresArg: true,
+          })
           .option('exclusively', {
             default: undefined,
             type: 'boolean',

@@ -49,6 +49,13 @@ export type PrepareChangeSetOptions = {
    */
   changeSetName?: string;
   /**
+   * The deployed template the diff compares against.
+   *
+   * The change set is described a second time when its description would hide a difference from
+   * this template (https://github.com/aws/aws-cdk-cli/issues/2036).
+   */
+  deployedTemplate: Template;
+  /**
    * Default behavior is to log AWS CloudFormation errors and move on. Set this property to true to instead
    * fail on errors received by AWS CloudFormation.
    *
@@ -78,6 +85,7 @@ export interface CreateChangeSetOptions {
   includeNestedStacks?: boolean;
   role?: string;
   diagnoser: CloudFormationStackDiagnoser;
+  deployedTemplate: Template;
 }
 
 /**
@@ -108,6 +116,7 @@ export async function createDiffChangeSet(
       includeNestedStacks: true,
       role: executionRoleArn,
       diagnoser,
+      deployedTemplate: options.deployedTemplate,
     });
   } catch (e: any) {
     // This function is currently only used by diff so these messages are diff-specific
@@ -258,6 +267,7 @@ async function createChangeSetAndCleanup(
       ioHelper,
       stackNameOrArn: stackId,
       changeSetNameOrArn: changeSetId,
+      templates: { deployed: options.deployedTemplate, generated: options.stack.template },
     }).waitAndThrowOnProblem({
       diagnoser: options.diagnoser,
     });
@@ -306,7 +316,7 @@ async function createChangeSetAndCleanup(
  */
 export async function createValidationChangeSet(
   ioHelper: IoHelper,
-  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName'>,
+  options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName' | 'deployedTemplate'>,
 ): Promise<ChangeSetReport> {
   const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = `cdk-validate-${options.uuid}`;
