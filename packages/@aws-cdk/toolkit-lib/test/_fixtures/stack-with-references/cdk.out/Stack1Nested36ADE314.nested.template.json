@@ -1,0 +1,30 @@
+{
+ "Resources": {
+  "NestedBucketName7CD077DC": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Type": "String",
+    "Value": {
+     "Ref": "referencetoStack1MyBucket3E4D6F6CRef"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Stack1/Nested/NestedBucketName/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/z3HQQqDMBAAwLd4T9aQFnyAdyn6ANmaVVZNhOyqB/HvPRQ8DePBVy9wBZ5ih7DYlb9wNSRKoVMcFoOn9CIRrk4zp+mDGSMpZVOP6cl9m7QFglnKw7/BO3DFLMw270k5ErR/f0wpXLduAAAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "Stack1/Nested/CDKMetadata/Default"
+   }
+  }
+ },
+ "Parameters": {
+  "referencetoStack1MyBucket3E4D6F6CRef": {
+   "Type": "String"
+  }
+ }
+}

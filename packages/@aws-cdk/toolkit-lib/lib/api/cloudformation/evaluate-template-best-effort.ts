@@ -1,27 +1,8 @@
 import type { EvaluateCloudFormationTemplate } from './evaluate-cloudformation-template';
 import { CfnEvaluationException, CfnUnsupportedFunctionException, parseIntrinsic } from './evaluate-cloudformation-template';
 import type { Template } from './stack-helpers';
+import type { UnresolvedExpression } from '../../actions/evaluate';
 import { formatErrorMessage, parallelPromises } from '../../util';
-
-/**
- * An expression in a template that could not be evaluated
- */
-export interface UnresolvedExpression {
-  /**
-   * Location of the expression in the template, e.g. `Resources.MyBucket.Properties.BucketName`
-   */
-  readonly path: string;
-
-  /**
-   * The intrinsic function that could not be evaluated, e.g. `Fn::GetAtt`
-   */
-  readonly intrinsic: string;
-
-  /**
-   * Why the expression could not be evaluated
-   */
-  readonly reason: string;
-}
 
 /**
  * A template with as many expressions as possible replaced by their values

@@ -212,6 +212,7 @@ export class CdkToolkit {
     const iPromiseUnstablenessIsCheckedByTheCli: Record<UnstableFeature, true> = {
       'publish-assets': true,
       'diagnose': true,
+      'evaluate': true,
       'flags': true,
       'orphan': true,
       'refactor': true,

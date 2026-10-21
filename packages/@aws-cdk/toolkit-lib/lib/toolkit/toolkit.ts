@@ -52,6 +52,8 @@ import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
 import type { DriftOptions, DriftResult } from '../actions/drift';
+import type { EvaluatedStack, EvaluateOptions, EvaluateResult } from '../actions/evaluate';
+import { evaluateStackBestEffort } from '../actions/evaluate/private';
 import { type ListOptions } from '../actions/list';
 import type { OrphanOptions } from '../actions/orphan';
 import type { PublishAssetsOptions, PublishAssetsResult } from '../actions/publish-assets';
@@ -79,6 +81,7 @@ import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
 import { combineConclusions, type StackCollection } from '../api/cloud-assembly/stack-collection';
+import { CloudFormationStack as DeployedStack, SharedLookups } from '../api/cloudformation';
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
@@ -112,7 +115,7 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, parallelPromises, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
@@ -182,7 +185,7 @@ export interface ToolkitOptions {
  * Names of toolkit features that are still under development, and may change in
  * the future.
  */
-export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose' | 'validate';
+export type UnstableFeature = 'refactor' | 'orphan' | 'flags' | 'publish-assets' | 'diagnose' | 'validate' | 'evaluate';
 
 /**
  * The AWS CDK Programmatic Toolkit
@@ -678,6 +681,73 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     })));
 
     return { stacks };
+  }
+
+  /**
+   * Evaluate Action
+   *
+   * Evaluates the templates of the selected stacks against their deployed stacks: references, attributes,
+   * parameters, pseudo parameters and the intrinsic functions supported by the hotswap evaluator are replaced
+   * by their deployed values. This gives the concrete values CloudFormation used for each resource, for
+   * example to compare them with the live state of the resources.
+   *
+   * Expressions that cannot be evaluated are left in place and reported with the reason, so one unresolvable
+   * expression does not prevent the rest. CDK-managed nested stacks are evaluated with their parent.
+   *
+   * Selected stacks that are not deployed (including stacks whose creation failed or never ran) are skipped with a
+   * warning, and listed in `notDeployed`. A warning is also given when a stack's deployed template has different
+   * resources than the one being evaluated.
+   */
+  public async evaluate(cx: ICloudAssemblySource, options: EvaluateOptions = {}): Promise<EvaluateResult> {
+    this.requireUnstableFeature('evaluate');
+
+    const concurrency = options.concurrency ?? 10;
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      throw new ToolkitError('InvalidConcurrency', `concurrency must be a positive integer, got ${concurrency}`);
+    }
+
+    const ioHelper = asIoHelper(this.ioHost, 'evaluate');
+    const selectStacks = stacksOpt(options);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
+    const envs = new EnvironmentAccess(await this.sdkProvider('evaluate'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
+    const artifacts = stackCollection.stackArtifacts;
+    // one limit on resource lookups for the whole run, however many stacks and nested stacks run in parallel
+    const lookups = new SharedLookups(10);
+    const results: Array<EvaluatedStack | undefined> = new Array(artifacts.length);
+    const evaluateStack = async (index: number) => {
+      const stack = artifacts[index];
+      const stackEnv = await envs.accessStackForLookupBestEffort(stack);
+      const sdk = stackEnv.sdk;
+
+      const deployed = await DeployedStack.lookup(sdk.cloudFormation(), stack.stackName);
+      const status = deployed.stackStatus;
+      // a stack that exists but whose resources were never (or are no longer) created
+      if (status.isNotFound || status.isReviewInProgress || status.isCreationFailure || status.isDeleted
+        || ['CREATE_IN_PROGRESS', 'CREATE_FAILED', 'ROLLBACK_IN_PROGRESS'].includes(status.name)) {
+        const state = status.isNotFound ? 'is not deployed' : `is ${status.name}`;
+        await ioHelper.defaults.warn(`Stack '${stack.stackName}' ${state} in ${stackEnv.resolvedEnvironment.name}, skipping it`);
+        return;
+      }
+      results[index] = await evaluateStackBestEffort({
+        stackArtifact: stack,
+        parameters: deployed.parameters,
+        lookups,
+        stackId: deployed.stackId,
+        account: stackEnv.resolvedEnvironment.account,
+        region: stackEnv.resolvedEnvironment.region,
+        partition: (await sdk.currentAccount()).partition,
+        sdk,
+        warn: (message) => ioHelper.defaults.warn(message),
+      });
+    };
+
+    await parallelPromises(concurrency, artifacts.map((_, index) => () => evaluateStack(index)));
+
+    return {
+      stacks: results.filter((r): r is EvaluatedStack => r !== undefined),
+      notDeployed: artifacts.filter((_, i) => results[i] === undefined).map((a) => a.stackName),
+    };
   }
 
   /**
