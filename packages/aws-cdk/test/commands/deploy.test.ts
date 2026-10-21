@@ -477,6 +477,13 @@ describe('approval question with --method=execute-change-set', () => {
     );
   });
 
+  test('does not repeat the question when the motivation is empty', async () => {
+    // An empty motivation would otherwise be found at the end of the message, keeping the whole question in front
+    const question = await deployAskingFrom('Stack includes updates. Do you wish to deploy these changes?', '');
+
+    expect(question).toBe('Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?');
+  });
+
   test('keeps the diff of security-sensitive updates and says they are security-sensitive', async () => {
     const question = await deployAskingFrom(
       'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\nStack includes security-sensitive updates. Do you wish to deploy these changes?',
