@@ -460,16 +460,12 @@ describe('parameter values', () => {
     ...extra,
   });
 
-  test('by default, an empty string deployed value falls back to the default', async () => {
-    expect(await evaluator({ Suffix: '' }).evaluateCfnExpression({ Ref: 'Suffix' })).toEqual('default-suffix');
+  test('an empty string deployed value is used, not the default', async () => {
+    expect(await evaluator({ Suffix: '' }).evaluateCfnExpression({ Ref: 'Suffix' })).toEqual('');
   });
 
-  test('with strictValues, an empty string deployed value is used, not the default', async () => {
-    expect(await evaluator({ Suffix: '' }, { strictValues: true }).evaluateCfnExpression({ Ref: 'Suffix' })).toEqual('');
-  });
-
-  test('with strictValues, an empty string default is used', async () => {
-    expect(await evaluator({}, { strictValues: true }).evaluateCfnExpression({ Ref: 'Blank' })).toEqual('');
+  test('an empty string default is used', async () => {
+    expect(await evaluator({}).evaluateCfnExpression({ Ref: 'Blank' })).toEqual('');
   });
 
   test('an unavailable parameter is not replaced by its default, including inside other functions', async () => {
@@ -481,29 +477,16 @@ describe('parameter values', () => {
   });
 });
 
-describe('strictValues', () => {
-  const evaluator = (strictValues: boolean) => new EvaluateCloudFormationTemplate({
-    template: {},
-    stackName: 'test-stack',
-    parameters: {},
-    account: '0123456789',
-    region: 'ap-south-east-2',
-    partition: 'aws',
-    sdk,
-    stackArtifact: {} as any,
-    strictValues,
+describe('intrinsic functions', () => {
+  const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({});
+
+  test('Fn::Select out of range is an evaluation failure', async () => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [2, ['a', 'b']] }))
+      .rejects.toThrow('Fn::Select: index 2 is out of range for a list of 2');
   });
 
-  test('Fn::Select out of range is an evaluation failure with strictValues, and undefined without', async () => {
-    const expr = { 'Fn::Select': [2, ['a', 'b']] };
-    expect(await evaluator(false).evaluateCfnExpression(expr)).toBeUndefined();
-    await expect(evaluator(true).evaluateCfnExpression(expr)).rejects.toThrow('Fn::Select: index 2 is out of range for a list of 2');
-  });
-
-  test('Fn::Sub ${!Literal} is the literal text with strictValues, and a reference without', async () => {
-    const expr = { 'Fn::Sub': 'a-${!Literal}-b' };
-    expect(await evaluator(true).evaluateCfnExpression(expr)).toEqual('a-${Literal}-b');
-    await expect(evaluator(false).evaluateCfnExpression(expr)).rejects.toThrow(CfnEvaluationException);
+  test('Fn::Sub ${!Literal} is the literal text ${Literal}', async () => {
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'a-${!Literal}-b' })).toEqual('a-${Literal}-b');
   });
 });
 
@@ -687,7 +670,7 @@ describe('attribute values', () => {
     mockCloudControlClient.on(GetResourceCommand).resolves({ ResourceDescription: { Properties: JSON.stringify({ TopicName: null }) } });
   });
 
-  test.each([false, true])('a null attribute is not a value (strictValues: %s)', async (strictValues) => {
+  test('a null attribute is not a value', async () => {
     const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
       template: { Resources: { Topic: { Type: 'AWS::SNS::Topic' } } },
       stackName: 'test-stack',
@@ -697,7 +680,6 @@ describe('attribute values', () => {
       partition: 'aws',
       sdk,
       stackArtifact: {} as any,
-      strictValues,
     });
 
     await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }))
