@@ -3,8 +3,7 @@ import '../../../lib/assertions';
 
 /**
  * The template text changes but the deployed value does not, so CloudFormation leaves it out of the
- * change set either way. The recovery for changes CloudFormation leaves out
- * (https://github.com/aws/aws-cdk-cli/issues/2036) must not show it.
+ * change set.
  */
 integTest(
   'cdk diff --method=change-set does not show JSON rewritten to the same value',
