@@ -59,8 +59,7 @@ export async function evaluateStackBestEffort(props: EvaluateStackProps): Promis
       // pseudo parameters the evaluator does not provide itself
       parameters: { ...parameters, 'AWS::StackName': stackName, 'AWS::StackId': stackId },
       nestedStacks,
-      // CloudFormation semantics: empty strings are values; unavailable parameters never fall back to their Default
-      strictValues: true,
+      // unavailable parameters never fall back to their Default
       unavailableParameters: Object.keys(unavailableParameters),
     });
     const evaluation = await evaluateTemplateBestEffort(evaluator, template, { unavailableParameters });
