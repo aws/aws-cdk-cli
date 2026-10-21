@@ -440,7 +440,7 @@ describe('approval question with --method=execute-change-set', () => {
       });
       return undefined as any;
     });
-    ioHost.autoRespond = true;
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
     try {
       await toolkit.deploy({
         selector: selectWithUpstream('Test-Stack-A-Display-Name'),
@@ -448,7 +448,6 @@ describe('approval question with --method=execute-change-set', () => {
         requireApproval: RequireApproval.ANYCHANGE,
       });
     } finally {
-      ioHost.autoRespond = false;
       toolkitDeploySpy.mockRestore();
     }
     return stripAnsi(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')!.message);
