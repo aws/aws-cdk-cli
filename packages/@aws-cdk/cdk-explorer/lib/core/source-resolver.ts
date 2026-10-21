@@ -18,13 +18,6 @@ export class SourceMapResolver {
   private readonly cache = new Map<string, TraceMap | undefined>();
   private readonly collectedWarnings: string[] = [];
 
-  /**
-   * @param projectRoot - Absolute path to the project the assembly belongs to.
-   *   Every file this resolver reads or returns must stay within it. The paths
-   *   driving those reads come from the cloud assembly (stack-trace frames and
-   *   the source maps they point at), which are attacker-influenceable if
-   *   cdk.out is tampered with, so anything escaping the root is dropped
-   */
   constructor(private readonly index: AssemblyIndexWithSourceLocations) {
   }
 
