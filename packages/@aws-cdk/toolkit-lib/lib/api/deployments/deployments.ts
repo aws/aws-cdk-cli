@@ -596,8 +596,9 @@ export class Deployments {
           break;
 
         case RollbackChoice.CONTINUE_UPDATE_ROLLBACK:
-          // With `ForceRollback` CloudFormation picks the resources to skip.
-          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}`);
+          // Only list orphaned resources up front if they have been explicitly passed to us
+          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${
+            resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : ''}`);
           await cfn.continueUpdateRollback({
             StackName: stackArn,
             ClientRequestToken: randomUUID(),
