@@ -148,18 +148,6 @@ export interface EvaluateCloudFormationTemplateProps {
   readonly stackResourcesByStackName?: Map<string, ListStackResources>;
 
   /**
-   * Evaluate values the way CloudFormation does
-   *
-   * - an empty string (or `0`, `false`) is a value, and only a missing or `null` value is missing
-   * - `Fn::Select` with an index out of range is an evaluation failure
-   * - `${!Literal}` in `Fn::Sub` is the literal text `${Literal}`
-   *
-   * @default false - every falsy value is treated as missing, `Fn::Select` out of range evaluates to `undefined`,
-   * and `${!Literal}` is evaluated as a reference
-   */
-  readonly strictValues?: boolean;
-
-  /**
    * Parameters whose values must not be used, e.g. NoEcho parameters, whose deployed values are masked.
    *
    * A `Ref` to one of them fails instead of falling back to the parameter's `Default`.
@@ -197,7 +185,6 @@ export class EvaluateCloudFormationTemplate {
   private cachedUrlSuffix: string | undefined;
   private _cloudControl: ICloudControlClient | undefined;
   private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
-  private readonly strictValues: boolean;
   private readonly unavailableParameters: Set<string>;
   private readonly lookups: SharedLookups | undefined;
 
@@ -234,14 +221,13 @@ export class EvaluateCloudFormationTemplate {
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
 
-    this.strictValues = props.strictValues ?? false;
     this.unavailableParameters = new Set(props.unavailableParameters ?? []);
     this.lookups = props.lookups;
   }
 
-  /** Whether a looked-up value counts as found */
+  /** Whether a looked-up value counts as found: like CloudFormation, an empty string (or `0`, `false`) is a value */
   private isValue<T>(value: T | undefined | null): value is T {
-    return this.strictValues ? value !== undefined && value !== null : !!value;
+    return value !== undefined && value !== null;
   }
 
   private get cloudControl(): ICloudControlClient {
@@ -270,7 +256,6 @@ export class EvaluateCloudFormationTemplate {
       nestedStacks: this.nestedStacks,
       stackResourcesByStackName: this.stackResourcesByStackName,
       // the parent's unavailable parameters can't reach the nested stack: evaluating its parameters above fails first
-      strictValues: this.strictValues,
       lookups: this.lookups,
     });
   }
@@ -353,7 +338,7 @@ export class EvaluateCloudFormationTemplate {
       async 'Fn::Select'(index: number, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
         assertEvaluatesToArray('Fn::Select', evaluatedArgs);
-        if (self.strictValues && !(index >= 0 && index < evaluatedArgs.length)) {
+        if (!(index >= 0 && index < evaluatedArgs.length)) {
           throw new CfnEvaluationException(`Fn::Select: index ${index} is out of range for a list of ${evaluatedArgs.length}`);
         }
         return evaluatedArgs[index];
@@ -384,7 +369,7 @@ export class EvaluateCloudFormationTemplate {
         const placeholders = explicitPlaceholders ? await self.evaluateCfnExpression(explicitPlaceholders) : {};
 
         return asyncGlobalReplace(template, /\${([^}]*)}/g, (key) => {
-          if (self.strictValues && key.startsWith('!')) {
+          if (key.startsWith('!')) {
             return `\${${key.slice(1)}}`; // ${!Literal} is the literal text ${Literal}
           }
           if (key in placeholders) {
