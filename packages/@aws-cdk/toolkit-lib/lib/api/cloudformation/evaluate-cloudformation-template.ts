@@ -148,12 +148,14 @@ export interface EvaluateCloudFormationTemplateProps {
   readonly stackResourcesByStackName?: Map<string, ListStackResources>;
 
   /**
-   * Treat values the way CloudFormation does: an empty string (or `0`, `false`) is a value,
-   * and only a missing or `null` value is missing.
+   * Evaluate values the way CloudFormation does
    *
-   * Hotswap leaves this off, and treats every falsy value as missing.
+   * - an empty string (or `0`, `false`) is a value, and only a missing or `null` value is missing
+   * - `Fn::Select` with an index out of range is an evaluation failure
+   * - `${!Literal}` in `Fn::Sub` is the literal text `${Literal}`
    *
-   * @default false
+   * @default false - every falsy value is treated as missing, `Fn::Select` out of range evaluates to `undefined`,
+   * and `${!Literal}` is evaluated as a reference
    */
   readonly strictValues?: boolean;
 
@@ -170,8 +172,6 @@ export interface EvaluateCloudFormationTemplateProps {
    * Read resources and nested stack outputs through these shared lookups: each resource is read once and the
    * number of lookups in flight is limited across evaluators, and the outputs of nested stacks are the values
    * CloudFormation reports for the deployed nested stack, rather than evaluated from its template.
-   *
-   * Hotswap leaves this off.
    *
    * @default - every lookup calls Cloud Control, and nested stack outputs are evaluated from their templates
    */

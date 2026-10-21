@@ -460,7 +460,7 @@ describe('parameter values', () => {
     ...extra,
   });
 
-  test('by default, an empty string deployed value falls back to the default (hotswap behaviour)', async () => {
+  test('by default, an empty string deployed value falls back to the default', async () => {
     expect(await evaluator({ Suffix: '' }).evaluateCfnExpression({ Ref: 'Suffix' })).toEqual('default-suffix');
   });
 
@@ -494,13 +494,13 @@ describe('strictValues', () => {
     strictValues,
   });
 
-  test('Fn::Select out of range is an evaluation failure with strictValues, and undefined without (hotswap behaviour)', async () => {
+  test('Fn::Select out of range is an evaluation failure with strictValues, and undefined without', async () => {
     const expr = { 'Fn::Select': [2, ['a', 'b']] };
     expect(await evaluator(false).evaluateCfnExpression(expr)).toBeUndefined();
     await expect(evaluator(true).evaluateCfnExpression(expr)).rejects.toThrow('Fn::Select: index 2 is out of range for a list of 2');
   });
 
-  test('Fn::Sub ${!Literal} is the literal text with strictValues, and a reference without (hotswap behaviour)', async () => {
+  test('Fn::Sub ${!Literal} is the literal text with strictValues, and a reference without', async () => {
     const expr = { 'Fn::Sub': 'a-${!Literal}-b' };
     expect(await evaluator(true).evaluateCfnExpression(expr)).toEqual('a-${Literal}-b');
     await expect(evaluator(false).evaluateCfnExpression(expr)).rejects.toThrow(CfnEvaluationException);
@@ -731,7 +731,6 @@ describe('failed Cloud Control lookups', () => {
   });
 
   test('turn any other error while building the Cloud Control identifier into an evaluation failure', async () => {
-    // hotswap relies on this: a CfnEvaluationException makes the change non-hotswappable, anything else fails the deployment
     mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
       StackResourceSummaries: [{
         LogicalResourceId: 'User',
