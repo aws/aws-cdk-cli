@@ -31,6 +31,8 @@ if (!stackPrefix) {
  * Described with IncludePropertyValues, CloudFormation leaves `add-key`, `add-key-with-token` and
  * `reorder-keys` out of the change set, without a warning, or with one when the change is the task
  * definition replacement (https://github.com/aws/aws-cdk-cli/issues/2036).
+ * The tests that rely on this only exercise the recovery while CloudFormation keeps leaving these
+ * changes out; the toolkit-lib and cloudformation-diff unit tests are the lasting coverage.
  *
  * DESCRIPTION sets the description of the SSM parameter in `<prefix>-json-intrinsic` (default "d1").
  * This allows a test to change a separate property of the Parameter, and ensure that change is kept.

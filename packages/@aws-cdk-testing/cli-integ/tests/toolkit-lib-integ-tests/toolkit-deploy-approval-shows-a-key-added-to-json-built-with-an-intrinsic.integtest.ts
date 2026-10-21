@@ -3,21 +3,6 @@ import * as toolkit from '@aws-cdk/toolkit-lib';
 import { approvalRecordingIoHost, assemblyFromCdkAppDir, hasParameterValueChange, toolkitFromFixture } from './toolkit-helpers';
 import { integTest, withSpecificFixture } from '../../lib';
 
-/**
- * A key is added to JSON built with an intrinsic in an SSM parameter, and the deploy approval is declined.
- *
- * - Start: `{"stack":"<stack name>","a":"1"}`
- * - End: `{"stack":"<stack name>","a":"1","b":"2"}`
- * - Command: `toolkit.deploy(cx, { deploymentMethod: { method: 'change-set' } })`
- * - Expected: the diff in the approval request (`CDK_TOOLKIT_I5060` `templateDiffs`) has the parameter's `Value`
- *
- * Described with IncludePropertyValues, CloudFormation leaves this change out of the change set,
- * without a warning (https://github.com/aws/aws-cdk-cli/issues/2036). Tools that embed toolkit-lib get
- * the diff as data, so this checks the data rather than printed text.
- *
- * If CloudFormation stops leaving the change out, this test still passes; the unit tests are the
- * lasting coverage.
- */
 integTest(
   'toolkit deploy approval shows a key added to JSON built with an intrinsic',
   withSpecificFixture('json-intrinsic-app', async (fixture) => {
