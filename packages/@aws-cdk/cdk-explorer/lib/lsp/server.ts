@@ -253,15 +253,21 @@ export function createLspHandlers(options: LspHandlerOptions): LspHandlers {
       try {
         do {
           synthLatch = 'synthing' as SynthLatch;
+
+          // Get the current listeners and notify them once we are done, successfully
+          // or otherwise.
           const currentListeners = synthListeners.splice(0, synthListeners.length);
-          const result = await runSynth({
-            toolkit: options.toolkit,
-            projectDir: currentProjectDir(),
-            abort: shutdown.signal,
-          });
-          publishSynthDiagnostics(result);
-          for (const listener of currentListeners) {
-            listener();
+          try {
+            const result = await runSynth({
+              toolkit: options.toolkit,
+              projectDir: currentProjectDir(),
+              abort: shutdown.signal,
+            });
+            publishSynthDiagnostics(result);
+          } finally {
+            for (const listener of currentListeners) {
+              listener();
+            }
           }
 
           // If another synth was queued while we were running, the loop will go around again.

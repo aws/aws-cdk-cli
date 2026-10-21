@@ -46,6 +46,8 @@ export async function webAssemblyDataFromAssembly(projectRoot: string, readableA
   index.setSourceResolver({ resolve: (loc) => map.reverseMapJs(loc) });
   index.indexAssembly();
 
+  warnings.push(...map.warnings);
+
   return {
     index,
     violations,

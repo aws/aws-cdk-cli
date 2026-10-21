@@ -37,7 +37,7 @@ export class SourceMapResolver {
    * Load and cache source map for a given .js file.
    */
   public async loadSourceMapFor(...jsFiles: RelativePath[]): Promise<void> {
-    const limit = pLimit(20); // Limit concurrent source map loads to 10
+    const limit = pLimit(20);
 
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     await Promise.all(
