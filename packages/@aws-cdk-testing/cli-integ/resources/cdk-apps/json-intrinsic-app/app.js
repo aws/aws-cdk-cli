@@ -11,9 +11,11 @@ if (!stackPrefix) {
  * Holds JSON built with an intrinsic (an Fn::Join, from Stack.toJsonString) in three places:
  *
  * - `<prefix>-json-intrinsic`: an SSM string parameter
- * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition. Any
- *   change to it replaces the task definition.
  * - `<prefix>-json-intrinsic-nested`: an SSM string parameter in a nested stack
+ * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition.
+ *   Changing a parameter's value updates it in place, but any change to a task definition replaces it.
+ *   This stack is for a dropped change that is a replacement, which `--require-approval=destructive`
+ *   and `--no-rollback` act on.
  *
  * Each test deploys the JSON as it is without JSON_CHANGE, then sets JSON_CHANGE to change it:
  *
