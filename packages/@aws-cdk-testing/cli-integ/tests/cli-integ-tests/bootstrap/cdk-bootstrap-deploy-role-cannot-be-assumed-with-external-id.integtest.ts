@@ -20,6 +20,9 @@ integTest('deploy role cannot be assumed with external id', withoutBootstrap(asy
       ExternalId: 'some-external-id',
     })),
   ).rejects.toThrow();
+}, {
+  // Only bootstraps and assumes the deploy role via STS; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 
 integTest('deploy role can be assumed with ExternalId if protection is switched off', withoutBootstrap(async (fixture) => {
@@ -42,4 +45,7 @@ integTest('deploy role can be assumed with ExternalId if protection is switched 
       ExternalId: 'some-external-id',
     })),
   ).resolves.toBeTruthy();
+}, {
+  // Only bootstraps and assumes the deploy role via STS; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));

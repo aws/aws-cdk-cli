@@ -18,5 +18,8 @@ integTest('switch on termination protection, switch is left alone on re-bootstra
 
   const response = await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: bootstrapStackName }));
   expect(response.Stacks?.[0].EnableTerminationProtection).toEqual(true);
+}, {
+  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 

@@ -71,5 +71,8 @@ integTest('can remove customPermissionsBoundary', withoutBootstrap(async (fixtur
       await fixture.aws.iam.send(new DeletePolicyCommand({ PolicyArn: policyArn }));
     }
   }
+}, {
+  // Only bootstraps and inspects the stack/roles; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 

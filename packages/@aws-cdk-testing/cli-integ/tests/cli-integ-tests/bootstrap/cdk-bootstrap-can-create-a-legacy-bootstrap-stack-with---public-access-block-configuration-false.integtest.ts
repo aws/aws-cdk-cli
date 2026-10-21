@@ -15,5 +15,8 @@ integTest('can create a legacy bootstrap stack with --public-access-block-config
   expect(response.Stacks?.[0].Tags).toEqual([
     { Key: 'Foo', Value: 'Bar' },
   ]);
+}, {
+  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 

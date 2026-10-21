@@ -22,5 +22,8 @@ integTest('can add tags then update tags during re-bootstrap', withoutBootstrap(
   expect(response.Stacks?.[0].Tags).toEqual([
     { Key: 'Foo', Value: 'BarBaz' },
   ]);
+}, {
+  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 

@@ -9,5 +9,8 @@ integTest('can use the custom permissions boundary (with slashes) to bootstrap',
   });
 
   expect(template).toContain('permission-boundary-name/with/path');
+}, {
+  // Only renders the bootstrap template; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 

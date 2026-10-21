@@ -26,5 +26,8 @@ integTest('can dump the template, modify and use it to deploy a custom bootstrap
     template: filename,
     cfnExecutionPolicy: 'arn:aws:iam::aws:policy/AdministratorAccess',
   });
+}, {
+  // Only bootstraps and inspects/edits the bootstrap template; never synthesizes or deploys an app.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 
