@@ -103,6 +103,17 @@ Conditions:
     Fn::Equals:
       - 'AWS_MANAGED_KEY'
       - Ref: FileAssetsBucketKmsKeyId
+  # FileAssetsBucketKmsKeyId may be either a bare key ID or a full key ARN (see the
+  # parameter description). Detect the ARN form by checking whether the first ':'-delimited
+  # token is 'arn', so we don't wrap an ARN inside another 'arn:...:key/...' construction.
+  HasCustomKmsKeyArn:
+    Fn::Equals:
+      - 'arn'
+      - Fn::Select:
+          - 0
+          - Fn::Split:
+              - ':'
+              - Ref: FileAssetsBucketKmsKeyId
   ShouldCreatePermissionsBoundary:
     Fn::Equals:
       - 'true'
@@ -539,7 +550,10 @@ Resources:
               Fn::If:
                 - CreateNewKey
                 - Fn::Sub: "${FileAssetsBucketEncryptionKey.Arn}"
-                - Fn::Sub: arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${FileAssetsBucketKmsKeyId}
+                - Fn::If:
+                    - HasCustomKmsKeyArn
+                    - Fn::Sub: "${FileAssetsBucketKmsKeyId}"
+                    - Fn::Sub: arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${FileAssetsBucketKmsKeyId}
         Version: '2012-10-17'
       Roles:
         - Ref: FilePublishingRole
