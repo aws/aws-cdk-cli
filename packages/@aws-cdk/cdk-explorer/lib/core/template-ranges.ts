@@ -1,4 +1,4 @@
-import { findNodeAtLocation, parseTree, type Node, type ParseError } from 'jsonc-parser';
+import { findNodeAtLocation, parseTree, type Node } from './json-source-parser';
 
 /**
  * A character-offset range into a template's text, as a half-open interval
@@ -50,7 +50,9 @@ export interface TemplateRanges {
  * (`undefined`), rather than a wrong range.
  */
 export function indexTemplateRanges(templateText: string): TemplateRanges {
-  const root = parseTemplate(templateText);
+  // All-or-nothing: an unparseable template yields no ranges rather than wrong
+  // ones. Synthesized templates are always strict JSON.
+  const root = parseTree(templateText);
   const index = root === undefined ? undefined : buildIndex(root);
 
   return {
@@ -121,19 +123,6 @@ function buildIndex(root: Node): Record<string, ResourceRanges> {
   return index;
 }
 
-/**
- * Parse the template into its syntax tree, or `undefined` if it is not valid
- * JSON. jsonc-parser is a recovering parser, so we reject anything that reported
- * an error: a malformed template must yield no range rather than a wrong one.
- * Synthesized templates are always strict JSON, hence no comments or trailing
- * commas either.
- */
-function parseTemplate(templateText: string): Node | undefined {
-  const errors: ParseError[] = [];
-  const root = parseTree(templateText, errors, { disallowComments: true, allowTrailingComma: false });
-  return errors.length > 0 ? undefined : root;
-}
-
 function nodeRange(node: Node): OffsetRange {
   return { start: node.offset, end: node.offset + node.length };
 }
@@ -148,8 +137,7 @@ function members(node: Node | undefined): Array<[string, Node]> {
   }
   return (node.children ?? []).flatMap((property): Array<[string, Node]> => {
     const [key, value] = property.children ?? [];
-    // A `property` node always has both, except mid-edit in a recovering parse
-    // (which we already rejected), so this narrows the type.
+    // A `property` node always has both; this narrows the type.
     return key === undefined || value === undefined ? [] : [[key.value as string, value]];
   });
 }

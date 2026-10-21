@@ -131,10 +131,6 @@
       "type": "runtime"
     },
     {
-      "name": "jsonc-parser",
-      "type": "runtime"
-    },
-    {
       "name": "p-limit",
       "version": "^3",
       "type": "runtime"

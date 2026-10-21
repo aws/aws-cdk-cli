@@ -75,9 +75,8 @@ describe('resolveResourceRange', () => {
   });
 
   test('returns undefined for invalid JSON (for example a trailing comma)', () => {
-    // jsonc-parser recovers from syntax errors, but we reject any template it
-    // reported an error for, so a malformed template yields no range rather than
-    // a wrong one. Synthesized templates are always strict JSON.
+    // A malformed template yields no range rather than a wrong one. Synthesized
+    // templates are always strict JSON, so nothing is lost by being strict here.
     const invalid = '{\n "Resources": {\n  "B": {\n   "Type": "AWS::S3::Bucket",\n  }\n }\n}';
     expect(resolveResourceRange(invalid, 'B')).toBeUndefined();
   });
